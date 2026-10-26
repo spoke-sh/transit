@@ -52,7 +52,8 @@ pub fn build(b: *std.Build) !void {
     }) });
     b.installArtifact(contract);
     b.step("logical-contract", "Reflect recursive logical JSON schemas").dependOn(&b.addRunArtifact(contract).step);
-    const own_tests = b.addTest(.{ .root_module = module });
+    const filters = b.option([]const []const u8, "test-filter", "Run Fuze tests whose names contain a filter") orelse &.{};
+    const own_tests = b.addTest(.{ .root_module = module, .filters = filters });
     const compute_tests = b.addTest(.{ .root_module = compute });
     const compute_run = b.addRunArtifact(compute_tests);
     tests.dependOn(&b.addRunArtifact(own_tests).step);

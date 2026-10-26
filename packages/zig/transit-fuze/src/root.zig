@@ -53,6 +53,7 @@ pub const Collation = @import("Collation.zig");
 pub const PhysicalCodecs = @import("PhysicalCodecs.zig");
 pub const TDel = @import("TDel.zig");
 pub const TSeg = @import("TSeg.zig");
+pub const TSegReader = @import("TSegReader.zig");
 test {
     _ = Batch;
     _ = BatchExecution;
@@ -78,6 +79,7 @@ test {
     _ = TDel;
     _ = TSeg;
     _ = @import("tseg_test.zig");
+    _ = @import("tseg_reader_test.zig");
     _ = @import("column_codec_test.zig");
     _ = @import("table_dml_codec_test.zig");
     _ = @import("logical_plan_codec_test.zig");

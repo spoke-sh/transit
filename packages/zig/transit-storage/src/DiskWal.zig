@@ -20,8 +20,13 @@ const State = struct {
     next: u64 = 0,
     segment: u64 = 0,
     offset: u64 = 0,
+    /// Derived verified frame coordinates; never persisted or authoritative.
+    latest: ?Cursor = null,
+    read_start: ?Cursor = null,
+    read_next: ?Cursor = null,
 };
 const Segment = struct { first: u64, bytes: u64 };
+const Cursor = struct { lsn: u64, segment: u64, offset: u64 };
 
 allocator: std.mem.Allocator,
 io: std.Io,
@@ -34,6 +39,9 @@ poisoned: bool = false,
 syncs: u64 = 0,
 recovered_frames: u64 = 0,
 truncated_tail_bytes: u64 = 0,
+read_frames: u64 = 0,
+read_bytes: u64 = 0,
+directory_scans: u64 = 0,
 
 fn definition() [32]u8 {
     var bytes: [32]u8 = undefined;
@@ -185,6 +193,7 @@ fn metadata(self: *Self, id: u64) !?State {
 /// Ordered directory selection uses constant resident memory, including after
 /// cache eviction. The filename identifies the first LSN, not an array offset.
 fn nextSegment(self: *Self, id: u64, after: ?u64) !?Segment {
+    self.directory_scans +|= 1;
     var found: ?Segment = null;
     var it = self.dir.iterate();
     while (try it.next(self.io)) |entry| {
@@ -196,6 +205,26 @@ fn nextSegment(self: *Self, id: u64, after: ?u64) !?Segment {
         found = .{ .first = parsed.first, .bytes = try file.length(self.io) };
     }
     return found;
+}
+
+/// Locate the newest segment that can contain a requested LSN in one bounded
+/// directory pass. Full continuity/integrity validation still belongs to recover.
+fn segmentAt(self: *Self, id: u64, lsn: u64) !?Segment {
+    self.directory_scans +|= 1;
+    var first: ?u64 = null;
+    var it = self.dir.iterate();
+    while (try it.next(self.io)) |entry| {
+        const parsed = parseSegment(entry.name) orelse continue;
+        if (parsed.partition == id and parsed.first <= lsn and (first == null or parsed.first > first.?)) first = parsed.first;
+    }
+    return if (first) |value| try self.segmentInfo(id, value) else null;
+}
+
+fn segmentInfo(self: *Self, id: u64, first: u64) !Segment {
+    var name: [96]u8 = undefined;
+    const file = try self.dir.openFile(self.io, segmentName(id, first, &name), .{ .follow_symlinks = false });
+    defer file.close(self.io);
+    return .{ .first = first, .bytes = try file.length(self.io) };
 }
 
 /// Read one frame without allocating from an unchecked header length.
@@ -243,6 +272,7 @@ fn recover(self: *Self, state: *State) !void {
             defer self.allocator.free(bytes);
             const decoded = try log.decodeFrame(bytes);
             if (decoded.frame.header.partition_id != state.partition or decoded.frame.header.lsn != expected.?) return error.CorruptWalFrame;
+            state.latest = .{ .lsn = expected.?, .segment = segment.first, .offset = offset };
             expected = std.math.add(u64, expected.?, 1) catch return error.WalLsnExhausted;
             state.writer = @max(state.writer, decoded.frame.header.writer_epoch);
             state.policy = @max(state.policy, decoded.frame.header.policy_epoch);
@@ -330,12 +360,14 @@ pub fn append(self: *Self, id: u64, expected_lsn: ?u64, writer: u64, policy: u64
     // including the last segment. Complete unacknowledged frames may also be
     // recovered; callers must reconcile their original operation identity.
     try self.save(next);
+    next.latest = .{ .lsn = state.next, .segment = next.segment, .offset = next.offset - bytes.len };
     state.* = next;
     return .{ .partition_id = id, .lsn = successor - 1, .next_lsn = successor, .writer_epoch = writer, .policy_epoch = policy, .frame_bytes = bytes.len };
 }
 
 pub fn read(self: *Self, allocator: std.mem.Allocator, id: u64, from: u64, requested: usize) !log.Log.OwnedBatch {
-    const state = (try self.load(id)).*;
+    const cached = try self.load(id);
+    const state = cached.*;
     if (from < state.floor) return error.WalHistoryTrimmed;
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
@@ -343,32 +375,41 @@ pub fn read(self: *Self, allocator: std.mem.Allocator, id: u64, from: u64, reque
     if (from >= state.next or requested == 0) return .{ .arena = arena, .frames = &.{} };
     const count = @min(requested, self.options.batch_frames);
     var used: usize = 0;
-    var previous: ?u64 = null;
     var expected = from;
-    while (try self.nextSegment(id, previous)) |segment| {
-        const following = try self.nextSegment(id, segment.first);
-        previous = segment.first;
-        if (following != null and following.?.first <= from) continue;
+    var hint: ?Cursor = null;
+    for ([_]?Cursor{ state.latest, state.read_start, state.read_next }) |candidate| if (candidate) |cursor| {
+        if (cursor.lsn >= state.floor and cursor.lsn <= from and (hint == null or cursor.lsn > hint.?.lsn)) hint = cursor;
+    };
+    var current = if (hint) |cursor| try self.segmentInfo(id, cursor.segment) else try self.segmentAt(id, from);
+    var offset: u64 = if (hint) |cursor| cursor.offset else 0;
+    while (current) |segment| {
         var name: [96]u8 = undefined;
         const file = try self.dir.openFile(self.io, segmentName(id, segment.first, &name), .{ .follow_symlinks = false });
         defer file.close(self.io);
-        var offset: u64 = 0;
+        if (offset > segment.bytes) return error.WalHistoryMissing;
         while (offset < segment.bytes) {
+            const frame_offset = offset;
             const bytes = try self.frame(file, offset, self.allocator);
             defer self.allocator.free(bytes);
+            self.read_frames +|= 1;
+            self.read_bytes +|= bytes.len;
             offset += bytes.len;
             const decoded = try log.decodeFrame(bytes);
             if (decoded.frame.header.partition_id != id) return error.CorruptWalFrame;
             if (decoded.frame.header.lsn < from) continue;
             if (decoded.frame.header.lsn != expected) return error.WalHistoryMissing;
-            if (frames.items.len == count or bytes.len > self.options.batch_bytes - used) return .{ .arena = arena, .frames = frames.items };
+            if (bytes.len > self.options.batch_bytes - used) return .{ .arena = arena, .frames = frames.items };
             var item = decoded.frame;
             item.payload = try arena.allocator().dupe(u8, item.payload);
             try frames.append(arena.allocator(), item);
+            if (frames.items.len == 1) cached.read_start = .{ .lsn = from, .segment = segment.first, .offset = frame_offset };
             used += bytes.len;
             expected += 1;
-            if (expected == state.next) return .{ .arena = arena, .frames = frames.items };
+            cached.read_next = .{ .lsn = expected, .segment = segment.first, .offset = offset };
+            if (expected == state.next or frames.items.len == count) return .{ .arena = arena, .frames = frames.items };
         }
+        current = try self.nextSegment(id, segment.first);
+        offset = 0;
     }
     return error.WalHistoryMissing;
 }
@@ -393,6 +434,9 @@ pub fn trim(self: *Self, id: u64, before: u64) !void {
     if (before <= state.floor) return;
     var next = state.*;
     next.floor = before;
+    next.latest = null;
+    next.read_start = null;
+    next.read_next = null;
     try self.save(next);
     state.* = next;
     errdefer self.poisoned = true;

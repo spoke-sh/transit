@@ -9628,8 +9628,8 @@
         "DuplicateRowIdentity": 1,
         "IncompatibleDefinition": 1,
         "IncompatibleDeletionVector": 1,
-        "InvalidSegment": 8,
-        "InvalidSegmentCoordinate": 1,
+        "InvalidSegment": 23,
+        "InvalidSegmentCoordinate": 2,
         "InvalidSegmentOptions": 1,
         "TableHasPrimaryKey": 1,
         "TableSchemaChanged": 1
@@ -9645,18 +9645,21 @@
       },
       "error_sets": {},
       "error_returns": {
+        "decodeColumnRange()": "<inferred>",
         "decodeRowGroupColumn()": "<inferred>",
+        "footerLocation()": "<inferred>",
         "lookupIdentity()": "<inferred>",
         "lookupPrimaryKey()": "<inferred>",
         "lookupStorageKey()": "<inferred>",
         "padTo64()": "<inferred>",
         "readFooter()": "<inferred>",
+        "readFooterParts()": "<inferred>",
         "requireInterpretation()": "<inferred>",
         "writeSegment()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 121,
+        "try": 124,
         "catch": 2
       },
       "imports": [
@@ -9669,6 +9672,35 @@
         "Values.zig",
         "std",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-fuze/src/TSegReader.zig": {
+      "errors": {
+        "InvalidSegment": 1,
+        "InvalidSegmentCoordinate": 2,
+        "SegmentReadBudgetExceeded": 4,
+        "TableSchemaChanged": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Source.read()": "anyerror",
+        "Workspace.failure()": "anyerror",
+        "Workspace.init()": "<inferred>",
+        "column()": "<inferred>",
+        "group()": "<inferred>",
+        "open()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 12,
+        "catch": 2
+      },
+      "imports": [
+        "TSeg.zig",
+        "TableSchema.zig",
+        "Values.zig",
+        "std"
       ]
     },
     "packages/zig/transit-fuze/src/TableDdl.zig": {
@@ -11062,6 +11094,7 @@
         "SqlTypes.zig",
         "TDel.zig",
         "TSeg.zig",
+        "TSegReader.zig",
         "TableDdl.zig",
         "TableDml.zig",
         "TableDmlCodec.zig",
@@ -24572,7 +24605,7 @@
         "StaleWriterEpoch": 1,
         "TruncatedWalFrame": 2,
         "WalEpochRegression": 1,
-        "WalHistoryMissing": 6,
+        "WalHistoryMissing": 7,
         "WalHistoryTrimmed": 1,
         "WalInUse": 1,
         "WalLsnConflict": 1,
@@ -24596,6 +24629,8 @@
         "read()": "<inferred>",
         "recover()": "<inferred>",
         "save()": "<inferred>",
+        "segmentAt()": "<inferred>",
+        "segmentInfo()": "<inferred>",
         "syncDir()": "<inferred>",
         "syncDirectory()": "<inferred>",
         "tail()": "<inferred>",
@@ -24604,7 +24639,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 72,
+        "try": 77,
         "catch": 13
       },
       "imports": [
@@ -24975,7 +25010,7 @@
         "InvalidTableOperation": 16,
         "InvalidTableReadBudget": 2,
         "InvalidTableReceipt": 2,
-        "InvalidTableRowReference": 16,
+        "InvalidTableRowReference": 17,
         "InvalidTableSegment": 2,
         "InvalidTableSnapshotCursor": 3,
         "InvalidTableStatementIntent": 1,
@@ -25029,6 +25064,8 @@
         "Guard.acquire()": "anyerror",
         "HistoryPoint.cursorSource()": "<inferred>",
         "ReadLimits.validate()": "<inferred>",
+        "SegmentSource.read()": "<inferred>",
+        "SegmentSource.verify()": "<inferred>",
         "StatementBudget.visit()": "<inferred>",
         "admit()": "<inferred>",
         "apply()": "<inferred>",
@@ -25066,7 +25103,6 @@
         "readCurrent()": "<inferred>",
         "readRow()": "<inferred>",
         "readRowWithSchema()": "<inferred>",
-        "readSegment()": "<inferred>",
         "readSnapshot()": "<inferred>",
         "ready()": "<inferred>",
         "recover()": "<inferred>",
@@ -25095,7 +25131,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 409,
+        "try": 408,
         "catch": 4
       },
       "imports": [

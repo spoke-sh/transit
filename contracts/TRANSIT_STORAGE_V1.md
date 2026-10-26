@@ -171,6 +171,28 @@ row indexes across restart. Snapshot retirement does not claim physical deletion
 Its tests do not qualify catalog name publication, installed SQL, distributed transactions or
 a collector racing with snapshots.
 
+## Segment range reader
+
+`TSegReader` consumes the existing TSEG bytes without changing their definition.
+The 64-byte header and 16-byte trailer must agree on the aligned footer range;
+version, dimensions, identities and layout prefix agree with the checked footer.
+Footer counts must fit their minimum encoded footprint before allocation.
+Row groups cover the complete row count contiguously; page ranges are aligned,
+ordered, non-overlapping and precede the footer. Primary-key entries have strictly
+increasing sort keys and exact group/local/global row coordinates. Zone-map state
+counts sum to the group size. The footer remains a complete sorted array.
+
+The host binds one immutable object length/digest and supplies verified ranges.
+Opening reads only header, trailer and footer. Each selected column page is
+checked against its footer digest before decoding. Encoded page scratch and owned
+decoded values have separate lifetimes; freeing scratch, closing the reader or
+evicting its source does not invalidate returned values. Projection skips omitted
+payload ranges. A caller-specified footer/page allowance bounds encoded buffers;
+the owned group additionally bounds real decoder arena allocations. Corruption,
+incompatible interpretation, transport failure or exhausted budget fails the read
+without establishing an empty or complete query result. The reader acquires no
+source pin or permission, and the service must recheck rights before disclosure.
+
 ## Local WAL persistence
 
 `LocalWal.openDisk` holds an exclusive POSIX file lock for its directory. A second
@@ -226,6 +248,23 @@ configured roll target, up to the 4 MiB payload bound. `openDiskWithOptions`
 configures these operation bounds; the result page also owns bounded frame
 descriptors. Ordered directory traversal uses constant resident memory but may
 scan the directory repeatedly. No throughput claim follows from these bounds.
+
+Within each cached partition, three volatile frame coordinates retain the latest
+accepted frame and the start/continuation of the last read. They contain no
+payload or authority. Sequential bounded pages resume at a verified offset and
+stop immediately at their requested frame count; repeated latest-frame reads
+do not decode the preceding segment again. Without a usable coordinate, one
+directory pass locates the newest segment starting at or before the requested
+LSN, then bounded frames are decoded to that position. This fallback is not a
+persistent random-access index or a constant-I/O guarantee.
+
+Recovery still validates the entire required retained history. Every returned
+frame is read and integrity/identity checked again; stale/missing/corrupt bytes
+cannot be supplied from a cached payload. Trim clears seek coordinates and
+descriptor eviction discards them. No format, frontier, fence, sync or uncertain
+append semantics change. Disk-owner counters `read_frames`, `read_bytes` and
+`directory_scans` distinguish frame-read work from recovery and directory walks;
+they do not count all filesystem metadata I/O or establish physical device reads.
 
 `initMemory` supplies a separate volatile fixture limited to 64 partitions and
 64 MiB of retained encoded frames. It does not qualify disk durability.

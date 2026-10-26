@@ -21,7 +21,9 @@ collector races, policy-authorized trimming or multi-process Table commits.
   fencing.
 - `LocalWal.zig`: Exclusive POSIX log owner with incremental segmented writes,
   synced frontiers/fences/trim floors, bounded recovery, and a separate volatile
-  memory fixture. See the [persistence contract](../../../contracts/TRANSIT_STORAGE_V1.md#local-wal-persistence).
+  memory fixture. Each cached partition retains only three volatile frame
+  coordinates for latest/repeated/sequential reads; returned frames are verified
+  from disk. See the [persistence contract](../../../contracts/TRANSIT_STORAGE_V1.md#local-wal-persistence).
 - `TransitObjectStore.zig`: Pluggable immutable segment and conditional manifest
   object store interface (`putImmutable`, `putConditional` with `if_none_match` / `if_match`,
   `getRange`, `head`, `delete`).
@@ -56,6 +58,13 @@ collector races, policy-authorized trimming or multi-process Table commits.
   maintenance while preserving original no-op receipts and a fixed upper cut.
   See [Table partition ownership](docs/table-partitions.md) for caller obligations,
   budgets and the current integration boundary.
+
+The direct owner reads immutable Table data through Fuze's shared `TSegReader`.
+Point lookup selects one segment through its paged hash-key directory; footer
+and selected row-group ranges replace full-object buffering. Decoded groups have
+an explicit allocation budget and returned rows own their values. Physical
+groups default to 256 rows, independently of statement and response bounds.
+This does not add ordered primary-key range execution or SQL projection pushdown.
 
 `zig build test` includes real temporary-directory WAL tests: cache eviction,
 segmented recovery above 64 MiB, durable empty-log fencing and full trim,

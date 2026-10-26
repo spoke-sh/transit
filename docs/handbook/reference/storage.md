@@ -25,6 +25,13 @@ snapshot. Read-only current observations create no pin; conditional traversal
 rejects logical changes instead of preserving an earlier cut through them.
 Current database/schema/Table rights apply to both paths.
 
+Direct Table point reads use a paged key directory to select their WAL row or
+immutable segment. Segment reads fetch verified footer and row-group column
+ranges; the owner retains at most one footer and one bounded decoded group.
+New segments use 256-row groups by default. Output rows own their values across
+cache eviction, and current authorization still applies before disclosure.
+This physical access does not add ordered key ranges or SQL projection pushdown.
+
 The installed owner does not automatically flush point writes or expose physical
 Table garbage collection. Absence of a new `.tseg` after a point write does not
 imply that the write is missing: inspect its exact operation outcome and Table

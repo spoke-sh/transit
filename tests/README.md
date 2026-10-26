@@ -1,5 +1,66 @@
 # Validation and evidence
 
+## Bounded local WAL seek reuse — 2026-10-25
+
+`nix develop --command sh -c 'cd packages/zig/transit-storage && zig build test
+-Dtest-filter="disk WAL" --summary all'` passes 3/3 tests on `c1772a86` plus the
+seek changes (11 seconds). After real disk reopen, 256 one-frame reads of one
+segment decode exactly 256 frames and perform one segment-directory scan. Every
+payload is checked against the independent formula `17 * lsn + 3`. Five repeated
+tail reads decode exactly five frames; corrupting that cached coordinate's disk
+payload then produces `CorruptWalFrame`, never an old cached value.
+
+A second schedule covers forward/backward reads across rolling files, eviction
+through more partitions than the eight descriptor slots, partial/full trim,
+below-floor refusal and subsequent append with preserved LSN identity. The cache
+holds coordinates only. Cold random access can still scan preceding frames;
+reopen still validates all retained history. These counts establish this bounded
+local read optimization, not group commit, host-loss recovery, safe retention
+decisions or installed end-to-end latency.
+
+## Verified segment range reader — 2026-10-25
+
+The live `TablePartition` integration passes the disk-backed focused test with
+512 rows, 2 KiB text values, one resident data-index page and default 256-row
+groups. From a 1,094,026-byte segment, a cold point reads 563,420 bytes in five
+ranges (header, trailer, footer and two columns); an adjacent warm point reads
+zero additional segment bytes. Crossing groups reads two more column ranges.
+After destroying caches and recovering the owner, a complete same-root scan
+checks all 512 identities/values against their input ordinals and payload and
+reads 1,093,934 segment bytes in seven ranges. Actual live decoded arena blocks
+remain below 4 MiB for this fixture. These byte counters exclude tree/WAL I/O,
+the local provider's 64 KiB chunk-verification amplification and filesystem cache
+effects; they are not latency or whole-process memory guarantees.
+
+The test also checks owned rows after eviction/recovery, zero retained segment
+cache, and a one-byte decoder allowance refusing the read without changing the
+accepted root or original receipt. Its first run fails when the fixture tries
+to observe CREATE with a newly constructed INSERT binding; retaining the original
+CREATE binding fixes that test, without relaxing the identity check. The passing
+command is `cd packages/zig/transit-storage && zig build test
+-Dtest-filter='Table segment ranges' --summary all` inside `nix develop` (2/2
+including the package root test, 37 seconds). `just test::storage-segments`
+composes the focused Fuze and storage checks. Installed SQL, full repository
+checks and committed-source clean lanes require their separate evidence.
+
+On baseline `b720c488` plus the segment-reader changes, the pinned-shell command
+`cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg --summary all`
+passes 26 selected tests. New cases verify metadata-only opening, projection
+without unrelated page reads, independent expected text values, returned-value
+ownership after destroying the reader/source, encoded and actual decoder-arena
+budgets, transport errors, page/footer corruption, overflowed offsets, forged
+counts with valid checksums and allocation-failure cleanup. The in-memory source
+records exact requested ranges; this is not disk or installed-query evidence.
+
+The first allocation-failure enumeration reports nondeterministic allocation
+counts because the backing allocator can resize an arena block in place. The
+corrected enumeration disables backing resize and passes every allocation
+failure, retaining leak checks. The full Fuze package suite passed before the
+owned bounded-group addition; the 26-test run covers that final addition.
+The reader preserves existing TSEG bytes and the shared contract definition.
+It does not supply ordered paged keys, source retention, asynchronous reads,
+zero-copy Arrow, complete encoded operators or physical collection.
+
 ## Direct catalog growth and retained rows — 2026-10-24
 
 `just test::direct-table-service growth` passes 366 public typed calls with 139
@@ -26941,3 +27002,47 @@ and reads; killed callers and abrupt restart retain the original binding;
 resumption applies exactly once and cancellation remains terminal after restart.
 This focused result does not replace the complete clean experience rerun or
 establish that default request budgets meet an interactive latency target.
+
+## Stalled-log HTTP admission schedule — 2026-10-26
+
+Hosted experience run [40246276730](https://github.com/spoke-sh/transit/actions/runs/40246276730)
+fails `test::observability` when the malformed-request producer receives
+`503 HttpCapacity` instead of its expected 400. The unchanged rebased fixture
+passes locally, so this is not evidence of a persistent stalled logger. The HTTP
+listener can flush a response before its worker releases its bounded request
+slot; a one-CPU client immediately submitting more requests can observe that
+transient admission limit.
+
+The fixture now requires sixty completed malformed requests within five seconds,
+retrying only explicit `HttpCapacity` responses. Other responses still fail. The
+actual full unread pipe, incomplete-header deadline, signed control command and
+exact repeated receipt assertions remain. Persistent admission exhaustion still
+fails the finite fill budget. `nix develop --command just test::observability`
+passes after this fixture correction; the hosted lane must still be rerun. No
+listener limit, telemetry behavior or accepted-work retry policy changes.
+
+## Native C driver loader selection — 2026-10-26
+
+Hosted bindings run [40246276730](https://github.com/spoke-sh/transit/actions/runs/40246276730)
+fails the installed C native-image lifetime fixture with SIGSEGV. Independent
+local probes show that `zig cc` selected the host ELF interpreter while native
+Zig builds selected the Nix interpreter. A small local dynamic-library probe
+executes successfully with either loader; that observation alone does not
+reproduce or establish the cause of the hosted crash. The baseline full C SDK
+rerun was stopped during compilation after its toolchain was superseded; it is
+not a passing SDK result.
+
+The Linux wrapper now selects the pinned glibc ABI/version and matching ELF
+interpreter for native C/C++ drivers, preserving explicit caller target/loader
+settings. The first expanded offline check exposes missing native ABI detection
+inside the Nix sandbox: libc++ selects musl with glibc headers. The next attempt
+selects GNU without a version and fails against OpenSSL's newer glibc symbols.
+Explicitly matching the pinned glibc version resolves both; no dependency or
+compiler pin changes.
+
+`nix flake check` now passes on Linux x86_64, compiling and running OpenSSL
+consumers through direct Zig compilation, the build runner and both C drivers.
+It checks the exact ELF interpreter and deliberate caller overrides. Other
+platforms and the hosted C SDK rerun remain separate qualification gates. The
+intermediate full `just check` failed on the unfinished toolchain derivation;
+that run does not qualify the final correction.

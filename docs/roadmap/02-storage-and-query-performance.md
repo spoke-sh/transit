@@ -85,6 +85,37 @@ conversion, latency or complexity guarantees are not acceptance assumptions.
 
 ## Shared durable system and commit profiles
 
+### Current implementation assessment — 2026-10-25
+
+Baseline: merged tree `b720c488` (identical to implementation `4dc0d3ba`).
+Issues #109, #113–#118, #123–#128 and #76 were refreshed for this assessment.
+Their earlier source diagnoses remain historical evidence, not a description
+of this tree. The lifecycle acceptance follow-up retains ownership of its
+pending full-suite qualification; this assessment does not mark that work passed.
+
+| Criteria | Current code and recorded evidence | Remaining local delivery |
+| --- | --- | --- |
+| Acceptance and identities (#111/#112/#115/#125) | `TablePartition.apply`, `admit`, `perform` and `changeDefinition` publish immutable row/index roots and original receipts through one Table WAL. `DirectCatalog` owns names; `TableSnapshot` retains exact definitions and unflushed cuts. [Partition evidence](../../tests/README.md#table-partition-acceptance-and-retained-read-pins--2026-10-22) and [installed recovery](../../tests/README.md#installed-direct-execution-recovery--2026-10-23) cover the delivered boundary. | Preserve these guarantees through each physical change. Independent Tables remain independent cuts. Multi-Table transaction sessions belong to milestone 5. |
+| Segmented WAL (#113) | `LocalWal` rolls incremental files, persists epochs/frontiers/floors, recovers bounded frames and rejects missing acknowledged history. [Disk evidence](../../tests/README.md#data-operation-contracts-and-local-wal-persistence--2026-10-22) includes 73 partitions, more than 64 MiB and sync uncertainty. | Complete process-death and disk-full/I/O schedules, group-commit disposition and retention-owner integration. Repeated directory enumeration is bounded in memory, not indexed in I/O. |
+| Local object publication (#114) | `LocalSegmentStore` locks per key, publishes immutable payload/checksum files through a durable descriptor and verifies touched chunks. Existing independent-process races establish one winner. | Publication-boundary process-death schedules and retained-root/orphan collection remain; descriptor deletion does not reclaim payload files. |
+| Native control/process/KV/Document persistence (#126) | `transit-backend-local` persists native roots, turns, blocks and exact receipts in partition zero and immutable objects. [Native evidence](../../tests/README.md#native-authority-over-local-storage--2026-10-22) covers restart, accepted-floor trim, control reserve and signed callers. | Qualify local immutable-object collection/compaction, standalone payload ownership and all retained native roots; Table tests cannot close these criteria. |
+| Complete replay and hot state (#115/#116) | The live owner uses `TreeStore` paged point/physical/identity indexes, not `TableMemtable`. Its recovery follows all contiguous hash-linked records. The separate memtable consumes all WAL pages but retains an unbounded active row set and whole manifest. | Reconcile or retire the separate component profile; bound all remaining builders/decoders and measure cold recovery beyond cache. Do not wire the standalone component into the live path as a substitute. |
+| Immutable reads and primary-key access (#116/#128) | `TablePartition.getAt` uses a paged hash-key directory and checks the decoded key. `readSegment` still fetches the complete object; `readRowWithSchema` decodes every column in one group. `TSeg.Footer.pk_index` is a sorted resident array, not a paged B-tree. | Shared verified range reader, explicit decode ownership/budgets, projection/pruning before payload reads, ordered primary-key range access and table-wide candidate/I/O measurements. |
+| History and pins (#127) | `history`, `retainHistory`, `historyAt` and retained scans distinguish logical acceptance from flush/control progress. `TableChangeReader` provides complete snapshot/tail transactions with explicit retained leases. | Archive/checkpoint coverage, retention floors, resumable physical trimming and collection with slow/offline consumers and live pins. Current Table retention keeps all WAL and objects. |
+| Maintenance (#116/#127) | `TablePartition.flush` rewrites one bounded live WAL group through the same acceptance log; old roots retain original locators. Native maintenance only trims an accepted history floor. | Bounded checkpoint/compaction/deletion-vector consolidation and safe collection, restartable progress and control reserve. Milestone 3 wires automatic triggers and public observations; local mechanisms remain here. |
+| Codecs and collations (#118/#128) | `TableSchema`, `PhysicalCodecs` and `Collation` admit explicit profiles; ICU rejects, CP037 uses a full table, HFP admission is exact, and the symbol-table format does not claim FSST interchange. SQL rejects non-binary text comparison. | Independent encoded/decoded and pruned/unpruned query oracles, encoded operators, five-state provenance, compatible borrowing and complete comparison/hash/order propagation. Explicit rejection is not delivery of the remaining selected profiles. |
+| Bounded execution (#116/#128) | Direct sources return owned bounded rows; Fuze has separate compute budgets and relational disk-backed group state. | Audit sort/hash/spill, decoded expansion and cancellation across the shared reader, including data larger than caches and many small segments. |
+| Evidence and public claims (#123/#124/#76) | Public storage/Table owners distinguish installed acceptance from separate helpers. Earlier performance measurements and failures remain recorded. | Matched disk-backed owner and installed SQL controls, byte/range/allocation/RSS attribution, focused recovery proofs, repository checks and committed-HEAD clean lanes. No latency target is inferred. |
+| Providers/concurrent writers (#117/#121) | Local exclusive ownership and process-locked object publication are implemented. OCC/cache/provider helpers do not establish installed concurrent writers. | Milestone 14 retains distributed providers, disk cache and integrated concurrent-writer obligations; local safety and fencing remain here. |
+
+Implementation order: first build and qualify the shared bounded segment range
+reader and integrate it into live Table reads; then complete ordered access and
+encoded/pruned execution against independent controls; then implement retained
+checkpoint/history and physical maintenance for both Table and native owners.
+Run focused proofs per slice, retain the current-v1 cutover gate for incompatible
+formats, and qualify installed performance/recovery with milestone 3. This is an
+implementation sequence, not a transfer or reduction of outstanding criteria.
+
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,
 effect evidence and supported captured/stream payloads as well as Tables.

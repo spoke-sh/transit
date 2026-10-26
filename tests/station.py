@@ -216,10 +216,19 @@ def run(node, cli, worker, courier):
 
             def upload_query():
                 namespace = s.command({'send': {'pid': requester, 'value': frame(b'query')}})
+                observed = None
                 def queued():
+                    nonlocal observed
                     incoming = s.native_query({'process': ledger})['body']['process']['input']
-                    return incoming is not None and bytes.fromhex(incoming['value'])[13:17] == b'SPF1'
-                pump_until(queued, [requester_config])
+                    encoded = bytes.fromhex(incoming['value']) if incoming else b''
+                    observed = None if incoming is None else dict(
+                        position=incoming['position'], origin=incoming['origin'],
+                        kind=encoded[4], tag=encoded[13:17].hex())
+                    return incoming is not None and encoded[13:17] == b'SPF1'
+                try:
+                    pump_until(queued, [requester_config])
+                except AssertionError as error:
+                    raise AssertionError(('Query upload did not reach capture', namespace, observed)) from error
                 return namespace
             # Drain leftover application self-wakes before sending a query. A
             # pending query call itself is captured only by the explicit step.

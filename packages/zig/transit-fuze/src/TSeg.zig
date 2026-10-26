@@ -1,7 +1,7 @@
 //! Hybrid OLTP/OLAP `.tseg` (`"TSEG"` v1) columnar segment format.
 //! Combines 64-byte-aligned physical column pages, 5-state cell tag streams,
-//! collation-aware Zone Maps + Bloom filters, and an embedded Primary-Key
-//! B-Tree index for O(log N) point lookups and OCC conflict detection.
+//! collation-aware zone maps, Bloom filters and a sorted primary-key directory.
+//! Binary search applies after reading that directory; it is not a paged B-tree.
 const std = @import("std");
 const Types = @import("Types.zig");
 const Values = @import("Values.zig");
@@ -94,7 +94,7 @@ pub const Footer = struct {
         self.* = undefined;
     }
 
-    /// O(log N) binary search over the embedded Primary-Key B-Tree index.
+    /// O(log N) binary search over the already decoded primary-key directory.
     pub fn findPrimaryKeySortKey(self: *const Footer, target_pk_sort_key: []const u8) ?PkIndexEntry {
         if (self.pk_index.len == 0) return null;
         if (std.mem.order(u8, target_pk_sort_key, self.min_pk_sort_key) == .lt or
@@ -180,7 +180,7 @@ fn padTo64(writer: *std.Io.Writer) !void {
 /// Build an immutable `.tseg` segment from `rows` and `schema` into `out`.
 /// Rows are sorted by their composite primary-key order-preserving sort key,
 /// partitioned into row groups, encoded with each column's physical codec,
-/// and indexed with collation-aware Zone Maps and an embedded PK B-Tree footer.
+/// and indexed with collation-aware zone maps and a sorted PK footer directory.
 pub fn writeSegment(
     allocator: std.mem.Allocator,
     schema: TableSchema.Schema,
@@ -189,7 +189,7 @@ pub fn writeSegment(
     out: []u8,
 ) ![]const u8 {
     try schema.validate();
-    if (options.segment_id == 0 or options.rows_per_group == 0) return error.InvalidSegmentOptions;
+    if (options.segment_id == 0 or options.rows_per_group == 0 or options.rows_per_group > 65536) return error.InvalidSegmentOptions;
     if (out.len < 128) return error.BufferTooSmall;
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);
@@ -389,17 +389,39 @@ pub fn writeSegment(
 
 /// Read and verify the `.tseg` Segment Footer from `segment_bytes`.
 pub fn readFooter(allocator: std.mem.Allocator, segment_bytes: []const u8) !Footer {
-    if (segment_bytes.len < 64 + 32 + 16) return error.InvalidSegment;
-    if (!std.mem.eql(u8, segment_bytes[0..4], "TSEG")) return error.InvalidSegment;
+    if (segment_bytes.len < 64 + 136 + 16 or segment_bytes.len > max_segment_bytes) return error.InvalidSegment;
     const trailer = segment_bytes[segment_bytes.len - 16 ..];
+    const location = try footerLocation(segment_bytes[0..64], trailer, segment_bytes.len);
+    return readFooterParts(allocator, segment_bytes[0..64], segment_bytes[@intCast(location.offset)..][0..location.length], trailer, segment_bytes.len);
+}
+
+pub const FooterLocation = struct { offset: u64, length: u32 };
+
+/// Validate the small fixed ranges before allocating or requesting the footer.
+/// The source owner must bind these bytes to its expected immutable object.
+pub fn footerLocation(header: []const u8, trailer: []const u8, segment_length: u64) !FooterLocation {
+    if (header.len != 64 or trailer.len != 16 or segment_length < 64 + 136 + 16 or segment_length > max_segment_bytes) return error.InvalidSegment;
+    if (!std.mem.eql(u8, header[0..4], "TSEG") or std.mem.readInt(u32, header[4..8], .little) != 1) return error.InvalidSegment;
     if (!std.mem.eql(u8, trailer[12..16], "TSEG")) return error.InvalidSegment;
     const footer_offset = std.mem.readInt(u64, trailer[0..8], .little);
     const footer_length = std.mem.readInt(u32, trailer[8..12], .little);
-    if (footer_offset < 64 or footer_length < 36 or footer_offset + footer_length + 16 != segment_bytes.len) {
+    if (footer_offset < 64 or footer_offset % alignment != 0 or footer_offset > segment_length - 16 or
+        footer_length < 136 or footer_length != segment_length - 16 - footer_offset or
+        footer_offset != std.mem.readInt(u64, header[40..48], .little) or
+        footer_length != std.mem.readInt(u32, header[48..52], .little))
+    {
         return error.InvalidSegment;
     }
+    return .{ .offset = footer_offset, .length = footer_length };
+}
 
-    const footer_slice = segment_bytes[@intCast(footer_offset)..][0..footer_length];
+/// Decode owned metadata from verified ranges. No column payload is required.
+/// Counts and page/row coordinates are checked before they control allocation
+/// or later range I/O. The directory is bounded by the encoded footer length.
+pub fn readFooterParts(allocator: std.mem.Allocator, header: []const u8, footer_slice: []const u8, trailer: []const u8, segment_length: u64) !Footer {
+    const location = try footerLocation(header, trailer, segment_length);
+    if (footer_slice.len != location.length) return error.InvalidSegment;
+    const footer_length = location.length;
     const footer_body = footer_slice[0 .. footer_length - 32];
     const expected_digest = footer_slice[footer_length - 32 ..][0..32];
     var actual_digest: [32]u8 = undefined;
@@ -421,6 +443,19 @@ pub fn readFooter(allocator: std.mem.Allocator, segment_bytes: []const u8) !Foot
     const total_rows = try reader.takeInt(u32, .little);
     const group_count = try reader.takeInt(u16, .little);
     const col_count = try reader.takeInt(u16, .little);
+    if (segment_id == 0 or object_id == 0 or schema_revision == 0 or col_count == 0 or col_count > 128 or
+        segment_id != std.mem.readInt(u64, header[8..16], .little) or
+        object_id != std.mem.readInt(u64, header[16..24], .little) or
+        schema_revision != std.mem.readInt(u64, header[24..32], .little) or
+        total_rows != std.mem.readInt(u32, header[32..36], .little) or
+        group_count != std.mem.readInt(u16, header[36..38], .little) or
+        col_count != std.mem.readInt(u16, header[38..40], .little) or
+        !std.mem.eql(u8, layout_fp[0..12], header[52..64])) return error.InvalidSegment;
+    // Even an empty key requires 30 bytes per directory entry. Every group
+    // requires two u32 fields and at least 76 bytes per column. Do not allocate
+    // attacker-supplied counts before proving their minimum encoded footprint.
+    const minimum = @as(u64, total_rows) * 30 + @as(u64, group_count) * (8 + @as(u64, col_count) * 76) + 4;
+    if (minimum > reader.bufferedLen() or (total_rows == 0) != (group_count == 0)) return error.InvalidSegment;
 
     const min_pk_len = try reader.takeInt(u16, .little);
     const min_pk = try a.dupe(u8, try reader.take(min_pk_len));
@@ -428,9 +463,13 @@ pub fn readFooter(allocator: std.mem.Allocator, segment_bytes: []const u8) !Foot
     const max_pk = try a.dupe(u8, try reader.take(max_pk_len));
 
     const groups = try a.alloc(RowGroupFooter, group_count);
+    var covered_rows: u64 = 0;
+    var page_end: u64 = 64;
     for (groups) |*gf| {
         const rc = try reader.takeInt(u32, .little);
         const start_off = try reader.takeInt(u32, .little);
+        if (rc == 0 or rc > 65536 or start_off != covered_rows or rc > total_rows - covered_rows) return error.InvalidSegment;
+        covered_rows += rc;
         const pages = try a.alloc(PageSlice, col_count);
         for (pages) |*pg| {
             pg.* = .{
@@ -438,6 +477,9 @@ pub fn readFooter(allocator: std.mem.Allocator, segment_bytes: []const u8) !Foot
                 .length = try reader.takeInt(u32, .little),
                 .digest = (try reader.take(32))[0..32].*,
             };
+            if (pg.offset < page_end or pg.offset % alignment != 0 or pg.offset > location.offset or
+                pg.length == 0 or pg.length > location.offset - pg.offset) return error.InvalidSegment;
+            page_end = pg.offset + pg.length;
         }
         const zms = try a.alloc(ZoneMap, col_count);
         for (zms) |*zm| {
@@ -455,6 +497,8 @@ pub fn readFooter(allocator: std.mem.Allocator, segment_bytes: []const u8) !Foot
                 .conflict_count = try reader.takeInt(u32, .little),
                 .bloom_mask = try reader.takeInt(u64, .little),
             };
+            if (@as(u64, zm.value_count) + zm.null_count + zm.missing_count + zm.error_count + zm.conflict_count != rc) return error.InvalidSegment;
+            if ((min_sk.len == 0) != (max_sk.len == 0) or std.mem.order(u8, min_sk, max_sk) == .gt) return error.InvalidSegment;
         }
         gf.* = .{
             .row_count = rc,
@@ -463,9 +507,10 @@ pub fn readFooter(allocator: std.mem.Allocator, segment_bytes: []const u8) !Foot
             .zone_maps = zms,
         };
     }
+    if (covered_rows != total_rows) return error.InvalidSegment;
 
     const pk_index = try a.alloc(PkIndexEntry, total_rows);
-    for (pk_index) |*pke| {
+    for (pk_index, 0..) |*pke, i| {
         const pk_len = try reader.takeInt(u16, .little);
         const pk_sk = try a.dupe(u8, try reader.take(pk_len));
         const id_raw = try reader.take(TableRow.Identity.encoded_bytes);
@@ -477,8 +522,15 @@ pub fn readFooter(allocator: std.mem.Allocator, segment_bytes: []const u8) !Foot
             .row_in_group = try reader.takeInt(u16, .little),
             .global_row_offset = try reader.takeInt(u32, .little),
         };
+        if (pke.row_group >= groups.len or pke.global_row_offset != i) return error.InvalidSegment;
+        const group = groups[pke.row_group];
+        if (pke.row_in_group >= group.row_count or @as(u64, group.start_row_offset) + pke.row_in_group != i) return error.InvalidSegment;
+        if (i > 0 and std.mem.order(u8, pk_index[i - 1].pk_sort_key, pk_sk) != .lt) return error.InvalidSegment;
     }
     if (reader.bufferedLen() != 0) return error.InvalidSegment;
+    if (pk_index.len == 0) {
+        if (min_pk.len != 0 or max_pk.len != 0) return error.InvalidSegment;
+    } else if (!std.mem.eql(u8, min_pk, pk_index[0].pk_sort_key) or !std.mem.eql(u8, max_pk, pk_index[pk_index.len - 1].pk_sort_key)) return error.InvalidSegment;
 
     return .{
         .arena = arena,
@@ -504,12 +556,25 @@ pub fn decodeRowGroupColumn(
     column_index: usize,
 ) ![]Values.Cell {
     try requireInterpretation(schema, footer);
-    if (row_group_index >= footer.row_groups.len or column_index >= schema.columns.len) {
+    if (row_group_index >= footer.row_groups.len or column_index >= schema.columns.len or
+        column_index >= footer.row_groups[row_group_index].pages.len)
+    {
         return error.InvalidSegmentCoordinate;
     }
     const page_meta = footer.row_groups[row_group_index].pages[column_index];
-    if (page_meta.offset + page_meta.length > segment_bytes.len) return error.InvalidSegment;
+    if (page_meta.offset > segment_bytes.len or page_meta.length > segment_bytes.len - page_meta.offset) return error.InvalidSegment;
     const slice = segment_bytes[@intCast(page_meta.offset)..][0..page_meta.length];
+    return decodeColumnRange(arena, schema, footer, slice, row_group_index, column_index);
+}
+
+/// Decode one complete verified column range. Values own their bytes in arena;
+/// the caller can release the encoded range immediately after this returns.
+pub fn decodeColumnRange(arena: std.mem.Allocator, schema: TableSchema.Schema, footer: *const Footer, slice: []const u8, row_group_index: usize, column_index: usize) ![]Values.Cell {
+    try requireInterpretation(schema, footer);
+    if (row_group_index >= footer.row_groups.len or column_index >= schema.columns.len or
+        column_index >= footer.row_groups[row_group_index].pages.len) return error.InvalidSegmentCoordinate;
+    const page_meta = footer.row_groups[row_group_index].pages[column_index];
+    if (slice.len != page_meta.length) return error.InvalidSegment;
     var actual_digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(slice, &actual_digest, .{});
     if (!std.mem.eql(u8, &actual_digest, &page_meta.digest)) return error.CorruptSegmentPage;
