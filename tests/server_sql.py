@@ -61,6 +61,12 @@ def account(status, name):
     return next(item for item in status['accounts'] if item['name'] == name)
 
 
+def account_state(status, name):
+    # The first accepting manager status can precede account discovery. An
+    # absent account is still pending within wait_status's existing deadline.
+    return next((item['state'] for item in status['accounts'] if item['name'] == name), None)
+
+
 def apply(fixture, input_path, name, mode='prepare'):
     profile = fixture.installation / 'sql/authorization.yaml'
     saved = fixture.root / f'{name}.saved.json'
@@ -93,13 +99,13 @@ def policy(fixture, sql, name):
 
 def enroll(fixture, name):
     folder = fixture.installation / 'sql/accounts' / name
-    status = wait_status(fixture, lambda s: account(s, name)['state'] in ('awaiting_role', 'awaiting_binding', 'bound'))
+    status = wait_status(fixture, lambda s: account_state(s, name) in ('awaiting_role', 'awaiting_binding', 'bound'))
     if account(status, name)['state'] == 'awaiting_role':
         apply(fixture, folder / 'create-role.json', f'{name}-role')
-        wait_status(fixture, lambda s: account(s, name)['state'] == 'awaiting_binding')
+        wait_status(fixture, lambda s: account_state(s, name) == 'awaiting_binding')
     if account(status, name)['state'] != 'bound':
         apply(fixture, folder / 'bind-credential.json', f'{name}-binding')
-    wait_status(fixture, lambda s: account(s, name)['state'] == 'bound')
+    wait_status(fixture, lambda s: account_state(s, name) == 'bound')
     if name != 'owner':
         apply(fixture, folder / 'access.json', f'{name}-access', 'prepare-set')
     print(f'Local SQL: explicit {name} role, credential and access enrollment passed.', flush=True)
@@ -156,7 +162,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         fixture.ready(timeout=300)
         # An unfinished enrollment survives an ordinary stop without allocating
         # another principal, ledger or key. Private records are observed, never edited.
-        wait_status(fixture, lambda s: account(s, 'owner')['state'] == 'awaiting_binding')
+        wait_status(fixture, lambda s: account_state(s, 'owner') == 'awaiting_binding')
         retained = {name: (fixture.installation / 'sql/accounts' / name / 'account.json').read_bytes() for name in passwords}
         fixture.stop()
         fixture.start()
