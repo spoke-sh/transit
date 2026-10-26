@@ -212,6 +212,27 @@ fn nextSegment(self: *Self, id: u64, after: ?u64) !?Segment {
     return found;
 }
 
+const SegmentInventory = struct { first: ?u64 = null, last: ?u64 = null, count: u64 = 0 };
+
+/// One bounded pass records the range and count of retained segment names.
+/// Contiguous decoded LSNs then determine each exact successor filename; the
+/// final count detects overlapping files that a direct walk would otherwise skip.
+fn inventory(self: *Self, id: u64) !SegmentInventory {
+    self.directory_scans +|= 1;
+    var result: SegmentInventory = .{};
+    var it = self.dir.iterate();
+    while (try it.next(self.io)) |entry| {
+        const parsed = parseSegment(entry.name) orelse continue;
+        if (parsed.partition != id) continue;
+        var name: [96]u8 = undefined;
+        if (entry.kind != .file or !std.mem.eql(u8, entry.name, segmentName(id, parsed.first, &name))) return error.InvalidWalDirectory;
+        result.count = std.math.add(u64, result.count, 1) catch return error.InvalidWalDirectory;
+        if (result.first == null or parsed.first < result.first.?) result.first = parsed.first;
+        if (result.last == null or parsed.first > result.last.?) result.last = parsed.first;
+    }
+    return result;
+}
+
 /// Locate the newest segment that can contain a requested LSN in one bounded
 /// directory pass. Full continuity/integrity validation still belongs to recover.
 fn segmentAt(self: *Self, id: u64, lsn: u64) !?Segment {
@@ -249,10 +270,17 @@ fn frame(self: *Self, file: std.Io.File, offset: u64, allocator: std.mem.Allocat
 
 fn recover(self: *Self, state: *State) !void {
     const durable_next = state.next;
-    var previous: ?u64 = null;
+    const retained = try self.inventory(state.partition);
+    var first = retained.first;
+    var visited: u64 = 0;
     var expected: ?u64 = null;
-    while (try self.nextSegment(state.partition, previous)) |segment| {
-        const following = try self.nextSegment(state.partition, segment.first);
+    while (first) |begin| {
+        const segment = self.segmentInfo(state.partition, begin) catch |err| switch (err) {
+            error.FileNotFound => return error.CorruptWalFrame,
+            else => return err,
+        };
+        const last = begin == retained.last.?;
+        visited += 1;
         var name: [96]u8 = undefined;
         const file = try self.dir.openFile(self.io, segmentName(state.partition, segment.first, &name), .{ .mode = .read_write, .follow_symlinks = false });
         defer file.close(self.io);
@@ -264,7 +292,7 @@ fn recover(self: *Self, state: *State) !void {
         while (offset < segment.bytes) {
             const bytes = self.frame(file, offset, self.allocator) catch |err| switch (err) {
                 error.TruncatedWalFrame => {
-                    if (following != null or expected.? < durable_next) return error.WalHistoryMissing;
+                    if (!last or expected.? < durable_next) return error.WalHistoryMissing;
                     errdefer self.poisoned = true;
                     try file.setLength(self.io, offset);
                     try file.sync(self.io);
@@ -286,8 +314,10 @@ fn recover(self: *Self, state: *State) !void {
         }
         state.segment = segment.first;
         state.offset = offset;
-        previous = segment.first;
+        first = if (last) null else expected;
+        if (first) |next| if (next <= begin or next > retained.last.?) return error.CorruptWalFrame;
     }
+    if (visited != retained.count) return error.CorruptWalFrame;
     if (expected) |value| {
         if (value < durable_next) return error.WalHistoryMissing;
         state.next = value;
@@ -387,6 +417,9 @@ pub fn read(self: *Self, allocator: std.mem.Allocator, id: u64, from: u64, reque
     };
     var current = if (hint) |cursor| try self.segmentInfo(id, cursor.segment) else try self.segmentAt(id, from);
     var offset: u64 = if (hint) |cursor| cursor.offset else 0;
+    // A cached continuation may be at EOF before the requested position. Its
+    // next physical LSN, not the caller's requested LSN, names the next file.
+    var segment_next = if (hint) |cursor| cursor.lsn else if (current) |segment| segment.first else 0;
     while (current) |segment| {
         var name: [96]u8 = undefined;
         const file = try self.dir.openFile(self.io, segmentName(id, segment.first, &name), .{ .follow_symlinks = false });
@@ -401,6 +434,8 @@ pub fn read(self: *Self, allocator: std.mem.Allocator, id: u64, from: u64, reque
             offset += bytes.len;
             const decoded = try log.decodeFrame(bytes);
             if (decoded.frame.header.partition_id != id) return error.CorruptWalFrame;
+            if (decoded.frame.header.lsn != segment_next) return error.WalHistoryMissing;
+            segment_next += 1;
             if (decoded.frame.header.lsn < from) continue;
             if (decoded.frame.header.lsn != expected) return error.WalHistoryMissing;
             if (bytes.len > self.options.batch_bytes - used) return .{ .arena = arena, .frames = frames.items };
@@ -413,7 +448,12 @@ pub fn read(self: *Self, allocator: std.mem.Allocator, id: u64, from: u64, reque
             cached.read_next = .{ .lsn = expected, .segment = segment.first, .offset = offset };
             if (expected == state.next or frames.items.len == count) return .{ .arena = arena, .frames = frames.items };
         }
-        current = try self.nextSegment(id, segment.first);
+        // Recovery has established contiguous history. The next decoded LSN
+        // names the next segment exactly; no directory search is needed.
+        current = self.segmentInfo(id, segment_next) catch |err| switch (err) {
+            error.FileNotFound => return error.WalHistoryMissing,
+            else => return err,
+        };
         offset = 0;
     }
     return error.WalHistoryMissing;

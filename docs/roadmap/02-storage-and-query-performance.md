@@ -137,6 +137,10 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   preserving the full integrity gate when segment names span directory pages.
   A 384-segment regression exposed skipped partitions in the former nested walk;
   this fixes validation coverage without changing persisted bytes or authority.
+- Recovery inventories segment bounds/count once per loaded partition and follows
+  verified contiguous LSNs across files. Sequential reads also open successor
+  segments directly. Cold partition loads and trim still enumerate directories;
+  this is a bounded local traversal improvement, not a persistent segment index.
 
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,
