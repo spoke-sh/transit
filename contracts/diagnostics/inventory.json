@@ -3335,7 +3335,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 678,
+        "try": 679,
         "catch": 8
       },
       "imports": [
