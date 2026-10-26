@@ -15,7 +15,7 @@ different evidence; an inventory entry or incomplete run is never a pass.
 | Stable invariants and their proof owners | [invariants.json](invariants.json) |
 | Reviewed operation, resident and deployment limits | [limits.json](limits.json) |
 | Installed SDK scenario definitions | [sdk.json](sdk.json), [caller guide](../../docs/handbook/reference/sdks.md) |
-| Finite offered-load matrix | [scale.json](scale.json); `just test::scale` |
+| Finite offered-load matrix | [scale.json](../performance/scale/scale.json); `just test::scale` |
 | Physical process/transport faults and external profiles | [Fault profile guide](../harness/fault-profiles.md) |
 | Check selection, task ownership, clean execution and automatic artifacts | [Runner](../runner/README.md) |
 | Historical qualification and retained record identities | [Qualification history](../../docs/history/qualification/verification.md), [results](../evidence/README.md) |

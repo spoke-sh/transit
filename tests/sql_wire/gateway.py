@@ -317,7 +317,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 server.wait(timeout=10)
                 call(ledger,'fence')
                 configure()
-                from latency_probe import Probe
+                from harness.http_probe import Probe
                 probe = Probe(url,native=True)
                 configuration = json.loads((root/'sql-gateway.json').read_text())
                 configuration['native_url'] = probe.url

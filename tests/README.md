@@ -29,7 +29,7 @@ handoff log. A listed task establishes no passing result at the current revision
 | Installation, launchers and reference deployments | [Launchers](../launchers/README.md), [launcher tasks](../tasks/launchers.just), [installed server fixture](server.py) |
 | Shared fixtures and test support | [Service harness](harness/README.md), [data fixture rules](fixtures/AGENTS.md), [operation drivers](operations/), [fixture ownership rules](AGENTS.md#fixtures-and-independent-oracles) |
 | Retained observations and original outcomes | [Evidence index](evidence/README.md), [integrity check](runner/layout.py) |
-| Performance experiments | [Declarative benchmarks](benchmarks/README.md), [Fuze benchmarks](fuze_benchmarks/README.md), [mutation measurements](https://github.com/spoke-sh/transit/tree/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results), [storage measurements](https://github.com/spoke-sh/transit/tree/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks) |
+| Performance experiments | [Workloads, runners and active budgets](performance/README.md) |
 
 Many cross-component drivers remain at this directory's root. Use the owning
 recipes above to find their exact binary inputs and environments. A filename

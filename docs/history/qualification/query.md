@@ -3338,7 +3338,7 @@ The report retains all six phase timings, CPU/RSS/allocation evidence, exact
 fixtures and source/tool/binary provenance. It compares a compound id filter
 over shared fixture values, not complete SQL value/error/five-state equivalence.
 Discovery, conversion, vectorization and Arrow/allocation scopes differ as
-documented by the [benchmark owner](../../../tests/fuze_benchmarks/README.md). This is descriptive
+documented by the [benchmark owner](../../../tests/performance/query/README.md). This is descriptive
 comparative evidence, not an unchanged-workload/frozen-budget regression pass.
 Cold input means original page-cache eviction, not a cold machine or device;
 private captures are new and warm. Partial/raw modes, other queries and native

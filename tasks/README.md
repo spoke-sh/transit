@@ -155,7 +155,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::unit` | Runs the root Zig test graph, including local disk and process-death tests; this is broader than in-memory units |
 | `just test::build` | Compiles application/probe entry points separately from unit tests; included in core CI |
 | `just test::sql` | Compare Zig/ANTLR/PostgreSQL ASTs, durable plan encodings and independently decoded paged Arrow results |
-| `just test::declarative-benchmark [--rows N --samples N --output PATH]` | Verify and measure synthetic declarative components; report all TPC-C/E/H/DS workload blockers; see [benchmark tooling](../tests/benchmarks/README.md) |
+| `just test::declarative-benchmark [--rows N --samples N --output PATH]` | Verify and measure synthetic declarative components; report all TPC-C/E/H/DS workload blockers; see [benchmark tooling](../tests/performance/declarative/README.md) |
 | `just test::sql-benchmark [--samples N --output PATH]` | Record pure ReleaseSafe compiler and paged count/sum costs with raw samples and binary provenance |
 | `just test::table-query-writer [--sdk LANGUAGE ...]` | Exercise separate catalog initialization/delegation, lost receipts and disk recovery, retained query cuts across same-namespace Table mutations, and independent query/write policies; optionally use installed catalog SDKs |
 | `just test::catalog [--sdk python\|node\|rust\|ruby ...]` | Prove atomic named Table creation, shared Zig/C ABI/native-port/CLI callers, supplied-host initialization/creation receipt recovery after disk restart, conditional policy/disposition outcomes, fresh ownership and current native grants |

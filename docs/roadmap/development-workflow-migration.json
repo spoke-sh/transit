@@ -4795,21 +4795,22 @@
     },
     {
       "source": "tests/latency_probe.py",
-      "destination": "tests/performance/console/latency_probe.py",
-      "owner": "performance",
-      "role": "executable",
+      "destination": "tests/harness/http_probe.py",
+      "owner": "harness",
+      "role": "helper",
       "reference_consumers": [
         "tests/console_latency.py",
         "tests/latency_probe_test.py",
         "tests/mutation_latency.py",
         "tests/runner/layout.json",
         "tests/sql_wire/gateway.py"
-      ]
+      ],
+      "rationale": "Bounded transport instrumentation shared by latency experiments and SQL wire qualification; no semantic oracle."
     },
     {
       "source": "tests/latency_probe_test.py",
-      "destination": "tests/performance/console/latency_probe_test.py",
-      "owner": "performance",
+      "destination": "tests/harness/test_http_probe.py",
+      "owner": "harness",
       "role": "executable",
       "reference_consumers": [
         "tests/runner/checks.json",
@@ -8790,13 +8791,14 @@
     },
     {
       "source": "tests/sql/benchmark.py",
-      "destination": "tests/query/sql/benchmark.py",
-      "owner": "query",
+      "destination": "tests/performance/declarative/sql.py",
+      "owner": "performance",
       "role": "executable",
       "reference_consumers": [
         "tasks/test.just",
         "tests/runner/layout.json"
-      ]
+      ],
+      "rationale": "Pure SQL compiler/execution measurement runner paired with sql_bench.zig."
     },
     {
       "source": "tests/sql/compiler.py",

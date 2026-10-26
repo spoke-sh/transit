@@ -733,10 +733,10 @@
       "claim": "Offered public load preserves every admission, exact receipt and row update across disk restart while scoped revocation progresses",
       "owner": "docs/handbook/reference/verification.md",
       "implementation": [
-        "tests/growing_load.zig",
-        "tests/growing_load.py",
+        "tests/performance/load/growing_load.zig",
+        "tests/performance/load/growing_load.py",
         "tests/growing.zig",
-        "tests/verification/scale.py"
+        "tests/performance/scale/scale.py"
       ],
       "profile": "finite single-authority v3 growth/load matrix",
       "tasks": [

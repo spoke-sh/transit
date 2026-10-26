@@ -36,3 +36,8 @@ retain startup, activation and recovery assertions.
 The [external fault profile guide](fault-profiles.md) describes owned physical
 process and transport experiments, their prerequisites, deadlines and limits.
 It distinguishes those schedules from deterministic implementation simulation.
+
+[HTTP attempt instrumentation](http_probe.py) records bounded counts and timings
+for owned transport fixtures. Its [controls](test_http_probe.py) check actual
+connection reuse and completion accounting. Instrumented timing is a distinct
+profile; the proxy keeps credentials and payloads out of retained events.

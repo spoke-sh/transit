@@ -26,7 +26,7 @@ storage-benchmark *args:
     #!/usr/bin/env bash
     set -euo pipefail
     zig build storage-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/storage_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
+    python3 -B tests/runner/launch.py tests/performance/storage/storage_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
 
 # Matched WAL/bulk ingestion, native turn commit and independent reopen readback.
 [positional-arguments]
@@ -35,7 +35,7 @@ storage-ingest-benchmark *args:
     #!/usr/bin/env bash
     set -euo pipefail
     zig build storage-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/storage_ingest_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
+    python3 -B tests/runner/launch.py tests/performance/storage/storage_ingest_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
 
 # Table/native growth with 16 KiB values and a hard process memory ceiling.
 [positional-arguments]
@@ -573,13 +573,13 @@ table-query-writer:
 # Record pure compiler/engine costs separately from interactive source I/O.
 sql-benchmark *args:
     zig build sql-benchmark -Doptimize=safe
-    python3 -B tests/sql/benchmark.py zig-out/bin/transit-sql-benchmark {{args}}
+    python3 -B tests/runner/launch.py tests/performance/declarative/sql.py zig-out/bin/transit-sql-benchmark {{args}}
 
 # Correctness-checked component measurements and explicit full-suite blockers.
 [positional-arguments]
 declarative-benchmark *args:
     zig build declarative-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/benchmarks/run.py zig-out/bin/transit-declarative-benchmark "$@"
+    python3 -B tests/runner/launch.py tests/performance/declarative/run.py zig-out/bin/transit-declarative-benchmark "$@"
 
 # Real signed query shell, growing workers, exact retry and current read rights.
 public-query:
@@ -662,12 +662,12 @@ diagnostic-grammar:
 # Measure the default local empty Table with consistently optimized executables.
 console-latency *args:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
-    python3 -B tests/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
+    python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
 # Owned durable writes; requires --output, supports independent history/row controls.
 mutation-latency *args:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
-    python3 -B tests/mutation_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
+    python3 -B tests/runner/launch.py tests/performance/mutations/mutation_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
 # Native-session snapshot execution, typed values and retained source basis.
 interactive-query:
@@ -913,7 +913,7 @@ file-benchmark *args:
     #!/usr/bin/env bash
     set -euo pipefail
     zig build file-benchmark -Doptimize=ReleaseSafe
-    "${TRANSIT_FUZE_BENCH_PYTHON:?Enter nix develop .#benchmarks}" -B tests/fuze_benchmarks/run.py zig-out/bin/transit-file-benchmark "$@"
+    "${TRANSIT_FUZE_BENCH_PYTHON:?Enter nix develop .#benchmarks}" -B tests/runner/launch.py tests/performance/query/run.py zig-out/bin/transit-file-benchmark "$@"
 
 # Isolated immutable-tree prototypes; never opens native installation state.
 page-layout *args:
@@ -922,14 +922,14 @@ page-layout *args:
 # Experimental fixed-width kernel/owned-row comparison with independent answers.
 vector-benchmark output:
     zig build vector-benchmark file-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/fuze_benchmarks/vector.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}
+    python3 -B tests/runner/launch.py tests/performance/query/vector.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}
 
 # Real frozen-file pipeline sweep; preserves complete decoding and verification.
 vector-files output:
     zig build file-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/fuze_benchmarks/vector_files.py zig-out/bin/transit-file-benchmark --output {{quote(output)}}
+    python3 -B tests/runner/launch.py tests/performance/query/vector_files.py zig-out/bin/transit-file-benchmark --output {{quote(output)}}
 
 # Typed pipeline matrix; one warmup and nine measured paired repetitions.
 vector-pipelines output:
     zig build vector-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/fuze_benchmarks/pipelines.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}
+    python3 -B tests/runner/launch.py tests/performance/query/pipelines.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}

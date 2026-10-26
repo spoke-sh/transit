@@ -7,7 +7,7 @@ execution APIs. These measurements use Transit-authored synthetic fixtures.
 The report preserves that blocked status even when every component succeeds.
 
 Use this reference to interpret measurements and find the missing declarative
-contracts. The [benchmark tooling guide](../../../tests/benchmarks/README.md) owns
+contracts. The [benchmark tooling guide](../../../tests/performance/declarative/README.md) owns
 runnable repository commands and report options; the
 [proof ledger](../../history/qualification/performance.md#declarative-benchmark-components) records
 executed checks. The [performance reference](performance.md) separately covers
@@ -50,7 +50,7 @@ this harness, and no decimal monetary representation or trading policy is chosen
 
 ## What runs
 
-The [component manifest](../../../tests/benchmarks/manifest.json) owns the exact SQL.
+The [component manifest](../../../tests/performance/declarative/manifest.json) owns the exact SQL.
 Each family has seven base components: three SELECTs, one two-column declaration
 and literal INSERT, UPDATE and DELETE. An additional selected-count fixture uses
 an explicit source alias over identical data and predicate, recording the cost

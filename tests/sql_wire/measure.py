@@ -46,7 +46,7 @@ def foundation(postgres, mysql_options, executables):
     """Matched bounded read/write controls with exact cross-protocol readback."""
     import hashlib
     import shutil
-    from mutation_latency import distribution
+    from performance.mutations.mutation_latency import distribution
     paths = ('postgres_literal', 'postgres_prepared', 'mysql_literal', 'mysql_prepared')
     cases = (
         ('point', 'SELECT id FROM wire_rows WHERE id=101', [(101,)]),

@@ -48,7 +48,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/benchmarks/test_runner.py"
+          "tests/runner/launch.py",
+          "tests/performance/declarative/test_runner.py"
         ]
       },
       {
@@ -57,7 +58,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/fuze_benchmarks/test_runner.py"
+          "tests/runner/launch.py",
+          "tests/performance/query/test_runner.py"
         ]
       },
       {
@@ -66,7 +68,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/storage_benchmark_test.py"
+          "tests/runner/launch.py",
+          "tests/performance/storage/storage_benchmark_test.py"
         ]
       },
       {
@@ -75,7 +78,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/mutation_latency_test.py"
+          "tests/runner/launch.py",
+          "tests/performance/mutations/mutation_latency_test.py"
         ]
       },
       {
@@ -84,7 +88,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/latency_probe_test.py"
+          "tests/runner/launch.py",
+          "tests/harness/test_http_probe.py"
         ]
       },
       {
@@ -245,8 +250,8 @@
           {
             "glob": "tests/*.zig"
           },
-          "tests/fuze_benchmarks",
-          "tests/verification"
+          "tests/verification",
+          "tests/performance"
         ]
       },
       {

@@ -220,7 +220,7 @@ The mechanism is falsified by any difference in ordered outputs, first failure,
 checkpoint bytes, current-denial behavior or resident accounting under rebatching
 and worker schedules. The [batch tests](../../../packages/zig/transit-fuze/src/batch_execution_test.zig),
 worker tests and existing independent relational/source/Arrow proofs exercise
-those observations. The [measurement guide](../../../tests/fuze_benchmarks/README.md)
+those observations. The [measurement guide](../../../tests/performance/query/README.md)
 separates decoded kernels from owned-row and real file pipelines. The
 [proof ledger](../../history/qualification/README.md) records which commands actually ran;
 synthetic gains do not establish storage-bound or universal query speedup.

@@ -99,7 +99,7 @@ need not exceed their cache. The fixture uses the checkout filesystem instead of
 Nix's potentially tmpfs-backed temporary directory and reports its filesystem.
 
 `just test::scale` owns the small repeated matrix in
-[scale.json](../../../../tests/verification/scale.json), including 64/256/1,024
+[scale.json](../../../../tests/performance/scale/scale.json), including 64/256/1,024
 rows at one page and 256 rows at 16 pages. It separately drives the public node
 with 48 independent pre-signed sender requests, fixed offer intervals, bounded
 workers and 16/256-byte payloads with uniform/hot-key updates. Queueing latency

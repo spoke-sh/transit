@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import tempfile
 
-import storage_benchmark as common
+import performance.storage.storage_benchmark as common
 
 require = common.require
 BODY_BYTES = 16384
@@ -62,7 +62,7 @@ def main():
     report = dict(version=1, profile='memory growth smoke' if args.smoke else 'bounded local owner growth', status='running',
                   revision=common.git('rev-parse', 'HEAD'), dirty=bool(common.git('status', '--porcelain')),
                   binary_sha256=common.digest(binary), driver_sha256=common.digest(__file__),
-                  common_driver_sha256=common.digest(common.__file__), probe_sha256=common.digest(common.ROOT / 'tests/storage_benchmark.zig'),
+                  common_driver_sha256=common.digest(common.__file__), probe_sha256=common.digest(common.ROOT / 'tests/performance/storage/storage_benchmark.zig'),
                   lock_sha256=common.digest(common.ROOT / 'flake.lock'), compiler=subprocess.check_output(['zig', 'version'], text=True).strip(),
                   system=platform.platform(), cpu=args.cpu, address_space_limit=common.AS_LIMIT,
                   host_memtotal=next(line.split(':', 1)[1].strip() for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemTotal:')),

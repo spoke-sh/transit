@@ -23,7 +23,7 @@ does not isolate history overhead or establish a latency SLO.
 
 ## Declarative benchmark components
 
-The [component harness](../../../tests/benchmarks/README.md) measures synthetic SQL compilation,
+The [component harness](../../../tests/performance/declarative/README.md) measures synthetic SQL compilation,
 paged Fuze/Arrow execution, declarations and private Station mutation proposals.
 It enumerates all 151 full-workload units across TPC-C/E/H/DS as blocked.
 Component correctness never changes full-suite coverage or implies a TPC score.
@@ -2064,7 +2064,7 @@ native completion timelines. The four measurement-helper tests also passed.
 
 ## Paired local storage measurement harness — 2026-10-26
 
-The ReleaseSafe native/Table [owner measurement harness](../../../tests/storage_benchmark.md)
+The ReleaseSafe native/Table [owner measurement harness](../../../tests/performance/storage/storage_benchmark.md)
 passes a **24-sample** smoke matrix: 32 Table rows, two native turns, one warmup
 and one recorded repetition per arm under both warm and cold fixture-page
 conditions. Independent Python expectations verify every visited value/payload,
@@ -2110,7 +2110,7 @@ The extended probe also passes the existing **24-sample read/checkpoint smoke
 matrix**. Six report-validator tests reject missing/changed values, incomplete
 phase or repetition sets, missing sync/append attribution, invented native append
 timers, invalid allocation peaks and verification writes. The
-[measurement guide](../../../tests/storage_benchmark.md#ingestion-and-commit-measurement)
+[measurement guide](../../../tests/performance/storage/storage_benchmark.md#ingestion-and-commit-measurement)
 defines the distinct Table ingestion/append and native preparation/commit scopes.
 
 The buffered-reader signed projection rerun passes, including encoded filtering,
@@ -2134,7 +2134,7 @@ Seven report-validator tests pass, including rejection of a wrong payload
 configuration, incomplete values/positions, missing memory evidence, peaks over
 the ceiling and writes during readback. The normal increasing-size proof still
 requires both owners' larger retained fixtures to exceed that ceiling. The
-[method](../../../tests/storage_benchmark.md#growth-under-a-process-memory-ceiling) distinguishes
+[method](../../../tests/performance/storage/storage_benchmark.md#growth-under-a-process-memory-ceiling) distinguishes
 this process limit from host RAM and the Python inventory/oracle's memory.
 
 The workspace `just check` was interrupted while duplicating the clean core

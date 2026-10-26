@@ -65,7 +65,7 @@ pub fn build(b: *std.Build) void {
     }) });
     b.step("diagnostic-grammar", "Build the public compiler diagnostic corpus consumer").dependOn(&b.addInstallArtifact(diagnostic_grammar, .{}).step);
     const mutation_latency_client = b.addExecutable(.{ .name = "transit-mutation-latency-client", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/mutation_latency_client.zig"),
+        .root_source_file = b.path("tests/performance/mutations/mutation_latency_client.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
@@ -80,7 +80,7 @@ pub fn build(b: *std.Build) void {
     });
     const file_capture = b.createModule(.{ .root_source_file = b.path("tests/operations/FileCapture.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "cli_support", .module = cli_support } } });
     const file_benchmark = b.addExecutable(.{ .name = "transit-file-benchmark", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/fuze_benchmarks/main.zig"),
+        .root_source_file = b.path("tests/performance/query/main.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "file_capture", .module = file_capture }, .{ .name = "transit_query", .module = query.module("transit_query") } },
@@ -88,17 +88,17 @@ pub fn build(b: *std.Build) void {
     const file_benchmark_step = b.step("file-benchmark", "Build bounded source/discovery/execution phase measurements");
     file_benchmark_step.dependOn(&b.addInstallArtifact(file_benchmark, .{}).step);
     const allocation_probe = b.addLibrary(.{ .name = "transit-fuze-allocations", .linkage = .dynamic, .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
-    allocation_probe.root_module.addCSourceFile(.{ .file = b.path("tests/fuze_benchmarks/allocations.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
+    allocation_probe.root_module.addCSourceFile(.{ .file = b.path("tests/performance/query/allocations.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
     file_benchmark_step.dependOn(&b.addInstallArtifact(allocation_probe, .{}).step);
     const six_benchmark = b.addExecutable(.{ .name = "transit-six-benchmark", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/fuze_benchmarks/six.zig"),
+        .root_source_file = b.path("tests/performance/query/six.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     b.step("six-benchmark", "Build the specialized six-type execution control").dependOn(&b.addInstallArtifact(six_benchmark, .{}).step);
     const vector_benchmark = b.addExecutable(.{ .name = "transit-fuze-vector-benchmark", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/fuze_benchmarks/vector.zig"),
+        .root_source_file = b.path("tests/performance/query/vector.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
@@ -223,14 +223,14 @@ pub fn build(b: *std.Build) void {
     b.step("test-relational-sql", "Compare relational syntax across Zig, ANTLR and PostgreSQL").dependOn(&relational_sql_test.step);
     sql_test.step.dependOn(&relational_sql_test.step);
     const sql_benchmark = b.addExecutable(.{ .name = "transit-sql-benchmark", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/sql_bench.zig"),
+        .root_source_file = b.path("tests/performance/declarative/sql_bench.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
     }) });
     b.step("sql-benchmark", "Build the pure SQL performance probe").dependOn(&b.addInstallArtifact(sql_benchmark, .{}).step);
     const declarative_benchmark = b.addExecutable(.{ .name = "transit-declarative-benchmark", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/declarative_bench.zig"),
+        .root_source_file = b.path("tests/performance/declarative/declarative_bench.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
@@ -240,13 +240,19 @@ pub fn build(b: *std.Build) void {
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const storage = b.dependency("transit_storage", .{ .target = target, .optimize = optimize });
     const local_backend = b.dependency("transit_backend_local", .{ .target = target, .optimize = optimize });
+    const benchmark_allocator = b.createModule(.{
+        .root_source_file = b.path("tests/performance/query/Allocator.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
     const storage_benchmark = b.addExecutable(.{ .name = "transit-storage-benchmark", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/storage_benchmark.zig"),
+        .root_source_file = b.path("tests/performance/storage/storage_benchmark.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_storage", .module = b.dependency("transit_storage", .{ .target = target, .optimize = optimize }).module("transit_storage") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") } },
     }) });
     const storage_benchmark_options = b.addOptions();
+    storage_benchmark.root_module.addImport("benchmark_allocator", benchmark_allocator);
     const storage_body_bytes = b.option(u32, "storage-benchmark-body-bytes", "Deterministic storage probe payload bytes (16..65536)") orelse 1024;
     if (storage_body_bytes < 16 or storage_body_bytes > 65536) @panic("storage-benchmark-body-bytes must be 16..65536");
     storage_benchmark_options.addOption(u32, "body_bytes", storage_body_bytes);
@@ -1390,14 +1396,15 @@ pub fn build(b: *std.Build) void {
     direct_captured_query.stdio = .inherit;
     b.step("test-direct-captured-query", "Prove captured direct Table queries with independent native progress and restart").dependOn(&direct_captured_query.step);
     const growing_load = b.addExecutable(.{ .name = "transit-growing-load-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/growing_load.zig"),
+        .root_source_file = b.path("tests/performance/load/growing_load.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
     }) });
     build_test_step.dependOn(&growing_load.step);
     const load_proof = b.addSystemCommand(&.{ "python3", "-B" });
-    load_proof.addFileArg(b.path("tests/growing_load.py"));
+    load_proof.addFileArg(b.path("tests/runner/launch.py"));
+    load_proof.addFileArg(b.path("tests/performance/load/growing_load.py"));
     load_proof.addArtifactArg(node_artifact);
     load_proof.addArtifactArg(growing_load);
     load_proof.addPassthruArgs();
@@ -1405,7 +1412,8 @@ pub fn build(b: *std.Build) void {
     load_proof.stdio = .inherit;
     b.step("test-growing-load", "Measure offered load, control progress and bounded state drain").dependOn(&load_proof.step);
     const scale = b.addSystemCommand(&.{ "python3", "-B" });
-    scale.addFileArg(b.path("tests/verification/scale.py"));
+    scale.addFileArg(b.path("tests/runner/launch.py"));
+    scale.addFileArg(b.path("tests/performance/scale/scale.py"));
     scale.addArtifactArg(growth_proof);
     scale.addArtifactArg(node_artifact);
     scale.addArtifactArg(growing_load);

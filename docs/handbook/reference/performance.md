@@ -612,7 +612,7 @@ and 1,280 reads, with INSERT/UPDATE/DELETE p50 138/156/137 ms.
 The [raw controls](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-05/README.md)
 retain exact source/binary provenance and shared-host limitations.
 
-The [finite offered-load fixture](../../../tests/growing_load.py) uses ReleaseSafe binaries.
+The [finite offered-load fixture](../../../tests/performance/load/growing_load.py) uses ReleaseSafe binaries.
 It schedules 48 requests independently, records generator queueing, separates
 admitted and refused attempts, and captures authority wait/work counters.
 Only accepted inputs are drained and checked after node/provider restart;
@@ -717,7 +717,7 @@ requirement. A fast read that skips these boundaries does not qualify the design
 ## Schema on demand measurements
 
 Local CSV/JSONL discovery, finite queries and explicit test-host capture have a
-[reproducible comparison matrix](../../../tests/fuze_benchmarks/README.md) and
+[reproducible comparison matrix](../../../tests/performance/query/README.md) and
 [recorded baseline and budgets](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-09-30/README.md).
 DuckDB 1.5.2 (build `8a5851971f`) and PyArrow 23.0.0 are pinned development
 comparators; neither supplies Transit's execution engine or authorization.

@@ -206,7 +206,7 @@ def main():
                   ["contracts/sql/README.md"], ["tests/fixtures/record.json"],
                   ["tests/evidence/verification/record/test.py"],
                   ["tests/evidence/verification/../suite.json"],
-                  ["tests/fuze_benchmarks/results/record/budgets.json"],
+                  ["tests/performance/query/budgets/record/budgets.json"],
                   ["tests/verification/invariants.json"], ["tests/runner/suite.json"],
                   ["tests/verification/models/Wal.tla"],
                   ["tests/README.md", "packages/zig/transit-core/src/lib.zig"]):

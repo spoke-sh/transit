@@ -150,7 +150,7 @@ as a proof of Zig or the deployed system. CRDT merge laws remain future work.
 
 The [Trading workload model](workloads/TRADING.md) supplies downstream demand scenarios
 for market capture, context, execution and research. Its arithmetic is not
-benchmark evidence. The [experiment matrix](../../tests/verification/scale.json)
+benchmark evidence. The [experiment matrix](../../tests/performance/scale/scale.json)
 keeps small reproducible growth runs distinct from those application envelopes.
 
 Define a workload matrix before promising throughput or a supported system size.

@@ -36,7 +36,7 @@ def main():
         "tests/evidence/verification/observation.json": '{}\n',
         "tests/verification/models/History.tla": "---- MODULE History ----\n====\n",
         "tests/runner/suite.json": '{}\n',
-        "tests/fuze_benchmarks/results/sample/budgets.json": '{}\n',
+        "tests/performance/query/budgets/sample/budgets.json": '{}\n',
         "tasks/embed_web.py": "# asset embedder\n",
         "contracts/transit-board-v1.openapi.json": '{}\n',
     }
@@ -53,7 +53,7 @@ def main():
         "test-driver": ("tests/driver.py", runtime),
         "formal-model": ("tests/verification/models/History.tla", runtime),
         "suite-catalog": ("tests/runner/suite.json", runtime),
-        "live-budgets": ("tests/fuze_benchmarks/results/sample/budgets.json", runtime),
+        "live-budgets": ("tests/performance/query/budgets/sample/budgets.json", runtime),
         "example-source": ("examples/serving/web/src/main.ts", runtime),
         "board-source": ("apps/transit-board-web/src/main.ts", board),
         "browser-library": ("packages/ts/client/src/main.ts", board),
