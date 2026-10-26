@@ -27687,3 +27687,33 @@ for MySQL. Their logs are retained beside the successful control; the correction
 asserts MySQL's existing error numbers, SQLSTATEs and snapshot-change message.
 No MySQL error mapping changed. This focused slice does not complete installed
 SQL, the SDK matrix or combined clean-checkout qualification.
+
+## SQL observation budgets — 2026-10-26
+
+The shared SQL unit suite and real-console protocol fixture pass the
+[focused controls](verification/results/sql-observation-budgets-2026-10-26/report.json).
+The baseline control-preparation test fails after 64 unavailable observations,
+before its five-second deadline; the corrected owner survives 80 refusals and
+publishes one exact signed control. Current denial remains terminal, moving
+metadata retains its 64-retry bound, and both expired and live short deadlines
+prevent publication. The exact prepared request cannot be replaced while pending.
+
+The baseline console exits with `SqlOutcomeUnknown` after one status response
+reports `AuthorityTimeout`. The corrected client observes the same token again
+and receives the applied outcome, with two status calls and one SQL submission.
+Continued timeouts during admission discovery still exhaust the original budget.
+Existing denial, changed-instance, session-expiry, lost-execute, incomplete-result
+and cancellation schedules pass. No SQL text is replayed by recovery.
+
+The [retained installation observations](verification/results/sql-outcome-observations-2026-10-26/report.json)
+recover original INSERT 216 as applied with one matched/changed row and original
+RENAME 348 as applied. They restart the same installations and inspect public
+status without resubmitting either mutation. These later observations do not
+establish the instant of acceptance relative to the earlier client failure.
+Original CREATE 155 remains uploading and execution-ineligible after restart;
+its installed five-minute wait and the follow-up observation are failures, not
+successful qualification. The original incidents lack the phase/status-code
+trace needed to attribute them to either focused regression above.
+
+Full installed SQL, lifecycle history replay, SDK lanes and combined committed
+clean-checkout qualification remain separate gates.

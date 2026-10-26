@@ -104,7 +104,7 @@ fn run(self: *Self, original: *Client, config: Client.Config, password: ?[]const
                 }
                 // Configuration reload cannot be cancelled; observation can
                 // still establish its original outcome within the same budget.
-                if (std.mem.eql(u8, failure.code, "ConfigurationCancellationUnsupported")) request_cancel = false else if (!std.mem.eql(u8, failure.code, "MissingGatewayOperation") and !std.mem.eql(u8, failure.code, "SqlSessionBusy") and !std.mem.eql(u8, failure.code, "AuthorityUnavailable") and !std.mem.eql(u8, failure.code, "GatewayOwnerUnavailable") and !std.mem.eql(u8, failure.code, "StaleGatewayCoordinator")) return error.SqlOutcomeUnknown;
+                if (std.mem.eql(u8, failure.code, "ConfigurationCancellationUnsupported")) request_cancel = false else if (!std.mem.eql(u8, failure.code, "MissingGatewayOperation") and !std.mem.eql(u8, failure.code, "SqlSessionBusy") and !std.mem.eql(u8, failure.code, "AuthorityUnavailable") and !std.mem.eql(u8, failure.code, "AuthorityTimeout") and !std.mem.eql(u8, failure.code, "GatewayOwnerUnavailable") and !std.mem.eql(u8, failure.code, "StaleGatewayCoordinator")) return error.SqlOutcomeUnknown;
             },
             else => return error.InvalidSqlResponse,
         }

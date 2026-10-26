@@ -49,7 +49,7 @@ def peer(mode):
                 if mode == 'interrupt_execute':
                     state['entered'].set()
                     time.sleep(2)
-                if mode in ('drop_execute', 'slow_acceptance', 'missing', 'denied', 'expired', 'instance_changed'):
+                if mode in ('drop_execute', 'slow_acceptance', 'missing', 'timeout_discovery', 'denied', 'expired', 'instance_changed'):
                     self.close_connection = True
                     return
                 if mode in ('rows', 'incomplete', 'empty', 'interrupt_fetch'):
@@ -65,9 +65,11 @@ def peer(mode):
                 assert value == dict(token=state['token'])
                 state['observations'] += 1
                 if mode == 'transient_status' and state['observations'] == 1: result = failure('AuthorityUnavailable')
+                elif mode == 'transient_timeout' and state['observations'] == 1: result = failure('AuthorityTimeout')
                 elif mode in ('slow_acceptance', 'expired') and state['observations'] == 2: result = operation()
                 elif mode == 'slow_acceptance' and time.monotonic() - state['submitted'] < .5: result = operation()
                 elif mode == 'missing': result = failure('MissingGatewayOperation')
+                elif mode == 'timeout_discovery': result = failure('AuthorityTimeout')
                 elif mode == 'denied': result = failure('AccessDenied', '42501')
                 elif mode == 'expired' and not state['expired']:
                     state['expired'] = True
@@ -103,7 +105,7 @@ def check(binary):
     with tempfile.TemporaryDirectory(prefix='transit-outcomes-') as directory:
         root = Path(directory)
         config = root/'console.json'
-        for mode in ('applied', 'transient_status', 'rejected', 'partial', 'unchanged', 'drop_execute', 'slow_acceptance', 'missing', 'denied', 'expired', 'instance_changed', 'rows', 'empty', 'incomplete', 'interrupt_execute', 'interrupt_fetch', 'interrupt_cancelled', 'interrupt_applied', 'interrupt_stall'):
+        for mode in ('applied', 'transient_status', 'transient_timeout', 'rejected', 'partial', 'unchanged', 'drop_execute', 'slow_acceptance', 'missing', 'timeout_discovery', 'denied', 'expired', 'instance_changed', 'rows', 'empty', 'incomplete', 'interrupt_execute', 'interrupt_fetch', 'interrupt_cancelled', 'interrupt_applied', 'interrupt_stall'):
             with peer(mode) as (endpoint, state):
                 config.write_text(json.dumps(dict(version=1, endpoint=endpoint, authentication='trust', request_timeout_ms=200)))
                 args = [binary, 'console', '--no-rc', '--config', str(config), '--format', 'json']
@@ -128,7 +130,7 @@ def check(binary):
                     elif mode in ('interrupt_cancelled', 'interrupt_execute'): assert 'Statement was cancelled' in stderr and not stdout
                     elif mode == 'interrupt_fetch': assert 'partial result' in stderr and '"complete_coverage":true' not in stdout
                     else: assert 'Could not confirm' in stderr and not stdout
-                elif mode in ('missing', 'denied', 'instance_changed'):
+                elif mode in ('missing', 'timeout_discovery', 'denied', 'instance_changed'):
                     assert process.returncode == 1 and not stdout and 'may apply changes twice' in stderr, (mode, stdout, stderr)
                     if mode == 'denied': assert 'Permissions prevented' in stderr
                 elif mode == 'incomplete':
@@ -145,6 +147,8 @@ def check(binary):
                     assert json.loads(stdout)['completion']['changed'] == 1, (mode, stdout)
                 executions = [value for action, value in state['actions'] if action == 'execute']
                 assert len(executions) == 1, (mode, state['actions'])
+                if mode == 'transient_timeout': assert state['observations'] == 2, state['actions']
+                if mode == 'timeout_discovery': assert time.monotonic() - state['submitted'] < 2, state['actions']
                 assert 'token:' not in stdout+stderr and '.resume' not in stdout+stderr and '"operation"' not in stdout
                 if mode == 'expired': assert len([1 for action, _ in state['actions'] if action == 'open']) == 2
     print('Console outcomes: original-token observation, expired session, denial, instance changes, incomplete rows and cancellation races passed without SQL replay.')

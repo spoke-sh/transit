@@ -1,0 +1,15 @@
+{
+  "source": "e3cbe9ccacd00e7b1d06bc1b31264eb0be5bb792",
+  "patch_sha256": "10757eef5fc3155169423159f18d4d5dc304f4f2990e861fe0b9bbc7b84df4ad",
+  "binaries": {
+    "/home/alex/workspace/rupurt/rey/.cache/lifecycle-observation-fixed/bin/transit": "b1b9cec7cc910c3600ba0d2fb80dbeea8bfd5c44a2b061d5045bba0ca53ea1ad",
+    "/var/tmp/transit-server-proof-blupbnop/bin/transit-node": "c6b43f96cb69c262a43fa9d734747dd8353ef4d12cf404bc328a474d3c123af9",
+    "/var/tmp/transit-server-proof-blupbnop/bin/transit-query-host": "10cd9739697ff4961e0464a9236f9dea077dcc8edb6bd5a89505444f7bad6af7",
+    "/var/tmp/transit-server-proof-blupbnop/bin/transit-board": "61268d62eb66f6dfe85ff504b8e5470fd489325297b6df40f5195880139a601e",
+    "/home/alex/workspace/rupurt/rey/.cache/lifecycle-observation-fixed/bin/transit-sql-gateway": "eae78c233fbdb692a37af28252a83801ffa4c3ef9c99b4d868b081e43eb86e66"
+  },
+  "started": 1792991485.2669008,
+  "complete": false,
+  "finished": 1792991538.9310281,
+  "exit_code": 1
+}

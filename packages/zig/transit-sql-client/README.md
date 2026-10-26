@@ -32,8 +32,9 @@ The public messages and failure rules are in the
 `Pending` observes one original admission token. Discovery uses the remaining
 request budget; confirmed acceptance permits settlement for up to 270 seconds
 from submission. Polling does not reset either deadline. It never
-contains or replays SQL. It can open one separately authenticated observation
-session after expiry, pinned to the same instance and account; this does not
+contains or replays SQL. A temporary authority timeout while reading status
+repeats only that observation within the same budget. It can open one separately
+authenticated observation session after expiry, pinned to the same instance and account; this does not
 restore the caller's session or settings. Interruption requests cancellation of
 the active query and original operation where supported, with a one-second
 settlement budget. Missing observation, timeout and denial do not imply rejection.
