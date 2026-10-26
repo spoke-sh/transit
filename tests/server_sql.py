@@ -5,6 +5,7 @@ import json
 from operation_helpers import operations
 import os
 from pathlib import Path
+import re
 import secrets
 import shutil
 import socket
@@ -213,6 +214,32 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         def mysql(sql, name='owner', reject=False):
             return (denied if reject else call)([*mysql_args(name), sql])
 
+        def write(sql, *, name='owner', protocol='postgres', kind='dml', rows=1):
+            # A disclosed operation survives a database connection's wait. Send
+            # this SQL exactly once; only observe that account's original result.
+            args, env = pg_args(name) if protocol == 'postgres' else (mysql_args(name), None)
+            deadline = time.monotonic() + 300
+            result = subprocess.run([*args, sql], env=env, capture_output=True, text=True, timeout=300)
+            if result.returncode == 0:
+                return
+            operation = re.search(r'Gateway operation ([0-9]+); sending SQL again creates new work', result.stderr)
+            assert not result.stdout and operation and 'Request wait ended; admitted work requires outcome inspection' in result.stderr, (result.stdout, result.stderr)
+            original = int(operation[1])
+            control = fixture.installation / f'sql/accounts/{name}/control.json'
+            while True:
+                remaining = deadline-time.monotonic()
+                assert remaining > 0, ('Original SQL operation did not complete', original)
+                observed = json.loads(call([gateway, 'control', control, 'status', str(original)],
+                    timeout=remaining, retry_observation=True))
+                assert observed['operation']['operation'] == original, observed
+                if observed['terminal'] is not None:
+                    terminal = observed['terminal']
+                    assert terminal['operation'] == original and terminal['kind'] == kind and terminal['state'] == 'applied', observed
+                    assert terminal['matched'] == terminal['changed'] == rows, observed
+                    print(f'Local SQL: {protocol} recovered original {kind} operation {original} after its connection wait ended; SQL was sent once.', flush=True)
+                    return
+                time.sleep(.2)
+
         profile = fixture.installation / 'sql/accounts/owner/control.json'
         def controls(*args):
             return json.loads(call([gateway, 'control', profile, *map(str, args)], retry_observation=True))
@@ -220,7 +247,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         assert pg('SELECT 1') == mysql('SELECT 1') == '1'
         assert pg('SHOW DATABASES') == 'transit'
         assert pg('SHOW sql.postgres.port') == str(pg_port)
-        pg('CREATE TABLE shared_rows (id BIGINT PRIMARY KEY, label UTF8)')
+        write('CREATE TABLE shared_rows (id BIGINT PRIMARY KEY, label UTF8)', kind='ddl', rows=0)
         pg('SELECT * FROM shared_rows', 'reader', reject=True)
         mysql("INSERT INTO shared_rows (id,label) VALUES (1,'unauthorized')", 'writer', reject=True)
         discovery = fixture.root / 'discovery.sql'
@@ -231,9 +258,9 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         apply(fixture, fixture.installation / 'sql/catalog-access.json', 'catalog-discovery', 'prepare-set')
         policy(fixture, 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.shared_rows TO writer;', 'writer-data')
         policy(fixture, 'GRANT SELECT ON TABLE public.shared_rows TO reader;', 'reader-data')
-        mysql("INSERT INTO shared_rows (id,label) VALUES (1,'snow ☃')", 'writer')
+        write("INSERT INTO shared_rows (id,label) VALUES (1,'snow ☃')", name='writer', protocol='mysql')
         assert pg('SELECT label FROM shared_rows WHERE id=1', 'reader') == 'snow ☃'
-        pg('UPDATE shared_rows SET label=NULL WHERE id=1', 'writer')
+        write('UPDATE shared_rows SET label=NULL WHERE id=1', name='writer')
         assert mysql('SELECT COUNT(*) FROM shared_rows WHERE label IS NULL', 'reader') == '1'
         mysql('DELETE FROM shared_rows WHERE id=1', 'reader', reject=True)
         print('Local SQL: both verified TLS CLIs share Unicode/NULL data with explicit writer/reader grants.', flush=True)
@@ -290,7 +317,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         mysql('SELECT COUNT(*) FROM shared_rows', 'reader', reject=True)
         assert count('writer', protocol='mysql') == '1'
         assert mysql('SELECT 1') == '1'
-        mysql('DELETE FROM shared_rows WHERE id=1', 'writer')
+        write('DELETE FROM shared_rows WHERE id=1', name='writer', protocol='mysql')
         assert count('writer', protocol='mysql') == '0'
         print('Local SQL: MySQL-only exposure, disabled account, password rotation and DELETE passed.', flush=True)
 
