@@ -518,6 +518,12 @@ fn delegatedHistory(service: *@import("LocalTableService.zig"), snapshot_grant: 
     var corrupt = successor;
     corrupt.commitment[0] ^= 1;
     try t.expectError(error.TableHistoryConflict, dispatchDelegated(service, .{ .history_source = .{ .object = snapshot.object, .point = corrupt } }, grant));
+    // A wrong original grant must reject before reading a selected successor,
+    // even when that successor would independently fail integrity validation.
+    var foreign_basis = binding;
+    foreign_basis.interpretation.revision += 1;
+    const foreign_grant: c.DirectReadDelegation = .{ .binding = foreign_basis, .proof = try proof(service.engine, try foreign_basis.context(t.allocator)) };
+    try t.expectError(error.TableDelegationDenied, dispatchDelegated(service, .{ .history_source = .{ .object = snapshot.object, .point = corrupt } }, foreign_grant));
 
     const Revoke = struct {
         fn run(context: *anyopaque, engine: *Engine) !void {

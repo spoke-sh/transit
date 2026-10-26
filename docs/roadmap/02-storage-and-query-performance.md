@@ -270,6 +270,13 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   This advances #116/#118/#128 without claiming borrowed segment batches,
   relational predicate lowering or new installed performance measurements.
 
+- Retained snapshot/history metadata resolves the selected interpretation and
+  current authority through one request-local recovered Table owner. Original
+  delegation checks still precede historical successor reads. The focused
+  metadata fixture reduces snapshot object ranges from 14 to 8 while checking
+  identical retained evidence, final denial, allocation failures and no writes.
+  The broad history-replay rerun remains an independent completion gate.
+
 - The shared codec walker now supports encoded single-column predicates with
   one-byte row outcomes, dictionary/run evaluation reuse and detached selected
   output. `TSegReader.filteredGroup` combines collation-aware zone-map pruning

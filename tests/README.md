@@ -28813,3 +28813,25 @@ translation. The passing rerun includes the corrected assertion and host lock
 routing. These focused runs do not close the broad history-replay timeout or
 establish final committed-HEAD clean qualification, borrowed batches, relational
 text pushdown, physical Table collection or a performance improvement.
+
+## Retained metadata recovery reuse — 2026-10-26
+
+The focused catalog metadata suite passes **4/4** tests. Equivalent retained
+snapshot inspection plus current authority metadata uses **8 object-range reads**
+through one recovered Table owner, compared with **14** for the separate calls
+in the same one-page-cache component fixture. This is an operation-count
+comparison over memory adapters, not a disk latency measurement. The retained
+interpretation survives a committed rename, and the authority IDs agree with the
+separate read. Historical points retain their exact commitment and declaration;
+snapshot manifests intentionally omit control directories present in WAL roots.
+
+Denying each guard, including the final check after output construction, releases
+partial results and returns no successful metadata. Exhaustive allocation
+failures cover owner recovery, snapshot decoding and selected history. Reads
+leave the accepted root and object-put count unchanged. Corrupt commitments,
+foreign leases and released pins reject. Historical dispatch retains its
+original-grant check before opening a selected successor; the added signed
+regression and broad service replay are still running at this commit. Earlier
+full lifecycle runs timed out during repeated history replay, so this component
+result alone does not close that failure. The five history phase markers make
+the unfinished proof's location visible without changing its checks or deadline.

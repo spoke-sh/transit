@@ -38,6 +38,14 @@ and reads recheck current source rights and lifetime, including after DROP and
 name reuse. Release addresses the original pin and does not imply physical
 reclamation. An arbitrary staged schema is not accepted historical evidence.
 
+Retained source inspection resolves the original interpretation and current
+native authority objects through one request-local Table owner. Snapshot and
+history responses retain their existing wire evidence. Historical delegation
+still validates the original grant before opening a selected successor; each
+storage read checks its live lease, and the authenticated service checks all
+observed rights after encoding the reply. This reuses one recovery within a
+request without treating cached metadata as permission for another request.
+
 `DirectTableReader.selectPlan` freezes a schema-bound finite plan before traversing
 an ordinary retained snapshot. The reader owns its canonical bytes, literals and
 physical column selection. `next` returns owned batches with original source

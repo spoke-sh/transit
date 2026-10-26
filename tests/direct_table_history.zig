@@ -157,6 +157,7 @@ fn rows(reader: *c.DirectTableReader, client: c.DirectTableClient) !void {
     try reader.check(client);
 }
 pub fn verify(client: c.DirectTableClient, state: State) !void {
+    std.debug.print("Direct Table history: opening original retained source\n", .{});
     const delegated = try executor(client, state);
     var original = try c.DirectTableReader.openHistory(client.allocator, delegated, .{ .object = state.snapshot.?.object, .point = state.initial.? });
     defer original.deinit();
@@ -286,6 +287,7 @@ pub fn verify(client: c.DirectTableClient, state: State) !void {
         std.debug.print("Direct Table history: replay {d} final checkpoint passed\n", .{replay});
         try t.expectEqual(operations.len, transactions);
         try t.expectEqual(@as(u64, 0), changed);
+        std.debug.print("Direct Table history: eight complete transactions replayed\n", .{});
         const checkpoint = try changes.checkpoint();
         var resumed = try q.TableChangeReader.openTail(client.allocator, delegated, checkpoint, upper, .{ .requests = 100 });
         defer resumed.deinit();

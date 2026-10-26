@@ -44,15 +44,17 @@ fn requireSource(delegation: ?c.DirectReadDelegation, source: c.storage.TablePar
     }
 }
 fn historySource(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, delegation: ?c.DirectReadDelegation, object: d.Object, lease: c.storage.TablePartition.SnapshotHandle, point: ?c.storage.TablePartition.HistoryPoint) !w.HistorySource {
-    // Verify the original lease as well as the selected successor. Possession
-    // of a later root cannot replace the grant's exact original acquisition.
+    // Reject a foreign original grant before opening the selected successor.
+    // Its valid commitment cannot replace the original acquisition's authority.
     if (delegation != null) {
         var original = try catalog.snapshotDefinition(allocator, object, lease, policy);
         defer original.deinit();
         try requireSource(delegation, original);
     }
-    var found = try catalog.historyDefinition(allocator, object, lease, point, policy);
-    defer found.deinit();
+    // Selected history and current authority share one request-local owner.
+    var read = try catalog.historyRead(allocator, object, lease, point, policy);
+    defer read.deinit();
+    const found = &read.definition;
     if (delegation) |grant| try grant.requireHistory(found.root.interpretation, found.point.position);
     return .{ .point = found.point, .source = .{
         .snapshot = .{ .object = object, .handle = lease },
@@ -61,7 +63,7 @@ fn historySource(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, de
         .changed_lsn = found.root.changed_lsn,
         .row_count = found.root.live_rows,
         .schema = try schema(allocator, found.declaration.schema.schema),
-        .authority = try catalog.readAuthority(object, lease.owner, policy, false),
+        .authority = read.authority,
     } };
 }
 pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
@@ -256,9 +258,10 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             return .{ .pin_state = .{ .interpretation = state.interpretation, .position = state.position, .retired = state.retired, .handle = state.handle, .released = state.released, .authority = try catalog.readAuthority(value.object, value.owner, policy, true) } };
         },
         .snapshot => |value| {
-            var found = try catalog.snapshotDefinition(allocator, value.object, value.handle, policy);
-            defer found.deinit();
-            try requireSource(delegation, found);
+            var read = try catalog.snapshotRead(allocator, value.object, value.handle, policy);
+            defer read.deinit();
+            const found = &read.definition;
+            try requireSource(delegation, found.*);
             return .{ .snapshot = .{
                 .snapshot = value,
                 .interpretation = found.root.declared(),
@@ -266,7 +269,7 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
                 .changed_lsn = found.root.changed_lsn,
                 .row_count = found.root.live_rows,
                 .schema = try schema(allocator, found.schema.schema),
-                .authority = try catalog.readAuthority(value.object, value.handle.owner, policy, false),
+                .authority = read.authority,
             } };
         },
         .read_key => |value| {
@@ -300,16 +303,17 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             return .{ .page = .{ .snapshot = value.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } };
         },
         .filter_scan => |value| {
-            var definition = try catalog.snapshotDefinition(allocator, value.snapshot.object, value.snapshot.handle, policy);
-            defer definition.deinit();
-            try requireSource(delegation, definition);
+            var read = try catalog.snapshotRead(allocator, value.snapshot.object, value.snapshot.handle, policy);
+            defer read.deinit();
+            const definition = &read.definition;
+            try requireSource(delegation, definition.*);
             const basis: c.DirectTableReader.Basis = .{
                 .snapshot = value.snapshot,
                 .interpretation = definition.root.declared(),
                 .accepted = .{ .partition = definition.root.partition, .next_lsn = definition.root.next_lsn },
                 .changed_lsn = definition.root.changed_lsn,
                 .row_count = definition.root.live_rows,
-                .authority = try catalog.readAuthority(value.snapshot.object, value.snapshot.handle.owner, policy, false),
+                .authority = read.authority,
             };
             const plan = try value.decodePlan(allocator, definition.schema.schema, try basis.fingerprint());
             const selected = try c.fuze.TableProjection.fromPlan(definition.schema.schema, plan);

@@ -1798,3 +1798,115 @@ test "named resource allocation reservations survive recovery and release only o
     try t.expectEqual(.prepared, (try catalog.prepareResourceAllocation(third, access.policy())).operation.phase);
     try t.expectEqual(.allocated, (try catalog.resourceOperation(second, .inspect, access.policy())).operation.phase);
 }
+
+fn retainedMetadataAllocations(allocator: std.mem.Allocator, wal: *s.LocalWal.LocalWal, objects: *s.LocalSegmentStore.LocalSegmentStore, object: p.DataLifecycle.Object, lease: P.SnapshotHandle, point: P.HistoryPoint) !void {
+    var access: Access = .{};
+    var catalog = try D.init(allocator, try configuration(), wal.log(), objects.objectStore(), wal.log(), objects.objectStore(), .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } });
+    defer catalog.deinit();
+    try catalog.recover();
+    var snapshot = try catalog.snapshotRead(allocator, object, lease, access.policy());
+    defer snapshot.deinit();
+    var history = try catalog.historyRead(allocator, object, lease, point, access.policy());
+    defer history.deinit();
+    try t.expectEqualDeep(snapshot.authority, history.authority);
+    // Snapshot manifests omit control directories; the historical WAL record
+    // retains them. Their logical data basis still agrees exactly.
+    try t.expectEqualDeep(snapshot.definition.root.declared(), history.definition.root.declared());
+    try t.expectEqual(snapshot.definition.root.changed_lsn, history.definition.root.changed_lsn);
+    try t.expectEqual(snapshot.definition.root.live_rows, history.definition.root.live_rows);
+    try t.expectEqual(snapshot.definition.root.next_lsn, history.definition.root.next_lsn);
+}
+
+test "retained metadata shares one recovered owner while preserving source and final authority" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var access: Access = .{};
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try catalog.settle(create.binding, access.policy());
+    var view = (try resolve(&catalog, &access, "events")).?;
+    defer view.deinit();
+    const object = view.table.root.interpretation.object;
+    const expected: p.DataLifecycle.Position = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn };
+    const lease = try catalog.retainHistory(object, .{ .scope = scope, .principal = 1, .operation = 100 }, expected, view.table.root.interpretation, access.policy());
+    var latest = (try resolve(&catalog, &access, "events")).?;
+    defer latest.deinit();
+    const renamed = try edit(&latest, 2, .{ .rename = try a.Name.init("renamed") });
+    _ = try catalog.admit(renamed, access.policy());
+    _ = try catalog.perform(renamed.binding, access.policy());
+    try t.expect((try catalog.settle(renamed.binding, access.policy())) == .committed);
+    var changed = (try resolve(&catalog, &access, "renamed")).?;
+    defer changed.deinit();
+    try t.expect(changed.table.root.interpretation.revision > view.table.root.interpretation.revision);
+    const puts = objects.puts;
+    const root = catalog.store.root;
+    var initial = try catalog.historyDefinition(t.allocator, object, lease, null, access.policy());
+    defer initial.deinit();
+    const authority = try catalog.readAuthority(object, lease.owner, access.policy(), false);
+    var separate_reads: u64 = 0;
+    {
+        var fresh = try owner(&wal, &objects);
+        defer fresh.deinit();
+        const begin = objects.range_reads;
+        var snapshot = try fresh.snapshotDefinition(t.allocator, object, lease, access.policy());
+        defer snapshot.deinit();
+        try t.expectEqualDeep(authority, try fresh.readAuthority(object, lease.owner, access.policy(), false));
+        try t.expectEqualDeep(view.table.root.interpretation, snapshot.root.interpretation);
+        separate_reads = objects.range_reads - begin;
+    }
+    {
+        var fresh = try owner(&wal, &objects);
+        defer fresh.deinit();
+        const begin = objects.range_reads;
+        var combined = try fresh.snapshotRead(t.allocator, object, lease, access.policy());
+        defer combined.deinit();
+        const combined_reads = objects.range_reads - begin;
+        try t.expect(combined_reads > 0 and combined_reads < separate_reads);
+        std.debug.print("Retained metadata: separate/combined object ranges {d}/{d} with identical retained source and authority.\n", .{ separate_reads, combined_reads });
+        try t.expectEqualDeep(authority, combined.authority);
+        try t.expectEqualDeep(view.table.root.interpretation, combined.definition.root.interpretation);
+    }
+    var historical = try catalog.historyRead(t.allocator, object, lease, initial.point, access.policy());
+    defer historical.deinit();
+    try t.expectEqualDeep(initial.root, historical.definition.root);
+    try t.expectEqualDeep(initial.point, historical.definition.point);
+    try t.expectEqualDeep(authority, historical.authority);
+    // Every guard can deny, including the final check after constructing the
+    // retained outputs. Nothing is published by either successful or failed reads.
+    for ([_]bool{ false, true }) |history| {
+        const begin = access.calls;
+        if (history) {
+            var read = try catalog.historyRead(t.allocator, object, lease, initial.point, access.policy());
+            read.deinit();
+        } else {
+            var read = try catalog.snapshotRead(t.allocator, object, lease, access.policy());
+            read.deinit();
+        }
+        const guards = access.calls - begin;
+        try t.expect(guards >= 3);
+        for (1..guards + 1) |at| {
+            access.deny_at = access.calls + at;
+            if (history) try t.expectError(error.CatalogDenied, catalog.historyRead(t.allocator, object, lease, initial.point, access.policy())) else try t.expectError(error.CatalogDenied, catalog.snapshotRead(t.allocator, object, lease, access.policy()));
+            access.deny_at = std.math.maxInt(usize);
+        }
+    }
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), retainedMetadataAllocations, .{ &wal, &objects, object, lease, initial.point });
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqualDeep(root, catalog.store.root);
+    var wrong = initial.point;
+    wrong.commitment[0] ^= 1;
+    try t.expectError(error.TableHistoryConflict, catalog.historyRead(t.allocator, object, lease, wrong, access.policy()));
+    wrong = initial.point;
+    wrong.lease.content.sha256[0] ^= 1;
+    try t.expectError(error.DataIdentityConflict, catalog.historyRead(t.allocator, object, lease, wrong, access.policy()));
+    try catalog.releaseRows(object, lease, access.policy());
+    try t.expectError(error.TableSnapshotReleased, catalog.snapshotRead(t.allocator, object, lease, access.policy()));
+    try t.expectError(error.TableSnapshotReleased, catalog.historyRead(t.allocator, object, lease, initial.point, access.policy()));
+}

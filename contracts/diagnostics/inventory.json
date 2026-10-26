@@ -3159,7 +3159,7 @@
         "CatalogObservationChanged": 1,
         "CatalogRegistrationRequired": 6,
         "ConflictingRetry": 1,
-        "DataIdentityConflict": 3,
+        "DataIdentityConflict": 4,
         "DuplicatePrimaryKey": 1,
         "Forbidden": 4,
         "IbmHfpOverflow": 1,
@@ -3259,6 +3259,7 @@
         "hasDependents()": "<inferred>",
         "history()": "<inferred>",
         "historyDefinition()": "<inferred>",
+        "historyRead()": "<inferred>",
         "init()": "<inferred>",
         "initialize()": "<inferred>",
         "inspectNamespace()": "<inferred>",
@@ -3325,6 +3326,8 @@
         "settle()": "<inferred>",
         "snapshotAccess()": "<inferred>",
         "snapshotDefinition()": "<inferred>",
+        "snapshotRead()": "<inferred>",
+        "sourceAuthority()": "<inferred>",
         "status()": "<inferred>",
         "storedSchema()": "<inferred>",
         "terminal()": "<inferred>",
@@ -3332,7 +3335,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 674,
+        "try": 678,
         "catch": 8
       },
       "imports": [
@@ -4242,7 +4245,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 145,
+        "try": 142,
         "catch": 0
       },
       "imports": [
