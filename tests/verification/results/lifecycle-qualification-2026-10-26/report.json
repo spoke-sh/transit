@@ -127,5 +127,24 @@
         "gzip_sha256": "f2085b9c295234238c83421a2abfb8e894362feb50ce3707cd350af9d69c6f59"
       }
     }
+  },
+  "hosted_final_core": {
+    "run_url": "https://github.com/spoke-sh/transit/actions/runs/40278906228",
+    "job_id": 121427812936,
+    "revision": "e4b4955cbc24dc6a0c86b66f31ae66ebb9e2ae5c",
+    "artifact_id": 12634165177,
+    "artifact_sha256": "538ff73730e9a44f1239e7d80c66a3ebd8b79ba26bb23fcf6f3fa6d69449f523",
+    "result": "incomplete: 60-minute outer job cap; first 23 tasks passed, authorization-tables build active",
+    "task_reports": [
+      "hosted-final-core.json",
+      "hosted-final-core.meta.json"
+    ],
+    "log": {
+      "file": "hosted-final-core.log.gz",
+      "sha256": "c6f4ff573a06594f968b621495142f2efb0347fb48cd22114642bd2367155e96",
+      "gzip_sha256": "1fa82cfd289dc2acb301732e451260d372b3803ecd615d64e637591a4f7ddba9"
+    },
+    "change": "core outer cap 60 -> 90 minutes; no task deadlines or assertions changed",
+    "limits": "54.60 minutes is the sum of completed tasks, not complete lane duration or a pass."
   }
 }

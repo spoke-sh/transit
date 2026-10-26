@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "revision": "e4b4955cbc24dc6a0c86b66f31ae66ebb9e2ae5c",
+  "tier": "core",
+  "expected_tasks": [
+    "check-core",
+    "test::properties",
+    "test::simulation",
+    "test::resource-simulation-smoke",
+    "test::scheduler-simulation",
+    "test::domain-simulation",
+    "test::vortex",
+    "test::codecs",
+    "test::dev-environment",
+    "test::kubectl-transit",
+    "test::deployments",
+    "test::telemetry",
+    "test::packages-build",
+    "bindings::zig-test",
+    "bindings::runtime-boundary",
+    "test::sql-wire-contracts",
+    "test::compute",
+    "test::client-abi",
+    "test::station",
+    "test::storage",
+    "test::service",
+    "test::authorization",
+    "test::authorization-cli",
+    "test::authorization-tables",
+    "test::runtime-upgrade",
+    "test::callers",
+    "test::inspection",
+    "test::state"
+  ],
+  "run_id": "40278906228",
+  "run_attempt": "1",
+  "machine": {
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+    "logical_cpus": 4,
+    "affinity": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "runner": "GitHub Actions 1000005790",
+    "runner_arch": "X64"
+  },
+  "completed": false,
+  "active_task": {
+    "lane": "core",
+    "task": "test::authorization-tables"
+  },
+  "seconds": 3275.81,
+  "checkpoint_unix": 1792998918.1556778,
+  "result_count": 23
+}

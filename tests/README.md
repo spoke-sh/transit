@@ -3107,6 +3107,22 @@ accepted owner binding loses its reply and the process is killed.
 The workload, deadlines and assertions are unchanged. This focused pass does
 not complete the failed hosted lane or qualify its unexecuted later tasks.
 
+## Hosted core execution cap — 2026-10-26
+
+Hosted run `40278906228` reaches the former 60-minute core job cap at revision
+`e4b4955cb`. Its first 23 of 28 owning tasks pass, including the full repository
+core check (1,466.82 seconds), Station (312.77 seconds), storage, service and
+native authorization. Their task sum is 3,275.81 seconds (54.60 minutes), before
+job setup and the interrupted Table authorization build. The retained
+[task and completion records](verification/results/lifecycle-qualification-2026-10-26/report.json)
+identify `test::authorization-tables` as active when GitHub cancels the job.
+No failure assertion precedes that cancellation; the containing lane is incomplete.
+
+The core job cap is now 90 minutes so the remaining inventory can run. This
+changes the outer workflow budget only; task-local deadlines, workloads,
+assertions and feedback-budget measurements are unchanged. The interrupted
+run provides a lower bound, not a completed duration or a pass under the new cap.
+
 ## Station node build profile — 2026-10-26
 
 The [retained control](verification/results/station-node-profile-2026-10-26/report.json)

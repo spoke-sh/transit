@@ -232,7 +232,7 @@ Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
-Hosted execution caps are 60 minutes for core, 300 for growth, 60 for experience,
+Hosted execution caps are 90 minutes for core, 300 for growth, 60 for experience,
 30 for launchers (45 with cold-cache selection), and 360 for each of the two bindings lanes.
 The authorization budget record (archived)
 records the measured basis: the complete core lane takes 27.91 minutes before
@@ -244,6 +244,12 @@ motivate finite headroom for the expanded inventories; they are not a measured
 hosted job duration or a claim that the entire current suite has passed.
 Individual proof deadlines, resident bounds and the separately recorded feedback
 budgets remain unchanged.
+
+The [hosted core inventory record](../tests/README.md#hosted-core-execution-cap--2026-10-26)
+adds a current lower bound: its first 23 of 28 tasks pass in 54.60 minutes,
+then the former 60-minute job cap interrupts the Table authorization build.
+The 90-minute core cap permits the remaining inventory to execute; it is not
+a measured completion time or a change to any proof's own deadline.
 
 The bindings split record (archived)
 records the complete inventory partition. Python, Node, Rust and Ruby run with
