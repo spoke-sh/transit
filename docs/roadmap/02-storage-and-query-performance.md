@@ -95,10 +95,10 @@ pending full-suite qualification; this assessment does not mark that work passed
 
 | Criteria | Current code and recorded evidence | Remaining local delivery |
 | --- | --- | --- |
-| Acceptance and identities (#111/#112/#115/#125) | `TablePartition.apply`, `admit`, `perform` and `changeDefinition` publish immutable row/index roots and original receipts through one Table WAL. `DirectCatalog` owns names; `TableSnapshot` retains exact definitions and unflushed cuts. [Partition evidence](../../tests/README.md#table-partition-acceptance-and-retained-read-pins--2026-10-22) and [installed recovery](../../tests/README.md#installed-direct-execution-recovery--2026-10-23) cover the delivered boundary. | Preserve these guarantees through each physical change. Independent Tables remain independent cuts. Multi-Table transaction sessions belong to milestone 5. |
-| Segmented WAL (#113) | `LocalWal` rolls incremental files, persists epochs/frontiers/floors, recovers bounded frames and rejects missing acknowledged history. [Disk evidence](../../tests/README.md#data-operation-contracts-and-local-wal-persistence--2026-10-22) includes 73 partitions, more than 64 MiB and sync uncertainty. | Complete process-death and disk-full/I/O schedules, group-commit disposition and retention-owner integration. Repeated directory enumeration is bounded in memory, not indexed in I/O. |
+| Acceptance and identities (#111/#112/#115/#125) | `TablePartition.apply`, `admit`, `perform` and `changeDefinition` publish immutable row/index roots and original receipts through one Table WAL. `DirectCatalog` owns names; `TableSnapshot` retains exact definitions and unflushed cuts. [Partition evidence](../history/qualification/storage.md#table-partition-acceptance-and-retained-read-pins--2026-10-22) and [installed recovery](../history/qualification/runtime.md#installed-direct-execution-recovery--2026-10-23) cover the delivered boundary. | Preserve these guarantees through each physical change. Independent Tables remain independent cuts. Multi-Table transaction sessions belong to milestone 5. |
+| Segmented WAL (#113) | `LocalWal` rolls incremental files, persists epochs/frontiers/floors, recovers bounded frames and rejects missing acknowledged history. [Disk evidence](../history/qualification/storage.md#data-operation-contracts-and-local-wal-persistence--2026-10-22) includes 73 partitions, more than 64 MiB and sync uncertainty. | Complete process-death and disk-full/I/O schedules, group-commit disposition and retention-owner integration. Repeated directory enumeration is bounded in memory, not indexed in I/O. |
 | Local object publication (#114) | `LocalSegmentStore` locks per key, publishes immutable payload/checksum files through a durable descriptor and verifies touched chunks. Existing independent-process races establish one winner. | Publication-boundary process-death schedules and retained-root/orphan collection remain; descriptor deletion does not reclaim payload files. |
-| Native control/process/KV/Document persistence (#126) | `transit-backend-local` persists native roots, turns, blocks and exact receipts in partition zero and immutable objects. [Native evidence](../../tests/README.md#native-authority-over-local-storage--2026-10-22) covers restart, accepted-floor trim, control reserve and signed callers. | Qualify local immutable-object collection/compaction, standalone payload ownership and all retained native roots; Table tests cannot close these criteria. |
+| Native control/process/KV/Document persistence (#126) | `transit-backend-local` persists native roots, turns, blocks and exact receipts in partition zero and immutable objects. [Native evidence](../history/qualification/storage.md#native-authority-over-local-storage--2026-10-22) covers restart, accepted-floor trim, control reserve and signed callers. | Qualify local immutable-object collection/compaction, standalone payload ownership and all retained native roots; Table tests cannot close these criteria. |
 | Complete replay and hot state (#115/#116) | The live owner uses `TreeStore` paged point/physical/identity indexes, not `TableMemtable`. Its recovery follows all contiguous hash-linked records. The separate memtable consumes all WAL pages but retains an unbounded active row set and whole manifest. | Reconcile or retire the separate component profile; bound all remaining builders/decoders and measure cold recovery beyond cache. Do not wire the standalone component into the live path as a substitute. |
 | Immutable reads and primary-key access (#116/#128) | `TablePartition.getAt` uses a paged hash-key directory and checks the decoded key. `readSegment` still fetches the complete object; `readRowWithSchema` decodes every column in one group. `TSeg.Footer.pk_index` is a sorted resident array, not a paged B-tree. | Shared verified range reader, explicit decode ownership/budgets, projection/pruning before payload reads, ordered primary-key range access and table-wide candidate/I/O measurements. |
 | History and pins (#127) | `history`, `retainHistory`, `historyAt` and retained scans distinguish logical acceptance from flush/control progress. `TableChangeReader` provides complete snapshot/tail transactions with explicit retained leases. | Archive/checkpoint coverage, retention floors, resumable physical trimming and collection with slow/offline consumers and live pins. Current Table retention keeps all WAL and objects. |
@@ -228,23 +228,23 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   recovery, compaction or resident-memory criteria. Current interfaces and
   compatibility are documented in the [storage owner](../../packages/zig/transit-storage/README.md)
   and [versioning policy](../handbook/reference/versioning.md); the
-  [proof ledger](../../tests/README.md) records executed validation.
+  [proof ledger](../history/qualification/README.md) records executed validation.
 
 - The exclusive local WAL has a finite TLA+ publication/recovery model with
   independent durability states and removed-guard controls. Its counterexamples
   motivated file and directory recovery barriers; disk regressions check their
   ordering. This does not close physical power-loss, retention-owner or complete
-  clean-CI qualification. See the [proof ledger](../../tests/README.md).
+  clean-CI qualification. See the [proof ledger](../history/qualification/README.md).
 
 - Verified segment range reads and bounded decoding are wired into live Table
   point/scanned reads; 256-row groups separate decoder residency from result
   batches. The WAL keeps bounded verified seek coordinates to avoid repeated
   prefix decoding. Focused disk and signed service evidence is recorded in
-  [the proof ledger](../../tests/README.md); clean qualification remains separate.
+  [the proof ledger](../history/qualification/README.md); clean qualification remains separate.
 - Local process-death schedules cover WAL append/fence publication, interrupted
   partial/full trimming and conditional/immutable object publication. Retrying a
   persisted trim boundary resumes physical prefix removal. The
-  [scoped proof](../../tests/README.md#local-storage-process-death-boundaries--2026-10-26)
+  [scoped proof](../history/qualification/storage.md#local-storage-process-death-boundaries--2026-10-26)
   advances #113/#114; disk-full/I/O schedules, retention-owner integration and
   retained-root/orphan collection remain open.
 - Injected `NoSpaceLeft` and sync-error schedules exercise actual partial disk
@@ -280,7 +280,7 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   separate encoded and combined decoded/scratch budgets. Live current/retained
   point reads use that path; scans retain full-group decoding. Independent byte
   fixtures, all-codec state/provenance checks, allocation failures and a same-cut
-  disk control establish the [scoped behavior and memory counts](../../tests/README.md#selected-table-segment-decoding--2026-10-26).
+  disk control establish the [scoped behavior and memory counts](../history/qualification/storage.md#selected-table-segment-decoding--2026-10-26).
   This advances #116/#118/#128; repeated selection still validates skipped data.
 - Finite `COUNT(*)` now qualifies conjunctions of comparisons over one complete
   single-column primary key for retained interval traversal. Bound bytes are

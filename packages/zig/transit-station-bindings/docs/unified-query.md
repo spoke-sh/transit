@@ -64,7 +64,7 @@ supplies the canonical schema header, which the decoder requires exactly;
 PyArrow independently interprets its data and produces the test record batches. It covers all three sources, six
 primitive types, five cell states, Unicode, binary, full-width integers/IDs,
 negative zero, empty results and malformed inputs. Installed SDK transport
-checks and their execution limits are recorded in the [proof ledger](../../../../tests/README.md).
+checks and their execution limits are recorded in the [proof ledger](../../../../docs/history/qualification/README.md).
 
 ## Signed caller ownership
 

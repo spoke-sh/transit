@@ -13,7 +13,7 @@ growing process/state access, Station and language SDKs, SQL and unified queries
 immutable publication, HTTP/gRPC connectors, Documents, serving/reactive APIs,
 finite Flight SQL, declarative interfaces and local application installation.
 The [roadmap](../roadmap/README.md) records each profile; the
-[proof ledger](../../tests/README.md) records tested combinations and limitations.
+[proof ledger](qualification/README.md) records tested combinations and limitations.
 Public release distribution and clustered portability remain upcoming work.
 Broader requirements below are design direction unless their owning contract and
 qualification establish support.

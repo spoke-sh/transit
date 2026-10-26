@@ -23,7 +23,8 @@ explains the system's models, mechanisms and evidence.
 | [Components](handbook/reference/components.md) | Package/app READMEs and component integration guides |
 | [Contracts](../contracts/) | Exact wire formats, schemas, ABIs and shared fixtures |
 | [Examples](../examples/README.md) | Complete applications and public API callers |
-| [Proof ledger](../tests/README.md) | Executed checks, measurements and verification limits |
+| [Tests](../tests/README.md) | Test ownership, commands, fixtures and verification navigation |
+| [Qualification history](history/qualification/README.md) | Source-attributed experiments, outcomes and linked raw evidence |
 | [Roadmap](roadmap/README.md) | Delivery scope, dependencies, acceptance criteria and status |
 | [Design](design/README.md) | UI/UX proposals, visual studies and review outcomes |
 | [History](history/README.md) | Earlier technical accounts and qualification records |

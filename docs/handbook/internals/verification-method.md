@@ -3,7 +3,7 @@
 The question for an architectural claim is which observation or argument could
 support or refute it. This account consolidates testing and conformance reasoning.
 The [verification reference](../reference/verification.md) describes user-relevant
-guarantees, while the [proof ledger](../../../tests/README.md) owns executed commands
+guarantees, while the [proof ledger](../../history/qualification/README.md) owns executed commands
 and results. The [scientific standard](standard.md) governs how accounts present
 that evidence.
 
@@ -81,7 +81,7 @@ finite explicit scheduler is narrower than that cluster simulation.
 
 The [harness guide](../../../tests/verification/README.md#authority-and-delivery-simulation)
 owns bounds, reproduction and negative controls. The
-[simulation evidence](../../../tests/README.md#authority-and-delivery-simulation)
+[simulation evidence](../../history/qualification/verification.md#authority-and-delivery-simulation)
 records executed results; no timing here establishes deployed throughput or latency.
 
 ## Resource publication under I/O faults
@@ -119,7 +119,7 @@ source/compiler/binary/oracle identity and incomplete-run status are retained.
 Mutation checks omit actual resource writes or input progress to challenge the
 oracle. Physical WAL, page deletion/GC and arbitrary corruption remain outside
 this model. See the [harness guide](../../../tests/verification/README.md#resource-publication-simulation)
-for reproducible commands and the [proof ledger](../../../tests/README.md) for executed
+for reproducible commands and the [proof ledger](../../history/qualification/README.md) for executed
 results and costs.
 
 ## Shared-client scheduling
@@ -229,8 +229,8 @@ Clean-checkout and installed-consumer checks expose dependencies hidden by local
 outputs; they are distinct from ordinary incremental tests.
 
 Use the [verification harness guide](../../../tests/verification/README.md),
-[test commands](../../../tests/README.md#running-checks) and
-[evidence-recording rules](../../../tests/README.md#recording-new-evidence) to reproduce
+[test commands](../../history/qualification/verification.md#running-checks) and
+[evidence-recording rules](../../history/qualification/verification.md#recording-new-evidence) to reproduce
 or extend a claim. This documentation consolidation adds no runtime qualification.
 Historical [testing](../../history/TESTING.md) and
 [conformance](../../history/CONFORMANCE.md) records preserve earlier scope and

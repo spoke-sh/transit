@@ -21,4 +21,4 @@ The [repository launcher runbook](../../../launchers/README.md) owns setup, comm
 configuration, artifact selection and recovery procedures for these development
 systems. [Deployment and recovery](../reference/deployment.md) explains the
 runtime boundaries and unsupported recovery cases. The
-[proof ledger](../../../tests/README.md) records executed placement checks and limits.
+[proof ledger](../../history/qualification/README.md) records executed placement checks and limits.

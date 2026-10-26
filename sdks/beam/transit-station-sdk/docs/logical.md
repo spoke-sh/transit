@@ -67,5 +67,5 @@ caller sub-binary storage. No external name is converted into a BEAM atom.
 Storage, key equality, predicates, aggregation and transport admission have
 separate contracts. A logical codec round trip does not qualify every operator
 for the represented type. See [logical types](../../../../contracts/FUZE_TYPES_V1.md)
-and the [proof ledger](../../../../tests/README.md) for contracts and executed
+and the [proof ledger](../../../../docs/history/qualification/README.md) for contracts and executed
 installed-package evidence.

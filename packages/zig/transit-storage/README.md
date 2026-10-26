@@ -146,7 +146,7 @@ epochs, trim floors, Table receipts/snapshots/history and exact object retries a
 oracle. The root unit task includes this proof. Repeating an already-published
 WAL trim boundary finishes interrupted prefix removal. These schedules preserve
 the operating system and its page cache; they do not simulate power loss or
-disk exhaustion. See the [proof ledger](../../../tests/README.md#local-storage-process-death-boundaries--2026-10-26).
+disk exhaustion. See the [proof ledger](../../../docs/history/qualification/storage.md#local-storage-process-death-boundaries--2026-10-26).
 
 `just test::storage-io-faults` exercises injected `NoSpaceLeft` and `InputOutput`
 errors around real disk writes and syncs. A WAL owner requires reopening after

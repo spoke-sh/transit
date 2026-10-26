@@ -42,7 +42,7 @@ unlimited history, advance opted-in epochs/floors only at final publication,
 reject stale edits and recycled counters, and reclaim rejected/retired intervals.
 The disk-backed `just test::document` additionally qualifies real worker/node/
 store loss, exact retry, current-policy reads and bounded cleanup with a one-page
-authority cache. See [proof evidence](../../../tests/README.md#m17-qualification).
+authority cache. See [proof evidence](../../../docs/history/qualification/runtime.md#m17-qualification).
 All ten public SDKs now pass the installed Document change/read recovery schedule.
 The real two-client local remote-submission proof, Board API/browser checks and
 isolated Compose/reference placement proofs pass.

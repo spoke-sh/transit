@@ -162,7 +162,7 @@ steps, exact reconstruction, conflicting plans and ordinals, current denial,
 explicit abandonment, source mismatch, infrastructure errors and rollback of
 partial decisions. The [work-item example](../../../examples/work-items/README.md) additionally
 qualifies signed native migration commands, an actual Table transformation,
-worker replacement and node/disk recovery. The [proof ledger](../../../tests/README.md)
+worker replacement and node/disk recovery. The [proof ledger](../../../docs/history/qualification/README.md)
 records executed native, browser and physical placement schedules by source
 revision. Its post-activation write pause separates
 data activation from interface publication and explicit administrator release.

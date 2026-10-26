@@ -49,5 +49,5 @@ can stall; clock health and scope partitioning remain operational concerns.
 Inspect it with `transit-admin query SEED QUERY URL`, where QUERY contains
 `{"realm":42,"principal":5,"kind":{"delivery":{}}}`. This read consumes no
 mutation sequence. The [service contract](../../contracts/SERVICE_V1.md) owns its
-bounds and authorization; the [proof ledger](../../tests/README.md) records
+bounds and authorization; the [proof ledger](../../docs/history/qualification/README.md) records
 courier, restart and exact-retry checks.

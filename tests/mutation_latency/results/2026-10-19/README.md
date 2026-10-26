@@ -187,7 +187,7 @@ All original failed and intermediate reports remain attributable in the manifest
   passing ReleaseSafe ENOSPC schedule have their own
   [record](../../../verification/results/storage-foundation-capacity-2026-10-19.json).
 
-The [proof ledger](../../../README.md) owns correctness/recovery schedules.
+The [proof ledger](../../../../docs/history/qualification/README.md) owns correctness/recovery schedules.
 Measured publication/disclosure gains do not implement historical-schema binding,
 branches, merge, persistent columnar layouts or large statement ingress. Clean CI
 has separate source provenance; the PR records its exact committed revision.

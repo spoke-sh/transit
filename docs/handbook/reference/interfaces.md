@@ -50,7 +50,7 @@ to encode a type does not establish query execution support for that type.
 their authoritative sources. [Versioning](versioning.md) explains why a v1 name
 alone does not establish compatibility between builds. [Verification limits](verification.md)
 separates current guarantees from the scope of executed checks; the repository's
-[proof ledger](../../../tests/README.md) owns those execution records.
+[proof ledger](../../history/qualification/README.md) owns those execution records.
 
 The handbook documents the checked-out source revision. References and guides
 describe use; Internals explains models, invariants, tradeoffs and evidence.

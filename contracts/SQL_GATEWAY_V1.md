@@ -5,7 +5,7 @@ typed message/scalar codecs and signed account recovery. The
 [gateway application](../apps/transit-sql-gateway/README.md) composes those owners
 with explicitly configured transport and login policies. Codec acceptance alone cannot admit a durable
 write. Executed evidence belongs to the
-[proof ledger](../tests/README.md).
+[proof ledger](../docs/history/qualification/README.md).
 
 ## Common values and resource budgets
 

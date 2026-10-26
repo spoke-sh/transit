@@ -256,7 +256,7 @@ hosted job duration or a claim that the entire current suite has passed.
 Individual proof deadlines, resident bounds and the separately recorded feedback
 budgets remain unchanged.
 
-The [hosted core inventory record](../tests/README.md#hosted-core-execution-cap--2026-10-26)
+The [hosted core inventory record](../docs/history/qualification/runtime.md#hosted-core-execution-cap--2026-10-26)
 adds a current lower bound: its first 23 of 28 tasks pass in 54.60 minutes,
 then the former 60-minute job cap interrupts the Table authorization build.
 The 90-minute core cap permits the remaining inventory to execute; it is not
@@ -320,7 +320,7 @@ The consumer is installed once and exercised in independent disk-backed fixtures
 of at most 32 cases. Each fixture verifies its history before joined cleanup;
 the test does not increase storage quotas or reset accepted work within a history.
 Use an owned disk-backed `TMPDIR` for large consumer builds, as the clean suite
-does. See the [proof ledger](../tests/README.md#rust-native-lifetime-investigation--2026-09-30).
+does. See the [proof ledger](../docs/history/qualification/sdk.md#rust-native-lifetime-investigation--2026-09-30).
 
 ## Public documentation
 
@@ -360,7 +360,7 @@ The Python, TypeScript, Rust, Ruby, C/C++, Java, .NET and BEAM Station SDK tasks
 build the node with `ReleaseSafe` while keeping their bindings, ports, callers
 and connector workers in Debug. Their disk-backed query schedules retain the
 same row counts, small caches, recovery assertions and ten-minute query budget.
-The [measured profile control](../tests/README.md#sdk-query-node-build-profile--2026-10-26)
+The [measured profile control](../docs/history/qualification/sdk.md#sdk-query-node-build-profile--2026-10-26)
 records the Debug-node timeout and optimized-node result. Other tasks select
 their own build modes; this does not change the repository's Debug unit checks.
 

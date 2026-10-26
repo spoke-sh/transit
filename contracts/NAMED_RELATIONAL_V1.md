@@ -234,7 +234,7 @@ rejected-input disposition; an infrastructure failure does not fabricate one.
 
 Typed references require the shared definition field when deserialized. The
 [independent fixtures](../tests/named_relational_records.py) pin full-width
-identities, layouts and digests. The [proof ledger](../tests/README.md#named-relational-definitions)
+identities, layouts and digests. The [proof ledger](../docs/history/qualification/query.md#named-relational-definitions)
 records deterministic and native execution separately. The shared current-v1
 definition changes with logical reference and retirement semantics; incompatible
 saved requests and records reject before execution.

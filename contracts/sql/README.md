@@ -24,7 +24,7 @@ Table schemas and projections admit up to 128 columns. Logical types, parameter
 bounds, row budgets and operator/transport capabilities are checked by their
 owning compiler and runtime. Reference grammar acceptance alone does not enable
 a SQL entry point or an operator on every stored type. The
-[proof ledger](../../tests/README.md) records independent grammar, schema, plan
+[proof ledger](../../docs/history/qualification/README.md) records independent grammar, schema, plan
 and result checks. No optimizer rewrite is enabled.
 
 `parameterTemplate` is a separate checked root for the explicit Zig

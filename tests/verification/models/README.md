@@ -98,7 +98,7 @@ behavior or a refinement theorem. The
 [terminal suite](../../console_editing.py) covers the actual effect interpreter
 and display. The [mechanism account](../../../docs/handbook/internals/service-interfaces.md#console-interaction-transitions)
 explains ownership and integration assumptions. Executed counts and commands
-belong to the [proof ledger](../../README.md).
+belong to the [proof ledger](../../../docs/history/qualification/README.md).
 
 Logs, the graph, removed-guard traces, source/binary hashes and completion status
 are retained under `.cache/verification/console-model/`. `--seconds N` changes
@@ -165,4 +165,4 @@ check failures at the recovered-frame and observed-directory barriers, and
 These tests are not automatic replay of every TLC transition or a refinement
 proof. The model does not cover object descriptors, multiple owners, replication,
 retention policy, arbitrary corruption or arbitrary-size executions. Executed
-results belong to the [proof ledger](../../README.md).
+results belong to the [proof ledger](../../../docs/history/qualification/README.md).

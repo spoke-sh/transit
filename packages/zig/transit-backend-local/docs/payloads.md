@@ -43,7 +43,7 @@ lane; independent lanes share the backend's publication and allocation locks.
 
 These operations are available through the Zig component. Installed local node
 payload publication and reclamation are separate runtime integration work.
-The [proof ledger](../../../../tests/README.md) records the executed disk,
+The [proof ledger](../../../../docs/history/qualification/README.md) records the executed disk,
 concurrency, corruption and sync-failure cases. The
 [native contract](../../../../contracts/TRANSIT_V1.md#payloads-and-working-catalog-collection)
 owns readiness/retirement transitions, and the

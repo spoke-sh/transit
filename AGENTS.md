@@ -42,7 +42,7 @@ Follow the public explanations and exact contracts for the area you change:
 | Local/Compose lifecycle and developer environments | [Launchers](launchers/README.md), [contributing](docs/handbook/guides/contributing.md) |
 
 Read [guarantees and verification limits](docs/handbook/reference/verification.md) and
-[executed proof evidence](tests/README.md). Preserve the proved authority,
+[executed proof evidence](docs/history/qualification/README.md). Preserve the proved authority,
 readiness and recovery gates before extending a profile. Distinguish planned
 checks from executable evidence; never treat a skipped or incomplete proof as passed.
 Tie work to the [roadmap](docs/roadmap/README.md), consulting only the
@@ -269,7 +269,10 @@ reproducible methods; alternatives, uncertainty and limits. Apply it to new and
 substantively revised accounts. Do not retroactively certify historical records.
 
 Keep exact wire specifications in `contracts/`, component implementation/usage
-beside their package/app, and proof details in `tests/README.md`. User guides and
+beside their package/app, and qualification accounts in `docs/history/qualification/`
+with linked source-attributed raw evidence. Keep `tests/README.md` a summary index;
+test methods belong with their domain, and active handoffs belong in issues/PRs.
+Follow the scoped `tests/AGENTS.md` instructions. User guides and
 interface references must explain current behavior without requiring an Internals
 record; optional links can supply deeper reasoning. They describe a snapshot of
 capabilities at their source revision. Keep milestone IDs, headings, roadmap links
@@ -308,11 +311,19 @@ and promote current behavior to the public handbook, following the
 [sequencing rule](docs/roadmap/README.md#maintaining-the-sequence).
 
 Enter `nix develop` and use [just tasks](tasks/README.md). Use the pinned Zig 0.17
-compiler and standard library, not examples from older releases. Install locked
-frontend dependencies with `just transit-board::install`, then run `just check`
-and the relevant [focused/integration proofs](tests/README.md). Before pushing,
-run `just ci-clean` against committed HEAD to expose dependencies hidden by local
-build outputs; report what ran and what could not. Toolchain changes also require `just doctor`, deliberate
+compiler and standard library, not examples from older releases. Use the
+[test index](tests/README.md) to select the smallest meaningful owning checks
+during iteration and the affected caller/fault checks before submitting. Install
+locked frontend dependencies with `just transit-board::install` when needed.
+Documentation-only changes require link/whitespace checks and affected site checks;
+they do not require a new runtime suite. Before pushing implementation or test
+infrastructure changes, run the affected `just ci-clean --lane NAME` checks against
+committed HEAD to expose dependencies hidden by local outputs. Shared contract,
+authority and cross-domain changes require their dependent lanes; full clean
+qualification remains an integration/release gate. `just check` remains available
+for broad repository validation. Report selections, omissions and incomplete
+checks explicitly; do not label selected lanes as a complete pass.
+Toolchain changes also require `just doctor`, deliberate
 lockfile updates, and the [toolchain workflow](nix/README.md). Use `vp` for future
 frontend dependency operations, checks, tests, and builds. Keep onboarding
 commands runnable; never add placeholder tasks that report success.

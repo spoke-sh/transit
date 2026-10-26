@@ -48,7 +48,7 @@ are mandatory; [configuration](../../apps/transit-flight-gateway/docs/configurat
 describes deadlines, credentials and memory budgets.
 
 The [compatibility matrix](../../packages/zig/transit-flight/docs/compatibility.md)
-and [proof ledger](../../tests/README.md#m22-qualification) distinguish
+and [proof ledger](../../docs/history/qualification/runtime.md#m22-qualification) distinguish
 executed combinations from unsupported sources, types and clients. Repeated SQL
 with a new `x-transit-request-sequence` is a new query. Preserve the old sequence
 and SQL/schema after uncertainty; a fresh access ticket can refer to the same

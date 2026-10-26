@@ -1,6 +1,6 @@
 # Serving compatibility
 
-The [M19 proof ledger](../../../../tests/README.md#m19-qualification) owns commands,
+The [M19 proof ledger](../../../../docs/history/qualification/runtime.md#m19-qualification) owns commands,
 measurements and fault schedules. All executed rows use pinned tools on Linux
 x86_64. A row does not qualify every combination of the columns below.
 
@@ -41,7 +41,7 @@ controller, autonomous timer daemon or finite receipt reclamation is claimed.
 Session/transport loss never grants expiry, retargets an operation or makes an
 external connector retry safe. M20 and M22 consume these boundaries separately.
 
-M20's [proof ledger](../../../../tests/README.md#m20-qualification) separates
+M20's [proof ledger](../../../../docs/history/qualification/runtime.md#m20-qualification) separates
 native/browser, Compose and reference evidence. The browser fixture pins its own
 certificate public key and grants local-network permission only to its loopback
 origin. It uses real WebCrypto, browser WebSocket and fetch-streaming SSE; it does

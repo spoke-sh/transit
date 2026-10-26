@@ -65,9 +65,9 @@ unloading, but the current ABI supplies no such fence. Retention spends resident
 code space to remove the unsafe ordering without changing the compiler or
 protocol. It does not retain client handles or authorize work after close.
 
-The [Rust investigation](../../../tests/README.md#rust-native-lifetime-investigation--2026-09-30)
+The [Rust investigation](../../history/qualification/sdk.md#rust-native-lifetime-investigation--2026-09-30)
 contains a native stack returning through an unmapped image. The integrated
-[query qualification](../../../tests/README.md#integrated-vector-execution) records
+[query qualification](../../history/qualification/query.md#integrated-vector-execution) records
 the .NET crash observation and deterministic mapping regression separately.
 The installed Rust and .NET SDK tasks named in those proof records run consumers
 against the real authority; the records own reproduction commands and source
@@ -98,7 +98,7 @@ must itself be tested.
 
 The [client binding owner](../../../packages/zig/transit-client/docs/bindings.md) and
 [Station binding owner](../../../packages/zig/transit-station-bindings/README.md)
-define that boundary. [Station and binding evidence](../../../tests/README.md#m9-station-bindings-and-tables)
+define that boundary. [Station and binding evidence](../../history/qualification/catalog.md#m9-station-bindings-and-tables)
 and the [SDK verification inventory](../../../tests/verification/sdk.json) identify
 independent consumers, host scenarios and reproduction tasks. Shared implementation
 does not prove every host scheduler or platform correct.

@@ -87,5 +87,5 @@ threads before destroying clients or their borrowed inputs. Definition-bound C
 symbols reject mismatched headers and installed libraries before ABI use.
 
 The [direct catalog contract](../../../../contracts/DIRECT_TABLE_V1.md) owns
-publication and authorization. The [proof ledger](../../../../tests/README.md)
+publication and authorization. The [proof ledger](../../../../docs/history/qualification/README.md)
 records installed recovery and boundary evidence.

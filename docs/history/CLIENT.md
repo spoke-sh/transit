@@ -192,7 +192,7 @@ The [counter](../../examples/counter/README.md), [byte log](../../examples/byte-
 and [Station ledger](../../examples/station-ledger/README.md) remain Zig reference
 applications. [Binding examples](../../examples/station-sdk/README.md) qualify
 host-language callers against the same authority. The
-[caller proof](../../tests/README.md#independent-caller-evidence) checks that the node
+[caller proof](qualification/runtime.md#independent-caller-evidence) checks that the node
 does not execute application handlers.
 
 ## Idiomatic language SDKs
@@ -207,7 +207,7 @@ cleanup and typed scoped handlers. Erlang/Elixir also have independent raw OTP
 clients with tagged recovery, supervised ownership and caller-loss/join proofs.
 Their Station behaviours, scoped helpers and installed examples also pass the
 shared authority schedule. The public interoperability ring qualifies each target
-in both roles; the [test guide](../../tests/README.md#public-sdk-interoperability) records its limits.
+in both roles; the [test guide](qualification/verification.md#public-sdk-interoperability) records its limits.
 M9 provides generated declarations and
 owned host adapters with real interoperability and recovery evidence. Its public
 surface still exposes JSON actions, raw status codes, hex values and manual
@@ -331,7 +331,7 @@ Language usage and ownership live beside each SDK:
 | Erlang | [Tagged records and reader tokens](../../sdks/beam/transit-station-sdk/docs/http.md) |
 | Elixir | [HTTP structs and immutable readers](../../sdks/beam/transit-station-elixir/docs/http.md) |
 
-The [M15 proof inventory](../../tests/README.md#m15-connector-work-in-progress)
+The [M15 proof inventory](qualification/runtime.md#m15-connector-work-in-progress)
 distinguishes installed-consumer evidence from outstanding connector lifecycle,
 deployment and hosted-cost qualification. The current finite worker admits one
 root call per provisioned connector PID; its

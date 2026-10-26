@@ -84,7 +84,7 @@ pending view request across caller/node/provider replacement, then exhausts the
 reserve through authorized control work. It also checks current revocation.
 
 The node does not provision physical space. The separate
-[growing physical-capacity proof](../../../tests/README.md#growing-physical-capacity)
+[growing physical-capacity proof](../../../docs/history/qualification/verification.md#growing-physical-capacity)
 qualifies a finite 96-position admission / 96-position reserve workload in an
 owned ext4 fixture. A deployment must provision headroom for page/WAL amplification
 and provider housekeeping; the configured record band alone cannot ensure it.

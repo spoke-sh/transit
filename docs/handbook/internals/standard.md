@@ -72,7 +72,7 @@ and the relevant version or section. Attribute borrowed ideas and distinguish
 them from Transit-specific conclusions.
 
 The [verification reference](../reference/verification.md) defines the evidence
-boundaries. The [proof ledger](../../../tests/README.md) owns executed commands,
+boundaries. The [proof ledger](../../history/qualification/README.md) owns executed commands,
 results and qualification limits. Link to that evidence; an unchecked box,
 planned command, skipped run or incomplete check never counts as a pass.
 

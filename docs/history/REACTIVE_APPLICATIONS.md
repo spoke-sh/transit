@@ -210,7 +210,7 @@ policy is outside editable presentation; each immutable body and exact proposal
 has retained evidence. Publication and active-head visibility share an ordinary
 four-mutation turn. Administrative ingress, generated browser clients and
 physical migration recovery have separate executed proofs in the
-[test ledger](../../tests/README.md#m23-application-declaration-boundary); offline
+[test ledger](qualification/runtime.md#m23-application-declaration-boundary); offline
 compiler and owner tests alone do not qualify those boundaries.
 
 
@@ -227,7 +227,7 @@ denial. Declaration-driven shell generation and the selected work-item Table
 evolution now have their own browser proofs. Generic schema evolution remains
 outside that evidence; physical placements have separate qualification records.
 See the [implementation guide](../../apps/transit-board/docs/application.md) and
-[test evidence](../../tests/README.md#m23-application-declaration-boundary).
+[test evidence](qualification/runtime.md#m23-application-declaration-boundary).
 
 ## Migration implementation boundaries
 

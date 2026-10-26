@@ -122,5 +122,5 @@ after commit with a lost reply and immediately after bulk publication, and retai
 larger than RAM/cache. Check state and source bases against independent oracles.
 Measure commit latency, lag, failover, catch-up throughput and reserved control
 progress separately. Record topology, provider configuration and actual fault
-coverage in the [proof ledger](../../tests/README.md); process kills alone do not
+coverage in the [proof ledger](../history/qualification/README.md); process kills alone do not
 prove host/disk loss, zone failure or power-loss durability.

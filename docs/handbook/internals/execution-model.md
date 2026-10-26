@@ -193,13 +193,13 @@ profile and cannot substantiate restricted Table isolation.
 ## Evidence and limits
 
 The [invariant inventory](../../../tests/verification/invariants.json) and
-[authority, effects and outbox ledger](../../../tests/README.md#authority-effects-and-outbox-evidence)
+[authority, effects and outbox ledger](../../history/qualification/runtime.md#authority-effects-and-outbox-evidence)
 identify schedules for conflicting authority, acknowledgement loss, stale owners
-and delivery. The [independent caller evidence](../../../tests/README.md#independent-caller-evidence)
+and delivery. The [independent caller evidence](../../history/qualification/runtime.md#independent-caller-evidence)
 tests the public boundary rather than only internal helpers. Use their recorded
 commands, revision and topology when reproducing a claim.
 
-The [declarative-authorization proof ledger](../../../tests/README.md#declarative-authorization-evaluator)
+The [declarative-authorization proof ledger](../../history/qualification/runtime.md#declarative-authorization-evaluator)
 links independent role-graph fixtures, native staged-change/restart schedules,
 the two-Tables/one-resource mediation proof, exact recovery after rotation,
 maintained queries and exchange handoff. The

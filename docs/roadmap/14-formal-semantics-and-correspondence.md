@@ -61,7 +61,7 @@ baseline when this milestone starts. Existing owners are the
 [rewrite specification](../../contracts/sql/FuzeRewrite.lean),
 [invariant inventory](../../tests/verification/invariants.json),
 [verification reference](../handbook/reference/verification.md) and
-[executed proof ledger](../../tests/README.md).
+[executed proof ledger](../history/qualification/README.md).
 
 Retain the useful distinction among finite exploration, deductive theorems,
 implementation correspondence and integration experiments. Console exports its

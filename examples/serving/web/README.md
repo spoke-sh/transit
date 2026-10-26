@@ -20,4 +20,4 @@ From this directory use `vp check`, `vp exec tsc --noEmit` or `vp build`. Root
 `zig build serving-example` embeds assets with the shared bounded build helper.
 `just test::reactive-views` is the real Board/application Chromium proof. M21's
 browser and placement qualification remains in progress until recorded in the
-[proof ledger](../../../tests/README.md#m21-qualification).
+[proof ledger](../../../docs/history/qualification/runtime.md#m21-qualification).

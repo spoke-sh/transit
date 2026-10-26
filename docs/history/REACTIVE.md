@@ -16,7 +16,7 @@ refresh, used by Board and an application interface. M20 owns the server/API
 contract; this document owns its use in interfaces. M20's int64 Table API is
 implemented and qualified. The shared TypeScript view owner, Board metadata/query
 views and counter application now run against it in native, Compose and reference
-placements. The [proof ledger](../../tests/README.md#m21-qualification)
+placements. The [proof ledger](qualification/runtime.md#m21-qualification)
 records executed schedules and remaining regression work separately from M20's
 protocol harness.
 
@@ -189,7 +189,7 @@ about 7.6/6.2 seconds for the counter and 127/155 seconds for a fully verified
 coverage cheap.
 Keep earlier permitted data visibly tied to its own basis while work completes,
 and measure each acquisition/delivery/verification phase before adding draft
-execution or a freshness target. The [proof ledger](../../tests/README.md) distinguishes
+execution or a freshness target. The [proof ledger](qualification/README.md) distinguishes
 these observations from hosted CI cost and broader capacity claims.
 
 ## Declarative composition after M21

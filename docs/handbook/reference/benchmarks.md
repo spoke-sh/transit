@@ -9,7 +9,7 @@ The report preserves that blocked status even when every component succeeds.
 Use this reference to interpret measurements and find the missing declarative
 contracts. The [benchmark tooling guide](../../../tests/benchmarks/README.md) owns
 runnable repository commands and report options; the
-[proof ledger](../../../tests/README.md#declarative-benchmark-components) records
+[proof ledger](../../history/qualification/performance.md#declarative-benchmark-components) records
 executed checks. The [performance reference](performance.md) separately covers
 native interactive queries and storage costs.
 

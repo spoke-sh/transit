@@ -96,7 +96,7 @@ ceilings; no cardinality formula or latency SLO is inferred. The timings,
 wide/nested costs and combined-reader observations above remain the accepted
 baseline, not evidence of the earlier point-write latency or scan efficiency.
 Retained-memory, recovery and subsequent executed checks are separate evidence
-in the [proof ledger](../../../README.md).
+in the [proof ledger](../../../../docs/history/qualification/README.md).
 
 ## Reproduction
 

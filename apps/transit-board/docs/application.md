@@ -5,7 +5,7 @@ declared shell and native restart proofs are implemented. The
 [work-item application](../../../examples/work-items/README.md) demonstrates
 bounded data evolution and generated browser composition using the same packages.
 Its physical placement evidence is separate from Board's native editor proof;
-the [test ledger](../../../tests/README.md#m23-application-declaration-boundary)
+the [test ledger](../../../docs/history/qualification/runtime.md#m23-application-declaration-boundary)
 records the supported profiles and remaining qualification.
 
 Board embeds `board.sql` as its explicit built-in definition. `GET

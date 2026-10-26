@@ -84,7 +84,7 @@ Receiver `close` requires only its own current resource and keeps accepted work
 and audit evidence. It remains available after source denial or exhausted data
 budgets. No automatic expiry or physical collection occurs.
 
-The [proof ledger](../../../../tests/README.md) separates current direct-source
+The [proof ledger](../../../../docs/history/qualification/README.md) separates current direct-source
 checks from historical actor-store schedules. The earlier disk-backed exchange
 host requires migration to direct sources before its recovery, placement and
 capacity results qualify this contract. These typed primitives do not configure

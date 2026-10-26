@@ -407,4 +407,4 @@ interruption stops subsequent input and exits 130. Partial row output has no
 successful completion marker.
 Output writes have a two-second deadline.
 None of these limits expires accepted history. Executed verification and its
-limits are recorded in the [proof ledger](../../../tests/README.md).
+limits are recorded in the [proof ledger](../../../docs/history/qualification/README.md).

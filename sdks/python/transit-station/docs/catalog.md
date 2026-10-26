@@ -131,5 +131,5 @@ The [shared catalog caller contract](../../../../packages/zig/transit-station-bi
 defines native authority, retention and failure semantics. Namespace
 administration, policy preparation, dependencies and named resources have shared
 native actions; Python's typed catalog methods here cover Table lifecycle and
-inspection plus snapshot retention. The [proof ledger](../../../../tests/README.md)
+inspection plus snapshot retention. The [proof ledger](../../../../docs/history/qualification/README.md)
 records installed qualification separately from source-level decoder tests.

@@ -66,10 +66,10 @@ access, expire history or physically collect Table objects.
 The mechanism is falsified by an accepted acquisition with no recoverable original
 request, cleanup of a current-generation active pin, changed interpretation under
 a prepared handle, unstable row order after flush, or output disclosure after
-rights are revoked. The direct Table service proof recorded in the [proof ledger](../../../tests/README.md)
+rights are revoked. The direct Table service proof recorded in the [proof ledger](../../history/qualification/README.md)
 exercises corrupted acquisition replies, node restart, generation replacement,
 retained joins and revocation. Storage and SQL package tests cover root atomicity
-and dispatch/terminal binding. The [proof ledger](../../../tests/README.md) records
+and dispatch/terminal binding. The [proof ledger](../../history/qualification/README.md) records
 executions and limits. These component/HTTP checks do not by themselves qualify
 the default launcher or every installed SQL transport.
 
@@ -154,7 +154,7 @@ a usable vector or an atomic catalog observation. Relational resume seeks one
 ordered row after its accepted identity on the original pin; that suffix lookup
 does not claim complete sequential consumption or change another reader's cursor.
 
-The [direct captured-query proof](../../../tests/README.md#direct-captured-table-queries-and-separate-cleanup-authority--2026-10-23) exercises the public
+The [direct captured-query proof](../../history/qualification/query.md#direct-captured-table-queries-and-separate-cleanup-authority--2026-10-23) exercises the public
 signed service and real native hosts with independent progress storage, unflushed
 rows, worker/node replacement and corrupted successful pin/release replies.
 Its assertions distinguish the original cut from a renamed current definition,
@@ -165,7 +165,7 @@ schedule covers a two-row self-join and two separate two-row Tables, including
 replacement between acquisitions and result revocation/restoration. Installed
 language consumers exercise single-source declaration, authorization, result
 reading and cleanup preparation over the shared fault schedule. The
-[proof ledger](../../../tests/README.md) records those outcomes and bounds; this
+[proof ledger](../../history/qualification/README.md) records those outcomes and bounds; this
 does not establish exhaustive interleavings, maintained-source migration,
 independent language execution hosts or storage GC safety.
 
@@ -222,7 +222,7 @@ and worker schedules. The [batch tests](../../../packages/zig/transit-fuze/src/b
 worker tests and existing independent relational/source/Arrow proofs exercise
 those observations. The [measurement guide](../../../tests/fuze_benchmarks/README.md)
 separates decoded kernels from owned-row and real file pipelines. The
-[proof ledger](../../../tests/README.md) records which commands actually ran;
+[proof ledger](../../history/qualification/README.md) records which commands actually ran;
 synthetic gains do not establish storage-bound or universal query speedup.
 
 ### Measured alternatives and limits
@@ -286,7 +286,7 @@ sessions. It preserves the distinction above: a service-hosted interactive read
 still uses a temporary snapshot and does not become a durable query job. Replacing
 an HTTP connection preserves its logical session; losing that session cannot
 reopen the result. Explicit captured queries retain their original domain identity
-across SQL service replacement. The [proof ledger](../../../tests/README.md)
+across SQL service replacement. The [proof ledger](../../history/qualification/README.md)
 records the executed session and source recovery schedules and measurement limits.
 
 ## Frozen file interpretation
@@ -344,7 +344,7 @@ The [type](../../../contracts/FUZE_TYPES_V1.md) and
 [FileQuery](../../../packages/zig/transit-fuze/src/FileQuery.zig) implement it.
 Reproduce the independent numeric/framing/schema/ownership checks with the
 pinned-toolchain commands in the
-[proof ledger](../../../tests/README.md#fuze-bounded-file-sources), which records
+[proof ledger](../../history/qualification/query.md#fuze-bounded-file-sources), which records
 results and scope. These schedules cover source replacement, denial/cancellation, allocation
 failure and failed-prefix completion; they do not prove every parser input or
 durable crash recovery. Broader native/Flight/Table admission remains separately
@@ -382,7 +382,7 @@ every row: general Tables also allow duplicate rows without a declared key.
 Its [independent oracle](../../../tests/relational.py) materializes small relations
 and compares the overlapping subset with SQLite; separate prefix arithmetic
 fixes the ordered-overflow counterexample below. The
-[intake evidence](../../../tests/README.md#relational-contract-and-oracle-intake)
+[intake evidence](../../history/qualification/query.md#relational-contract-and-oracle-intake)
 distinguishes local checks, private-disk group growth, native interactive
 source capture, maintained publication and manual exchange recovery. Those
 profiles share one native authority; they do not establish distributed write
@@ -446,8 +446,8 @@ walks contiguous private publication IDs and removes a bounded number of chunks
 per turn, keeping permanent descriptors and failure evidence. A host that insists
 on opening every foreign dependency before any handler can still starve closure
 after revocation; the host must provide a fresh proposal using only its own
-resource. The [checkpoint evidence](../../../tests/README.md#immutable-group-checkpoints-and-bounded-publication-staging)
-and [captured lifecycle evidence](../../../tests/README.md#captured-relational-owner-and-results)
+resource. The [checkpoint evidence](../../history/qualification/query.md#immutable-group-checkpoints-and-bounded-publication-staging)
+and [captured lifecycle evidence](../../history/qualification/query.md#captured-relational-owner-and-results)
 separate deterministic/reference-store schedules from native fault execution.
 Neither immutable storage nor byte round trips alone establish worker
 reassignment or distributed authority.
@@ -465,8 +465,8 @@ All disclosures, including current-page retries and terminal coverage, validate
 every source's current rights. Host replacement discards this state and rejects
 the old reference. This mechanism solves response uncertainty within one host;
 it supplies neither a durable checkpoint nor permission to recompute a lost query.
-The [caller evidence](../../../tests/README.md#neutral-relational-caller-pages) and
-[installed SDK evidence](../../../tests/README.md#installed-interactive-relational-sdks)
+The [caller evidence](../../history/qualification/query.md#neutral-relational-caller-pages) and
+[installed SDK evidence](../../history/qualification/sdk.md#installed-interactive-relational-sdks)
 separate this boundary from captured execution and maintenance.
 
 The relevant question is whether changing data placement could change a query's
@@ -600,7 +600,7 @@ ordered-overflow counterexample above. Those optimizations must agree with this
 complete-basis construction; they cannot coalesce logical revisions or skip an
 earlier failure whose arithmetic would fit at a later basis.
 
-The [proof ledger](../../../tests/README.md) records executed schedules and their
+The [proof ledger](../../history/qualification/README.md) records executed schedules and their
 source definitions and reproduction commands. The
 [direct query runner](../../../tests/direct_captured_query.py) starts private
 local nodes and drives the signed direct service with native computation progress; its
@@ -671,7 +671,7 @@ and [implementation](../../../packages/zig/transit-station-app/src/NamedRelation
 specify the current definition and its coordinated stored-format cutover. The
 [saved publication owner](../../../packages/zig/transit-station-app/src/NamedRelationalPublication.zig)
 implements the explicit cross-owner workflow. Independent record bytes, conditional-retry tests
-and disk recovery are reproducible through the [proof ledger](../../../tests/README.md#named-relational-definitions).
+and disk recovery are reproducible through the [proof ledger](../../history/qualification/query.md#named-relational-definitions).
 This mechanism does not establish SQL view syntax, network subscription delivery
 or effect dispatch.
 
@@ -717,7 +717,7 @@ work independently of total partitions. Retained state grows with accepted rows
 and segments; conservative logical quotas and physical deployment quotas remain
 separate. No pressure-based expiry is allowed.
 
-Reproduce the [executed checks](../../../tests/README.md#relational-exchange-transitions)
+Reproduce the [executed checks](../../history/qualification/query.md#relational-exchange-transitions)
 with pinned Fuze/query package tests and the independent Python exchange fixture
 checker. Rebatched finite cases preserve all 315 oracle answers and witnesses;
 the reference-store schedule exercises nine partition/batch combinations,
@@ -795,7 +795,7 @@ statement has an executable owner.
 The [Fuze package](../../../packages/zig/transit-fuze/README.md),
 [interactive contract](../../../contracts/INTERACTIVE_QUERY_V1.md),
 [compatibility matrix](../../../packages/zig/transit-query/docs/compatibility.md) and
-[query evidence](../../../tests/README.md#m18-qualification) connect these claims
+[query evidence](../../history/qualification/runtime.md#m18-qualification) connect these claims
 to implementation, commands and source-specific limits. The
 [SQL proof program](../../../contracts/sql/README.md) states the assumptions of its
 selected rewrite results; it does not prove the whole engine. Performance claims
@@ -1079,7 +1079,7 @@ Python's CP037 codec for all 256 scalars and rational arithmetic for HFP.
 compare exact page bytes, every CP037 scalar pair, floating bit patterns and
 malformed inputs. The [disk test](../../../packages/zig/transit-storage/src/table_partition_test.zig)
 checks rejection before WAL acceptance and compares retained WAL rows with
-flushed segment rows after reopen. The [proof ledger](../../../tests/README.md)
+flushed segment rows after reopen. The [proof ledger](../../history/qualification/README.md)
 records the reproduction commands, pinned development environment and executed
 results for the schema, Fuze and storage checks.
 These selected fixtures establish no universal SQL collation or foreign-record
@@ -1198,7 +1198,7 @@ These are proposed evaluation methods. No graph, foreign-table, SQL/JSON or
 continuous-query experiment was executed for this analysis. Reproduction begins
 with the cited source revision, its pinned toolchain, the existing
 [grammar corpus and proof commands](../../../contracts/sql/README.md), and the
-[executed evidence ledger](../../../tests/README.md). Those existing finite-query
+[executed evidence ledger](../../history/qualification/README.md). Those existing finite-query
 proofs do not validate the proposed extensions. Remaining uncertainties include
 exact standard feature dependencies, coherent graph publication cost, document
 conversion ergonomics and the recoverable state required by each graph operator.

@@ -201,4 +201,4 @@ does not migrate incompatible history.
 
 Run `just test::station`, `just test::growing-service` and the relevant binding
 proofs for behavior, paging, recovery and dispatch checks. Executed schedules and
-qualification limits live in the [proof ledger](../../../../tests/README.md).
+qualification limits live in the [proof ledger](../../../../docs/history/qualification/README.md).

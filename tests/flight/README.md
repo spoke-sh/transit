@@ -8,5 +8,5 @@ int64/null rows and explicit release of every array/schema/stream and ADBC handl
 The credential is read from a private file, never passed in command arguments.
 
 The native gateway/query engine links none of these C/Go/Python client runtimes.
-See the [M22 proof ledger](../README.md#m22-qualification) for current
+See the [M22 proof ledger](../../docs/history/qualification/runtime.md#m22-qualification) for current
 qualification status; compiling this consumer alone is not interoperability proof.

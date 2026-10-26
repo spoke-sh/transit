@@ -146,4 +146,4 @@ port-forwarding. A positive Transit check precedes explicit transport-denial
 probes against raw Ursula and ready Substrate/Kubernetes endpoints. This proves
 the declared fixture, not all CNIs; a deployment needs equivalent enforced policy.
 See [the harness](../../tests/reference_board.py) and
-[recorded evidence](../../tests/README.md#board-qualification).
+[recorded evidence](../../docs/history/qualification/interfaces.md#board-qualification).

@@ -5,7 +5,7 @@ defines codec callbacks, a sequential handler runner, mutation recovery hooks,
 scoped KV/Table helpers, retained read versions and original query IPC. The
 runner and typed operations delegate protocol/framework behavior to Zig's
 Station ABI. The installed native artifacts target Linux x86_64; the
-[proof ledger](../../../tests/README.md) records the executed runner and caller
+[proof ledger](../../../docs/history/qualification/README.md) records the executed runner and caller
 schedules.
 
 The C11 interface has explicit owned handles and typed result structures; its

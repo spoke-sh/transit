@@ -27,7 +27,7 @@ Tables and owned IPC. Erlang/Elixir raw clients now qualify independent OTP
 installation, tagged recovery and supervised caller-loss cleanup. Both BEAM
 Station APIs also pass scoped handlers, recovery and Table/query ownership proofs.
 The public interoperability ring qualifies every target in both roles; see the
-[test guide](../../tests/README.md#public-sdk-interoperability) for its ten pairs and limits.
+[test guide](qualification/verification.md#public-sdk-interoperability) for its ten pairs and limits.
 M11 owns delivery, including public interoperability. The
 [M9 adapters](../../bindings/README.md) remain executable low-level interfaces.
 
@@ -297,5 +297,5 @@ obligations rather than creating competing language catalogs.
 Add runner-specific failures: turn escape/overlap, failures at every persistence
 gate, confirmation-store failure after acceptance, read poisoning, cooperative
 shutdown and abrupt host loss. Finally install built artifacts and their explicit
-native dependencies into clean consumers outside the repository. The [M11 evidence](../../tests/README.md#public-sdk-interoperability) records these
+native dependencies into clean consumers outside the repository. The [M11 evidence](qualification/verification.md#public-sdk-interoperability) records these
 executed checks and their platform, adapter and cost limits.

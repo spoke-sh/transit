@@ -298,7 +298,7 @@ The implemented [finite admission profile](../../packages/zig/transit-core/docs/
 bounds control work after admission closes. It preserves terminal/maintenance
 progress, not guaranteed application drain: a queued state-backed input needing
 a new read view cannot open one from the reserve. Station must expose that
-blocked condition without treating capacity pressure as expiry. Its [physical-capacity proof](../../tests/README.md#physical-capacity-profile)
+blocked condition without treating capacity pressure as expiry. Its [physical-capacity proof](qualification/runtime.md#physical-capacity-profile)
 records reserve sizing and measured limits. Enabling an admission ceiling alone
 does not provision physical capacity or authorize expiry.
 
@@ -309,7 +309,7 @@ accounting for that engine specifically; see
 for why growing's unbounded catalogs rule out reusing the legacy formula. The
 signed `capabilities` query now returns the configured ceiling/reserve so
 remaining headroom is directly readable, not just inferable from errors. What
-is qualified: a [finite physical-capacity proof](../../tests/README.md#growing-physical-capacity)
+is qualified: a [finite physical-capacity proof](qualification/verification.md#growing-physical-capacity)
 with real ENOSPC, retained pages, reserved control progress and disk recovery,
 plus node/Station quota refusal and reserve exhaustion across restart. The node
 does not allocate physical headroom automatically; capacity beyond that declared

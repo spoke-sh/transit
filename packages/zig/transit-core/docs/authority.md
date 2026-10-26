@@ -80,5 +80,5 @@ states their bounds. These limits do not cap durable graph cardinality.
 Capabilities report the ceiling, reserve and current position. Checkpoint, trim
 and restart preserve their accounting and cannot reopen admission. Online
 expansion or rearming is unsupported. The
-[proof ledger](../../../../tests/README.md#growing-physical-capacity) records the
+[proof ledger](../../../../docs/history/qualification/verification.md#growing-physical-capacity) records the
 executed disk exhaustion and recovery schedule and its measured limits.

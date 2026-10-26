@@ -43,6 +43,6 @@ authorized reads from two callers across two gateways are held in upstream I/O.
 It proves one caller's limit leaves capacity for the other. It requires the
 ninth data request to receive 503 and health to finish within one second. The
 declared aggregate gateway ceiling for this finite configuration is 256 MiB;
-the [proof ledger](../../../tests/README.md#m19-qualification) records the
+the [proof ledger](../../../docs/history/qualification/runtime.md#m19-qualification) records the
 observed value. This is not an Internet flood/throughput qualification. Proxy,
 authority, worker and kernel memory are outside that gateway RSS measurement.

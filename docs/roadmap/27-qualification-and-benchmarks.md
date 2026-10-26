@@ -167,7 +167,7 @@ Publish reproducible commands and limits with claims instead of delivery history
 ## Documentation publication
 
 The handbook is deployed through GitHub Pages; the
-[publication evidence](../../tests/README.md#published-handbook-observations-2026-10-21)
+[publication evidence](../history/qualification/interfaces.md#published-handbook-observations-2026-10-21)
 records successful deployments and direct public-content checks. Remaining work
 is qualification of that existing service, not implementing publication again:
 

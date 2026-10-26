@@ -5,7 +5,7 @@ for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use this guide to choose evidence appropriate to a change. Runnable commands
-and measured outcomes belong in [the proof ledger](../../tests/README.md). A skipped
+and measured outcomes belong in [the proof ledger](qualification/README.md). A skipped
 check or a diagram does not qualify a runtime behavior.
 
 Status: M10 is qualified within its recorded profile and workload

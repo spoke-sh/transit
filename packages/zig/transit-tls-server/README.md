@@ -33,4 +33,4 @@ does not close the caller's socket. Truncated TLS input is an error.
 Build and run the standalone checks in the repository's `sql-wire` Nix shell.
 The `probe` build target supplies the independent database-upgrade TLS peer.
 See the [toolchain guide](../../../nix/README.md) and
-[proof ledger](../../../tests/README.md) for commands and executed evidence.
+[proof ledger](../../../docs/history/qualification/README.md) for commands and executed evidence.

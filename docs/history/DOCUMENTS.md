@@ -13,7 +13,7 @@ Status: M17's declared growing profile is implemented and qualified: durable
 merge/checkpoint recovery, all ten installed SDKs, two independent editors,
 Board metadata and local/Compose/reference placement pass. M14 supplies bounded immutable publication over
 growing KV. M15/M16 qualify HTTP/gRPC integrations; Document semantics remain
-independent of those transports. See [executed evidence](../../tests/README.md#m17-qualification).
+independent of those transports. See [executed evidence](qualification/runtime.md#m17-qualification).
 
 ## Authority and identity
 

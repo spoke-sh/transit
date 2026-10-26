@@ -40,4 +40,4 @@ before disposal. The SDK does not claim arbitrary thread cancellation is safe.
 `just bindings::document-rust` installs packaged crates in a clean external
 consumer, checks rejected owner/reader lifetimes, and runs shared codec/Unicode
 fixtures plus the disk-backed recovery/read-authority schedule. See the
-[qualification evidence](../../../../tests/README.md#m17-qualification).
+[qualification evidence](../../../../docs/history/qualification/runtime.md#m17-qualification).

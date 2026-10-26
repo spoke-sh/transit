@@ -149,6 +149,6 @@ under disk pressure and slow destinations.
 
 Record achieved recovery point/time, verification/transfer/replay durations,
 retained bytes, tested topology and failure limits in the
-[proof ledger](../../tests/README.md). A successful backup command, replica
+[proof ledger](../history/qualification/README.md). A successful backup command, replica
 failover or SIGKILL restart does not establish disaster recovery. Promote only
 executed operational profiles and runnable procedures to their public owners.

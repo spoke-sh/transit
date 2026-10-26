@@ -20,7 +20,7 @@ are public test fixtures; use these tasks only for the fresh synthetic realm the
 create. The reference task uses existing owned infrastructure while creating its
 own namespace and Substrate actors. It does not adopt a launcher installation.
 See [placement and recovery](docs/placement.md) and the
-[proof ledger](../../tests/README.md#m18-qualification) for executed profiles;
+[proof ledger](../../docs/history/qualification/runtime.md#m18-qualification) for executed profiles;
 a runnable task alone does not establish qualification.
 
 For a separately provisioned query service, build with `zig build

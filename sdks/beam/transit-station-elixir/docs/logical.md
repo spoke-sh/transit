@@ -35,4 +35,4 @@ budgets. Host-struct conversion also has a finite 96-level, one-million-term
 budget before codec validation. Values are immutable; codec outputs copy bounded
 binary slices instead of retaining unrelated caller storage. External text never
 becomes a BEAM atom. Type storage and query/operator support remain separate
-capabilities; see the shared guide and [proof ledger](../../../../tests/README.md).
+capabilities; see the shared guide and [proof ledger](../../../../docs/history/qualification/README.md).

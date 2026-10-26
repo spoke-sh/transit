@@ -16,7 +16,7 @@ transit-sql-gateway`. Run `transit-sql-gateway /private/sql-gateway.json` with a
 eligible, initialized configuration. The [configuration and controls](docs/configuration.md)
 describe provisioning, secrets, operator recovery and replacement. The
 [wire contract](../../contracts/SQL_GATEWAY_V1.md) defines framing and limits;
-the [proof ledger](../../tests/README.md#database-wire-gateway) records exercised
+the [proof ledger](../../docs/history/qualification/sql.md#database-wire-gateway) records exercised
 clients and failure cases.
 
 The [native session API](../../contracts/SQL_SESSION_V1.md) and

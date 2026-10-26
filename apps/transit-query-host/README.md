@@ -87,7 +87,7 @@ request expiry; making it a required lifetime dependency would prevent that work
 
 `just test::unified-query` runs the signed KV/Table/Document recovery fixtures;
 `-Dunified-source=kv`, `table` or `document` selects one case. The
-[evidence ledger](../../tests/README.md#m18-qualification) distinguishes passed
+[evidence ledger](../../docs/history/qualification/runtime.md#m18-qualification) distinguishes passed
 profiles from work still in progress. These fixtures use owned temporary services
 and leave existing launcher deployments alone.
 

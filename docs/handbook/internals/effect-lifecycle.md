@@ -66,8 +66,8 @@ cannot authorize later sends or arbitrary conversation resumption.
 The [Exchange](../../../contracts/STATION_EXCHANGE_V1.md),
 [HTTP](../../../contracts/STATION_HTTP_V1.md) and [gRPC](../../../contracts/STATION_GRPC_V1.md)
 contracts define identity, coverage and finite budgets. The
-[HTTP evidence](../../../tests/README.md#m15-connector-work-in-progress) and
-[finite RPC evidence](../../../tests/README.md#m16-finite-connector-qualification)
+[HTTP evidence](../../history/qualification/runtime.md#m15-connector-work-in-progress) and
+[finite RPC evidence](../../history/qualification/runtime.md#m16-finite-connector-qualification)
 record interruption, capture and replay schedules with reproducible commands.
 Their names and recorded limitations matter; planned checks do not count as passes.
 

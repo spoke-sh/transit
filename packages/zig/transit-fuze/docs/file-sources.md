@@ -213,7 +213,7 @@ budget witness to typed hosts. Ordinary parsing and source semantics are unchang
 The [source contract](../../../../contracts/FUZE_SOURCE_V1.md) owns the binding
 format. The [type contract](../../../../contracts/FUZE_TYPES_V1.md) owns descriptor
 and cell formats. Independent fixture and allocator-failure commands live in
-[the proof ledger](../../../../tests/README.md#fuze-bounded-file-sources).
+[the proof ledger](../../../../docs/history/qualification/query.md#fuze-bounded-file-sources).
 
 Predicates combine comparisons and state tests with NOT, AND, OR and parentheses.
 NOT binds before AND, then OR. Programs have at most 64 postfix instructions;

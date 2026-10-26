@@ -12,6 +12,10 @@ UI/UX proposals and review outcomes belong in [Design](../design/README.md).
 
 ## Reading the archive
 
+The [qualification archive](qualification/README.md) groups executed test and
+measurement accounts by subject, preserving their original sources and outcomes.
+Use the [test index](../../tests/README.md) for current commands and ownership.
+
 The records remain in Git and are linked as source material rather than published
 as separate handbook pages. Technical accounts link relevant records for detailed
 provenance; readers do not need to reconstruct current behavior from this archive.

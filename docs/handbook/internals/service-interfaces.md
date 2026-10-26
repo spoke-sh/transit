@@ -111,7 +111,7 @@ isolated estimate of storage or coordinator cost. Further attribution requires
 controlled changes to those components, with the same authority and durability
 checks preserved.
 
-The [proof ledger](../../../tests/README.md#database-wire-gateway) and its linked
+The [proof ledger](../../history/qualification/sql.md#database-wire-gateway) and its linked
 native recovery tests separate executable observations from these design
 arguments. It records the pinned toolchain and reproduction commands for native
 recovery, independent wire contracts and actual clients; deployment commands are
@@ -173,7 +173,7 @@ not the identity or outcome of a recorded operation.
 The executable schedules are [public client onboarding](../../../tests/server_sql.py)
 and [interrupted enrollment](../../../tests/server_sql_faults.py). They check selected
 disconnect, restart, revocation and trust failures on disk-backed Ursula. The
-[proof ledger](../../../tests/README.md) supplies reproduction commands and
+[proof ledger](../../history/qualification/README.md) supplies reproduction commands and
 distinguishes executed results from this reasoning. These schedules do not cover every interruption point, sustained
 maximum-account load or arbitrary filesystem/storage corruption.
 
@@ -188,7 +188,7 @@ The public owner is the [console guide](../../../apps/transit-cli/docs/console.m
 the exact envelope, authentication and result rules belong to the
 [SQL session contract](../../../contracts/SQL_SESSION_V1.md). This account describes
 the implementation developed on 2026-10-20. Executed verification is tracked in
-the [proof ledger](../../../tests/README.md); source inspection is not deployment proof.
+the [proof ledger](../../history/qualification/README.md); source inspection is not deployment proof.
 
 Let `S` denote a service instance, `A` an enrolled SQL account, `H` an expiring
 session handle, `T` a client admission token and `O` an accepted domain operation.
@@ -332,7 +332,7 @@ handles already buffered TLS bytes too. Thus disabling idle expiry does not
 permit an indefinitely incomplete frame or TLS record. Connection and memory
 quotas still bound resident state. The [lifetime proof](../../../tests/server_sql_lifetimes.py)
 checks idle sockets, independent native expiry and partial records over real
-plaintext and TLS sockets; the [proof ledger](../../../tests/README.md) records
+plaintext and TLS sockets; the [proof ledger](../../history/qualification/README.md) records
 execution results and limits.
 
 Native result cells carry canonical descriptors and schema-bound bytes. This
@@ -466,7 +466,7 @@ metadata requests preserve that draft without acquiring execution authority?
 The [CLI contract](../../../contracts/TRANSIT_CLI_V1.md#shared-incomplete-input-assistance)
 owns the interaction semantics. The editor implementation introduced on
 2026-10-24 separates deterministic decisions from terminal and client I/O;
-[executed evidence](../../../tests/README.md#console-interaction-state-machine--2026-10-24)
+[executed evidence](../../history/qualification/interfaces.md#console-interaction-state-machine--2026-10-24)
 records its qualification and limits.
 
 [EditorState](../../../apps/transit-cli/EditorState.zig) owns volatile draft,
@@ -572,9 +572,9 @@ definitions, proposed changes and observed state distinctly.
 The [serving contract](../../../contracts/SERVING_V1.md),
 [reactive contract](../../../contracts/REACTIVE_V1.md) and
 [application definition contract](../../../contracts/APPLICATION_V1.md) define the
-boundary. [Serving](../../../tests/README.md#m19-qualification),
-[reactive API](../../../tests/README.md#m20-qualification) and
-[refresh evidence](../../../tests/README.md#m21-qualification) supply commands,
+boundary. [Serving](../../history/qualification/runtime.md#m19-qualification),
+[reactive API](../../history/qualification/runtime.md#m20-qualification) and
+[refresh evidence](../../history/qualification/runtime.md#m21-qualification) supply commands,
 fault schedules and qualified source/deployment combinations.
 
 The evidence does not establish arbitrary live queries, speculative execution

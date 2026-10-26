@@ -100,11 +100,17 @@ configuration, private access boundaries and focused validation.
 
 ## Verification
 
-Run the repository checks for formatting, tooling, unit tests, contract drift,
-frontend lint/types/tests and Markdown links. Before pushing committed changes,
-run the clean-checkout suite to expose dependencies hidden by workspace build
-outputs. The [task reference](../../../tasks/README.md) owns these commands.
+Use the [test index](../../../tests/README.md) to select the owning checks during
+iteration and the affected caller/fault checks before submission. Documentation
+changes need link/whitespace validation and affected site checks. Implementation,
+fixture and build changes also need clean-checkout qualification of affected lanes
+at committed HEAD; shared contracts and authority changes require their dependent
+coverage. Full clean qualification remains an integration/release gate. The
+[task reference](../../../tasks/README.md) owns these commands. Report the selected
+scope and incomplete checks; a passing lane is not a full-suite pass.
 Reference-cluster and physical-capacity proofs have explicit extra prerequisites;
 passing local checks does not establish those deployment guarantees. Choose
 additional proofs from the [test guide](../../../tests/README.md) for the boundary
-you change, and record executed outcomes and remaining limits there.
+you change. Record executed outcomes and remaining limits in
+[qualification history](../../history/qualification/README.md) with linked raw
+evidence. Keep the test index navigational and active investigations in issues/PRs.

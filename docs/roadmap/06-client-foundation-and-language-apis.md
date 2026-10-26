@@ -101,4 +101,4 @@ while other work continues. Measure startup cost, threads/processes, memory,
 queue bounds and control fairness. Preserve existing native and SDK recovery
 proofs across the package cutover. Language sketches alone do not establish API,
 platform or worker-deployment support; record executed profiles in the
-[proof ledger](../../tests/README.md).
+[proof ledger](../history/qualification/README.md).

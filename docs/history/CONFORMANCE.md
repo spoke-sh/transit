@@ -5,7 +5,7 @@ for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use these requirements to evaluate a change or a deployment guarantee. For
-commands and executed results, follow the [proof ledger](../../tests/README.md);
+commands and executed results, follow the [proof ledger](qualification/README.md);
 for user-visible compatibility, start with [interface selection](../handbook/guides/choose-interface.md).
 
 Status: adversarial requirements with executable evidence for the bounded M1
@@ -98,18 +98,18 @@ tests as appropriate. A happy-path example alone does not satisfy a row.
 | Flight retrieval disconnects or an ADBC client encounters unsupported SQL/types/transactions | Same captured result on retrieval retry, explicit unavailable/unsupported outcomes, qualified metadata schemas and truthful capabilities | [Arrow](ARROW.md#first-remote-query-profile), M22 |
 | A UI definition changes meaning between SQL and a form, or a theme conceals authority state | Shared typed validation and semantic round-trip; no implicit apply/dispatch, explicit unsupported capabilities and non-color evidence | [Reactive applications](REACTIVE_APPLICATIONS.md), M23 |
 | A migration loses a step reply, races another plan or changes a live binding | Exact frozen step recovery, conditional publication, bounded verified backfill and generation fencing; no cross-resource atomicity or automatic inverse | [Application migrations](REACTIVE_APPLICATIONS.md#what-a-migration-means), M23 |
-| Terminal completion uses stale/revoked metadata or a shell loses a submitted reply | Shared grammar/capability validation, bounded current-authority suggestions, explicit submission and exact operation recovery; no partial execution or rerun under a new identity | [Terminal console](QUERY_LANGUAGE.md#terminal-console), [M24 console proofs](../../tests/README.md#m24-console-qualification) |
+| Terminal completion uses stale/revoked metadata or a shell loses a submitted reply | Shared grammar/capability validation, bounded current-authority suggestions, explicit submission and exact operation recovery; no partial execution or rerun under a new identity | [Terminal console](QUERY_LANGUAGE.md#terminal-console), [M24 console proofs](qualification/interfaces.md#m24-console-qualification) |
 | Application provisioning or activation loses its receipt, a worker is replaced, or current access is revoked | Recover frozen native bytes before new root work; preserve IDs, permission epochs and accepted inputs; use fresh fenced ownership and bounded public status | [Installation contract](../../contracts/APPLICATION_INSTALLATION_V1.md), M25 plan |
-| Local manager dies, storage rolls back, or gateway data requests stall | Kernel parent-death handling, persisted exact provisioning, fresh scoped ownership, observed authority floor and reserved control requests; no silent initialization or credential substitution | [Local server](../../apps/transit-cli/docs/server.md), [M24 qualification](../../tests/README.md#m24-local-server-qualification) |
+| Local manager dies, storage rolls back, or gateway data requests stall | Kernel parent-death handling, persisted exact provisioning, fresh scoped ownership, observed authority floor and reserved control requests; no silent initialization or credential substitution | [Local server](../../apps/transit-cli/docs/server.md), [M24 qualification](qualification/runtime.md#m24-local-server-qualification) |
 | A tagged release partly publishes, serves altered bytes or installs incompatible artifacts | Immutable manifest/hash agreement, resumable publication, qualified installed consumers and explicit compatibility refusal before activation; package rollback cannot restore authority | Publication, planned M33 |
 | A tombstone or retry receipt is collected before a late consumer returns | Explicit horizon failure/resynchronization with no resurrection or duplicate admission | [Retention](RETENTION.md), retry boundary M1; KV compaction M7; distributed extension M35 |
 | A new image/schema interprets retained state differently | Authorized, versioned migration with a defined failure path; old and new owners cannot commit concurrently | [Transit](TRANSIT.md#replay-and-versions), reject unsupported changes M1; migration M35 |
 
-[M8 readiness evidence](../../tests/README.md#m8-runtime-readiness) covers the
+[M8 readiness evidence](qualification/runtime.md#m8-runtime-readiness) covers the
 handler-facing origin envelope, deployed courier, initialization barrier, scoped
 retry/suspension and working catalog reclamation. Durable lifecycle subscriptions,
 framework initialization policy and timers are qualified in the
-[M9 profile](../../tests/README.md#m9-station-bindings-and-tables).
+[M9 profile](qualification/catalog.md#m9-station-bindings-and-tables).
 
 ## Evidence and limits
 
