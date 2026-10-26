@@ -204,6 +204,22 @@ launcher lane passes at `e4b4955cb`, whose Git tree is identical to merged
 combined qualification and acceptance reconciliation remain open. #108 and
 this milestone remain In Progress.
 
+PR #168 is merged as `310a3f25e`. The full repository check and committed-HEAD
+clean launcher lane now pass; the [qualification record](../../tests/README.md#installed-lifecycle-qualification-checkpoint--2026-10-26)
+retains their exact sources. Original CREATE 751 remains incomplete publication
+after public inspection; it is not resubmitted or reported as applied. A fresh
+full direct Table diagnostic passes with the same binaries. The normal hosted
+task also passes at the identical source tree.
+
+Hosted experience then passes all nine tasks through standalone SQL authentication,
+but its installed source-bundle SQL task fails because the runner-selected MySQL
+client rejects an isolation option before connection. The
+[pinned-client correction](../../tests/README.md#installed-sql-client-selection--2026-10-26)
+adds the existing locked PostgreSQL/MySQL packages to that CI shell. Doctor,
+client selection and the complete installed authentication/recovery task pass;
+versions, assertions and deadlines are unchanged. Remaining combined lanes and
+final acceptance reconciliation still gate closure.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to

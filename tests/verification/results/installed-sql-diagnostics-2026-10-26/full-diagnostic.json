@@ -1,0 +1,31 @@
+{
+  "revision": "e3dd9e68a5bb777169bbbb4835ee201f7f0a77d8",
+  "started": 1792997921.4480534,
+  "complete": true,
+  "method": "Exact source and binaries; exec wrapper captures native stderr. Run after the heavy repository unit stage finishes. No change to workload, deadlines, authority or recovery assertions.",
+  "artifacts": {
+    "transit": {
+      "path": "/var/tmp/transit-ci-8dmwlxgr/src/.zig-cache/o/b9bcd49f167ac364009580cc3c7540ee/transit",
+      "sha256": "407e673dc4b1db12c2e454d8f4ff5785d66c92921a29e1129562ecb77af4c3b8"
+    },
+    "transit-node": {
+      "path": "/var/tmp/transit-ci-8dmwlxgr/src/.zig-cache/o/2f63109d261f7c735684cdbff217113b/transit-node",
+      "sha256": "58156083bd3d55423d5b4ff36dfefdc1a544720f215fd279b075dda9bd633299"
+    },
+    "transit-query-host": {
+      "path": "/var/tmp/transit-ci-8dmwlxgr/src/.zig-cache/o/41755c653e04095696c17101e33a6137/transit-query-host",
+      "sha256": "17ae3f64540d89093a51f125c1c009d397fcf57340ed9af931809c1a6e61f424"
+    },
+    "transit-board": {
+      "path": "/var/tmp/transit-ci-8dmwlxgr/src/.zig-cache/o/1ca65599c4afe83c06dc4e151b834336/transit-board",
+      "sha256": "170ad6c9ecd3f810410d8459c7fb16e76a7154b1a46a0478423196d84cfcd032"
+    },
+    "transit-sql-gateway": {
+      "path": "/var/tmp/transit-ci-8dmwlxgr/src/.zig-cache/o/d0e9d0dfc306ebf63a5b01f5384d40e4/transit-sql-gateway",
+      "sha256": "a239165996d6e1c574539ebf01503aa4abdf13f3e755ba783408f6799a5d5a8d"
+    }
+  },
+  "installation": "/var/tmp/transit-server-proof-6w8twj6j",
+  "native_stderr": "/var/tmp/transit-server-proof-6w8twj6j/native.stderr",
+  "finished": 1792998127.2880201
+}

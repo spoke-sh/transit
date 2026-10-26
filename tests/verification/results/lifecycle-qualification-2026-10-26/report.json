@@ -105,5 +105,27 @@
         "e3dd9e68a5bb777169bbbb4835ee201f7f0a77d8"
       ]
     }
+  },
+  "post_168_validation": {
+    "record": "post-168-validation.json",
+    "check": "pass; controller began at 31b48b73e with the Station task patch; commit 2f5018ad2 landed during the unit stage; runtime sources unchanged",
+    "clean_launchers": "complete committed-HEAD pass at 2f5018ad2",
+    "logs": {
+      "install": {
+        "file": "post-168-install.log.gz",
+        "sha256": "032d3c0ee4ee6f605524dab30fb9cdaad6d51e7f739d834613a19c0c92fbcf34",
+        "gzip_sha256": "eb254f385ea216012bb109c90464e8bb211ac2face31c3b78b54b85ed51dddfd"
+      },
+      "check": {
+        "file": "post-168-check.log.gz",
+        "sha256": "59f381e60cac3c1c1b226d048b85587f0f177574c799e2563df2ff11c628b176",
+        "gzip_sha256": "035d9b29d20ec7dcd8389d67ccc652d378cbc253a1157c40520e66693ad8ba2b"
+      },
+      "clean-launchers": {
+        "file": "post-168-clean-launchers.log.gz",
+        "sha256": "35faa5dc554a06bab2bdefdc3910f3981e9ece68d766a905ed632fcc6be99497",
+        "gzip_sha256": "f2085b9c295234238c83421a2abfb8e894362feb50ce3707cd350af9d69c6f59"
+      }
+    }
   }
 }

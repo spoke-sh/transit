@@ -3057,6 +3057,31 @@ three-restart budget while reconciling an original activation grant. This is a
 failed 855.99-second task, not successful original-CREATE recovery or completion
 of the experience lane.
 
+The later public observation of that retained installation finds original
+CREATE 751 still `uploading`, with no outcome or visible Table. No SQL is
+resubmitted. This is incomplete intent publication, not accepted execution or a
+recovered successful CREATE. The [retained observation](verification/results/installed-sql-diagnostics-2026-10-26/final-create-observation.json)
+and controller identify the exact binary hashes and operations inspected.
+
+A fresh diagnostic installation using the same `e3dd9e68a` binaries passes the
+complete unchanged direct Table schedule in 205.84 seconds, including final
+name reuse. A native exec wrapper captures stderr; it changes the configured
+artifact path/hash for that fixture, but executes the same binary and PID.
+The heavy repository unit stage has finished before this run; this is not a
+matched load comparison or an explanation of the earlier failure. Successful
+fixture cleanup removes its native stderr file. The retained controller,
+binary hashes and final task log establish the observed pass. The normal hosted
+direct Table task also passes at the same Git tree, without that wrapper.
+
+After the Station task correction, full `just check` passes in 1,573.24 seconds.
+Its controller starts at `31b48b73e` with the task patch; the task/documentation
+commit `2f5018ad2` lands during the unit stage without changing runtime sources.
+The subsequent committed-HEAD clean launcher lane at `2f5018ad2` passes both
+tasks: build smoke in 48.54 seconds and local launchers in 442.23 seconds.
+The [validation record](verification/results/lifecycle-qualification-2026-10-26/post-168-validation.json)
+and separate launcher metadata retain those source boundaries. These are
+completed checks; the remaining combined lanes are still separate gates.
+
 ## Installed SQL client selection — 2026-10-26
 
 The [retained controls and task records](verification/results/lifecycle-ci-clients-2026-10-26/report.json)
