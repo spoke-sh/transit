@@ -1,0 +1,46 @@
+{
+  "fix_revision": "5bcbdd9b72dec6ebc7539e9f87e803da03e84964",
+  "baseline_revision": "530811fbd",
+  "binary_source": "6139782bad6cc37dd76e34d221cc9d7a6c5b71be",
+  "binary_optimization": "ReleaseSafe",
+  "platform": "Linux x86_64",
+  "method": "Unchanged retained installed CLI; set XDG_CONFIG_HOME to the same empty owned directory. Run the existing diagnostics fixture before and after filtering the ambient value.",
+  "result": "The baseline fails HOME configuration discovery; the fixed fixture passes 193 cases, including explicit XDG precedence. No runtime behavior changed.",
+  "limitations": [
+    "This retained-binary control does not complete a current-source clean core lane."
+  ],
+  "runs": [
+    {
+      "command": [
+        "python3",
+        "-B",
+        "tests/cli_diagnostics.py",
+        "/var/tmp/transit-server-proof-mis44qrr/transit"
+      ],
+      "binary_sha256": "fb0dc9cab8e76ac75deb0d04e2e5f36e195659b7dcc1cb952d68130a35f2e1f5",
+      "ambient_xdg_directory": "/tmp/nix-shell.1PVAKl/transit-cli-ambient-xdg-w6bd37fm",
+      "exit_code": 1,
+      "log_sha256": "ad895450f5ff0eac2423ad397e320ba2bced94d62804fabd544fc387647a90ad",
+      "label": "before",
+      "log": "before.log.gz",
+      "compressed_log_sha256": "12b2bf07261d9910474ee33f14fea5eac9eb82a1c315bf614f035e4d8c9fe6b2"
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "tests/cli_diagnostics.py",
+        "/var/tmp/transit-server-proof-mis44qrr/transit"
+      ],
+      "binary_sha256": "fb0dc9cab8e76ac75deb0d04e2e5f36e195659b7dcc1cb952d68130a35f2e1f5",
+      "ambient_xdg_directory": "/tmp/nix-shell.1PVAKl/transit-cli-ambient-xdg-w6bd37fm",
+      "exit_code": 0,
+      "log_sha256": "afe620c480c91395e39ef112bc3a143407e8fb820513664c56ae5aa24484cce9",
+      "test_source_sha256": "3483cc62c2d8e48522e2d98862e1ac46c36ea213c3224ec225e2e0820618693e",
+      "duration_seconds": 6.703804969787598,
+      "label": "fixed",
+      "log": "fixed.log.gz",
+      "compressed_log_sha256": "d173668b8253d7267b2a0b2d5b40bb2df7d15bd24d3b6fb52697bec538c1fec9"
+    }
+  ]
+}

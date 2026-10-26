@@ -27514,3 +27514,19 @@ The [source-specific record and compressed logs](verification/results/decimal-re
 retain the failing run, debugger observation, isolated control and committed
 checks with hashes. These focused passes do not complete the repository/clean
 lanes or attribute the earlier anonymous hosted unit SIGSEGV to this stack.
+
+## CLI discovery fixture environment — 2026-10-26
+
+The [hosted core run](https://github.com/spoke-sh/transit/actions/runs/40262338677/job/121377263598)
+passes its unit stage, then fails the CLI fixture's HOME-based configuration
+discovery. The fixture inherits `XDG_CONFIG_HOME`, allowing the runner's ambient
+directory to bypass its controlled HOME. With the retained ReleaseSafe CLI from
+`6139782ba`, explicitly setting that variable to an empty owned directory
+reproduces the failure. Filtering only the ambient value in `5bcbdd9b7` passes
+all 193 diagnostics cases against the same binary and directory. Explicit
+HOME/XDG/`TRANSIT_CONFIG` precedence cases retain their individual overrides.
+
+The [before/after record and compressed logs](verification/results/cli-xdg-2026-10-26/report.json)
+identify the executable and fixture sources, hashes and commands. This changes
+test isolation only; it does not change CLI discovery rules or complete the
+current-source clean core lane.
