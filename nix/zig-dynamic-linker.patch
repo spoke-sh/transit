@@ -11,3 +11,27 @@
                  } else {
                      zig_args.appendAssumeCapacity("--no-dynamic-linker");
                  }
+--- a/lib/std/Build.zig
++++ b/lib/std/Build.zig
+@@ -458,15 +458,21 @@
+     maybe_value: ?T,
+ ) void {
+-    map.ensureUnusedCapacity(arena, 2) catch @panic("OOM");
++    map.ensureUnusedCapacity(arena, 3) catch @panic("OOM");
+     switch (T) {
+         Target.Query => return if (maybe_value) |v| {
+             map.putAssumeCapacity(field_name, .{ .scalar = v.zigTriple(arena) catch @panic("OOM") });
+             map.putAssumeCapacity("cpu", .{ .scalar = v.serializeCpuAlloc(arena) catch @panic("OOM") });
++            if (v.dynamic_linker) |linker| {
++                map.putAssumeCapacity("dynamic-linker", .{ .scalar = arena.dupe(u8, linker.get() orelse "") catch @panic("OOM") });
++            }
+         },
+         ResolvedTarget => return if (maybe_value) |v| {
+             map.putAssumeCapacity(field_name, .{ .scalar = v.query.zigTriple(arena) catch @panic("OOM") });
+             map.putAssumeCapacity("cpu", .{ .scalar = v.query.serializeCpuAlloc(arena) catch @panic("OOM") });
++            if (v.query.dynamic_linker) |linker| {
++                map.putAssumeCapacity("dynamic-linker", .{ .scalar = arena.dupe(u8, linker.get() orelse "") catch @panic("OOM") });
++            }
+         },
+         std.zig.BuildId => return if (maybe_value) |v| {
+             map.putAssumeCapacity(field_name, .{

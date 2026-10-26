@@ -177,13 +177,16 @@ host distribution's libc or loader can be incompatible with Nix shared libraries
 The experience shell supplies the C toolchain and `pkg-config` for the CLI and
 SQL gateway's TLS/certificate code. These shell dependencies use the existing
 locked inputs; they do not change compiler or library versions. The offline
-toolchain check compiles and runs an OpenSSL consumer through both the direct
-compiler, build runner and C/C++ drivers, checking the Linux executables'
+toolchain check compiles and runs an OpenSSL consumer through the direct
+compiler, root and dependency build runners, and C/C++ drivers, checking the Linux executables'
 interpreter paths and preserving explicit caller loader overrides.
-The Linux derivation also applies a [build-runner lifetime correction](zig-dynamic-linker.patch):
+The Linux derivation also applies [build-runner loader corrections](zig-dynamic-linker.patch):
 the explicit loader argument must own its bytes after the temporary target query
 leaves scope. Without that copy, this compiler revision emits empty or corrupted
-loader arguments and can crash. The compiler binary and version stay pinned;
+loader arguments and can crash. Passing a target query or resolved target to a
+dependency must also preserve that loader in the serialized package options;
+otherwise dependency executables silently select the host interpreter again.
+The compiler binary and version stay pinned;
 the helper-source patch asserts that version and must be reviewed on upgrade.
 Run `just test::sql-wire-reference` and
 `just test::sql-wire-tls` for the independent peers.

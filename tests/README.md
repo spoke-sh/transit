@@ -27057,3 +27057,29 @@ not identify its owning module and does not establish a cause. Root unit
 artifacts now have distinct component names so any repeated crash identifies
 its owner. Test contents, execution bounds and runtime artifacts are unchanged.
 The complete committed-source rerun remains required.
+
+## Dependency build target loader propagation — 2026-10-26
+
+Hosted run [40248968015](https://github.com/spoke-sh/transit/actions/runs/40248968015)
+again fails core with an unnamed unit-process SIGSEGV. Its experience lane fails
+earlier, when the SQL gateway crashes before reporting its missing configuration.
+The local clean gateway executable names the host ELF interpreter despite a
+root build selecting the Nix interpreter; it links Nix OpenSSL and glibc. In the
+pinned Zig helper, dependency option serialization retains the target triple and
+CPU but drops the explicit dynamic loader. This is a concrete configuration
+defect; the local successful startup does not reproduce the hosted crash.
+
+The reviewed helper patch preserves owned loader bytes for both `Target.Query`
+and `ResolvedTarget` dependency arguments. The compiler binary, version and
+locked dependencies stay unchanged. A two-package fixture emits the selected
+Nix interpreter through both target forms after correction. `nix flake check`
+passes on Linux x86_64, including execution of both dependency-built OpenSSL
+consumers and exact interpreter assertions for native and explicit caller
+settings. The direct, root-build and C/C++ controls also pass. `just doctor`,
+Nix formatting and documentation checks pass; other platforms and complete
+committed-source/hosted lanes remain separate gates.
+
+The preceding local clean experience run at `a318deb7` passes service startup
+and logging but fails the direct Table fixture after authority timeouts exhaust
+the installation's restart budget. Its uncertain DDL outcome is not a passing
+lane or evidence that the loader correction fixes that separate failure.

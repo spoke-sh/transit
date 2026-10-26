@@ -138,6 +138,44 @@ runCommand "transit-toolchain-check"
       test "$(patchelf --print-interpreter explicit-linkage)" = /transit-toolchain-explicit-loader
     ''}
 
+    # Dependencies receive serialized target options. Exercise both accepted
+    # target types so the loader cannot disappear between package boundaries.
+    mkdir -p nested/child
+    cp linkage.zig nested/child/main.zig
+    cat > nested/build.zig.zon <<'ZON'
+    .{ .name = .transit_loader_probe, .version = "0.0.0", .fingerprint = 0x79856726ec4a8d35, .dependencies = .{ .child = .{ .path = "child" } }, .paths = .{"build.zig", "build.zig.zon", "child"} }
+    ZON
+    cat > nested/child/build.zig.zon <<'ZON'
+    .{ .name = .transit_loader_child, .version = "0.0.0", .fingerprint = 0x8c685c25f6fa32dd, .paths = .{"build.zig", "build.zig.zon", "main.zig"} }
+    ZON
+    cat > nested/build.zig <<'ZIG'
+    const std = @import("std");
+    pub fn build(b: *std.Build) void {
+        const target = b.standardTargetOptions(.{});
+        b.installArtifact(b.dependency("child", .{ .target = target }).artifact("child"));
+        b.installArtifact(b.dependency("child", .{ .target = target.query }).artifact("child-query"));
+    }
+    ZIG
+    cat > nested/child/build.zig <<'ZIG'
+    const std = @import("std");
+    pub fn build(b: *std.Build) void {
+        const mod = b.createModule(.{ .root_source_file = b.path("main.zig"), .target = b.standardTargetOptions(.{}), .link_libc = true });
+        mod.linkSystemLibrary("crypto", .{});
+        b.installArtifact(b.addExecutable(.{ .name = "child", .root_module = mod }));
+        b.installArtifact(b.addExecutable(.{ .name = "child-query", .root_module = mod }));
+    }
+    ZIG
+    zig build --build-file nested/build.zig
+    ./nested/zig-out/bin/child
+    ./nested/zig-out/bin/child-query
+    ${lib.optionalString stdenv.hostPlatform.isLinux ''
+      test "$(patchelf --print-interpreter nested/zig-out/bin/child)" = "${stdenv.cc.bintools.dynamicLinker}"
+      test "$(patchelf --print-interpreter nested/zig-out/bin/child-query)" = "${stdenv.cc.bintools.dynamicLinker}"
+      zig build --build-file nested/build.zig -Ddynamic-linker=/transit-toolchain-dependency-loader
+      test "$(patchelf --print-interpreter nested/zig-out/bin/child)" = /transit-toolchain-dependency-loader
+      test "$(patchelf --print-interpreter nested/zig-out/bin/child-query)" = /transit-toolchain-dependency-loader
+    ''}
+
     cat > web/package.json <<'JSON'
     {"name":"transit-toolchain-smoke","private":true,"type":"module"}
     JSON

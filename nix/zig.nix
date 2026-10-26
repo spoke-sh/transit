@@ -13,9 +13,8 @@ if !stdenv.hostPlatform.isLinux then
 else
   let
     compiler =
-      assert lib.assertMsg (
-        upstream.version == "0.17.0-dev.2267+48abf1a34"
-      ) "Review the Zig build-runner loader lifetime patch when changing the compiler pin.";
+      assert lib.assertMsg (upstream.version == "0.17.0-dev.2267+48abf1a34")
+        "Review the Zig build-runner loader lifetime and dependency-target patches when changing the compiler pin.";
       upstream.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [ ./zig-dynamic-linker.patch ];
       });
