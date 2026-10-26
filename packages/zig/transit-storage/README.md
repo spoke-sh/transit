@@ -83,6 +83,9 @@ automatic archive scheduling, immutable Table-object collection or multi-process
   archive dependencies. Ordered-key child directories are separate work items.
   Selecting all retained roots, validating referenced objects and authorizing
   deletion remain the maintenance owner's responsibilities.
+- `TableStorageRoots.zig`: Fixed-cut enumeration of retained history and
+  recovery roots. It verifies the complete selected frame chain before a
+  collector can use its marks and does not recursively open old checkpoints.
 
 The direct owner reads immutable Table data through Fuze's shared `TSegReader`.
 Point lookup selects one segment through its paged hash-key directory; footer

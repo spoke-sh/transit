@@ -422,15 +422,7 @@ pub fn archivedThrough(allocator: std.mem.Allocator, frame: Log.Frame) !u64 {
     return (try decodeFrame(allocator, frame, frame.header.partition_id, frame.header.lsn)).record.root.archive.through;
 }
 
-fn decodeFrame(allocator: std.mem.Allocator, frame: Log.Frame, partition: u64, lsn: u64) !r.Decoded {
-    const decoded = try r.decode(allocator, frame.payload, lsn);
-    if (frame.header.partition_id != partition or frame.header.lsn != lsn or
-        frame.header.partition_id != decoded.record.root.partition or
-        (frame.header.kind != .row_delta and frame.header.kind != .manifest_checkpoint) or
-        (decoded.record.action == .mutation) != (frame.header.kind == .row_delta) or
-        (decoded.record.action != .mutation and decoded.rows.len != 0)) return error.InvalidTableHistory;
-    return decoded;
-}
+const decodeFrame = r.decodeFrame;
 
 fn ready(self: *Self) !void {
     if (self.recovery_required) return error.TableRecoveryRequired;

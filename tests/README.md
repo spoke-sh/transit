@@ -29223,3 +29223,32 @@ The shared host runs other tests and benchmarks, and native setup still stages
 many small immutable objects with separate durability barriers. These single
 observations do not close the earlier full-growth timeout, establish latency
 percentiles, or qualify final committed-HEAD clean CI.
+
+## Retained Table history and recovery root enumeration — 2026-10-26
+
+`TableStorageRoots` follows a caller-retained accepted root/chain cut. It emits
+the current root, one selected recovery capsule and one owned record per frame
+from the logical floor through that fixed frontier. Historical data roots are
+distinguished from control dependencies needed by replay. The canonical frame
+decoder is shared with the existing Table recovery path; stored bytes and
+acceptance semantics are unchanged.
+
+The focused run passes **13/13** with
+`zig build test -Dtest-filter='Table retained root enumeration' -Dtest-filter='Table recovery checkpoint' -Dtest-filter='Table history floor' --summary all`
+in `packages/zig/transit-storage` after entering `nix develop`. The disk case
+covers no checkpoint, unlimited history, a floor below the recovery baseline,
+and a floor exactly at that baseline, followed by physical WAL trim and reopen.
+It deletes a superseded capsule through the test store: its structural reference
+is never recursively opened. A later append cannot extend an earlier selected
+cut. Missing selected capsules, lost required history and a wrong terminal chain
+fail without advancing the cursor. The final accepted root remains unchanged;
+cursor size is asserted below 8 KiB. Existing checkpoint/floor tests run alongside
+these cases. The first focused checkpoint/root run passes 8/8 before the final
+additional boundary cases.
+
+Diagnostic inventory/mappings/inferred boundaries, verification catalog and
+6,409 documentation links pass. Current live pins, lease anchor frames and
+unflushed-row dependencies remain separate edges to traverse. Only complete
+enumeration can support a future collector's marks; this component supplies no
+all-owner cut, persisted mark/work queue, physical inventory or deletion. Full
+collection and final committed-HEAD clean qualification remain outstanding.

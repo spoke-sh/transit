@@ -166,6 +166,15 @@ pub fn encode(record: Record, rows: []const u8, output: []u8) ![]const u8 {
 }
 
 pub const Decoded = struct { record: Record, rows: []const u8 };
+pub fn decodeFrame(allocator: std.mem.Allocator, frame: @import("TransitLog.zig").Frame, partition: u64, lsn: u64) !Decoded {
+    const decoded = try decode(allocator, frame.payload, lsn);
+    if (frame.header.partition_id != partition or frame.header.lsn != lsn or
+        frame.header.partition_id != decoded.record.root.partition or
+        (frame.header.kind != .row_delta and frame.header.kind != .manifest_checkpoint) or
+        (decoded.record.action == .mutation) != (frame.header.kind == .row_delta) or
+        (decoded.record.action != .mutation and decoded.rows.len != 0)) return error.InvalidTableHistory;
+    return decoded;
+}
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8, lsn: u64) !Decoded {
     if (bytes.len < header_bytes or !std.mem.eql(u8, bytes[0..8], "TACCEPT1")) return error.InvalidTableHistory;
     if (!std.mem.eql(u8, bytes[8..40], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;

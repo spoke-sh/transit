@@ -54,7 +54,7 @@ table-archives:
 
 # Accepted bounded restart baselines, original evidence and publication crashes.
 table-checkpoints:
-    cd packages/zig/transit-storage && zig build test -Dtest-filter="Table recovery checkpoint" -Dtest-filter="Table admitted work survives" -Dtest-filter="Table history floor" -Dtest-filter="Table compact evidence" -Dtest-filter="Table storage walk" --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="Table recovery checkpoint" -Dtest-filter="Table admitted work survives" -Dtest-filter="Table history floor" -Dtest-filter="Table compact evidence" -Dtest-filter="Table storage walk" -Dtest-filter="Table retained root enumeration" --summary all
     cd packages/zig/transit-backend-local && zig build test -Dtest-filter="direct Table archive" --summary all
     just test::local-storage-faults
 

@@ -157,6 +157,135 @@ test "Table compact evidence rejects missing corrupt foreign and substituted out
     try t.expectError(error.InvalidTableReceipt, table.recover());
 }
 
+test "Table retained root enumeration bounds history and recovery without reviving old checkpoints" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var expected: s.TableRecovery.Basis = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        const one: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+        _ = try table.apply(binding(&table, 1), &.{change(&one, 1)}, .point, access.guard());
+        try checkRetainedRoots(&table);
+        const first = try table.checkpoint(.{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        _ = try table.apply(binding(&table, 2), &.{}, .point, access.guard());
+        const archived: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        while (!(try table.archive(archived, .{}, access.guard())).complete) {}
+        const selected = try table.checkpoint(.{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        // A saved root mentions the old capsule, but reopening and walking the
+        // selected baseline must not recursively require that old capsule.
+        var name: [96]u8 = undefined;
+        try objects.objectStore().delete(try s.TableRecovery.key(first.content, &name));
+        try checkRetainedRoots(&table);
+        _ = try table.expireHistory(archived, access.guard());
+        try checkRetainedRoots(&table);
+        const through: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        while (!(try table.archive(through, .{}, access.guard())).complete) {}
+        _ = try table.expireHistory(.{ .partition = 17, .next_lsn = selected.next_lsn }, access.guard());
+        _ = try table.trimArchived(access.guard());
+        try checkRetainedRoots(&table);
+        expected = .{ .root = table.root, .chain = table.chain };
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    try t.expectEqualDeep(expected.root, table.root);
+    try t.expectEqualDeep(expected.chain, table.chain);
+    try checkRetainedRoots(&table);
+
+    var bad = expected;
+    bad.chain[0] ^= 1;
+    var walk = try s.TableStorageRoots.init(bad);
+    while (true) {
+        const before = walk;
+        if (walk.next(t.allocator, &table.index, table.log)) |step| {
+            try t.expect(step != .complete);
+        } else |err| {
+            try t.expectEqual(error.InvalidTableHistory, err);
+            try t.expectEqualDeep(before, walk);
+            break;
+        }
+    }
+    bad = expected;
+    bad.root.recovery.?.content.sha256[0] ^= 1;
+    walk = try s.TableStorageRoots.init(bad);
+    _ = try walk.next(t.allocator, &table.index, table.log);
+    const before = walk;
+    try t.expectError(error.TableRecoveryMissing, walk.next(t.allocator, &table.index, table.log));
+    try t.expectEqualDeep(before, walk);
+}
+
+test "Table retained root enumeration preserves its cut and fails on lost history" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    _ = try table.apply(binding(&table, 1), &.{}, .point, access.guard());
+    const cut: s.TableRecovery.Basis = .{ .root = table.root, .chain = table.chain };
+    var walk = try s.TableStorageRoots.init(cut);
+    _ = try table.apply(binding(&table, 2), &.{}, .point, access.guard());
+    try t.expectEqualDeep(cut.root, (try walk.next(t.allocator, &table.index, table.log)).current);
+    try t.expectEqual(.progress, try walk.next(t.allocator, &table.index, table.log));
+    const frame = (try walk.next(t.allocator, &table.index, table.log)).frame;
+    try t.expectEqualDeep(cut.root, frame.record.root);
+    try t.expectEqual(.recovery, frame.role);
+    try t.expectEqual(.complete, try walk.next(t.allocator, &table.index, table.log));
+    // Raw fault injection violates the caller's root-retention obligation.
+    // A partial enumeration must never be reported complete.
+    try wal.log().trim(17, 1);
+    walk = try s.TableStorageRoots.init(cut);
+    _ = try walk.next(t.allocator, &table.index, table.log);
+    _ = try walk.next(t.allocator, &table.index, table.log);
+    const before = walk;
+    try t.expectError(error.WalHistoryTrimmed, walk.next(t.allocator, &table.index, table.log));
+    try t.expectEqualDeep(before, walk);
+}
+
+fn checkRetainedRoots(table: *P) !void {
+    const S = s.TableStorageRoots;
+    var walk = try S.init(.{ .root = table.root, .chain = table.chain });
+    const cut = table.root;
+    var frames: u64 = 0;
+    var checkpoints: u64 = 0;
+    var current: u64 = 0;
+    while (true) switch (try walk.next(t.allocator, &table.index, table.log)) {
+        .current => |root| {
+            try t.expectEqualDeep(cut, root);
+            current += 1;
+        },
+        .checkpoint => |value| {
+            try t.expectEqualDeep(cut.recovery.?, value.reference);
+            try t.expectEqual(cut.recovery.?.next_lsn, value.basis.root.next_lsn);
+            checkpoints += 1;
+        },
+        .frame => |value| {
+            try t.expectEqual(cut.history_floor + frames + 1, value.record.root.next_lsn);
+            const replay = cut.recovery == null or value.record.root.next_lsn > cut.recovery.?.next_lsn;
+            try t.expectEqual(if (replay) S.Role.recovery else S.Role.history, value.role);
+            frames += 1;
+        },
+        .progress => {},
+        .complete => break,
+    };
+    try t.expectEqual(cut.next_lsn - cut.history_floor, frames);
+    try t.expectEqual(@as(u64, 1), current);
+    try t.expectEqual(@as(u64, @intFromBool(cut.recovery != null)), checkpoints);
+    try t.expectEqualDeep(cut, table.root);
+    try t.expect(@sizeOf(S) < 8192);
+    try t.expectEqual(.complete, try walk.next(t.allocator, &table.index, table.log));
+}
+
 test "Table storage walk resolves real disk row pin receipt operation and archive dependencies" {
     const W = s.TableStorageWalk;
     var tmp = t.tmpDir(.{});

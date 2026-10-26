@@ -25475,7 +25475,7 @@
         "InvalidTableBasis": 9,
         "InvalidTableCompactionBudget": 1,
         "InvalidTableDeclaration": 1,
-        "InvalidTableHistory": 45,
+        "InvalidTableHistory": 44,
         "InvalidTableIdentity": 1,
         "InvalidTableKey": 3,
         "InvalidTableOperation": 14,
@@ -25575,7 +25575,6 @@
         "compact()": "<inferred>",
         "compactBounded()": "<inferred>",
         "currentBasis()": "<inferred>",
-        "decodeFrame()": "<inferred>",
         "expectations()": "<inferred>",
         "expireHistory()": "<inferred>",
         "filteredCursorFingerprint()": "<inferred>",
@@ -25650,7 +25649,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 536,
+        "try": 535,
         "catch": 10
       },
       "imports": [
@@ -25675,7 +25674,7 @@
     "packages/zig/transit-storage/src/TablePartitionRecord.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableHistory": 7,
+        "InvalidTableHistory": 8,
         "InvalidTableKey": 1,
         "InvalidTableOperation": 2,
         "InvalidTableReceipt": 1,
@@ -25729,19 +25728,21 @@
         "Record.validate()": "<inferred>",
         "Root.validate()": "<inferred>",
         "decode()": "<inferred>",
+        "decodeFrame()": "<inferred>",
         "encode()": "<inferred>",
         "operationKey()": "<inferred>",
         "rowKey()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 19,
         "catch": 0
       },
       "imports": [
         "TableArchive.zig",
         "TableDeclaration.zig",
         "TableRecovery.zig",
+        "TransitLog.zig",
         "TreeStore.zig",
         "std",
         "transit_protocol"
@@ -25810,6 +25811,52 @@
         "std",
         "transit_fuze",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/TableStorageRoots.zig": {
+      "errors": {
+        "InvalidTableHistory": 3,
+        "InvalidTableRecovery": 2,
+        "InvalidTableStorageGraph": 4,
+        "TableHistoryMissing": 1
+      },
+      "outcomes": {
+        "Role": [
+          "current",
+          "recovery",
+          "history"
+        ],
+        "Step": [
+          "current",
+          "checkpoint",
+          "frame",
+          "progress",
+          "complete"
+        ],
+        "phase": [
+          "current",
+          "checkpoint",
+          "frames",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>",
+        "next()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "TableArchive.zig",
+        "TablePartitionRecord.zig",
+        "TableRecovery.zig",
+        "TransitLog.zig",
+        "TreeStore.zig",
+        "std"
       ]
     },
     "packages/zig/transit-storage/src/TableStorageWalk.zig": {
@@ -26011,6 +26058,7 @@
         "TableManifest.zig",
         "TablePartition.zig",
         "TableRecovery.zig",
+        "TableStorageRoots.zig",
         "TableStorageWalk.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",

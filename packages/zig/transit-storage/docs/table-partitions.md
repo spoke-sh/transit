@@ -472,6 +472,24 @@ owners remain separate retention obligations. Cursor JSON used in component
 tests is not a persisted maintenance format. The component supplies no physical
 Table collector or automatic scheduling.
 
+`TableStorageRoots` enumerates the current root, selected recovery capsule and
+frames from a fixed cut's logical history floor through its accepted frontier.
+Construct its cut from a recovered Table's root and chain and keep that storage
+available. Each step loads at most one bounded frame or capsule and returns
+owned metadata. It checks frame identity/kind, contiguous hashes, the selected
+checkpoint's baseline and publication, and the exact final root and chain.
+Failed reads or validation preserve the cursor; a partial traversal is never
+completion evidence. Later appends do not extend the selected cut.
+
+Historical roots retain their data and exact declaration; their old control/pin
+graphs do not create new live owners. Recovery roots additionally retain control
+dependencies needed by replay, including pin/release metadata. A capsule's old
+recovery reference remains weak. Live pins still require separate traversal from
+the current directories: history leases retain their original anchor frame at
+`original.next_lsn - 1`, even when their frontier equals the history floor.
+Unflushed rows can require still earlier frames. This enumerator supplies no
+global root selection, durable work/marks, archive pruning or deletion authority.
+
 ## Compact live segments
 
 Capture the current `root.next_segment` and pass it as the fixed exclusive boundary

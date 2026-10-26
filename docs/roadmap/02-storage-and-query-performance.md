@@ -118,6 +118,12 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Table history/recovery root enumeration follows a fixed accepted cut with
+  one bounded frame or capsule per step. Complete-chain checks bind its final
+  root and selected checkpoint while keeping historical control graphs weak.
+  This advances #116/#127; live pin/data edges, all-owner selection, durable
+  marks/inventory and physical deletion still require collector integration.
+
 - Native policy evaluation reuses at most eight verified membership/grant scan
   pages at one exact immutable policy root. Typed decoding, evaluator budgets,
   current authority and publication/disclosure fences still run. This targets
