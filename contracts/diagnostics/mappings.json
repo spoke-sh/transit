@@ -712,6 +712,10 @@
         "UnsupportedColumnCollation": {
           "code": "sql.unsupported_column_collation",
           "category": "unsupported"
+        },
+        "UnrepresentableEbcdic037": {
+          "code": "sql.unrepresentable_cp037",
+          "category": "binding"
         }
       }
     },
@@ -1627,6 +1631,10 @@
         "RelationalWorkspaceInUse": {
           "code": "query.relational_workspace_in_use",
           "category": "conflict"
+        },
+        "InvalidQueryCollations": {
+          "code": "query.invalid_collations",
+          "category": "binding"
         }
       },
       "exceptions": [
@@ -3036,6 +3044,10 @@
         "RelationalWorkspaceInUse": {
           "code": "query.relational_workspace_in_use",
           "category": "conflict"
+        },
+        "InvalidQueryCollations": {
+          "code": "query.invalid_collations",
+          "category": "binding"
         }
       },
       "exceptions": [],

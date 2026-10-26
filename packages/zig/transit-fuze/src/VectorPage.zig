@@ -20,7 +20,7 @@ pub fn logicalPage(plan: q.Plan, rows: []const @import("LogicalArrow.zig").Row, 
         .all => @memset(output, .{ .truth = .true_value }),
         .program => logicalProgram(plan, rows, output, sites),
         inline else => |value, tag| {
-            const atom = Atom.bind(@unionInit(q.Plan.Atom, @tagName(tag), value), plan.schema);
+            const atom = Atom.bindPlan(@unionInit(q.Plan.Atom, @tagName(tag), value), plan);
             atom.run(atom, .{ .logical = .{ .rows = rows, .column = atom.column } }, 0, output);
             @memset(sites, 0);
         },

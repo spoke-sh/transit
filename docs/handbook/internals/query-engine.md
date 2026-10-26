@@ -1058,9 +1058,16 @@ $u \preceq_\kappa v$ if and only if
 `memcmp(sort_key(u, κ), sort_key(v, κ)) <= 0`. `Collation` uses the same CP037
 mapping for comparisons and keys, and folds only ASCII A–Z for `ascii_ci`.
 Zone maps and primary-key indexes consume these keys. A predicate can use their
-bounds only when it has the same collation. Direct SQL currently rejects
-non-binary text collations before evaluation, including UPDATE/DELETE predicate
-plans. It does not infer correct hash/group/join semantics from storage support.
+bounds only when it has the same collation. Finite SQL plans carry a value-owned
+128-column collation workspace; only the input fields are serialized, and unused
+slots must be none. FQP1 fingerprints and TQS1 source commitments include the
+complete vector. The retained source checks it against the exact Table schema,
+so a caller cannot substitute binary comparison while retaining the same source
+identity. Scalar predicates, decoded vector/page kernels, oversized-row fallback
+and Table UPDATE/DELETE share the declared comparison semantics. Prepared
+parameters acquire the vector from their original declaration at binding.
+Relational join/group/order operators remain int64-only; this finite profile
+adds no text join or grouping semantics.
 The neutral JSON schema requires explicit encoding and collation fields and
 preserves them through SDK conversion. The shared schema validator admits the
 type/codec/collation combination; the direct Table interface retains complete

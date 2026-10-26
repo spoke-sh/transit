@@ -24,6 +24,7 @@ const source = {
         digest: Array(32).fill(1),
         schema: Array(32).fill(2),
       },
+      collations: ["none" as const, "none" as const],
       row_type: {
         structure: [
           { name: "id", type: { int64: {} }, nullable: false, optional: false },
@@ -41,6 +42,7 @@ const compiled: Extract<Response, { compiled: unknown }>["compiled"] = {
   schema: Array(32).fill(2),
   plan: {
     version: 1,
+    collations: null,
     projection: [1],
     output_names: null,
     limit: "1",
@@ -136,7 +138,7 @@ function fixture(role: number | null = null) {
               source: 1,
               plan: 1,
               result: 1,
-              bundle_bytes: 25615,
+              bundle_bytes: 25743,
               part_bytes: 128,
               segment_bytes: 65536,
               batch_rows: 8,

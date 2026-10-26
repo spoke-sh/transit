@@ -8,6 +8,14 @@ sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or
 native authority. No optimizer rewrites are enabled.
 
+Finite logical plans bind a separate `QueryCollations` value to every input
+column. Binary, ASCII case folding and CP037 order apply consistently in scalar
+predicates, vector batches and resumable pages. Plan fingerprints and canonical
+FQP1 bytes include the vector. Table DML binds it from its exact schema. CREATE
+TABLE and ADD COLUMN accept the corresponding `COLLATE` clauses; types and
+physical codecs remain independent. ICU, expression overrides and text
+relational joins/group/order are unsupported.
+
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;
 projected decoding requests only the selected column pages. The reader verifies

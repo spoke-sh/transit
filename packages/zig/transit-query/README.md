@@ -85,9 +85,10 @@ See the [Table parameter contract](../../../contracts/SQL_PARAMETERS_V1.md#catal
 for fresh execution, current policy and definition-change rules.
 
 This direct caller accepts the finite Transit SELECT profile over one explicit
-retained source. Text uses `none` or `UTF8_BINARY` collation; other declared
-collations reject before execution because the shared logical evaluator does
-not yet apply them. Closing a computation leaves its source available for other
+retained source. Text comparisons use the exact Table column's binary,
+`ASCII_CI` or `EBCDIC_CP037` collation in direct, prepared and captured plans.
+The source and plan both commit the complete comparison vector; reopening
+checks it against the retained schema. Closing a computation leaves its source available for other
 queries until the pin owner explicitly releases it. See the [direct catalog guide](../transit-catalog/docs/direct-catalog.md)
 for pin acquisition, authority and recovery.
 

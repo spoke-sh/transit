@@ -79,7 +79,12 @@ general predicate/projection lowering to this reader is separate integration wor
 
 A query selects one explicit KV decoder, Table schema or accepted Document
 projection with finite execution budgets. General Table declarations bind an
-immutable catalog definition and admit up to 128 columns. KV has two explicit
+immutable catalog definition and admit up to 128 columns. Finite Table filters,
+prepared comparisons and range counts honor binary, `ASCII_CI` and
+`EBCDIC_CP037` column collations. Saved source and plan bytes bind the complete
+comparison vector independently of logical types and physical codecs; reopening
+checks it against the retained declaration. Relational text joins/group/order
+and expression collation overrides are unsupported. KV has two explicit
 decoders; Document projections retain their independent eight-column bound.
 Durable callers upload the finite plan bundle through bounded commands.
 Flight exposes a Table subset with primitive int64 output; the adapter verifies

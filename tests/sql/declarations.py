@@ -65,6 +65,15 @@ def check(binary):
         cases.append(dict(sql=f'CREATE TABLE typed (x {typ} DEFAULT {value})'))
     for change in ('ADD COLUMN email VARCHAR(320)','ADD COLUMN enabled BOOLEAN NOT NULL DEFAULT TRUE','DROP COLUMN name','RENAME COLUMN name TO full_name','RENAME TO renamed','ALTER COLUMN name SET DEFAULT \'Ada\'','ALTER COLUMN active DROP DEFAULT','ALTER COLUMN name SET NOT NULL','ALTER COLUMN name DROP NOT NULL','ALTER COLUMN name TYPE VARCHAR(400)','ALTER COLUMN id SET DATA TYPE BIGINT'):
         cases.append(dict(sql='ALTER TABLE people '+change,basis=BASIS))
+    for collation in ('UTF8_BINARY', 'ASCII_CI', 'EBCDIC_CP037'):
+        cases.append(dict(sql=f"CREATE TABLE collated (k TEXT COLLATE {collation} PRIMARY KEY, label TEXT DEFAULT 'A' COLLATE {collation})"))
+        cases.append(dict(sql=f'ALTER TABLE people ADD COLUMN label TEXT COLLATE {collation}', basis=BASIS))
+    cases += [
+        dict(sql='CREATE TABLE bad (n BIGINT COLLATE ASCII_CI)', error='IncompatibleColumnCollation'),
+        dict(sql='CREATE TABLE bad (s TEXT COLLATE ASCII_CI COLLATE UTF8_BINARY)', error='DuplicateColumnConstraint'),
+        dict(sql='CREATE TABLE bad (s TEXT COLLATE ICU_ROOT)', error='UnsupportedColumnCollation', reference_reject=True),
+        dict(sql="CREATE TABLE bad (s TEXT COLLATE EBCDIC_CP037 DEFAULT '東京')", error='UnrepresentableEbcdic037'),
+    ]
     cases += [dict(sql='DROP TABLE people RESTRICT',basis=BASIS),dict(sql='DROP TABLE IF EXISTS absent'),dict(sql='DROP TABLE absent',error='TableNotFound')]
     path=CACHE/'declaration-cases.json'; path.write_text(json.dumps([{k:v for k,v in c.items() if k in ('sql','basis')} for c in cases]))
     result=subprocess.run([binary,str(path)],capture_output=True,text=True,check=True)

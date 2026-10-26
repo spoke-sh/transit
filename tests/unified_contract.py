@@ -91,7 +91,7 @@ def sources():
     descriptor = logical_schema('table')
     table = (b'TQS1' + definition + struct.pack('<QQQQQQQQ', 1, 7, 9, 3, 1, 1, 9, 1) +
              bytes([1])*32 + struct.pack('<Q', 200) + bytes([2])*32 +
-             struct.pack('<H', len(descriptor)) + descriptor)
+             struct.pack('<H', len(descriptor)) + descriptor + b'\0\0')
     reference = b'SDR1' + struct.pack('<QQQIQ', 7, 2**64-1, 3, 1, 42)
     variants = [
         ('kv', source(1, b'\5data/\1\6\1\2')),
@@ -105,7 +105,7 @@ def sources():
 def bundles():
     limits = struct.pack('<QQQ', 1000, 500, 1048576)
     result = []
-    plan_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters').digest()
+    plan_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations').digest()
     for declaration in json.loads(sources()):
         kind = declaration['kind']
         source = bytes.fromhex(declaration['wire_hex'])
@@ -114,9 +114,9 @@ def bundles():
         literal = b'\3' + (struct.pack('<Q', 2**64-1) if kind == 'kv' else struct.pack('<I', 512) + b'x'*512)
         predicate = bytes([2, 1, 1]) + struct.pack('<H', len(literal)) + literal
         suffix = b'\1' + struct.pack('<Q', 2**64-1) + predicate
-        plan = head + bytes([0, 2, 1, 0, 0, 0]) + suffix
-        named = head + bytes([0, 2, 1, 0, 6]) + b'Result' + b'\0' + suffix
-        counted = head + bytes([3, 1, 1, 7]) + b'present' + b'\0' + struct.pack('<Q', 0) + b'\0'
+        plan = head + bytes([0, 2, 1, 0, 0, 0]) + suffix + b'\0\0'
+        named = head + bytes([0, 2, 1, 0, 6]) + b'Result' + b'\0' + suffix + b'\0\0'
+        counted = head + bytes([3, 1, 1, 7]) + b'present' + b'\0' + struct.pack('<Q', 0) + b'\0\0\0'
         def bundle(plan):
             return b'UQB1' + current_definition() + struct.pack('<HH', len(source), len(plan)) + limits + b'\0\0' + source + plan
         wire = bundle(plan)

@@ -26,9 +26,13 @@ pub fn qualify(schema: f.TableSchema.Schema, plan: f.LogicalQuery.Plan) ?Self {
     schema.validate() catch return null;
     plan.validate() catch return null;
     const column = schema.index(schema.primary_key[0]) catch return null;
-    switch (schema.columns[column].collation) {
-        .none, .utf8_binary => {},
-        else => return null,
+    if (!std.meta.eql(plan.collations, f.QueryCollations.fromTable(schema))) {
+        // NONE and UTF8_BINARY have the same comparison order.
+        for (schema.columns, plan.collations.columns[0..schema.columns.len]) |field, declared| {
+            if (field.collation == declared) continue;
+            if ((field.collation == .none or field.collation == .utf8_binary) and (declared == .none or declared == .utf8_binary)) continue;
+            return null;
+        }
     }
     var single: [1]f.LogicalPredicate.Program.Instruction = undefined;
     const program: f.LogicalPredicate.Program = switch (plan.predicate) {

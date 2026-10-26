@@ -118,6 +118,15 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Finite Table comparisons now bind binary, ASCII_CI and CP037 semantics through
+  scalar/vector/page execution, prepared parameters, captured source descriptors,
+  UPDATE/DELETE and range-count qualification. CREATE TABLE and ADD COLUMN accept
+  column COLLATE declarations. The shared current-v1 cutover replaces FQP1/TQS1
+  identities and regenerates consumers; older accepted artifacts reject.
+  Independent scalar/vector masks, 280 grammar cases and the signed disk-backed
+  Table collation proof cover the delivered profile. Text relational joins,
+  grouping/order and general SQL encoded pushdown remain outstanding.
+
 - The standalone unbounded `TableMemtable`, `TableStorageEngine` and
   `TableSegmentScan` profile is retired. The installed paged `TablePartition`
   remains the Table acceptance and retained-read owner. The shared current-v1

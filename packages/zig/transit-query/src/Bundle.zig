@@ -33,7 +33,8 @@ pub fn fromSqlDiagnostic(allocator: std.mem.Allocator, source: q.SourceDefinitio
 fn fromSqlInner(allocator: std.mem.Allocator, source: q.SourceDefinition, name: []const u8, text: []const u8, limits: Limits, diagnostic: ?*q.fuze.Sql.Binding) !Self {
     var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
     const schema = try (try source.schema(&fields)).cloneInto(allocator);
-    const plan = try f.TableSelect.planDiagnostic(allocator, text, name, schema, try source.fingerprint(), diagnostic);
+    var plan = try f.TableSelect.planDiagnostic(allocator, text, name, schema, try source.fingerprint(), diagnostic);
+    plan.collations = source.collations();
     const result: Self = .{ .source = source, .plan = plan, .limits = limits };
     try result.validate();
     return result;
@@ -67,7 +68,7 @@ pub fn validate(self: Self) !void {
     var fields: [q.SourceDefinition.max_columns]t.Field = undefined;
     const schema = try self.source.schema(&fields);
     try self.plan.validate();
-    if (!try self.plan.schema.eql(schema) or !std.mem.eql(u8, &self.plan.source_basis, &try self.source.fingerprint())) return error.SourceChanged;
+    if (!std.meta.eql(self.plan.collations, self.source.collations()) or !try self.plan.schema.eql(schema) or !std.mem.eql(u8, &self.plan.source_basis, &try self.source.fingerprint())) return error.SourceChanged;
 }
 /// The source owner derives this binding from its captured, authorized cut.
 /// Rebinding changes execution identity, never the immutable submitted bundle.

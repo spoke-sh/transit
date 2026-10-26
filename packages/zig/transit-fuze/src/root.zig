@@ -49,6 +49,7 @@ pub const TableSchemaJson = @import("TableSchemaJson.zig");
 pub const TableSelect = @import("TableSelect.zig");
 pub const TableDmlCodec = @import("TableDmlCodec.zig");
 pub const Declaration = @import("Declaration.zig");
+pub const QueryCollations = @import("QueryCollations.zig");
 pub const Collation = @import("Collation.zig");
 pub const PhysicalCodecs = @import("PhysicalCodecs.zig");
 pub const ColumnPredicate = @import("ColumnPredicate.zig");
@@ -86,6 +87,7 @@ test {
     _ = @import("encoded_column_test.zig");
     _ = @import("table_dml_codec_test.zig");
     _ = @import("logical_plan_codec_test.zig");
+    _ = @import("query_collation_test.zig");
     _ = @import("logical_stream_test.zig");
     _ = @import("logical_inspect_test.zig");
     _ = @import("logical_kind_test.zig");

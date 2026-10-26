@@ -140,6 +140,9 @@ pub const Atom = struct {
     pub fn bind(atom: q.Plan.Atom, schema: t.Type) Atom {
         return bindType(atom, if (atom == .compare) schema.structure[atom.compare.column].type else .int64);
     }
+    pub fn bindPlan(atom: q.Plan.Atom, plan: q.Plan) Atom {
+        return if (atom == .compare) bindCollation(atom, plan.schema.structure[atom.compare.column].type, plan.collations.columns[atom.compare.column]) else bind(atom, plan.schema);
+    }
     pub fn bindType(atom: q.Plan.Atom, kind: t.Type) Atom {
         return bindCollation(atom, kind, .utf8_binary);
     }
@@ -260,14 +263,14 @@ pub const Program = struct {
                 .program => unreachable,
                 inline else => |v, tag| @unionInit(q.Plan.Atom, @tagName(tag), v),
             };
-            destination[0] = .{ .atom = Atom.bind(atom, plan.schema) };
+            destination[0] = .{ .atom = Atom.bindPlan(atom, plan) };
             return .{ .instructions = destination[0..1], .depth = 1 };
         }
         var depth: usize = 0;
         var maximum: usize = 0;
         for (plan.predicate.program.instructions, destination[0..plan.predicate.program.instructions.len]) |instruction, *out| switch (instruction) {
             .atom => |atom| {
-                out.* = .{ .atom = Atom.bind(atom, plan.schema) };
+                out.* = .{ .atom = Atom.bindPlan(atom, plan) };
                 depth += 1;
                 maximum = @max(maximum, depth);
             },

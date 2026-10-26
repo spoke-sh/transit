@@ -149,6 +149,7 @@ pub fn append(self: *Self, cells: []const Cell, provenance: Provenance) !void {
 /// Native Table and frozen file decoders establish this precondition. This is
 /// not a replacement for a source's original whole-row validation boundary.
 pub fn appendValidated(self: *Self, cells: []const Cell, provenance: Provenance) !void {
+    try self.plan.collations.validateCells(cells);
     if (self.len == self.capacity) return error.BatchFull;
     if (cells.len != self.columns.len) return error.InvalidColumnCount;
     if (provenance.row == 0 or provenance.boundary == 0) return error.InvalidProvenance;

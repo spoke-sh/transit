@@ -204,11 +204,11 @@ def query_bytes(definition, owner, limits, *, requester, requests, principal, ex
     table = (b'TQS1' + contract + struct.pack('<8Q', scope['realm'], scope['resource'], scope['catalog'], owner,
                 table_source['branch'], table_source['namespace'], table_source['object'], interpretation['revision'])
              + bytes(interpretation['digest']) + struct.pack('<Q', stored['content']['bytes'])
-             + bytes(stored['schema_fingerprint']) + struct.pack('<H', len(descriptor)) + descriptor)
+             + bytes(stored['schema_fingerprint']) + struct.pack('<H', len(descriptor)) + descriptor + b'\0\0')
     source = b'UQS1' + contract + struct.pack('<QBH', scope['resource'], 2, len(table)) + table
     declaration = hashlib.sha256(b'transit.table.query.declaration.v1\0' + table).digest()
-    plan_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters').digest()
-    plan = b'FQP1' + plan_definition + declaration + hashlib.sha256(descriptor).digest() + b'\0\2\0\1\0\0\0' + struct.pack('<Q', 0) + b'\0'
+    plan_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations').digest()
+    plan = b'FQP1' + plan_definition + declaration + hashlib.sha256(descriptor).digest() + b'\0\2\0\1\0\0\0' + struct.pack('<Q', 0) + b'\0\0\0'
     header = b'UQB1' + contract + struct.pack('<HH', len(source), len(plan)) + limits
     description = header + b'\0\0' + source + plan
     purpose = hashlib.sha256(b'transit.query.direct-retention.v1\0' + struct.pack('<4Q', owner, scope['resource'], requester, requests) + description).digest()

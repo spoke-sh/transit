@@ -23,6 +23,7 @@ function compiled(operation: string): Extract<Response, { compiled: unknown }>["
             digest: Array(32).fill(1),
             schema: Array(32).fill(2),
           },
+          collations: ["none" as const],
           row_type: {
             structure: [{ name: "value", type: { int64: {} }, nullable: false, optional: false }],
           },
@@ -34,6 +35,7 @@ function compiled(operation: string): Extract<Response, { compiled: unknown }>["
     schema: Array(32).fill(2),
     plan: {
       version: 1,
+      collations: null,
       projection: [0],
       output_names: null,
       limit: "1",

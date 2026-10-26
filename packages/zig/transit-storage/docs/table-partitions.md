@@ -167,8 +167,9 @@ DELETE reads it once. `statement_scan_rows` defaults to 1,000,000 decoded row
 visits and `statement_scan_bytes` to 64 MiB of canonical input row bytes across
 all passes, including re-read group boundaries. Exhaustion records `work_limit`.
 The separate index work budget and physical quota still apply. These are
-operation quotas, not limits on retained Table cardinality. Predicates currently
-admit only `none`/`utf8_binary` collations; other declared collations reject.
+operation quotas, not limits on retained Table cardinality. Predicates use the
+exact schema's binary, ASCII case folding or CP037 collation. The predicate
+literal must be representable under the selected collation before admission.
 
 ## Retained reads and physical flushing
 

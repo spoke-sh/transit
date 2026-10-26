@@ -58,16 +58,11 @@ pub fn openRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, s
     var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
     var compiled = try f.TableSelect.compile(allocator, text, name, try table_schema.rowType(&fields), try scan.fingerprint(), location);
     errdefer compiled.deinit();
+    compiled.plan.collations = .fromTable(table_schema);
     return start(&scan, &compiled, limits, compute);
 }
 pub fn qualify(table_schema: f.TableSchema.Schema) !void {
     try table_schema.validate();
-    // The shared logical evaluator currently compares text as UTF-8 bytes.
-    // Reject other declared semantics instead of silently ignoring them.
-    for (table_schema.columns) |column| switch (column.collation) {
-        .none, .utf8_binary => {},
-        else => return error.UnsupportedTableQueryCollation,
-    };
 }
 /// The caller retains the original pin request/handle across uncertain
 /// acquisition. This opens no pin and never substitutes a newer source.
@@ -91,6 +86,7 @@ fn start(scan: *Scan, compiled: *f.TableSelect.Owned, limits: Limits, compute: C
     var scratch: [f.Types.max_encoding_bytes]u8 = undefined;
     const encoded = try (try compiled.plan.outputSchema(&fields)).encode(&scratch);
     if (encoded.len > limits.result_bytes) return error.QueryResultBudget;
+    if (!std.meta.eql(compiled.plan.collations, f.QueryCollations.fromTable(scan.reader.schema.schema))) return error.SourceChanged;
     try scan.validateCurrent();
     scan.selectAccess(compiled.plan);
     var execution = try Engine.initBudget(scan.*, compiled.plan, compute.limits);

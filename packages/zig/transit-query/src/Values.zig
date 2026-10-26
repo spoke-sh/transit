@@ -141,6 +141,7 @@ pub const Source = struct {
     source: union(enum) {
         kv: struct { prefix: []const u8, key: q.SourceDefinition.Decoder, value: q.SourceDefinition.Decoder },
         table: struct {
+            pub const json_schema_sequence_bounds = .{ .collations = q.SourceDefinition.max_columns };
             scope: q.catalog.TableValues.Scope,
             owner: u64,
             branch: []const u8,
@@ -148,6 +149,7 @@ pub const Source = struct {
             object: []const u8,
             interpretation: struct { revision: []const u8, digest: [32]u8, bytes: []const u8, schema: [32]u8 },
             row_type: types.Type,
+            collations: []const f.TableSchema.Collation,
         },
         document: struct {
             pub const json_schema_sequence_bounds = .{ .expand = 8, .projections = m.max_columns };
@@ -164,7 +166,7 @@ pub const Source = struct {
                 const scope = try v.scope.native();
                 const branch = try unsigned(v.branch);
                 const object = try unsigned(v.object);
-                break :table .{ .table = .{ .scope = scope, .owner = v.owner, .branch = branch, .namespace = v.namespace, .object = object, .interpretation = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = branch, .object = object }, .revision = try unsigned(v.interpretation.revision), .digest = v.interpretation.digest }, .content = .{ .bytes = try unsigned(v.interpretation.bytes), .sha256 = v.interpretation.digest }, .schema_fingerprint = v.interpretation.schema, .retired = false }, .row_type = try v.row_type.cloneInto(alloc) } };
+                break :table .{ .table = .{ .scope = scope, .owner = v.owner, .branch = branch, .namespace = v.namespace, .object = object, .interpretation = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = branch, .object = object }, .revision = try unsigned(v.interpretation.revision), .digest = v.interpretation.digest }, .content = .{ .bytes = try unsigned(v.interpretation.bytes), .sha256 = v.interpretation.digest }, .schema_fingerprint = v.interpretation.schema, .retired = false }, .row_type = try v.row_type.cloneInto(alloc), .collations = try f.QueryCollations.fromSlice(v.row_type, v.collations) } };
             },
             .document => |v| blk: {
                 if (v.projections.len == 0 or v.projections.len > m.max_columns) return error.InvalidProjection;
@@ -181,7 +183,7 @@ pub const Source = struct {
     pub fn fromNative(alloc: Allocator, value: q.SourceDefinition) !Source {
         return .{ .version = value.version, .resource = value.resource, .source = switch (value.source) {
             .kv => |v| .{ .kv = .{ .prefix = try a.hex(alloc, v.prefix.slice()), .key = v.key, .value = v.value } },
-            .table => |v| .{ .table = .{ .scope = try q.catalog.TableValues.Scope.foreign(alloc, v.scope), .owner = v.owner, .branch = try a.decimal(alloc, v.branch), .namespace = v.namespace, .object = try a.decimal(alloc, v.object), .interpretation = .{ .revision = try a.decimal(alloc, v.interpretation.interpretation.revision), .digest = v.interpretation.interpretation.digest, .bytes = try a.decimal(alloc, v.interpretation.content.bytes), .schema = v.interpretation.schema_fingerprint }, .row_type = try v.row_type.cloneInto(alloc) } },
+            .table => |v| .{ .table = .{ .scope = try q.catalog.TableValues.Scope.foreign(alloc, v.scope), .owner = v.owner, .branch = try a.decimal(alloc, v.branch), .namespace = v.namespace, .object = try a.decimal(alloc, v.object), .interpretation = .{ .revision = try a.decimal(alloc, v.interpretation.interpretation.revision), .digest = v.interpretation.interpretation.digest, .bytes = try a.decimal(alloc, v.interpretation.content.bytes), .schema = v.interpretation.schema_fingerprint }, .row_type = try v.row_type.cloneInto(alloc), .collations = try alloc.dupe(f.TableSchema.Collation, v.collations.columns[0..v.row_type.structure.len]) } },
             .document => |v| blk: {
                 const projections = try alloc.alloc(Projection, v.projections.len);
                 for (projections, v.projections) |*out, in| out.* = .{ .column = try DecoderColumn.fromNative(alloc, in.column), .path = try foreignPath(alloc, in.path), .relative = in.relative, .mode = in.mode, .text_bytes = in.text_bytes, .text_steps = in.text_steps };
@@ -263,6 +265,9 @@ pub const Predicate = union(enum) {
     }
 };
 pub const Plan = struct {
+    pub const json_schema_sequence_bounds = .{ .collations = q.SourceDefinition.max_columns };
+    /// Null selects binary comparison; Table bundles still require exact source semantics.
+    collations: ?[]const f.TableSchema.Collation = null,
     version: u8 = 1,
     projection: []const u32,
     output_names: ?[]const ?[]const u8 = null,
@@ -285,7 +290,7 @@ pub const Plan = struct {
             };
             break :owned result;
         } else &.{};
-        const result: f.LogicalQuery.Plan = .{ .schema = try schema.cloneInto(alloc), .source_basis = binding, .projection = selected, .output_names = names, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = try self.predicate.native(alloc, schema) };
+        const result: f.LogicalQuery.Plan = .{ .schema = try schema.cloneInto(alloc), .source_basis = binding, .collations = if (self.collations) |columns_| try f.QueryCollations.fromSlice(schema, columns_) else .{}, .projection = selected, .output_names = names, .limit = if (self.limit) |v| try unsigned(v) else null, .aggregate = self.aggregate, .predicate = try self.predicate.native(alloc, schema) };
         try result.validate();
         return result;
     }
@@ -297,7 +302,7 @@ pub const Plan = struct {
         };
         const selected = try alloc.alloc(u32, value.projection.len);
         for (selected, value.projection) |*out, in| out.* = in;
-        return .{ .projection = selected, .output_names = names, .limit = if (value.limit) |v| try a.decimal(alloc, v) else null, .aggregate = value.aggregate, .predicate = try Predicate.fromNative(alloc, value.predicate, value.schema) };
+        return .{ .collations = try alloc.dupe(f.TableSchema.Collation, value.collations.columns[0..value.schema.structure.len]), .projection = selected, .output_names = names, .limit = if (value.limit) |v| try a.decimal(alloc, v) else null, .aggregate = value.aggregate, .predicate = try Predicate.fromNative(alloc, value.predicate, value.schema) };
     }
 };
 pub const Limits = struct {

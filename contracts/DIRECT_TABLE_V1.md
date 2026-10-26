@@ -722,8 +722,10 @@ INSERT uses the concrete row operation. A data-frontier expectation is mandatory
 Its intent digest uses `transit.table.direct.statement.v1`, a zero byte and
 canonical JSON of `interpretation`, `schema`, `plan` in that order. The retained
 plan owns predicate and assignment values; execution never recompiles SQL or
-resolves the name again. Predicate text comparison supports `none` and
-`utf8_binary` column collations; other declared collations reject before admission.
+resolves the name again. Predicate text comparison uses the exact schema's
+`none`, `utf8_binary`, `ascii_ci` or `ebcdic_cp037` collation. ICU rejects, and
+CP037 literals outside U+0000–U+00FF reject before admission. The physical codec
+does not select the comparison semantics.
 
 The Table owner checks the action privilege, selects rows privately and publishes
 the complete result once. Selection does not disclose rows or require SELECT.

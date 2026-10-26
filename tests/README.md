@@ -28430,3 +28430,35 @@ complete telemetry. Private configurations and durable fixture state remain
 outside Git. The committed reactive fixture and runtime deadlines are unchanged;
 the broader physical browser failure remains recorded separately from the
 data-plane lock-independence result.
+## Declared finite query collations — 2026-10-26
+
+`just test::direct-table-service collations` passes in ReleaseSafe through the
+signed local disk-backed Table service. SQL CREATE TABLE declares ASCII_CI and
+CP037 columns; independently expected counts distinguish their order/equality.
+The proof compares same-pin range and identity scans, bound parameters, captured
+source/plan and neutral-value round trips, current UPDATE/DELETE outcomes and
+old retained snapshots. A substituted plan collation rejects. It exercises the
+local owner; installed lifecycle/performance qualification is separate.
+
+Focused Fuze checks pass 37 tests covering independent text masks across scalar,
+vector and page evaluation, saved plan ownership/identity, unknown values, eager
+error provenance and the counters used by oversized rows. Unsupported/mismatched
+profiles, unmappable CP037 literals/values, truncated/foreign plans and duplicate
+DDL clauses reject. The complete Fuze suite passes 374 tests and the complete query suite passes 142.
+The browser query client passes 57 tests, strict types, formatting and lint;
+native/host and browser contract checks pass. The diagnostic outcome proof passes
+3,407 projections, including the collation error across caller/Board/Flight boundaries.
+`just test::table-ddl-sql`
+passes 280 independent grammar/compiler cases with 244 exact schema comparisons,
+including all three COLLATE spellings, ADD COLUMN and invalid declaration controls.
+The new collation tests are in
+[`query_collation_test.zig`](../packages/zig/transit-fuze/src/query_collation_test.zig)
+and [`direct_table_collations.zig`](direct_table_collations.zig).
+
+These checks do not establish text relational join/group/order support, general
+SQL encoded pushdown, benchmark percentiles or complete milestone qualification.
+The clean core lane at commit `09d24daa8ad037abe1359e31f68e6e5f9d700ef4`
+passed `check-core`, properties, simulations, package builds and Zig SDK checks,
+then failed `test::station` with `Station domain work did not complete` during
+replacement recovery. That run is failed, not a clean qualification of later
+payload or collation changes.

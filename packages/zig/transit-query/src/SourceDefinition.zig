@@ -87,6 +87,9 @@ pub fn schema(self: Self, output: *[max_columns]t.Field) !t.Type {
     try result.validate(.{});
     return result;
 }
+pub fn collations(self: Self) q.fuze.QueryCollations {
+    return if (self.source == .table) self.source.table.collations else .{};
+}
 pub fn encode(self: Self, output: []u8) ![]const u8 {
     var columns: [max_columns]t.Field = undefined;
     _ = try self.schema(&columns);

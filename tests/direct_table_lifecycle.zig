@@ -220,7 +220,12 @@ fn physicalColumns(allocator: std.mem.Allocator, client: c.DirectTableClient, ro
     const changed = try lookup(client, "physical");
     defer changed.deinit();
     const nonbinary = try pin(client, 7102, changed.value.result.lookup.?);
-    try t.expectError(error.UnsupportedTableQueryCollation, q.DirectTableQuery.openRetained(allocator, client, nonbinary, "physical", "SELECT COUNT(*) FROM physical", .{ .requests = 100, .rows = 10, .result_bytes = 4096 }, null, null, .{}));
+    var collated = try q.DirectTableQuery.openRetained(allocator, client, nonbinary, "physical", "SELECT COUNT(*) FROM physical", .{ .requests = 100, .rows = 10, .result_bytes = 4096 }, null, null, .{});
+    defer collated.deinit();
+    var counted = try collated.nextBatch(8);
+    defer counted.deinit();
+    try t.expect(counted.complete and counted.len == 1);
+    try t.expectEqual(@as(u128, 2), counted.rows[0].?.cells[0].value.atom.unsigned);
     const released = try client.call(.{ .release = nonbinary });
     released.deinit();
     return .{ .snapshots = snapshots, .rejected = invalid.binding };

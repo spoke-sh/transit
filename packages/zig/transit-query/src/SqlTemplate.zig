@@ -58,6 +58,7 @@ pub fn bindDiagnostic(self: *const Self, allocator: std.mem.Allocator, definitio
     errdefer storage.deinit();
     var bytes: [q.SourceDefinition.max_bytes]u8 = undefined;
     const source = try q.SourceDefinition.decode(storage.descriptor.arena.allocator(), try definition.encode(&bytes));
+    storage.plan.collations = source.collations();
     const bundle: q.Bundle = .{ .source = source, .plan = storage.plan, .limits = limits };
     try bundle.validate();
     return .{ .storage = storage, .bundle = bundle };

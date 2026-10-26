@@ -46,14 +46,14 @@ class Key:
 
 
 def native_query(key, principal, kind):
-    query = dict(version=1, definition='693b9c35bed85a9c5cbbcae180e785b616fabc0ed4a3ca37069fda3aae4233f8', realm=REALM, principal=principal, kind=kind)
+    query = dict(version=1, definition='13c5386767ea8eecb8595a23c497f72c5bb77c2df8879c9ef9c26bccac162be9', realm=REALM, principal=principal, kind=kind)
     return dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(query)).digest()))
 
 
 def native_command(key, principal, sequence, command):
     if 'send' in command:
         command['send'].setdefault('role', None)
-    request = dict(version=1, definition='693b9c35bed85a9c5cbbcae180e785b616fabc0ed4a3ca37069fda3aae4233f8', realm=REALM, principal=principal, sequence=sequence, command=command)
+    request = dict(version=1, definition='13c5386767ea8eecb8595a23c497f72c5bb77c2df8879c9ef9c26bccac162be9', realm=REALM, principal=principal, sequence=sequence, command=command)
     return dict(request=request, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(request)).digest()))
 
 
@@ -78,7 +78,7 @@ def subject_proof(key, principal, ingress, context, credential_epoch=None, role=
     if credential_epoch is None:
         observation = key.authority_query(native_query(key, principal, {'authorization': {'role': role, 'kind': {'identity': {}}}}))
         credential_epoch = observation['body']['authorization']['body']['identity']['credential_epoch']
-    claim = dict(definition='693b9c35bed85a9c5cbbcae180e785b616fabc0ed4a3ca37069fda3aae4233f8', realm=realm, principal=principal, credential_epoch=credential_epoch, role=role, audience=ingress, context=list(context))
+    claim = dict(definition='13c5386767ea8eecb8595a23c497f72c5bb77c2df8879c9ef9c26bccac162be9', realm=realm, principal=principal, credential_epoch=credential_epoch, role=role, audience=ingress, context=list(context))
     return dict(claim=claim, signature=key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0' + compact(claim)).digest()))
 
 

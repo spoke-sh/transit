@@ -54,7 +54,10 @@ pub fn instantiate(self: *const Self, allocator: std.mem.Allocator, connection: 
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
     const name = try arena.allocator().dupe(u8, self.template.name);
-    const bound = try self.template.instantiate(allocator, name, try schema.rowType(&fields), try self.binding.fingerprint(allocator), captured_basis, values, detail);
+    var bound = try self.template.instantiate(allocator, name, try schema.rowType(&fields), try self.binding.fingerprint(allocator), captured_basis, values, detail);
+    errdefer bound.deinit();
+    bound.plan.collations = .fromTable(schema);
+    try bound.plan.validate();
     return .{ .arena = arena, .name = name, .descriptor = bound.descriptor, .plan = bound.plan };
 }
 

@@ -58,6 +58,16 @@ function inspectedPredicate(value: Predicate): boolean {
 const unsigned = (s: string, zero = true) =>
   /^(0|[1-9][0-9]{0,19})$/.test(s) && (zero || s !== "0") && BigInt(s) <= 18446744073709551615n;
 const signed = (s: string) => logicalInteger(s, 64, true);
+function collationsValid(values: readonly string[], fields: LogicalField[]): boolean {
+  return (
+    values.length === fields.length &&
+    values.every(
+      (value, i) =>
+        value === "none" ||
+        (["utf8_binary", "ascii_ci", "ebcdic_cp037"].includes(value) && "utf8" in fields[i]!.type),
+    )
+  );
+}
 function sourceColumns(
   source: Extract<UnifiedQueryResponse, { compiled: unknown }>["compiled"]["source"],
 ): LogicalField[] | null {
@@ -76,7 +86,8 @@ function sourceColumns(
       table.interpretation.digest.every((b) => b === 0) ||
       table.interpretation.schema.every((b) => b === 0) ||
       !("structure" in table.row_type) ||
-      !columns(table.row_type.structure)
+      !columns(table.row_type.structure) ||
+      !collationsValid(table.collations, table.row_type.structure)
     )
       return null;
     return table.row_type.structure;
@@ -332,7 +343,7 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
     const compiled = value.compiled,
       plan = compiled.plan;
     if (
-      !hex(compiled.bundle, 25615) ||
+      !hex(compiled.bundle, 25743) ||
       compiled.bundle.length === 0 ||
       plan.version !== 1 ||
       (plan.limit !== null && !unsigned(plan.limit)) ||
@@ -344,6 +355,11 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
       (plan.aggregate === "sum" && !("int64" in fields[plan.projection[0]!]!.type))
     )
       return false;
+    const collations = plan.collations ?? fields.map(() => "none");
+    if (!collationsValid(collations, fields)) return false;
+    const declared =
+      "table" in source.source ? source.source.table.collations : fields.map(() => "none");
+    if (collations.some((collation, i) => collation !== declared[i])) return false;
     const output = plan.projection.map((index, i) => ({
       ...(plan.aggregate === "rows"
         ? fields[index]!
