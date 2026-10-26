@@ -484,7 +484,7 @@ original-caller read grants.
 The [Table storage owner](../../transit-storage/docs/table-partitions.md) defines
 row/DDL acceptance, rewrite and pin behavior. The
 [data lifecycle contract](../../../../contracts/DATA_LIFECYCLE_V1.md#direct-catalog-publication-contract)
-defines the publication boundary; the [proof ledger](../../../../tests/README.md)
+defines the publication boundary; the [proof ledger](../../../../docs/history/qualification/README.md)
 records executed tests and their limits.
 
 ## Retained logical history

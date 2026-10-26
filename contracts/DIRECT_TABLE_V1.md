@@ -954,5 +954,5 @@ request's work; durable Table/catalog cardinality has no corresponding limit.
 
 `just contract::direct-table-check` verifies reflected envelopes and independent
 Python signing vectors. The catalog package tests consume those same vectors;
-the [proof ledger](../tests/README.md) distinguishes codec and node composition
+the [proof ledger](../docs/history/qualification/README.md) distinguishes codec and node composition
 checks from installed service qualification.

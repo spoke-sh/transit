@@ -109,7 +109,7 @@ checkpoints, restored execution and relational oracles run in that suite; this
 is an emulated CPU check, separate from real native recovery. The
 [build log](release-portable-tests.log.gz) records the exact baseline target and
 executable. These tests qualify this Linux x86_64 profile, not other architectures
-or every physical CPU. The [proof ledger](../../../README.md#integrated-vector-execution)
+or every physical CPU. The [proof ledger](../../../../docs/history/qualification/query.md#integrated-vector-execution)
 records checkpoint, native recovery, worker and caller qualification separately.
 
 ## Retained trials

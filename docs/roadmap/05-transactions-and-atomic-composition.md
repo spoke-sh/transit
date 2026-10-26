@@ -205,5 +205,5 @@ typed callers. Require the following for every advertised domain/isolation profi
   Prove the selected checkpoint/data composition and reject unsupported scopes.
 
 Record scope, mechanism, disk/failure assumptions, executed histories, resident
-bounds and measured contention/latency in the [proof ledger](../../tests/README.md).
+bounds and measured contention/latency in the [proof ledger](../history/qualification/README.md).
 Component checks and this plan establish no new runtime guarantee.

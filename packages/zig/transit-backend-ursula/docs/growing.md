@@ -81,7 +81,7 @@ amplification remain substantial. This is not millisecond execution evidence.
 The node composes a separate bounded maintenance process. Service schedules
 exercise snapshot-reply loss, trim timeout, current revocation and restart;
 Station and runtime controllers have their own integration checks. The
-[proof ledger](../../../../tests/README.md) owns executed outcomes and their scope.
+[proof ledger](../../../../docs/history/qualification/README.md) owns executed outcomes and their scope.
 Incompatible deployed history fails closed; rejection does not convert old data.
 
 The measurement driver also records per-operation and complete-turn nanoseconds,

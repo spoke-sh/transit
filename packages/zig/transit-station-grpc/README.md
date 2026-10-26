@@ -73,7 +73,7 @@ Transport qualification and dependency provenance live in the transport package;
 no fixture is evidence of a completed durable effect or deployment.
 
 `just test::grpc-worker` runs the actual [worker](../../../apps/transit-station-grpc-worker/README.md)
-over disk Ursula. [Proof details](../../../tests/README.md#m16-finite-connector-qualification)
+over disk Ursula. [Proof details](../../../docs/history/qualification/runtime.md#m16-finite-connector-qualification)
 record executed recovery schedules and remaining qualification.
 
 ## Read-only metadata

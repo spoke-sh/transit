@@ -158,7 +158,7 @@ resident high-water memory, candidate segments, pages/bytes fetched and query
 latency through installed callers. Include index-disabled controls and workloads
 where a scan is cheaper. Do not require every query to use an index or define
 success as winning a map microbenchmark. Record scoped results in the
-[proof ledger](../../tests/README.md) and
+[proof ledger](../history/qualification/README.md) and
 [performance reference](../handbook/reference/performance.md).
 
 ## Later owners

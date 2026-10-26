@@ -12,7 +12,7 @@ Executable installed examples are available in [Python](python/README.md),
 [.NET](dotnet/README.md), [Erlang](erlang/README.md) and [Elixir](elixir/README.md).
 Their clean-consumer proofs run the same
 counter, requester, retained Table and multi-segment query schedule. The
-[public language ring](../../tests/README.md#public-sdk-interoperability) also runs
+[public language ring](../../docs/history/qualification/verification.md#public-sdk-interoperability) also runs
 every language in both roles against a different-language peer.
 
 ## Counter messages v1

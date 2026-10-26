@@ -314,4 +314,4 @@ Measure application code needed for the normal and recovery paths, and review
 whether examples read naturally in each language. Syntax polish and copied API
 names are insufficient evidence. [SDK coverage](13-service-and-sdk-coverage.md)
 retains its operation/platform matrix; record actual mixed-mode evidence in the
-[proof ledger](../../tests/README.md) before claiming this programming model.
+[proof ledger](../history/qualification/README.md) before claiming this programming model.

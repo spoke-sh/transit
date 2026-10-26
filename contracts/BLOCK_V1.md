@@ -121,4 +121,4 @@ Core schedules check old roots, missing/corrupt bytes, byte-stage failure and
 page acknowledgement loss. `just test::block-storage` runs the real disk
 adapter with a full-size batch and one resident metadata page, provider kill and
 restart, missing replies and corrupted readback. Executed results and their
-limits belong in [the proof ledger](../tests/README.md).
+limits belong in [the proof ledger](../docs/history/qualification/README.md).

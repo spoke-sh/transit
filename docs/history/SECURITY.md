@@ -13,7 +13,7 @@ Status: required security boundaries with a bounded M1 implementation. The
 [v2 protocol](../../contracts/TRANSIT_V1.md) and [service contract](../../contracts/SERVICE_V1.md)
 specify signed requests, grants, revocation, and scoped reads; [state v1](../../contracts/STATE_V1.md) adds
 resource grants and read-view authority.
-[The proof guide](../../tests/README.md#service-and-reference-evidence) records
+[The proof guide](qualification/runtime.md#service-and-reference-evidence) records
 loopback and reference-runtime evidence. Public ingress TLS, federation,
 arbitrary native handlers, and broader topologies remain outside that proof.
 

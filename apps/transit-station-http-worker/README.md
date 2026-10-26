@@ -5,7 +5,7 @@ An initial finite M15 worker composing the public growing Station client,
 [HTTP transport](../../packages/zig/transit-station-http/README.md). It is under
 qualification; this executable does not complete M15's public lifecycle, credential,
 or deployment scope. All ten public SDKs qualify the finite request/call/replay
-profile through the [shared caller schedule](../../tests/README.md#m15-connector-work-in-progress).
+profile through the [shared caller schedule](../../docs/history/qualification/runtime.md#m15-connector-work-in-progress).
 
 `just test::http-worker` qualifies the real binary with disk-backed Ursula and
 the owned MinIO fixture (Docker required, 8 MiB hot storage bound),

@@ -115,5 +115,5 @@ or grants. Native denial, expiry, unavailability and conditional conflicts retai
 their original errors. None authorizes lifetime renewal, latest-state substitution,
 automatic rollback or reset. Suspension expiry can permanently retire the PID.
 Missing manager history requires operator recovery. The
-[proof ledger](../tests/README.md) distinguishes pure checks, native fault
+[proof ledger](../docs/history/qualification/README.md) distinguishes pure checks, native fault
 schedules, provider attribution and unsupported topologies.

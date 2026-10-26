@@ -37,4 +37,4 @@ authoritative activation is written to the filesystem or provider snapshot.
 
 The operator must authenticate physical placement independently. Unit checks of
 registration parsing and polling do not prove that attribution; actual placement
-and recovery schedules are recorded in the [proof ledger](../../../../tests/README.md).
+and recovery schedules are recorded in the [proof ledger](../../../../docs/history/qualification/README.md).

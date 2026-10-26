@@ -139,4 +139,4 @@ The [Go binding tasks](../../bindings/README.md#go-source-builds) cover formatti
 vetting, race detection, strict cgo pointer checks and generated-resource drift.
 The installed-consumer task builds the installation archives and exercises an
 external consumer and the real example against a disk-backed authority. The
-[proof ledger](../../tests/README.md#go-raw-client) records executed coverage.
+[proof ledger](../../docs/history/qualification/sdk.md#go-raw-client) records executed coverage.

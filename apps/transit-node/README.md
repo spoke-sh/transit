@@ -100,5 +100,5 @@ for the immutable-history assumption and failure boundaries.
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep
 raw storage/provider APIs inaccessible to workloads. [Security](../../docs/handbook/reference/security.md)
-owns these assumptions; the [proof ledger](../../tests/README.md) records executed
+owns these assumptions; the [proof ledger](../../docs/history/qualification/README.md) records executed
 checks and their limits.

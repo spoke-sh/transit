@@ -153,6 +153,6 @@ join lookahead. Restoring a checkpoint rebinds private operators without changin
 saved work, cursors, group roots or publication bytes.
 
 The [measurement guide](../../../../tests/fuze_benchmarks/README.md) owns commands
-and metric boundaries. The [proof ledger](../../../../tests/README.md) records
+and metric boundaries. The [proof ledger](../../../../docs/history/qualification/README.md) records
 executed evidence. A fast decoded-column loop does not establish whole-query speedup or broader
 type/hardware support. The measurement records distinguish those costs.

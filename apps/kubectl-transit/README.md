@@ -122,4 +122,4 @@ introduced for this infrastructure-only slice.
 The [offline proof](../../tests/kubectl_transit.py) exercises selection, native
 JSON, error propagation, output/deadline bounds, Board origin checks, argument
 boundaries and streaming signals. Cluster qualification is separate; see the
-[test guide](../../tests/README.md#kubernetes-tooling-qualification).
+[test guide](../../docs/history/qualification/deployment.md#kubernetes-tooling-qualification).

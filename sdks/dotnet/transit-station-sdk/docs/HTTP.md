@@ -87,7 +87,7 @@ finite worker. The parent outcome remains unchanged.
 `just bindings::dotnet-sdk-test` runs clean NuGet consumers through shared golden
 fixtures and the independent TLS/recovery/revocation/cancellation schedule, plus
 the existing client and Station regressions. The
-[proof guide](../../../../tests/README.md#m15-connector-work-in-progress) records
+[proof guide](../../../../docs/history/qualification/runtime.md#m15-connector-work-in-progress) records
 executed results and remaining qualification. Native allocation proofs do not
 imply fault-injected managed allocation coverage.
 

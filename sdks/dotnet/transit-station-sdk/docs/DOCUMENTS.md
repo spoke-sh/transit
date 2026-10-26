@@ -36,4 +36,4 @@ Use `await using` or explicit `DisposeAsync`; do not use `async void` handlers.
 
 `just bindings::document-dotnet` installs clean NuGet packages and runs independent
 codec/Unicode/reference fixtures plus the disk recovery/read-authority schedule.
-See the [proof evidence](../../../../tests/README.md#m17-qualification).
+See the [proof evidence](../../../../docs/history/qualification/runtime.md#m17-qualification).

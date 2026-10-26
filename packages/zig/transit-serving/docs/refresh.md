@@ -79,7 +79,7 @@ frozen sends/committed dispositions. Only pause uses reserved control capacity.
 Status remains readable after session closure under current caller/resource
 authority without renewing the view or exposing rows.
 
-The [proof ledger](../../../../tests/README.md) distinguishes executed direct
+The [proof ledger](../../../../docs/history/qualification/README.md) distinguishes executed direct
 observation, prepared-request and capture-recovery checks from Follow composition
 and browser replacement. Historical actor-backed refresh results do not establish
 the direct Table execution path.

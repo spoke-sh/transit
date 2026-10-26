@@ -96,7 +96,7 @@ snapshot metadata and filesystem checksum reads. These are component I/O counts,
 not physical device traffic, process RSS or installed SQL latency. The operating
 system page cache is not cleared. SQL inequality predicates still use their
 existing scan path; this measurement exercises the retained range operation.
-The [proof ledger](../../../tests/README.md#retained-table-cross-segment-range-control--2026-10-26)
+The [proof ledger](../../history/qualification/storage.md#retained-table-cross-segment-range-control--2026-10-26)
 records the fixture and reproduction command.
 
 ## Local ingestion and bounded growth measurements
@@ -155,7 +155,7 @@ Current and retained-snapshot point reads succeed with a 16 KiB decoded budget;
 full-group decoding refuses that budget. Selections still validate complete
 pages, so reduced retained allocation does not establish lower CPU cost or
 installed SQL latency. OS caches remain available. The
-[proof ledger](../../../tests/README.md#selected-table-segment-decoding--2026-10-26)
+[proof ledger](../../history/qualification/storage.md#selected-table-segment-decoding--2026-10-26)
 records the checks and reproduction command.
 
 ## Interactive execution measurements
@@ -270,7 +270,7 @@ remained running; no build or other qualification ran concurrently with the
 optimized controls. The user trace and controlled fixtures differ in build and
 history and are not a controlled speedup comparison. Detailed attribution below
 covers the empty Table, not populated scans, KV or Document latency. The
-[proof ledger](../../../tests/README.md#native-query-latency-whole-node-attribution)
+[proof ledger](../../history/qualification/interfaces.md#native-query-latency-whole-node-attribution)
 records binary/probe provenance, controls and verification limits.
 
 ## Where the time and requests go
@@ -477,7 +477,7 @@ the recorded client-side console experiments. Current console execution and
 recovery run in the SQL service; see [SQL sessions](sql-sessions.md). These
 historical samples do not measure the current service's end-to-end latency.
 
-The [mutation latency task](../../../tests/README.md#durable-table-mutation-latency)
+The [mutation latency task](../../history/qualification/performance.md#durable-table-mutation-latency)
 measures the full public writer path against an owned disk-backed local installation. It records
 raw samples, executable hashes, source provenance, console phases, affected-row
 checks and independent reads. A failed or interrupted experiment is incomplete;
@@ -538,7 +538,7 @@ preparation, native send, processing wait, result reads and every recovery-file
 save to their respective timing phases. `submit` no longer absorbs the entire
 write lifecycle.
 
-The [executed mutation evidence](../../../tests/README.md#durable-table-mutation-latency)
+The [executed mutation evidence](../../history/qualification/performance.md#durable-table-mutation-latency)
 records observations and outstanding limits. No latency SLO follows from these
 shared-host samples. Empirical nearest-rank p95 requires at least 20 samples per
 case and p99 at least 100; smaller runs report null for those percentiles.
@@ -656,7 +656,7 @@ Record the backing filesystem when comparing storage latency. A file-backed WAL
 inside a temporary directory can reside on tmpfs; that run does not measure
 physical-disk write cost. Place fixtures on the filesystem being measured and
 verify the actual mount on the host. The
-[physical-storage query controls](../../../tests/README.md#physical-storage-query-follow-up)
+[physical-storage query controls](../../history/qualification/performance.md#physical-storage-query-follow-up)
 record the executed placements and reproduction commands.
 Process/provider restart checks establish their stated recovery boundaries;
 filesystem placement alone does not establish power-loss durability.
@@ -672,7 +672,7 @@ scores or conformance results; consult the [benchmark reference](benchmarks.md).
 
 ## Reproduce and compare
 
-Use the [benchmark reproduction commands](../../../tests/README.md#query-performance-reproduction)
+Use the [benchmark reproduction commands](../../history/qualification/performance.md#query-performance-reproduction)
 in the proof ledger with the repository’s pinned development environment.
 They cover console latency, populated interactive sources, cache and worker
 polling controls, durable-history aging, transport instrumentation, mutation
@@ -805,7 +805,7 @@ The [post-merge record](../../../tests/fuze_benchmarks/results/2026-09-30/README
 retains the failed trials and passing result. This evidence covers native
 six-type execution; it does not remeasure file or DuckDB performance.
 
-Independent [source, CLI and Arrow proofs](../../../tests/README.md#fuze-bounded-file-sources)
+Independent [source, CLI and Arrow proofs](../../history/qualification/query.md#fuze-bounded-file-sources)
 cover extreme values, malformed/outlier input, changed content, denial,
 cancellation and ownership. Those correctness schedules are separate from the
 synthetic timing shapes. Native accepted-work recovery keeps its existing
@@ -842,6 +842,6 @@ staging pipeline:
 - **Measurement scope:**
   The earlier 33-operation, 217-turn gateway run measured 122.759 seconds before
   and 55.770 seconds after cache/wakeup changes on its recorded actor/native path
-  ([executed evidence](../../../tests/README.md#live-storage-engine-and-sql-execution-cutover)).
+  ([executed evidence](../../history/qualification/sql.md#live-storage-engine-and-sql-execution-cutover)).
   That result does not measure the current direct storage path. Matched workloads,
   toolchains, storage and failure conditions are required for a new comparison.

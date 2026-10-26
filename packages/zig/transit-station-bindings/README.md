@@ -48,7 +48,7 @@ KV/Table/Document bundles and owned nested Arrow values. See the
 ownership. Independent bundle and PyArrow fixtures pass through both native
 transports; this alone does not qualify a language SDK or signed query lifecycle.
 The query caller handle and `query_client` port profile now share signed
-preparation, admission observation and current-policy verified pages. The [proof ledger](../../../tests/README.md) records executed source and
+preparation, admission observation and current-policy verified pages. The [proof ledger](../../../docs/history/qualification/README.md) records executed source and
 installed-language recovery schedules.
 
 The [catalog caller](docs/catalog.md) exposes general typed schemas, Table DDL/DML,

@@ -49,7 +49,7 @@ connect to either storage service. The separate local proof additionally qualifi
 writer SIGKILL and exact signed acceptance retry. Neither proof substitutes for
 the other. The initial no-cold-tier Compose attempt exhausted its 512 MiB memory
 limit; the bounded profile spills durable data instead of expiring history.
-See [executed evidence](../../../tests/README.md#m17-qualification) for current
+See [executed evidence](../../../docs/history/qualification/runtime.md#m17-qualification) for current
 results; a task's existence does not establish that its profile passed.
 
 `example-station-document --bootstrap-json CONFIG` is intended for a trusted

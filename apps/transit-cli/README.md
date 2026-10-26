@@ -16,7 +16,7 @@ cursor assistance lives in Fuze/query packages. The [console guide](docs/console
 covers versioned configuration, terminal editing, trust and statement outcomes.
 The [local server guide](docs/server.md) describes the implemented supervisor,
 private native gateway and selected dependency/credential profile. Focused recovery,
-gateway pressure, physical capacity and clean-checkout qualification are recorded in the [proof ledger](../../tests/README.md). The console uses dot commands.
+gateway pressure, physical capacity and clean-checkout qualification are recorded in the [proof ledger](../../docs/history/qualification/README.md). The console uses dot commands.
 The local gateway supports [localhost and explicit tunnel aliases](docs/server.md#local-names-and-ssh-tunnels)
 and reports its URL and accepted authorities in the ready record.
 

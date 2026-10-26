@@ -16,7 +16,7 @@ system. M2 remains inspection-only. M13 adds a growing atlas and an optional,
 separately credentialed Table query workspace. M23 adds an opt-in application
 definition editor with a separate signed operator boundary; it does not turn the
 inspection or query principal into an operator. The [Board application](../../apps/transit-board/README.md) owns configuration,
-commands and access limits; [tests](../../tests/README.md#board-qualification) own evidence.
+commands and access limits; [tests](qualification/interfaces.md#board-qualification) own evidence.
 
 ## Purpose and visual language
 
@@ -550,6 +550,6 @@ publication, worker/node/disk restart, current reader denial, the monochrome she
 and declaration-driven route replacement. Bounded Atlas participation, finite
 Table Live drafts and verified visible-page profiles have separate executed
 proofs. The generated work-item application composes these shared packages while
-keeping its business decoder outside Board. The [test ledger](../../tests/README.md#m23-application-declaration-boundary)
+keeping its business decoder outside Board. The [test ledger](qualification/runtime.md#m23-application-declaration-boundary)
 records each source, placement and recovery boundary; the editor does not expand
 operator privileges or confer cross-resource transaction semantics.

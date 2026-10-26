@@ -103,7 +103,7 @@ direct-caller profile; run baseline and candidate sequentially after other check
 --output FILE` selects the separate finite overload profile. Requests are offered
 independently of completion; response latency includes bounded generator queueing.
 Admission, refusal and work counters are distinct from later drain time. Fewer
-than 20/100 observations yield null p95/p99. See the [proof ledger](../../../README.md#mutation-completion-follow-up)
+than 20/100 observations yield null p95/p99. See the [proof ledger](../../../../docs/history/qualification/query.md#mutation-completion-follow-up)
 for checks, development failures and clean qualification status.
 
 The packed-page report checks 256 keys, two cache pages, lost/partial batch

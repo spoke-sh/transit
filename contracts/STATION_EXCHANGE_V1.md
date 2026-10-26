@@ -263,7 +263,7 @@ host APIs must reuse those codecs. Resource values remain at most 256 bytes and
 turns at most four mutations. Configured per-exchange limits bound live work,
 while resource quotas bound durable history independently of resident memory.
 
-The [proof ledger](../tests/README.md) records HTTP disk recovery and the RPC
+The [proof ledger](../docs/history/qualification/README.md) records HTTP disk recovery and the RPC
 corpus for binary and directional records. This contract alone is not evidence
 of network isolation, complete HTTP/gRPC capture,
 SDK compatibility or remote exactly-once execution.

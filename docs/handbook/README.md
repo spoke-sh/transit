@@ -218,7 +218,7 @@ content or site regression, revert the offending change through a PR and merge
 it into `main`; that new revision goes through the same checks and deployment.
 Rerunning a superseded commit does not roll the site back.
 
-The [publication evidence](../../tests/README.md#published-handbook-observations-2026-10-21)
+The [publication evidence](../history/qualification/interfaces.md#published-handbook-observations-2026-10-21)
 records successful deployments and direct public-content checks. Live browser
 coverage, controlled revert/republication and superseded-run recovery checks
 remain unqualified. Local Docusaurus preview does not verify GitHub's CDN routing

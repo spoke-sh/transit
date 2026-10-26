@@ -39,4 +39,4 @@ reader calls fail closed and owned results survive destruction.
 `just bindings::document-java` installs clean JARs, compiles an external consumer
 with all warnings treated as errors, and runs independent change/Unicode/reference
 fixtures plus the shared disk recovery schedule. See the
-[proof evidence](../../../../tests/README.md#m17-qualification).
+[proof evidence](../../../../docs/history/qualification/runtime.md#m17-qualification).

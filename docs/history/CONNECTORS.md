@@ -14,7 +14,7 @@ and qualified within their finite profiles. The broad group, streaming and provi
 requirements below remain design intent outside the qualified finite HTTP profile. Transit has
 opaque intents, dispatch authorization, observations, and bounded closure in its
 [effect contract](../../contracts/TRANSIT_V1.md#integration-obligations).
-The [synthetic executor proof](../../tests/README.md#authority-effects-and-outbox-evidence)
+The [synthetic executor proof](qualification/runtime.md#authority-effects-and-outbox-evidence)
 exercises real loopback I/O and its external limits; it is not a general HTTP
 connector implementation.
 
@@ -27,7 +27,7 @@ retry/redirect/status/cancel, public root-call admission, immutable request copi
 independent capture lifetime, caller termination and worker/node/store recovery.
 Its shared native bridge exposes publication, request/outcome codecs and bounded
 replay; replay cannot resolve credentials or refetch external data. The
-[test guide](../../tests/README.md#m15-connector-work-in-progress) records the actual
+[test guide](qualification/runtime.md#m15-connector-work-in-progress) records the actual
 fault corpus and limits. All ten public SDKs qualify request publication, calls
 and owned replay over that bridge. All ten also qualify authenticated durable
 disposal before and after cleanup without transcript read permission or secrets.
@@ -37,7 +37,7 @@ recovery of revoked request reads. Ancestor evidence remains held until children
 settle or are explicitly abandoned before intent. All ten SDKs
 qualify typed followup submission and correlated policy refusal. Board inspection
 and local/Compose/reference recovery also pass the selected M15 profile;
-[the proof ledger](../../tests/README.md) records their limits.
+[the proof ledger](qualification/README.md) records their limits.
 
 The connector profiles include [Board](BOARD.md) inspection of exchanges and
 attempts, respecting transcript permissions, secret omissions, retained-body

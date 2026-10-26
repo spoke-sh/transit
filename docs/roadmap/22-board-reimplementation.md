@@ -181,7 +181,7 @@ shared workbook links. Bound polling, graph expansion, active readers and reside
 rows independently of retained objects/results. Preserve control capacity when
 data requests stall.
 
-Record executed component/service/browser evidence in [the proof ledger](../../tests/README.md),
+Record executed component/service/browser evidence in [the proof ledger](../history/qualification/README.md),
 with independently reproducible fixtures and actual source revisions. Updated
 screenshots must come from the installed implementation and match its qualified
 states. Focused Board proofs close here; later

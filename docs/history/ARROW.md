@@ -14,7 +14,7 @@ consumer, and qualifies C Data/C Stream ownership. See the [integration evidence
 M16 qualifies outbound gRPC and M19 establishes HTTP serving.
 M22 now implements finite Table Flight SQL and recorded outbound
 Flight over those components. Native, Compose and reference TLS queries pass pinned PyArrow
-and ADBC C/Python checks; the [proof ledger](../../tests/README.md#m22-qualification)
+and ADBC C/Python checks; the [proof ledger](qualification/runtime.md#m22-qualification)
 separately records lifecycle, load and reference placement qualification.
 [TABLES.md](TABLES.md) owns Table mutations, snapshots, materialization, transactions
 and durable result delivery. This document owns the interchange and gateway seams.

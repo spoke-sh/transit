@@ -78,7 +78,7 @@ Native runs use an owned local-node directory; node replacement reopens its WAL
 and objects alongside replacement gateways and Station workers.
 `just test::reactive-placement compose` and `just test::reactive-placement reference`
 exercise physical recovery with the same independent peers. The
-[proof ledger](../../../tests/README.md#m20-qualification) records observed costs.
+[proof ledger](../../../docs/history/qualification/runtime.md#m20-qualification) records observed costs.
 
 Native proofs include exact cross-transport recovery, snapshot progress, signed
 resume, attachment fencing, malformed framing, full-width application integers,

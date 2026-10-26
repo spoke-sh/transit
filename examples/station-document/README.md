@@ -9,7 +9,7 @@ Run `just examples::document` from `nix develop`. It creates isolated disk Ursul
 a growing Transit node, two caller resources and one Document resource, using
 ephemeral keys and explicit grants. The runner removes only its own temporary
 state after completion. The local schedule passes in 571.4 seconds with an 8 MiB
-hot-store limit; see [evidence](../../tests/README.md#m17-qualification).
+hot-store limit; see [evidence](../../docs/history/qualification/runtime.md#m17-qualification).
 Compose/reference tasks and their physical trust boundaries are described in the
 [placement guide](docs/placement.md). Compose passes in 208.78 seconds with bounded
 hot storage and cold spill; reference passes in 497.08 seconds.

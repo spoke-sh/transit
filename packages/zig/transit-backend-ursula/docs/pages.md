@@ -115,7 +115,7 @@ budget. No collection or quota pressure implicitly expires application data.
 
 ## Verification and limits
 
-The [proof ledger](../../../../tests/README.md) provides reproduction commands for
+The [proof ledger](../../../../docs/history/qualification/README.md) provides reproduction commands for
 pages, block storage, native blocks, storage collection and cold storage. It records executed scopes, failures
 and measurements. Page proofs retain both original and successor roots across
 provider SIGKILL, checkpoint/trim and cache-free recovery. Collection proofs use

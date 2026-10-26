@@ -102,7 +102,7 @@ destruction. Callback contexts and codecs must remain alive until runner close.
 `just bindings::c-sdk-test` compiles the installed HTTP callback fixture as C11
 and drives the direct C APIs through the shared TLS/recovery/replay schedule.
 It also runs the C++ wrapper and existing client/Station regressions. See the
-[proof guide](../../../../tests/README.md#m15-connector-work-in-progress) for
+[proof guide](../../../../docs/history/qualification/runtime.md#m15-connector-work-in-progress) for
 executed evidence and remaining M15 limits.
 
 Outcome and rejection values own `diagnostic.json` and `diagnostic.size` after the codec/native buffer is

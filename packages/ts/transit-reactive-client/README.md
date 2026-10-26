@@ -61,7 +61,7 @@ query result; the shared query reader and finite refresh lifecycle own that work
 Run `just transit-board::check` for generated drift, strict types and consumer
 checks. `just test::reactive-client` exercises the real Zig host, TLS, exact
 lost-reply recovery and metadata-only boundary. The
-[proof ledger](../../../tests/README.md) records the separate native, Compose,
+[proof ledger](../../../docs/history/qualification/README.md) records the separate native, Compose,
 reference browser and multi-tab lifecycle qualification.
 
 `LiveView<T>` owns a single joined stream/read lifecycle and one newest dirty

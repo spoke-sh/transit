@@ -124,5 +124,5 @@ for SHOW/DESCRIBE and representative Table/relational queries under matched
 controls. Reduced amplification cannot weaken disclosure checks or result truth.
 
 Component checks alone do not complete this milestone. Record end-to-end outcomes
-in the [proof ledger](../../tests/README.md); this planning change establishes no
+in the [proof ledger](../history/qualification/README.md); this planning change establishes no
 new result API or executed runtime guarantee.

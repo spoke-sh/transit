@@ -44,6 +44,6 @@ cancellation. Returned structs and binaries stay owned after close. Publication
 references and replica IDs never confer authority or revive retired history.
 
 The installed Erlang and Elixir consumers run through
-`just bindings::document-beam`; [proof evidence](../../../../tests/README.md#m17-qualification)
+`just bindings::document-beam`; [proof evidence](../../../../docs/history/qualification/runtime.md#m17-qualification)
 records current coverage. These scoped APIs do not imply a remote Document
 submission protocol or automatic foreign worker placement.

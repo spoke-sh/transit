@@ -214,7 +214,7 @@ The [core package](../../../packages/zig/transit-core/README.md),
 [public client](../../../packages/zig/transit-client/README.md) and
 [invariant inventory](../../../tests/verification/invariants.json) connect the model
 to implementation and executable checks. The
-[authority and outbox evidence](../../../tests/README.md#authority-effects-and-outbox-evidence)
+[authority and outbox evidence](../../history/qualification/runtime.md#authority-effects-and-outbox-evidence)
 records tested forbidden outcomes. Reproduction uses the commands and profiles
 in that ledger; this consolidation adds no new runtime proof.
 

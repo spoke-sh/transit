@@ -62,5 +62,5 @@ including tabs using the same principal. Credential rotation revokes disclosure
 through the old gateway key and clears protected state. After the operator
 replaces that key, the viewer explicitly recovers any uncertain control and
 reopens Follow. Board's separate viewer retains its own authority. The
-[native browser schedule](../../../tests/README.md#direct-follow-reload-and-credential-recovery--2026-10-24)
+[native browser schedule](../../../docs/history/qualification/query.md#direct-follow-reload-and-credential-recovery--2026-10-24)
 qualifies these transitions; physical placement is a separate schedule.

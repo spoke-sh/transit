@@ -47,7 +47,7 @@ receipt. The runner stops before outbox delivery, replaces physical workers,
 gateways and node while preserving its local files, then retries the original bytes and resumes
 public outbox delivery. It checks the exact once-only counter result, unchanged
 recovery after publication retirement, and denial after current policy revocation.
-The [proof ledger](../../../tests/README.md) records the executed profiles and
+The [proof ledger](../../../docs/history/qualification/README.md) records the executed profiles and
 costs. Evidence from the earlier actor Table owner does not qualify this direct
 Table configuration; each physical placement must be run against the current artifacts.
 

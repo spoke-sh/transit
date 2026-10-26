@@ -180,7 +180,7 @@ fresh restart intent can be accepted.
 
 Core unit checks use injected journals, pages and time. Disk, HTTP, runtime and
 Station schedules exercise their actual component boundaries; the
-[proof ledger](../../../../tests/README.md) records execution and limits. A passed
+[proof ledger](../../../../docs/history/qualification/README.md) records execution and limits. A passed
 in-memory transition check alone does not establish disk durability, service
 availability, provider behavior or a latency guarantee.
 

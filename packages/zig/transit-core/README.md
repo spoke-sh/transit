@@ -52,5 +52,5 @@ Read the [native contract](../../../contracts/TRANSIT_V1.md),
 The executable owns transport, scheduling, clocks and effects.
 
 Run `nix develop`, then `(cd packages/zig/transit-core && zig build test)` or
-`just test::packages`. The [proof ledger](../../../tests/README.md) owns integration
+`just test::packages`. The [proof ledger](../../../docs/history/qualification/README.md) owns integration
 schedules, executed evidence and verification limits.

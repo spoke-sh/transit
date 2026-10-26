@@ -28,7 +28,7 @@ test suites exercise them.
 
 The machine-readable [invariant inventory](../../../tests/verification/invariants.json)
 maps these claims to owning implementation, tasks, scenarios and limits.
-[The proof ledger](../../../tests/README.md) records actual commands and results,
+[The proof ledger](../../history/qualification/README.md) records actual commands and results,
 including independent clients, workloads and deployment configurations.
 
 ## Verification layers

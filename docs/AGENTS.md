@@ -22,7 +22,9 @@ contents or contributor instructions.
   links and limits. Link current owners; do not retroactively certify old claims.
 - Keep exact wire specifications in [contracts](../contracts/), component usage
   beside its package/app, language guides in [SDKs](../sdks/README.md), and
-  executed proof details in the [proof ledger](../tests/README.md).
+  executed proof details in [qualification history](history/qualification/README.md)
+  with linked raw evidence. Keep the [test index](../tests/README.md) navigational;
+  active investigations and handoffs belong in issues/PRs.
 
 Keep one current explanation of each behavior. Update its owner and link other
 surfaces to it. A user must be able to understand an interface without reading

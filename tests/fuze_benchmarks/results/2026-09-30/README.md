@@ -115,7 +115,7 @@ memory behavior, not a large-input DuckDB performance comparison. Temporal,
 extreme-integer, malformed/outlier and cancellation cases have independent
 correctness fixtures; these timing shapes do not cover every such value. Native
 KV/Table/Document persistence and recovery remain separate from ephemeral file
-capture. See the [proof ledger](../../../README.md) for those scopes.
+capture. See the [proof ledger](../../../../docs/history/qualification/README.md) for those scopes.
 
 ## Withdrawn metadata experiments
 

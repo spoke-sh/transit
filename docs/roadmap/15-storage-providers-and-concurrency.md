@@ -117,5 +117,5 @@ complete Transit history/object coverage and safe promotion.
 [clustered execution](18-clustered-execution.md) qualifies automatic placement
 and distributed queries. None substitutes for provider correctness here.
 Record exact provider revisions, topology, supported combinations and executed
-faults in the [proof ledger](../../tests/README.md) and public storage/deployment
+faults in the [proof ledger](../history/qualification/README.md) and public storage/deployment
 owners; this planning split establishes no new deployment support.

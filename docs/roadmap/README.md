@@ -5,7 +5,7 @@ completion status for Transit, ordered by dependencies and explicit delivery
 priorities, not delivery dates.
 Current behavior belongs in the [public reference](../README.md), mechanisms in
 [Internals](../handbook/internals/README.md), and executed checks in the
-[proof ledger](../../tests/README.md). A planned milestone does not establish
+[proof ledger](../history/qualification/README.md). A planned milestone does not establish
 support; completed milestones promote their current semantics into the public
 handbook while remaining in this index with their completion status.
 

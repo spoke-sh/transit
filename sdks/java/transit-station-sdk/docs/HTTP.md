@@ -89,7 +89,7 @@ outcome remains unchanged.
 `just bindings::java-sdk-test` runs installed JAR consumers through shared golden
 fixtures and the independent TLS caller/recovery/revocation/disposal schedule,
 alongside client and Station regressions. See the
-[proof guide](../../../../tests/README.md#m15-connector-work-in-progress) for
+[proof guide](../../../../docs/history/qualification/runtime.md#m15-connector-work-in-progress) for
 executed evidence. Native allocation failure checks and Java host allocation
 fault injection are distinct qualifications.
 

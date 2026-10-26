@@ -73,5 +73,5 @@ Deferred POSIX cancellation waits through receipt publication. Join caller threa
 before destroying their borrowed handles.
 
 The [direct catalog contract](../../../../contracts/DIRECT_TABLE_V1.md) owns
-native semantics. The [proof ledger](../../../../tests/README.md) records installed
+native semantics. The [proof ledger](../../../../docs/history/qualification/README.md) records installed
 recovery and boundary evidence.

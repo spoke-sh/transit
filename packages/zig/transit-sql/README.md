@@ -27,7 +27,7 @@ These are library interfaces. The
 [gateway application](../../../apps/transit-sql-gateway/README.md) owns network
 listeners and deployment lifecycle. See the
 [wire contract](../../../contracts/SQL_GATEWAY_V1.md) and
-[executed evidence](../../../tests/README.md#database-wire-foundation).
+[executed evidence](../../../docs/history/qualification/sql.md#database-wire-foundation).
 
 Run `zig build test` or `zig build check` inside `nix develop`; independent Python
 credential, scalar and stored-record fixtures are checked by `just test::sql-wire-contracts`.

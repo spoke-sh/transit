@@ -153,6 +153,6 @@ cannot alter the original execution proof, selected sources or completed results
 Completed revisions remain readable under current rights after lease closure.
 Query-page physical collection is not exposed by this owner.
 
-The [proof ledger](../../../../tests/README.md) distinguishes reference-store
+The [proof ledger](../../../../docs/history/qualification/README.md) distinguishes reference-store
 checks from executed native/disk recovery evidence. These operations do not grant
 automatic placement, distributed write authority or external-effect delivery.

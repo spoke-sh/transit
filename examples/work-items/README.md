@@ -12,7 +12,7 @@ and disk storage, and resumes a 19-row migration from retained receipts. Lost
 operator/worker replies retry identical native bytes. Unit tests exercise 33 rows,
 empty tables, full-width keys, corrupt targets, exact receipts, abandoned
 identities and explicit write release. Executed results and limits belong in the
-[proof ledger](../../tests/README.md), including the source revision of each run.
+[proof ledger](../../docs/history/qualification/README.md), including the source revision of each run.
 
 `zig build example-work-items` installs `transit-work-items`. Pass a JSON file
 with `url`, `principal`, `pid`, `generation`, `seed_file`, `activation_directory`

@@ -371,7 +371,7 @@ cells while unknown decoder versions reject the definition.
 
 `UnifiedCapture` supplies resumable retained capture, publication, closure and
 cleanup; see its [capture guide](docs/unified-capture.md). The
-[proof ledger](../../../tests/README.md) records executed recovery, lifecycle and
+[proof ledger](../../../docs/history/qualification/README.md) records executed recovery, lifecycle and
 placement checks separately from component tests.
 
 `Bundle` owns the bounded canonical source/plan request and explicit page,

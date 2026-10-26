@@ -286,4 +286,4 @@ are application execution, not the Table's storage or acceptance authority.
 Standalone payload ownership, automatic point flushing, observable segment
 maintenance and the remaining installed cutover obligations are incomplete.
 See the scoped
-[executed evidence](../../tests/README.md#native-authority-over-local-storage--2026-10-22).
+[executed evidence](../history/qualification/storage.md#native-authority-over-local-storage--2026-10-22).

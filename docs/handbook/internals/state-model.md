@@ -105,7 +105,7 @@ The implementation is in
 [NamedResource](../../../packages/zig/transit-station-app/src/NamedResource.zig).
 The [public caller fault schedule](../../../tests/direct_table_service.py) drives
 separate catalog and native callers. Reproduction commands, executed results
-and their source basis belong in the [proof ledger](../../../tests/README.md).
+and their source basis belong in the [proof ledger](../../history/qualification/README.md).
 The bounded directory/recovery tests exercise a one-page resident cache. Those
 checks do not establish distributed atomicity, automatic reconciliation, arbitrary
 writer honesty or a retained multi-resource snapshot. Reusing a supplied resource
@@ -155,13 +155,13 @@ history and bounded memory without making each predecessor consume a metadata
 write slot. It does not imply sublinear change extraction or a measured catch-up
 rate for large changing relations.
 
-The [proof ledger](../../../tests/README.md#complete-table-history-and-snapshot-tail)
+The [proof ledger](../../history/qualification/catalog.md#complete-table-history-and-snapshot-tail)
 records the pinned toolchain commands for the reference-store, codec and signed
 snapshot/tail schedules. The
 [reference-store tests](../../../packages/zig/transit-station/src/table_pages_test.zig)
 exercise missing/corrupt predecessors and allocation failures; the
 [native schedule](https://github.com/spoke-sh/transit/blob/b861597c460896f0bfb7d8568f95ce549e94f38e/tests/typed_table_native.py) uses disk-backed Ursula.
-[Executed results](../../../tests/README.md#complete-table-history-and-snapshot-tail)
+[Executed results](../../history/qualification/catalog.md#complete-table-history-and-snapshot-tail)
 state which revisions and schedules passed. These observations do not establish
 distributed history availability, automatic retention collection or maintained
 query semantics.
@@ -199,9 +199,9 @@ cache misses and staging/cleanup work. The
 [storage account](storage-runtime.md) and [measured costs](../reference/performance.md)
 explain those costs without treating configured cache size as measured peak RSS.
 
-[State-resource evidence](../../../tests/README.md#m7-state-resources),
-[publication evidence](../../../tests/README.md#m14-immutable-publication) and
-[Document qualification](../../../tests/README.md#m17-qualification) record the
+[State-resource evidence](../../history/qualification/runtime.md#m7-state-resources),
+[publication evidence](../../history/qualification/query.md#m14-immutable-publication) and
+[Document qualification](../../history/qualification/runtime.md#m17-qualification) record the
 applicable contracts, crash schedules, commands and limits. They do not establish
 arbitrary multi-resource transactions, generic dependency deletion or erasure
 from every external copy. Historical details remain in the

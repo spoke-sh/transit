@@ -7,7 +7,7 @@ node/store restart, explicit retry, current-policy reads and bounded cleanup ove
 disk Ursula. Installed callers pass in every M11 language. The Zig
 [caller example](../../examples/station-grpc/README.md) also qualifies local,
 Compose and isolated Kubernetes/Substrate recovery;
-[proof details](../../tests/README.md#m16-finite-connector-qualification) separate these limits.
+[proof details](../../docs/history/qualification/runtime.md#m16-finite-connector-qualification) separate these limits.
 
 Build with `zig build transit-station-grpc-worker`. Supply one JSON configuration
 file with authority URL, realm/principal/seed file, PID/fresh generation, activation

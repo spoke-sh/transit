@@ -34,7 +34,7 @@ candidates and the 128-page metadata acquisition budget. Partial scans are
 reported as limited; no new catalog authority or full resident catalog is added.
 This slice is implemented independently of broader service/SDK parity. Its
 current-v1 cutover migrates the native session and shared query consumers together.
-[Executed evidence](../../tests/README.md#console-completion-and-editing--2026-10-24)
+[Executed evidence](../history/qualification/interfaces.md#console-completion-and-editing--2026-10-24)
 covers native units, terminal peers and actual TLS session completion. Manual
 terminal/SSH delivery and broader service/SDK parity are not established by it.
 
@@ -48,7 +48,7 @@ Zig ABI. A bounded native worker preserves stack, cancellation and joined-close
 requirements. Go module/native archives, installed consumers, a runnable recovery
 example and a required bindings task accompany it. See the
 [Go guide](../../sdks/go/README.md) and
-[executed raw-client evidence](../../tests/README.md#go-raw-client).
+[executed raw-client evidence](../history/qualification/sdk.md#go-raw-client).
 
 Remaining Go work is catalog/Table, KV/Document and finite-query coverage,
 followed by Station handlers, durable calls and recorded HTTP/gRPC outcomes.

@@ -129,7 +129,7 @@ rejects it before any dispatch.
 The [shared corpus](sql/corpus/parameters.json) uses an independent ANTLR tree,
 PostgreSQL parser comparison for the declared subset, direct reference-AST
 binding, independent canonical plan encoding and decoded Arrow results. The
-[proof ledger](../tests/README.md#typed-parameter-compiler-foundation) records
+[proof ledger](../docs/history/qualification/sql.md#typed-parameter-compiler-foundation) records
 executed evidence and limits. These compiler checks do not establish installed
 caller execution, authorization, durability or named prepared-statement support.
 

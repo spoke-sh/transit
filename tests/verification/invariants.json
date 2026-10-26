@@ -22,7 +22,7 @@
       ],
       "limits": "The test store assumes Ursula conditional append; disk integration checks the provider boundary.",
       "model": "tests/verification/models/Authority.tla",
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "AUTH-02",
@@ -46,7 +46,7 @@
       ],
       "limits": "Authorization does not prove application computation or undo external effects.",
       "model": "tests/verification/models/Authority.tla",
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "STATE-01",
@@ -70,7 +70,7 @@
       ],
       "limits": "One mutated resource per turn; bounded views/mutations over paged state. Resource grants and retained evidence remain independently validated.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "RETRY-01",
@@ -103,7 +103,7 @@
       ],
       "limits": "Response allocation after acceptance is enumerated through the real ABI response/status path with a deterministic transport; real HTTP/host loss and same-principal multi-handle races use disk-backed service proofs. Public SDK adapters remain M11 work; shared obligations are in tests/verification/sdk.json.",
       "model": "tests/verification/models/Authority.tla",
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "LIFE-01",
@@ -125,7 +125,7 @@
       ],
       "limits": "Validation occurs at compared journal tail; physical external dispatch may occur later.",
       "model": "tests/verification/models/Authority.tla",
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "REPLAY-01",
@@ -147,7 +147,7 @@
       ],
       "limits": "Process kill is not host power loss; legacy checkpoint includes the whole bounded catalog.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "CAP-01",
@@ -169,7 +169,7 @@
       ],
       "limits": "Legacy derived reserve and separately configured growing reserve have finite real ENOSPC proofs. Their owned ext4 fixtures preallocate physical headroom; nodes do not provision it automatically. GROWTH-11 covers growing service/Station quota semantics. No arbitrary workload worst-case sizing claim.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "HOST-01",
@@ -198,7 +198,7 @@
       ],
       "limits": "Finite target-language schedules, not exhaustive interleaving or non-Linux qualification.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "ARROW-01",
@@ -229,7 +229,7 @@
       ],
       "limits": "Bounded synchronous nested IPC encoding/validation. Durable source authorization, capture and credit delivery have separate integration evidence.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "ARROW-02",
@@ -251,7 +251,7 @@
       ],
       "limits": "Pure synchronous bounded steps only; durable Station capture, policy, staging and consumer restart remain integration gates. Digests do not prove honest caller computation.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "ARROW-03",
@@ -275,7 +275,7 @@
       ],
       "limits": "Capture slice only. Result delivery, consumer completeness and acknowledgement remain integration work; no full-store, GC or production throughput claim. Job and source share a resource.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "RUNTIME-01",
@@ -298,7 +298,7 @@
       ],
       "limits": "Only Zig workers qualified in the reference substrate; native tests do not establish sandbox isolation.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "READ-01",
@@ -322,7 +322,7 @@
       ],
       "limits": "Board is private-boundary inspection; the legacy view is a full bounded resource copy.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "O11Y-01",
@@ -342,7 +342,7 @@
       ],
       "limits": "Bounded diagnostics may be dropped; they are not durable authority.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "CODEC-01",
@@ -364,7 +364,7 @@
       ],
       "limits": "Finite corpus and bounded Zig fuzz budget; no claim that a roundtrip replaces independent canonical vectors or Arrow readers.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "PAGES-01",
@@ -388,7 +388,7 @@
       ],
       "limits": "Packed append-only page journal and original closed-stream mapping under qualification. No page GC, authority integration or power-loss proof. Cache bytes exclude provider/HTTP/parser/stack memory.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-01",
@@ -411,7 +411,7 @@
       ],
       "limits": "Injected journal/page store only; service/client integration, lifecycle/provider extensions and quota/control reserve remain unqualified.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-02",
@@ -433,7 +433,7 @@
       ],
       "limits": "In-memory injected page/journal proof. Transport, background terminal projection, quota reserves and real service/Station remain unqualified.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-03",
@@ -457,7 +457,7 @@
       ],
       "limits": "Internal signed engine queries with injected storage/time. No HTTP/SDK/provider proof, generalized historical querying or concurrent service load qualification.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-04",
@@ -480,7 +480,7 @@
       ],
       "limits": "Injected storage/time; no HTTP connector, automatic maintenance, real provider or service integration evidence.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-05",
@@ -506,7 +506,7 @@
       ],
       "limits": "Trusted test clock and injected acknowledgement loss at the real journal boundary. No service/SDK/Station integration, provider cluster, quota/control reserve or throughput qualification. Root history retains its latest complete head; pages are not reclaimed.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-06",
@@ -539,7 +539,7 @@
       ],
       "limits": "No Station/foreign binding support, runtime binding, migration, load qualification or quota/control reserve claim. Host synchronized clock is a deployment premise.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-07",
@@ -569,7 +569,7 @@
       ],
       "limits": "Full process/resource sweep cost still grows with retained metadata. No page GC, due-time index, sweep-lag SLO, full-store control reserve or multi-maintainer performance claim. Physical work authorized before revocation may finish later.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-08",
@@ -613,7 +613,7 @@
       ],
       "limits": "No growing query/result capture, registries, supervision, runtime bindings, foreign ABIs or scale SLO. Real service proof uses explicit public-client outbox delivery and a one-page cache after restart; it does not qualify a growing background courier.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-09",
@@ -644,7 +644,7 @@
       ],
       "limits": "No growing initialization barrier, suspension/resumption, same-PID code upgrade, runtime binding or automatic supervision policy. Injected lost-reply/revocation schedules complement the public service path.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-10",
@@ -680,7 +680,7 @@
       ],
       "limits": "No resumable Station/Fuze result capture, quota accounting or page garbage collection. Catalog roots may retain unrelated physical pages. Disk provider proof checks authority-prefix trim while preserving immutable page storage.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-11",
@@ -704,7 +704,7 @@
       ],
       "limits": "Finite single-authority capacity profile: 96 admission and 96 control positions on owned 2 GiB ext4 with a preallocated 1 GiB physical reserve. Separate one-CPU Station service proof uses 24 plus 4 positions. Bounds are deployment policy; no automatic physical provisioning or arbitrary-scale reserve guarantee.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "DELIVERY-01",
@@ -726,7 +726,7 @@
       ],
       "limits": "Type/safety-only TLC check of the abstract credit protocol; no guard mutants or Zig trace replay yet, unlike Authority.tla. Fragmentation below one segment, digest/schema verification and durable KV encoding are exercised by test::unit, not this model.",
       "model": "tests/verification/models/Delivery.tla",
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "GROWTH-12",
@@ -750,7 +750,7 @@
       ],
       "limits": "Finite loopback samples with 48 offered operations, bounded producer workers and disk/S3 storage. No production SLO, horizontal capacity, power-loss or object-store-crash guarantee.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "SQL-01",
@@ -776,7 +776,7 @@
       ],
       "limits": "Declared syntax subset only; no PostgreSQL execution-equivalence claim, SQL endpoint, catalog access, writes or optimizer rewrite.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "SQL-02",
@@ -798,7 +798,7 @@
       ],
       "limits": "No optimizer enabled; authority, allocation, cancellation and partial projections are outside the model. Limit pushdown and checked-sum reassociation are not claimed.",
       "model": "contracts/sql/FuzeRewrite.lean",
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "QUERY-01",
@@ -825,7 +825,7 @@
       ],
       "limits": "One configured Table/requester per principal; no SQL writes, KV/Document adapters, offline result copies or power-loss proof. Transport inbox quota remains a separate deployment constraint.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "QUERY-02",
@@ -853,7 +853,7 @@
       ],
       "limits": "One configured Table/principal; eight-item catalog pages, no global metrics, default legacy inspection unchanged. No per-human delegation, KV/Document query, power-loss or production capacity claim.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "PUBLICATION-01",
@@ -883,7 +883,7 @@
       ],
       "limits": "Single authority, disk Ursula, 64 KiB record and 41 additional 32-byte records. No host power-loss, production throughput, automatic jobs, physical erasure, CRDT, SDK or widened query claim.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "EXCHANGE-01",
@@ -929,7 +929,7 @@
       ],
       "limits": "Finite HTTP/1.1 worker over disk Ursula: one public root call per provisioned connector PID, 64 KiB request profile, 1,027-byte worker response; independent transport response 16,387 bytes. Explicit controller retry/redirect/status/cancel and all ten public HTTP SDKs are qualified. Public followups and language-native release conveniences, Board, launchers and hosted costs remain M15 work. Numeric IPv4 endpoint, identity encoding; TLS close-delimited bodies rejected.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "RPC-01",
@@ -957,7 +957,7 @@
       ],
       "limits": "No durable RPC authority, connector recovery, SDK or deployment claim. Identity compression only; no reconnect, retry or remote resume.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "RPC-02",
@@ -981,7 +981,7 @@
       ],
       "limits": "Nine sends/eight remote applications against independent grpcio. Public caller SDKs, placement and remaining final-publication races are not qualified by this controller proof. No transparent retry or stream resume.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "SERVE-01",
@@ -1018,7 +1018,7 @@
       ],
       "limits": "Qualified finite native/Compose/Substrate profiles; no reactive APIs or automatic growing runtime controller. RSS observations have declared process/workload scopes. Native receipts remain retained without finite reclamation.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "REACTIVE-01",
@@ -1051,7 +1051,7 @@
       ],
       "limits": "Four service sessions, two per principal, one subscription/session, 30-second maximum lease, eight finite refresh intents per explicit follow generation. Finite native/Compose/reference schedules and measurements are recorded in tests/README.md; no continuous SQL, KV/Document watch, latency target or general multi-origin native-sequence coordination.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "FLIGHT-01",
@@ -1078,7 +1078,7 @@
       ],
       "limits": "No gateway authorization, ADBC, TLS placement, retained-result recovery or outbound Flight claim from these codec/transport checks.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "FLIGHT-02",
@@ -1111,7 +1111,7 @@
       ],
       "limits": "One configured int64 Table per caller, one active finite query per requester, two data RPCs per caller, 16 KiB messages, 256 KiB framed response, 64 response messages. Metadata union/list/map coverage does not expand application types. Only executed placements in tests/README.md are qualified; no continuous Flight, writes, prepared parameters or hosted cost claim.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "APPLICATION-01",
@@ -1151,7 +1151,7 @@
       ],
       "limits": "64 KiB per body, two staged bodies, 128-byte transport parts, 512 KiB escaped host envelope and at most sixteen explicitly admitted host operators; four mutations for atomic visibility. Native proof uses a 1002-byte interface and 20 turns. Actual Board browser qualification covers one native installation. Generated application evolution and physical placement have their separate APPLICATION-02 proof boundary below. No new hosted CI budget.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "APPLICATION-02",
@@ -1179,7 +1179,7 @@
       ],
       "limits": "One int64 status-to-state evolution with paused writes, four mutations per normal step and no cross-resource atomicity or automatic inverse. Reference TLS edge retains an 8 KiB request cap and uses native operator publication; it does not qualify larger browser operator uploads. No generic schema evolution, cluster authority migration or hosted budget claim.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "CLI-01",
@@ -1208,7 +1208,7 @@
       ],
       "limits": "One interactive cursor per logical session, bounded preparations/history and finite explicit submissions. Editor peers prove presentation only. Source deployment uses real owners scheduled within native admission limits. No implicit SQL execution, transactions or resumable interactive snapshots.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "CLI-02",
@@ -1238,7 +1238,7 @@
       ],
       "limits": "Trusted single-user Linux placement, no sandbox. Three restart attempts, eight sockets/four data/two control requests, 64 KiB per log prefix; provider soft heap/RSS admission limits are not isolation. Capacity fixture uses 4 MiB metadata headroom and a 512 MiB preallocated reserve. Observed rollback floor is not a disaster-recovery oracle. Artifact changes currently refuse startup; M29 owns neighborhood upgrade transitions.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "CLI-03",
@@ -1268,7 +1268,7 @@
       ],
       "limits": "Per-declaration 8 roles/16 resources/8 callers, configurable active-app/role quotas, 64 KiB public values and 256 KiB per-app checkpoints, eight-receipt pages; retained disk history is unlimited. Trusted same-UID Linux placement, not a sandbox or distributed authority protocol. Only Zig hosts are qualified; native configuration/provider upgrades remain M29.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "CLI-04",
@@ -1298,7 +1298,7 @@
       ],
       "limits": "Loopback only; realm-wide process metadata and explicit per-resource grants, no per-viewer authentication, browser query/operator credentials or in-place upgrades of older pinned neighborhoods. Nine fixed native roles plus explicit application quotas; one bounded atlas startup probe, three restarts and retained receipts. No hosted CI budget expansion.",
       "model": null,
-      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
     {
       "id": "SIM-01",
@@ -1461,7 +1461,7 @@
       ],
       "limits": "One serialized direct Table owner; row, statement, schema and response budgets are independent of collection cardinality. No atomic cross-owner commit. Current language and placement runs are recorded separately.",
       "model": null,
-      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
+      "qualification": "See docs/history/qualification/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "SQL-TABLE-OWNER-01",
@@ -1489,7 +1489,7 @@
       ],
       "limits": "Configured local direct Table sources and separately provisioned requester/source actors. No implicit scheduler, cross-Table atomic snapshot or distributed write authority.",
       "model": null,
-      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
+      "qualification": "See docs/history/qualification/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "SQL-DECLARATION-01",
@@ -1610,7 +1610,7 @@
       ],
       "limits": "One local catalog owner with independent Table acceptance logs. Eight metadata entries per page; explicit resident/work budgets. No cross-owner transaction, automatic expiry, cold-provider or power-loss guarantee.",
       "model": null,
-      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
+      "qualification": "See docs/history/qualification/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "HOST-02",
@@ -1660,7 +1660,7 @@
       ],
       "limits": "Finite native-local fault/restart schedule. No hardware power-loss, automatic point flushing, distributed writer or sustained throughput claim.",
       "model": null,
-      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
+      "qualification": "See docs/history/qualification/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "HOST-03",
@@ -1739,7 +1739,7 @@
       ],
       "limits": "Two direct Table inputs; explicit serial scheduling of one or three logical producers in one executor process. Separate physical worker handoff and ext4 ENOSPC schedules. No concurrent producer hosts, distributed write authority, sustained throughput or power-loss claim.",
       "model": null,
-      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
+      "qualification": "See docs/history/qualification/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "WORKER-HANDOFF-01",
@@ -1767,7 +1767,7 @@
       ],
       "limits": "Native producer checkpoints contain 270 entries, including application padding; the pure state scan covers 10003 entries. No distributed manager, provider-bound PID, authority movement, TTL expiry or physical power-loss claim.",
       "model": null,
-      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
+      "qualification": "See docs/history/qualification/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "QUERY-CALLER-01",
@@ -1829,7 +1829,7 @@
       ],
       "limits": "Selected int64 Table profile with one native coordinator; no SQL declaration syntax, foreign naming transport, automatic retention or connector dispatch.",
       "model": null,
-      "qualification": "See tests/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
+      "qualification": "See docs/history/qualification/README.md for executed source revisions, failures and limits. Earlier actor-backed schedules do not qualify the direct owner."
     },
     {
       "id": "HOST-04",

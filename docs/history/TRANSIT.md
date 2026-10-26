@@ -241,7 +241,7 @@ today's opaque state does not implement those guarantees.
   language choice does not change the protocol or require code in the node.
 
 A client API alone cannot enforce these requirements on arbitrary native code.
-The [caller proof](../../tests/README.md#independent-caller-evidence) and reference
+The [caller proof](qualification/runtime.md#independent-caller-evidence) and reference
 isolation checks qualify a reviewed native workload, not arbitrary code.
 Transport credentials, network policy, and sandboxing support protocol checks;
 none independently proves legal execution. Trusted kernel/storage administrators

@@ -1,6 +1,6 @@
 # Verification foundation
 
-Historical results are summarized in the [proof ledger](../README.md). Obsolete
+Historical results are summarized in the [proof ledger](../../docs/history/qualification/README.md). Obsolete
 raw transcripts and their dependent manifests are no longer maintained; references
 to this summary do not promise retained transcript bytes or qualify current source.
 
@@ -114,7 +114,7 @@ on retained collection size.
 
 `python3 -B tests/verification/check.py` validates owners, links, classifications
 and drift; `just check` includes it. Missing tasks and unreviewed limit changes
-are negative controls. The [current cutover evidence](../README.md#native-v1-cutover-checkpoint--2026-09-30)
+are negative controls. The [current cutover evidence](../../docs/history/qualification/runtime.md#native-v1-cutover-checkpoint--2026-09-30)
 separates newly executed proofs from historical qualification. An inventory entry
 or preserved historical result is not evidence that its replacement passed.
 
@@ -484,7 +484,7 @@ defines timing boundaries, generator queueing and storage measurements. A matrix
 entry or an incomplete manifest is not passing evidence. The larger analytical
 dimensions remain distinct from this executable sample matrix. The
 [recorded fourteen-sample result](results/m10-scale-2026-09-25.json) preserves
-measurement fields and original artifact hashes; the [test guide](../README.md#m10-verification-and-scale-foundations)
+measurement fields and original artifact hashes; the [test guide](../../docs/history/qualification/verification.md#m10-verification-and-scale-foundations)
 summarizes observed ranges and qualification limits.
 
 ## Codecs and allocation boundaries
@@ -566,11 +566,11 @@ General Table mutation callers use the direct Catalog APIs and
 The [fixed-writer record](../../docs/history/fixed-table-mutations.md)
 preserves the superseded SDK qualification; it does not qualify the replacement
 callers. Executed general schedules and pending cutover checks remain in the
-[proof ledger](../README.md).
+[proof ledger](../../docs/history/qualification/README.md).
 
 M25 registers `test::server-applications`, `test::server-application-faults` and
 `test::server-application-capacity` with invariant `CLI-03`. Their
-[selected proof evidence](../README.md#m25-local-application-qualification) keeps
+[selected proof evidence](../../docs/history/qualification/deployment.md#m25-local-application-qualification) keeps
 native loss/revocation, consumer lifecycle and physical capacity separate.
 The ordinary hosted lanes and accepted M10 budgets remain unchanged.
 

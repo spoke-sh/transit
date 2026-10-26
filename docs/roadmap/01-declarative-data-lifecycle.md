@@ -32,13 +32,13 @@ negative control restoring the earlier lock extent.
 
 | Acceptance area | Delivered scope and executed evidence | Remaining owner |
 | --- | --- | --- |
-| Stable identities and direct acceptance | [Public CRUD/DDL](../../tests/README.md#direct-table-crudddl-recovery--2026-10-23), [shared preparation](../../tests/README.md#shared-direct-table-ddl-preparation--2026-10-24), [preview](../../tests/README.md#shared-direct-preview--2026-10-24) and [139-Table growth](../../tests/README.md#direct-catalog-growth-and-retained-rows--2026-10-24) establish the direct owning path, exact lost-reply recovery, current policy, stale-content/definition rejection and name replacement. | Broader client/statement APIs remain milestones 4 and 6. |
-| Durable snapshot interpretation | [Retained SQL cuts](../../tests/README.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24) include accepted unflushed rows; original pin acquisition/release and metadata survive replacement. [Competing checkpoints](../../tests/README.md#snapshot-pins-against-competing-checkpoints--2026-10-24) preserve pinned history. Multi-source reads expose independent vectors explicitly. | Multi-Table consistent cuts and transaction histories remain milestone 5; destructive collection and branch/provider qualification retain their storage owners. |
-| Named usable KV/Document resources | [Allocation and initialization](../../tests/README.md#named-native-resource-allocation-and-initialization--2026-10-24), [lifetime/dependency recovery](../../tests/README.md#named-resource-dependency-authority-and-retirement--2026-10-24) and [shared caller recovery](../../tests/README.md#direct-host-named-resource-recovery--2026-10-24) use real native resources. [139-resource](../../tests/README.md#public-named-resource-growth-and-restart--2026-10-25) and [139-edge](../../tests/README.md#public-dependency-graph-growth-and-restart--2026-10-24) schedules exceed resident caches and recover after restart. | Service-managed reconciliation remains a later lifecycle extension; associations still confer neither authority nor ownership. |
-| Computation results and freshness | [Result/source attribution](../../tests/README.md#result-source-freshness-and-named-attribution--2026-10-23) and [named query publication](../../tests/README.md#named-query-dependency-publication-and-retirement--2026-10-24) bind actual captured/maintained results and exact data/definition revisions. Activation, source-change detection, denial and recovery are exercised. Inspection starts no work. | Automatic WAL-driven scheduling and managed computation remain milestone 9. |
-| Admitted representations and comparison limits | [Independent physical-column checks](../../tests/README.md#lossless-physical-column-admission-and-public-sql--2026-10-23) establish lossless values across WAL/segment reads, definition rejection and the then-explicit non-binary SQL refusal at their recorded sources. [Neutral schema checks](../../tests/README.md#neutral-physical-schemas-across-language-callers--2026-10-23) preserve codec/collation descriptors. The recorded repository and hosted core runs exercise the fixtures at those sources. | Broader codec/storage qualification remains #118 in milestone 2. Later SQL collation support in PR #172 has separate evidence; ICU remains unsupported. |
-| Neutral index foundation | [Neutral index checks](../../tests/README.md#neutral-index-contracts--2026-10-25) cover immutable source/key/constraint identities, build generations and exact snapshot coverage through owning types, generated contracts and independent positive/negative fixtures. | Installed index operations, secondary access paths and online maintenance remain milestone 8. |
-| Cutover and caller agreement | [The actor Table owner is retired](../../tests/README.md#direct-catalog-hard-cutover-and-retired-owner--2026-10-24). [SDK selected-role checks](../../tests/README.md#direct-catalog-sdk-selected-roles--2026-10-24), shared native/port and installed SDK lanes pass with exact outcomes, current-definition rejection and current authorization. | Additional language/platform profiles retain their SDK owner; a v1 label never implies compatibility between builds. |
+| Stable identities and direct acceptance | [Public CRUD/DDL](../history/qualification/catalog.md#direct-table-crudddl-recovery--2026-10-23), [shared preparation](../history/qualification/catalog.md#shared-direct-table-ddl-preparation--2026-10-24), [preview](../history/qualification/catalog.md#shared-direct-preview--2026-10-24) and [139-Table growth](../history/qualification/catalog.md#direct-catalog-growth-and-retained-rows--2026-10-24) establish the direct owning path, exact lost-reply recovery, current policy, stale-content/definition rejection and name replacement. | Broader client/statement APIs remain milestones 4 and 6. |
+| Durable snapshot interpretation | [Retained SQL cuts](../history/qualification/sql.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24) include accepted unflushed rows; original pin acquisition/release and metadata survive replacement. [Competing checkpoints](../history/qualification/storage.md#snapshot-pins-against-competing-checkpoints--2026-10-24) preserve pinned history. Multi-source reads expose independent vectors explicitly. | Multi-Table consistent cuts and transaction histories remain milestone 5; destructive collection and branch/provider qualification retain their storage owners. |
+| Named usable KV/Document resources | [Allocation and initialization](../history/qualification/catalog.md#named-native-resource-allocation-and-initialization--2026-10-24), [lifetime/dependency recovery](../history/qualification/catalog.md#named-resource-dependency-authority-and-retirement--2026-10-24) and [shared caller recovery](../history/qualification/sdk.md#direct-host-named-resource-recovery--2026-10-24) use real native resources. [139-resource](../history/qualification/catalog.md#public-named-resource-growth-and-restart--2026-10-25) and [139-edge](../history/qualification/catalog.md#public-dependency-graph-growth-and-restart--2026-10-24) schedules exceed resident caches and recover after restart. | Service-managed reconciliation remains a later lifecycle extension; associations still confer neither authority nor ownership. |
+| Computation results and freshness | [Result/source attribution](../history/qualification/query.md#result-source-freshness-and-named-attribution--2026-10-23) and [named query publication](../history/qualification/query.md#named-query-dependency-publication-and-retirement--2026-10-24) bind actual captured/maintained results and exact data/definition revisions. Activation, source-change detection, denial and recovery are exercised. Inspection starts no work. | Automatic WAL-driven scheduling and managed computation remain milestone 9. |
+| Admitted representations and comparison limits | [Independent physical-column checks](../history/qualification/sql.md#lossless-physical-column-admission-and-public-sql--2026-10-23) establish lossless values across WAL/segment reads, definition rejection and the then-explicit non-binary SQL refusal at their recorded sources. [Neutral schema checks](../history/qualification/sdk.md#neutral-physical-schemas-across-language-callers--2026-10-23) preserve codec/collation descriptors. The recorded repository and hosted core runs exercise the fixtures at those sources. | Broader codec/storage qualification remains #118 in milestone 2. Later SQL collation support in PR #172 has separate evidence; ICU remains unsupported. |
+| Neutral index foundation | [Neutral index checks](../history/qualification/catalog.md#neutral-index-contracts--2026-10-25) cover immutable source/key/constraint identities, build generations and exact snapshot coverage through owning types, generated contracts and independent positive/negative fixtures. | Installed index operations, secondary access paths and online maintenance remain milestone 8. |
+| Cutover and caller agreement | [The actor Table owner is retired](../history/qualification/catalog.md#direct-catalog-hard-cutover-and-retired-owner--2026-10-24). [SDK selected-role checks](../history/qualification/sdk.md#direct-catalog-sdk-selected-roles--2026-10-24), shared native/port and installed SDK lanes pass with exact outcomes, current-definition rejection and current authorization. | Additional language/platform profiles retain their SDK owner; a v1 label never implies compatibility between builds. |
 | Documentation and evidence | Current capabilities and limits are in the public data-model, architecture, Table/state/caller, storage and verification references. The proof ledger retains exact sources, failures, raw artifacts and the scope of each pass. | #123/#124 retain broader storage/provider/performance obligations. |
 
 The 2026-10-26 close-out decision replaces the earlier requirement to finish
@@ -49,7 +49,7 @@ the failures below retain their assertions, evidence and owners. This decision
 does not relabel the failed suite or waive the delivered lifecycle's caller,
 authorization, growth and recovery requirements.
 
-The [final qualification record](../../tests/README.md#final-lifecycle-qualification-and-remaining-checks--2026-10-26)
+The [final qualification record](../history/qualification/verification.md#final-lifecycle-qualification-and-remaining-checks--2026-10-26)
 binds full `just check` (2,070.32 seconds) and seven passing focused installed
 tasks, followed by a failed Station launcher bootstrap (1,335.31 seconds total),
 to `a048b154f`, whose tree equals merged
@@ -121,7 +121,7 @@ found that [PR #105](https://github.com/spoke-sh/transit/pull/105) delivered
 column encoding/collation descriptors, Table preview/lifecycle observations,
 dependency/policy inspection, a `TableClient.apply` convenience API and named
 KV/Document/computation metadata transitions. Retain that work and its scoped
-[component evidence](../../tests/README.md#declarative-data-lifecycle-codecs-and-collations).
+[component evidence](../history/qualification/storage.md#declarative-data-lifecycle-codecs-and-collations).
 Existing Table CRUD and native authorization/recovery predate this milestone.
 
 At that snapshot, the executable acceptance path was incomplete.
@@ -161,17 +161,17 @@ then-open work.
 
 | Obligation | Implemented outcome and executed evidence | Open qualification |
 | --- | --- | --- |
-| Direct Table lifecycle (#111) | One direct owner accepts point/batch CRUD and DDL, with current policy, exact retry bindings and retained reads. [Public CRUD/DDL](../../tests/README.md#direct-table-crudddl-recovery--2026-10-23), [selected-role/default-grant checks](../../tests/README.md#direct-table-selected-role-boundary--2026-10-24), [SQL recovery](../../tests/README.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24) and [139-Table growth](../../tests/README.md#direct-catalog-growth-and-retained-rows--2026-10-24) pass. | Final combined clean-checkout suite. Provider/concurrent-writer expansion stays with milestone 15. |
-| Named usable KV/Document resources (#119) | [Allocation and initialization](../../tests/README.md#named-native-resource-allocation-and-initialization--2026-10-24), [dependency/lifetime recovery](../../tests/README.md#named-resource-dependency-authority-and-retirement--2026-10-24) and [shared host recovery](../../tests/README.md#direct-host-named-resource-recovery--2026-10-24) use real native resources and current rights. The [public 139-edge dependency schedule](../../tests/README.md#public-dependency-graph-growth-and-restart--2026-10-24) and [139 initialized resource growth/restart schedule](../../tests/README.md#public-named-resource-growth-and-restart--2026-10-25) pass. | Final combined clean-checkout suite and linked issue review. |
-| Actual computation evidence (#120) | [Result/source attribution](../../tests/README.md#result-source-freshness-and-named-attribution--2026-10-23), [named publication](../../tests/README.md#named-query-dependency-publication-and-retirement--2026-10-24), captured and maintained recovery, and current disclosure denial pass. [Reference Follow](../../tests/README.md#direct-follow-reference-recovery-and-disclosure--2026-10-25) passes with an explicit six-minute correctness wait. Inspection does not activate execution. | Final combined clean-checkout suite. Earlier reference latency failures remain recorded. Automatic scheduling remains milestone 9. |
-| Coordinated current-v1 cutover (#112) | The [superseded actor Table owner is removed](../../tests/README.md#direct-catalog-hard-cutover-and-retired-owner--2026-10-24); current consumers, bindings and fixtures use the shared definition. [Installed SDK selected-role checks](../../tests/README.md#direct-catalog-sdk-selected-roles--2026-10-24) and [nine compiling mutation probes](../../tests/README.md#direct-catalog-mutation-checks--2026-10-24) pass. | Final combined clean-checkout suite. Existing data still requires its matching build; there is no fallback decoder or automatic reset. |
-| Identity, atomicity and snapshots (#125) | The executable domain is one Table statement/batch with retained WAL-inclusive cuts and explicit independent source vectors. [Competing checkpoint/pin evidence](../../tests/README.md#snapshot-pins-against-competing-checkpoints--2026-10-24) passes. The [selected transaction extension](#selected-transaction-session-extension) specifies the later consistent-cut and multi-Table decision protocol. | Transaction-session implementation and anomaly/failure histories belong to milestone 5; this design decision does not qualify them. |
-| Neutral index contract foundation (#108) | [Index declarations and coverage](../../contracts/INDEX_LIFECYCLE_V1.md) bind immutable source/key/constraint semantics, build generations and exact snapshots. [Independent commitments and protocol checks](../../tests/README.md#neutral-index-contracts--2026-10-25) pass, including WAL-only coverage and stale-cut refusal. | Final repository and committed-checkout qualification. Installed index operations, secondary structures and online lifecycle remain milestone 8. |
+| Direct Table lifecycle (#111) | One direct owner accepts point/batch CRUD and DDL, with current policy, exact retry bindings and retained reads. [Public CRUD/DDL](../history/qualification/catalog.md#direct-table-crudddl-recovery--2026-10-23), [selected-role/default-grant checks](../history/qualification/catalog.md#direct-table-selected-role-boundary--2026-10-24), [SQL recovery](../history/qualification/sql.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24) and [139-Table growth](../history/qualification/catalog.md#direct-catalog-growth-and-retained-rows--2026-10-24) pass. | Final combined clean-checkout suite. Provider/concurrent-writer expansion stays with milestone 15. |
+| Named usable KV/Document resources (#119) | [Allocation and initialization](../history/qualification/catalog.md#named-native-resource-allocation-and-initialization--2026-10-24), [dependency/lifetime recovery](../history/qualification/catalog.md#named-resource-dependency-authority-and-retirement--2026-10-24) and [shared host recovery](../history/qualification/sdk.md#direct-host-named-resource-recovery--2026-10-24) use real native resources and current rights. The [public 139-edge dependency schedule](../history/qualification/catalog.md#public-dependency-graph-growth-and-restart--2026-10-24) and [139 initialized resource growth/restart schedule](../history/qualification/catalog.md#public-named-resource-growth-and-restart--2026-10-25) pass. | Final combined clean-checkout suite and linked issue review. |
+| Actual computation evidence (#120) | [Result/source attribution](../history/qualification/query.md#result-source-freshness-and-named-attribution--2026-10-23), [named publication](../history/qualification/query.md#named-query-dependency-publication-and-retirement--2026-10-24), captured and maintained recovery, and current disclosure denial pass. [Reference Follow](../history/qualification/query.md#direct-follow-reference-recovery-and-disclosure--2026-10-25) passes with an explicit six-minute correctness wait. Inspection does not activate execution. | Final combined clean-checkout suite. Earlier reference latency failures remain recorded. Automatic scheduling remains milestone 9. |
+| Coordinated current-v1 cutover (#112) | The [superseded actor Table owner is removed](../history/qualification/catalog.md#direct-catalog-hard-cutover-and-retired-owner--2026-10-24); current consumers, bindings and fixtures use the shared definition. [Installed SDK selected-role checks](../history/qualification/sdk.md#direct-catalog-sdk-selected-roles--2026-10-24) and [nine compiling mutation probes](../history/qualification/catalog.md#direct-catalog-mutation-checks--2026-10-24) pass. | Final combined clean-checkout suite. Existing data still requires its matching build; there is no fallback decoder or automatic reset. |
+| Identity, atomicity and snapshots (#125) | The executable domain is one Table statement/batch with retained WAL-inclusive cuts and explicit independent source vectors. [Competing checkpoint/pin evidence](../history/qualification/storage.md#snapshot-pins-against-competing-checkpoints--2026-10-24) passes. The [selected transaction extension](#selected-transaction-session-extension) specifies the later consistent-cut and multi-Table decision protocol. | Transaction-session implementation and anomaly/failure histories belong to milestone 5; this design decision does not qualify them. |
+| Neutral index contract foundation (#108) | [Index declarations and coverage](../../contracts/INDEX_LIFECYCLE_V1.md) bind immutable source/key/constraint semantics, build generations and exact snapshots. [Independent commitments and protocol checks](../history/qualification/catalog.md#neutral-index-contracts--2026-10-25) pass, including WAL-only coverage and stale-cut refusal. | Final repository and committed-checkout qualification. Installed index operations, secondary structures and online lifecycle remain milestone 8. |
 
 The earlier combined repository check passes with the client fix for opaque upstream
 503 responses and ordinary native-contention recovery in application workers,
 including contracts, diagnostics, units, frontend and handbook build.
-[Work Items, Station and the native browser](../../tests/README.md#native-worker-contention-and-exact-recovery--2026-10-25)
+[Work Items, Station and the native browser](../history/qualification/runtime.md#native-worker-contention-and-exact-recovery--2026-10-25)
 pass with the worker fixes. Native Follow reload/credential rotation and
 root/prefixed handbook browser checks also pass. Named-resource growth/restart and
 reference Follow now pass. Final acceptance still requires the latest combined
@@ -185,7 +185,7 @@ The lifecycle implementations and subsequent fixes through
 [PR #159](https://github.com/spoke-sh/transit/pull/159) and
 [PR #161](https://github.com/spoke-sh/transit/pull/161) are merged. The latter
 removes the reproduced Debug decimal-rescaling crash; the
-[focused regression evidence](../../tests/README.md#debug-decimal-argument-alignment--2026-10-26)
+[focused regression evidence](../history/qualification/runtime.md#debug-decimal-argument-alignment--2026-10-26)
 preserves the failing case and unchanged arithmetic/result assertions.
 The clean growth run at `a756f2cf4` has passed file queries, logical Arrow,
 logical codecs, immutable pages and growing-authority recovery; the containing
@@ -194,9 +194,9 @@ lane is incomplete.
 The active qualification follow-up addresses three observed fixture/profile
 problems without expanding lifecycle scope:
 
-- [CLI configuration discovery](../../tests/README.md#cli-discovery-fixture-environment--2026-10-26)
+- [CLI configuration discovery](../history/qualification/interfaces.md#cli-discovery-fixture-environment--2026-10-26)
   filters ambient XDG state while preserving explicit precedence tests.
-- [Installed Station SDK queries](../../tests/README.md#sdk-query-node-build-profile--2026-10-26)
+- [Installed Station SDK queries](../history/qualification/sdk.md#sdk-query-node-build-profile--2026-10-26)
   use a ReleaseSafe node with Debug bindings/hosts. The Python control passes
   the unchanged workload and deadline; complete clean SDK lanes remain pending.
 - Installed SQL observes account discovery within the existing readiness
@@ -219,7 +219,7 @@ are met. #123/#124 retain their broader obligations, and later transaction,
 index, scheduling and provider work keeps its existing delivery owner.
 
 The subsequent close-out branch includes merged PR #162 and the shared-definition
-cutover in PR #163. [SQL settings observation recovery](../../tests/README.md#sql-settings-observation-recovery--2026-10-26)
+cutover in PR #163. [SQL settings observation recovery](../history/qualification/sql.md#sql-settings-observation-recovery--2026-10-26)
 now passes forced preparation/page failures through both database protocols,
 with unchanged cursors, current denial, snapshot-change rejection and original
 reload identity. Full installed SQL remains a separate gate. The clean SDK run
@@ -237,9 +237,9 @@ It remains open. Older proof runs retain their source definitions; qualification
 after PR #163 requires a matching runtime/fixture set throughout.
 
 After merged PR #164, the follow-up closes two focused observation gaps:
-[control preparation and console status](../../tests/README.md#sql-observation-budgets--2026-10-26)
+[control preparation and console status](../history/qualification/sql.md#sql-observation-budgets--2026-10-26)
 retain the original deadline through temporary authority failures. The full
-[direct Table lifecycle proof](../../tests/README.md#paged-table-history-observation--2026-10-26)
+[direct Table lifecycle proof](../history/qualification/catalog.md#paged-table-history-observation--2026-10-26)
 now passes both history replays and closure within the unchanged 180-second
 phase budget, using bounded history pages and the original one-page native
 cache. Charged requests decrease from 300 to 210 per replay; this is not a
@@ -247,13 +247,13 @@ matched latency benchmark.
 
 The clean core run at `e3cbe9cca` fails only the independent work-item fixture
 checks in its root unit stage; it does not complete the core lane or queued
-repository check. The [regenerated current-definition fixture](../../tests/README.md#work-item-command-definition-cutover--2026-10-26)
+repository check. The [regenerated current-definition fixture](../history/qualification/catalog.md#work-item-command-definition-cutover--2026-10-26)
 passes its generator and focused application unit suite. Contract tasks now
 include that fixture. Clean bindings-1 at `dd3687e01` passes the complete Python
 task and Node's client/Station/HTTP/gRPC schedules, then fails relational setup
 on an unknown direct-operation outcome. The fixture follow-up inspects that
 original saved operation and includes a deterministic lost-reply case. The
-[installed Node relational rerun](../../tests/README.md#relational-setup-outcome-recovery--2026-10-26)
+[installed Node relational rerun](../history/qualification/query.md#relational-setup-outcome-recovery--2026-10-26)
 passes with matching packages, native/port callers, retained cuts, current denial
 and replacement. The containing SDK lane still needs a complete rerun.
 Broader C/C++ and Java progress remains
@@ -277,7 +277,7 @@ writes and partial results are excluded. Current-source reruns remain required.
 
 Local node diagnostics identify a cancelled native append followed by
 `WalRecoveryRequired` and supervisor replacement. A separate
-[deterministic regression](../../tests/README.md#wal-append-inspection-cancellation--2026-10-26)
+[deterministic regression](../history/qualification/storage.md#wal-append-inspection-cancellation--2026-10-26)
 proves and fixes premature owner poisoning when existing-segment inspection is
 cancelled before any write. It preserves all uncertain-write recovery gates;
 the installed trace does not locate its cancelled syscall. The supervisor now
@@ -288,11 +288,11 @@ These corrections are not a completed installed or combined qualification.
 PR #167 is merged as `dc2838b6c`. The subsequent full `just check` at
 `9ab5fb64a` passes, and clean bindings-2 at `90b0fc45e` completes Go, C/C++,
 Java, .NET, Erlang and Elixir. Their
-[source-specific records](../../tests/README.md#installed-lifecycle-qualification-checkpoint--2026-10-26)
+[source-specific records](../history/qualification/verification.md#installed-lifecycle-qualification-checkpoint--2026-10-26)
 preserve the distinction between those earlier revisions and qualification of
 the final merged implementation. The remaining core run fails Station's
 captured-query deadline after 18 passing tasks. A
-[controlled node-profile substitution](../../tests/README.md#station-node-build-profile--2026-10-26)
+[controlled node-profile substitution](../history/qualification/query.md#station-node-build-profile--2026-10-26)
 passes with the same Debug callers and unchanged deadlines; the owning task now
 uses the explicit ReleaseSafe node profile already used for SDK queries.
 
@@ -305,7 +305,7 @@ combined qualification and acceptance reconciliation remain open. #108 and
 this milestone remain In Progress.
 
 PR #168 is merged as `310a3f25e`. The full repository check and committed-HEAD
-clean launcher lane now pass; the [qualification record](../../tests/README.md#installed-lifecycle-qualification-checkpoint--2026-10-26)
+clean launcher lane now pass; the [qualification record](../history/qualification/verification.md#installed-lifecycle-qualification-checkpoint--2026-10-26)
 retains their exact sources. Original CREATE 751 remains incomplete publication
 after public inspection; it is not resubmitted or reported as applied. A fresh
 full direct Table diagnostic passes with the same binaries. The normal hosted
@@ -314,7 +314,7 @@ task also passes at the identical source tree.
 Hosted experience then passes all nine tasks through standalone SQL authentication,
 but its installed source-bundle SQL task fails because the runner-selected MySQL
 client rejects an isolation option before connection. The
-[pinned-client correction](../../tests/README.md#installed-sql-client-selection--2026-10-26)
+[pinned-client correction](../history/qualification/interfaces.md#installed-sql-client-selection--2026-10-26)
 adds the existing locked PostgreSQL/MySQL packages to that CI shell. Doctor,
 client selection and the complete installed authentication/recovery task pass;
 versions, assertions and deadlines are unchanged. Remaining combined lanes and
@@ -325,7 +325,7 @@ authentication/recovery and Board query recovery, before the final Station
 launcher import exposes a second missing CI dependency, PyArrow. Supplying the
 existing pinned package makes the complete Station launcher task pass in that
 shell. Two hosted bindings-2 runs also pass with the current shared definition.
-The [follow-up record](../../tests/README.md#installed-lifecycle-follow-up-and-station-ci-dependency--2026-10-26)
+The [follow-up record](../history/qualification/verification.md#installed-lifecycle-follow-up-and-station-ci-dependency--2026-10-26)
 retains these passes alongside a separate failed clean SQL run: original UPDATE
 194 remains incomplete publication after inspection, with no SQL resubmission.
 Combined qualification and acceptance reconciliation remain open.
@@ -335,7 +335,7 @@ The earlier hosted growth lane then fails its unchanged 139-resource writer's
 history for every direct request produces growing validation work. The follow-up
 retains one validated root/chain value within the live local owner; initial
 recovery, new-history validation and current authorization remain required.
-The [catalog recovery record](../../tests/README.md#catalog-prefix-reuse--2026-10-26)
+The [catalog recovery record](../history/qualification/catalog.md#catalog-prefix-reuse--2026-10-26)
 records 75 passing component tests, signed native/concurrency checks and the
 complete unchanged 139-resource growth/restart schedule. This fixes an
 implementation gap, not another CI dependency.
@@ -343,14 +343,14 @@ implementation gap, not another CI dependency.
 The corrected CI shell completes all thirteen hosted experience tasks, including
 SQL and Station recovery. Its subsequent browser proof rejects a query asset
 above the existing size limit. The
-[current qualification record](../../tests/README.md#installed-lifecycle-qualification-after-ci-prerequisites--2026-10-26)
+[current qualification record](../history/qualification/verification.md#installed-lifecycle-qualification-after-ci-prerequisites--2026-10-26)
 also retains completed core and both SDK lanes at their exact earlier sources,
 and the separate failed local lifetime run. Final candidate qualification and
 acceptance reconciliation remain open.
 
 Removing unused generated-validator error prose brings that query asset below
 the unchanged bound. The complete
-[embedded browser schedule](../../tests/README.md#compact-standalone-validator-output--2026-10-26)
+[embedded browser schedule](../history/qualification/interfaces.md#compact-standalone-validator-output--2026-10-26)
 passes inspection and the direct worksheet, including replacement, original-pin
 recovery and current denial. Public validation and Transit diagnostics retain
 their existing semantics.
@@ -362,7 +362,7 @@ subsequent operation 695 remains incomplete publication and is not resubmitted.
 Two fresh full-workload diagnostics pass with unchanged assertions and deadlines,
 including one with temporary WAL error labels. Neither reproduces the poisoned
 WAL owner or establishes the historical failure's exact cause. The
-[original outcomes and diagnostic evidence](../../tests/README.md#installed-table-qualification-and-original-outcomes--2026-10-26)
+[original outcomes and diagnostic evidence](../history/qualification/catalog.md#installed-table-qualification-and-original-outcomes--2026-10-26)
 preserve that distinction. Final combined qualification and acceptance remain
 open; no WAL recovery gate is relaxed to obtain a pass.
 
@@ -373,11 +373,11 @@ packages qualifies HTTP and gRPC locally. The independent reactive fixture now
 reopens native local persistence, explicitly restores source rights after private
 role replacement, and signs current subject proofs. Protocol/browser, live views
 and shared-tab lifecycle tasks pass, including current denial with preserved
-accepted-control uncertainty. The [qualification record](../../tests/README.md#browser-prerequisites-and-native-reactive-cutover--2026-10-26)
+accepted-control uncertainty. The [qualification record](../history/qualification/runtime.md#browser-prerequisites-and-native-reactive-cutover--2026-10-26)
 retains the preceding failures, exact sources and unchanged authority/deadline
 limits. Full repository checks and hosted growth now pass. A clean browser run
 then exposes a test assumption that only one upload step can require explicit
-unknown-outcome recovery. The [corrected complete focused schedule](../../tests/README.md#explicit-recovery-of-each-query-upload-step--2026-10-26)
+unknown-outcome recovery. The [corrected complete focused schedule](../history/qualification/query.md#explicit-recovery-of-each-query-upload-step--2026-10-26)
 passes two distinct accepted-reply losses with exact recovery, unchanged runtime
 semantics and existing deadlines. Committed-HEAD clean browser qualification and
 final acceptance reconciliation remain open.
@@ -387,7 +387,7 @@ passes embedded Board, query-browser, HTTP and gRPC, then fails reactive-browser
 the original serving operation remains admitted at its ten-second completion
 deadline. The final two tasks do not run. A source-matched physical-disk control
 reproduces the failure; a tmpfs control passes without establishing physical
-durability. The [physical qualification record](../../tests/README.md#physical-reactive-qualification--2026-10-26)
+durability. The [physical qualification record](../history/qualification/verification.md#physical-reactive-qualification--2026-10-26)
 preserves that distinction and the failed frozen-read experiment. Work continues
 on `fix/lifecycle-final-qualification`; combined qualification remains open.
 The separate hosted SQL lifetime failure now has bounded stderr diagnostics,
@@ -427,14 +427,14 @@ These paragraphs record intermediate implementation states. References to
 remaining consumers or unrun checks describe their checkpoint; use the current
 review above and the linked proof ledger to assess what remains open now.
 
-The [direct SQL ledger schedule](../../tests/README.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24)
+The [direct SQL ledger schedule](../history/qualification/sql.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24)
 passes independent Table acceptance and native control recovery, exact lost-reply
 handling, fencing, parameterized reads and shared self-join pins. Configured Table
 sources now use independent data/progress identities, journaled interactive pins
 and explicitly authorized captured cuts. The full session/placement schedules
 and superseded actor-Table removal remain open.
 
-The [unified recovery schedule](../../tests/README.md#unified-direct-table-recovery-and-closure--2026-10-24)
+The [unified recovery schedule](../history/qualification/catalog.md#unified-direct-table-recovery-and-closure--2026-10-24)
 now uses independent direct Table storage and native query progress. Native ABI
 and port checks pass exact upload/result recovery, unflushed point data,
 released-pin refusal, partial COUNT recovery, cancellation and retained failure
@@ -443,7 +443,7 @@ Older catalog/SQL fixture migration and the final repository gates remain open.
 
 Flight and the public captured-query fixtures now use the direct Table owner
 with independent native progress storage. Their
-[native consumer evidence](../../tests/README.md#direct-flight-and-captured-query-consumers--2026-10-24)
+[native consumer evidence](../history/qualification/query.md#direct-flight-and-captured-query-consumers--2026-10-24)
 covers exact capture retry across row changes, failure/restart recovery, current
 denial and stored-schema validation. Board's captured-query API uses explicit
 capture; its browser now qualifies navigation, lost submission, current denial
@@ -454,12 +454,12 @@ coordinated cutover gate.
 
 The serving counter now uses an installer-published direct Table and retains an
 exact intent before dispatch. Its separate data receipt and native progress/reply
-commit have [component, HTTP and TLS refresh recovery evidence](../../tests/README.md#direct-serving-counter-acceptance--2026-10-24).
+commit have [component, HTTP and TLS refresh recovery evidence](../history/qualification/runtime.md#direct-serving-counter-acceptance--2026-10-24).
 The refresh proof uses separately prepared direct captures, retains the original
 request through worker replacement and enforces current Table SELECT. TLS,
 capacity, lifetime and retained growth qualification also pass. The native browser
 now verifies direct Follow results and denial between verification and disclosure.
-The [multi-tab browser schedule](../../tests/README.md#direct-follow-browser-lifecycle--2026-10-24)
+The [multi-tab browser schedule](../history/qualification/query.md#direct-follow-browser-lifecycle--2026-10-24)
 also passes stream-loss recovery with the original basis, independent sessions,
 watch-generation reset, explicit resnapshot and denial after catalog lifetime
 retirement. A recorded watch-change rejection stops renewal instead of being
@@ -472,26 +472,26 @@ native persistence and a default local launcher backed by the native local
 owner. Its direct Table storage component has atomic point/bulk acceptance,
 paged row/receipt/pin indexes, bounded flushes, durable read pins and
 CREATE/ALTER/RENAME/DROP definition transitions under the existing native
-authorization fence. The scoped [executed evidence](../../tests/README.md#table-definition-acceptance-and-retained-interpretation--2026-10-22)
+authorization fence. The scoped [executed evidence](../history/qualification/catalog.md#table-definition-acceptance-and-retained-interpretation--2026-10-22)
 distinguishes these component and native-adapter checks from public integration.
 
 The direct catalog component now reserves names and records durable DDL
 admission/rejection/cancellation, with name visibility governed by the Table
-acceptance record. Its [component evidence](../../tests/README.md#direct-catalog-reservations-and-table-publication--2026-10-22)
+acceptance record. Its [component evidence](../history/qualification/catalog.md#direct-catalog-reservations-and-table-publication--2026-10-22)
 covers lost replies, restart, replacement and growth beyond the resident cache.
 The Table owner also retains frozen row work, durable admission/rejection/
 cancellation, matched/changed counts and atomic primary-key replacement. Its
-[component and native policy evidence](../../tests/README.md#durable-table-row-admission-and-outcomes--2026-10-22)
+[component and native policy evidence](../history/qualification/catalog.md#durable-table-row-admission-and-outcomes--2026-10-22)
 covers restart, lost replies, quota pressure and current rights. A configured
 local node now serves signed typed requests directly over HTTP and resumes native
-registration under the original caller's fence. The [public HTTP proof](../../tests/README.md#direct-table-http-owner-and-typed-caller--2026-10-22)
+registration under the original caller's fence. The [public HTTP proof](../history/qualification/catalog.md#direct-table-http-owner-and-typed-caller--2026-10-22)
 covers a 64 KiB point row, bulk `.tseg` publication, exact lost-reply recovery,
 restart, an unflushed retained pin and current revocation. Its subsequent
-[CRUD/DDL recovery run](../../tests/README.md#direct-table-crudddl-recovery--2026-10-23)
+[CRUD/DDL recovery run](../history/qualification/catalog.md#direct-table-crudddl-recovery--2026-10-23)
 also covers UPDATE, DELETE, ADD COLUMN, RENAME, DROP and name reuse with retained
-schemas and exact outcomes across a second restart. [Read-only DDL preview](../../tests/README.md#direct-table-preview--2026-10-23)
+schemas and exact outcomes across a second restart. [Read-only DDL preview](../history/qualification/catalog.md#direct-table-preview--2026-10-23)
 checks current policy, expectations and schema work without claims or admission.
-The [typed finite SQL owner](../../tests/README.md#finite-sql-over-retained-direct-tables--2026-10-23)
+The [typed finite SQL owner](../history/qualification/sql.md#finite-sql-over-retained-direct-tables--2026-10-23)
 now executes Fuze filtering/aggregation over retained direct sources with current
 disclosure checks. The direct Table owner also accepts frozen typed SQL
 UPDATE/DELETE plans with bounded private selection and one atomic outcome.
@@ -499,70 +499,70 @@ Read-only exact-definition and action checks support prepared bindings without
 raw-storage inspection credentials. Parameterized DML templates produce complete
 saved direct intents with explicit admission and recovery.
 
-The [shared DDL preparation proof](../../tests/README.md#shared-direct-table-ddl-preparation--2026-10-24)
+The [shared DDL preparation proof](../history/qualification/catalog.md#shared-direct-table-ddl-preparation--2026-10-24)
 now puts SQL and typed CREATE/ALTER/RENAME/DROP binding in one direct caller
 owner. Independent operation/object identities, saved work after template
 disposal, stale-definition rejection and original receipts after retirement pass
 through the public service. The general Table ABI and existing language catalog
 adapters now use this owner; the remaining application consumers are listed below.
-Its [lossless caller reference contract](../../tests/README.md#lossless-direct-caller-references--2026-10-24)
+Its [lossless caller reference contract](../history/qualification/sdk.md#lossless-direct-caller-references--2026-10-24)
 now defines exact prepared bindings and saved-work references with independent
-full-width identity fixtures. The [shared direct caller session](../../tests/README.md#shared-direct-caller-session--2026-10-24)
+full-width identity fixtures. The [shared direct caller session](../history/qualification/sdk.md#shared-direct-caller-session--2026-10-24)
 also passes public lookup, SQL compilation, saved-work restoration and explicit
 staging/admission/recovery, including receipt inspection after DROP and local
-forgetting. [Typed declaration/batch preparation](../../tests/README.md#typed-direct-caller-preparation--2026-10-24)
+forgetting. [Typed declaration/batch preparation](../history/qualification/sdk.md#typed-direct-caller-preparation--2026-10-24)
 now shares that path and passes a nine-row bulk request larger than an actor
 mailbox frame, exact prepared-definition rejection and conditional DROP.
-[Shared preview](../../tests/README.md#shared-direct-preview--2026-10-24) now
+[Shared preview](../history/qualification/catalog.md#shared-direct-preview--2026-10-24) now
 reports current DDL, row and conditional-name checks without staging, claims or
 acceptance, including stale data/definitions and native revocation.
-[Host catalog inspection](../../tests/README.md#direct-host-catalog-inspection--2026-10-24)
+[Host catalog inspection](../history/qualification/sdk.md#direct-host-catalog-inspection--2026-10-24)
 also supplies capabilities, descriptions and bounded namespace/Table pages with
 exact connection/selection cursors and changed-directory rejection.
-[Host namespace and policy preparation](../../tests/README.md#direct-host-namespace-and-policy-preparation--2026-10-24)
+[Host namespace and policy preparation](../history/qualification/sdk.md#direct-host-namespace-and-policy-preparation--2026-10-24)
 now preserves saved namespace bindings through explicit execution and returns
 the native authorization owner's signed policy record without submission.
-[Host dependency recovery](../../tests/README.md#direct-host-dependency-recovery--2026-10-24)
+[Host dependency recovery](../history/qualification/sdk.md#direct-host-dependency-recovery--2026-10-24)
 now preserves original saved bindings across corrupted replies and restart,
 distinguishes current graph membership from old receipts, and shares the native
 bounded inspection and current-rights checks.
-[Host named resource recovery](../../tests/README.md#direct-host-named-resource-recovery--2026-10-24)
+[Host named resource recovery](../history/qualification/sdk.md#direct-host-named-resource-recovery--2026-10-24)
 now reuses the same allocation/initialization/publication owner and preserves
 saved host bindings through eight resource reply faults and eleven restarts,
 including current data denial, actual writes and metadata retirement.
-The [direct catalog ABI and port proof](../../tests/README.md#direct-catalog-abi-and-port-recovery--2026-10-24)
+The [direct catalog ABI and port proof](../history/qualification/sdk.md#direct-catalog-abi-and-port-recovery--2026-10-24)
 now uses the same owner for wide typed work and original receipt recovery. Its
 extended run passes exact snapshot acquisition/status/metadata/release through
 lost replies, caller loss and four abrupt node replacements. Retained metadata
 keeps the accepted schema and interpretation after DROP/name reuse. The shared
 definition and generated artifacts are being cut over together. The C ABI and
 port now also pass explicit retained relational reads and current cached/terminal
-revocation in 233 public requests. The [installed Python proof](../../tests/README.md#installed-python-direct-lifecycle-and-retained-sql--2026-10-24)
+revocation in 233 public requests. The [installed Python proof](../history/qualification/sdk.md#installed-python-direct-lifecycle-and-retained-sql--2026-10-24)
 passes 393 public requests through both synchronous and asynchronous clients,
 including six caller/node replacements and unchanged original recovery bindings.
-The [installed TypeScript proof](../../tests/README.md#installed-typescript-direct-lifecycle-and-retained-sql--2026-10-24)
+The [installed TypeScript proof](../history/qualification/sdk.md#installed-typescript-direct-lifecycle-and-retained-sql--2026-10-24)
 passes the same schedule through its packaged native port in 197 public requests
-and three caller/node replacements. The [installed Ruby proof](../../tests/README.md#installed-ruby-direct-lifecycle-and-retained-metadata--2026-10-24)
+and three caller/node replacements. The [installed Ruby proof](../history/qualification/sdk.md#installed-ruby-direct-lifecycle-and-retained-metadata--2026-10-24)
 passes 78 public requests, three caller/node replacements, original receipt and
 retained-metadata recovery, exact mutation counts and current revocation. Ruby's
-proof does not establish interactive relational reads. The [installed Java proof](../../tests/README.md#installed-java-direct-lifecycle-and-retained-metadata--2026-10-24)
+proof does not establish interactive relational reads. The [installed Java proof](../history/qualification/sdk.md#installed-java-direct-lifecycle-and-retained-metadata--2026-10-24)
 also passes 78 public requests and three replacements, with explicit original
 retention and joined future/child ownership. Its scope is retained metadata.
-The [installed .NET proof](../../tests/README.md#installed-net-direct-lifecycle-and-retained-metadata--2026-10-24)
+The [installed .NET proof](../history/qualification/sdk.md#installed-net-direct-lifecycle-and-retained-metadata--2026-10-24)
 also passes 78 public requests and three replacements, with original recovery
 values, retained metadata and joined native worker disposal.
-The [installed Rust proof](../../tests/README.md#installed-rust-direct-lifecycle-and-retained-metadata--2026-10-24)
+The [installed Rust proof](../history/qualification/sdk.md#installed-rust-direct-lifecycle-and-retained-metadata--2026-10-24)
 passes 78 public requests and three replacements, with 14 library tests and
 compile-time ownership rejection. It also checks retained metadata; the
 wide-intent run exposed and corrected a raw-client bound reused by the decoder.
-The [installed Erlang/Elixir proof](../../tests/README.md#installed-erlang-and-elixir-direct-lifecycle--2026-10-24)
+The [installed Erlang/Elixir proof](../history/qualification/sdk.md#installed-erlang-and-elixir-direct-lifecycle--2026-10-24)
 passes 155 public requests and six replacements across both APIs, including
 current retained-metadata authorization and joined cleanup after waiting-process
-loss. The [installed C/C++ proof](../../tests/README.md#installed-c-and-c-direct-lifecycle--2026-10-24)
+loss. The [installed C/C++ proof](../history/qualification/sdk.md#installed-c-and-c-direct-lifecycle--2026-10-24)
 passes 152 public requests and six replacements through independently installed
 C11 and C++17 consumers, plus 77 native-boundary cases for complete bindings,
 unknown outcomes and joined POSIX cancellation. It also checks retained metadata.
-The [direct Board recovery proof](../../tests/README.md#direct-board-relational-recovery--2026-10-24)
+The [direct Board recovery proof](../history/qualification/interfaces.md#direct-board-relational-recovery--2026-10-24)
 now passes 504 public requests and the embedded Chromium worksheet. Original pin
 requests survive lost replies, node/Board replacements and credential rotation;
 stale explanation, browser reload, cached/terminal denial and explicit cleanup
@@ -570,7 +570,7 @@ are qualified. Remaining actor consumers, Follow/placement schedules and the
 final combined SDK and repository gates are unfinished. The milestone remains
 In Progress.
 
-The [retained relational caller conformance run](../../tests/README.md#retained-relational-caller-conformance--2026-10-24)
+The [retained relational caller conformance run](../history/qualification/query.md#retained-relational-caller-conformance--2026-10-24)
 replaces the older actor-backed relational caller fixture. It passes native ABI,
 native port and installed Python sync/async joins in 1,390 public requests, and
 installed TypeScript in a separate 1,087-request run. Shared self-join retention,
@@ -583,45 +583,45 @@ eligibility before direct admission, replacing its actor row-upload/saved-step
 path. Its current session adapters use direct prepared reads and mutations.
 A durable local pin journal preserves interrupted acquisitions and closure;
 relational reads use stable row-identity traversal and explicit independent Table
-cuts. [Recovery and binding evidence](../../tests/README.md#direct-sql-references-and-read-recovery--2026-10-23)
+cuts. [Recovery and binding evidence](../history/qualification/sql.md#direct-sql-references-and-read-recovery--2026-10-23)
 covers those component and HTTP paths, including lost pin replies, replacement,
 current denial and definition changes that preserve column schemas.
 
 Conditional name-only DDL now has a distinct catalog assertion path and SQL
 ledger representation; it carries a catalog acceptance position without
-fabricating a Table commit. Its [component and HTTP evidence](../../tests/README.md#conditional-sql-catalog-outcomes--2026-10-23)
+fabricating a Table commit. Its [component and HTTP evidence](../history/qualification/sql.md#conditional-sql-catalog-outcomes--2026-10-23)
 covers the SQL compiler, lost replies, restart, cancellation and name reuse.
 
 The default launcher now provisions the direct catalog with a dedicated native
 registrar and retains the exact initial Table intent. The
-[installed proof](../../tests/README.md#installed-direct-table-bootstrap--2026-10-23)
+[installed proof](../history/qualification/catalog.md#installed-direct-table-bootstrap--2026-10-23)
 passes CRUD/DDL while the query worker is stopped, abrupt restart and deliberate
 default-Table deletion/name reuse. A separate
-[execution fault proof](../../tests/README.md#installed-direct-execution-recovery--2026-10-23)
+[execution fault proof](../history/qualification/runtime.md#installed-direct-execution-recovery--2026-10-23)
 keeps new-console inspection, reads and cancellation available while direct
 execution is refused, preserving the original write across caller/manager loss.
-The [broader installed lifecycle and capacity proofs](../../tests/README.md#installed-direct-lifecycle-rollback-and-capacity--2026-10-23)
+The [broader installed lifecycle and capacity proofs](../history/qualification/catalog.md#installed-direct-lifecycle-rollback-and-capacity--2026-10-23)
 also pass against the direct boundary, including revocation, native-history
 rollback refusal and original-write recovery after physical exhaustion.
-The [physical representation proof](../../tests/README.md#lossless-physical-column-admission-and-public-sql--2026-10-23)
+The [physical representation proof](../history/qualification/sql.md#lossless-physical-column-admission-and-public-sql--2026-10-23)
 now checks supported codec ranges, complete CP037 conversion, signed floating
 zero, unsupported-profile rejection and SQL equivalence over retained WAL/segment
 cuts. Incompatible physical schemas/pages use replaced current-v1 definitions.
-The [neutral-schema caller proof](../../tests/README.md#neutral-physical-schemas-across-language-callers--2026-10-23)
+The [neutral-schema caller proof](../history/qualification/sdk.md#neutral-physical-schemas-across-language-callers--2026-10-23)
 now preserves explicit encoding/collation fields across ten language bindings,
 with independent bytes/fingerprints and strict missing-field rejection. Non-binary
 SQL collation remains unsupported.
-The [administration and database-client proof](../../tests/README.md#direct-catalog-administration-and-installed-database-clients--2026-10-23)
+The [administration and database-client proof](../history/qualification/interfaces.md#direct-catalog-administration-and-installed-database-clients--2026-10-23)
 also resolves policy plans through the direct catalog and qualifies explicit
 grants/revocation and retained recovery through real PostgreSQL/MySQL clients.
-The [scoped read-delegation proof](../../tests/README.md#scoped-direct-table-read-delegation--2026-10-23)
+The [scoped read-delegation proof](../history/qualification/catalog.md#scoped-direct-table-read-delegation--2026-10-23)
 now qualifies original-caller grants for one executor, exact Table cut and pin
 owner, including uncertain acquisition/closure and retained reads after restart.
-The [captured-query recovery proof](../../tests/README.md#direct-captured-table-queries-and-separate-cleanup-authority--2026-10-23)
+The [captured-query recovery proof](../history/qualification/query.md#direct-captured-table-queries-and-separate-cleanup-authority--2026-10-23)
 now covers single-source admission, independent progress storage, original-cut
 traversal, verified results and cleanup across lost replies and replacement.
 Fresh cleanup authorization remains separate from the original execution proof
-after credential rotation. The [current-capture cleanup proof](../../tests/README.md#current-capture-cleanup-after-definition-changes--2026-10-23)
+after credential rotation. The [current-capture cleanup proof](../history/qualification/query.md#current-capture-cleanup-after-definition-changes--2026-10-23)
 also distinguishes permanent absence after ALTER from an older accepted pin that
 still needs release, including current denial and delayed retries after restart.
 All ten installed SDKs now resolve direct definitions,
@@ -634,22 +634,22 @@ also preserve nested/wide values through Fuze/Arrow after ALTER, DROP and name
 reuse, including direct composite-key hit/absence under current rights.
 The direct storage/service boundary now has explicit history leases, fixed-bound
 logical acceptance pages and exact historical reads. Its
-[storage and native-policy evidence](../../tests/README.md#direct-table-history-retention--2026-10-23)
+[storage and native-policy evidence](../history/qualification/catalog.md#direct-table-history-retention--2026-10-23)
 covers restart, no-ops, retention-kind separation and current revocation.
 The public `TableChangeReader` now uses the same direct history owner. Its
-[checkpoint and replay proof](../../tests/README.md#direct-table-change-reader-checkpoints--2026-10-24)
+[checkpoint and replay proof](../history/qualification/catalog.md#direct-table-change-reader-checkpoints--2026-10-24)
 covers paused backfill, saved original leases across restart, complete no-op and
 schema transactions, partial-delivery replay, insert/delete scan cursors and
 current denial. Local reader closure remains separate from durable release.
 The maintained-query adapter now uses those direct history leases and stores a
-separate bounded physical scan cursor. Its [public recovery evidence](../../tests/README.md#maintained-direct-table-queries--2026-10-23)
+separate bounded physical scan cursor. Its [public recovery evidence](../history/qualification/query.md#maintained-direct-table-queries--2026-10-23)
 covers original acquisition recovery, restart inside a physical-only prefix,
 initial backfill, independent Table cuts, accepted no-op revisions, paired deltas,
 terminal lease cleanup and current result-disclosure rights. The
-[direct failure schedule](../../tests/README.md#direct-relational-failure-boundaries--2026-10-23)
+[direct failure schedule](../history/qualification/query.md#direct-relational-failure-boundaries--2026-10-23)
 also covers work/spill limits, ordered overflow witnesses, prior-result
 preservation, explicit history-coverage rejection and bounded captured cleanup.
-The [direct exchange proof](../../tests/README.md#direct-table-exchange-placement-and-borrowed-reads--2026-10-23)
+The [direct exchange proof](../history/qualification/deployment.md#direct-table-exchange-placement-and-borrowed-reads--2026-10-23)
 now places the receiver independently of Table ownership and uses exact-cut
 borrowed reads for a separate producer credential. Initial and successor
 attachments with one/seven partitions, receiver generation replacement, retained
@@ -658,16 +658,16 @@ rebuild also succeeds after a failed history gap while preserving the original
 failure and result. Multiple workers, broader exchange recovery and maintained
 credential-rotation cleanup schedules, older relational
 caller fixtures and broader qualification remain unfinished. The
-[query fixture migration](../../tests/README.md#direct-maintained-successors-and-query-fixture-migration--2026-10-23)
+[query fixture migration](../history/qualification/query.md#direct-maintained-successors-and-query-fixture-migration--2026-10-23)
 passes all 143 query package tests; this does not establish full repository or
 installed caller qualification.
-The [finite capture boundary checks](../../tests/README.md#finite-direct-capture-memory-and-retirement--2026-10-23)
+The [finite capture boundary checks](../history/qualification/query.md#finite-direct-capture-memory-and-retirement--2026-10-23)
 now replace the old Table memory/retirement fixtures. They cover empty retained
 sources after DROP, adapter/Arrow exhaustion, preserved large stored rows,
 retryable separate-client allocation failures and explicit result retirement.
 Native KV/Document capture checks remain in place. A local allocating writer's
 failure now requires evidence of adapter exhaustion before closing the query.
-The [current-observation proof](../../tests/README.md#read-only-current-table-observations--2026-10-23)
+The [current-observation proof](../history/qualification/catalog.md#read-only-current-table-observations--2026-10-23)
 adds an authorized, bounded direct read of current Table metadata and rows without
 creating a retention pin or publishing storage state. Its component and HTTP
 checks cover byte limits, exact interpretation, restart, revocation and rejection
@@ -676,7 +676,7 @@ migration to this operation.
 Verified finite results also expose their exact original direct Table basis after
 pin closure, and a read-only source-authority operation protects retained
 diagnostics after DROP/name reuse. The scoped
-[result-evidence proof](../../tests/README.md#retained-table-evidence-and-current-disclosure-rights--2026-10-23)
+[result-evidence proof](../history/qualification/query.md#retained-table-evidence-and-current-disclosure-rights--2026-10-23)
 checks current denial and existing capture recovery. These primitives do not yet
 complete named computation freshness or reactive consumer migration.
 The reactive migration also needs a new finite capture for each explicit Follow
@@ -691,7 +691,7 @@ The scheduler must admit those prepared identities, rather than renew signatures
 or reuse completed query grants. The direct capture primitive freezes once and
 retains its selected frontier. Requester preparation, scheduler selection/activation
 and the browser's exact-token recovery now have
-[scoped transition tests](../../tests/README.md#prepared-finite-refresh-and-direct-watch-transitions--2026-10-23).
+[scoped transition tests](../history/qualification/query.md#prepared-finite-refresh-and-direct-watch-transitions--2026-10-23).
 The shared current-v1 definition also changes for these stored semantics. Native
 Follow now passes the real native selection/restart/worker-replacement and
 verified fresh-output path in that evidence record. Broader Follow fault schedules
@@ -700,35 +700,35 @@ and injected scheduler results alone do not close those execution gates.
 Board now saves preparation, session and Follow intent together before dispatch,
 restores them paused, and offers explicit recovery of the original pool/budget.
 Native owners identify receipts from the exact saved tokens; saved input positions
-cannot substitute for that evidence. The [recovery evidence](../../tests/README.md#saved-follow-control-and-preparation-recovery--2026-10-23)
+cannot substitute for that evidence. The [recovery evidence](../history/qualification/query.md#saved-follow-control-and-preparation-recovery--2026-10-23)
 separates native owner checks from injected browser transitions. Installed browser
 reload against the composed private host, credential-rotation fault schedules,
 Compose and reference caller qualification remain open.
 
 Explicit Workspace capture now supplies the caller-signed grant for fresh manual
 and Draft Table queries, while compilation remains inert. The
-[separate caller proof](../../tests/README.md#explicit-workspace-capture-and-separate-caller-recovery--2026-10-23)
+[separate caller proof](../history/qualification/query.md#explicit-workspace-capture-and-separate-caller-recovery--2026-10-23)
 executes the real state-query example, preserves its saved capture across an
 OS-process restart and verifies the result. TypeScript recovery tests retain that
 grant after an uncertain upload. Installed browser, Compose and reference caller
 qualification remains separate.
 
 Named captured definitions now have a
-[direct-service execution proof](../../tests/README.md#named-captured-definitions-over-the-direct-service--2026-10-23)
+[direct-service execution proof](../history/qualification/query.md#named-captured-definitions-over-the-direct-service--2026-10-23)
 for self-joins and independent Tables. Publication, authorization and activation
 remain separate; original named attribution survives worker replacement and a
 later definition publication. The
-[result freshness and attribution proof](../../tests/README.md#result-source-freshness-and-named-attribution--2026-10-23)
+[result freshness and attribution proof](../history/qualification/query.md#result-source-freshness-and-named-attribution--2026-10-23)
 now binds named captured inspection to an actual retained result and compares
 captured/maintained cuts with logical source progress. It distinguishes no-ops,
 row changes, definition drift and observation errors without starting execution
 or certifying unread output. The generic catalog's unverified completion path is
-removed through a [current-v1 cutover](../../tests/README.md#query-owned-computation-evidence--2026-10-23);
+removed through a [current-v1 cutover](../history/qualification/query.md#query-owned-computation-evidence--2026-10-23);
 retired record tags and its removed caller action reject. The
-[named maintained revision proof](../../tests/README.md#named-maintained-revision-inspection-and-recovery--2026-10-23)
+[named maintained revision proof](../history/qualification/query.md#named-maintained-revision-inspection-and-recovery--2026-10-23)
 now covers publication/activation separation, original acquisition and history
 progress across node restarts, and actual result/delta attribution after later
-definition publication. The [naming recovery proof](../../tests/README.md#named-publication-recovery-with-current-credentials--2026-10-24)
+definition publication. The [naming recovery proof](../history/qualification/catalog.md#named-publication-recovery-with-current-credentials--2026-10-24)
 now covers lost publication/policy replies, abrupt node replacement and worker
 key/generation rotation for both captured and maintained definitions. Current
 credentials recover the exact original receipt; retired signatures and altered
@@ -738,16 +738,16 @@ schedules remain open.
 
 Direct mutation bindings now retain an optional native authorization prerequisite
 for the original accepted application input, independently of the worker's
-current Table rights. The [scoped native/storage evidence](../../tests/README.md#direct-mutation-authorization-prerequisites--2026-10-23)
+current Table rights. The [scoped native/storage evidence](../history/qualification/catalog.md#direct-mutation-authorization-prerequisites--2026-10-23)
 covers current revocation at acceptance, fresh worker credentials, unchanged
 saved bindings and inspection/cancellation after the original condition fails.
 This supplies an authorization boundary needed by application callers. Native
 progress and Table acceptance remain separate operations.
 
-The [direct namespace evidence](../../tests/README.md#direct-namespace-lifecycle--2026-10-23)
+The [direct namespace evidence](../history/qualification/catalog.md#direct-namespace-lifecycle--2026-10-23)
 now covers typed CREATE/RENAME/DROP, separate native registration, permanent
 identity claims, bounded RESTRICT progress and retained authority after logical
-retirement. The [native SQL namespace path](../../tests/README.md#native-sql-namespace-lifecycle--2026-10-24)
+retirement. The [native SQL namespace path](../history/qualification/sql.md#native-sql-namespace-lifecycle--2026-10-24)
 now prepares and dispatches the same frozen typed binding through the existing
 SQL ledger. Recovery/cancellation across caller and server loss and the full
 installed namespace schedule pass. Work items also uses
@@ -755,26 +755,26 @@ explicit direct catalog setup. Namespace membership checks cover live/pending
 Tables; broader registered dependency kinds remain part of the shared lifecycle
 work. Role and grant publication retains its explicit native administration path.
 
-The [optimistic current-read evidence](../../tests/README.md#optimistic-current-table-reads--2026-10-23)
+The [optimistic current-read evidence](../history/qualification/catalog.md#optimistic-current-table-reads--2026-10-23)
 adds conditional point reads and bounded ordered suffixes under the original
 logical basis. These reads avoid transient retention work for application
 read/modify/write preparation and migrations that require an unchanged source.
 They reject logical drift and recheck disclosure rights, including empty output.
-The [Work items consumer proof](../../tests/README.md#work-items-over-the-direct-data-owner--2026-10-24)
+The [Work items consumer proof](../history/qualification/runtime.md#work-items-over-the-direct-data-owner--2026-10-24)
 now uses an explicit direct catalog binding and durable dispatch/progress flow.
 Real native and browser schedules pass exact recovery, worker replacement,
 bounded row migration, verified activation, fresh queries and current denial.
-The [Compose placement proof](../../tests/README.md#work-items-direct-storage-in-compose--2026-10-24)
+The [Compose placement proof](../history/qualification/deployment.md#work-items-direct-storage-in-compose--2026-10-24)
 also passes persistent native/Table recovery and the real browser schedule with
-separate workers. [Installed local application qualification](../../tests/README.md#installed-work-items-direct-lifecycle--2026-10-24)
+separate workers. [Installed local application qualification](../history/qualification/catalog.md#installed-work-items-direct-lifecycle--2026-10-24)
 also passes separately built consumers, 19-row migration and exact receipt
 recovery through node/worker replacement. The
-[reference placement proof](../../tests/README.md#work-items-direct-storage-on-the-reference-runtime--2026-10-24)
+[reference placement proof](../history/qualification/deployment.md#work-items-direct-storage-on-the-reference-runtime--2026-10-24)
 also passes physical replacement with fresh Substrate owner keys, the original
 uncertain upload, schema migration and current denial. This does not make native progress and direct Table acceptance
 atomic or retire the remaining actor-Table consumers.
 
-The [Station ledger migration](../../tests/README.md#station-ledger-over-the-direct-table-owner--2026-10-24)
+The [Station ledger migration](../history/qualification/catalog.md#station-ledger-over-the-direct-table-owner--2026-10-24)
 now freezes direct creation/mutation intents and commits native dispatch
 eligibility before admission. Original Table receipts precede separate audit and
 reply publication. Its real native caller schedule passes lost replies,
@@ -787,7 +787,7 @@ The full repository check passes after the coordinated fixture regeneration.
 These checks do not make Table changes atomic with application progress or
 complete the remaining shared lifecycle gates.
 
-The [direct dependency evidence](../../tests/README.md#direct-definition-dependencies-and-restricted-retirement--2026-10-24)
+The [direct dependency evidence](../history/qualification/catalog.md#direct-definition-dependencies-and-restricted-retirement--2026-10-24)
 now covers explicit exact-definition registration/removal, Table DROP RESTRICT,
 both paged graph directions, redacted blockers and current metadata rights.
 Lost replies and abrupt node replacement recover original terminal receipts;
@@ -797,7 +797,7 @@ graph indices through the coordinated current-v1 cutover. Named resource and
 computation publication still require integration; registration alone does not
 establish publication, usability, activation or data retention.
 
-The [named native resource evidence](../../tests/README.md#named-native-resource-allocation-and-initialization--2026-10-24)
+The [named native resource evidence](../history/qualification/catalog.md#named-native-resource-allocation-and-initialization--2026-10-24)
 now covers real KV/Document allocation and initialization through the public
 catalog and Station owners. Saved original declarations survive withheld replies
 and abrupt node replacement at every catalog phase and between Document
@@ -806,12 +806,12 @@ native data revocation, metadata rename/DROP and permanent original receipts pas
 One prepared native allocation per caller is durably serialized within the
 catalog. This closes the metadata-only provisioning gap for that explicit typed
 profile; broader physical placement qualification remains open. The
-[obsolete metadata owner removal](../../tests/README.md#obsolete-named-metadata-owner-removal--2026-10-24)
+[obsolete metadata owner removal](../history/qualification/catalog.md#obsolete-named-metadata-owner-removal--2026-10-24)
 also deletes the supplied-resource-ID publication path and its Table fallbacks,
 with a coordinated current-v1 cutover. Named resource publication now has one
 owner. Remaining actor Table caller migration is a separate unfinished gate.
 
-The [named dependency proof](../../tests/README.md#named-resource-dependency-authority-and-retirement--2026-10-24)
+The [named dependency proof](../history/qualification/catalog.md#named-resource-dependency-authority-and-retirement--2026-10-24)
 extends the graph to actual KV/Document source and dependent definitions. Explicit
 registration can precede publication after allocation fixes the interpretation;
 metadata ownership remains separate from native data rights. Public lost-reply
@@ -820,7 +820,7 @@ original-edge removal. Component checks preserve old edges through rename and
 consumer retirement. These registrations do not make independent owners atomic
 or imply automatic cleanup.
 
-The [named query publication work](../../tests/README.md#named-query-dependency-publication-and-retirement--2026-10-24)
+The [named query publication work](../history/qualification/query.md#named-query-dependency-publication-and-retirement--2026-10-24)
 adds a saved original-caller plan with exact source registrations and a logical
 definition reference prepared before native publication. Current graph membership
 is checked separately from immutable operation receipts. Exact definition
@@ -834,7 +834,7 @@ original history progress, explicit lease/definition/edge cleanup and retained
 revision disclosure after source DROP. These are local native-disk proofs;
 broader installed caller qualification remains separate.
 
-The [CLI helper retirement](../../tests/README.md#cli-actor-table-helper-retirement--2026-10-24)
+The [CLI helper retirement](../history/qualification/interfaces.md#cli-actor-table-helper-retirement--2026-10-24)
 removes unused actor Table execution/recovery code and corrects DROP guidance;
 it does not complete named consumer integration with the dependency registry.
 Relational and remaining caller migration and broader installed

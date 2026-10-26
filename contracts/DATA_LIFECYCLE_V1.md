@@ -293,4 +293,4 @@ exercise identity conflicts, definition succession, full-width IDs, mandatory
 compatibility fields, unflushed coverage and inconsistent-cut rejection. They
 qualify descriptor validation only. Durable acceptance, interrupted pin
 acquisition, policy races, process crashes and installed caller behavior require
-the owning runtime's separate evidence in the [proof ledger](../tests/README.md).
+the owning runtime's separate evidence in the [proof ledger](../docs/history/qualification/README.md).

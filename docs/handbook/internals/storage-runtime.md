@@ -16,7 +16,7 @@ The local server supplies conditional native durability through its exclusive
 [local backend](../../../packages/zig/transit-backend-local/README.md), a
 partition-zero WAL and immutable page/block objects. Ursula deployments retain
 their backend mapping. The local path preserves the existing native root model. The
-[native persistence proofs](../../../tests/README.md#native-authority-over-local-storage--2026-10-22)
+[native persistence proofs](../../history/qualification/storage.md#native-authority-over-local-storage--2026-10-22)
 cover restart and lost replies, with the physical collection and power-loss
 limits stated there. Transit owns logical identities, accepted transitions, retained
 boundaries and retirement. Recovery uses validated history/checkpoints; indexes
@@ -104,7 +104,7 @@ recovery barriers that mere frame validation did not provide; independent disk
 I/O regressions require failed barriers to reject opening. The
 [model guide](../../../tests/verification/models/README.md#finite-local-wal-model)
 defines reproduction, exact assumptions and negative controls; the
-[proof ledger](../../../tests/README.md#local-wal-model-and-recovery-barriers--2026-10-26)
+[proof ledger](../../history/qualification/verification.md#local-wal-model-and-recovery-barriers--2026-10-26)
 records execution and its limits. No automatically checked Zig refinement or
 hardware power-loss experiment is claimed.
 
@@ -133,8 +133,8 @@ distributed write throughput. The installed local owner has exclusive storage
 ownership. Point writes may remain in retained WAL records, while bulk ingestion
 publishes `.tseg` data before its atomic acceptance. Durable pins preserve the
 original definition and unflushed frontier; separate Tables retain independent
-cuts. The [installed execution proof](../../../tests/README.md#installed-direct-execution-recovery--2026-10-23)
-and [direct CRUD/DDL proof](../../../tests/README.md#direct-table-crudddl-recovery--2026-10-23)
+cuts. The [installed execution proof](../../history/qualification/runtime.md#installed-direct-execution-recovery--2026-10-23)
+and [direct CRUD/DDL proof](../../history/qualification/catalog.md#direct-table-crudddl-recovery--2026-10-23)
 record exact-retry, restart, revocation and name-replacement schedules and their
 reproduction commands. Those runs do not establish arbitrary power-loss safety,
 cloud storage placement or physical Table collection. Automatic point flushing,
@@ -180,7 +180,7 @@ within the existing exclusive owner. The
 compare full and cached log reads, destroy the original request allocator,
 recover an accepted append with a lost reply, and reject altered boundaries,
 missing roots and invalid successors. The
-[proof ledger](../../../tests/README.md#catalog-prefix-reuse--2026-10-26)
+[proof ledger](../../history/qualification/catalog.md#catalog-prefix-reuse--2026-10-26)
 records execution and the separate resource-growth schedule; these checks do
 not establish distributed ownership or a latency guarantee.
 
@@ -215,7 +215,7 @@ cross-Table atomic cut. The
 [request contract](../../../contracts/DIRECT_TABLE_V1.md#current-observations)
 and [`DirectTableResponse`](../../../packages/zig/transit-catalog/src/DirectTableResponse.zig)
 define wire attribution and consumer checks. The
-[scoped proof](../../../tests/README.md#optimistic-current-table-reads--2026-10-23)
+[scoped proof](../../history/qualification/catalog.md#optimistic-current-table-reads--2026-10-23)
 records disk-reopen, physical-progress, logical-drift and disclosure schedules;
 it does not establish distributed read locking or physical collection safety.
 
@@ -247,7 +247,7 @@ still-pinned snapshots, operation receipts and result evidence. Names control
 new admissions; current native references control disclosure of retained data.
 The [namespace request contract](../../../contracts/DIRECT_TABLE_V1.md#namespace-lifecycle)
 defines those separate lifetimes. Catalog, signed native and HTTP evidence is
-recorded in the [proof ledger](../../../tests/README.md#direct-namespace-lifecycle--2026-10-23).
+recorded in the [proof ledger](../../history/qualification/catalog.md#direct-namespace-lifecycle--2026-10-23).
 
 ## Complete Table history with bounded archive publication
 
@@ -293,7 +293,7 @@ using disk pressure as retention authority.
 The exact layout and transitions are in the
 [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#table-history-archives),
 with implementation in `TableArchive`, `TablePartition` and the local `DataStore`.
-The [proof ledger](../../../tests/README.md) separates disk/restart and process-death
+The [proof ledger](../../history/qualification/README.md) separates disk/restart and process-death
 checks from power-loss behavior, automatic scheduling and future collection.
 
 ## Accepted Table recovery baselines
@@ -340,7 +340,7 @@ The [checkpoint contract](../../../contracts/TRANSIT_STORAGE_V1.md#table-recover
 and `TableRecovery`/`TablePartition` define the bytes and transition checks.
 The focused `test::table-checkpoints` recipe exercises retained disk reads,
 publication uncertainty and bounded replay; executed results belong in the
-[proof ledger](../../../tests/README.md). Its replay counters exclude provider and
+[proof ledger](../../history/qualification/README.md). Its replay counters exclude provider and
 index I/O, and do not establish a latency or whole-process RSS bound. Logical
 expiry, object collection and automatic scheduling remain separate mechanisms.
 
@@ -394,7 +394,7 @@ The disk and negative cases in
 [`table_partition_test.zig`](../../../packages/zig/transit-storage/src/table_partition_test.zig)
 exercise lease blocking, lost replies, restart, missing/corrupt evidence and
 original outcomes after test-only removal of expired payload frames. The
-`test::table-checkpoints` recipe groups these checks; the [proof ledger](../../../tests/README.md)
+`test::table-checkpoints` recipe groups these checks; the [proof ledger](../../history/qualification/README.md)
 records reproduction commands, executed results and source limits. This does not prove a deletion
 algorithm, automatic service retention or recovery after disk loss.
 
@@ -629,7 +629,7 @@ additional transaction semantics beyond disjoint write keys.
 
 These deductions follow from the component's allocation, object-read and
 conditional-publication paths. Its unit checks and the separate local public
-[CRUD/DDL recovery schedule](../../../tests/README.md#direct-table-crudddl-recovery--2026-10-23)
+[CRUD/DDL recovery schedule](../../history/qualification/catalog.md#direct-table-crudddl-recovery--2026-10-23)
 are reproducible through the pinned tasks recorded in the proof ledger. They
 qualify their respective component and local failure domains. No independent
 writer, distributed revocation, fairness or throughput result follows from
@@ -651,7 +651,7 @@ manifest scan, at the cost of immutable index I/O. The removed standalone
 composition is not an alternative Table owner. The
 [partition contract](../../../packages/zig/transit-storage/docs/table-partitions.md)
 defines the budgets and recovery gates; the
-[executed proof ledger](../../../tests/README.md) distinguishes component results
+[executed proof ledger](../../history/qualification/README.md) distinguishes component results
 from direct public operation and restart schedules. Neither establishes
 multi-writer or provider safety.
 
@@ -717,7 +717,7 @@ The [disk barrier proof](../../../tests/node_concurrency.py) holds a provider
 response while requiring an independent signed read and commit to complete
 before release. A second schedule holds old evidence across revocation; a third
 races identical signed writes and checks exact receipt reconciliation. The
-[proof ledger](../../../tests/README.md) provides its reproduction command. Core schedules
+[proof ledger](../../history/qualification/README.md) provides its reproduction command. Core schedules
 exercise global/per-principal pending quotas, failed renewals, stale release and
 shared pins across independently owned engines. The proof ledger records runs.
 These finite schedules establish overlap and the checked authority outcomes,
@@ -787,7 +787,7 @@ lost private proposals, larger-record resumption, exact quota release, corrupted
 record envelopes, retained schemas and current read failures. Run
 `cd packages/zig/transit-station && zig build test` in the pinned shell. Native
 authority/storage schedules are recorded separately in the
-[proof ledger](../../../tests/README.md). These checks do not establish scan pruning,
+[proof ledger](../../history/qualification/README.md). These checks do not establish scan pruning,
 columnar storage, horizontal write scaling or a latency improvement. The
 [matched service campaign](../../../tests/mutation_latency/results/2026-10-19/README.md)
 measures the combined implementation separately: narrow INSERT/UPDATE and
@@ -873,7 +873,7 @@ these Transit bounds do not prove whole-provider resident independence. Physical
 segment quotas also exclude provider WAL, snapshots and work-ledger overhead.
 Those are explicit deployment and measurement obligations.
 
-The [proof ledger](../../../tests/README.md) provides reproduction commands for the
+The [proof ledger](../../history/qualification/README.md) provides reproduction commands for the
 storage collection and native block schedules, with executed revisions and limits.
 The collection fixture injects trusted time,
 restarts processes/provider between phases, loses a deletion acknowledgement,
@@ -920,7 +920,7 @@ The [native disk tests](../../../packages/zig/transit-backend-local/src/collecti
 and [process-death harness](../../../tests/local_native_collection_faults.py)
 check current and retained values, relocation, old creators, corrupt metadata,
 FIFO sync uncertainty and resumed deletion. Reproduction and executed outcomes
-are recorded in the [proof ledger](../../../tests/README.md). These finite controls
+are recorded in the [proof ledger](../../history/qualification/README.md). These finite controls
 do not prove arbitrary filesystem rollback or power-loss behavior, and automatic
 installed scheduling is separate from the component mechanism. No latency or
 throughput claim follows from its bounded resident state.
@@ -1007,10 +1007,10 @@ populations. At 1,024 rows, compact 8/32 monolithic roots used 782 reads and 468
 stages versus 1,790 and 1,391 for JSON 4/5 roots. Raw encoded bytes decreased
 from 1,403,546 to 613,884; these counts exclude the provider envelope. Decoded
 page size increases from 8,480 to 16,952 bytes. The
-[proof ledger](../../../tests/README.md#durable-table-mutation-latency) separately
+[proof ledger](../../history/qualification/performance.md#durable-table-mutation-latency) separately
 records native disk restart, acknowledgement faults, cold-tier persistence,
 latency controls and incomplete runs. The experiment alone proves no latency or
-provider-memory bound. The [proof ledger](../../../tests/README.md#durable-table-mutation-latency)
+provider-memory bound. The [proof ledger](../../history/qualification/performance.md#durable-table-mutation-latency)
 owns the reproducible command and its pinned development environment.
 
 The native instrumented idle control completes 21 cases. Its first INSERT stages
@@ -1185,7 +1185,7 @@ rollback checks and is not an alternative source of authority. Liveness requires
 available storage/grants and completion before native lifetime gates; the finite
 suspension deadline is not renewed by a failed scan. The pinned client package
 tests, independent Python handoff fixtures and native exchange task reproduce
-the selected checks. The [proof ledger](../../../tests/README.md#relational-exchange-faults-and-checkpoint-growth)
+the selected checks. The [proof ledger](../../history/qualification/query.md#relational-exchange-faults-and-checkpoint-growth)
 records their exact commands and artifacts, separating executed cases,
 resource sizes, lost receipts and remaining fault boundaries.
 
@@ -1258,7 +1258,7 @@ under drained, blocked and closed pipes on one CPU. The
 disk-backed providers, SQL settings and standalone executable failures. The
 [correlation fixture](../../../tests/observability.py) checks span parentage and
 exclusion of credentials/payloads. Reproduction commands use the pinned
-development shell and are recorded with the executed results below. The [proof ledger](../../../tests/README.md#unified-service-logging)
+development shell and are recorded with the executed results below. The [proof ledger](../../history/qualification/interfaces.md#unified-service-logging)
 records actual executions. These schedules do not prove arbitrary sinks, panics,
 crashes or lossless collection, and do not qualify provider log formats.
 
@@ -1267,9 +1267,9 @@ crashes or lossless collection, and do not qualify provider log formats.
 The [backend mapping](../../../packages/zig/transit-backend-ursula/docs/storage.md),
 [runtime contract](../../../contracts/RUNTIME_SUBSTRATE_V1.md) and
 [controller](../../../apps/transit-runtime-controller/README.md) identify implementation
-owners. [Capacity/deletion](../../../tests/README.md#capacity-and-deletion-evidence),
-[service/reference](../../../tests/README.md#service-and-reference-evidence) and
-[instrumentation evidence](../../../tests/README.md#service-instrumentation-qualification)
+owners. [Capacity/deletion](../../history/qualification/runtime.md#capacity-and-deletion-evidence),
+[service/reference](../../history/qualification/runtime.md#service-and-reference-evidence) and
+[instrumentation evidence](../../history/qualification/interfaces.md#service-instrumentation-qualification)
 record reproducible schedules and limits. Local, Compose and Kubernetes/Substrate
 results cannot be substituted for one another's isolation guarantees.
 
@@ -1340,7 +1340,7 @@ unauthorized caller receiving protected metadata. The implementation owners are
 [session owner](../../../packages/zig/transit-query/src/SettingsSession.zig).
 The installed [server proof](../../../tests/server_configuration.py) and
 [TLS adapter proof](../../../tests/sql_wire/settings.py) exercise the public routes;
-[executed evidence](../../../tests/README.md) distinguishes completed runs from
+[executed evidence](../../history/qualification/README.md) distinguishes completed runs from
 planned checks. Reproduce with the pinned development shell and the server and database-wire
 recipes named in the proof ledger; both use disposable installation state.
 

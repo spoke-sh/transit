@@ -8,7 +8,7 @@ Table DDL/DML. The following task names and claims describe the earlier revision
 they are not current entry points or qualification of the replacement. The
 [original contract](https://github.com/spoke-sh/transit/blob/cc5f57e7cb32727828a4195e500fa2885cd7afbc/contracts/TABLE_MUTATION_V1.md)
 and [combined owner contract](https://github.com/spoke-sh/transit/blob/cc5f57e7cb32727828a4195e500fa2885cd7afbc/contracts/TABLE_QUERY_WRITER_V1.md)
-preserve the exact retired definitions. The [proof ledger](../../tests/README.md)
+preserve the exact retired definitions. The [proof ledger](qualification/README.md)
 retains the executed outcomes and their limits.
 
 `bindings::python-test` also runs installed synchronous and asynchronous Table

@@ -121,7 +121,7 @@ Each client owns one host, allows one active operation and joins work on close.
 Saved values and returned data outlive the host. Runtime generated validation and
 exact response-binding checks protect the public typed boundary. The
 [shared caller contract](../../../../packages/zig/transit-station-bindings/docs/catalog.md)
-owns authority and failure semantics; the [proof ledger](../../../../tests/README.md)
+owns authority and failure semantics; the [proof ledger](../../../../docs/history/qualification/README.md)
 distinguishes installed execution from decoder tests. Namespace administration,
 policy preparation, dependency and named-resource host actions remain separate
 from the typed Table methods described here.

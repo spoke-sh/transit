@@ -73,7 +73,7 @@ definition and build. Omitting the option uses this checkout's `zig-out/`.
 | `just bindings::test` | Native and installed SDK schedules plus interoperability |
 
 The [Nix tools](../nix/bindings-tools.nix) own language versions and dependencies.
-The [proof ledger](../tests/README.md) records executed combinations and limits;
+The [proof ledger](../docs/history/qualification/README.md) records executed combinations and limits;
 a task's presence does not establish that it passed for the current revision.
 
 ## Go source builds

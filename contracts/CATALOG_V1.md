@@ -72,4 +72,4 @@ new pending input or fresh execution right.
 The owning implementation is
 [growing_collection.zig](../packages/zig/transit-core/src/growing_collection.zig).
 Executable schedules and their recorded outcomes belong in the
-[proof ledger](../tests/README.md); planned checks do not qualify durability.
+[proof ledger](../docs/history/qualification/README.md); planned checks do not qualify durability.

@@ -12,7 +12,7 @@ public reads and committed turns. Begin with [Tables](TABLES.md) or
 Status: bounded M7 profile implemented and verified, before Station. The
 [wire contract](../../contracts/STATE_V1.md) and component READMEs own exact APIs,
 numerical bounds and compatibility. M7 and the
-[proof guide](../../tests/README.md#m7-state-resources) record qualification.
+[proof guide](qualification/runtime.md#m7-state-resources) record qualification.
 
 The broader design below includes future capabilities. The first profile has
 opaque KV values, one writer PID, bounded materialization, and one mutated

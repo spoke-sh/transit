@@ -45,7 +45,7 @@ never grants native ownership.
 The [gateway guide](../../apps/transit-sql-gateway/docs/configuration.md) owns
 configuration, initialization, signed controls, quota and drain semantics. The
 [wire contract](../../contracts/SQL_GATEWAY_V1.md) owns the supported SQL and
-protocol profile. The [proof ledger](../../tests/README.md#database-wire-gateway)
+protocol profile. The [proof ledger](../../docs/history/qualification/sql.md#database-wire-gateway)
 distinguishes executed local, driver, fault and deployment checks. This example
 does not provide automatic provider-managed gateway activation, arbitrary
 cluster support, transactions, ORM metadata or an external load balancer.

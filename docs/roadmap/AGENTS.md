@@ -39,7 +39,7 @@ changes to their scope or status.
 ## Close or reopen with evidence
 
 Mark a milestone `Completed` only when its acceptance criteria are met. Link
-executed results in the [proof ledger](../../tests/README.md), promote supported
+executed results in [qualification history](../history/qualification/README.md), promote supported
 behavior and limits to the handbook/reference or component owner, and update
 the milestone and index status together. Keep completed milestone files.
 

@@ -7,7 +7,7 @@ review of M0–M7, not a production security certification or a new milestone.
 
 This is the historical M7 review. M8 implements the generic
 origin, delivery, lifecycle and catalog-readiness recommendations below; see its
-[qualification evidence](../../../tests/README.md#m8-runtime-readiness) for current
+[qualification evidence](../qualification/runtime.md#m8-runtime-readiness) for current
 behavior. Remaining framework policies and scaling limits still apply.
 
 ## Assessment

@@ -58,6 +58,6 @@ execution and can undercount a deletion whose progress acknowledgement was lost.
 They are not proof of erasure from filesystem snapshots or external copies.
 
 Run `nix develop --command zig build test-local-native` from the repository root.
-The [proof ledger](../../../../tests/README.md) distinguishes executed disk cases
+The [proof ledger](../../../../docs/history/qualification/README.md) distinguishes executed disk cases
 from process-death and broader failure schedules. Automatic installed collection
 triggers and public progress observations remain separate from this component API.

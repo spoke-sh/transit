@@ -105,7 +105,7 @@ turns and unknown reasons fail before recording a call.
 `just bindings::beam-sdk-test` compiles installed Erlang and Elixir consumers
 and runs the shared TLS/recovery/revocation/disposal schedule, four followup
 policy refusals without extra HTTP sends, and existing SDK
-regressions. See the [proof guide](../../../../tests/README.md#m15-connector-work-in-progress)
+regressions. See the [proof guide](../../../../docs/history/qualification/runtime.md#m15-connector-work-in-progress)
 for executed evidence. Native allocation proofs are distinct from BEAM heap-loss
 qualification.
 

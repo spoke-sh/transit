@@ -73,4 +73,4 @@ codec bounds do not enlarge raw-client frames or native storage values.
 
 Storage, primary keys, predicates, aggregation and transport admission have
 separate capability axes. See [logical types](../../../../contracts/FUZE_TYPES_V1.md)
-and the [proof ledger](../../../../tests/README.md).
+and the [proof ledger](../../../../docs/history/qualification/README.md).

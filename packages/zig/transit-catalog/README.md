@@ -77,7 +77,7 @@ just test::catalog-growth
 ```
 
 Component schedules exercise real catalog transitions with bounded caches.
-The [proof ledger](../../../tests/README.md) separately records disk recovery,
+The [proof ledger](../../../docs/history/qualification/README.md) separately records disk recovery,
 public caller, installed language and deployment qualification.
 
 `DirectTableReader.readRange` traverses an explicitly retained Table in full-key

@@ -1,0 +1,2684 @@
+{
+  "version": 1,
+  "source_revision": "0e6586bba5a2d9e8b0aa3b11ba422cb623c6c467",
+  "source_path": "tests/README.md",
+  "source_sha256": "a930a4b5a4c91331304194da79eb93f3fe7ce5232ccafeaca100785a98635434",
+  "method": "Complete level-two sections retained in original within-topic order. Only relative Markdown link targets change; no original source, outcome or raw artifact is rewritten.",
+  "sections": [
+    {
+      "heading": "Local standalone payload ownership \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "5f78076088cc9e385304b911050d0c16fc6be80bbe7c128c100cfbd843c33ab5"
+    },
+    {
+      "heading": "Local native allocation and physical collection \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "9b162b001b31e61e2bf169bc433cda161952533ea908afc2eaf11207d1878000"
+    },
+    {
+      "heading": "Encoded Boolean segment programs \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "698c33f218e13bd849dd4b96f704ea8a93f1eee0a3e8851b88260286c3866673"
+    },
+    {
+      "heading": "Encoded column predicates and projected segment filtering \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "cb9c2b3179801539494edab7966fe690b7861b1fe8ef165cea363955fbb2917e"
+    },
+    {
+      "heading": "Finite retained Table count ranges \u2014 2026-10-26",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "21621c0652660d14b0547bbf080e3f0c7e1e5434390f4afc3c032a4ee7b2d52c"
+    },
+    {
+      "heading": "Finite retained SQL point reads \u2014 2026-10-25",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "5856c54992393f35cdff36bdf69c56e91f6d17220fc68e21e27b743769f387fe"
+    },
+    {
+      "heading": "Bounded row-index mutation batches \u2014 2026-10-25",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "4eed3f286903246caba5e2673971c2c8bf8c9b3767b25acd4a8d23577fd5f073"
+    },
+    {
+      "heading": "Retained ordered Table ranges \u2014 2026-10-25",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "58260145718c1e44fbd01e78b0ff4251836a782057498d2d5a82bca2abe51772"
+    },
+    {
+      "heading": "Ordered full-key index component \u2014 2026-10-25",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "e6f9d088f1b4ff8d19da10312299f0053a8babfde733db53dddfd8226982a956"
+    },
+    {
+      "heading": "Bounded local WAL seek reuse \u2014 2026-10-25",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "ae081cde55e280d67a6f4abab0c13914b23d7173c3c335f9207648e985a51eba"
+    },
+    {
+      "heading": "Verified segment range reader \u2014 2026-10-25",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "66e041f19016a65e7aae98bbc4ebcdd69fb26d68ef1723178839f2fe35d101be"
+    },
+    {
+      "heading": "Direct catalog growth and retained rows \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "04c2180a96037053449b43858a05f0a84c24bd1a07485b3354f0274190e5aa7d"
+    },
+    {
+      "heading": "Direct catalog diagnostic boundaries \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "b23d330d33522720963569cf8bbec9e768493b2ca4dbd0370f36ff5d7eb429f2"
+    },
+    {
+      "heading": "Direct exchange producers and backpressure \u2014 2026-10-24",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "c427f7d001c21dbcf643fe8a08fade855448a702478e4bccfa81948608d33afc"
+    },
+    {
+      "heading": "Direct Table Compose live views \u2014 2026-10-24",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "99007720835720309edf9234a77ec69bb4d126c6b24f73b90f899780be75f53e"
+    },
+    {
+      "heading": "Captured direct Table request batching \u2014 2026-10-24",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "898784f07b634dc880b4584267e52574918abbfe93210c51556a92b93bdb7a97"
+    },
+    {
+      "heading": "Direct Table selected-role boundary \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "80102e28d19ff785d37b119745c62910fa54036c5eefffa840ce5b74d7d5e173"
+    },
+    {
+      "heading": "Direct prepared Table lifetime \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "173301ce8222143cdd320a1b54b326fb82ca8378a6a9df1adbae4ee616d383ff"
+    },
+    {
+      "heading": "Direct exchange worker handoff \u2014 2026-10-24",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "d60e480cca130fa864456c3c1df55574f56b4ebb1060269be17f9caac3751c83"
+    },
+    {
+      "heading": "Direct SQL ledger recovery and pin authority \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "4b06171891506886fe2dd2dc5010e8edb623f86cd43c8cf0eaf3dab2fa00377d"
+    },
+    {
+      "heading": "Unified direct Table recovery and closure \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "9c3121be775509438af4a15dc1e0875f8eb1d00f7a1b93ea8b47889c1cff51b2"
+    },
+    {
+      "heading": "Direct Follow browser lifecycle \u2014 2026-10-24",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "ba86b06abd0dce44d7e3cc8db131bf2d1733ad5e78577b229be77a39ed0d09a9"
+    },
+    {
+      "heading": "Courier discovery through the pending index \u2014 2026-10-24",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "a9409f6a90828e4b8eccf98614b58420a528407f870b597781b5a3f55ff53b10"
+    },
+    {
+      "heading": "Direct Flight and captured-query consumers \u2014 2026-10-24",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "8c20f44e4276a9b921af3ab8199009bc1610409d6e6d3a4055bfbba7c8469d05"
+    },
+    {
+      "heading": "Direct serving counter acceptance \u2014 2026-10-24",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "ba7704ecffaf8840746ebd2486e7a1c6b46cb99a7e043d810f7d0901ee61ad2b"
+    },
+    {
+      "heading": "Snapshot pins against competing checkpoints \u2014 2026-10-24",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "a61b6644f6da1e7c219f603b53017d03857a6cf0d8ecee683d63df294c785bc9"
+    },
+    {
+      "heading": "Retained relational caller conformance \u2014 2026-10-24",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "d5118f9eb59027d66c8eec68742c1db34276a2b53b96923b1d7ea89e2fcfb42d"
+    },
+    {
+      "heading": "Direct Board relational recovery \u2014 2026-10-24",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "52ede54ec7702016523998bc41c6a07c01735af136ecf1037ba5f305979083bb"
+    },
+    {
+      "heading": "Installed C and C++ direct lifecycle \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "fcd5eb58e6ac6f4a112404ad65be02e245481feb3302f755b7d0b7c96f5ca402"
+    },
+    {
+      "heading": "Installed Erlang and Elixir direct lifecycle \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "bdc74d115516efddbe195c51bb4ba44e9d8d54b37e95f8bb6b9d7c7073b85703"
+    },
+    {
+      "heading": "Installed Rust direct lifecycle and retained metadata \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "edef41b552ef8964644a4888b8d9f26716e26adff06514018f65ff379b4c9f59"
+    },
+    {
+      "heading": "Installed .NET direct lifecycle and retained metadata \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "326a2a7cda71a121300f4e6c9e8a17ac85772d811ff58c05d1563ac7b8519c71"
+    },
+    {
+      "heading": "Installed Java direct lifecycle and retained metadata \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "fe648cc65925a9862b8548965bc22e3a17bd222cad27db14a112d3e8d7e61365"
+    },
+    {
+      "heading": "Installed Ruby direct lifecycle and retained metadata \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "929e0070e146485ca17ed1d47fdb0bdad2348859af1244136b887a66aeb14ac4"
+    },
+    {
+      "heading": "Installed TypeScript direct lifecycle and retained SQL \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "18704e7c04e4b0880cbcbd908fb7c1aaa8a842c3663cd33ce6d3b6f1c113d316"
+    },
+    {
+      "heading": "Installed Python direct lifecycle and retained SQL \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "d024ab68dda0d2998d00be3106772c762041aac4a1f8f865d334b0fee93eb4ab"
+    },
+    {
+      "heading": "Direct catalog ABI and port recovery \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "088d8b984841933af422a0a6ee05b916e1f2a1c6048f113743896d59aaa74e4e"
+    },
+    {
+      "heading": "Direct caller diagnostic projection \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "36a6b98a08521c595e833b387f9cb666231f364f29fb080719e89cae8d4ff69d"
+    },
+    {
+      "heading": "Explicit relational queries over retained definitions \u2014 2026-10-24",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "cbf8fdbfccc9b74fcf4f6479ce1809959e8d89c880ad9252409895785d8bf2bd"
+    },
+    {
+      "heading": "Installed Work items direct lifecycle \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "92a391265f1c4b6209d7781c365209a0eb53917a00f214095fddc1513473969f"
+    },
+    {
+      "heading": "Direct caller mutation-attempt evidence \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "b125e4531fe577a764f77389fd5ad986ad6994926a66cf80040457fb71837c39"
+    },
+    {
+      "heading": "Direct host named resource recovery \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "4ce58c27bd5f7e37b4de9a032d1c9aeb6a10e570d9d6157f244d2e72a8a49395"
+    },
+    {
+      "heading": "Shared direct preview repository check \u2014 2026-10-24",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "b8713feb114d04747f8b71592bfbbf2f44c3488c2cd318d54c9364e563a52a81"
+    },
+    {
+      "heading": "Direct host dependency recovery \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "1e23bf13c770d399b7ce65752c2cbd6c367f11a2539080846b3e2d0df33c2a53"
+    },
+    {
+      "heading": "Direct host namespace and policy preparation \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "5c5c6300201fbf82628c81259781a92074136d7795b2329018626c00b2d0ba24"
+    },
+    {
+      "heading": "Direct host catalog inspection \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "94cbd96772b0ed9f756a1742d6bc55eac11549f53c865953d4c72bf8994c0e21"
+    },
+    {
+      "heading": "Shared direct preview \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "a6ac7456801a664b378a4bb4015039060877712f70f053284d9b86fdaca1bef3"
+    },
+    {
+      "heading": "Typed direct caller preparation \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "814d4a0f48f7d4497922fd3da50cb89d3170803286054fd8e812c957db89d16a"
+    },
+    {
+      "heading": "Shared direct caller session \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "987be6800a152e795a9e3cd6092f094bdb92e62121701a6d2c6a0fa5b39d5451"
+    },
+    {
+      "heading": "Lossless direct caller references \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "c562ed2b614588a2aa3ae51ef1fedc8f52b0b82918bdc6b9add1ebc1c904907c"
+    },
+    {
+      "heading": "Shared direct Table DDL preparation \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "3381f19c1ef287b7d01ac718fa8155b5f18482ef3401baf3ce784005f0215b8b"
+    },
+    {
+      "heading": "Obsolete named metadata owner removal \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "891fbdf0ab1f3cb9918d180cf3ea09c1d100f61e69debf1076b89811760ddd01"
+    },
+    {
+      "heading": "Named query dependency publication and retirement \u2014 2026-10-24",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "d3d742450fe07369144416a5350e53caca790ebbc9987d1962ab720b6e6db618"
+    },
+    {
+      "heading": "Named resource dependency authority and retirement \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "35296480e01070729babfac39fa9d4207ec514bd5b2ad9a4009edf9f8b901131"
+    },
+    {
+      "heading": "Named native resource allocation and initialization \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "985ea5a6c29ae34449da39ffb60a35948ddbce51f624e82272679a7eda2014cd"
+    },
+    {
+      "heading": "Direct definition dependencies and restricted retirement \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "1a81c8d21eaaf7c6458ddbe6b6bee68e59ebc8a9b566fbefbd742183f9446b60"
+    },
+    {
+      "heading": "Station ledger over the direct Table owner \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "70d7a9f8bcbd6902462428e5c7240871fd9995943650916bd2f1525ae2413d99"
+    },
+    {
+      "heading": "Retained native storage in the Helm chart \u2014 2026-10-24",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "461866d25786bee9886b9678691a00ee4f0630ce1ce228c4076d01d59c16ec26"
+    },
+    {
+      "heading": "Named publication recovery with current credentials \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "3adcca4fe0a7ab349fcb04d5dab9c9e18ca0e002a4187858e39958302bcc90f1"
+    },
+    {
+      "heading": "CLI actor Table helper retirement \u2014 2026-10-24",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "f1f79cd92a335d75594e6dfb451a2d6620eca588d4bbe9d9f3694da292685e10"
+    },
+    {
+      "heading": "Direct Table change-reader checkpoints \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "4a9f95282ffb2451203357da29f59dc8d938bd19d5a7c55714c3b896be793f4f"
+    },
+    {
+      "heading": "Native SQL namespace lifecycle \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "435ee2b04de3f8fdde0641bc4249e0286203d00d40acda0124b0f4889984c429"
+    },
+    {
+      "heading": "Work items result position display \u2014 2026-10-24",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "14b873803c9df4f4d20752ceaef7e030d5493bf695d0b3fc5efeb4d17b12e33d"
+    },
+    {
+      "heading": "Installed Work items physical exhaustion \u2014 2026-10-24",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "13e27c1dced9f1ea6cb327ca3f957f07b91cb51ff2bde7c49be24806f225a83f"
+    },
+    {
+      "heading": "Work items direct storage in Compose \u2014 2026-10-24",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "4f4e3838f33b1fbea86992d04d2cf75dbc9cde2d1ba9a38aeb41498abc96940d"
+    },
+    {
+      "heading": "Work items direct storage on the reference runtime \u2014 2026-10-24",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "e823242ea3b70f592e8588eb3fead07e677a0c03ab8c8249a80b5b8bce453e03"
+    },
+    {
+      "heading": "Work items direct-admission reply loss \u2014 2026-10-24",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "240b57ad13e458aaa013e4899a9f59e6160c4459baeed33c502915e45ab5f954"
+    },
+    {
+      "heading": "Membership additions preserve inactive paths \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "b59595400f2b7c2ebbd281bda37b7f80203e60e66b4ed98b9e07e46bc77c146b"
+    },
+    {
+      "heading": "Work items over the direct data owner \u2014 2026-10-24",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "6d0cdbdb73ff68867230165e294dfba375fee36ebb3d8dafafb27c06a0b52700"
+    },
+    {
+      "heading": "Direct completion after console and Go integration \u2014 2026-10-24",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "65823fee7b52e4c16a4b672d7ffba4e77fcca290dd31d2da949f308fc5d59306"
+    },
+    {
+      "heading": "Console interaction state machine \u2014 2026-10-24",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "476fbc8d9f02956a0d6e56dd84f0b24823fecfdaa82e3563e332fdad690657ed"
+    },
+    {
+      "heading": "Cancel interactions without clearing drafts \u2014 2026-10-24",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "8b9e8a73adf3c0cda4e95d40c5fbca1cc1b75c50634e521b80b59f6529eb6fef"
+    },
+    {
+      "heading": "History search starts from the draft \u2014 2026-10-24",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "42b333ae915d3bc22e655d1905d963b0279d92b6cf9ca13680feca2173014e60"
+    },
+    {
+      "heading": "Console keyword continuation and unique insertion \u2014 2026-10-24",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "b8174b7203d6b9c5f43fd974826fd2d6cd4bf5919b8e228e293b63ce90de6dc7"
+    },
+    {
+      "heading": "Console completion separators \u2014 2026-10-24",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "60e63da3bd77d4668b6e57ce99c5689c7e5d6c6416ae5bd6647340c1638369d6"
+    },
+    {
+      "heading": "Go raw client",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "692798f4cca2b8c48333137e3c5fa383c770623aea12f45377ca89c161d5a31e"
+    },
+    {
+      "heading": "Optimistic current Table reads \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "904492ea3b793a8984985f6caedd5f65ffeb9ff14574d516ee169a654bd8ec24"
+    },
+    {
+      "heading": "Shared direct action dispatch \u2014 2026-10-23",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "05fc45cf3dcc2018073737de5f5d58a5c0d2027c06dc51c09e4a51e061b16761"
+    },
+    {
+      "heading": "Direct namespace lifecycle \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "b5602f977b72c8fde519b16be99b67b0f00358673efe67528737f84f2aadc136"
+    },
+    {
+      "heading": "SDK bridge computation removal \u2014 2026-10-23",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "746dac0f58142b61c64e50527cf0d96cf61512bb7c6d2201d06775386131e609"
+    },
+    {
+      "heading": "Changed Table inspection diagnostics \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "c1206daadc931b4078eb81fff5daaeddd14026e5c416ff7d9b66ba042b4f0c1e"
+    },
+    {
+      "heading": "Direct mutation authorization prerequisites \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "803374a8ead589e0f26de1ef0a7a3f4d43c18581b27a7bda1ece134c2c930807"
+    },
+    {
+      "heading": "Responsive console completion menus \u2014 2026-10-24",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "aad77f4fd32094396d03625803cd2c2ad894a10b449ebd85b4e60078da416ec1"
+    },
+    {
+      "heading": "Direct Table completion and console integration \u2014 2026-10-23",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "d88e5662e88c6c4dcb1cb658b7d015a4558f12f49ceaa1db885e3556f5110ae5"
+    },
+    {
+      "heading": "Saved Follow control and preparation recovery \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "c2a30feca269ea91ffa9519de9cab235e2dedd3f6e87d3dc818dada0caae49e5"
+    },
+    {
+      "heading": "Named maintained revision inspection and recovery \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "0aebe80b00310092f8953303a9acbd14be3073614a73a40ec4c157c9c01fa9f9"
+    },
+    {
+      "heading": "Query-owned computation evidence \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "1eee5f0c130a41a7d4c65577ba6422841358a321b913ec9e6ace14408fe9f4ba"
+    },
+    {
+      "heading": "Result source freshness and named attribution \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "4ce75b99f3d7ce7800b9786dcdae1febd7807b9f6ff328f2d7f710eb417051de"
+    },
+    {
+      "heading": "Named captured definitions over the direct service \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "dc0f153aa364ad746da91efed9361851232668211f13efcb22756bb5073817b8"
+    },
+    {
+      "heading": "Named definition fixtures with direct Table grants \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "cf521e8245734953bfa45ad9523357fd91bf474ac97150bb0c51f64824371cdd"
+    },
+    {
+      "heading": "Explicit Workspace capture and separate caller recovery \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "7af37d923c52060fe00040f56720dc3e0b0c2e2980cf950acd526c03f72ec9fd"
+    },
+    {
+      "heading": "Current-capture cleanup after definition changes \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "31d7d74a7a281f0abb1cc634afbc323ba54b9da8d560a759a3325002513d6292"
+    },
+    {
+      "heading": "Prepared finite refresh and direct watch transitions \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "d52d44ddf9860835a0391e2240fe8e28f5e20d83eb5eef4748cae31fc0000e56"
+    },
+    {
+      "heading": "Retained Table evidence and current disclosure rights \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "3e6a7a921f36b82c93183bd838f3383720168211686c0caa0a26aa155b9a9817"
+    },
+    {
+      "heading": "Read-only current Table observations \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "0a4eb9dbd0cf81ca344a382a966827f7ac1dc23de12ef35358bbe6f2f537b923"
+    },
+    {
+      "heading": "Direct maintained successors and query fixture migration \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "0246422d9c85daa09f924ca37415d88a1b8acf66cc4ce8344aba650a27cf3520"
+    },
+    {
+      "heading": "Finite direct capture memory and retirement \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "50e44c317bfd752e7f79abca954988b5a5a2711f06b588b08d6b5cb75872286f"
+    },
+    {
+      "heading": "Direct Table exchange placement and borrowed reads \u2014 2026-10-23",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "3c04ae1d3d4784b539835ae4036fbfc9aaf84c167ef6bf78a30d2caa30e307d0"
+    },
+    {
+      "heading": "Retained direct Table pages and predicates \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "bbd38d184750f919983c8e0b3219ca5c2558e3c6c12efd6d81acaf63e18e1b13"
+    },
+    {
+      "heading": "Direct relational failure boundaries \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "74548e912324c036b71dc1659434309f605dd6a1bb2798b4e8dbf4dcfaed1d7a"
+    },
+    {
+      "heading": "Maintained direct Table queries \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "c2cceb0544a9bc1d6765f7d2b8cca78fc3a042999c4c049cada2a1ca9e11a024"
+    },
+    {
+      "heading": "Direct Table history retention \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "c15c32eaa4a1ff8cc94d055f4f275be77af5f5aeda48e35d7c4853311e778fab"
+    },
+    {
+      "heading": "Direct captured Table queries and separate cleanup authority \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "7e29e9e8e7e6ace6961832f6bda41b68b2d371348da9d30204ebffe072fbd5af"
+    },
+    {
+      "heading": "Installed lifecycle qualification checkpoint \u2014 2026-10-26",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "88d262651da518367c465eef00c2a60f7e2af6c61996f34947fe1386d774ec28"
+    },
+    {
+      "heading": "Installed SQL client selection \u2014 2026-10-26",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "4553496806d56232b6ccefb852b39fab1ef2ea3c68ebccb8217504d1ff5adc2f"
+    },
+    {
+      "heading": "Installed lifecycle follow-up and Station CI dependency \u2014 2026-10-26",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "6764f5736ec3542da3a54efe69bb81b1a99fd0849b105050f5a5be8600039c8a"
+    },
+    {
+      "heading": "Catalog prefix reuse \u2014 2026-10-26",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "bc6cf99dc0888a8fc94da7b6d174465219328604c3badfb81a15675555297a16"
+    },
+    {
+      "heading": "Installed lifecycle qualification after CI prerequisites \u2014 2026-10-26",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "cbc6180998b5ecfbc51742a421180d541bd712dee76b462d33f308f9ddf46624"
+    },
+    {
+      "heading": "Hosted core execution cap \u2014 2026-10-26",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "7e801442de5516a855697b02b33236ad7f73117521f890d38bd2d2f144af2df9"
+    },
+    {
+      "heading": "Station node build profile \u2014 2026-10-26",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "f8a04f183bc363056d671078e1cb03cc28927bd095a6eb0f011fd585da4ea237"
+    },
+    {
+      "heading": "Retained-source publication authority \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "fca360ee452e5357553af5e2c315afe00503dac8ab059daf5ac690a23be52fa2"
+    },
+    {
+      "heading": "Durable-computation pin ownership component \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "58318ead966b28be5ba94a0eced068c0402d95390051de6566a3e91f700f147c"
+    },
+    {
+      "heading": "Exact direct pin closure \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "7e3eb68b35c17fceb98cea0cf493e6f90c75334198e018e1f3dadc3510347218"
+    },
+    {
+      "heading": "Neutral physical schemas across language callers \u2014 2026-10-23",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "bf434083742d622915462181c18670834a5e707cd1fbd0d58768780cf82cccf2"
+    },
+    {
+      "heading": "Scoped direct Table read delegation \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "8fa92c438acd2f7df83a23367ab0e7c11e7c414f5ab4dc30bb7e86c87167b3f8"
+    },
+    {
+      "heading": "Direct catalog administration and installed database clients \u2014 2026-10-23",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "a70e7a4e652748a01d95bd040e0ef3861e40d34aa54de32a1db050e22a6ab4eb"
+    },
+    {
+      "heading": "Lossless physical column admission and public SQL \u2014 2026-10-23",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "f25c64f00a1c0edb420f92e7b35ea9ab06cfe7a30a43fffa599d2eb4381b92b8"
+    },
+    {
+      "heading": "Installed direct lifecycle, rollback and capacity \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "926d4cb591ff765923150b2bfb62e73a7e998c88fb0fb22ae267afddea4c4c32"
+    },
+    {
+      "heading": "Installed direct execution recovery \u2014 2026-10-23",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "aa8030fcc26194af526c944a7d2a7daa276e40393c05dfb34857f14b404e5aed"
+    },
+    {
+      "heading": "Stable console completion menus \u2014 2026-10-24",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "78422b19a47ea19796c7ed36b5c1c06e2ec9eb82cefa79a6e4f267287cdbb252"
+    },
+    {
+      "heading": "Console completion and editing \u2014 2026-10-24",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "1fdd58b88712fed67ef969683986cb8a8deab906609481d7a807abbaee362556"
+    },
+    {
+      "heading": "Installed direct Table bootstrap \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "2871fcb7b6ee8eb08f64bf7aa77b5d8f85b7cf5b246a7d297ea57f6e7a8ae7da"
+    },
+    {
+      "heading": "Console multiline editing \u2014 2026-10-23",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "d3c8c2f47da4752bf0516edbe19b6d5b56d35c558d6dfac799fe2ecfc350f618"
+    },
+    {
+      "heading": "Bounded direct HTTP client allocation \u2014 2026-10-23",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "7911f06dc9860c83b1e88b6f41242b9b943f9269c92f5fbdec24a30ea876640f"
+    },
+    {
+      "heading": "Frontend dependency installation during builds \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "7b4e9b71fad845de01b9d795e01dabfb0110a8770577ac43264091b4dfc74f68"
+    },
+    {
+      "heading": "Console help and statement outcomes \u2014 2026-10-22",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "7dd166293fe9a39698a9cf29f813a3a8a29568b78ca43f5cf292d48ede0a1ab6"
+    },
+    {
+      "heading": "Two-command Transit CLI",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "4a9a4da72b086ad7ad160229ebcfd57182e32074f9b02f6947b57eed85b98e9a"
+    },
+    {
+      "heading": "Console external editor \u2014 2026-10-22",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "9e0a8426ac8832995425723403d924d285081e164441c425eabdfc7aabb72372"
+    },
+    {
+      "heading": "Local Board hostname aliases \u2014 2026-10-22",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "b4a389f35d487c81b25dea8ed19b318645e20400bc9a16626c4080d7d6072697"
+    },
+    {
+      "heading": "Data operation contracts and local WAL persistence \u2014 2026-10-22",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "ac92475a7ea6cf25ce3d395913cc8df4854f27a5ce46e0701c19d48b61fe98c3"
+    },
+    {
+      "heading": "Table definition acceptance and retained interpretation \u2014 2026-10-22",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "bb918328811d666816a435c19ac1da59e2fa9bdcd8cd3c57ba0eaf2ef449b07b"
+    },
+    {
+      "heading": "Direct catalog reservations and Table publication \u2014 2026-10-22",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "99f14152dd62b47a46a52bb7f0e57acbb3dd223fa51889b8773b8c2763a6a2fa"
+    },
+    {
+      "heading": "Durable Table row admission and outcomes \u2014 2026-10-22",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "ca42ae1208993282ae3f4837f68995702f83aee692208cb323089217c898a35c"
+    },
+    {
+      "heading": "Conditional SQL catalog outcomes \u2014 2026-10-23",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "e765ff2aada2f99e432497d56897a472116a868d02d7817c39f4e96d29d6aa80"
+    },
+    {
+      "heading": "Direct staged intent references \u2014 2026-10-23",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "c49d13b4b1988756a95f4726fcc9958353eb2a6fded36ec321ee0377ad6d2429"
+    },
+    {
+      "heading": "Direct SQL references and read recovery \u2014 2026-10-23",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "f758841e9e31528adb0f556577354d176ec34ba1778150ffb733213142f0fdc9"
+    },
+    {
+      "heading": "Prepared SELECT over retained direct Tables \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "a207a9e49e2e0bf66f06eb821d3a7315b8f223114b7073c5b0cd2dcb712a2cfa"
+    },
+    {
+      "heading": "Saved direct SQL mutation intent \u2014 2026-10-23",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "38f43b63065fdbde3012efb90525e906948aa64b3559806e246601c7f25bf0ae"
+    },
+    {
+      "heading": "Direct preparation rights and immutable bindings \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "76ba91876d5bb4b4d5c5cc6054995023d65d31013b53f03b676b916e40c8bcb0"
+    },
+    {
+      "heading": "Direct INSERT identity \u2014 2026-10-23",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "e30109308ce1a9667b89fc795eaad40cc11b814cbd577ca48adee2ef68252ae2"
+    },
+    {
+      "heading": "Frozen SQL predicate mutations \u2014 2026-10-23",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "9da7e6c1b2a464e5b7c783b77baf15ff2f6d69aa9b72c82c59fd14a970c5dade"
+    },
+    {
+      "heading": "Finite SQL over retained direct Tables \u2014 2026-10-23",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "f205f05361971540fe47e58ffbd429479ce7873f6e6e02331f27b2bd3f657dfe"
+    },
+    {
+      "heading": "Direct Table preview \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "47f8670d8a529cd822cc2f7d15a6508114e5444e62d5d42af3a9d93a9ba548f3"
+    },
+    {
+      "heading": "Direct Table CRUD/DDL recovery \u2014 2026-10-23",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "8d6dc85c2981d184eb09a1f6b41bdab8a380cc8cc458d27c1c9e92b618581caa"
+    },
+    {
+      "heading": "Retained typed Table reader \u2014 2026-10-23",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "389fa00ef9022a4ff39e95bb6f9bca4a4bb32846756c6403cd70242efde289d9"
+    },
+    {
+      "heading": "Direct Table HTTP owner and typed caller \u2014 2026-10-22",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "4ba512fa2e7b70237bb96d59720784e6e065a554c3bf8a74c5a3d2cf7d256bbd"
+    },
+    {
+      "heading": "Retained Table page reads \u2014 2026-10-22",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "2ddc57a6b8b6f7300d856e91fb488a2ca755e9b78cb8f67456b4e9addfb71e2e"
+    },
+    {
+      "heading": "Table partition acceptance and retained read pins \u2014 2026-10-22",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "c4ccb17ffd6f8724986a8899e9fd3ff2c222b3bbe91429722c676450624c8895"
+    },
+    {
+      "heading": "Native authority over local storage \u2014 2026-10-22",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "fb1fa2f385a57aaf747ee41e1b3459764312fd12f1ba8f112d0e58be1529cae9"
+    },
+    {
+      "heading": "SQL idle lifetimes and readiness observations",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "a55d4ef374e992d6490b058e448eb0c0dec3e2bc19edc7ec56c55b1d104d7305"
+    },
+    {
+      "heading": "Unified service logging",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "dc16ec8c1a624cedcbd7e1a3e8e4cc74770a042223a929fc12bd4b761dafe22d"
+    },
+    {
+      "heading": "Shared server-managed SQL sessions",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "0b7670ac9235b7588bf0b389dfe94141bbe0a52d325d249a5ee7e6b3303c2bf8"
+    },
+    {
+      "heading": "Automatic local server startup",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "a398c008b278b31edf783b53dc4971657b6596767d39122e5573b58a11179db9"
+    },
+    {
+      "heading": "Integrated storage foundation",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "17548b373afa4217bda7da0205ff3b63f5c5e92448803d61b9e681d19708aea8"
+    },
+    {
+      "heading": "Segment storage and physical collection",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "52266f750bb5df7e6f575976195069f6b782a7d07dd9c233bd98f5d6218c6ced"
+    },
+    {
+      "heading": "Table records on native blocks",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "7875fe815d14bc707f2ccc9f1e48204e992938c37354183ddccaef1ca0590b92"
+    },
+    {
+      "heading": "Native bulk resource publication",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "c5173265fcdf2de1107fae7dace22e0dafbc407cff82fd76009a7c3bac04ca2a"
+    },
+    {
+      "heading": "Immutable block codec and index",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "7ea45b3e8f5592a033c170151ea46d80ee8614657edffb9899d20158c21bd71b"
+    },
+    {
+      "heading": "Independently owned native execution",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "8a22794a65af3f360bcfca0f0b61f3d2900335cf41c33ca1212b9b0f3fcdb1c1"
+    },
+    {
+      "heading": "SDK source and runtime boundary",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "963822ac3518902a6a7f8bb868b964b6f8ccc345aef8e46046915320dd47defb"
+    },
+    {
+      "heading": "Declarative authorization evaluator",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "1d6ece0e14582acdc511b58489500904840cdd71b47c8ae805569a992ccf64c6"
+    },
+    {
+      "heading": "Table authorization service isolation",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "6ffc098e664e502e3897f28c69b3fc74f03b48f6926fe6fed123fd74c78db7b0"
+    },
+    {
+      "heading": "Original caller proofs in durable Table queries",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "4a40e7203b9c7fd2408314a665152db1a48e1f69188ff9e82a73b56420316b54"
+    },
+    {
+      "heading": "Database wire gateway",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "d0d82a7d95172646870a672d1e3780dbc40cafdbe5d0605544e93919f1e73f58"
+    },
+    {
+      "heading": "Database wire foundation",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "6fceedfc47bf9e1a767b9518de01230639c4d1e4492b88b451e2109f39702c8f"
+    },
+    {
+      "heading": "Database wire primitives",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "6cab79c47be0b620cf3903b217ca097fc6179352bbdc4647537b7279f3b357c1"
+    },
+    {
+      "heading": "Catalog Table parameters",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "05066279311b78a34a1a2376fc331ac94f117685ae4c816f107edb45c9f26801"
+    },
+    {
+      "heading": "Integrated vector execution",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "d6092f94f3e467f85c09e58e7a5aea6c035a964433a34697b7965ba0289e49b9"
+    },
+    {
+      "heading": "Experimental int64 batch qualification",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "b8f27a9035a74851814b95ba315609f56ff16f962530f2112f53fb2ecc5e325d"
+    },
+    {
+      "heading": "Integrated relational qualification",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "d7954ca426469d5f25288657da65af2d2e672deb23ca3295502060ac7f6ed15e"
+    },
+    {
+      "heading": "Ongoing maintenance and failed successors",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "650e306ed34202b13993006297a0ae17cb7806ab317b9588a0f1b5cdff3ba377"
+    },
+    {
+      "heading": "Complete-history mutation cost",
+      "destination": "docs/history/qualification/performance.md",
+      "source_sha256": "7c23d4b15ec0c92656a18212aa87ce89cc0a70b461e2ceebcedc29e85d0786be"
+    },
+    {
+      "heading": "Relational physical capacity",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "a00a5e4f46f652359a08a4b96e7ca52a61fd5ae1cad0abbcbddb98afbaee8aee"
+    },
+    {
+      "heading": "Relational exchange faults and checkpoint growth",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "2a7285a587b5666cef39ca989bdd8c015a2527c91536fa14c183b9228f88c4a7"
+    },
+    {
+      "heading": "Relational resident growth",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "a9c07b8b468c35936c0719cb0900f4bd68d1e6e860a3a54f01f67bf58775bf1b"
+    },
+    {
+      "heading": "Named relational definitions",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "61577ec3558a2b0c605f2e9054ff6094273b99967381fbc97861d794af844b16"
+    },
+    {
+      "heading": "Explicit relational Board sessions",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "bf299a5f7762507b196c1d95a0ba7de872a2c67761dae81a7ab777dbf7f19387"
+    },
+    {
+      "heading": "Installed interactive relational SDKs",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "71fd2710d0a25e2ca4ea1c19a95a12957d8adce48bd96d245a33da2c3d24f345"
+    },
+    {
+      "heading": "Neutral relational caller pages",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "28b297fc1ee925f70b2d88b685b9561db0a550da59e7f733a7f3c3f4f176b1be"
+    },
+    {
+      "heading": "Complete Table history and snapshot tail",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "f1458a5bcdf0580b0645541c3a27bd8ae12c3b84a0f7105d31777722db511d51"
+    },
+    {
+      "heading": "Maintained relational revisions",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "5708a2682c65435ddba8fcb64a5133c21b4b2c19172bd311b6f30731aa826edc"
+    },
+    {
+      "heading": "Relational exchange transitions",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "6a622fff0c5da842e1807f62b734ec50d1b31ebe6114371e86cea33659ab1801"
+    },
+    {
+      "heading": "Relational contract and oracle intake",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "4194a9330407875de7b4ccaad497a3ec85e3b1b0be7f002232fd54931a161370"
+    },
+    {
+      "heading": "Mutation completion follow-up",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "e4e4708f461683064d4c35c2b22f85cc3deb336ccec439fb8549ee96441a70ea"
+    },
+    {
+      "heading": "Schema-on-demand final qualification",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "1518c56780b832709498e987cf2767cac251020d8517b3f1337163e14d1cb517"
+    },
+    {
+      "heading": "Semantic diagnostic closeout",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "2ff87bec3c7578e0d4bffda54cadb9bdbd89951092cb1d5a29045025a3c18ac5"
+    },
+    {
+      "heading": "Schema discovery diagnostic evidence \u2014 2026-10-03",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "bfffbc60b4f0bea8e6927126b8acb6638d154f607af47b526358e4e428313429"
+    },
+    {
+      "heading": "Descriptor JSON member evidence \u2014 2026-10-03",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "44ec1061e0b46a8ddc7afca3e5d899204647ad96c2ffb6d047a0a68ce3306435"
+    },
+    {
+      "heading": "Recursive descriptor diagnostic evidence \u2014 2026-10-03",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "3d7dba96b58935db9d49eb072169ad612c9d8ac5fee6a2f9370bfd9c299b1138"
+    },
+    {
+      "heading": "Connector reply diagnostic evidence \u2014 2026-10-03",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "c67453f890ab4eba952a3f340078ad324d28e625640bc3334a200d2441c47279"
+    },
+    {
+      "heading": "HTTP chunk diagnostic evidence \u2014 2026-10-03",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "dbc7ed94a1efdaa1a679ca80fd2cd9da38b39d0a581103d9dca6c52dc5443826"
+    },
+    {
+      "heading": "Connector transport cause evidence \u2014 2026-10-03",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "7567900121bce652c05bd4035376bb02e02f40d7d630e09ce87cce8317a0931d"
+    },
+    {
+      "heading": "Connector capture failure evidence \u2014 2026-10-03",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "f6c8135bfcac3d7a1f358a4a4c2daf0156e7f5d034fc63866f6922446d1bbf99"
+    },
+    {
+      "heading": "Native effect closure diagnostic evidence \u2014 2026-10-03",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "1792814b135db55ed3bf0e39ae03db6edcdee4e36c806976fcca3addf9c0e70e"
+    },
+    {
+      "heading": "File diagnostic boundary evidence \u2014 2026-10-03",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "4014805d99cacbd67636ba17080596bba193f4729cd805c9ae15f031cc3f0c1f"
+    },
+    {
+      "heading": "Console timer command \u2014 2026-10-04",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "c66f37bb977676d3368e43cfb3dfdfc938959cc309eb2514008352d89144ed74"
+    },
+    {
+      "heading": "Contextual console SQL highlighting \u2014 2026-10-04",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "24d2358fad447bdead109b49087ae86e90cc0c955d5512b38a554117e6bc5a0d"
+    },
+    {
+      "heading": "Console scrollback and diagnostic highlighting \u2014 2026-10-02",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "35efbb5ea9c9eb6e045ccb493a32ef77d0929d31352edcfba90744e0f9e89bae"
+    },
+    {
+      "heading": "Station lifetime diagnostics under forced color \u2014 2026-10-02",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "83e21a0d015d2c3d38c32fdac2cbe5ec090dc1c31f440d4159f0464924419afd"
+    },
+    {
+      "heading": "Console timing follows command output \u2014 2026-10-02",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "02a0fc988d05a6a37fd4014222ce6ad5961cd4715e0b67f09ffd0b372107f237"
+    },
+    {
+      "heading": "Console error guidance \u2014 2026-10-02",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "99a7f3a8178b334dc42d8140879cecc7c93001a397fb8f894bd302ab24c766cd"
+    },
+    {
+      "heading": "SQL parameter integration with Boolean main \u2014 2026-10-01",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "c0f62e5c0f66adb2f4142eff778b8c96fbbd34f8ddcc2e874794d48e9f74b35a"
+    },
+    {
+      "heading": "Typed parameter compiler foundation",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "b215a172fac99471896ab02c05a8e60714e9d011dffc57a4fc2c532c5a77ed3b"
+    },
+    {
+      "heading": "Declarative benchmark components",
+      "destination": "docs/history/qualification/performance.md",
+      "source_sha256": "e8b57c95af0126cea475ea424148da52d00bf1224edb520b3977e0739ceb5bf2"
+    },
+    {
+      "heading": "Handbook grammar inventory and implementation plan",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "bff141a96280404b0ca43405ca450375125250acd163b183fb65983cb98d8e0f"
+    },
+    {
+      "heading": "Conditional declarative catalog",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "665e831339af06e38e61cd67752f7e27a59379bcde861d38315470c34cb3609c"
+    },
+    {
+      "heading": "SQL branch integration of seeded simulations",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "3925b780c150973b0ece2a54af6692ca467dcf96d1a4816cea2cc2c2bc2358af"
+    },
+    {
+      "heading": "Offline state declaration compiler",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "b05dbe7cc4e386112e88e6c98ae5838dee8062008064dc5da48f41ed49efb553"
+    },
+    {
+      "heading": "Rust native lifetime investigation \u2014 2026-09-30",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "10db3d5381e45ae51209d33f8d8373a6188082e2a8051fea7ef3e884cc5d30fd"
+    },
+    {
+      "heading": "Query result selection after access recovery \u2014 2026-10-01",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "0185134f6f77575494dec3f9e17453bdd4b749883b92060c3a486971649b5b03"
+    },
+    {
+      "heading": "Inspection read throttling \u2014 2026-10-01",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "3eb4b449ba639e1111d1f74ba6bdddfb090d5a4599a8ea61ee40887802d924cd"
+    },
+    {
+      "heading": "Delivery staging and bounded query progress \u2014 2026-10-01",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "17f55b84243364297b042c378045129458fbf31d60ca49d04bc6b9aeb21a8ae4"
+    },
+    {
+      "heading": "Query boundary and fixture controls \u2014 2026-10-01",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "3b8156b375ecefa60ee1c60f5dc5161d417ad0d257ea9e07df43cda02625d061"
+    },
+    {
+      "heading": "Interrupted CI evidence \u2014 2026-10-01",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "5e641f4d24daf5bde33613fab849286546f6a82c4a40c4a8a9927adcd6d18d68"
+    },
+    {
+      "heading": "Qualification checkpoint \u2014 2026-10-01",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "adfc8e86676475dddd977036c50eb571f9d9a14ca70307071489876b4cba227a"
+    },
+    {
+      "heading": "Exact caller rejection recovery \u2014 2026-10-01",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "09c0acf1d01b8a61dc1e22380a95fd9b8aff5bc860f72e3438e851c8ec42c794"
+    },
+    {
+      "heading": "Exchange example upload markers \u2014 2026-10-01",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "8a632093274ad24f664dd2c84923f354f4cf320f426ff0095486b86ef9259e8b"
+    },
+    {
+      "heading": "Installed Node optional Arrow dependency \u2014 2026-10-01",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "526528f68cbe76659941d8eae2dec2b79522e72c52e92ad5db9e4c6ad1a5f483"
+    },
+    {
+      "heading": "Current Board browser qualification \u2014 2026-10-01",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "b48a336318da4050d54bc9d3016f08f03572ab653a8a626f95de28d66ddf7a48"
+    },
+    {
+      "heading": "Hosted discovery completion \u2014 2026-10-01",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "d7dc642f94ad923c4668b27f31a3f045c4501761eb668fe49c19d71b1a83ae51"
+    },
+    {
+      "heading": "Expanded fault-verification qualification \u2014 2026-09-30",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "66ddb725626d54c7a0b470b899e0ae63497a3f416e1bdf26fb59be9601cd9b03"
+    },
+    {
+      "heading": "Publication clock-bound correction",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "615c37b8a0ac68590039eaf1ba4a34d44c65ceb6007d86ace3f361694c03ee5f"
+    },
+    {
+      "heading": "External fault supervisor and installed hosts",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "d2af0b37f0b16418297b51853fe0d62ad446f2277a74a3c87953c1bf24d49810"
+    },
+    {
+      "heading": "Stored-definition recovery correction",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "c941c1022f055f4f1e7c3b752693af1b87b84dacf906d9cf5ea39c0a13d846c0"
+    },
+    {
+      "heading": "Component simulation",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "8abe1db9da3df579e781c65323b1afff6dc3892779eaca2919162a9867b5ee0a"
+    },
+    {
+      "heading": "Shared-client scheduling simulation",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "c7407e004ddf0018e02c797b73438c43a991f65358dc34a95352ed69fec382c5"
+    },
+    {
+      "heading": "Resource publication simulation",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "0e678701ffbbb27908f6554630d3c5c16bd46139f2e5d295642f893e965fb79f"
+    },
+    {
+      "heading": "Authority and delivery simulation",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "1caea0353ef22a4393ce906ccb13df2009343037261ee128350c37ebf24046e8"
+    },
+    {
+      "heading": "Native v1 cutover checkpoint \u2014 2026-09-30",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "186d63f22d68ca2e6427bc2bd3cd92fc10c7f460027947418cd4367a5a2c0939"
+    },
+    {
+      "heading": "Native v1 consolidation follow-up \u2014 2026-09-30",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "85f4a801e94b3abceadf29c650b9f877aa4532f5d7e84376a800b91de2b7ccb5"
+    },
+    {
+      "heading": "M19 qualification",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "6274235292f8cfa9ea3e0c88d6c3bbfc70c21a161a8bf55727085aca9c49b915"
+    },
+    {
+      "heading": "M18 qualification",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "97d6b7078a708643ac8a2776997aaa811921a3c54ee28c0985adfd627ca9095d"
+    },
+    {
+      "heading": "M17 qualification",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "040adc6b5ca88a53560517110f418a9b10248d076379f655d95ed84c45ec0331"
+    },
+    {
+      "heading": "M16 finite connector qualification",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "a98f7a96cc4d88017e42034b9024c9ed0279915feb279d253cac900fabc22deb"
+    },
+    {
+      "heading": "M15 connector work in progress",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "72f61e477bfc11f6c4e31b7edaeab6653aaad3713f58b88983293e196b5167e1"
+    },
+    {
+      "heading": "Test ownership",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "75e3cbd7412c43e1ebbe791c392b64d797f4ca48a9ba627d303ef8d2909f3c70"
+    },
+    {
+      "heading": "Running checks",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "f658a0c565661b0e407aba1c395c7e9482e933ffb4ca4a5b4039ac7ffa1a5a0c"
+    },
+    {
+      "heading": "Kubernetes tooling qualification",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "485a05ceaf5be3caad05a55314f60e9e9d3f6d1deaaecd52c56d5eb8531708de"
+    },
+    {
+      "heading": "Launcher qualification",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "a467aaa998cbe95cc9a56653fef8e0edf0461b9c8ccf7288242ebf061f5a0653"
+    },
+    {
+      "heading": "Incremental development and workload upgrades",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "38e7148204071d943f8be282cb0eba5d300a5f6dc8bcb4bc743a9a74ed29ce40"
+    },
+    {
+      "heading": "Service and reference evidence",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "07fa9b206f4488ec8dec4c238eebad1f3311dd1d16ce397671e1b5fe73c4319c"
+    },
+    {
+      "heading": "Failed application turns",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "fad42d4959bf092407381ff46cd443d06558f6794b7b0dbd5c1649a42d8165d1"
+    },
+    {
+      "heading": "Capacity and deletion evidence",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "a9d2f20c09560184974d9694a612af132fac61d97c9a9a3a932d99a0663b469c"
+    },
+    {
+      "heading": "Authority, effects, and outbox evidence",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "f983a5748152f2e6ebfa38987a51be44bdbcad642af3d8d46c54790911cc30cc"
+    },
+    {
+      "heading": "Time and maintenance evidence",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "2cadb7f8e14ff3b5496b1ca8b4b2ef2afe2a7e51a4c47d5a51bf9486c3e94f7c"
+    },
+    {
+      "heading": "Extending the proof",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "5c22f30b77468af57412a908cfa4146967cae8fedab6353e7f2a4986ef02023f"
+    },
+    {
+      "heading": "Independent caller evidence",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "9d515d67076d5501a6d8aef3041edb00da0ff8505200b0221c82cbac1a893dfb"
+    },
+    {
+      "heading": "Physical capacity profile",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "334bc97692c3b9dbca1cb60c16485237628d8fecd2912da6e1651e722244f384"
+    },
+    {
+      "heading": "Recording new evidence",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "e9a5e63501bc07cd1f1deb2e02fa6380de8dd8e199612a3f3bef1d78d2aea5a6"
+    },
+    {
+      "heading": "Public inspection",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "5445ec723d9dac9071debe74286261dc71bd38a8fe7a4ff2277b368f4dc29ded"
+    },
+    {
+      "heading": "Board qualification",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "bc54d24c2131707263a3be455bb968f3b873d391739c912f54c29669691c61b6"
+    },
+    {
+      "heading": "Service instrumentation qualification",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "c07e17210300e8264e9f5e4f7d12e27ad923412e5d446eaac260b4ee9cb12b98"
+    },
+    {
+      "heading": "M7 state resources",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "6daaec5a5259c8a5c3a537e431b5de58a5db0eef2d7f9c63a075151853e65345"
+    },
+    {
+      "heading": "M8 runtime readiness",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "acb81d9a50cb51c3b57ae7037274c24f16035802505f5e76c8b72a4f878f8ab1"
+    },
+    {
+      "heading": "M9 Station, bindings and Tables",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "3e4af5280378dabde49f5128679432546c044ba8b9c3ab246cd087b6afd89191"
+    },
+    {
+      "heading": "M10 verification and scale foundations",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "e06449678bbb438c7bdc3ca21986a795fe680dc6fec5330e20dcf2daf1c170db"
+    },
+    {
+      "heading": "M12 declarative interface readiness",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "89867021a71ad07a562dbad616bded83d8268895a30ea7c96dbf34088d948ba6"
+    },
+    {
+      "heading": "M13 public query access",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "3b028780be63b68e67c4cef979c68cf99052468ec23ce6b692e7444b70cf8e66"
+    },
+    {
+      "heading": "M14 immutable publication",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "eaf9a4658fd1dfe3440ffb71b314cfeb4282b011b4e8b436bb8d1485a616d482"
+    },
+    {
+      "heading": "M20 qualification",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "fb5c41386d85870a415bea856a64e8e83903d7951aed1eea83226fd50872111b"
+    },
+    {
+      "heading": "M21 qualification",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "ac79ddce736ba108ba7a6b9cf5af74504e4311d7ce3e9676d86ed4ce96d8d6d3"
+    },
+    {
+      "heading": "M22 qualification",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "09e38f9587cef122d71addc4b17b87180133795a621c997f684d3a9414d48984"
+    },
+    {
+      "heading": "M23 application declaration boundary",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "9033cc44ddaf449b69dd65a3b90dec2d4a62a82870a20af69db1fc577f6cd7db"
+    },
+    {
+      "heading": "M24 shared cursor assistance",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "5f462014492f4d82a3d8a8d68e8cd18af06f6053be3d8dc480e1ad3c5be938a8"
+    },
+    {
+      "heading": "Console command history",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "d6baeee4bac0db52e352ced9f403e02bbf8e0d1327a1d508753af9dc471d9e6a"
+    },
+    {
+      "heading": "M24 console qualification",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "a87ff1f6849a4264c050bf45fa71ca0b91dd0af6b6626ede20eb43da60208c7a"
+    },
+    {
+      "heading": "M24 local server qualification",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "bb3bde674ebf1f70f7b330ff862821f3b42e4dcdbedd85e552add667ceae4035"
+    },
+    {
+      "heading": "M23 and M24 final clean qualification",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "fc5f0c2dc6d0445c06e5fd50e69d675485eec9e9010b76e2aa76baf28b687082"
+    },
+    {
+      "heading": "M25 local application qualification",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "bb6dab3ff1b601f4980090379913043095d37347234473c3c48981961eceaf06"
+    },
+    {
+      "heading": "M27 local Board qualification",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "106d3820a0242377f23e15dbac7939252a42ceba26cefeac2f98ac41647c4cfa"
+    },
+    {
+      "heading": "M26 documentation handbook",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "993b302347a007e1e354f8ee2da3f948c61978f9b378da6e5611e94c86e0ce88"
+    },
+    {
+      "heading": "CLI diagnostic qualification",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "96f729c048c6ecd51de4de18765391de732bd53fb8ffcad4f8fa72418fbd38bd"
+    },
+    {
+      "heading": "Unified CLI and conventional configuration",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "e92eaf4f6518eaeaebf124e19f8cdb110202e014d5a735e5e04f524eb93a1b41"
+    },
+    {
+      "heading": "SQL reference operation coverage",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "1d7d0ce129eac405123d95c30949946a7e69e3af94aca4b198d204a3c17a5c02"
+    },
+    {
+      "heading": "Query performance reproduction",
+      "destination": "docs/history/qualification/performance.md",
+      "source_sha256": "ce5ee1adc6388d8bc0daff5c1d184ab261ce5f8162bbf0c27d6f142a88fba8b3"
+    },
+    {
+      "heading": "Public command documentation",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "640a64c481b28e12cb81904f42cd85e1dd89e4ea9a50a1593906db7446078429"
+    },
+    {
+      "heading": "SQL performance iteration",
+      "destination": "docs/history/qualification/performance.md",
+      "source_sha256": "8f2ec148794a4a62366268caedcb46b36ac361b72ddb54829c8da6cf4944396d"
+    },
+    {
+      "heading": "General Table schema foundation",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "533dd5ba39beb747cb7479847f767ca2afaaaddc2fa890f10f0867be100aabbc"
+    },
+    {
+      "heading": "Fuze logical type foundation",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "6ae57841b69005c9648e798874d3cd72395b4abe20722129eed2f2e992926014"
+    },
+    {
+      "heading": "Fuze bounded file sources",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "e574070d8f95e5de06a2198bccb0e516301ffea7da530cbeb288c84d08ff9282"
+    },
+    {
+      "heading": "Local storage process-death boundaries \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "cff0d70016a2ad8b7b68c66f0685fc395e02033f3637788f4bce0dfd091cbfe2"
+    },
+    {
+      "heading": "Captured local file queries",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "7374af997ea665992f583ffd11786976806280deb93502aa873c8bacd8fd654d"
+    },
+    {
+      "heading": "Logical Arrow export",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "6b8563581877c9b051ea62ad12f6a6cc92e0ef40a1cb2e10da74ebe414d81256"
+    },
+    {
+      "heading": "Local logical codec and installed owners",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "c72e334ca0cbb927f42f5354370e98158d81dfbdeec76a8ca491b706a03dc606"
+    },
+    {
+      "heading": "File comparison baselines and metadata execution",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "03a7a8f9331160ac95ad807a91caccae93c77dd9f99d497a1062deb87c5bd8cb"
+    },
+    {
+      "heading": "Durable Table mutation latency",
+      "destination": "docs/history/qualification/performance.md",
+      "source_sha256": "0b9fce56eafbbc17e06b9727cc9f333d2978d8495cfb0410adfee95e2ed40a27"
+    },
+    {
+      "heading": "Boolean integration with native admission and Fuze validation",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "58de6323a2fd7d0dfce891a8fbdf6df1db0f0a9382701245660730ee0639c266"
+    },
+    {
+      "heading": "File-query output aliases \u2014 2026-10-01",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "54b94f27c3b8ce74489c108c512af825312ea096dd3387a3f01ae2e03df1b424"
+    },
+    {
+      "heading": "Console input flush and signal schedule \u2014 2026-10-01",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "085ef86f2eae009098790f8a26bb5cad17d5c53580bec8e3c95c3f196830c95c"
+    },
+    {
+      "heading": "COUNT(column) shared transition \u2014 2026-10-01",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "7f9a23181da722d6433e61feb16fb03949faedc03ab1f6f347b3aeecb40e8b4e"
+    },
+    {
+      "heading": "COUNT(column) coordinated surface \u2014 2026-10-01",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "7da25de3055b0ec22fcb2484738fae317ab857ff60eaed6b59a625d2a35b5fb3"
+    },
+    {
+      "heading": "Neutral SQL parameter callers \u2014 2026-10-01",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "2e4885f81b9ae69eb1ff5205ede58cc968eb509b0282f6d7b4782a1f5a63c346"
+    },
+    {
+      "heading": "Typed SQL parameter SDKs \u2014 2026-10-01",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "84b752b5f1365dbd3375ec5b6690b3cb1cfac7f417aefdac3dc56c739c5d3784"
+    },
+    {
+      "heading": "Typed configuration and SQL settings",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "d3e92ad35e9b0235b41cb393765636129a3818fcfb322b8a574155cd9304ebaf"
+    },
+    {
+      "heading": "Configured local SQL access \u2014 2026-10-17",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "f4d0f3c09bab15e91187553fbf38cc731901982f8db6052444bd544a2bea2401"
+    },
+    {
+      "heading": "Local SQL authentication \u2014 2026-10-18",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "e68911ef41facd422ed2f319d487d6e983f6017917521b4daabd2fbf490bfa28"
+    },
+    {
+      "heading": "Default SQL gateway installation \u2014 2026-10-18",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "90e39f3cc17d853b3408e4426e3b04411eb9064ca9d266db77045122d5a4b315"
+    },
+    {
+      "heading": "Handbook consolidation and static publication preparation (2026-10-21)",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "e9751134cd1fe5f1363243664f16b68acfd4b20b18e5c611bf8c8a7766d92938"
+    },
+    {
+      "heading": "GitHub Pages handbook workflow (2026-10-21)",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "31d09a5b0d70862398d40249146d631ff5f6884fc6d4427702f003784c1c83c5"
+    },
+    {
+      "heading": "Published handbook observations (2026-10-21)",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "edd338f33c477fa57898f29676c6ae53d01b0cb7211074b7f3a2508e424a2ed7"
+    },
+    {
+      "heading": "Declarative data lifecycle, codecs and collations",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "925d593faeedc6ade165594c1c6e8f1d7b060f2a5bc0fe2e0be912ee54760f20"
+    },
+    {
+      "heading": "Storage hierarchy, `.tseg` segments and multi-writer OCC",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "ba48583b91408b294b9bc019826f587260949436da6b4350e74d4f0eb5a3d958"
+    },
+    {
+      "heading": "Live storage engine and SQL execution cutover",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "b80ec8c3c562548b6fead7f5f0841313c31bb6ddb4d6a8c1339a74ba19f99acf"
+    },
+    {
+      "heading": "Direct SQL Compose placement \u2014 2026-10-24",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "587a6bea041a1509440e88f0a4777d791559668132cbe1b0c1bd56558459838d"
+    },
+    {
+      "heading": "Direct watch selected-role recovery \u2014 2026-10-24",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "3e378724f4b9517331c070ca11ceafe217898f8dac2ce4c3eeeaea346dfa5e85"
+    },
+    {
+      "heading": "Direct catalog SDK selected roles \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "0bf47e88ae6b4641cbb558b2bf5fb1706a2a6610230837a48017138fa846896c"
+    },
+    {
+      "heading": "Direct mutation measurement driver \u2014 2026-10-24",
+      "destination": "docs/history/qualification/performance.md",
+      "source_sha256": "93238c1898fb9f822d731cbffd05270d5795832a3cb828d34fcb068a56fb31ff"
+    },
+    {
+      "heading": "Direct catalog hard cutover and retired owner \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "6ea88cf6a854900ae784d425136267bfc288cd415147678461f66cc2f3556560"
+    },
+    {
+      "heading": "Direct catalog mutation checks \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "7e38ebf33fba5e56aa1e2aaffcc006715bb0d49c83c3be672d92d5b1e779d38e"
+    },
+    {
+      "heading": "Handbook cutover checks and dark diagram contrast \u2014 2026-10-24",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "fd3bf6675e221163614dadd447271f38824a8e03dcc3c27a879b06127dcc019b"
+    },
+    {
+      "heading": "Direct Follow reload and credential recovery \u2014 2026-10-24",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "edcf3a2ac04f469bd5832ffc02cb5bda9d2a1fc6d5b61e552117993dc42b7d7f"
+    },
+    {
+      "heading": "Combined repository check after direct-owner retirement \u2014 2026-10-24",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "501e1a2607f3bc1d6bfb990a7d8f9926ce04067f2353ecebccd4ba17912b9345"
+    },
+    {
+      "heading": "Opaque upstream availability responses \u2014 2026-10-24",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "6029377617a9ac4127a844b476406557de6519a281b8fa49b68033daf4a65d06"
+    },
+    {
+      "heading": "Public dependency graph growth and restart \u2014 2026-10-24",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "cbcabe2d3597dda22dca2eca5da13e44f0dcd85fb7953866719b3f660eec959a"
+    },
+    {
+      "heading": "Native worker contention and exact recovery \u2014 2026-10-25",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "1ccc47287633c143413348b3a4d20b24c5069a342c02f1a322643c2863fc2630"
+    },
+    {
+      "heading": "Direct Follow reference qualification checkpoints \u2014 2026-10-25",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "4397f75045835a82ccc9aa2b1548987b56d4f102a43e7675e094c9045cb188d8"
+    },
+    {
+      "heading": "Direct browser setup and clock contention recovery \u2014 2026-10-25",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "89a2104f18fd7a3e92ec1707010b442e30cb542e6b89543ed41bd9732b7ac568"
+    },
+    {
+      "heading": "Lifecycle qualification failures and phase diagnostics \u2014 2026-10-25",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "aa884b4e2ff264aad39fbb97e06211e5bc52387a62b36c4f2cb4549cffcfb5fd"
+    },
+    {
+      "heading": "Follow reads during control recovery \u2014 2026-10-25",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "dcea9d7e5f49bcc5345991522ad788125f8439feefb7e021e009adbebe9f6d60"
+    },
+    {
+      "heading": "Public named resource growth and restart \u2014 2026-10-25",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "02ee7675a612e16c8e49e2a6de91ba7a2b707d01f84425241271bb2be180d203"
+    },
+    {
+      "heading": "Direct Follow reference recovery and disclosure \u2014 2026-10-25",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "bc0687a96a16eb136fa6cda82c3694fa315ea9b02de50a7764091120e6e22f09"
+    },
+    {
+      "heading": "Clean-checkout packaging and maintenance repairs \u2014 2026-10-25",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "2fca664531ee73f80a409c8714689085ddb06e7c342f6fa5d80a8aca714c4a51"
+    },
+    {
+      "heading": "Launcher and SQL logging acceptance \u2014 2026-10-25",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "eddd4fd7ebe965351ca887e9d7fedda0d2b042716781d753ad6a6ac66205c80b"
+    },
+    {
+      "heading": "Isolated lifecycle qualification after parallel-run failures \u2014 2026-10-25",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "afddf055b4b76b09daae3abcc9eaff5209c632dc5cfe087598144740254d5c4b"
+    },
+    {
+      "heading": "Clean lifecycle growth budget failure \u2014 2026-10-25",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "be8dea616e8bf50a49f279ff34b01b974e6264616b1774e5d6364de0e264c08a"
+    },
+    {
+      "heading": "Clean SDK schema projection failure and repair \u2014 2026-10-25",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "c3d8c3a3f74557884cb4876ce68b41dacafd9cd4c411e201c1978174924bbb3f"
+    },
+    {
+      "heading": "Complete resource growth and installed SDK recovery \u2014 2026-10-25",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "f805cf51066c861d2c14527da5b63c1209e06346dc70a2a560aac95175c4b9b2"
+    },
+    {
+      "heading": "SQL admission and detached inspection revision races \u2014 2026-10-25",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "3f478d9eaac3a40d0eeee205c31276d0fa1f682368d97e1c51ea756a1b8fa5f1"
+    },
+    {
+      "heading": "Direct Table SQL wire diagnostics and current authority \u2014 2026-10-25",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "92f5297d6ff9b071ceb7a36fd203c6ac2e0456a35b60323ee83c0bb485ee0339"
+    },
+    {
+      "heading": "Neutral index contracts \u2014 2026-10-25",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "d9fdeaf40ea06ac48a8b774d2dae857e11acfdd9173861ad3c9bcdb113224f09"
+    },
+    {
+      "heading": "Installed lifecycle statement budgets \u2014 2026-10-25",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "4843a924e406c44e85246825f1ad57d238e63774e8b1b5c498b999a2b33144fa"
+    },
+    {
+      "heading": "Local WAL observation cancellation \u2014 2026-10-25",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "6a199a88b6e4631e1314b3871bcf7b6b675c2f15bf44906bbcb392ef87a6cca3"
+    },
+    {
+      "heading": "Native Linux CI library and loader selection \u2014 2026-10-25",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "dc29d5a4bc2cc24c49d8f4aebdb134f164c0dca384eb9dcfe9397887d1318094"
+    },
+    {
+      "heading": "Cached Kubernetes helper CPU portability \u2014 2026-10-25",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "16c2a95d98e8c3955dab7e31fe50056401cfe73da1b8d536ff14901e8e1ce872"
+    },
+    {
+      "heading": "Blocked direct caller observation budget \u2014 2026-10-25",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "81ef14e8de79b345ff0341c28ba68031f66c111c8ed5826fc0aa7ad3b782faf6"
+    },
+    {
+      "heading": "Stalled-log HTTP admission schedule \u2014 2026-10-26",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "f677d830c2c35b84ddf8a20e2a89db5ecd5c62919a61b17ef9c4c7ec17d1e311"
+    },
+    {
+      "heading": "Native C driver loader selection \u2014 2026-10-26",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "3ce55dfafc254d411048c9e939c4bf99b377e2282f3c1052de752d2c23d5eb77"
+    },
+    {
+      "heading": "Local storage syscall-error schedules \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "2dddaaf4417ec46ddf674cd92265c5c50093083ecc9d70af45402a670b050da0"
+    },
+    {
+      "heading": "Complete local WAL startup validation \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "30e3589de906a61e7618b9f7f12af5e0d1f4881ebee7f6643b3d6d487dffa427"
+    },
+    {
+      "heading": "Direct local WAL segment traversal \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "ce170f6c01acd9e02e40973042e805a30514a89bb507a6f20cde7c99abb52a3f"
+    },
+    {
+      "heading": "Local WAL model and recovery barriers \u2014 2026-10-26",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "f94376728ec73211630d98061ea3ecd27b5b2c1102ce80f5914d5ea8f9b9b12a"
+    },
+    {
+      "heading": "Native C/C++ library search paths \u2014 2026-10-25",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "61095f3ea5e84976642b7acfa0163656269708546f5ceddf64c06314e5b4df3b"
+    },
+    {
+      "heading": "Retained Table cross-segment range control \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "c9a913205235b58766638d82af9067ebf0e734755ba2f9df4c64523c9ffe0116"
+    },
+    {
+      "heading": "Dependency-package ELF loader selection \u2014 2026-10-26",
+      "destination": "docs/history/qualification/deployment.md",
+      "source_sha256": "62d5acde0809ce3401fa9864a5ba376be2af02ef55eac0181da8074b756744eb"
+    },
+    {
+      "heading": "Selected Table segment decoding \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "6c05d3205732ce626d84ca315f2fd38dd070cc1c89939dc0e434af1aa5a36ca5"
+    },
+    {
+      "heading": "Debug decimal argument alignment \u2014 2026-10-26",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "e4be546b58d65a5468131721b4d79c874546fe48c092231aa34bdeaba54e3b3f"
+    },
+    {
+      "heading": "CLI discovery fixture environment \u2014 2026-10-26",
+      "destination": "docs/history/qualification/interfaces.md",
+      "source_sha256": "94b9e43082a19421931365a1b335abe0abeedc9e772d19e470a7d281b918ead7"
+    },
+    {
+      "heading": "SDK query node build profile \u2014 2026-10-26",
+      "destination": "docs/history/qualification/sdk.md",
+      "source_sha256": "84ce44c1feef8ce5fe429afe585db7f0b0aaa5ff7e470b3c5460146d57a728e9"
+    },
+    {
+      "heading": "Paged Table owner and standalone-profile retirement \u2014 2026-10-26",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "eef362f6aec65f33b948e8e2cd2f0deac792283ce2903bc62e358f89c9b93afb"
+    },
+    {
+      "heading": "SQL settings observation recovery \u2014 2026-10-26",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "dc528b68f40e30b86c29733a9ec1a5133bea30d46c3d97b3c1a09b5c79e34181"
+    },
+    {
+      "heading": "SQL observation budgets \u2014 2026-10-26",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "2b96f59c022075d8d0e099c52d9021bc6b2e345ca4c963d55fd095dc5e8ff2b1"
+    },
+    {
+      "heading": "Paged Table history observation \u2014 2026-10-26",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "81475aff8ee2d722dc75d5319dc3c19622f41552087336ecf75ecee49de9acb0"
+    },
+    {
+      "heading": "Work-item command definition cutover \u2014 2026-10-26",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "4269b9a9c2f1df16384d6e39cd013366c9b09432ef52166ef9eef4f80d56bc9c"
+    },
+    {
+      "heading": "Relational setup outcome recovery \u2014 2026-10-26",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "d4cf765a336d32f6cb1b0fe94f35534df4b79086679b247589bbca8acc83ba79"
+    },
+    {
+      "heading": "WAL append inspection cancellation \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "8e7a19012ca6157183514875afdd4de9e7e769d462aa9b5ba7838282eac9707a"
+    },
+    {
+      "heading": "Installed Table qualification and original outcomes \u2014 2026-10-26",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "e013f6fe5a3a6c15a8cd723de9129231f1b8bb6f99d805724de04890ef326aff"
+    },
+    {
+      "heading": "Browser prerequisites and native reactive cutover \u2014 2026-10-26",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "b54f6ee2e3291ec92c1b6cceea5eba0ddcdb2c4f3a1c7fc70594e52a682ecd42"
+    },
+    {
+      "heading": "Explicit recovery of each query upload step \u2014 2026-10-26",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "4a57a3463e759c21353bec8e1770e8d52303f93cddd6d1051b1b52842dc41ef7"
+    },
+    {
+      "heading": "SQL lifetime failure reporting \u2014 2026-10-26",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "fb462c17ddf5f7dea607b626717fbc6f865cc71f15b869d508da99ed335f60ff"
+    },
+    {
+      "heading": "Physical reactive qualification \u2014 2026-10-26",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "ce17192a51c72035071f867906653a60ea6ded43edde87c027c4ee2bf7e7e6c6"
+    },
+    {
+      "heading": "Private object I/O and native progress \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "0a17fad3cb793bdda2cf133dc8434578b2cb083cb81dbc1ef1234e7507ff1702"
+    },
+    {
+      "heading": "Declared finite query collations \u2014 2026-10-26",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "2753e6f6bfac572ad4b80cd60a7cb1376d0b31365e25ae4dee9387e6b21f9425"
+    },
+    {
+      "heading": "Complete Table archives and physical WAL trimming \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "c02d8344709584a7930ca424b45ecfa708acf04b0af630539a1e11ccfb578836"
+    },
+    {
+      "heading": "Bounded live Table segment compaction \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "856cd01b60d08ec354d3fb2ac9ebb74792199f5c1514b5386d24203b541fc9b5"
+    },
+    {
+      "heading": "Accepted Table recovery checkpoints \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "a3509463e50a3767ffe51a8c909cf1b5b1e50e3933d4da2beeb7ee5548ad3591"
+    },
+    {
+      "heading": "Bounded Table build allocations \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "f0bb57b78c673fadecac318f786bcfa7d041815bae824aee1aaa8ea3bb3c0e5e"
+    },
+    {
+      "heading": "Paired local storage measurement harness \u2014 2026-10-26",
+      "destination": "docs/history/qualification/performance.md",
+      "source_sha256": "a2a8484864a61328a2103ed7e4683455ce9ed372a9ea018adc85e5f1ce3af6a6"
+    },
+    {
+      "heading": "Projected retained Table scans \u2014 2026-10-26",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "f29964021ff31a4216cad4ee6437b84c7471d013a4d3a23db24bce7e616d44b3"
+    },
+    {
+      "heading": "Encoded visible-candidate prefixes \u2014 2026-10-26",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "5e98a7ef6aa21b454c596aae9ef790a5563984c04915b6b550ec70af75194506"
+    },
+    {
+      "heading": "Encoded retained Table filtering \u2014 2026-10-26",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "07266735335f735a45008cfdf904379e1e9078c53ada9c4d75e398927b2810a4"
+    },
+    {
+      "heading": "Filtered source ordinals in batch execution \u2014 2026-10-26",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "02a760d4ba666010a2528ddc636532ff61e03ed00a007386d4011578b01ebd14"
+    },
+    {
+      "heading": "Signed filtered Table reads and finite SQL \u2014 2026-10-26",
+      "destination": "docs/history/qualification/sql.md",
+      "source_sha256": "403f64ef18bb406e800bc72b8e0eb55e91f77b439234bb345d706e5b2d65b78b"
+    },
+    {
+      "heading": "Retained metadata recovery reuse \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "5f40a1ec5d01e2c220b6e74f0165d5ec6696c22c7d9b0e1c6ab79697d3b8ddf4"
+    },
+    {
+      "heading": "Rebased retained Table service qualification \u2014 2026-10-26",
+      "destination": "docs/history/qualification/catalog.md",
+      "source_sha256": "6fab4e18683e719b3166770a77c72b86f5d83d42136eaea5afb939d675567993"
+    },
+    {
+      "heading": "Borrowed plain segment payload ownership \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "b7bbc0626afc6d7baef7ca69bb50f3254a1aeb2f37a50888481d6d8380fef819"
+    },
+    {
+      "heading": "Disk ingestion measurement harness \u2014 2026-10-26",
+      "destination": "docs/history/qualification/performance.md",
+      "source_sha256": "29d0a843511d0d4d7118cce043e191ac33616cb155f9b39e16786985260b74b5"
+    },
+    {
+      "heading": "Bounded growth harness smoke \u2014 2026-10-26",
+      "destination": "docs/history/qualification/performance.md",
+      "source_sha256": "7abd904fab3bc7859b0e3af03a28de6374ce8d0be4279fd5cf43676bf214d9d7"
+    },
+    {
+      "heading": "Borrowed finite Table compute pages \u2014 2026-10-26",
+      "destination": "docs/history/qualification/query.md",
+      "source_sha256": "ba14b467e0b5735b13ce26d6358a79b99521c5e7bb32a57e53c1dd2d29240dea"
+    },
+    {
+      "heading": "Aligned plain segment value buffers \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "45bd3ae17f97a0cd436c11b473dfab1905d1e60535c46aa4bb9bc57ae85949e8"
+    },
+    {
+      "heading": "Cache-conditioning retries and incomplete clean lane \u2014 2026-10-26",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "bb7cd8067ce5572e2752a973381111202adafd87366c24a9a997b5d604661c8d"
+    },
+    {
+      "heading": "Direct candidate epochs across native storage fences \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "da2ebb9f7a40103efa576ec3250e15bb77494b3ee6dd19c9f7e381fe4acd9090"
+    },
+    {
+      "heading": "Table logical history floors \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "2b009d61365a64041f9ae5547049399fb84ecedc66938a857cd48002daddb6e1"
+    },
+    {
+      "heading": "Compact Table outcomes independent of historical row payloads \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "4458b75f892eeafcd6be5979c8824e26b06c183d85ce686e089d256785c78681"
+    },
+    {
+      "heading": "Bounded Table directory traversal \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "286bb8e469db9655772f72b2fe4ce0a90559b2cd6a847b37b08572093aaf4fd3"
+    },
+    {
+      "heading": "Archived ingestion and growth observations \u2014 2026-10-26",
+      "destination": "docs/history/qualification/performance.md",
+      "source_sha256": "a3679dfc21d10817174afe911ae47fd038ff8ec7138b3b56b23bcd87db13fda6"
+    },
+    {
+      "heading": "Rebase over private object I/O separation \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "93aebee1a5d640ad29677a668889110b28ae3f82d74f69428ade67788131cb59"
+    },
+    {
+      "heading": "Concurrent immutable confirmation counters \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "b815f2ae40e91f63ef7b25406b9069dc58a87338ed8763f3c217104b10feff1e"
+    },
+    {
+      "heading": "Process-limited growth attempt and native setup timeout \u2014 2026-10-26",
+      "destination": "docs/history/qualification/performance.md",
+      "source_sha256": "a210b8d4f1d0ea93638421a9c1f4307140c0b723853042a17c6c23f638f1ff5d"
+    },
+    {
+      "heading": "Verified policy-page reuse and native setup diagnostics \u2014 2026-10-26",
+      "destination": "docs/history/qualification/runtime.md",
+      "source_sha256": "886268ea53f6715ad90bc3532bef048fcd8d5f8e83f26791218bdd4ad20dac88"
+    },
+    {
+      "heading": "Retained Table history and recovery root enumeration \u2014 2026-10-26",
+      "destination": "docs/history/qualification/storage.md",
+      "source_sha256": "c410b5f5880c27f54de7a11668167aa4d46e6255c33bdb72091cce4d79d02287"
+    },
+    {
+      "heading": "Final lifecycle qualification and remaining checks \u2014 2026-10-26",
+      "destination": "docs/history/qualification/verification.md",
+      "source_sha256": "438c78a3fdf953780431f4c10c756da0f73a46f987075caed53d0eb2922ab00f"
+    }
+  ],
+  "anchors": {
+    "local-standalone-payload-ownership--2026-10-26": "docs/history/qualification/storage.md#local-standalone-payload-ownership--2026-10-26",
+    "local-native-allocation-and-physical-collection--2026-10-26": "docs/history/qualification/storage.md#local-native-allocation-and-physical-collection--2026-10-26",
+    "encoded-boolean-segment-programs--2026-10-26": "docs/history/qualification/storage.md#encoded-boolean-segment-programs--2026-10-26",
+    "encoded-column-predicates-and-projected-segment-filtering--2026-10-26": "docs/history/qualification/storage.md#encoded-column-predicates-and-projected-segment-filtering--2026-10-26",
+    "finite-retained-table-count-ranges--2026-10-26": "docs/history/qualification/catalog.md#finite-retained-table-count-ranges--2026-10-26",
+    "finite-retained-sql-point-reads--2026-10-25": "docs/history/qualification/sql.md#finite-retained-sql-point-reads--2026-10-25",
+    "bounded-row-index-mutation-batches--2026-10-25": "docs/history/qualification/storage.md#bounded-row-index-mutation-batches--2026-10-25",
+    "retained-ordered-table-ranges--2026-10-25": "docs/history/qualification/storage.md#retained-ordered-table-ranges--2026-10-25",
+    "ordered-full-key-index-component--2026-10-25": "docs/history/qualification/storage.md#ordered-full-key-index-component--2026-10-25",
+    "bounded-local-wal-seek-reuse--2026-10-25": "docs/history/qualification/storage.md#bounded-local-wal-seek-reuse--2026-10-25",
+    "verified-segment-range-reader--2026-10-25": "docs/history/qualification/storage.md#verified-segment-range-reader--2026-10-25",
+    "direct-catalog-growth-and-retained-rows--2026-10-24": "docs/history/qualification/catalog.md#direct-catalog-growth-and-retained-rows--2026-10-24",
+    "direct-catalog-diagnostic-boundaries--2026-10-24": "docs/history/qualification/catalog.md#direct-catalog-diagnostic-boundaries--2026-10-24",
+    "direct-exchange-producers-and-backpressure--2026-10-24": "docs/history/qualification/runtime.md#direct-exchange-producers-and-backpressure--2026-10-24",
+    "direct-table-compose-live-views--2026-10-24": "docs/history/qualification/deployment.md#direct-table-compose-live-views--2026-10-24",
+    "captured-direct-table-request-batching--2026-10-24": "docs/history/qualification/query.md#captured-direct-table-request-batching--2026-10-24",
+    "direct-table-selected-role-boundary--2026-10-24": "docs/history/qualification/catalog.md#direct-table-selected-role-boundary--2026-10-24",
+    "direct-prepared-table-lifetime--2026-10-24": "docs/history/qualification/catalog.md#direct-prepared-table-lifetime--2026-10-24",
+    "direct-exchange-worker-handoff--2026-10-24": "docs/history/qualification/runtime.md#direct-exchange-worker-handoff--2026-10-24",
+    "direct-sql-ledger-recovery-and-pin-authority--2026-10-24": "docs/history/qualification/sql.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24",
+    "unified-direct-table-recovery-and-closure--2026-10-24": "docs/history/qualification/catalog.md#unified-direct-table-recovery-and-closure--2026-10-24",
+    "direct-follow-browser-lifecycle--2026-10-24": "docs/history/qualification/query.md#direct-follow-browser-lifecycle--2026-10-24",
+    "courier-discovery-through-the-pending-index--2026-10-24": "docs/history/qualification/runtime.md#courier-discovery-through-the-pending-index--2026-10-24",
+    "direct-flight-and-captured-query-consumers--2026-10-24": "docs/history/qualification/query.md#direct-flight-and-captured-query-consumers--2026-10-24",
+    "direct-serving-counter-acceptance--2026-10-24": "docs/history/qualification/runtime.md#direct-serving-counter-acceptance--2026-10-24",
+    "snapshot-pins-against-competing-checkpoints--2026-10-24": "docs/history/qualification/storage.md#snapshot-pins-against-competing-checkpoints--2026-10-24",
+    "retained-relational-caller-conformance--2026-10-24": "docs/history/qualification/query.md#retained-relational-caller-conformance--2026-10-24",
+    "direct-board-relational-recovery--2026-10-24": "docs/history/qualification/interfaces.md#direct-board-relational-recovery--2026-10-24",
+    "installed-c-and-c-direct-lifecycle--2026-10-24": "docs/history/qualification/sdk.md#installed-c-and-c-direct-lifecycle--2026-10-24",
+    "installed-erlang-and-elixir-direct-lifecycle--2026-10-24": "docs/history/qualification/sdk.md#installed-erlang-and-elixir-direct-lifecycle--2026-10-24",
+    "installed-rust-direct-lifecycle-and-retained-metadata--2026-10-24": "docs/history/qualification/sdk.md#installed-rust-direct-lifecycle-and-retained-metadata--2026-10-24",
+    "installed-net-direct-lifecycle-and-retained-metadata--2026-10-24": "docs/history/qualification/sdk.md#installed-net-direct-lifecycle-and-retained-metadata--2026-10-24",
+    "installed-java-direct-lifecycle-and-retained-metadata--2026-10-24": "docs/history/qualification/sdk.md#installed-java-direct-lifecycle-and-retained-metadata--2026-10-24",
+    "installed-ruby-direct-lifecycle-and-retained-metadata--2026-10-24": "docs/history/qualification/sdk.md#installed-ruby-direct-lifecycle-and-retained-metadata--2026-10-24",
+    "installed-typescript-direct-lifecycle-and-retained-sql--2026-10-24": "docs/history/qualification/sdk.md#installed-typescript-direct-lifecycle-and-retained-sql--2026-10-24",
+    "installed-python-direct-lifecycle-and-retained-sql--2026-10-24": "docs/history/qualification/sdk.md#installed-python-direct-lifecycle-and-retained-sql--2026-10-24",
+    "direct-catalog-abi-and-port-recovery--2026-10-24": "docs/history/qualification/sdk.md#direct-catalog-abi-and-port-recovery--2026-10-24",
+    "direct-caller-diagnostic-projection--2026-10-24": "docs/history/qualification/sdk.md#direct-caller-diagnostic-projection--2026-10-24",
+    "explicit-relational-queries-over-retained-definitions--2026-10-24": "docs/history/qualification/query.md#explicit-relational-queries-over-retained-definitions--2026-10-24",
+    "installed-work-items-direct-lifecycle--2026-10-24": "docs/history/qualification/catalog.md#installed-work-items-direct-lifecycle--2026-10-24",
+    "direct-caller-mutation-attempt-evidence--2026-10-24": "docs/history/qualification/sdk.md#direct-caller-mutation-attempt-evidence--2026-10-24",
+    "direct-host-named-resource-recovery--2026-10-24": "docs/history/qualification/sdk.md#direct-host-named-resource-recovery--2026-10-24",
+    "shared-direct-preview-repository-check--2026-10-24": "docs/history/qualification/verification.md#shared-direct-preview-repository-check--2026-10-24",
+    "direct-host-dependency-recovery--2026-10-24": "docs/history/qualification/sdk.md#direct-host-dependency-recovery--2026-10-24",
+    "direct-host-namespace-and-policy-preparation--2026-10-24": "docs/history/qualification/sdk.md#direct-host-namespace-and-policy-preparation--2026-10-24",
+    "direct-host-catalog-inspection--2026-10-24": "docs/history/qualification/sdk.md#direct-host-catalog-inspection--2026-10-24",
+    "shared-direct-preview--2026-10-24": "docs/history/qualification/catalog.md#shared-direct-preview--2026-10-24",
+    "typed-direct-caller-preparation--2026-10-24": "docs/history/qualification/sdk.md#typed-direct-caller-preparation--2026-10-24",
+    "shared-direct-caller-session--2026-10-24": "docs/history/qualification/sdk.md#shared-direct-caller-session--2026-10-24",
+    "lossless-direct-caller-references--2026-10-24": "docs/history/qualification/sdk.md#lossless-direct-caller-references--2026-10-24",
+    "shared-direct-table-ddl-preparation--2026-10-24": "docs/history/qualification/catalog.md#shared-direct-table-ddl-preparation--2026-10-24",
+    "obsolete-named-metadata-owner-removal--2026-10-24": "docs/history/qualification/catalog.md#obsolete-named-metadata-owner-removal--2026-10-24",
+    "named-query-dependency-publication-and-retirement--2026-10-24": "docs/history/qualification/query.md#named-query-dependency-publication-and-retirement--2026-10-24",
+    "named-resource-dependency-authority-and-retirement--2026-10-24": "docs/history/qualification/catalog.md#named-resource-dependency-authority-and-retirement--2026-10-24",
+    "named-native-resource-allocation-and-initialization--2026-10-24": "docs/history/qualification/catalog.md#named-native-resource-allocation-and-initialization--2026-10-24",
+    "direct-definition-dependencies-and-restricted-retirement--2026-10-24": "docs/history/qualification/catalog.md#direct-definition-dependencies-and-restricted-retirement--2026-10-24",
+    "station-ledger-over-the-direct-table-owner--2026-10-24": "docs/history/qualification/catalog.md#station-ledger-over-the-direct-table-owner--2026-10-24",
+    "retained-native-storage-in-the-helm-chart--2026-10-24": "docs/history/qualification/deployment.md#retained-native-storage-in-the-helm-chart--2026-10-24",
+    "named-publication-recovery-with-current-credentials--2026-10-24": "docs/history/qualification/catalog.md#named-publication-recovery-with-current-credentials--2026-10-24",
+    "cli-actor-table-helper-retirement--2026-10-24": "docs/history/qualification/interfaces.md#cli-actor-table-helper-retirement--2026-10-24",
+    "direct-table-change-reader-checkpoints--2026-10-24": "docs/history/qualification/catalog.md#direct-table-change-reader-checkpoints--2026-10-24",
+    "native-sql-namespace-lifecycle--2026-10-24": "docs/history/qualification/sql.md#native-sql-namespace-lifecycle--2026-10-24",
+    "work-items-result-position-display--2026-10-24": "docs/history/qualification/runtime.md#work-items-result-position-display--2026-10-24",
+    "installed-work-items-physical-exhaustion--2026-10-24": "docs/history/qualification/deployment.md#installed-work-items-physical-exhaustion--2026-10-24",
+    "work-items-direct-storage-in-compose--2026-10-24": "docs/history/qualification/deployment.md#work-items-direct-storage-in-compose--2026-10-24",
+    "work-items-direct-storage-on-the-reference-runtime--2026-10-24": "docs/history/qualification/deployment.md#work-items-direct-storage-on-the-reference-runtime--2026-10-24",
+    "work-items-direct-admission-reply-loss--2026-10-24": "docs/history/qualification/runtime.md#work-items-direct-admission-reply-loss--2026-10-24",
+    "membership-additions-preserve-inactive-paths--2026-10-24": "docs/history/qualification/catalog.md#membership-additions-preserve-inactive-paths--2026-10-24",
+    "work-items-over-the-direct-data-owner--2026-10-24": "docs/history/qualification/runtime.md#work-items-over-the-direct-data-owner--2026-10-24",
+    "direct-completion-after-console-and-go-integration--2026-10-24": "docs/history/qualification/interfaces.md#direct-completion-after-console-and-go-integration--2026-10-24",
+    "console-interaction-state-machine--2026-10-24": "docs/history/qualification/interfaces.md#console-interaction-state-machine--2026-10-24",
+    "cancel-interactions-without-clearing-drafts--2026-10-24": "docs/history/qualification/runtime.md#cancel-interactions-without-clearing-drafts--2026-10-24",
+    "history-search-starts-from-the-draft--2026-10-24": "docs/history/qualification/runtime.md#history-search-starts-from-the-draft--2026-10-24",
+    "console-keyword-continuation-and-unique-insertion--2026-10-24": "docs/history/qualification/interfaces.md#console-keyword-continuation-and-unique-insertion--2026-10-24",
+    "console-completion-separators--2026-10-24": "docs/history/qualification/interfaces.md#console-completion-separators--2026-10-24",
+    "go-raw-client": "docs/history/qualification/sdk.md#go-raw-client",
+    "optimistic-current-table-reads--2026-10-23": "docs/history/qualification/catalog.md#optimistic-current-table-reads--2026-10-23",
+    "shared-direct-action-dispatch--2026-10-23": "docs/history/qualification/sdk.md#shared-direct-action-dispatch--2026-10-23",
+    "direct-namespace-lifecycle--2026-10-23": "docs/history/qualification/catalog.md#direct-namespace-lifecycle--2026-10-23",
+    "sdk-bridge-computation-removal--2026-10-23": "docs/history/qualification/sdk.md#sdk-bridge-computation-removal--2026-10-23",
+    "changed-table-inspection-diagnostics--2026-10-23": "docs/history/qualification/catalog.md#changed-table-inspection-diagnostics--2026-10-23",
+    "direct-mutation-authorization-prerequisites--2026-10-23": "docs/history/qualification/catalog.md#direct-mutation-authorization-prerequisites--2026-10-23",
+    "responsive-console-completion-menus--2026-10-24": "docs/history/qualification/interfaces.md#responsive-console-completion-menus--2026-10-24",
+    "direct-table-completion-and-console-integration--2026-10-23": "docs/history/qualification/interfaces.md#direct-table-completion-and-console-integration--2026-10-23",
+    "saved-follow-control-and-preparation-recovery--2026-10-23": "docs/history/qualification/query.md#saved-follow-control-and-preparation-recovery--2026-10-23",
+    "named-maintained-revision-inspection-and-recovery--2026-10-23": "docs/history/qualification/query.md#named-maintained-revision-inspection-and-recovery--2026-10-23",
+    "query-owned-computation-evidence--2026-10-23": "docs/history/qualification/query.md#query-owned-computation-evidence--2026-10-23",
+    "result-source-freshness-and-named-attribution--2026-10-23": "docs/history/qualification/query.md#result-source-freshness-and-named-attribution--2026-10-23",
+    "named-captured-definitions-over-the-direct-service--2026-10-23": "docs/history/qualification/query.md#named-captured-definitions-over-the-direct-service--2026-10-23",
+    "named-definition-fixtures-with-direct-table-grants--2026-10-23": "docs/history/qualification/catalog.md#named-definition-fixtures-with-direct-table-grants--2026-10-23",
+    "explicit-workspace-capture-and-separate-caller-recovery--2026-10-23": "docs/history/qualification/query.md#explicit-workspace-capture-and-separate-caller-recovery--2026-10-23",
+    "current-capture-cleanup-after-definition-changes--2026-10-23": "docs/history/qualification/query.md#current-capture-cleanup-after-definition-changes--2026-10-23",
+    "prepared-finite-refresh-and-direct-watch-transitions--2026-10-23": "docs/history/qualification/query.md#prepared-finite-refresh-and-direct-watch-transitions--2026-10-23",
+    "retained-table-evidence-and-current-disclosure-rights--2026-10-23": "docs/history/qualification/query.md#retained-table-evidence-and-current-disclosure-rights--2026-10-23",
+    "read-only-current-table-observations--2026-10-23": "docs/history/qualification/catalog.md#read-only-current-table-observations--2026-10-23",
+    "direct-maintained-successors-and-query-fixture-migration--2026-10-23": "docs/history/qualification/query.md#direct-maintained-successors-and-query-fixture-migration--2026-10-23",
+    "finite-direct-capture-memory-and-retirement--2026-10-23": "docs/history/qualification/query.md#finite-direct-capture-memory-and-retirement--2026-10-23",
+    "direct-table-exchange-placement-and-borrowed-reads--2026-10-23": "docs/history/qualification/deployment.md#direct-table-exchange-placement-and-borrowed-reads--2026-10-23",
+    "retained-direct-table-pages-and-predicates--2026-10-23": "docs/history/qualification/catalog.md#retained-direct-table-pages-and-predicates--2026-10-23",
+    "direct-relational-failure-boundaries--2026-10-23": "docs/history/qualification/query.md#direct-relational-failure-boundaries--2026-10-23",
+    "maintained-direct-table-queries--2026-10-23": "docs/history/qualification/query.md#maintained-direct-table-queries--2026-10-23",
+    "direct-table-history-retention--2026-10-23": "docs/history/qualification/catalog.md#direct-table-history-retention--2026-10-23",
+    "direct-captured-table-queries-and-separate-cleanup-authority--2026-10-23": "docs/history/qualification/query.md#direct-captured-table-queries-and-separate-cleanup-authority--2026-10-23",
+    "installed-lifecycle-qualification-checkpoint--2026-10-26": "docs/history/qualification/verification.md#installed-lifecycle-qualification-checkpoint--2026-10-26",
+    "installed-sql-client-selection--2026-10-26": "docs/history/qualification/interfaces.md#installed-sql-client-selection--2026-10-26",
+    "installed-lifecycle-follow-up-and-station-ci-dependency--2026-10-26": "docs/history/qualification/verification.md#installed-lifecycle-follow-up-and-station-ci-dependency--2026-10-26",
+    "catalog-prefix-reuse--2026-10-26": "docs/history/qualification/catalog.md#catalog-prefix-reuse--2026-10-26",
+    "installed-lifecycle-qualification-after-ci-prerequisites--2026-10-26": "docs/history/qualification/verification.md#installed-lifecycle-qualification-after-ci-prerequisites--2026-10-26",
+    "hosted-core-execution-cap--2026-10-26": "docs/history/qualification/runtime.md#hosted-core-execution-cap--2026-10-26",
+    "station-node-build-profile--2026-10-26": "docs/history/qualification/query.md#station-node-build-profile--2026-10-26",
+    "retained-source-publication-authority--2026-10-23": "docs/history/qualification/query.md#retained-source-publication-authority--2026-10-23",
+    "durable-computation-pin-ownership-component--2026-10-23": "docs/history/qualification/query.md#durable-computation-pin-ownership-component--2026-10-23",
+    "exact-direct-pin-closure--2026-10-23": "docs/history/qualification/query.md#exact-direct-pin-closure--2026-10-23",
+    "neutral-physical-schemas-across-language-callers--2026-10-23": "docs/history/qualification/sdk.md#neutral-physical-schemas-across-language-callers--2026-10-23",
+    "scoped-direct-table-read-delegation--2026-10-23": "docs/history/qualification/catalog.md#scoped-direct-table-read-delegation--2026-10-23",
+    "direct-catalog-administration-and-installed-database-clients--2026-10-23": "docs/history/qualification/interfaces.md#direct-catalog-administration-and-installed-database-clients--2026-10-23",
+    "lossless-physical-column-admission-and-public-sql--2026-10-23": "docs/history/qualification/sql.md#lossless-physical-column-admission-and-public-sql--2026-10-23",
+    "installed-direct-lifecycle-rollback-and-capacity--2026-10-23": "docs/history/qualification/catalog.md#installed-direct-lifecycle-rollback-and-capacity--2026-10-23",
+    "installed-direct-execution-recovery--2026-10-23": "docs/history/qualification/runtime.md#installed-direct-execution-recovery--2026-10-23",
+    "stable-console-completion-menus--2026-10-24": "docs/history/qualification/interfaces.md#stable-console-completion-menus--2026-10-24",
+    "console-completion-and-editing--2026-10-24": "docs/history/qualification/interfaces.md#console-completion-and-editing--2026-10-24",
+    "installed-direct-table-bootstrap--2026-10-23": "docs/history/qualification/catalog.md#installed-direct-table-bootstrap--2026-10-23",
+    "console-multiline-editing--2026-10-23": "docs/history/qualification/interfaces.md#console-multiline-editing--2026-10-23",
+    "bounded-direct-http-client-allocation--2026-10-23": "docs/history/qualification/interfaces.md#bounded-direct-http-client-allocation--2026-10-23",
+    "frontend-dependency-installation-during-builds--2026-10-23": "docs/history/qualification/catalog.md#frontend-dependency-installation-during-builds--2026-10-23",
+    "console-help-and-statement-outcomes--2026-10-22": "docs/history/qualification/interfaces.md#console-help-and-statement-outcomes--2026-10-22",
+    "two-command-transit-cli": "docs/history/qualification/interfaces.md#two-command-transit-cli",
+    "console-external-editor--2026-10-22": "docs/history/qualification/interfaces.md#console-external-editor--2026-10-22",
+    "local-board-hostname-aliases--2026-10-22": "docs/history/qualification/interfaces.md#local-board-hostname-aliases--2026-10-22",
+    "data-operation-contracts-and-local-wal-persistence--2026-10-22": "docs/history/qualification/storage.md#data-operation-contracts-and-local-wal-persistence--2026-10-22",
+    "table-definition-acceptance-and-retained-interpretation--2026-10-22": "docs/history/qualification/catalog.md#table-definition-acceptance-and-retained-interpretation--2026-10-22",
+    "direct-catalog-reservations-and-table-publication--2026-10-22": "docs/history/qualification/catalog.md#direct-catalog-reservations-and-table-publication--2026-10-22",
+    "durable-table-row-admission-and-outcomes--2026-10-22": "docs/history/qualification/catalog.md#durable-table-row-admission-and-outcomes--2026-10-22",
+    "conditional-sql-catalog-outcomes--2026-10-23": "docs/history/qualification/sql.md#conditional-sql-catalog-outcomes--2026-10-23",
+    "direct-staged-intent-references--2026-10-23": "docs/history/qualification/runtime.md#direct-staged-intent-references--2026-10-23",
+    "direct-sql-references-and-read-recovery--2026-10-23": "docs/history/qualification/sql.md#direct-sql-references-and-read-recovery--2026-10-23",
+    "prepared-select-over-retained-direct-tables--2026-10-23": "docs/history/qualification/catalog.md#prepared-select-over-retained-direct-tables--2026-10-23",
+    "saved-direct-sql-mutation-intent--2026-10-23": "docs/history/qualification/sql.md#saved-direct-sql-mutation-intent--2026-10-23",
+    "direct-preparation-rights-and-immutable-bindings--2026-10-23": "docs/history/qualification/catalog.md#direct-preparation-rights-and-immutable-bindings--2026-10-23",
+    "direct-insert-identity--2026-10-23": "docs/history/qualification/runtime.md#direct-insert-identity--2026-10-23",
+    "frozen-sql-predicate-mutations--2026-10-23": "docs/history/qualification/sql.md#frozen-sql-predicate-mutations--2026-10-23",
+    "finite-sql-over-retained-direct-tables--2026-10-23": "docs/history/qualification/sql.md#finite-sql-over-retained-direct-tables--2026-10-23",
+    "direct-table-preview--2026-10-23": "docs/history/qualification/catalog.md#direct-table-preview--2026-10-23",
+    "direct-table-crudddl-recovery--2026-10-23": "docs/history/qualification/catalog.md#direct-table-crudddl-recovery--2026-10-23",
+    "retained-typed-table-reader--2026-10-23": "docs/history/qualification/query.md#retained-typed-table-reader--2026-10-23",
+    "direct-table-http-owner-and-typed-caller--2026-10-22": "docs/history/qualification/catalog.md#direct-table-http-owner-and-typed-caller--2026-10-22",
+    "retained-table-page-reads--2026-10-22": "docs/history/qualification/query.md#retained-table-page-reads--2026-10-22",
+    "table-partition-acceptance-and-retained-read-pins--2026-10-22": "docs/history/qualification/storage.md#table-partition-acceptance-and-retained-read-pins--2026-10-22",
+    "native-authority-over-local-storage--2026-10-22": "docs/history/qualification/storage.md#native-authority-over-local-storage--2026-10-22",
+    "sql-idle-lifetimes-and-readiness-observations": "docs/history/qualification/sql.md#sql-idle-lifetimes-and-readiness-observations",
+    "unified-service-logging": "docs/history/qualification/interfaces.md#unified-service-logging",
+    "shared-server-managed-sql-sessions": "docs/history/qualification/sql.md#shared-server-managed-sql-sessions",
+    "automatic-local-server-startup": "docs/history/qualification/deployment.md#automatic-local-server-startup",
+    "integrated-storage-foundation": "docs/history/qualification/storage.md#integrated-storage-foundation",
+    "segment-storage-and-physical-collection": "docs/history/qualification/storage.md#segment-storage-and-physical-collection",
+    "table-records-on-native-blocks": "docs/history/qualification/storage.md#table-records-on-native-blocks",
+    "native-bulk-resource-publication": "docs/history/qualification/storage.md#native-bulk-resource-publication",
+    "immutable-block-codec-and-index": "docs/history/qualification/storage.md#immutable-block-codec-and-index",
+    "independently-owned-native-execution": "docs/history/qualification/runtime.md#independently-owned-native-execution",
+    "sdk-source-and-runtime-boundary": "docs/history/qualification/sdk.md#sdk-source-and-runtime-boundary",
+    "declarative-authorization-evaluator": "docs/history/qualification/runtime.md#declarative-authorization-evaluator",
+    "table-authorization-service-isolation": "docs/history/qualification/catalog.md#table-authorization-service-isolation",
+    "original-caller-proofs-in-durable-table-queries": "docs/history/qualification/catalog.md#original-caller-proofs-in-durable-table-queries",
+    "database-wire-gateway": "docs/history/qualification/sql.md#database-wire-gateway",
+    "committed-source-qualification": "docs/history/qualification/sql.md#committed-source-qualification",
+    "database-wire-foundation": "docs/history/qualification/sql.md#database-wire-foundation",
+    "database-wire-primitives": "docs/history/qualification/sql.md#database-wire-primitives",
+    "catalog-table-parameters": "docs/history/qualification/sql.md#catalog-table-parameters",
+    "integrated-vector-execution": "docs/history/qualification/query.md#integrated-vector-execution",
+    "experimental-int64-batch-qualification": "docs/history/qualification/runtime.md#experimental-int64-batch-qualification",
+    "integrated-relational-qualification": "docs/history/qualification/query.md#integrated-relational-qualification",
+    "ongoing-maintenance-and-failed-successors": "docs/history/qualification/runtime.md#ongoing-maintenance-and-failed-successors",
+    "complete-history-mutation-cost": "docs/history/qualification/performance.md#complete-history-mutation-cost",
+    "relational-physical-capacity": "docs/history/qualification/query.md#relational-physical-capacity",
+    "relational-exchange-faults-and-checkpoint-growth": "docs/history/qualification/query.md#relational-exchange-faults-and-checkpoint-growth",
+    "relational-resident-growth": "docs/history/qualification/query.md#relational-resident-growth",
+    "named-relational-definitions": "docs/history/qualification/query.md#named-relational-definitions",
+    "explicit-relational-board-sessions": "docs/history/qualification/interfaces.md#explicit-relational-board-sessions",
+    "installed-interactive-relational-sdks": "docs/history/qualification/sdk.md#installed-interactive-relational-sdks",
+    "neutral-relational-caller-pages": "docs/history/qualification/query.md#neutral-relational-caller-pages",
+    "complete-table-history-and-snapshot-tail": "docs/history/qualification/catalog.md#complete-table-history-and-snapshot-tail",
+    "maintained-relational-revisions": "docs/history/qualification/query.md#maintained-relational-revisions",
+    "relational-exchange-transitions": "docs/history/qualification/query.md#relational-exchange-transitions",
+    "recorded-manual-worker-handoff": "docs/history/qualification/query.md#recorded-manual-worker-handoff",
+    "relational-contract-and-oracle-intake": "docs/history/qualification/query.md#relational-contract-and-oracle-intake",
+    "captured-resource-vectors-and-publication-guards": "docs/history/qualification/query.md#captured-resource-vectors-and-publication-guards",
+    "immutable-group-checkpoints-and-bounded-publication-staging": "docs/history/qualification/query.md#immutable-group-checkpoints-and-bounded-publication-staging",
+    "captured-relational-owner-and-results": "docs/history/qualification/query.md#captured-relational-owner-and-results",
+    "relational-editor-agreement": "docs/history/qualification/query.md#relational-editor-agreement",
+    "relational-grammar-and-metadata-only-explain": "docs/history/qualification/query.md#relational-grammar-and-metadata-only-explain",
+    "initial-contract-checkpoint": "docs/history/qualification/query.md#initial-contract-checkpoint",
+    "mutation-completion-follow-up": "docs/history/qualification/query.md#mutation-completion-follow-up",
+    "schema-on-demand-final-qualification": "docs/history/qualification/runtime.md#schema-on-demand-final-qualification",
+    "semantic-diagnostic-closeout": "docs/history/qualification/runtime.md#semantic-diagnostic-closeout",
+    "schema-discovery-diagnostic-evidence--2026-10-03": "docs/history/qualification/runtime.md#schema-discovery-diagnostic-evidence--2026-10-03",
+    "descriptor-json-member-evidence--2026-10-03": "docs/history/qualification/runtime.md#descriptor-json-member-evidence--2026-10-03",
+    "recursive-descriptor-diagnostic-evidence--2026-10-03": "docs/history/qualification/runtime.md#recursive-descriptor-diagnostic-evidence--2026-10-03",
+    "connector-reply-diagnostic-evidence--2026-10-03": "docs/history/qualification/runtime.md#connector-reply-diagnostic-evidence--2026-10-03",
+    "http-chunk-diagnostic-evidence--2026-10-03": "docs/history/qualification/runtime.md#http-chunk-diagnostic-evidence--2026-10-03",
+    "connector-transport-cause-evidence--2026-10-03": "docs/history/qualification/runtime.md#connector-transport-cause-evidence--2026-10-03",
+    "connector-capture-failure-evidence--2026-10-03": "docs/history/qualification/query.md#connector-capture-failure-evidence--2026-10-03",
+    "native-effect-closure-diagnostic-evidence--2026-10-03": "docs/history/qualification/runtime.md#native-effect-closure-diagnostic-evidence--2026-10-03",
+    "file-diagnostic-boundary-evidence--2026-10-03": "docs/history/qualification/query.md#file-diagnostic-boundary-evidence--2026-10-03",
+    "console-timer-command--2026-10-04": "docs/history/qualification/interfaces.md#console-timer-command--2026-10-04",
+    "contextual-console-sql-highlighting--2026-10-04": "docs/history/qualification/interfaces.md#contextual-console-sql-highlighting--2026-10-04",
+    "console-scrollback-and-diagnostic-highlighting--2026-10-02": "docs/history/qualification/interfaces.md#console-scrollback-and-diagnostic-highlighting--2026-10-02",
+    "station-lifetime-diagnostics-under-forced-color--2026-10-02": "docs/history/qualification/runtime.md#station-lifetime-diagnostics-under-forced-color--2026-10-02",
+    "console-timing-follows-command-output--2026-10-02": "docs/history/qualification/interfaces.md#console-timing-follows-command-output--2026-10-02",
+    "console-error-guidance--2026-10-02": "docs/history/qualification/interfaces.md#console-error-guidance--2026-10-02",
+    "sql-parameter-integration-with-boolean-main--2026-10-01": "docs/history/qualification/sql.md#sql-parameter-integration-with-boolean-main--2026-10-01",
+    "typed-parameter-compiler-foundation": "docs/history/qualification/sql.md#typed-parameter-compiler-foundation",
+    "declarative-benchmark-components": "docs/history/qualification/performance.md#declarative-benchmark-components",
+    "handbook-grammar-inventory-and-implementation-plan": "docs/history/qualification/interfaces.md#handbook-grammar-inventory-and-implementation-plan",
+    "conditional-declarative-catalog": "docs/history/qualification/catalog.md#conditional-declarative-catalog",
+    "shared-signed-catalog-caller": "docs/history/qualification/catalog.md#shared-signed-catalog-caller",
+    "supplied-catalog-host-and-explicit-committed-sources": "docs/history/qualification/catalog.md#supplied-catalog-host-and-explicit-committed-sources",
+    "signed-initialization-and-policy-controls": "docs/history/qualification/catalog.md#signed-initialization-and-policy-controls",
+    "neutral-catalog-caller-values": "docs/history/qualification/catalog.md#neutral-catalog-caller-values",
+    "catalog-c-abi-and-native-port": "docs/history/qualification/catalog.md#catalog-c-abi-and-native-port",
+    "explicit-catalog-cli": "docs/history/qualification/catalog.md#explicit-catalog-cli",
+    "python-catalog-callers": "docs/history/qualification/catalog.md#python-catalog-callers",
+    "typescript-catalog-caller": "docs/history/qualification/catalog.md#typescript-catalog-caller",
+    "rust-catalog-caller": "docs/history/qualification/catalog.md#rust-catalog-caller",
+    "ruby-catalog-caller": "docs/history/qualification/catalog.md#ruby-catalog-caller",
+    "c-and-c-catalog-callers": "docs/history/qualification/catalog.md#c-and-c-catalog-callers",
+    "java-catalog-caller": "docs/history/qualification/catalog.md#java-catalog-caller",
+    "net-catalog-caller": "docs/history/qualification/catalog.md#net-catalog-caller",
+    "erlangelixir-catalog-callers-and-combined-installed-schedule": "docs/history/qualification/catalog.md#erlangelixir-catalog-callers-and-combined-installed-schedule",
+    "signed-catalog-metadata": "docs/history/qualification/catalog.md#signed-catalog-metadata",
+    "batched-signed-catalog-pages": "docs/history/qualification/catalog.md#batched-signed-catalog-pages",
+    "neutral-catalog-metadata-values": "docs/history/qualification/catalog.md#neutral-catalog-metadata-values",
+    "catalog-metadata-through-native-abi-port-and-cli": "docs/history/qualification/catalog.md#catalog-metadata-through-native-abi-port-and-cli",
+    "python-catalog-metadata": "docs/history/qualification/catalog.md#python-catalog-metadata",
+    "typescript-catalog-metadata": "docs/history/qualification/catalog.md#typescript-catalog-metadata",
+    "rust-catalog-metadata": "docs/history/qualification/catalog.md#rust-catalog-metadata",
+    "ruby-catalog-metadata": "docs/history/qualification/catalog.md#ruby-catalog-metadata",
+    "cc-catalog-metadata": "docs/history/qualification/catalog.md#cc-catalog-metadata",
+    "java-catalog-metadata": "docs/history/qualification/catalog.md#java-catalog-metadata",
+    "net-catalog-metadata": "docs/history/qualification/catalog.md#net-catalog-metadata",
+    "erlangelixir-catalog-metadata": "docs/history/qualification/catalog.md#erlangelixir-catalog-metadata",
+    "combined-metadata-cleanup-investigation": "docs/history/qualification/catalog.md#combined-metadata-cleanup-investigation",
+    "catalog-growth-attribution": "docs/history/qualification/catalog.md#catalog-growth-attribution",
+    "balanced-batch-splits-and-larger-catalog-growth": "docs/history/qualification/catalog.md#balanced-batch-splits-and-larger-catalog-growth",
+    "resuming-a-depth-exhausted-catalog": "docs/history/qualification/catalog.md#resuming-a-depth-exhausted-catalog",
+    "shared-immutable-paths-for-bounded-point-reads": "docs/history/qualification/catalog.md#shared-immutable-paths-for-bounded-point-reads",
+    "shared-reads-for-catalog-mutation-counts": "docs/history/qualification/catalog.md#shared-reads-for-catalog-mutation-counts",
+    "sql-branch-integration-of-seeded-simulations": "docs/history/qualification/verification.md#sql-branch-integration-of-seeded-simulations",
+    "offline-state-declaration-compiler": "docs/history/qualification/catalog.md#offline-state-declaration-compiler",
+    "rust-native-lifetime-investigation--2026-09-30": "docs/history/qualification/sdk.md#rust-native-lifetime-investigation--2026-09-30",
+    "query-result-selection-after-access-recovery--2026-10-01": "docs/history/qualification/query.md#query-result-selection-after-access-recovery--2026-10-01",
+    "inspection-read-throttling--2026-10-01": "docs/history/qualification/runtime.md#inspection-read-throttling--2026-10-01",
+    "delivery-staging-and-bounded-query-progress--2026-10-01": "docs/history/qualification/query.md#delivery-staging-and-bounded-query-progress--2026-10-01",
+    "query-boundary-and-fixture-controls--2026-10-01": "docs/history/qualification/query.md#query-boundary-and-fixture-controls--2026-10-01",
+    "interrupted-ci-evidence--2026-10-01": "docs/history/qualification/verification.md#interrupted-ci-evidence--2026-10-01",
+    "qualification-checkpoint--2026-10-01": "docs/history/qualification/verification.md#qualification-checkpoint--2026-10-01",
+    "exact-caller-rejection-recovery--2026-10-01": "docs/history/qualification/runtime.md#exact-caller-rejection-recovery--2026-10-01",
+    "exchange-example-upload-markers--2026-10-01": "docs/history/qualification/runtime.md#exchange-example-upload-markers--2026-10-01",
+    "installed-node-optional-arrow-dependency--2026-10-01": "docs/history/qualification/query.md#installed-node-optional-arrow-dependency--2026-10-01",
+    "current-board-browser-qualification--2026-10-01": "docs/history/qualification/interfaces.md#current-board-browser-qualification--2026-10-01",
+    "hosted-discovery-completion--2026-10-01": "docs/history/qualification/runtime.md#hosted-discovery-completion--2026-10-01",
+    "expanded-fault-verification-qualification--2026-09-30": "docs/history/qualification/verification.md#expanded-fault-verification-qualification--2026-09-30",
+    "publication-clock-bound-correction": "docs/history/qualification/runtime.md#publication-clock-bound-correction",
+    "external-fault-supervisor-and-installed-hosts": "docs/history/qualification/runtime.md#external-fault-supervisor-and-installed-hosts",
+    "stored-definition-recovery-correction": "docs/history/qualification/catalog.md#stored-definition-recovery-correction",
+    "component-simulation": "docs/history/qualification/verification.md#component-simulation",
+    "shared-client-scheduling-simulation": "docs/history/qualification/verification.md#shared-client-scheduling-simulation",
+    "resource-publication-simulation": "docs/history/qualification/verification.md#resource-publication-simulation",
+    "authority-and-delivery-simulation": "docs/history/qualification/verification.md#authority-and-delivery-simulation",
+    "native-v1-cutover-checkpoint--2026-09-30": "docs/history/qualification/runtime.md#native-v1-cutover-checkpoint--2026-09-30",
+    "native-v1-consolidation-follow-up--2026-09-30": "docs/history/qualification/query.md#native-v1-consolidation-follow-up--2026-09-30",
+    "m19-qualification": "docs/history/qualification/runtime.md#m19-qualification",
+    "m18-qualification": "docs/history/qualification/runtime.md#m18-qualification",
+    "component-and-incremental-evidence": "docs/history/qualification/runtime.md#component-and-incremental-evidence",
+    "m17-qualification": "docs/history/qualification/runtime.md#m17-qualification",
+    "m16-finite-connector-qualification": "docs/history/qualification/runtime.md#m16-finite-connector-qualification",
+    "m15-connector-work-in-progress": "docs/history/qualification/runtime.md#m15-connector-work-in-progress",
+    "test-ownership": "docs/history/qualification/verification.md#test-ownership",
+    "running-checks": "docs/history/qualification/verification.md#running-checks",
+    "public-sdk-interoperability": "docs/history/qualification/verification.md#public-sdk-interoperability",
+    "local-and-clean-verification": "docs/history/qualification/verification.md#local-and-clean-verification",
+    "kubernetes-tooling-qualification": "docs/history/qualification/deployment.md#kubernetes-tooling-qualification",
+    "launcher-qualification": "docs/history/qualification/deployment.md#launcher-qualification",
+    "incremental-development-and-workload-upgrades": "docs/history/qualification/runtime.md#incremental-development-and-workload-upgrades",
+    "service-and-reference-evidence": "docs/history/qualification/runtime.md#service-and-reference-evidence",
+    "failed-application-turns": "docs/history/qualification/runtime.md#failed-application-turns",
+    "capacity-and-deletion-evidence": "docs/history/qualification/runtime.md#capacity-and-deletion-evidence",
+    "authority-effects-and-outbox-evidence": "docs/history/qualification/runtime.md#authority-effects-and-outbox-evidence",
+    "time-and-maintenance-evidence": "docs/history/qualification/runtime.md#time-and-maintenance-evidence",
+    "extending-the-proof": "docs/history/qualification/verification.md#extending-the-proof",
+    "independent-caller-evidence": "docs/history/qualification/runtime.md#independent-caller-evidence",
+    "physical-capacity-profile": "docs/history/qualification/runtime.md#physical-capacity-profile",
+    "recording-new-evidence": "docs/history/qualification/verification.md#recording-new-evidence",
+    "public-inspection": "docs/history/qualification/interfaces.md#public-inspection",
+    "board-qualification": "docs/history/qualification/interfaces.md#board-qualification",
+    "compact-standalone-validator-output--2026-10-26": "docs/history/qualification/interfaces.md#compact-standalone-validator-output--2026-10-26",
+    "embedded-asset-splitting--2026-10-04": "docs/history/qualification/interfaces.md#embedded-asset-splitting--2026-10-04",
+    "inspection-and-browser-proofs": "docs/history/qualification/interfaces.md#inspection-and-browser-proofs",
+    "service-instrumentation-qualification": "docs/history/qualification/interfaces.md#service-instrumentation-qualification",
+    "m7-state-resources": "docs/history/qualification/runtime.md#m7-state-resources",
+    "m8-runtime-readiness": "docs/history/qualification/runtime.md#m8-runtime-readiness",
+    "m9-station-bindings-and-tables": "docs/history/qualification/catalog.md#m9-station-bindings-and-tables",
+    "m10-verification-and-scale-foundations": "docs/history/qualification/verification.md#m10-verification-and-scale-foundations",
+    "growing-physical-capacity": "docs/history/qualification/verification.md#growing-physical-capacity",
+    "m12-declarative-interface-readiness": "docs/history/qualification/sql.md#m12-declarative-interface-readiness",
+    "m13-public-query-access": "docs/history/qualification/query.md#m13-public-query-access",
+    "m14-immutable-publication": "docs/history/qualification/query.md#m14-immutable-publication",
+    "m20-qualification": "docs/history/qualification/runtime.md#m20-qualification",
+    "m21-qualification": "docs/history/qualification/runtime.md#m21-qualification",
+    "m22-qualification": "docs/history/qualification/runtime.md#m22-qualification",
+    "m23-application-declaration-boundary": "docs/history/qualification/runtime.md#m23-application-declaration-boundary",
+    "m24-shared-cursor-assistance": "docs/history/qualification/runtime.md#m24-shared-cursor-assistance",
+    "console-command-history": "docs/history/qualification/interfaces.md#console-command-history",
+    "m24-console-qualification": "docs/history/qualification/interfaces.md#m24-console-qualification",
+    "m24-local-server-qualification": "docs/history/qualification/runtime.md#m24-local-server-qualification",
+    "local-gateway-host-alias-checks": "docs/history/qualification/runtime.md#local-gateway-host-alias-checks",
+    "m23-and-m24-final-clean-qualification": "docs/history/qualification/verification.md#m23-and-m24-final-clean-qualification",
+    "m25-local-application-qualification": "docs/history/qualification/deployment.md#m25-local-application-qualification",
+    "m27-local-board-qualification": "docs/history/qualification/interfaces.md#m27-local-board-qualification",
+    "m26-documentation-handbook": "docs/history/qualification/interfaces.md#m26-documentation-handbook",
+    "workload-architecture-and-examples--2026-09-29": "docs/history/qualification/interfaces.md#workload-architecture-and-examples--2026-09-29",
+    "interface-navigation-and-sql-statement-reference--2026-09-29": "docs/history/qualification/interfaces.md#interface-navigation-and-sql-statement-reference--2026-09-29",
+    "public-internals-and-separated-engineering-records": "docs/history/qualification/interfaces.md#public-internals-and-separated-engineering-records",
+    "cli-diagnostic-qualification": "docs/history/qualification/interfaces.md#cli-diagnostic-qualification",
+    "unified-cli-and-conventional-configuration": "docs/history/qualification/interfaces.md#unified-cli-and-conventional-configuration",
+    "console-settings-presentation": "docs/history/qualification/interfaces.md#console-settings-presentation",
+    "native-table-rendering-and-query-timing": "docs/history/qualification/interfaces.md#native-table-rendering-and-query-timing",
+    "native-query-latency-whole-node-attribution": "docs/history/qualification/interfaces.md#native-query-latency-whole-node-attribution",
+    "fresh-interactive-console-execution": "docs/history/qualification/interfaces.md#fresh-interactive-console-execution",
+    "bounded-tree-mutations-and-immutable-page-batches": "docs/history/qualification/interfaces.md#bounded-tree-mutations-and-immutable-page-batches",
+    "interactive-table-access-paths": "docs/history/qualification/interfaces.md#interactive-table-access-paths",
+    "final-interactive-performance-qualification": "docs/history/qualification/interfaces.md#final-interactive-performance-qualification",
+    "console-query-interruption-and-prompt-reuse": "docs/history/qualification/interfaces.md#console-query-interruption-and-prompt-reuse",
+    "combined-reads-control-caching-and-bounded-transport": "docs/history/qualification/interfaces.md#combined-reads-control-caching-and-bounded-transport",
+    "document-chunk-prefetch-and-request-ceilings": "docs/history/qualification/interfaces.md#document-chunk-prefetch-and-request-ceilings",
+    "read-path-performance-qualification": "docs/history/qualification/interfaces.md#read-path-performance-qualification",
+    "sql-reference-operation-coverage": "docs/history/qualification/sql.md#sql-reference-operation-coverage",
+    "query-performance-reproduction": "docs/history/qualification/performance.md#query-performance-reproduction",
+    "public-command-documentation": "docs/history/qualification/interfaces.md#public-command-documentation",
+    "explicit-source-aliases": "docs/history/qualification/interfaces.md#explicit-source-aliases",
+    "typed-output-name-plan-checkpoint": "docs/history/qualification/interfaces.md#typed-output-name-plan-checkpoint",
+    "sql-output-alias-lowering-checkpoint": "docs/history/qualification/interfaces.md#sql-output-alias-lowering-checkpoint",
+    "neutral-and-installed-sdk-output-name-checkpoint": "docs/history/qualification/interfaces.md#neutral-and-installed-sdk-output-name-checkpoint",
+    "installed-named-output-recovery-checkpoint": "docs/history/qualification/interfaces.md#installed-named-output-recovery-checkpoint",
+    "output-alias-integration-with-located-diagnostics-and-console-writes": "docs/history/qualification/interfaces.md#output-alias-integration-with-located-diagnostics-and-console-writes",
+    "output-aliases-with-the-combined-local-table-writer": "docs/history/qualification/interfaces.md#output-aliases-with-the-combined-local-table-writer",
+    "predicate-truth-foundation": "docs/history/qualification/interfaces.md#predicate-truth-foundation",
+    "bounded-boolean-evaluation-component": "docs/history/qualification/interfaces.md#bounded-boolean-evaluation-component",
+    "owned-boolean-plans-and-neutral-codecs": "docs/history/qualification/interfaces.md#owned-boolean-plans-and-neutral-codecs",
+    "native-boolean-sql-and-compact-owned-syntax": "docs/history/qualification/interfaces.md#native-boolean-sql-and-compact-owned-syntax",
+    "sql-performance-iteration": "docs/history/qualification/performance.md#sql-performance-iteration",
+    "output-name-component-coverage": "docs/history/qualification/performance.md#output-name-component-coverage",
+    "direct-query-compilation-measurement": "docs/history/qualification/performance.md#direct-query-compilation-measurement",
+    "finite-sql-probe": "docs/history/qualification/performance.md#finite-sql-probe",
+    "scoped-sql-inspection-iteration": "docs/history/qualification/performance.md#scoped-sql-inspection-iteration",
+    "sql-integration-after-protocol-consolidation": "docs/history/qualification/performance.md#sql-integration-after-protocol-consolidation",
+    "installed-sql-inspection-callers": "docs/history/qualification/performance.md#installed-sql-inspection-callers",
+    "current-document-metadata-batching": "docs/history/qualification/performance.md#current-document-metadata-batching",
+    "ruby-and-rust-sql-inspection": "docs/history/qualification/performance.md#ruby-and-rust-sql-inspection",
+    "java-and-net-sql-inspection": "docs/history/qualification/performance.md#java-and-net-sql-inspection",
+    "c-and-c-sql-inspection": "docs/history/qualification/performance.md#c-and-c-sql-inspection",
+    "erlang-and-elixir-sql-inspection": "docs/history/qualification/performance.md#erlang-and-elixir-sql-inspection",
+    "bounded-application-owned-table-mutations": "docs/history/qualification/performance.md#bounded-application-owned-table-mutations",
+    "avoid-repeated-mutation-selection": "docs/history/qualification/performance.md#avoid-repeated-mutation-selection",
+    "cold-store-setup-readiness": "docs/history/qualification/performance.md#cold-store-setup-readiness",
+    "worksheet-sql-inspection": "docs/history/qualification/performance.md#worksheet-sql-inspection",
+    "canonical-table-mutation-requests": "docs/history/qualification/performance.md#canonical-table-mutation-requests",
+    "remaining-kv-callers-and-browser": "docs/history/qualification/performance.md#remaining-kv-callers-and-browser",
+    "application-composed-table-mutation-admission": "docs/history/qualification/performance.md#application-composed-table-mutation-admission",
+    "sql-worktree-main-rebase": "docs/history/qualification/performance.md#sql-worktree-main-rebase",
+    "native-table-mutation-visibility-and-recovery": "docs/history/qualification/performance.md#native-table-mutation-visibility-and-recovery",
+    "installed-mutation-operation-profiles": "docs/history/qualification/performance.md#installed-mutation-operation-profiles",
+    "full-reference-mutation-command-cutover": "docs/history/qualification/performance.md#full-reference-mutation-command-cutover",
+    "consolidated-storage-definition-rejection": "docs/history/qualification/performance.md#consolidated-storage-definition-rejection",
+    "shared-signed-table-mutation-client": "docs/history/qualification/performance.md#shared-signed-table-mutation-client",
+    "consolidated-service-capability-follow-up": "docs/history/qualification/performance.md#consolidated-service-capability-follow-up",
+    "supplied-table-mutation-writer": "docs/history/qualification/performance.md#supplied-table-mutation-writer",
+    "main-relational-and-verification-integration": "docs/history/qualification/performance.md#main-relational-and-verification-integration",
+    "neutral-table-mutation-caller": "docs/history/qualification/performance.md#neutral-table-mutation-caller",
+    "mutation-abi-and-port-callers": "docs/history/qualification/performance.md#mutation-abi-and-port-callers",
+    "installed-python-table-mutation-callers": "docs/history/qualification/performance.md#installed-python-table-mutation-callers",
+    "installed-typescript-table-mutation-caller": "docs/history/qualification/performance.md#installed-typescript-table-mutation-caller",
+    "installed-ruby-table-mutation-caller": "docs/history/qualification/performance.md#installed-ruby-table-mutation-caller",
+    "installed-rust-table-mutation-caller": "docs/history/qualification/performance.md#installed-rust-table-mutation-caller",
+    "installed-c-and-c-table-mutation-callers": "docs/history/qualification/performance.md#installed-c-and-c-table-mutation-callers",
+    "installed-java-table-mutation-caller": "docs/history/qualification/performance.md#installed-java-table-mutation-caller",
+    "installed-net-table-mutation-caller": "docs/history/qualification/performance.md#installed-net-table-mutation-caller",
+    "installed-erlang-and-elixir-table-mutation-callers": "docs/history/qualification/performance.md#installed-erlang-and-elixir-table-mutation-callers",
+    "standards-main-rebase-and-clean-ci-boundary": "docs/history/qualification/performance.md#standards-main-rebase-and-clean-ci-boundary",
+    "explicit-cli-table-mutation-caller": "docs/history/qualification/performance.md#explicit-cli-table-mutation-caller",
+    "cli-checkpoint-clean-validation": "docs/history/qualification/performance.md#cli-checkpoint-clean-validation",
+    "publication-domains-and-coordinated-caller-cutover": "docs/history/qualification/performance.md#publication-domains-and-coordinated-caller-cutover",
+    "combined-table-owner-component-checks": "docs/history/qualification/performance.md#combined-table-owner-component-checks",
+    "console-sql-routes-diagnostics-and-exact-write-recovery": "docs/history/qualification/performance.md#console-sql-routes-diagnostics-and-exact-write-recovery",
+    "default-local-table-writes--2026-09-30": "docs/history/qualification/performance.md#default-local-table-writes--2026-09-30",
+    "general-table-schema-foundation": "docs/history/qualification/storage.md#general-table-schema-foundation",
+    "fuze-logical-type-foundation": "docs/history/qualification/query.md#fuze-logical-type-foundation",
+    "fuze-bounded-file-sources": "docs/history/qualification/query.md#fuze-bounded-file-sources",
+    "local-storage-process-death-boundaries--2026-10-26": "docs/history/qualification/storage.md#local-storage-process-death-boundaries--2026-10-26",
+    "captured-local-file-queries": "docs/history/qualification/query.md#captured-local-file-queries",
+    "logical-arrow-export": "docs/history/qualification/query.md#logical-arrow-export",
+    "local-logical-codec-and-installed-owners": "docs/history/qualification/query.md#local-logical-codec-and-installed-owners",
+    "file-comparison-baselines-and-metadata-execution": "docs/history/qualification/query.md#file-comparison-baselines-and-metadata-execution",
+    "file-query-integration-with-current-main": "docs/history/qualification/query.md#file-query-integration-with-current-main",
+    "post-merge-fuze-qualification": "docs/history/qualification/query.md#post-merge-fuze-qualification",
+    "qualification-continuation-after-pr-54": "docs/history/qualification/query.md#qualification-continuation-after-pr-54",
+    "integrated-launcher-recovery-qualification": "docs/history/qualification/query.md#integrated-launcher-recovery-qualification",
+    "physical-disk-captured-query-delivery": "docs/history/qualification/query.md#physical-disk-captured-query-delivery",
+    "finite-http-and-grpc-saved-call-marker-checks": "docs/history/qualification/query.md#finite-http-and-grpc-saved-call-marker-checks",
+    "durable-table-mutation-latency": "docs/history/qualification/performance.md#durable-table-mutation-latency",
+    "transport-and-observation-follow-up": "docs/history/qualification/performance.md#transport-and-observation-follow-up",
+    "completed-console-controls-after-observation-retries": "docs/history/qualification/performance.md#completed-console-controls-after-observation-retries",
+    "physical-storage-query-follow-up": "docs/history/qualification/performance.md#physical-storage-query-follow-up",
+    "boolean-integration-with-native-admission-and-fuze-validation": "docs/history/qualification/query.md#boolean-integration-with-native-admission-and-fuze-validation",
+    "validation-reuse-and-current-main-integration": "docs/history/qualification/query.md#validation-reuse-and-current-main-integration",
+    "typed-predicate-programs-in-python-node-ruby-and-rust": "docs/history/qualification/query.md#typed-predicate-programs-in-python-node-ruby-and-rust",
+    "typed-predicate-programs-in-java-net-erlang-and-elixir": "docs/history/qualification/query.md#typed-predicate-programs-in-java-net-erlang-and-elixir",
+    "typed-predicate-programs-in-c-and-c": "docs/history/qualification/query.md#typed-predicate-programs-in-c-and-c",
+    "compound-programs-in-installed-recovery": "docs/history/qualification/query.md#compound-programs-in-installed-recovery",
+    "shared-boolean-execution-for-file-queries": "docs/history/qualification/query.md#shared-boolean-execution-for-file-queries",
+    "predicate-compiler-cost-reduction": "docs/history/qualification/query.md#predicate-compiler-cost-reduction",
+    "compiled-plan-return-and-equivalent-compound-measurements": "docs/history/qualification/query.md#compiled-plan-return-and-equivalent-compound-measurements",
+    "owned-parser-projections-and-independent-compound-matrix": "docs/history/qualification/query.md#owned-parser-projections-and-independent-compound-matrix",
+    "file-query-output-aliases--2026-10-01": "docs/history/qualification/query.md#file-query-output-aliases--2026-10-01",
+    "file-alias-lowering-follow-up": "docs/history/qualification/query.md#file-alias-lowering-follow-up",
+    "console-input-flush-and-signal-schedule--2026-10-01": "docs/history/qualification/interfaces.md#console-input-flush-and-signal-schedule--2026-10-01",
+    "countcolumn-shared-transition--2026-10-01": "docs/history/qualification/query.md#countcolumn-shared-transition--2026-10-01",
+    "countcolumn-coordinated-surface--2026-10-01": "docs/history/qualification/query.md#countcolumn-coordinated-surface--2026-10-01",
+    "native-count-costs": "docs/history/qualification/query.md#native-count-costs",
+    "file-count-costs-and-rejected-compiler-experiments": "docs/history/qualification/query.md#file-count-costs-and-rejected-compiler-experiments",
+    "neutral-sql-parameter-callers--2026-10-01": "docs/history/qualification/sql.md#neutral-sql-parameter-callers--2026-10-01",
+    "typed-sql-parameter-sdks--2026-10-01": "docs/history/qualification/sdk.md#typed-sql-parameter-sdks--2026-10-01",
+    "semantic-mutation-conflict-witnesses": "docs/history/qualification/sdk.md#semantic-mutation-conflict-witnesses",
+    "compiler-and-file-diagnostic-attribution": "docs/history/qualification/sdk.md#compiler-and-file-diagnostic-attribution",
+    "offline-application-diagnostic-attribution": "docs/history/qualification/sdk.md#offline-application-diagnostic-attribution",
+    "retained-finite-query-failure-evidence": "docs/history/qualification/sdk.md#retained-finite-query-failure-evidence",
+    "prepared-parameter-diagnostic-provenance": "docs/history/qualification/sdk.md#prepared-parameter-diagnostic-provenance",
+    "flight-and-adbc-diagnostic-projection": "docs/history/qualification/sdk.md#flight-and-adbc-diagnostic-projection",
+    "declarative-diagnostic-source-inventory": "docs/history/qualification/sdk.md#declarative-diagnostic-source-inventory",
+    "neutral-diagnostic-contract": "docs/history/qualification/sdk.md#neutral-diagnostic-contract",
+    "structured-owner-projections-and-script-attribution": "docs/history/qualification/sdk.md#structured-owner-projections-and-script-attribution",
+    "interactive-runtime-evidence": "docs/history/qualification/sdk.md#interactive-runtime-evidence",
+    "durable-runtime-witnesses-and-neutral-query-status": "docs/history/qualification/sdk.md#durable-runtime-witnesses-and-neutral-query-status",
+    "installed-runtime-witness-recovery": "docs/history/qualification/sdk.md#installed-runtime-witness-recovery",
+    "file-scalar-and-runtime-failure-witnesses": "docs/history/qualification/sdk.md#file-scalar-and-runtime-failure-witnesses",
+    "compiler-categories-and-writer-scoped-inspection": "docs/history/qualification/sdk.md#compiler-categories-and-writer-scoped-inspection",
+    "source-policyschema-witnesses-and-byte-path-coordinates": "docs/history/qualification/sdk.md#source-policyschema-witnesses-and-byte-path-coordinates",
+    "query-caller-attempt-diagnostics": "docs/history/qualification/sdk.md#query-caller-attempt-diagnostics",
+    "sdk-exception-diagnostics-and-exact-recovery": "docs/history/qualification/sdk.md#sdk-exception-diagnostics-and-exact-recovery",
+    "board-semantic-diagnostic-transport-and-presentation": "docs/history/qualification/sdk.md#board-semantic-diagnostic-transport-and-presentation",
+    "mutation-rejection-evidence-and-owner-projections--2026-10-02": "docs/history/qualification/sdk.md#mutation-rejection-evidence-and-owner-projections--2026-10-02",
+    "mutation-and-catalog-caller-attempt-diagnostics--2026-10-02": "docs/history/qualification/sdk.md#mutation-and-catalog-caller-attempt-diagnostics--2026-10-02",
+    "offline-application-json-diagnostics--2026-10-02": "docs/history/qualification/sdk.md#offline-application-json-diagnostics--2026-10-02",
+    "main-cli-structured-diagnostics--2026-10-02": "docs/history/qualification/sdk.md#main-cli-structured-diagnostics--2026-10-02",
+    "flight-binary-diagnostic-details--2026-10-02": "docs/history/qualification/sdk.md#flight-binary-diagnostic-details--2026-10-02",
+    "owned-write-status-diagnostics-across-sdks--2026-10-03": "docs/history/qualification/sdk.md#owned-write-status-diagnostics-across-sdks--2026-10-03",
+    "application-host-and-editor-diagnostics--2026-10-03": "docs/history/qualification/sdk.md#application-host-and-editor-diagnostics--2026-10-03",
+    "shared-workspace-diagnostics-in-application-gateways--2026-10-03": "docs/history/qualification/sdk.md#shared-workspace-diagnostics-in-application-gateways--2026-10-03",
+    "board-inspection-diagnostics--2026-10-03": "docs/history/qualification/sdk.md#board-inspection-diagnostics--2026-10-03",
+    "retained-publication-conflict-basis--2026-10-03": "docs/history/qualification/sdk.md#retained-publication-conflict-basis--2026-10-03",
+    "retained-publication-input-rejection--2026-10-03": "docs/history/qualification/sdk.md#retained-publication-input-rejection--2026-10-03",
+    "original-migration-rejection-evidence--2026-10-03": "docs/history/qualification/sdk.md#original-migration-rejection-evidence--2026-10-03",
+    "original-serving-and-reactive-control-rejection--2026-10-03": "docs/history/qualification/sdk.md#original-serving-and-reactive-control-rejection--2026-10-03",
+    "original-follow-stop-and-independent-query-failure--2026-10-03": "docs/history/qualification/sdk.md#original-follow-stop-and-independent-query-failure--2026-10-03",
+    "serving-http-and-stream-attempt-diagnostics--2026-10-03": "docs/history/qualification/sdk.md#serving-http-and-stream-attempt-diagnostics--2026-10-03",
+    "serving-operation-outcomes-and-original-reply-limits--2026-10-03": "docs/history/qualification/sdk.md#serving-operation-outcomes-and-original-reply-limits--2026-10-03",
+    "original-connector-admission-witnesses--2026-10-03": "docs/history/qualification/sdk.md#original-connector-admission-witnesses--2026-10-03",
+    "original-json-syntax-and-duplicate-member-coordinates--2026-10-03": "docs/history/qualification/sdk.md#original-json-syntax-and-duplicate-member-coordinates--2026-10-03",
+    "installed-connector-admission-parity--2026-10-03": "docs/history/qualification/sdk.md#installed-connector-admission-parity--2026-10-03",
+    "original-follow-reader-evidence--2026-10-03": "docs/history/qualification/sdk.md#original-follow-reader-evidence--2026-10-03",
+    "original-connector-follow-up-policy-fields--2026-10-03": "docs/history/qualification/sdk.md#original-connector-follow-up-policy-fields--2026-10-03",
+    "exchange-diagnostic-read-boundary--2026-10-03": "docs/history/qualification/sdk.md#exchange-diagnostic-read-boundary--2026-10-03",
+    "accepted-connector-preparation-failures--2026-10-03": "docs/history/qualification/sdk.md#accepted-connector-preparation-failures--2026-10-03",
+    "connector-preparation-field-witnesses--2026-10-03": "docs/history/qualification/sdk.md#connector-preparation-field-witnesses--2026-10-03",
+    "diagnostic-declaration-drift-inventory--2026-10-03": "docs/history/qualification/sdk.md#diagnostic-declaration-drift-inventory--2026-10-03",
+    "closed-compiler-semantic-mapping-gate--2026-10-03": "docs/history/qualification/sdk.md#closed-compiler-semantic-mapping-gate--2026-10-03",
+    "capture-diagnostic-inspection-identity-2026-10-03": "docs/history/qualification/sdk.md#capture-diagnostic-inspection-identity-2026-10-03",
+    "retained-outcome-semantic-gate-2026-10-03": "docs/history/qualification/sdk.md#retained-outcome-semantic-gate-2026-10-03",
+    "migration-progress-and-closed-error-boundary-2026-10-03": "docs/history/qualification/sdk.md#migration-progress-and-closed-error-boundary-2026-10-03",
+    "query-caller-diagnostic-boundary-2026-10-03": "docs/history/qualification/sdk.md#query-caller-diagnostic-boundary-2026-10-03",
+    "grammar-alternatives-and-semantic-diagnostics-2026-10-03": "docs/history/qualification/sdk.md#grammar-alternatives-and-semantic-diagnostics-2026-10-03",
+    "application-caller-mappings-and-capacity-witnesses-2026-10-03": "docs/history/qualification/sdk.md#application-caller-mappings-and-capacity-witnesses-2026-10-03",
+    "board-and-flight-caller-diagnostic-parity-2026-10-03": "docs/history/qualification/sdk.md#board-and-flight-caller-diagnostic-parity-2026-10-03",
+    "mutation-and-catalog-caller-evidence-2026-10-03": "docs/history/qualification/sdk.md#mutation-and-catalog-caller-evidence-2026-10-03",
+    "board-inspection-semantic-coverage-2026-10-03": "docs/history/qualification/sdk.md#board-inspection-semantic-coverage-2026-10-03",
+    "flight-rpc-causes-and-result-conversion-2026-10-03": "docs/history/qualification/sdk.md#flight-rpc-causes-and-result-conversion-2026-10-03",
+    "serving-adapter-semantic-coverage-2026-10-03": "docs/history/qualification/sdk.md#serving-adapter-semantic-coverage-2026-10-03",
+    "compiler-inferred-diagnostic-boundary-coverage-2026-10-03": "docs/history/qualification/sdk.md#compiler-inferred-diagnostic-boundary-coverage-2026-10-03",
+    "file-caller-diagnostic-registry-2026-10-03": "docs/history/qualification/sdk.md#file-caller-diagnostic-registry-2026-10-03",
+    "query-lifecycle-and-saved-flight-status-matrix-2026-10-03": "docs/history/qualification/sdk.md#query-lifecycle-and-saved-flight-status-matrix-2026-10-03",
+    "local-transport-denial-versus-authority-rejection-2026-10-03": "docs/history/qualification/sdk.md#local-transport-denial-versus-authority-rejection-2026-10-03",
+    "flight-clock-and-expiry-counter-bounds-2026-10-03": "docs/history/qualification/sdk.md#flight-clock-and-expiry-counter-bounds-2026-10-03",
+    "file-io-cause-and-framing-attribution-2026-10-03": "docs/history/qualification/sdk.md#file-io-cause-and-framing-attribution-2026-10-03",
+    "rejected-connector-admission-before-capture-inspection-2026-10-03": "docs/history/qualification/sdk.md#rejected-connector-admission-before-capture-inspection-2026-10-03",
+    "abrupt-tls-close-proof-boundary-2026-10-03": "docs/history/qualification/sdk.md#abrupt-tls-close-proof-boundary-2026-10-03",
+    "java-local-startup-failure-attribution-2026-10-03": "docs/history/qualification/sdk.md#java-local-startup-failure-attribution-2026-10-03",
+    "reactive-reconnect-diagnostic-retention-2026-10-03": "docs/history/qualification/sdk.md#reactive-reconnect-diagnostic-retention-2026-10-03",
+    "embedded-recursive-schema-references": "docs/history/qualification/sdk.md#embedded-recursive-schema-references",
+    "catalog-backed-logical-query-cutover": "docs/history/qualification/sdk.md#catalog-backed-logical-query-cutover",
+    "logical-query-callers-and-contextual-diagnostics": "docs/history/qualification/sdk.md#logical-query-callers-and-contextual-diagnostics",
+    "catalog-bound-flight-codec-migration": "docs/history/qualification/sdk.md#catalog-bound-flight-codec-migration",
+    "bounded-query-memory-failure-isolation": "docs/history/qualification/sdk.md#bounded-query-memory-failure-isolation",
+    "recursive-query-json-admission": "docs/history/qualification/sdk.md#recursive-query-json-admission",
+    "current-schema-inspection-and-retained-authorization": "docs/history/qualification/sdk.md#current-schema-inspection-and-retained-authorization",
+    "general-grammar-at-read-only-query-boundaries": "docs/history/qualification/sdk.md#general-grammar-at-read-only-query-boundaries",
+    "catalog-backed-native-query-and-flight-callers": "docs/history/qualification/sdk.md#catalog-backed-native-query-and-flight-callers",
+    "logical-query-browser-contracts-and-rendering": "docs/history/qualification/sdk.md#logical-query-browser-contracts-and-rendering",
+    "recursive-node-port-admission": "docs/history/qualification/sdk.md#recursive-node-port-admission",
+    "catalog-commitments-and-typescript-logical-query-callers": "docs/history/qualification/sdk.md#catalog-commitments-and-typescript-logical-query-callers",
+    "python-logical-query-caller": "docs/history/qualification/sdk.md#python-logical-query-caller",
+    "ruby-logical-query-caller": "docs/history/qualification/sdk.md#ruby-logical-query-caller",
+    "rust-logical-query-caller": "docs/history/qualification/sdk.md#rust-logical-query-caller",
+    "java-logical-query-caller": "docs/history/qualification/sdk.md#java-logical-query-caller",
+    "net-logical-query-caller": "docs/history/qualification/sdk.md#net-logical-query-caller",
+    "erlang-and-elixir-logical-query-callers": "docs/history/qualification/sdk.md#erlang-and-elixir-logical-query-callers",
+    "c-and-c-catalog-metadata-commitments": "docs/history/qualification/sdk.md#c-and-c-catalog-metadata-commitments",
+    "c-and-c-logical-query-callers": "docs/history/qualification/sdk.md#c-and-c-logical-query-callers",
+    "sql-and-typed-single-predicate-identity": "docs/history/qualification/sdk.md#sql-and-typed-single-predicate-identity",
+    "bounded-typed-boolean-parsing": "docs/history/qualification/sdk.md#bounded-typed-boolean-parsing",
+    "catalog-backed-unified-query-recovery": "docs/history/qualification/sdk.md#catalog-backed-unified-query-recovery",
+    "catalog-backed-reactive-observations-and-refresh-authority": "docs/history/qualification/sdk.md#catalog-backed-reactive-observations-and-refresh-authority",
+    "logical-parameter-correction-evidence": "docs/history/qualification/sdk.md#logical-parameter-correction-evidence",
+    "canonical-comparison-point-routing": "docs/history/qualification/sdk.md#canonical-comparison-point-routing",
+    "console-logical-value-recovery-qualification": "docs/history/qualification/sdk.md#console-logical-value-recovery-qualification",
+    "exact-cut-table-metadata-reader": "docs/history/qualification/sdk.md#exact-cut-table-metadata-reader",
+    "recursive-result-page-bounds-and-real-board-browser": "docs/history/qualification/sdk.md#recursive-result-page-bounds-and-real-board-browser",
+    "general-table-page-acquisition-batching": "docs/history/qualification/sdk.md#general-table-page-acquisition-batching",
+    "bounded-table-index-node-reuse": "docs/history/qualification/sdk.md#bounded-table-index-node-reuse",
+    "general-table-board-and-browser-qualification": "docs/history/qualification/sdk.md#general-table-board-and-browser-qualification",
+    "general-table-explicit-catalog-cli": "docs/history/qualification/sdk.md#general-table-explicit-catalog-cli",
+    "general-catalog-cli-lifecycle-and-metadata-retry": "docs/history/qualification/sdk.md#general-catalog-cli-lifecycle-and-metadata-retry",
+    "general-table-owner-with-interleaved-queries-and-writes": "docs/history/qualification/sdk.md#general-table-owner-with-interleaved-queries-and-writes",
+    "bounded-table-row-acquisition": "docs/history/qualification/sdk.md#bounded-table-row-acquisition",
+    "general-table-grammar-and-independent-compiler-oracles": "docs/history/qualification/sdk.md#general-table-grammar-and-independent-compiler-oracles",
+    "general-table-diagnostic-grammar-and-logical-values": "docs/history/qualification/sdk.md#general-table-diagnostic-grammar-and-logical-values",
+    "application-completion-alongside-staged-table-writes": "docs/history/qualification/sdk.md#application-completion-alongside-staged-table-writes",
+    "typed-serving-counter-and-reactive-consumers": "docs/history/qualification/sdk.md#typed-serving-counter-and-reactive-consumers",
+    "counter-continuation-across-chunked-table-indexes": "docs/history/qualification/sdk.md#counter-continuation-across-chunked-table-indexes",
+    "general-table-serving-on-compose": "docs/history/qualification/sdk.md#general-table-serving-on-compose",
+    "staged-application-migration-steps": "docs/history/qualification/sdk.md#staged-application-migration-steps",
+    "serving-retained-growth-with-bounded-hot-storage": "docs/history/qualification/sdk.md#serving-retained-growth-with-bounded-hot-storage",
+    "stored-staged-migration-evidence-before-caller-attribution": "docs/history/qualification/sdk.md#stored-staged-migration-evidence-before-caller-attribution",
+    "work-item-typed-tables-and-staged-application-migration": "docs/history/qualification/sdk.md#work-item-typed-tables-and-staged-application-migration",
+    "retained-startup-and-strict-definition-spelling": "docs/history/qualification/sdk.md#retained-startup-and-strict-definition-spelling",
+    "local-work-item-installation-and-staged-recovery": "docs/history/qualification/sdk.md#local-work-item-installation-and-staged-recovery",
+    "explicit-root-catalog-administration": "docs/history/qualification/sdk.md#explicit-root-catalog-administration",
+    "physical-work-item-placements": "docs/history/qualification/sdk.md#physical-work-item-placements",
+    "station-ledger-on-general-tables-and-finite-query-publications": "docs/history/qualification/sdk.md#station-ledger-on-general-tables-and-finite-query-publications",
+    "board-metadata-follows-general-table-and-query-records": "docs/history/qualification/sdk.md#board-metadata-follows-general-table-and-query-records",
+    "general-station-ledger-local-deployment-and-courier-replacement": "docs/history/qualification/sdk.md#general-station-ledger-local-deployment-and-courier-replacement",
+    "general-station-ledger-compose-and-reference-deployments": "docs/history/qualification/sdk.md#general-station-ledger-compose-and-reference-deployments",
+    "general-table-validators-and-bounded-board-assets": "docs/history/qualification/sdk.md#general-table-validators-and-bounded-board-assets",
+    "signed-bodies-require-explicit-contract-definitions": "docs/history/qualification/sdk.md#signed-bodies-require-explicit-contract-definitions",
+    "general-catalog-seeded-publication-and-recovery-oracle": "docs/history/qualification/sdk.md#general-catalog-seeded-publication-and-recovery-oracle",
+    "general-table-cold-catalog-growth": "docs/history/qualification/sdk.md#general-table-cold-catalog-growth",
+    "general-catalog-implementation-cutover": "docs/history/qualification/sdk.md#general-catalog-implementation-cutover",
+    "root-authored-catalog-page-recovery": "docs/history/qualification/sdk.md#root-authored-catalog-page-recovery",
+    "general-table-catalog-growth-beyond-the-former-fixed-capacity": "docs/history/qualification/sdk.md#general-table-catalog-growth-beyond-the-former-fixed-capacity",
+    "mutation-latency-harness-on-general-tables": "docs/history/qualification/sdk.md#mutation-latency-harness-on-general-tables",
+    "packed-general-table-publication": "docs/history/qualification/sdk.md#packed-general-table-publication",
+    "catalog-acquisition-cache-and-initial-matched-mutation-comparison": "docs/history/qualification/sdk.md#catalog-acquisition-cache-and-initial-matched-mutation-comparison",
+    "general-table-outcome-scheduling": "docs/history/qualification/sdk.md#general-table-outcome-scheduling",
+    "point-admission-and-the-captured-metadata-working-set": "docs/history/qualification/sdk.md#point-admission-and-the-captured-metadata-working-set",
+    "committed-general-table-latency-and-native-cache-controls": "docs/history/qualification/sdk.md#committed-general-table-latency-and-native-cache-controls",
+    "bounded-insert-batches-and-compact-primary-key-lookup": "docs/history/qualification/sdk.md#bounded-insert-batches-and-compact-primary-key-lookup",
+    "fixed-mutation-caller-removal": "docs/history/qualification/sdk.md#fixed-mutation-caller-removal",
+    "general-typed-component-compiler-migration": "docs/history/qualification/sdk.md#general-typed-component-compiler-migration",
+    "general-table-handler-foundation": "docs/history/qualification/sdk.md#general-table-handler-foundation",
+    "self-describing-logical-arrow-delivery-foundation": "docs/history/qualification/sdk.md#self-describing-logical-arrow-delivery-foundation",
+    "general-typed-handler-query-capture-and-delivery": "docs/history/qualification/sdk.md#general-typed-handler-query-capture-and-delivery",
+    "general-typed-handler-table-boundary-and-typescript-api": "docs/history/qualification/sdk.md#general-typed-handler-table-boundary-and-typescript-api",
+    "python-handler-table-values-and-outcome-identity-checks": "docs/history/qualification/sdk.md#python-handler-table-values-and-outcome-identity-checks",
+    "ruby-handler-table-values-and-scoped-read-materialization": "docs/history/qualification/sdk.md#ruby-handler-table-values-and-scoped-read-materialization",
+    "shared-handler-table-response-budget": "docs/history/qualification/sdk.md#shared-handler-table-response-budget",
+    "rust-general-handler-table-values": "docs/history/qualification/sdk.md#rust-general-handler-table-values",
+    "java-general-handler-table-values": "docs/history/qualification/sdk.md#java-general-handler-table-values",
+    "net-general-handler-table-values": "docs/history/qualification/sdk.md#net-general-handler-table-values",
+    "java-handler-transport-nesting": "docs/history/qualification/sdk.md#java-handler-transport-nesting",
+    "erlang-and-elixir-general-handler-tables": "docs/history/qualification/sdk.md#erlang-and-elixir-general-handler-tables",
+    "c-schema-and-mutation-codec-reuse": "docs/history/qualification/sdk.md#c-schema-and-mutation-codec-reuse",
+    "c-and-c-general-handler-tables": "docs/history/qualification/sdk.md#c-and-c-general-handler-tables",
+    "durable-sdk-table-work-independent-format-and-python-model": "docs/history/qualification/sdk.md#durable-sdk-table-work-independent-format-and-python-model",
+    "installed-python-table-fifo-and-nested-query-recovery": "docs/history/qualification/sdk.md#installed-python-table-fifo-and-nested-query-recovery",
+    "installed-ruby-table-fifo-and-general-retained-reads": "docs/history/qualification/sdk.md#installed-ruby-table-fifo-and-general-retained-reads",
+    "installed-typescript-table-fifo-and-retained-wire-values": "docs/history/qualification/sdk.md#installed-typescript-table-fifo-and-retained-wire-values",
+    "installed-java-table-fifo-and-owned-record-codecs": "docs/history/qualification/sdk.md#installed-java-table-fifo-and-owned-record-codecs",
+    "net-queued-general-table-example": "docs/history/qualification/sdk.md#net-queued-general-table-example",
+    "rust-queued-general-table-example": "docs/history/qualification/sdk.md#rust-queued-general-table-example",
+    "erlang-and-elixir-queued-general-table-examples": "docs/history/qualification/sdk.md#erlang-and-elixir-queued-general-table-examples",
+    "c-and-c-queued-general-table-examples": "docs/history/qualification/sdk.md#c-and-c-queued-general-table-examples",
+    "ten-language-queued-table-interoperability": "docs/history/qualification/sdk.md#ten-language-queued-table-interoperability",
+    "general-zig-table-helpers-and-native-recovery": "docs/history/qualification/sdk.md#general-zig-table-helpers-and-native-recovery",
+    "current-declaration-ownership-and-documentation-checks": "docs/history/qualification/sdk.md#current-declaration-ownership-and-documentation-checks",
+    "authenticated-negative-handler-query-outcomes": "docs/history/qualification/sdk.md#authenticated-negative-handler-query-outcomes",
+    "typed-negative-query-callbacks-in-installed-sdks": "docs/history/qualification/sdk.md#typed-negative-query-callbacks-in-installed-sdks",
+    "general-table-query-abi-and-checkpoint-recovery": "docs/history/qualification/sdk.md#general-table-query-abi-and-checkpoint-recovery",
+    "bounded-immutable-index-encoding": "docs/history/qualification/sdk.md#bounded-immutable-index-encoding",
+    "lazy-pull-decoding-with-bounded-table-prefetch": "docs/history/qualification/sdk.md#lazy-pull-decoding-with-bounded-table-prefetch",
+    "current-local-application-and-console-capacity-recovery": "docs/history/qualification/sdk.md#current-local-application-and-console-capacity-recovery",
+    "remove-superseded-beam-table-value-helpers": "docs/history/qualification/sdk.md#remove-superseded-beam-table-value-helpers",
+    "avoid-duplicate-schema-envelopes-in-catalog-dml": "docs/history/qualification/sdk.md#avoid-duplicate-schema-envelopes-in-catalog-dml",
+    "insert-staging-during-reservation": "docs/history/qualification/sdk.md#insert-staging-during-reservation",
+    "batch-original-command-metadata": "docs/history/qualification/sdk.md#batch-original-command-metadata",
+    "general-table-shared-definition-cutover": "docs/history/qualification/sdk.md#general-table-shared-definition-cutover",
+    "captured-insert-reconstruction-after-reservation": "docs/history/qualification/sdk.md#captured-insert-reconstruction-after-reservation",
+    "cached-document-disclosure-rechecks-native-access": "docs/history/qualification/sdk.md#cached-document-disclosure-rechecks-native-access",
+    "native-correction-reruns": "docs/history/qualification/sdk.md#native-correction-reruns",
+    "concurrent-mutation-control-configuration": "docs/history/qualification/sdk.md#concurrent-mutation-control-configuration",
+    "general-table-performance-qualification-checkpoint": "docs/history/qualification/sdk.md#general-table-performance-qualification-checkpoint",
+    "clean-binding-compiler-resolution": "docs/history/qualification/sdk.md#clean-binding-compiler-resolution",
+    "signed-envelope-byte-array-serialization": "docs/history/qualification/sdk.md#signed-envelope-byte-array-serialization",
+    "retained-table-reconstruction-during-recovery": "docs/history/qualification/sdk.md#retained-table-reconstruction-during-recovery",
+    "accepted-general-table-performance-baseline": "docs/history/qualification/sdk.md#accepted-general-table-performance-baseline",
+    "clean-station-sdk-formatting-gate": "docs/history/qualification/sdk.md#clean-station-sdk-formatting-gate",
+    "current-board-and-packaged-console-result-fixtures": "docs/history/qualification/sdk.md#current-board-and-packaged-console-result-fixtures",
+    "distinct-identities-for-composed-catalog-fixtures": "docs/history/qualification/sdk.md#distinct-identities-for-composed-catalog-fixtures",
+    "current-installed-catalog-consumer-matrix": "docs/history/qualification/sdk.md#current-installed-catalog-consumer-matrix",
+    "native-complete-logical-family-table-matrix": "docs/history/qualification/sdk.md#native-complete-logical-family-table-matrix",
+    "clean-growth-lane-with-complete-native-logical-types": "docs/history/qualification/sdk.md#clean-growth-lane-with-complete-native-logical-types",
+    "final-root-check-and-clean-elixir-formatting-gate": "docs/history/qualification/sdk.md#final-root-check-and-clean-elixir-formatting-gate",
+    "final-general-table-clean-task-coverage": "docs/history/qualification/sdk.md#final-general-table-clean-task-coverage",
+    "typed-configuration-and-sql-settings": "docs/history/qualification/sql.md#typed-configuration-and-sql-settings",
+    "configured-local-sql-access--2026-10-17": "docs/history/qualification/sql.md#configured-local-sql-access--2026-10-17",
+    "local-sql-authentication--2026-10-18": "docs/history/qualification/sql.md#local-sql-authentication--2026-10-18",
+    "default-sql-gateway-installation--2026-10-18": "docs/history/qualification/sql.md#default-sql-gateway-installation--2026-10-18",
+    "handbook-consolidation-and-static-publication-preparation-2026-10-21": "docs/history/qualification/interfaces.md#handbook-consolidation-and-static-publication-preparation-2026-10-21",
+    "github-pages-handbook-workflow-2026-10-21": "docs/history/qualification/interfaces.md#github-pages-handbook-workflow-2026-10-21",
+    "published-handbook-observations-2026-10-21": "docs/history/qualification/interfaces.md#published-handbook-observations-2026-10-21",
+    "declarative-data-lifecycle-codecs-and-collations": "docs/history/qualification/storage.md#declarative-data-lifecycle-codecs-and-collations",
+    "storage-hierarchy-tseg-segments-and-multi-writer-occ": "docs/history/qualification/storage.md#storage-hierarchy-tseg-segments-and-multi-writer-occ",
+    "live-storage-engine-and-sql-execution-cutover": "docs/history/qualification/sql.md#live-storage-engine-and-sql-execution-cutover",
+    "direct-sql-compose-placement--2026-10-24": "docs/history/qualification/deployment.md#direct-sql-compose-placement--2026-10-24",
+    "direct-watch-selected-role-recovery--2026-10-24": "docs/history/qualification/runtime.md#direct-watch-selected-role-recovery--2026-10-24",
+    "direct-catalog-sdk-selected-roles--2026-10-24": "docs/history/qualification/sdk.md#direct-catalog-sdk-selected-roles--2026-10-24",
+    "direct-mutation-measurement-driver--2026-10-24": "docs/history/qualification/performance.md#direct-mutation-measurement-driver--2026-10-24",
+    "direct-catalog-hard-cutover-and-retired-owner--2026-10-24": "docs/history/qualification/catalog.md#direct-catalog-hard-cutover-and-retired-owner--2026-10-24",
+    "direct-catalog-mutation-checks--2026-10-24": "docs/history/qualification/catalog.md#direct-catalog-mutation-checks--2026-10-24",
+    "handbook-cutover-checks-and-dark-diagram-contrast--2026-10-24": "docs/history/qualification/interfaces.md#handbook-cutover-checks-and-dark-diagram-contrast--2026-10-24",
+    "direct-follow-reload-and-credential-recovery--2026-10-24": "docs/history/qualification/query.md#direct-follow-reload-and-credential-recovery--2026-10-24",
+    "combined-repository-check-after-direct-owner-retirement--2026-10-24": "docs/history/qualification/verification.md#combined-repository-check-after-direct-owner-retirement--2026-10-24",
+    "opaque-upstream-availability-responses--2026-10-24": "docs/history/qualification/sdk.md#opaque-upstream-availability-responses--2026-10-24",
+    "public-dependency-graph-growth-and-restart--2026-10-24": "docs/history/qualification/catalog.md#public-dependency-graph-growth-and-restart--2026-10-24",
+    "native-worker-contention-and-exact-recovery--2026-10-25": "docs/history/qualification/runtime.md#native-worker-contention-and-exact-recovery--2026-10-25",
+    "direct-follow-reference-qualification-checkpoints--2026-10-25": "docs/history/qualification/verification.md#direct-follow-reference-qualification-checkpoints--2026-10-25",
+    "direct-browser-setup-and-clock-contention-recovery--2026-10-25": "docs/history/qualification/runtime.md#direct-browser-setup-and-clock-contention-recovery--2026-10-25",
+    "lifecycle-qualification-failures-and-phase-diagnostics--2026-10-25": "docs/history/qualification/verification.md#lifecycle-qualification-failures-and-phase-diagnostics--2026-10-25",
+    "follow-reads-during-control-recovery--2026-10-25": "docs/history/qualification/query.md#follow-reads-during-control-recovery--2026-10-25",
+    "public-named-resource-growth-and-restart--2026-10-25": "docs/history/qualification/catalog.md#public-named-resource-growth-and-restart--2026-10-25",
+    "direct-follow-reference-recovery-and-disclosure--2026-10-25": "docs/history/qualification/query.md#direct-follow-reference-recovery-and-disclosure--2026-10-25",
+    "clean-checkout-packaging-and-maintenance-repairs--2026-10-25": "docs/history/qualification/verification.md#clean-checkout-packaging-and-maintenance-repairs--2026-10-25",
+    "launcher-and-sql-logging-acceptance--2026-10-25": "docs/history/qualification/deployment.md#launcher-and-sql-logging-acceptance--2026-10-25",
+    "isolated-lifecycle-qualification-after-parallel-run-failures--2026-10-25": "docs/history/qualification/verification.md#isolated-lifecycle-qualification-after-parallel-run-failures--2026-10-25",
+    "clean-lifecycle-growth-budget-failure--2026-10-25": "docs/history/qualification/verification.md#clean-lifecycle-growth-budget-failure--2026-10-25",
+    "clean-sdk-schema-projection-failure-and-repair--2026-10-25": "docs/history/qualification/verification.md#clean-sdk-schema-projection-failure-and-repair--2026-10-25",
+    "complete-resource-growth-and-installed-sdk-recovery--2026-10-25": "docs/history/qualification/sdk.md#complete-resource-growth-and-installed-sdk-recovery--2026-10-25",
+    "sql-admission-and-detached-inspection-revision-races--2026-10-25": "docs/history/qualification/sql.md#sql-admission-and-detached-inspection-revision-races--2026-10-25",
+    "direct-table-sql-wire-diagnostics-and-current-authority--2026-10-25": "docs/history/qualification/sql.md#direct-table-sql-wire-diagnostics-and-current-authority--2026-10-25",
+    "neutral-index-contracts--2026-10-25": "docs/history/qualification/catalog.md#neutral-index-contracts--2026-10-25",
+    "installed-lifecycle-statement-budgets--2026-10-25": "docs/history/qualification/catalog.md#installed-lifecycle-statement-budgets--2026-10-25",
+    "local-wal-observation-cancellation--2026-10-25": "docs/history/qualification/storage.md#local-wal-observation-cancellation--2026-10-25",
+    "native-linux-ci-library-and-loader-selection--2026-10-25": "docs/history/qualification/verification.md#native-linux-ci-library-and-loader-selection--2026-10-25",
+    "cached-kubernetes-helper-cpu-portability--2026-10-25": "docs/history/qualification/sdk.md#cached-kubernetes-helper-cpu-portability--2026-10-25",
+    "blocked-direct-caller-observation-budget--2026-10-25": "docs/history/qualification/runtime.md#blocked-direct-caller-observation-budget--2026-10-25",
+    "stalled-log-http-admission-schedule--2026-10-26": "docs/history/qualification/runtime.md#stalled-log-http-admission-schedule--2026-10-26",
+    "native-c-driver-loader-selection--2026-10-26": "docs/history/qualification/sdk.md#native-c-driver-loader-selection--2026-10-26",
+    "local-storage-syscall-error-schedules--2026-10-26": "docs/history/qualification/storage.md#local-storage-syscall-error-schedules--2026-10-26",
+    "complete-local-wal-startup-validation--2026-10-26": "docs/history/qualification/storage.md#complete-local-wal-startup-validation--2026-10-26",
+    "direct-local-wal-segment-traversal--2026-10-26": "docs/history/qualification/storage.md#direct-local-wal-segment-traversal--2026-10-26",
+    "local-wal-model-and-recovery-barriers--2026-10-26": "docs/history/qualification/verification.md#local-wal-model-and-recovery-barriers--2026-10-26",
+    "native-cc-library-search-paths--2026-10-25": "docs/history/qualification/sdk.md#native-cc-library-search-paths--2026-10-25",
+    "retained-table-cross-segment-range-control--2026-10-26": "docs/history/qualification/storage.md#retained-table-cross-segment-range-control--2026-10-26",
+    "dependency-package-elf-loader-selection--2026-10-26": "docs/history/qualification/deployment.md#dependency-package-elf-loader-selection--2026-10-26",
+    "selected-table-segment-decoding--2026-10-26": "docs/history/qualification/storage.md#selected-table-segment-decoding--2026-10-26",
+    "debug-decimal-argument-alignment--2026-10-26": "docs/history/qualification/runtime.md#debug-decimal-argument-alignment--2026-10-26",
+    "cli-discovery-fixture-environment--2026-10-26": "docs/history/qualification/interfaces.md#cli-discovery-fixture-environment--2026-10-26",
+    "sdk-query-node-build-profile--2026-10-26": "docs/history/qualification/sdk.md#sdk-query-node-build-profile--2026-10-26",
+    "paged-table-owner-and-standalone-profile-retirement--2026-10-26": "docs/history/qualification/query.md#paged-table-owner-and-standalone-profile-retirement--2026-10-26",
+    "sql-settings-observation-recovery--2026-10-26": "docs/history/qualification/sql.md#sql-settings-observation-recovery--2026-10-26",
+    "sql-observation-budgets--2026-10-26": "docs/history/qualification/sql.md#sql-observation-budgets--2026-10-26",
+    "paged-table-history-observation--2026-10-26": "docs/history/qualification/catalog.md#paged-table-history-observation--2026-10-26",
+    "work-item-command-definition-cutover--2026-10-26": "docs/history/qualification/catalog.md#work-item-command-definition-cutover--2026-10-26",
+    "relational-setup-outcome-recovery--2026-10-26": "docs/history/qualification/query.md#relational-setup-outcome-recovery--2026-10-26",
+    "wal-append-inspection-cancellation--2026-10-26": "docs/history/qualification/storage.md#wal-append-inspection-cancellation--2026-10-26",
+    "installed-table-qualification-and-original-outcomes--2026-10-26": "docs/history/qualification/catalog.md#installed-table-qualification-and-original-outcomes--2026-10-26",
+    "browser-prerequisites-and-native-reactive-cutover--2026-10-26": "docs/history/qualification/runtime.md#browser-prerequisites-and-native-reactive-cutover--2026-10-26",
+    "explicit-recovery-of-each-query-upload-step--2026-10-26": "docs/history/qualification/query.md#explicit-recovery-of-each-query-upload-step--2026-10-26",
+    "sql-lifetime-failure-reporting--2026-10-26": "docs/history/qualification/sql.md#sql-lifetime-failure-reporting--2026-10-26",
+    "physical-reactive-qualification--2026-10-26": "docs/history/qualification/verification.md#physical-reactive-qualification--2026-10-26",
+    "private-object-io-and-native-progress--2026-10-26": "docs/history/qualification/storage.md#private-object-io-and-native-progress--2026-10-26",
+    "declared-finite-query-collations--2026-10-26": "docs/history/qualification/query.md#declared-finite-query-collations--2026-10-26",
+    "complete-table-archives-and-physical-wal-trimming--2026-10-26": "docs/history/qualification/storage.md#complete-table-archives-and-physical-wal-trimming--2026-10-26",
+    "bounded-live-table-segment-compaction--2026-10-26": "docs/history/qualification/storage.md#bounded-live-table-segment-compaction--2026-10-26",
+    "accepted-table-recovery-checkpoints--2026-10-26": "docs/history/qualification/storage.md#accepted-table-recovery-checkpoints--2026-10-26",
+    "bounded-table-build-allocations--2026-10-26": "docs/history/qualification/storage.md#bounded-table-build-allocations--2026-10-26",
+    "paired-local-storage-measurement-harness--2026-10-26": "docs/history/qualification/performance.md#paired-local-storage-measurement-harness--2026-10-26",
+    "projected-retained-table-scans--2026-10-26": "docs/history/qualification/catalog.md#projected-retained-table-scans--2026-10-26",
+    "encoded-visible-candidate-prefixes--2026-10-26": "docs/history/qualification/runtime.md#encoded-visible-candidate-prefixes--2026-10-26",
+    "encoded-retained-table-filtering--2026-10-26": "docs/history/qualification/catalog.md#encoded-retained-table-filtering--2026-10-26",
+    "filtered-source-ordinals-in-batch-execution--2026-10-26": "docs/history/qualification/runtime.md#filtered-source-ordinals-in-batch-execution--2026-10-26",
+    "signed-filtered-table-reads-and-finite-sql--2026-10-26": "docs/history/qualification/sql.md#signed-filtered-table-reads-and-finite-sql--2026-10-26",
+    "retained-metadata-recovery-reuse--2026-10-26": "docs/history/qualification/storage.md#retained-metadata-recovery-reuse--2026-10-26",
+    "rebased-retained-table-service-qualification--2026-10-26": "docs/history/qualification/catalog.md#rebased-retained-table-service-qualification--2026-10-26",
+    "borrowed-plain-segment-payload-ownership--2026-10-26": "docs/history/qualification/storage.md#borrowed-plain-segment-payload-ownership--2026-10-26",
+    "disk-ingestion-measurement-harness--2026-10-26": "docs/history/qualification/performance.md#disk-ingestion-measurement-harness--2026-10-26",
+    "bounded-growth-harness-smoke--2026-10-26": "docs/history/qualification/performance.md#bounded-growth-harness-smoke--2026-10-26",
+    "borrowed-finite-table-compute-pages--2026-10-26": "docs/history/qualification/query.md#borrowed-finite-table-compute-pages--2026-10-26",
+    "aligned-plain-segment-value-buffers--2026-10-26": "docs/history/qualification/storage.md#aligned-plain-segment-value-buffers--2026-10-26",
+    "cache-conditioning-retries-and-incomplete-clean-lane--2026-10-26": "docs/history/qualification/verification.md#cache-conditioning-retries-and-incomplete-clean-lane--2026-10-26",
+    "direct-candidate-epochs-across-native-storage-fences--2026-10-26": "docs/history/qualification/storage.md#direct-candidate-epochs-across-native-storage-fences--2026-10-26",
+    "table-logical-history-floors--2026-10-26": "docs/history/qualification/storage.md#table-logical-history-floors--2026-10-26",
+    "compact-table-outcomes-independent-of-historical-row-payloads--2026-10-26": "docs/history/qualification/storage.md#compact-table-outcomes-independent-of-historical-row-payloads--2026-10-26",
+    "bounded-table-directory-traversal--2026-10-26": "docs/history/qualification/storage.md#bounded-table-directory-traversal--2026-10-26",
+    "archived-ingestion-and-growth-observations--2026-10-26": "docs/history/qualification/performance.md#archived-ingestion-and-growth-observations--2026-10-26",
+    "rebase-over-private-object-io-separation--2026-10-26": "docs/history/qualification/storage.md#rebase-over-private-object-io-separation--2026-10-26",
+    "concurrent-immutable-confirmation-counters--2026-10-26": "docs/history/qualification/storage.md#concurrent-immutable-confirmation-counters--2026-10-26",
+    "process-limited-growth-attempt-and-native-setup-timeout--2026-10-26": "docs/history/qualification/performance.md#process-limited-growth-attempt-and-native-setup-timeout--2026-10-26",
+    "verified-policy-page-reuse-and-native-setup-diagnostics--2026-10-26": "docs/history/qualification/runtime.md#verified-policy-page-reuse-and-native-setup-diagnostics--2026-10-26",
+    "retained-table-history-and-recovery-root-enumeration--2026-10-26": "docs/history/qualification/storage.md#retained-table-history-and-recovery-root-enumeration--2026-10-26",
+    "final-lifecycle-qualification-and-remaining-checks--2026-10-26": "docs/history/qualification/verification.md#final-lifecycle-qualification-and-remaining-checks--2026-10-26"
+  }
+}

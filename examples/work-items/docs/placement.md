@@ -4,7 +4,7 @@ These owned fixtures extend the [native composition](browser.md). They are
 finite qualification tasks, not persistent application launchers or an automatic
 growing runtime controller. Executed Compose/reference results are tied to their
 source revisions; measurements and limits belong in the
-[test ledger](../../../tests/README.md#work-items-direct-storage-in-compose--2026-10-24).
+[test ledger](../../../docs/history/qualification/deployment.md#work-items-direct-storage-in-compose--2026-10-24).
 
 ```sh
 nix develop

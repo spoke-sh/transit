@@ -101,6 +101,6 @@ installed node payload routes and automatic maintenance.
 
 Run `nix develop --command zig build test-local-native` from the repository root,
 or `zig build test` here inside the pinned development shell. The root unit task
-includes the same checks. See the [proof ledger](../../../tests/README.md) for
+includes the same checks. See the [proof ledger](../../../docs/history/qualification/README.md) for
 executed cases and the [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md)
 for the underlying local persistence boundaries.

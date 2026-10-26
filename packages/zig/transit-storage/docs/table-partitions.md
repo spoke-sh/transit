@@ -12,7 +12,7 @@ the signed [direct Table service](../../../../contracts/DIRECT_TABLE_V1.md),
 which the installed SQL runtime uses for Table operations. The
 [local backend](../../transit-backend-local/README.md) supplies a current native
 authorization/lifetime fence and quota-accounted log/object adapter, with
-separate composition tests. The [proof ledger](../../../../tests/README.md)
+separate composition tests. The [proof ledger](../../../../docs/history/qualification/README.md)
 distinguishes component, public service and installed execution evidence.
 
 ## Acceptance and observation
@@ -387,7 +387,7 @@ empty table. This profile does not promise distributed writers or catalog-wide
 transaction sessions.
 
 The [storage contract](../../../../contracts/TRANSIT_STORAGE_V1.md#table-acceptance-records-and-indexes)
-owns byte layouts. The [proof ledger](../../../../tests/README.md) records executed
+owns byte layouts. The [proof ledger](../../../../docs/history/qualification/README.md) records executed
 component checks and their limits.
 
 

@@ -12,7 +12,7 @@ requests preserve application identity, admission and response evidence.
 Status: M19 initial HTTP profile is qualified. The shared bounded
 [HTTP listener](../../packages/zig/transit-http-server/README.md), Board migration and
 [service profile](../../contracts/SERVING_V1.md) pass their separately recorded
-[admission, lifecycle, TLS and placement proofs](../../tests/README.md#m19-qualification).
+[admission, lifecycle, TLS and placement proofs](qualification/runtime.md#m19-qualification).
 HTTP is the first profile for application
 APIs and Board. M20 adds [reactive APIs](REACTIVE_API.md),
 M21 consumes them in live views, and
