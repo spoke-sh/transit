@@ -28,6 +28,40 @@ The current realm journal remains a serialization point. Separating durable
 cardinality from cache size therefore does not establish horizontal authority
 throughput. It answers a memory-growth question, not every scaling question.
 
+### Private object staging and native progress
+
+Can a private object write block unrelated native reads and control publication?
+The exclusive local backend uses one mutex for WAL access, accepted-head state
+and quota reservations. Immutable object publication needs neither a new native
+root nor that mutex while its files are written and synced. Each disk object key
+has its own publication lock; readers capture an atomic descriptor and verify
+the requested content. No physical object collector runs in this owner.
+
+[`Backend.put`](../../../packages/zig/transit-backend-local/src/Backend.zig)
+checks for an existing descriptor, reserves encoded bytes under the shared
+mutex when needed, then stages outside it. Final native publication still takes
+the authority fence and journal mutex; direct acceptance still checks current
+storage and policy epochs. Private bytes cannot publish a stale candidate.
+[`LocalSegmentStore`](../../../packages/zig/transit-storage/src/LocalSegmentStore.zig)
+protects completed-attempt counters with a separate short mutex. Callers must
+join operations before inspecting counters or closing the owner.
+
+Two attempts can observe the same missing key and both reserve it. Keeping
+both reservations until exclusive reopen conservatively overcounts bytes;
+refunding after an uncertain write could undercount retained files. Serializing
+the entire object operation under the journal mutex avoids that overcount but
+couples every disk sync to unrelated control work. The selected separation
+preserves the quota ceiling and makes that tradeoff explicit. Memory fixtures
+retain their caller-serialization requirement.
+
+The [native component regression](../../../packages/zig/transit-backend-local/src/native_test.zig)
+pauses an actual private object file sync, completes immutable reads and a
+quota-reserved checkpoint before releasing it, then reopens to verify both
+outcomes. Disk object tests share one facade across concurrent immutable and
+conditional writers and inspect counters after joining them. These schedules
+test lock independence and publication safety, not a wall-clock guarantee:
+device contention and the serialized WAL can still delay progress.
+
 ### Local WAL publication and recovery model
 
 When may a recovered local owner acknowledge new work or delete a retained

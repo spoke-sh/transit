@@ -72,6 +72,14 @@ shared registry operation and retain the global pin quotas. See the
 [node limits](../../../apps/transit-node/docs/growing.md#public-surface-and-limits)
 for execution-lane and memory budgets.
 
+The local backend reserves encoded object bytes under the journal mutex, then
+publishes immutable objects outside it using per-key disk locks. Reads likewise
+avoid that mutex. A stalled private object sync therefore does not itself hold
+the native journal lock; WAL acceptance and its current authority checks remain
+serialized. Simultaneous missing-key attempts can conservatively reserve the
+same object more than once until exclusive reopen recounts actual files. This
+separation does not remove device contention or promise a completion deadline.
+
 The [performance reference](performance.md) quantifies current small-page read
 and write amplification. Catalog reads stop at namespace boundaries. Bounded tree mutation batches copy
 shared paths once, and the backend stages sibling immutable pages in groups.

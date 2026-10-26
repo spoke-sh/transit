@@ -101,6 +101,10 @@ These tests establish an index primitive, not Table publication or snapshot pins
 The disk object cases exercise two independent handles, concurrent publication,
 stale conditions, immutable identity, corrupted chunks/checksums, 513 objects
 through a 16 KiB owner allocator, incompatible definitions and six sync failures.
+One disk `LocalSegmentStore` also permits concurrent operations: per-key locks
+protect publication and a separate short mutex protects completed-attempt
+counters. Read counters only after joining callers, and join all operations
+before closing the store. The memory fixture remains caller-serialized.
 The root unit task also launches three races of twelve independent processes and
 checks their results against a Python oracle. Descriptor deletion unpublishes the
 key; physical content collection still requires retained-reader/pin ownership.
