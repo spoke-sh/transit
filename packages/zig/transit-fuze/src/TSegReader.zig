@@ -92,11 +92,27 @@ pub fn decisions(self: *const Self, allocator: std.mem.Allocator, source: Source
     return .{ .workspace = workspace, .index = index, .rows = rows };
 }
 
+pub const Column = union(enum) {
+    cells: []Values.Cell,
+    plain: PhysicalCodecs.PlainColumn,
+    pub fn len(self: Column) usize {
+        return switch (self) {
+            .cells => |cells| cells.len,
+            .plain => |plain| plain.buffers.tags.len,
+        };
+    }
+    pub fn cell(self: Column, row: usize) Values.Cell {
+        return switch (self) {
+            .cells => |cells| cells[row],
+            .plain => |plain| plain.cell(row),
+        };
+    }
+};
 pub const Group = struct {
     workspace: *Workspace,
     index: usize,
     source_rows: u32,
-    columns: [][]Values.Cell,
+    columns: []Column,
     /// Null denotes all rows; otherwise ordinals are owned, sorted and unique.
     rows: ?[]const u32 = null,
     pub fn deinit(self: *Group) void {
@@ -148,7 +164,7 @@ pub const EncodedGroup = struct {
     row_count: u32,
     pages: []Page,
     bytes: usize,
-    const Page = struct { column: usize, bytes: []u8 };
+    const Page = struct { column: usize, bytes: []align(64) u8 };
 
     pub fn deinit(self: *EncodedGroup) void {
         for (self.pages) |page| self.allocator.free(page.bytes);
@@ -171,11 +187,11 @@ pub const EncodedGroup = struct {
         errdefer workspace.deinit();
         const a = workspace.arena.allocator();
         const owned_rows = a.dupe(u32, rows) catch |err| return workspace.failure(err);
-        const columns = a.alloc([]Values.Cell, self.pages.len) catch |err| return workspace.failure(err);
+        const columns = a.alloc(Column, self.pages.len) catch |err| return workspace.failure(err);
         for (self.pages, columns) |page, *cells| {
             const selected = PhysicalCodecs.decodeColumnPageSelected(workspace.bounded(), a, schema.columns[page.column], page.bytes, rows) catch |err| return workspace.failure(err);
             if (selected.row_count != self.row_count) return error.InvalidSegment;
-            cells.* = selected.cells;
+            cells.* = .{ .cells = selected.cells };
         }
         return .{ .workspace = workspace, .index = self.index, .source_rows = self.row_count, .columns = columns, .rows = owned_rows };
     }
@@ -233,9 +249,9 @@ pub fn group(self: *const Self, allocator: std.mem.Allocator, source: Source, sc
     if (projection.len > schema.columns.len or limits.decoded_bytes == 0) return error.SegmentReadBudgetExceeded;
     const workspace = try Workspace.init(allocator, limits.decoded_bytes);
     errdefer workspace.deinit();
-    const cells = workspace.arena.allocator().alloc([]Values.Cell, projection.len) catch |err| return workspace.failure(err);
+    const cells = workspace.arena.allocator().alloc(Column, projection.len) catch |err| return workspace.failure(err);
     for (projection, cells) |column_index, *out| {
-        out.* = self.column(allocator, workspace.arena.allocator(), source, schema, index, column_index, limits.page_bytes) catch |err| return workspace.failure(err);
+        out.* = .{ .cells = self.column(allocator, workspace.arena.allocator(), source, schema, index, column_index, limits.page_bytes) catch |err| return workspace.failure(err) };
     }
     return .{ .workspace = workspace, .index = index, .source_rows = self.footer.row_groups[index].row_count, .columns = cells };
 }
@@ -250,11 +266,18 @@ pub fn bufferedGroup(self: *const Self, allocator: std.mem.Allocator, source: So
     const workspace = try Workspace.init(allocator, decoded_budget);
     errdefer workspace.deinit();
     const a = workspace.arena.allocator();
-    const columns = a.alloc([]Values.Cell, projection.len) catch |err| return workspace.failure(err);
+    const columns = a.alloc(Column, projection.len) catch |err| return workspace.failure(err);
     for (encoded.pages, columns) |page, *cells| {
-        const decoded = PhysicalCodecs.decodeColumnPageBorrowingBytes(workspace.bounded(), a, schema.columns[page.column], page.bytes, null) catch |err| return workspace.failure(err);
-        if (decoded.row_count != encoded.row_count) return error.InvalidSegment;
-        cells.* = decoded.cells;
+        const descriptor = schema.columns[page.column];
+        if (descriptor.encoding == .plain and PhysicalCodecs.PlainBuffers.supports(descriptor.type)) {
+            const plain = PhysicalCodecs.borrowPlainColumn(workspace.bounded(), a, descriptor, page.bytes) catch |err| return workspace.failure(err);
+            if (plain.buffers.tags.len != encoded.row_count) return error.InvalidSegment;
+            cells.* = .{ .plain = plain };
+        } else {
+            const decoded = PhysicalCodecs.decodeColumnPageBorrowingBytes(workspace.bounded(), a, descriptor, page.bytes, null) catch |err| return workspace.failure(err);
+            if (decoded.row_count != encoded.row_count) return error.InvalidSegment;
+            cells.* = .{ .cells = decoded.cells };
+        }
     }
     return .{ .encoded = encoded, .decoded = .{ .workspace = workspace, .index = index, .source_rows = encoded.row_count, .columns = columns } };
 }
@@ -310,9 +333,9 @@ fn filterProgram(self: *const Self, allocator: std.mem.Allocator, source: Source
     else
         .{ .rows = &.{}, .examined = requested };
     const rows = selection.rows;
-    const columns = a.alloc([]Values.Cell, projection.len) catch |err| return workspace.failure(err);
+    const columns = a.alloc(Column, projection.len) catch |err| return workspace.failure(err);
     for (projection, columns) |column_index, *cells| {
-        cells.* = if (rows.len == 0) &.{} else self.selectedColumn(allocator, workspace, source, schema, index, column_index, rows, limits.page_bytes) catch |err| return workspace.failure(err);
+        cells.* = .{ .cells = if (rows.len == 0) &.{} else self.selectedColumn(allocator, workspace, source, schema, index, column_index, rows, limits.page_bytes) catch |err| return workspace.failure(err) };
     }
     return .{ .group = .{ .workspace = workspace, .index = index, .source_rows = metadata.row_count, .columns = columns, .rows = rows }, .examined = selection.examined };
 }
@@ -449,7 +472,7 @@ pub fn encodedGroup(self: *const Self, allocator: std.mem.Allocator, source: Sou
     errdefer for (pages[0..loaded]) |page| allocator.free(page.bytes);
     for (projection, pages) |column_index, *page| {
         const coordinate = metadata.pages[column_index];
-        page.* = .{ .column = column_index, .bytes = try allocator.alloc(u8, coordinate.length) };
+        page.* = .{ .column = column_index, .bytes = try allocator.alignedAlloc(u8, .fromByteUnits(64), coordinate.length) };
         loaded += 1;
         try source.read(source.context, coordinate.offset, page.bytes);
         try TSeg.verifyColumnRange(schema, &self.footer, page.bytes, index, column_index);

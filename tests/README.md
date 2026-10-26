@@ -28963,3 +28963,43 @@ invalidation and separate source/compute/output budgets. This change removes one
 compute payload copy; it does not change stored formats, export Arrow buffers or
 establish a whole-query latency improvement. The earlier clean core lane and
 ingestion matrix remain in progress at their recorded revisions.
+
+## Aligned plain segment value buffers — 2026-10-26
+
+Qualified plain int64, uint64, float64, Boolean, UTF-8, binary and JSON columns
+use canonical aligned Arrow value buffers. The shared current-v1 definition is
+`ee8cd16789fd88d229945c3dee87bbaadf11e948adadffd8f5dc0e5f3b9fb422`;
+earlier definitions reject. Native schemas, binding resources, browser contracts
+and independent signing/physical fixtures are regenerated together.
+
+The focused codec/reader run passes **85/85** tests; the complete Fuze suite
+passes **396/396** and query units pass **141/141**. Independently authored page
+bytes verify validity, signed full-width words, offsets, non-value lanes and
+padding. Pinned Arrow accessors read the original buffers, with pointer identity
+checked after reader/source destruction. All five states, conflict stamps, exact
+JSON, signed zero, variable bytes, empty buffers, allocation failures, malformed
+offsets/UTF-8/tail bits, unaligned export, foreign definitions and every truncated
+prefix are covered. Selected output survives overwriting input storage.
+
+The full Table run initially passes **58/59**, then fails an old expectation
+that complete-group metadata exceeds 16 KiB; the successful row also exposes a
+test-only unreleased result on that unexpected-success path. The corrected
+focused rerun passes **2/2**. It checks all 512 rows under the original 16 KiB
+allowance, a separate one-byte failure with no partial cache, original receipts,
+retained cuts, restart and detached output. The measured group uses **456 bytes**
+of decoded metadata plus **528,240 encoded bytes**; the point selection uses
+**4,584 decoded bytes**. These are distinct allocation owners, not whole-process
+RSS or end-to-end latency measurements. The earlier failed suite remains
+recorded; this is its focused correction, not a second complete Table-suite run.
+
+The signed `projection` service proof passes filtering, sparse coverage,
+segment/WAL reads, prepared comparisons, ordered failures and current/terminal
+revocation under the new definition. Contract and independent-fixture checks,
+diagnostic inventory/mappings/error boundaries, verification catalog, links and
+the complete documentation site check pass. The earlier clean core lane and
+ingestion matrix retain their original revisions and remain separate evidence.
+
+The [storage contract](../contracts/TRANSIT_STORAGE_V1.md#qualified-plain-value-buffers)
+defines exact layouts and bounded fallback. The local Arrow view is a borrowed
+nullable value child; complete Transit state/error/conflict evidence stays with
+the column. It supplies no C data release callback or external import profile.

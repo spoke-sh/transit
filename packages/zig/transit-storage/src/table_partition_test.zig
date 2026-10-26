@@ -1345,7 +1345,7 @@ test "Table segment ranges bound cold point IO and preserve owned rows across ev
     const point_peak = table.segment_cache.?.decoded.?.view().peakAllocatedBytes();
     const encoded_resident = table.segment_cache.?.encoded.?.allocatedBytes();
     try t.expect(point_peak <= 16 * 1024);
-    try t.expectEqual(@as(usize, 1), table.segment_cache.?.decoded.?.view().columns[0].len);
+    try t.expectEqual(@as(usize, 1), table.segment_cache.?.decoded.?.view().columns[0].len());
     var adjacent = (try table.get(t.allocator, try key(1, &key_buffer), access.guard())).?;
     defer adjacent.deinit();
     try t.expectEqual(cold_bytes, table.segment_bytes_read);
@@ -1359,16 +1359,17 @@ test "Table segment ranges bound cold point IO and preserve owned rows across ev
     try table.recover(); // destroys both caches
     try t.expectEqualStrings(&body, adjacent.row().cells[1].value.atom.bytes);
 
-    // A complete group needs more memory than a singleton. Failure leaves
-    // the accepted root untouched and does not invalidate earlier owned rows.
+    // Even borrowed buffers need bounded metadata. An impossible allowance
+    // leaves no cache candidate, changes no accepted root and preserves output.
     const accepted_before_scan = table.root;
     const one_page = try table.scan(table.root, null);
     const one_entry = one_page.entries[0].?;
+    table.options.segment_decode_bytes = 1;
     try t.expectError(error.SegmentReadBudgetExceeded, table.readRow(t.allocator, table.root, one_entry.key, one_entry.value));
     try t.expect(table.segment_cache.?.decoded == null);
     try t.expectEqualDeep(accepted_before_scan, table.root);
     try t.expectEqualStrings(&body, first.row().cells[1].value.atom.bytes);
-    table.options.segment_decode_bytes = 64 * 1024 * 1024;
+    table.options.segment_decode_bytes = 16 * 1024;
     try table.recover();
 
     // A complete same-root physical scan is the value/count control. Each row
@@ -1393,7 +1394,10 @@ test "Table segment ranges bound cold point IO and preserve owned rows across ev
     try t.expectEqual(@as(u64, 7), table.segment_range_reads - ranges_before);
     const scan_bytes = table.segment_bytes_read - bytes_before;
     const scan_resident = table.segment_cache.?.decoded.?.view().allocatedBytes();
-    try t.expect(point_resident < scan_resident);
+    // Qualified plain buffers avoid the complete cell array and even the
+    // singleton's detached payload. The full scan stays inside the same cap.
+    try t.expect(scan_resident < point_resident);
+    try t.expect(scan_resident <= 16 * 1024);
     try t.expect(scan_resident < body.len * 256);
     const scan_encoded = table.segment_cache.?.decoded.?.buffered.encoded.allocatedBytes();
     try t.expect(scan_encoded <= f.TSeg.max_segment_bytes);

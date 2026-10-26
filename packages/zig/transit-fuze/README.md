@@ -45,14 +45,22 @@ lifetimes. Footer metadata, allocator overhead and final caller result buffers
 are separate from these allowances.
 
 `bufferedGroup` returns a `BufferedGroup` containing verified encoded pages and
-decoded columns. Plain text, binary and JSON payloads reference those owned
-pages; recursive child arrays, conflict alternatives and cell metadata use the
-decoded arena. Other codecs retain their bounded owned decoding. The total
+column views. Plain int64, uint64, float64, Boolean, UTF-8, binary and JSON use
+64-byte-aligned value buffers, with sparse owned error/conflict details. These
+columns avoid materializing a cell array. Other plain types retain decoded
+metadata and borrowed byte payloads; other codecs retain bounded owned decoding. The total
 encoded-page allowance includes the page directory, while the separate decoded
 allowance includes live validation scratch and arena growth. Views remain valid
 until `BufferedGroup.deinit`, which releases metadata before page buffers; the
-reader and source may close earlier. `Values.cloneValidated` detaches a cell for
-longer use. These are logical cell views, not Arrow-compatible physical arrays.
+reader and source may close earlier. Each column supplies `len` and `cell`;
+`Values.cloneValidated` detaches a cell for longer use. Qualified `.plain`
+columns also expose `buffers.arrowValues`, which fills a caller's three-entry
+buffer directory and returns borrowed Arrow `ArrayData` on little-endian hosts.
+It verifies 64-byte address alignment. All non-value states are null in this
+nullable value child; the complete column retains state and error/conflict
+evidence separately. Both directory and group must outlive every derived Arrow
+view. Buffer `retain` does not extend these borrowed lifetimes. This is local
+value-buffer interchange, without a C data release callback or external import.
 
 `PhysicalCodecs.decodeColumnPageSelected` accepts sorted, unique row ordinals
 and owns only their decoded cells in the output arena. It validates the complete

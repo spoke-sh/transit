@@ -389,16 +389,25 @@ compressed strings can require transient expansion even when unselected. A
 successful selection owns all nested values independently of the encoded group.
 These reader operations consume the existing bytes and do not change v1 formats.
 
-`bufferedGroup` owns verified encoded pages together with decoded columns. Plain
-text, binary and JSON bytes reference its immutable page buffers; cell metadata,
-recursive child arrays and conflict records belong to its decoded arena. Other
-codecs retain bounded owned decoding. The encoded allowance covers all projected
+`bufferedGroup` owns verified encoded pages together with column views. Plain
+int64, uint64, float64, Boolean, UTF-8, binary and JSON columns reference aligned
+value buffers directly; only error/conflict metadata is allocated for these
+columns. Other plain logical types retain decoded metadata and borrowed byte
+payloads, including recursive children. Other codecs retain bounded owned
+decoding. The encoded allowance covers all projected
 page buffers and their directory; the decoded allowance covers arena backing
 and simultaneously live validation scratch. Complete page validation, exact
 schema binding and footer row counts still apply. Releasing this group destroys
 decoded metadata before encoded buffers. Its views outlive the source and reader
-but not the group; cloning a cell creates independent output ownership. This
-logical representation does not establish an Arrow physical-layout profile.
+but not the group; cloning a cell creates independent output ownership.
+`Group.columns` distinguishes decoded cells from qualified plain buffers and
+supplies common `len`/`cell` access. A plain column's `arrowValues` borrows its
+nullable Arrow value child and a caller-supplied buffer directory. All non-value
+states are null in that child; the column's state tags and error/conflict details
+remain necessary to preserve Transit cells. Retaining an Arrow borrowed buffer
+does not retain the group. This API creates no C data release callback, durable
+pin, authorization or complete-result evidence. Export requires little-endian
+host interpretation and 64-byte-aligned buffer addresses.
 
 `filteredGroup` accepts one typed column predicate and a projection. It validates
 the schema/layout, predicate and all projected coordinates before using trusted
@@ -744,6 +753,36 @@ point reads/deletes require that identity, not an empty primary key.
    - Trailing 32-byte SHA-256 over the `"TSF1"` footer body.
 4. **Trailer (`16 bytes` at `EOF - 16`)**: `footer_offset` (`u64`),
    `footer_length` (`u32`), and `"TSEG"`.
+
+### Qualified plain value buffers
+
+Plain int64, uint64, float64, Boolean, UTF-8, binary and JSON pages use the
+following layout after the state/detail stream. Offsets are relative to page
+byte zero. Every buffer starts on a 64-byte boundary and ends with zero padding
+to the next such boundary; the page ends immediately after the last padding.
+The padding between details and the first buffer is also zero.
+
+1. A validity bitmap contains `ceil(row_count / 8)` bytes, least-significant bit
+   first. A bit is set exactly when the corresponding state tag is `value`.
+2. Int64, uint64 and float64 have one little-endian eight-byte value per row;
+   non-value rows contain zero bytes. Float64 preserves finite IEEE-754 bits,
+   including signed zero. Boolean values use a second bitmap in the same bit
+   order; non-value bits are zero.
+3. UTF-8, binary and JSON instead have `(row_count + 1)` little-endian signed
+   32-bit offsets, followed by a separately aligned byte buffer. Offsets begin
+   at zero, never decrease and end at the unpadded payload length. Non-value
+   rows repeat the previous offset. UTF-8 and JSON retain their logical value
+   validation; binary accepts arbitrary bytes.
+
+Unused bitmap tail bits, non-value lanes and all alignment padding must be zero.
+Readers validate every offset and scalar, including unselected suffixes, before
+returning buffers or selected cells. State details retain their canonical error
+kind and conflict alternatives independently of these nullable value buffers.
+Other plain logical types, including recursive containers, use bounded canonical
+value decoding; compressed and foreign encodings retain their codec layouts.
+These layouts replace the former qualified plain streams under the current
+shared definition. Earlier definitions reject before interpreting page data;
+there is no fallback decoder or implicit stored-data migration.
 
 ## `.tdel` (`TDEL` v1) deletion vectors and `TMAN` v1 manifests
 

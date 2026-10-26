@@ -6,6 +6,7 @@ const Values = @import("Values.zig");
 const TableSchema = @import("TableSchema.zig");
 const Ebcdic = @import("Ebcdic037.zig");
 const ColumnPredicate = @import("ColumnPredicate.zig");
+pub const PlainBuffers = @import("PlainColumnBuffers.zig");
 
 pub const Encoding = TableSchema.Encoding;
 pub const page_header_bytes = 41;
@@ -234,7 +235,9 @@ fn numericCellFromSigned(val: i128, expected: Types.Type) Values.Cell {
 ///   - `row_count`: `u32`
 ///   - `tag_stream`: `row_count` bytes (`0 = value`, `1 = null`, `2 = missing`, `3 = type_error`, `4 = conflict`)
 ///   - `detail_stream`: for `.type_error` (`u8` kind) and `.conflict` (`u16` count + alternatives)
-///   - `value_payload`: physical codec representation for all `.value` lanes (`plain`, `bitpacked`, `rle`, `dictionary`, `fsst`, `comp3`, `zoned`, `comp4`, `ibm_hfp`, `ebcdic`).
+///   - `value_payload`: qualified plain types use aligned Arrow buffers with
+///     validity/offsets and zero non-value lanes; other types/codecs encode the
+///     `.value` lanes. The owning storage contract defines exact layouts.
 pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column, cells: []const Values.Cell, out: []u8) ![]const u8 {
     try column.validateEncodingAndCollation();
     if (cells.len > 65536) return error.ColumnPageRowLimitExceeded;
@@ -288,6 +291,10 @@ pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column
         else => {},
     };
 
+    if (column.encoding == .plain and PlainBuffers.supports(column.type)) {
+        try PlainBuffers.encode(column.type, cells, &writer);
+        return writer.buffered();
+    }
     // 3. Collect `.value` cells for codec-specific encoding
     const values = try allocator.alloc(Values.Value, value_count);
     defer allocator.free(values);
@@ -372,6 +379,63 @@ pub fn decodeColumnPage(arena: std.mem.Allocator, column: TableSchema.Column, by
 }
 
 pub const Selected = struct { row_count: u32, cells: []Values.Cell };
+
+/// Qualified Arrow value buffers plus complete five-state evidence. Values
+/// borrow input bytes; only error/conflict metadata is allocated in the arena.
+pub const PlainColumn = struct {
+    buffers: PlainBuffers.View,
+    details: []const Detail,
+    const Detail = struct { row: usize, cell: Values.Cell };
+    pub fn cell(self: PlainColumn, row: usize) Values.Cell {
+        return switch (self.buffers.tags[row]) {
+            0 => .{ .value = self.buffers.value(row) },
+            1 => .null,
+            2 => .missing,
+            3, 4 => blk: {
+                var lo: usize = 0;
+                var hi = self.details.len;
+                while (lo < hi) {
+                    const mid = lo + (hi - lo) / 2;
+                    if (self.details[mid].row < row) lo = mid + 1 else hi = mid;
+                }
+                std.debug.assert(lo < self.details.len and self.details[lo].row == row);
+                break :blk self.details[lo].cell;
+            },
+            else => unreachable,
+        };
+    }
+};
+pub fn borrowPlainColumn(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8) !PlainColumn {
+    if (column.encoding != .plain or !PlainBuffers.supports(column.type)) return error.UnsupportedPlainColumn;
+    var sink: PlainSink = .{ .arena = arena };
+    _ = try decodeInto(true, scratch, column, bytes, &sink);
+    return .{ .buffers = sink.buffers.?, .details = sink.details };
+}
+const PlainSink = struct {
+    arena: std.mem.Allocator,
+    details: []PlainColumn.Detail = &.{},
+    count: usize = 0,
+    buffers: ?PlainBuffers.View = null,
+    fn start(self: *PlainSink, tags: []const u8) !void {
+        var count: usize = 0;
+        for (tags) |tag| if (tag >= 3) {
+            count += 1;
+        };
+        self.details = try self.arena.alloc(PlainColumn.Detail, count);
+    }
+    fn destination(_: *const PlainSink, row: usize) ?usize {
+        return row;
+    }
+    fn nonValue(self: *PlainSink, row: usize, value: Values.Cell) !void {
+        if (value == .type_error or value == .conflict) {
+            self.details[self.count] = .{ .row = row, .cell = value };
+            self.count += 1;
+        }
+    }
+    fn acceptPlain(self: *PlainSink, buffers: PlainBuffers.View) void {
+        self.buffers = buffers;
+    }
+};
 
 /// Decode strictly increasing, unique row ordinals. The complete page is still
 /// validated, including unselected details, values and trailing bytes. Output
@@ -464,8 +528,18 @@ fn decodeInto(comptime borrow_plain: bool, scratch: std.mem.Allocator, column: T
         _ = temporary.reset(.retain_capacity);
     }
 
-    switch (column.encoding) {
+    if (comptime @TypeOf(sink.*) == PlainSink) {
+        sink.acceptPlain(try PlainBuffers.read(column, bytes, 36 + reader.seek, tags));
+        return row_count;
+    } else switch (column.encoding) {
         .plain => {
+            if (PlainBuffers.supports(column.type)) {
+                const buffers = try PlainBuffers.read(column, bytes, 36 + reader.seek, tags);
+                for (tags, 0..) |tag, row| if (tag == 0) {
+                    try sink.emit(.{ .value = buffers.value(row) }, 1);
+                };
+                return row_count;
+            }
             var row: usize = 0;
             for (0..value_count) |_| {
                 while (tags[row] != 0) row += 1;

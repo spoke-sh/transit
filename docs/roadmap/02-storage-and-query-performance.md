@@ -291,6 +291,16 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   This advances #128 without changing stored pages or claiming Arrow-compatible
   physical buffers; transport decoding and output materialization still copy.
 
+- Qualified plain segment columns now store aligned Arrow validity, offsets and
+  value buffers under a new shared current-v1 definition. Buffered Table scans
+  use these arrays without retaining a decoded cell array; sparse error/conflict
+  details preserve the complete state model. The group supplies a borrowed
+  nullable Arrow value-child view with explicit directory/group lifetimes.
+  Recursive and other encoded columns retain bounded decoding. This advances
+  #128's physical-buffer boundary; external C data import/export, relational text
+  comparison/hash/order and the remaining maintenance/evidence gates retain
+  their explicit owners.
+
 - The shared codec walker now supports encoded single-column predicates with
   one-byte row outcomes, dictionary/run evaluation reuse and detached selected
   output. `TSegReader.filteredGroup` combines collation-aware zone-map pruning

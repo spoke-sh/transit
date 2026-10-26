@@ -8323,6 +8323,7 @@
         "InvalidFsstTable": 2,
         "InvalidRlePage": 3,
         "InvalidZonedLength": 1,
+        "UnsupportedPlainColumn": 1,
         "ZonedOverflow": 2
       },
       "outcomes": {},
@@ -8333,11 +8334,14 @@
         "DecodeSink.nonValue()": "<inferred>",
         "DecodeSink.prepare()": "<inferred>",
         "DecodeSink.start()": "<inferred>",
+        "PlainSink.nonValue()": "<inferred>",
+        "PlainSink.start()": "<inferred>",
         "PredicateSink.emit()": "<inferred>",
         "PredicateSink.emitCached()": "<inferred>",
         "PredicateSink.nonValue()": "<inferred>",
         "PredicateSink.prepare()": "<inferred>",
         "PredicateSink.start()": "<inferred>",
+        "borrowPlainColumn()": "<inferred>",
         "decodeBitpackedValues()": "<inferred>",
         "decodeColumnPage()": "<inferred>",
         "decodeColumnPageBorrowingBytes()": "<inferred>",
@@ -8363,18 +8367,50 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 135,
+        "try": 141,
         "catch": 10
       },
       "imports": [
         "ColumnPredicate.zig",
         "Ebcdic037.zig",
         "IbmHfp.zig",
+        "PlainColumnBuffers.zig",
         "TableSchema.zig",
         "Types.zig",
         "Values.zig",
         "std",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-fuze/src/PlainColumnBuffers.zig": {
+      "errors": {
+        "ColumnPageTooLarge": 3,
+        "InvalidColumnPage": 13,
+        "UnalignedArrowBuffer": 1,
+        "UnsupportedArrowByteOrder": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "View.arrowValues()": "<inferred>",
+        "bitmap()": "<inferred>",
+        "encode()": "<inferred>",
+        "pad()": "<inferred>",
+        "read()": "<inferred>",
+        "round()": "<inferred>",
+        "take()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 20,
+        "catch": 3
+      },
+      "imports": [
+        "TableSchema.zig",
+        "Types.zig",
+        "builtin",
+        "std",
+        "zarrow"
       ]
     },
     "packages/zig/transit-fuze/src/PredicateMachine.zig": {
@@ -9988,14 +10024,19 @@
       "errors": {
         "InvalidColumnSelection": 4,
         "InvalidPredicateProgram": 1,
-        "InvalidSegment": 5,
+        "InvalidSegment": 6,
         "InvalidSegmentCoordinate": 8,
         "QueryConflict": 1,
         "QueryTypeError": 1,
         "SegmentReadBudgetExceeded": 12,
         "TableSchemaChanged": 6
       },
-      "outcomes": {},
+      "outcomes": {
+        "Column": [
+          "cells",
+          "plain"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Candidates.validate()": "<inferred>",
@@ -10024,7 +10065,7 @@
       "open_error_set_uses": 3,
       "propagation": {
         "try": 47,
-        "catch": 14
+        "catch": 15
       },
       "imports": [
         "ColumnPredicate.zig",
@@ -12936,7 +12977,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"582b6ba0179c531ed01d6b417976f8fd6f2e8cc122e59fb5ee5feae92e24338a\""
+          "@\"ee8cd16789fd88d229945c3dee87bbaadf11e948adadffd8f5dc0e5f3b9fb422\""
         ],
         "Effect.phase": [
           "pending",

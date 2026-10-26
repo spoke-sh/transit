@@ -55,9 +55,9 @@ test "TSeg filtered groups prune before payload and materialize only selected pr
     try t.expectEqual(80 + reader.footer_bytes + payload_bytes, input.read_bytes);
     // Projected values own bytes, and sparse ordinals survive source release.
     @memset(input.bytes, 0xaa);
-    try t.expectEqualStrings("five", retained[2].columns[0][0].value.atom.bytes);
-    try t.expectEqualStrings("six", retained[3].columns[0][0].value.atom.bytes);
-    try t.expectEqualStrings("seven", retained[3].columns[0][1].value.atom.bytes);
+    try t.expectEqualStrings("five", retained[2].columns[0].cell(0).value.atom.bytes);
+    try t.expectEqualStrings("six", retained[3].columns[0].cell(0).value.atom.bytes);
+    try t.expectEqualStrings("seven", retained[3].columns[0].cell(1).value.atom.bytes);
     try t.expectEqual(@as(?usize, null), retained[2].rowIndex(0));
     try t.expectEqual(@as(?usize, 0), retained[2].rowIndex(1));
 }
@@ -122,8 +122,8 @@ test "TSeg filtered groups collated pruning agrees with independent unpruned mas
             try t.expectEqual(before + (if (matches) @as(usize, 2) else 0), input.calls);
             var control = try reader.group(t.allocator, input.source(), definition, index, &.{0}, .{});
             defer control.deinit();
-            try t.expectEqualStrings(texts[index], control.columns[0][0].value.atom.bytes);
-            if (matches) try t.expectEqualStrings(texts[index], group.columns[0][0].value.atom.bytes);
+            try t.expectEqualStrings(texts[index], control.columns[0].cell(0).value.atom.bytes);
+            if (matches) try t.expectEqualStrings(texts[index], group.columns[0].cell(0).value.atom.bytes);
         }
     }
 }
@@ -155,8 +155,8 @@ test "TSeg filtered groups cannot prune eager source failures or reorder their r
     defer selected.deinit();
     try t.expect(failure == null);
     try t.expectEqualSlices(u32, &.{0}, selected.rows.?);
-    try t.expectEqual(@as(u64, 9), selected.columns[0][0].conflict[0].counter);
-    try t.expectEqual(@as(u64, 2), selected.columns[0][0].conflict[0].replica);
+    try t.expectEqual(@as(u64, 9), selected.columns[0].cell(0).conflict[0].counter);
+    try t.expectEqual(@as(u64, 2), selected.columns[0].cell(0).conflict[0].replica);
 }
 
 fn filteredAllocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {
@@ -171,12 +171,12 @@ fn filteredAllocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {
     };
     var group = try reader.filteredProgram(allocator, input.source(), schema, 3, &.{ 0, 1 }, .{ .instructions = &instructions }, .{}, &failure);
     defer group.deinit();
-    try t.expectEqualStrings("seven", group.columns[1][1].value.atom.bytes);
+    try t.expectEqualStrings("seven", group.columns[1].cell(1).value.atom.bytes);
     var prefix = try reader.filteredCandidates(allocator, input.source(), schema, 3, &.{1}, .{ .instructions = &instructions }, .{ .rows = &.{ 1, 0 }, .matches = 1 }, .{}, &failure);
     defer prefix.deinit();
     try t.expectEqual(@as(usize, 1), prefix.examined);
     try t.expectEqualSlices(u32, &.{1}, prefix.group.rows.?);
-    try t.expectEqualStrings("seven", prefix.group.columns[0][0].value.atom.bytes);
+    try t.expectEqualStrings("seven", prefix.group.columns[0].cell(0).value.atom.bytes);
     var decisions = try reader.decisions(allocator, input.source(), schema, 3, .{ .instructions = &instructions }, .{});
     defer decisions.deinit();
     try t.expect(decisions.rows[0].selected and decisions.rows[1].selected);
@@ -208,15 +208,15 @@ test "TSeg filtered groups bound output expansion below a full decoded group" {
     var selected = try reader.filteredGroup(t.allocator, input.source(), schema, 0, &.{1}, filter, .{ .decoded_bytes = 16 * 1024 }, &failure);
     defer selected.deinit();
     try t.expectEqualSlices(u32, &.{63}, selected.rows.?);
-    try t.expectEqualStrings(&text, selected.columns[0][0].value.atom.bytes);
+    try t.expectEqualStrings(&text, selected.columns[0].cell(0).value.atom.bytes);
     try t.expect(selected.peakAllocatedBytes() <= 16 * 1024);
     try t.expectError(error.SegmentReadBudgetExceeded, reader.group(t.allocator, input.source(), schema, 0, &.{1}, .{ .decoded_bytes = 16 * 1024 }));
     var buffered = try reader.bufferedGroup(t.allocator, input.source(), schema, 0, &.{1}, 256 * 1024, 16 * 1024);
     defer buffered.deinit();
-    try t.expectEqual(@as(usize, 64), buffered.decoded.columns[0].len);
+    try t.expectEqual(@as(usize, 64), buffered.decoded.columns[0].len());
     try t.expect(buffered.decoded.peakAllocatedBytes() <= 16 * 1024);
     try t.expect(buffered.encoded.allocatedBytes() > 128 * 1024);
-    for (buffered.decoded.columns[0]) |cell| try t.expectEqualStrings(&text, cell.value.atom.bytes);
+    for (0..buffered.decoded.columns[0].len()) |i| try t.expectEqualStrings(&text, buffered.decoded.columns[0].cell(i).value.atom.bytes);
 }
 
 test "TSeg encoded programs preserve Boolean source order and prune with independent masks" {
@@ -256,11 +256,11 @@ test "TSeg encoded programs preserve Boolean source order and prune with indepen
             var count: usize = 0;
             for (0..2) |row| {
                 var instruction: ?u8 = null;
-                const cells = [_]Values.Cell{ control.columns[0][row], control.columns[1][row] };
+                const cells = [_]Values.Cell{ control.columns[0].cell(row), control.columns[1].cell(row) };
                 try t.expectEqual(case.mask[index * 2 + row], (try program.truth(schema, &cells, &instruction)).selects());
                 if (!case.mask[index * 2 + row]) continue;
                 try t.expectEqual(@as(u32, @intCast(row)), selected.rows.?[count]);
-                try t.expectEqualStrings(names[index * 2 + row], selected.columns[0][count].value.atom.bytes);
+                try t.expectEqualStrings(names[index * 2 + row], selected.columns[0].cell(count).value.atom.bytes);
                 count += 1;
             }
             try t.expectEqual(count, selected.rows.?.len);
@@ -336,7 +336,7 @@ test "TSeg encoded programs arbitrate eager failures by row then instruction" {
     defer visible.deinit();
     try t.expect(failure == null);
     try t.expectEqual(@as(usize, 1), visible.examined);
-    try t.expectEqual(@as(i128, 0), visible.group.columns[0][0].value.atom.signed);
+    try t.expectEqual(@as(i128, 0), visible.group.columns[0].cell(0).value.atom.signed);
     var prefix = try reader.filteredCandidates(t.allocator, input.source(), definition, 0, &.{0}, single, .{ .rows = &.{ 0, 1 }, .matches = 1 }, .{}, &failure);
     defer prefix.deinit();
     try t.expectEqual(@as(usize, 1), prefix.examined);
@@ -356,7 +356,7 @@ test "TSeg encoded programs arbitrate eager failures by row then instruction" {
     defer reversed.deinit();
     try t.expectEqual(@as(usize, 2), reversed.examined);
     try t.expectEqualSlices(u32, &.{ 0, 1 }, reversed.group.rows.?);
-    try t.expectEqual(.utf8, reversed.group.columns[0][reversed.group.rowIndex(1).?].type_error);
+    try t.expectEqual(.utf8, reversed.group.columns[0].cell(reversed.group.rowIndex(1).?).type_error);
 }
 
 test "TSeg encoded programs preserve NULL negation and reject malformed programs before I O" {
@@ -489,7 +489,7 @@ fn allocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {
     defer reader.deinit();
     var group = try reader.group(allocator, input.source(), schema, 3, &.{1}, .{});
     defer group.deinit();
-    try t.expectEqualStrings("seven", group.columns[0][1].value.atom.bytes);
+    try t.expectEqualStrings("seven", group.columns[0].cell(1).value.atom.bytes);
 }
 
 test "TSeg range allocation failures release metadata pages and decoded cells" {
@@ -512,7 +512,7 @@ test "TSeg projected decoding enforces actual resident arena bytes" {
     defer group.deinit();
     try t.expectEqual(before + 1, input.calls);
     try t.expect(group.allocatedBytes() <= 4096);
-    try t.expectEqualStrings("zero", group.columns[0][0].value.atom.bytes);
+    try t.expectEqualStrings("zero", group.columns[0].cell(0).value.atom.bytes);
     var empty = try reader.group(t.allocator, input.source(), schema, 0, &.{}, .{});
     defer empty.deinit();
     try t.expectEqual(@as(?usize, 1), empty.rowIndex(1));
@@ -527,7 +527,7 @@ fn selectedAllocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {
     defer encoded.deinit();
     var group = try encoded.select(allocator, schema, &.{1}, 8192);
     defer group.deinit();
-    try t.expectEqualStrings("seven", group.columns[0][0].value.atom.bytes);
+    try t.expectEqualStrings("seven", group.columns[0].cell(0).value.atom.bytes);
     try t.expectEqual(@as(?usize, 0), group.rowIndex(1));
     try t.expectEqual(@as(?usize, null), group.rowIndex(0));
 }
@@ -572,8 +572,8 @@ test "TSeg selected decoding preserves projection budgets and lifetimes across r
     try t.expectEqual(before + 1, input.calls);
     encoded.deinit();
     encoded_live = false;
-    try t.expectEqualStrings("six", first.columns[0][0].value.atom.bytes);
-    try t.expectEqualStrings("seven", second.columns[0][0].value.atom.bytes);
+    try t.expectEqualStrings("six", first.columns[0].cell(0).value.atom.bytes);
+    try t.expectEqualStrings("seven", second.columns[0].cell(0).value.atom.bytes);
 }
 
 test "TSeg selected decoding rejects corrupt pages and mismatched logical row counts" {
@@ -603,8 +603,8 @@ fn bufferedAllocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {
     defer reader.deinit();
     var group = try reader.bufferedGroup(allocator, input.source(), schema, 3, &.{ 1, 0 }, 8192, 8192);
     defer group.deinit();
-    try t.expectEqualStrings("seven", group.decoded.columns[0][1].value.atom.bytes);
-    try t.expectEqual(@as(i128, 7), group.decoded.columns[1][1].value.atom.signed);
+    try t.expectEqualStrings("seven", group.decoded.columns[0].cell(1).value.atom.bytes);
+    try t.expectEqual(@as(i128, 7), group.decoded.columns[1].cell(1).value.atom.signed);
 }
 
 test "TSeg buffered group allocation failures release encoded and decoded owners" {
@@ -634,7 +634,7 @@ test "TSeg buffered groups own verified pages and borrow payloads within separat
     try t.expectEqual(before + 2, input.calls);
     try t.expect(group.encoded.allocatedBytes() <= 8192);
     try t.expect(group.decoded.peakAllocatedBytes() <= 8192);
-    const payload = group.decoded.columns[0][1].value.atom.bytes;
+    const payload = group.decoded.columns[0].cell(1).value.atom.bytes;
     const page = group.encoded.pages[0].bytes;
     try t.expect(@intFromPtr(payload.ptr) >= @intFromPtr(page.ptr));
     try t.expect(@intFromPtr(payload.ptr) + payload.len <= @intFromPtr(page.ptr) + page.len);
@@ -643,10 +643,17 @@ test "TSeg buffered groups own verified pages and borrow payloads within separat
     reader_live = false;
     @memset(input.bytes, 0xaa);
     try t.expectEqualStrings("seven", payload);
-    try t.expectEqual(@as(i128, 7), group.decoded.columns[1][1].value.atom.signed);
+    const arrow = @import("zarrow");
+    var buffers: [3]arrow.SharedBuffer = undefined;
+    const data = try group.decoded.columns[0].plain.buffers.arrowValues(&buffers);
+    const strings: arrow.StringArray = .{ .data = &data };
+    try t.expectEqualStrings("seven", try strings.value(1));
+    try t.expectEqual(payload.ptr, (try strings.value(1)).ptr);
+    try t.expectEqual(@as(usize, 0), group.decoded.columns[0].plain.details.len);
+    try t.expectEqual(@as(i128, 7), group.decoded.columns[1].cell(1).value.atom.signed);
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
-    const detached = try Values.cloneValidated(arena.allocator(), group.decoded.columns[0][1]);
+    const detached = try Values.cloneValidated(arena.allocator(), group.decoded.columns[0].cell(1));
     group.deinit();
     group_live = false;
     try t.expectEqualStrings("seven", detached.value.atom.bytes);
@@ -675,7 +682,7 @@ test "TSeg selected decoding charges skipped string validation to the shared mem
     try t.expectError(error.SegmentReadBudgetExceeded, reader.bufferedGroup(t.allocator, input.source(), compressed_schema, 0, &.{0}, 32768, 4096));
     var selected = try encoded.select(t.allocator, compressed_schema, &.{0}, 32768);
     defer selected.deinit();
-    try t.expectEqualStrings("small", selected.columns[0][0].value.atom.bytes);
+    try t.expectEqualStrings("small", selected.columns[0].cell(0).value.atom.bytes);
     try t.expect(selected.allocatedBytes() < 4096);
     try t.expect(selected.peakAllocatedBytes() >= large.len);
     try t.expect(selected.peakAllocatedBytes() <= 32768);

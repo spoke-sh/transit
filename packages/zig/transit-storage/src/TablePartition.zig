@@ -1488,8 +1488,8 @@ fn readRowWithColumns(self: *Self, allocator: std.mem.Allocator, basis: Root, sc
             const group = segment.decoded.?.view();
             const row_index = group.rowIndex(entry.row_in_group) orelse return error.InvalidTableRowReference;
             for (group.columns, cells) |column, *cell| {
-                if (row_index >= column.len) return error.InvalidTableRowReference;
-                cell.* = try f.Types.Values.cloneValidated(arena.allocator(), column[row_index]);
+                if (row_index >= column.len()) return error.InvalidTableRowReference;
+                cell.* = try f.Types.Values.cloneValidated(arena.allocator(), column.cell(row_index));
             }
             break :blk .{ .segment = .{ .arena = arena, .identity = entry.identity, .cells = cells } };
         },

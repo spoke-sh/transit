@@ -28,8 +28,9 @@ Current database/schema/Table rights apply to both paths.
 Direct Table point reads use a paged key directory to select their WAL row or
 immutable segment. Segment reads fetch verified footer and row-group column
 ranges; the owner retains at most one footer and one bounded projected group.
-Plain text, binary and JSON payloads reference that group's verified buffers;
-compressed columns use bounded decoding. Encoded buffers and decoded metadata
+Qualified plain scalar columns use aligned value buffers with separate state
+and error/conflict evidence. Other plain types borrow byte payloads while
+retaining bounded metadata; compressed columns use bounded decoding. Encoded buffers and decoded metadata
 have separate byte limits.
 New segments use 256-row groups by default. Output rows own their values across
 cache eviction, and current authorization still applies before disclosure.
