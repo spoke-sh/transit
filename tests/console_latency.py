@@ -13,7 +13,8 @@ import subprocess
 import sys
 import time
 
-from server import Fixture, children, command
+from harness.processes import children, command
+from server import Fixture
 from harness.services import free_port
 from latency_probe import Probe
 

@@ -13,7 +13,8 @@ import subprocess
 import sys
 import time
 
-from server import Fixture, children, command, freeze_executables as freeze
+from harness.processes import children, command
+from server import Fixture, freeze_executables as freeze
 from server_direct_boundary import Boundary
 
 

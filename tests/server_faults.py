@@ -12,7 +12,8 @@ import time
 import urllib.error
 import urllib.request
 
-from server import Fixture, children, command
+from harness.processes import children, command
+from server import Fixture
 
 
 def response(fixture, path, body=None, headers=None, direct=False):

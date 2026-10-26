@@ -17,41 +17,8 @@ import urllib.error
 import urllib.request
 
 from harness.services import free_port
+from harness.processes import children, command, joined
 from table_console import TableConsole, atom, records, results as table_results
-
-
-def children(pid):
-    result = set()
-    for path in Path(f"/proc/{pid}/task").glob("*/children"):
-        try:
-            result.update(map(int, path.read_text().split()))
-        except FileNotFoundError:
-            pass
-    return result
-
-
-def command(pid):
-    try:
-        return Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode()
-    except FileNotFoundError:
-        return ""
-
-
-def joined(pids):
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        remaining = []
-        for pid in pids:
-            try:
-                os.waitpid(pid, os.WNOHANG)  # Test subreaper joins children after manager SIGKILL.
-            except ChildProcessError:
-                pass
-            if Path(f"/proc/{pid}").exists():
-                remaining.append(pid)
-        if not remaining:
-            return
-        time.sleep(0.05)
-    raise AssertionError(f"Unjoined children: {remaining}")
 
 
 def freeze_executables(fixture):

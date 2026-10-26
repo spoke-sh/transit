@@ -9,7 +9,8 @@ import signal
 import subprocess
 import sys
 import threading
-from server import Fixture, joined
+from harness.processes import joined
+from server import Fixture
 
 
 def process_start(pid):

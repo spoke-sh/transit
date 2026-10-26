@@ -13,7 +13,8 @@ import subprocess
 import sys
 import time
 
-from server import Fixture, children, freeze_executables
+from harness.processes import children
+from server import Fixture, freeze_executables
 from server_sql import wait_status
 from sql_sessions.native import Client
 from table_console import TableConsole
