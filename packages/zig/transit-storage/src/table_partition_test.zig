@@ -488,6 +488,109 @@ test "all Table changes and their receipt stay invisible when the final policy f
     try t.expectEqualDeep(result, (try table.observe(request, access.guard())).?);
 }
 
+test "Table recovery cannot expose a valid prefix when accepted WAL history is missing" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    for (0..5) |i| {
+        const value: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = @intCast(i) } } };
+        _ = try table.apply(binding(&table, i + 1), &.{change(&value, i + 1)}, .point, access.guard());
+    }
+    // Keep two valid accepted frames, then remove an interior frame without
+    // changing the remaining frame bytes or the log's acknowledged frontier.
+    // Recovery reads one frame per page, so it must reject after that prefix.
+    const retained = &wal.partitions.items[0].bytes;
+    var offset: usize = 0;
+    for (0..2) |_| offset += (try s.TransitLog.decodeFrame(retained.items[offset..])).consumed_bytes;
+    const missing = (try s.TransitLog.decodeFrame(retained.items[offset..])).consumed_bytes;
+    std.mem.copyForwards(u8, retained.items[offset .. retained.items.len - missing], retained.items[offset + missing ..]);
+    retained.shrinkRetainingCapacity(retained.items.len - missing);
+    const end = try wal.log().tail(17);
+    for (0..2) |_| {
+        try t.expectError(error.InvalidTableHistory, table.recover());
+        var key_bytes: [4096]u8 = undefined;
+        try t.expectError(error.TableRecoveryRequired, table.get(t.allocator, try key(0, &key_bytes), access.guard()));
+        try t.expectError(error.TableRecoveryRequired, table.observe(binding(&table, 5), access.guard()));
+        try t.expectError(error.TableRecoveryRequired, table.flush(access.guard()));
+        const value: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 6 } } };
+        try t.expectError(error.TableRecoveryRequired, table.apply(binding(&table, 6), &.{change(&value, 6)}, .point, access.guard()));
+        try t.expectEqual(end, try wal.log().tail(17));
+    }
+}
+
+test "keyless Table identities and pinned WAL rows survive flush delete and disk reopen" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var keyless = schema;
+    keyless.primary_key = &.{};
+    const definition: s.TableDeclaration.Definition = .{ .object = object, .revision = 1, .schema = keyless, .properties = "" };
+    const cells = [_]f.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 11 } } }};
+    var changes: [3]P.Change = undefined;
+    var keys: [3][f.TableRow.Identity.encoded_bytes]u8 = undefined;
+    for (&changes, &keys, 0..) |*mutation, *storage_key, ordinal| {
+        const identity: f.TableRow.Identity = .{ .origin = 1, .operation = 10, .ordinal = @intCast(ordinal) };
+        mutation.* = .{ .put = .{ .row = .{ .identity = identity, .cells = &cells }, .expect = .absent } };
+        storage_key.* = try identity.encode();
+    }
+    var access: Access = .{};
+    var pin: P.SnapshotHandle = undefined;
+    var accepted: p.DataLifecycle.Binding = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .batch_frames = 1 });
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+        defer table.deinit();
+        try table.recover();
+        accepted = binding(&table, 10);
+        try t.expectEqual(@as(u64, 3), (try table.apply(accepted, &changes, .point, access.guard())).affected);
+        const pin_owner: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 1001 };
+        pin = try table.pin(pin_owner, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        for (keys) |storage_key| {
+            var row = (try table.get(t.allocator, &storage_key, access.guard())).?;
+            defer row.deinit();
+            try t.expect(row == .wal);
+        }
+        try t.expectEqual(@as(usize, 3), try table.flush(access.guard()));
+        var deletion = binding(&table, 11);
+        deletion.action = .delete;
+        try t.expectEqual(@as(u64, 1), (try table.apply(deletion, &.{.{ .remove = &keys[1] }}, .point, access.guard())).affected);
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .batch_frames = 1 });
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer table.deinit();
+    try table.recover();
+    try t.expectEqual(@as(u64, 2), table.root.live_rows);
+    const next_lsn = table.root.next_lsn;
+    try t.expectEqual(@as(u64, 3), (try table.apply(accepted, &changes, .point, access.guard())).affected);
+    try t.expectEqual(next_lsn, table.root.next_lsn); // Exact retry cannot resurrect the deletion.
+    for (keys, 0..) |storage_key, ordinal| {
+        var retained = (try table.readSnapshot(t.allocator, pin, &storage_key, access.guard())).?;
+        defer retained.deinit();
+        try t.expectEqualDeep(changes[ordinal].put.row.identity, retained.row().identity);
+        try t.expectEqual(@as(i128, 11), retained.row().cells[0].value.atom.signed);
+        var current = try table.get(t.allocator, &storage_key, access.guard());
+        defer if (current) |*row| row.deinit();
+        if (ordinal == 1) {
+            try t.expect(current == null);
+        } else {
+            try t.expect(current.? == .segment);
+            try t.expectEqualDeep(retained.row().identity, current.?.row().identity);
+            try t.expectEqual(@as(i128, 11), current.?.row().cells[0].value.atom.signed);
+        }
+    }
+    try table.releaseSnapshot(pin, access.guard());
+    try t.expectError(error.TableSnapshotReleased, table.readSnapshot(t.allocator, pin, &keys[0], access.guard()));
+}
+
 test "Table rows and exact receipts exceed the resident cache and retain deletes on restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
