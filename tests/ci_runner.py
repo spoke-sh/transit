@@ -60,7 +60,9 @@ if "tests/ci.py" in sys.argv or any(arg.startswith("check::") for arg in sys.arg
                                     env=env | {"CI_CLEAN_EXIT": str(exit_code)}, capture_output=True)
             assert (result.returncode == 0) == (exit_code == 0), result.stderr.decode()
             commands = [json.loads(line) for line in record.read_text().splitlines()]
-            expected = {"shell": "default", "prepare": []} if check_scope else SUITE["environments"][lane]
+            expected = ({"shell": "default", "prepare": [] if check_scope == "fast" else
+                        [["vp", "install", "--frozen-lockfile", "--filter", "transit", "--filter", "@transit/client"]]}
+                        if check_scope else SUITE["environments"][lane])
             assert len(commands) == 2 + len(expected["prepare"]), commands
             assert all(command[:3] == ["develop", ".#" + expected["shell"], "--command"]
                        for command in commands), commands
@@ -106,6 +108,7 @@ def main():
     assert names.index("Save Nix store") < names.index("Run ${{ matrix.lane }} checks")
     artifacts = next(step for step in steps if step.get("name") == "Preserve task timings and completion evidence")
     assert ".cache/m9/station-local-readiness.json" in artifacts["with"]["path"].splitlines()
+    assert ".cache/checks/*.json" in artifacts["with"]["path"].splitlines()
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"

@@ -303,7 +303,17 @@
     },
     "core": {
       "shell": "default",
-      "prepare": []
+      "prepare": [
+        [
+          "vp",
+          "install",
+          "--frozen-lockfile",
+          "--filter",
+          "transit",
+          "--filter",
+          "@transit/client"
+        ]
+      ]
     },
     "growth": {
       "shell": "default",

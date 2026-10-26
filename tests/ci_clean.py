@@ -24,6 +24,18 @@ def profile(suite, selection):
     return {"shell": "bindings", "prepare": [["just", "transit-board::install"]]}
 
 
+def check_profile(scope):
+    if scope == "all":
+        prepare = [["just", "transit-board::install"]]
+    elif scope in ("contracts", "core"):
+        # The last contract validator type-checks generated recursive types with
+        # the client package's pinned compiler. Do not rely on prior Board builds.
+        prepare = [["vp", "install", "--frozen-lockfile", "--filter", "transit", "--filter", "@transit/client"]]
+    else:
+        prepare = []
+    return {"shell": "default", "prepare": prepare}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group()
@@ -37,8 +49,7 @@ def main():
                         help="persistent short-path checkout parent (default: /var/tmp)")
     args = parser.parse_args()
     selected = f"check::{args.check}" if args.check else args.lane or ("complete" if args.complete else "all")
-    environment = ({"shell": "default", "prepare": [["just", "transit-board::install"]] if args.check == "all" else []}
-                   if args.check else profile(suite, selected))
+    environment = check_profile(args.check) if args.check else profile(suite, selected)
     if run("git", "status", "--porcelain", capture_output=True, text=True).stdout:
         raise SystemExit("ci clean checks committed HEAD; commit or stash source changes first.")
     revision = run("git", "rev-parse", "HEAD", capture_output=True, text=True).stdout.strip()

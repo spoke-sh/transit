@@ -20,6 +20,10 @@ and runs the existing 18 independent checks. The runner receives immutable build
 artifact paths and keeps generation separate from validation. Cached compilation
 does not skip validation. Focused generation/check commands remain in the
 [contract module](../../tasks/contract.just).
+Install its pinned TypeScript checker once with
+`vp install --frozen-lockfile --filter transit --filter @transit/client`.
+Clean contract/core qualification and hosted core CI prepare these dependencies
+explicitly; the fast check has no frontend dependency installation.
 
 `just ci clean --check fast` and `just ci clean --check contracts` repeat those
 scopes from committed HEAD without workspace outputs. Use `--lane NAME` for CI
