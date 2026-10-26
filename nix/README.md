@@ -183,11 +183,15 @@ toolchain check compiles and runs an OpenSSL consumer through the direct Zig
 compiler and build runner and through the C/C++ drivers. The C/C++ consumer also
 creates and joins a native thread. The check verifies Linux interpreter paths,
 explicit loader overrides, an explicit static musl target and compile-only
-C/C++ commands.
-The Linux derivation also applies a [build-runner lifetime correction](zig-dynamic-linker.patch):
+C/C++ commands. A nested package fixture checks both resolved targets and target
+queries, including explicit loader overrides and an empty loader selection.
+The Linux derivation also applies [build-runner loader corrections](zig-dynamic-linker.patch):
 the explicit loader argument must own its bytes after the temporary target query
 leaves scope. Without that copy, this compiler revision emits empty or corrupted
-loader arguments and can crash. The compiler binary and version stay pinned;
+loader arguments and can crash. Passing a target to a dependency also preserves
+the loader choice, which the target triple does not encode. This keeps dependency
+artifacts such as the SQL gateway on the same loader as their parent build instead
+of rediscovering the host interpreter. The compiler binary and version stay pinned;
 the helper-source patch asserts that version and must be reviewed on upgrade.
 Run `just test::sql-wire-reference` and
 `just test::sql-wire-tls` for the independent peers.

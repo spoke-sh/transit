@@ -11,3 +11,33 @@
                  } else {
                      zig_args.appendAssumeCapacity("--no-dynamic-linker");
                  }
+--- a/lib/std/Build.zig
++++ b/lib/std/Build.zig
+@@ -458,15 +458,27 @@
+     maybe_value: ?T,
+ ) void {
+-    map.ensureUnusedCapacity(arena, 2) catch @panic("OOM");
++    map.ensureUnusedCapacity(arena, 3) catch @panic("OOM");
+     switch (T) {
+         Target.Query => return if (maybe_value) |v| {
+             map.putAssumeCapacity(field_name, .{ .scalar = v.zigTriple(arena) catch @panic("OOM") });
+             map.putAssumeCapacity("cpu", .{ .scalar = v.serializeCpuAlloc(arena) catch @panic("OOM") });
++            if (v.dynamic_linker) |linker| {
++                // The triple does not contain the selected ELF interpreter.
++                // Own the bytes instead of retaining this value's inline buffer.
++                map.putAssumeCapacity("dynamic-linker", .{ .scalar =
++                    arena.dupe(u8, linker.get() orelse "") catch @panic("OOM") });
++            }
+         },
+         ResolvedTarget => return if (maybe_value) |v| {
+             map.putAssumeCapacity(field_name, .{ .scalar = v.query.zigTriple(arena) catch @panic("OOM") });
+             map.putAssumeCapacity("cpu", .{ .scalar = v.query.serializeCpuAlloc(arena) catch @panic("OOM") });
++            if (v.query.dynamic_linker) |linker| {
++                // Keep this choice through every dependency boundary, including
++                // the explicit empty interpreter used for a loader-free target.
++                map.putAssumeCapacity("dynamic-linker", .{ .scalar =
++                    arena.dupe(u8, linker.get() orelse "") catch @panic("OOM") });
++            }
+         },
+         std.zig.BuildId => return if (maybe_value) |v| {
+             map.putAssumeCapacity(field_name, .{

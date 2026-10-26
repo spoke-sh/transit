@@ -27403,3 +27403,43 @@ that test in `packages/zig/transit-storage` with `zig build test
 -Dtest-filter="retained Table key ranges skip unrelated" --summary all` inside
 the pinned shell. The focused case and import check pass. Full-repository and
 committed-source clean checks remain separate qualification.
+
+## Dependency-package ELF loader selection — 2026-10-26
+
+The installed SQL gateway built at `e6913e0d5` selects
+`/lib64/ld-linux-x86-64.so.2`, while the CLI, node, Board and query host select
+the pinned Nix loader. The gateway loads Nix glibc 2.42 through its OpenSSL
+dependency. The compiler's build runner preserves the selected loader for a
+root target but omits it when serializing `ResolvedTarget` or `Target.Query`
+arguments for dependency packages. A target triple alone cannot carry that path.
+
+An independent three-package control with the earlier wrapper reproduces the
+loss for the default Nix loader, an explicit loader path and an explicitly empty
+loader: the leaf always selects the host interpreter. The corrected build-runner
+source copies the loader into the dependency options with arena-owned bytes.
+The offline toolchain check traverses both target representations and verifies
+all three choices in the leaf. Root and leaf OpenSSL consumers execute under the
+default selection; deliberately non-runnable explicit/empty selections are
+inspected without execution. Existing C/C++ thread, library, compile-only and
+explicit-target controls also pass. The compiler executable remains byte-identical
+(`974e6dd680194ff1305ba5890fda84e32fc8f10845ec4e9c442e792418fe315e`);
+compiler, library and lockfile versions are unchanged.
+
+With the same retained gateway bytes, invoking glibc 2.40's loader aborts during
+native thread creation; invoking the pinned 2.42 loader returns the expected
+missing-configuration failure. This demonstrates the invalid pairing without
+claiming the same crash path as the hosted gateway's SIGSEGV. The rebuilt gateway
+has the pinned interpreter. At `6957584c4`, `just test::server-logging` passes
+standalone failures, terminal/piped startup, logging-off restart, SQL readiness
+transitions and child logging configuration. `nix flake check`, `just doctor`,
+Nix formatting and documentation links pass on Linux x86_64.
+
+The earlier clean launcher lane at `144d4ee68` passes both tasks. The clean
+experience lane at `e6913e0d5` passes its first four tasks, then fails during
+logging-off startup with empty diagnostic output. A diagnostic rerun using
+unchanged binaries passes; it does not erase that failure or establish a cause.
+Hosted run [40258942126](https://github.com/spoke-sh/transit/actions/runs/40258942126)
+passes launchers and observability but retains a unit-executable SIGSEGV, Python
+public-query deadline failure and standalone gateway SIGSEGV. Complete
+qualification with the loader correction remains separate from these focused
+passes; the earlier Table recovery and installed-session failures remain open.
