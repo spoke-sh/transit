@@ -713,7 +713,7 @@ failure releases the reservation while preserving the preceding pin. Conflicting
 operations on one pin fail explicitly. Stale releases cannot overwrite a newer
 reservation, and a fresh startup epoch prevents reuse after node restart.
 
-The [disk barrier proof](../../../tests/node_concurrency.py) holds a provider
+The [disk barrier proof](../../../tests/storage/local/node_concurrency.py) holds a provider
 response while requiring an independent signed read and commit to complete
 before release. A second schedule holds old evidence across revocation; a third
 races identical signed writes and checks exact receipt reconciliation. The
@@ -917,7 +917,7 @@ capacity must cover its progress and mark pages. File-length accounting remains
 conservative after uncertainty and does not measure filesystem blocks or inodes.
 
 The [native disk tests](../../../packages/zig/transit-backend-local/src/collection_test.zig)
-and [process-death harness](../../../tests/local_native_collection_faults.py)
+and [process-death harness](../../../tests/storage/local/local_native_collection_faults.py)
 check current and retained values, relocation, old creators, corrupt metadata,
 FIFO sync uncertainty and resumed deletion. Reproduction and executed outcomes
 are recorded in the [proof ledger](../../history/qualification/README.md). These finite controls

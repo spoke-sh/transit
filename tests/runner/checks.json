@@ -128,7 +128,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/column_codecs.py"
+          "tests/runner/launch.py",
+          "tests/storage/codecs/column_codecs.py"
         ]
       },
       {
@@ -147,7 +148,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/table_storage.py"
+          "tests/runner/launch.py",
+          "tests/storage/local/table_storage.py"
         ]
       },
       {
@@ -324,7 +326,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/work_items_contract.py"
+          "tests/runner/launch.py",
+          "tests/runtime/application/work_items_contract.py"
         ]
       },
       {

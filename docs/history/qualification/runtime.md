@@ -339,7 +339,7 @@ ordinary-contention retry loop.
 
 On October 18, 2026, the core package suite and `just test::node-concurrency`
 pass with independently owned native engines and a shared bounded snapshot
-registry. The [disk schedule](../../../tests/node_concurrency.py) holds one provider response
+registry. The [disk schedule](../../../tests/storage/local/node_concurrency.py) holds one provider response
 while an independent signed read and commit finish before its release. It also
 holds old provider evidence across revocation and requires denial, then races
 two identical commands and checks one original receipt after reconciliation.

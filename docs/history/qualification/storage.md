@@ -2261,7 +2261,7 @@ being migrated; this package pass does not qualify their integration.
 `nix develop --command just test::local-storage-faults` passes 42 SIGKILL
 schedules on Linux x86_64 after rebasing onto `2be8eab3`. The root unit task also
 runs the [Zig owner fixture](../../../tests/local_storage_faults.zig) and
-[independent Python oracle](../../../tests/local_storage_faults.py). A child completes real
+[independent Python oracle](../../../tests/storage/local/local_storage_faults.py). A child completes real
 filesystem operations, signals the selected boundary and waits on a private
 pipe. The parent verifies it remains alive, kills it without cleanup and opens a
 fresh owner. EOF, a missing boundary or an unexpected child exit fails the proof.

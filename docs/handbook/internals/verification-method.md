@@ -154,7 +154,7 @@ caller/courier integration proof retains responsibility for the actual binaries.
 
 ## Reproducibility
 
-The [external supervisor](../../../tests/verification/vortex.py) tests whether those
+The [external supervisor](../../../tests/runtime/delivery/vortex.py) tests whether those
 boundaries compose in real processes. An HTTP peer records signed requests and
 actual replies while injecting loss or delay. The same accepted principal/sequence
 must have the same request digest and receipt. A killed worker may lose its local

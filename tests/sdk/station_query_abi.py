@@ -9,14 +9,14 @@ import sys
 import threading
 import time
 
-from cold_storage import ColdStore
+from storage.providers.cold_storage import ColdStore
 from sdk.client_abi_growing import GrowingSystem
-from station import frame
-from abi_support import rejects
+from runtime.station.station import frame
+from harness.abi_support import rejects
 from sdk.station_growing_abi import Native, Port
 from harness.services import wait_ready
 from sdk.sdk_scenarios import check
-from abi_support import Client, TransitError
+from harness.abi_support import Client, TransitError
 
 
 def run(node, cli, library, raw_library, host):

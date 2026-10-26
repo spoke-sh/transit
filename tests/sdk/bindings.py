@@ -19,7 +19,7 @@ def run(node, cli, library, raw_library, host):
         codecs(host, library)
         turns(node, cli, library, raw_library, host)
         capture(node, cli, library, raw_library, host)
-        from station_materialization import run as materialization
+        from runtime.station.station_materialization import run as materialization
         from pathlib import Path
         import tempfile
         with tempfile.TemporaryDirectory(prefix="transit-materialization-libraries-") as directory:

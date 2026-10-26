@@ -2,7 +2,7 @@
 import argparse
 import ctypes
 import json
-from operation_helpers import operations
+from harness.operation_helpers import operations
 import os
 from pathlib import Path
 import re

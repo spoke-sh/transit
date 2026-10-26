@@ -13,11 +13,11 @@ import time
 
 from sdk.client_abi_growing import GrowingSystem
 from harness.services import wait_ready
-from cold_storage import ColdStore
-from station import frame
-from abi_support import rejects
+from storage.providers.cold_storage import ColdStore
+from runtime.station.station import frame
+from harness.abi_support import rejects
 from sdk.sdk_scenarios import check
-from abi_support import Client, TransitError, _Library, _json, _seed
+from harness.abi_support import Client, TransitError, _Library, _json, _seed
 
 
 class Native:

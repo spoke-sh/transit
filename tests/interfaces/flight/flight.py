@@ -15,7 +15,7 @@ from interfaces.http.serving_tls import TLSProxy
 from interfaces.flight.flight_faults import NativeBoundary
 from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
-from cold_storage import ColdStore
+from storage.providers.cold_storage import ColdStore
 
 
 def run(node, host, gateway, proof, mode=None, board=None):

@@ -161,7 +161,7 @@ The correspondence is reviewed at operation boundaries in
 `MetaDirSync` describe `atomic`; `Delete`/`DeleteSync` describe prefix removal.
 Independent [disk regressions](../../../packages/zig/transit-storage/src/disk_wal_test.zig)
 check failures at the recovered-frame and observed-directory barriers, and
-[process-death schedules](../../local_storage_faults.py) cover interrupted trim.
+[process-death schedules](../../storage/local/local_storage_faults.py) cover interrupted trim.
 These tests are not automatic replay of every TLC transition or a refinement
 proof. The model does not cover object descriptors, multiple owners, replication,
 retention policy, arbitrary corruption or arbitrary-size executions. Executed

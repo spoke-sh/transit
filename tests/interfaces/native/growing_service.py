@@ -13,10 +13,10 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
-from growing_maintenance import run as maintenance
-from growing_station import run as station
+from storage.local.growing_maintenance import run as maintenance
+from runtime.application.growing_station import run as station
 from query.execution.growing_query import run as query_capture
-from growing_quota import run as quota
+from runtime.station.growing_quota import run as quota
 
 
 @contextmanager
@@ -158,7 +158,7 @@ def main(node, caller, station_caller=None, query_caller=None, quota_caller=None
         query_capture(node, query_caller)
         quota(node, quota_caller)
     else:
-        from local_native_maintenance import run as local_maintenance
+        from storage.local.local_native_maintenance import run as local_maintenance
         local_maintenance(node, caller)
 
 

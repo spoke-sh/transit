@@ -90,7 +90,7 @@ builds the higher-level programming interface on those operations.
 ## How the examples are tested
 
 `just test::callers` launches these same binaries. Fault orchestration and protocol
-assertions live under [tests](../tests/callers.py), with an application-independent
+assertions live under [tests](../tests/runtime/application/callers.py), with an application-independent
 [Zig probe](../tests/sdk/client_probe.zig). The proof drops commit responses and injects
 malformed unavailable replies, checks identical retries and receipts, verifies
 atomic output delivery, rejects stale

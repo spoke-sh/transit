@@ -20,10 +20,10 @@ import threading
 import time
 from sdk.client_abi import Native
 from sdk.client_abi_growing import GrowingSystem
-from cold_storage import ColdStore
+from storage.providers.cold_storage import ColdStore
 from query.arrow.fuze_logical_arrow import arrow_cell, read_stream
 from query.files.fuze_file_query import descriptor, cell_bytes
-from station import frame
+from runtime.station.station import frame
 from sdk.sdk_scenarios import check
 
 

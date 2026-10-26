@@ -13,7 +13,7 @@ import pyarrow as pa
 
 from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
-from cold_storage import ColdStore
+from storage.providers.cold_storage import ColdStore
 from query.unified.unified_abi import Native, Port, Failure, upload, verify
 
 

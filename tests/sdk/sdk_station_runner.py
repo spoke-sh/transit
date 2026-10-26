@@ -27,7 +27,7 @@ class Consumer:
 
 
 def run(node, cli, raw_library, install, label, *, decode_block_repetitions=1, failures_only=False):
-    from cold_storage import ColdStore
+    from storage.providers.cold_storage import ColdStore
     # Retained framework/application history needs cold storage. The fixture
     # keeps provider hot memory at 8 MiB rather than raising hot-only capacity.
     with ColdStore() as cold:
@@ -40,7 +40,7 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
         raise ValueError('decode-block repetitions must be in 1..1024')
     from sdk.client_abi_growing import GrowingSystem
     from sdk.client_abi import Native
-    from station import frame
+    from runtime.station.station import frame
     from sdk.sdk_scenarios import check
     root = ROOT
     fixture = GrowingSystem(node, cli, storage_config=cold.config())

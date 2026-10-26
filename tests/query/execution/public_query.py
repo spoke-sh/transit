@@ -10,7 +10,7 @@ import time
 
 from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
-from cold_storage import ColdStore
+from storage.providers.cold_storage import ColdStore
 from query.unified.unified_shell import Shell
 
 

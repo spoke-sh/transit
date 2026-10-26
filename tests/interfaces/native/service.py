@@ -309,9 +309,9 @@ if __name__ == "__main__":
     from interfaces.native.fixtures import run as fixtures
     fixtures(binaries[2])
     run(*binaries[:3])
-    from maintenance import run as maintenance
+    from storage.retention.maintenance import run as maintenance
     maintenance(binaries[0], binaries[2])
-    from effect_io import run as effect_io
+    from runtime.effects.effect_io import run as effect_io
     effect_io(binaries[0], binaries[3], binaries[2])
-    from deletion_service import run as deletion
+    from storage.retention.deletion_service import run as deletion
     deletion(binaries[0], binaries[2], binaries[4])

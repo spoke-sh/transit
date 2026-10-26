@@ -4282,8 +4282,8 @@
     },
     {
       "source": "tests/growing_support.zig",
-      "destination": "tests/storage/local/growing_support.zig",
-      "owner": "storage",
+      "destination": "tests/runtime/station/growing_support.zig",
+      "owner": "runtime",
       "role": "helper",
       "reference_consumers": [
         "tests/application.zig",
@@ -7312,8 +7312,8 @@
     },
     {
       "source": "tests/operations/RecoveryTests.zig",
-      "destination": "tests/harness/operations/RecoveryTests.zig",
-      "owner": "harness",
+      "destination": "tests/query/unified/operations/RecoveryTests.zig",
+      "owner": "query",
       "role": "compiled-tests",
       "reference_consumers": [
         "tests/operations/main.zig",
@@ -18212,8 +18212,8 @@
     },
     {
       "source": "tests/verification/vortex_proxy.py",
-      "destination": "tests/harness/faults/vortex_proxy.py",
-      "owner": "harness",
+      "destination": "tests/runtime/delivery/vortex_proxy.py",
+      "owner": "runtime",
       "role": "executable",
       "reference_consumers": [
         "tasks/test.just"

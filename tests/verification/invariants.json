@@ -550,7 +550,7 @@
         "packages/zig/transit-core/src/growing.zig",
         "apps/transit-node/GrowingMaintenance.zig",
         "packages/zig/transit-backend-ursula/src/Store.zig",
-        "tests/growing_maintenance.py"
+        "tests/storage/local/growing_maintenance.py"
       ],
       "profile": "transit-v1 development maintenance; one record per rotating scan step",
       "tasks": [
@@ -583,7 +583,7 @@
         "packages/zig/transit-station/src/growing_test.zig",
         "packages/zig/transit-station/src/GenServer.zig",
         "tests/growing_station.zig",
-        "tests/growing_station.py"
+        "tests/runtime/application/growing_station.py"
       ],
       "profile": "Station growing development behavior/point-state slice",
       "tasks": [
@@ -1123,7 +1123,7 @@
         "packages/zig/transit-station-app/src/Publication.zig",
         "tests/interfaces/installation/application_grammar.py",
         "tests/application.zig",
-        "tests/application.py",
+        "tests/runtime/application/application.py",
         "packages/zig/transit-station-app/src/Request.zig",
         "packages/zig/transit-station-app/src/Behavior.zig",
         "packages/zig/transit-station-app/src/Native.zig",
@@ -1411,7 +1411,7 @@
       "claim": "External faults preserve accepted counter work, original delivery and exact retry across current disk history; installed hosts preserve uncertainty and owned I/O",
       "owner": "docs/handbook/reference/verification.md",
       "implementation": [
-        "tests/verification/vortex.py",
+        "tests/runtime/delivery/vortex.py",
         "tests/runner/external_profiles.py",
         "tests/sdk/sdk_raw_client.py"
       ],
@@ -1585,7 +1585,7 @@
         "packages/zig/transit-catalog/src/direct_catalog_test.zig",
         "tests/catalog/tables/direct_catalog_abi.py",
         "tests/sdk/direct_sdk_catalog.py",
-        "tests/direct_table_service.py",
+        "tests/storage/tables/direct_table_service.py",
         "tests/direct_table_growth.zig"
       ],
       "profile": "declarative-catalog-v1/direct-table-v1/native-local",
@@ -1652,7 +1652,7 @@
         "packages/zig/transit-query/src/DirectTableQuery.zig",
         "tests/direct_table_lifecycle.zig",
         "tests/direct_table_client.zig",
-        "tests/direct_table_service.py"
+        "tests/storage/tables/direct_table_service.py"
       ],
       "profile": "direct-table-v1/native-local",
       "tasks": [

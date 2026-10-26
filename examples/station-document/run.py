@@ -13,8 +13,8 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tests"))
 from sdk.client_abi_growing import GrowingSystem
-from cold_storage import ColdStore
-from document_contract import encode
+from storage.providers.cold_storage import ColdStore
+from runtime.document.document_contract import encode
 from harness.ursula import Fixture
 from harness.services import wait_ready
 

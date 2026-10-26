@@ -2,7 +2,7 @@
 """Separately built consumer over public CLI/configuration, with owned disk faults."""
 import ctypes
 import json
-from operation_helpers import operations
+from harness.operation_helpers import operations
 import os
 from pathlib import Path
 import select

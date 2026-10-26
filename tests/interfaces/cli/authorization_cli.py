@@ -4,7 +4,7 @@ import argparse
 import ctypes
 import hashlib
 import json
-from operation_helpers import operations
+from harness.operation_helpers import operations
 from pathlib import Path
 import subprocess
 import time

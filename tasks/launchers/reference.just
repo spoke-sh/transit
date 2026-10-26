@@ -74,7 +74,7 @@ test-launcher:
 
 # Kill a real Station worker in a separately named three-Actor installation.
 test-station:
-    python3 -B tests/station_launchers.py reference
+    python3 -B tests/runner/launch.py tests/runtime/station/station_launchers.py reference
 
 # Inspect a temporary namespace without restarting existing workloads.
 test-plugin:

@@ -5,10 +5,10 @@ import sys
 import time
 
 from sdk.client_abi_growing import GrowingSystem
-from station import frame
-from abi_support import rejects
+from runtime.station.station import frame
+from harness.abi_support import rejects
 from sdk.station_growing_abi import Native, Port
-from abi_support import Client, _json
+from harness.abi_support import Client, _json
 
 
 class DocumentSystem(GrowingSystem):

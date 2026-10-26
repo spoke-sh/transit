@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 import time
 
-from cold_storage import ColdStore
+from storage.providers.cold_storage import ColdStore
 from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
 from query.unified.unified_abi import Native, Failure, upload

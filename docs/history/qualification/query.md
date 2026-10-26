@@ -2281,7 +2281,7 @@ is intentional; partial progress is visible without disclosing partial rows.
 
 `just test::publication` runs [real Zig Station callers](../../../tests/publication.zig) against
 an isolated `growing_v3` authority and disk-backed Ursula. The
-[Python harness](../../../tests/publication.py) verifies an independent SHA-256 fixture,
+[Python harness](../../../tests/runtime/application/publication.py) verifies an independent SHA-256 fixture,
 intercepts actual signed HTTP responses and SIGKILLs four workers at named
 boundaries. It also kills the authority and restarts the owned store at each
 boundary. Native memory and the harness manifest are not authoritative content.

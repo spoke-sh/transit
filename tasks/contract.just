@@ -23,7 +23,7 @@ generate:
     mv "$generated/data-lifecycle-v1.schema.json" contracts/data-lifecycle-v1.schema.json
     mv "$generated/index-lifecycle-v1.schema.json" contracts/index-lifecycle-v1.schema.json
     python3 -B tests/runner/launch.py tests/catalog/tables/index_lifecycle_contract.py --write < contracts/index-lifecycle-v1.schema.json
-    python3 -B tests/work_items_contract.py --write
+    python3 -B tests/runner/launch.py tests/runtime/application/work_items_contract.py --write
     zig build application-installation-fixture > contracts/application-installation-v1.fixture.json
 
 # Regenerate the C ABI resource and header from exported Zig function types.

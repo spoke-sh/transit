@@ -11,7 +11,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'tests'))
-from cold_storage import ColdStore
+from storage.providers.cold_storage import ColdStore
 from placement import Compose, Reference
 
 

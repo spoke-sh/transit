@@ -1073,7 +1073,7 @@ preserves them through SDK conversion. The shared schema validator admits the
 type/codec/collation combination; the direct Table interface retains complete
 schema bytes. Carrying descriptors does not establish query support.
 
-The independent [fixture generator](../../../tests/column_codecs.py) uses
+The independent [fixture generator](../../../tests/storage/codecs/column_codecs.py) uses
 Python's CP037 codec for all 256 scalars and rational arithmetic for HFP.
 [Column tests](../../../packages/zig/transit-fuze/src/column_codec_test.zig)
 compare exact page bytes, every CP037 scalar pair, floating bit patterns and

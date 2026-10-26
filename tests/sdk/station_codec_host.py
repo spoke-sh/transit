@@ -57,7 +57,7 @@ def connector_diagnostics(host, config, native):
 def admission_diagnostics(host, config, native):
     """Independent layout, scalar, truncation and disclosure witnesses."""
     import hashlib
-    from abi_support import TransitError
+    from harness.abi_support import TransitError
     layout = '<4sBBQ32sBB32sBB64sBQBB32sBQBB32s'
     assert struct.calcsize(layout) == 232
     def scalar(kind, value=0, truncated=0):
@@ -187,7 +187,7 @@ def run(host, library=None):
         assert all(r['status'] == 1 for r in responses[7:])
         if library:
             # The generated ABI declares the exact same implementation as the port.
-            from abi_support import _Library, TransitError
+            from harness.abi_support import _Library, TransitError
             directory = Path(temporary) / 'lib'
             directory.mkdir()
             (directory / 'libtransit_station.so').symlink_to(Path(library).resolve())

@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tests'))
-from cold_storage import ColdStore
+from storage.providers.cold_storage import ColdStore
 from interfaces.http.serving import REALM, Key, compact, frame, native_command, native_query, policy, publication, signed_read, submit
 from interfaces.http.serving_tls import TLSProxy
 from interfaces.http.serving_table import authorize, bootstrap as bootstrap_counter, populate_query_rows, provision_catalog

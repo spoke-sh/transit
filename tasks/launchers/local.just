@@ -58,7 +58,7 @@ test:
 
 # Qualify the three-process Station example, Board lenses and fresh ownership.
 test-station:
-    python3 -B tests/station_launchers.py local
+    python3 -B tests/runner/launch.py tests/runtime/station/station_launchers.py local
 
 # Attach the terminal service/log viewer; detach leaves the stack running.
 attach:

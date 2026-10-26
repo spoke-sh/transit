@@ -7,7 +7,7 @@ from pathlib import Path
 import tempfile
 import performance.storage.storage_benchmark as driver
 import performance.storage.storage_ingest_benchmark as ingestion
-import storage_growth as growth
+import storage.local.storage_growth as growth
 
 
 class CacheConditions(unittest.TestCase):

@@ -44,7 +44,7 @@ storage-growth *args:
     #!/usr/bin/env bash
     set -euo pipefail
     zig build storage-benchmark -Doptimize=ReleaseSafe -Dstorage-benchmark-body-bytes=16384 --prefix .cache/storage-growth
-    python3 -B tests/storage_growth.py .cache/storage-growth/bin/transit-storage-benchmark "$@"
+    python3 -B tests/runner/launch.py tests/storage/local/storage_growth.py .cache/storage-growth/bin/transit-storage-benchmark "$@"
 
 # Accepted Table archives, retained reads, current authority and interrupted trim.
 table-archives:
@@ -294,7 +294,7 @@ client-abi:
 station:
     zig build transit-admin example-station-ledger transit-delivery transit-station-controller
     zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/station.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/example-station-ledger zig-out/bin/transit-delivery zig-out/bin/transit-station-controller
+    python3 -B tests/runner/launch.py tests/runtime/station/station.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/example-station-ledger zig-out/bin/transit-delivery zig-out/bin/transit-station-controller
 
 # Check each library using its own declared dependencies.
 packages:
@@ -408,12 +408,12 @@ callers:
 # Linux/Docker: fill an owned ext4 image while keeping a physical control reserve.
 capacity:
     zig build capacity-proof
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-capacity-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/runner/launch.py tests/storage/retention/capacity.py zig-out/bin/transit-capacity-proof
 
 # Linux/Docker: retain growing pages/backlog through real ENOSPC and reserve use.
 growing-capacity:
     zig build growing-capacity-proof -Doptimize=ReleaseSafe
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-growing-capacity-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/runner/launch.py tests/storage/retention/capacity.py zig-out/bin/transit-growing-capacity-proof
 
 # Exercise bounded discovery and retained inspection through the public client.
 inspection:
@@ -861,7 +861,7 @@ domain-simulation-mutations:
 
 # External OS/network faults over owned binaries and actual disk Ursula.
 vortex *args:
-    python3 -B tests/verification/vortex_proxy.py
+    python3 -B tests/runner/launch.py tests/runtime/delivery/vortex_proxy.py
     zig build test-vortex -- {{args}}
 
 # Installed Python/Node, local application, query or browser/reactive faults.
@@ -875,9 +875,9 @@ fuze-types:
 
 # General Table schema identities, row constraints and independent byte oracle.
 table-schema:
-    python3 -B tests/column_codecs.py
+    python3 -B tests/runner/launch.py tests/storage/codecs/column_codecs.py
     python3 -B tests/runner/launch.py tests/catalog/tables/table_schema.py
-    python3 -B tests/table_storage.py
+    python3 -B tests/runner/launch.py tests/storage/local/table_storage.py
     python3 -B tests/runner/launch.py tests/catalog/tables/table_catalog.py
     zig test packages/zig/transit-fuze/src/TableRow.zig
     zig test packages/zig/transit-fuze/src/TableEvolution.zig
@@ -917,7 +917,7 @@ file-benchmark *args:
 
 # Isolated immutable-tree prototypes; never opens native installation state.
 page-layout *args:
-    python3 -B tests/page_layout.py {{args}}
+    python3 -B tests/runner/launch.py tests/storage/local/page_layout.py {{args}}
 
 # Experimental fixed-width kernel/owned-row comparison with independent answers.
 vector-benchmark output:

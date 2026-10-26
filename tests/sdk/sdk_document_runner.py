@@ -12,8 +12,8 @@ import time
 
 from sdk.client_abi import Native
 from sdk.client_abi_growing import GrowingSystem
-from document_contract import encode
-from station import frame
+from runtime.document.document_contract import encode
+from runtime.station.station import frame
 
 
 def run(node, cli, library, install, label):

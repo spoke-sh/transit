@@ -1,7 +1,7 @@
 """Exact local SQL setup recovery at native commit/response boundaries."""
 import ctypes
 import json
-from operation_helpers import operations
+from harness.operation_helpers import operations
 import os
 from pathlib import Path
 import shutil

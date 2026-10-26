@@ -58,4 +58,4 @@ test:
 
 # Qualify Station's container topology and persistent message/query recovery.
 test-station:
-    python3 -B tests/station_launchers.py compose
+    python3 -B tests/runner/launch.py tests/runtime/station/station_launchers.py compose

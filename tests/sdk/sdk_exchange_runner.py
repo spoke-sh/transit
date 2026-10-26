@@ -19,7 +19,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
     boundary = Boundary()
     from sdk.client_abi import Native
     from sdk.client_abi_growing import GrowingSystem
-    from station import frame
+    from runtime.station.station import frame
     started = time.monotonic()
     worker = str(Path(worker).resolve())
     fixture = GrowingSystem(node, cli)

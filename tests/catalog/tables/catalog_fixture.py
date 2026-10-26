@@ -5,8 +5,8 @@ import subprocess
 import sys
 import tempfile
 
-from recovery_fixture import retain_recovery_fixture
-from cold_storage import ColdStore
+from harness.recovery_fixture import retain_recovery_fixture
+from storage.providers.cold_storage import ColdStore
 from harness.ursula import Fixture
 
 

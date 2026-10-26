@@ -305,7 +305,8 @@ pub fn build(b: *std.Build) void {
     b.step("test-work-items-unit", "Check the application-owned Table migration").dependOn(&work_items_test.step);
     test_step.dependOn(&work_items_test.step);
     const work_items_contract = b.addSystemCommand(&.{ "python3", "-B" });
-    work_items_contract.addFileArg(b.path("tests/work_items_contract.py"));
+    work_items_contract.addFileArg(b.path("tests/runner/launch.py"));
+    work_items_contract.addFileArg(b.path("tests/runtime/application/work_items_contract.py"));
     work_items_contract.has_side_effects = true;
     work_items_contract.stdio = .inherit;
     test_step.dependOn(&work_items_contract.step);
@@ -364,7 +365,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") } },
     }) });
     const local_collection_test = b.addSystemCommand(&.{ "python3", "-B" });
-    local_collection_test.addFileArg(b.path("tests/local_native_collection_faults.py"));
+    local_collection_test.addFileArg(b.path("tests/runner/launch.py"));
+    local_collection_test.addFileArg(b.path("tests/storage/local/local_native_collection_faults.py"));
     local_collection_test.addArtifactArg(local_collection_faults);
     local_collection_test.has_side_effects = true;
     local_collection_test.stdio = .inherit;
@@ -377,7 +379,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_storage", .module = storage.module("transit_storage") }},
     }) });
     const local_objects_test = b.addSystemCommand(&.{ "python3", "-B" });
-    local_objects_test.addFileArg(b.path("tests/local_objects.py"));
+    local_objects_test.addFileArg(b.path("tests/runner/launch.py"));
+    local_objects_test.addFileArg(b.path("tests/storage/local/local_objects.py"));
     local_objects_test.addArtifactArg(local_objects);
     local_objects_test.has_side_effects = true;
     local_objects_test.stdio = .inherit;
@@ -390,7 +393,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_storage", .module = storage.module("transit_storage") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_protocol", .module = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize }).module("transit_protocol") } },
     }) });
     const local_faults_test = b.addSystemCommand(&.{ "python3", "-B" });
-    local_faults_test.addFileArg(b.path("tests/local_storage_faults.py"));
+    local_faults_test.addFileArg(b.path("tests/runner/launch.py"));
+    local_faults_test.addFileArg(b.path("tests/storage/local/local_storage_faults.py"));
     local_faults_test.addArtifactArg(local_faults);
     local_faults_test.has_side_effects = true;
     local_faults_test.stdio = .inherit;
@@ -427,7 +431,8 @@ pub fn build(b: *std.Build) void {
     worker_handoff_test.stdio = .inherit;
     test_step.dependOn(&worker_handoff_test.step);
     const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
-    document_contract_test.addFileArg(b.path("tests/document_contract.py"));
+    document_contract_test.addFileArg(b.path("tests/runner/launch.py"));
+    document_contract_test.addFileArg(b.path("tests/runtime/document/document_contract.py"));
     document_contract_test.has_side_effects = true;
     document_contract_test.stdio = .inherit;
     test_step.dependOn(&document_contract_test.step);
@@ -542,7 +547,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
     }) });
     const page_test = b.addSystemCommand(&.{ "python3", "-B" });
-    page_test.addFileArg(b.path("tests/pages.py"));
+    page_test.addFileArg(b.path("tests/runner/launch.py"));
+    page_test.addFileArg(b.path("tests/storage/local/pages.py"));
     page_test.addArtifactArg(page_proof);
     page_test.addPassthruArgs();
     page_test.has_side_effects = true;
@@ -555,7 +561,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
     }) });
     const block_test = b.addSystemCommand(&.{ "python3", "-B" });
-    block_test.addFileArg(b.path("tests/block_storage.py"));
+    block_test.addFileArg(b.path("tests/runner/launch.py"));
+    block_test.addFileArg(b.path("tests/storage/local/block_storage.py"));
     block_test.addArtifactArg(block_proof);
     block_test.has_side_effects = true;
     block_test.stdio = .inherit;
@@ -567,7 +574,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
     }) });
     const collection_test = b.addSystemCommand(&.{ "python3", "-B" });
-    collection_test.addFileArg(b.path("tests/storage_collection.py"));
+    collection_test.addFileArg(b.path("tests/runner/launch.py"));
+    collection_test.addFileArg(b.path("tests/storage/local/storage_collection.py"));
     collection_test.addArtifactArg(collection_proof);
     collection_test.has_side_effects = true;
     collection_test.stdio = .inherit;
@@ -579,7 +587,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
     }) });
     const growth_test = b.addSystemCommand(&.{ "python3", "-B" });
-    growth_test.addFileArg(b.path("tests/growing.py"));
+    growth_test.addFileArg(b.path("tests/runner/launch.py"));
+    growth_test.addFileArg(b.path("tests/storage/local/growing.py"));
     growth_test.addArtifactArg(growth_proof);
     growth_test.addPassthruArgs();
     growth_test.has_side_effects = true;
@@ -905,7 +914,8 @@ pub fn build(b: *std.Build) void {
     const grpc_provision = b.addExecutable(.{ .name = "transit-grpc-worker-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/grpc_worker.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_grpc", .module = station_grpc.module("transit_station_grpc") }, .{ .name = "transit_station", .module = station.module("transit_station") } } }) });
     build_test_step.dependOn(&grpc_provision.step);
     const grpc_worker_test = b.addSystemCommand(&.{ "python3", "-B" });
-    grpc_worker_test.addFileArg(b.path("tests/grpc_worker.py"));
+    grpc_worker_test.addFileArg(b.path("tests/runner/launch.py"));
+    grpc_worker_test.addFileArg(b.path("tests/runtime/effects/grpc_worker.py"));
     grpc_worker_test.addArtifactArg(node_artifact);
     grpc_worker_test.addArtifactArg(grpc_provision);
     grpc_worker_test.addArtifactArg(grpc_worker);
@@ -933,7 +943,8 @@ pub fn build(b: *std.Build) void {
     const http_provision = b.addExecutable(.{ .name = "transit-http-worker-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/http_worker.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }, .{ .name = "transit_station", .module = station.module("transit_station") } } }) });
     build_test_step.dependOn(&http_provision.step);
     const http_worker_test = b.addSystemCommand(&.{ "python3", "-B" });
-    http_worker_test.addFileArg(b.path("tests/http_worker.py"));
+    http_worker_test.addFileArg(b.path("tests/runner/launch.py"));
+    http_worker_test.addFileArg(b.path("tests/runtime/effects/http_worker.py"));
     http_worker_test.addArtifactArg(node_artifact);
     http_worker_test.addArtifactArg(http_provision);
     http_worker_test.addArtifactArg(http_worker);
@@ -1243,7 +1254,8 @@ pub fn build(b: *std.Build) void {
     }) });
     const growing_service = b.addSystemCommand(&.{ "python3", "-B" });
     const node_recovery = b.addSystemCommand(&.{ "python3", "-B" });
-    node_recovery.addFileArg(b.path("tests/node_recovery.py"));
+    node_recovery.addFileArg(b.path("tests/runner/launch.py"));
+    node_recovery.addFileArg(b.path("tests/storage/local/node_recovery.py"));
     node_recovery.addArtifactArg(node_artifact);
     node_recovery.addArtifactArg(growing_client);
     node_recovery.has_side_effects = true;
@@ -1256,14 +1268,16 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
     }) });
     const node_concurrency = b.addSystemCommand(&.{ "python3", "-B" });
-    node_concurrency.addFileArg(b.path("tests/node_concurrency.py"));
+    node_concurrency.addFileArg(b.path("tests/runner/launch.py"));
+    node_concurrency.addFileArg(b.path("tests/storage/local/node_concurrency.py"));
     node_concurrency.addArtifactArg(node_artifact);
     node_concurrency.addArtifactArg(node_concurrency_fixtures);
     node_concurrency.has_side_effects = true;
     node_concurrency.stdio = .inherit;
     b.step("test-node-concurrency", "Qualify independent native I/O, publication races and revocation").dependOn(&node_concurrency.step);
     const native_blocks = b.addSystemCommand(&.{ "python3", "-B" });
-    native_blocks.addFileArg(b.path("tests/block_native.py"));
+    native_blocks.addFileArg(b.path("tests/runner/launch.py"));
+    native_blocks.addFileArg(b.path("tests/storage/local/block_native.py"));
     native_blocks.addArtifactArg(node_artifact);
     native_blocks.has_side_effects = true;
     native_blocks.stdio = .inherit;
@@ -1314,7 +1328,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
     }) });
     const direct_table_service = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_table_service.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_table_service.addFileArg(b.path("tests/runner/launch.py"));
+    direct_table_service.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_table_service.addArtifactArg(node_artifact);
     direct_table_service.addArtifactArg(direct_table_client);
     direct_table_service.addPassthruArgs();
@@ -1322,7 +1337,8 @@ pub fn build(b: *std.Build) void {
     direct_table_service.stdio = .inherit;
     b.step("test-direct-table-service", "Prove direct Table HTTP writes, snapshots and reply recovery over local disk").dependOn(&direct_table_service.step);
     const direct_callers = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_callers.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_callers.addFileArg(b.path("tests/runner/launch.py"));
+    direct_callers.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_callers.addArtifactArg(node_artifact);
     direct_callers.addArtifactArg(direct_table_client);
     direct_callers.addArg("callers");
@@ -1330,7 +1346,8 @@ pub fn build(b: *std.Build) void {
     direct_callers.stdio = .inherit;
     b.step("test-direct-table-callers", "Prove shared SQL and typed host callers through the public Table owner").dependOn(&direct_callers.step);
     const direct_catalog_abi = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_catalog_abi.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_abi.addFileArg(b.path("tests/runner/launch.py"));
+    direct_catalog_abi.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_abi.addArtifactArg(node_artifact);
     direct_catalog_abi.addArtifactArg(direct_table_client);
     direct_catalog_abi.addArg("abi");
@@ -1340,7 +1357,8 @@ pub fn build(b: *std.Build) void {
     direct_catalog_abi.stdio = .inherit;
     b.step("test-direct-catalog-abi", "Prove direct catalog ABI and port recovery after accepted reply loss").dependOn(&direct_catalog_abi.step);
     const direct_catalog_python = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_catalog_python.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_python.addFileArg(b.path("tests/runner/launch.py"));
+    direct_catalog_python.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_python.addArtifactArg(node_artifact);
     direct_catalog_python.addArtifactArg(direct_table_client);
     direct_catalog_python.addArgs(&.{ "sdk-python", ".cache/bindings/wheels" });
@@ -1348,7 +1366,8 @@ pub fn build(b: *std.Build) void {
     direct_catalog_python.stdio = .inherit;
     b.step("test-direct-catalog-python", "Prove installed Python direct lifecycle and retained SQL recovery").dependOn(&direct_catalog_python.step);
     const direct_catalog_node = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_catalog_node.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_node.addFileArg(b.path("tests/runner/launch.py"));
+    direct_catalog_node.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_node.addArtifactArg(node_artifact);
     direct_catalog_node.addArtifactArg(direct_table_client);
     direct_catalog_node.addArgs(&.{ "sdk-node", ".cache/bindings/node" });
@@ -1356,7 +1375,8 @@ pub fn build(b: *std.Build) void {
     direct_catalog_node.stdio = .inherit;
     b.step("test-direct-catalog-node", "Prove installed Node direct lifecycle and retained SQL recovery").dependOn(&direct_catalog_node.step);
     const direct_catalog_ruby = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_catalog_ruby.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_ruby.addFileArg(b.path("tests/runner/launch.py"));
+    direct_catalog_ruby.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_ruby.addArtifactArg(node_artifact);
     direct_catalog_ruby.addArtifactArg(direct_table_client);
     direct_catalog_ruby.addArgs(&.{ "sdk-ruby", ".cache/bindings/ruby" });
@@ -1364,7 +1384,8 @@ pub fn build(b: *std.Build) void {
     direct_catalog_ruby.stdio = .inherit;
     b.step("test-direct-catalog-ruby", "Prove installed Ruby direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_ruby.step);
     const direct_catalog_java = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_catalog_java.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_java.addFileArg(b.path("tests/runner/launch.py"));
+    direct_catalog_java.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_java.addArtifactArg(node_artifact);
     direct_catalog_java.addArtifactArg(direct_table_client);
     direct_catalog_java.addArgs(&.{ "sdk-java", ".cache/bindings/java" });
@@ -1372,7 +1393,8 @@ pub fn build(b: *std.Build) void {
     direct_catalog_java.stdio = .inherit;
     b.step("test-direct-catalog-java", "Prove installed Java direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_java.step);
     const direct_catalog_dotnet = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_catalog_dotnet.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_dotnet.addFileArg(b.path("tests/runner/launch.py"));
+    direct_catalog_dotnet.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_dotnet.addArtifactArg(node_artifact);
     direct_catalog_dotnet.addArtifactArg(direct_table_client);
     direct_catalog_dotnet.addArgs(&.{ "sdk-dotnet", ".cache/bindings/dotnet" });
@@ -1380,7 +1402,8 @@ pub fn build(b: *std.Build) void {
     direct_catalog_dotnet.stdio = .inherit;
     b.step("test-direct-catalog-dotnet", "Prove installed .NET direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_dotnet.step);
     const direct_catalog_rust = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_catalog_rust.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_rust.addFileArg(b.path("tests/runner/launch.py"));
+    direct_catalog_rust.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_rust.addArtifactArg(node_artifact);
     direct_catalog_rust.addArtifactArg(direct_table_client);
     direct_catalog_rust.addArgs(&.{ "sdk-rust", ".cache/bindings/rust" });
@@ -1388,7 +1411,8 @@ pub fn build(b: *std.Build) void {
     direct_catalog_rust.stdio = .inherit;
     b.step("test-direct-catalog-rust", "Prove installed Rust direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_rust.step);
     const direct_catalog_beam = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_catalog_beam.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_beam.addFileArg(b.path("tests/runner/launch.py"));
+    direct_catalog_beam.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_beam.addArtifactArg(node_artifact);
     direct_catalog_beam.addArtifactArg(direct_table_client);
     direct_catalog_beam.addArgs(&.{ "sdk-beam", ".cache/bindings/beam" });
@@ -1396,7 +1420,8 @@ pub fn build(b: *std.Build) void {
     direct_catalog_beam.stdio = .inherit;
     b.step("test-direct-catalog-beam", "Prove installed Erlang and Elixir direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_beam.step);
     const direct_catalog_c = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_catalog_c.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_catalog_c.addFileArg(b.path("tests/runner/launch.py"));
+    direct_catalog_c.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_c.addArtifactArg(node_artifact);
     direct_catalog_c.addArtifactArg(direct_table_client);
     direct_catalog_c.addArgs(&.{ "sdk-c", ".cache/bindings/c" });
@@ -1405,7 +1430,8 @@ pub fn build(b: *std.Build) void {
     b.step("test-direct-catalog-c", "Prove installed C and C++ direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_c.step);
 
     const direct_board = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_board.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_board.addFileArg(b.path("tests/runner/launch.py"));
+    direct_board.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_board.addArtifactArg(node_artifact);
     direct_board.addArtifactArg(direct_table_client);
     direct_board.addArg(if (b.option(bool, "direct-board-browser", "Qualify direct relational Board in Chromium") orelse false) "board-browser" else "board");
@@ -1416,7 +1442,8 @@ pub fn build(b: *std.Build) void {
     b.step("test-direct-board", "Prove direct Board reads, original pin recovery and current authorization").dependOn(&direct_board.step);
 
     const direct_dependencies = b.addSystemCommand(&.{ "python3", "-B" });
-    direct_dependencies.addFileArg(b.path("tests/direct_table_service.py"));
+    direct_dependencies.addFileArg(b.path("tests/runner/launch.py"));
+    direct_dependencies.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_dependencies.addArtifactArg(node_artifact);
     direct_dependencies.addArtifactArg(direct_table_client);
     direct_dependencies.addArg("dependencies");
@@ -1424,7 +1451,8 @@ pub fn build(b: *std.Build) void {
     direct_dependencies.stdio = .inherit;
     b.step("test-direct-dependencies", "Prove direct dependency registration, RESTRICT and exact recovery across node loss").dependOn(&direct_dependencies.step);
     const named_resources = b.addSystemCommand(&.{ "python3", "-B" });
-    named_resources.addFileArg(b.path("tests/direct_table_service.py"));
+    named_resources.addFileArg(b.path("tests/runner/launch.py"));
+    named_resources.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     named_resources.addArtifactArg(node_artifact);
     named_resources.addArtifactArg(direct_table_client);
     named_resources.addArg("resources");
@@ -1469,14 +1497,16 @@ pub fn build(b: *std.Build) void {
     scale.stdio = .inherit;
     b.step("test-scale", "Run the repeated finite growth and offered-load matrix").dependOn(&scale.step);
     const quota_proof = b.addSystemCommand(&.{ "python3", "-B" });
-    quota_proof.addFileArg(b.path("tests/growing_quota.py"));
+    quota_proof.addFileArg(b.path("tests/runner/launch.py"));
+    quota_proof.addFileArg(b.path("tests/runtime/station/growing_quota.py"));
     quota_proof.addArtifactArg(node_artifact);
     quota_proof.addArtifactArg(growing_quota);
     quota_proof.has_side_effects = true;
     quota_proof.stdio = .inherit;
     b.step("test-growing-quota", "Focus service and Station quota/recovery behavior").dependOn(&quota_proof.step);
     const growing_behavior = b.addSystemCommand(&.{ "python3", "-B" });
-    growing_behavior.addFileArg(b.path("tests/growing_station.py"));
+    growing_behavior.addFileArg(b.path("tests/runner/launch.py"));
+    growing_behavior.addFileArg(b.path("tests/runtime/application/growing_station.py"));
     growing_behavior.addArtifactArg(node_artifact);
     growing_behavior.addArtifactArg(growing_station);
     growing_behavior.addPassthruArgs();
@@ -1500,14 +1530,16 @@ pub fn build(b: *std.Build) void {
     }) });
     build_test_step.dependOn(&document_proof.step);
     const document_test = b.addSystemCommand(&.{ "python3", "-B" });
-    document_test.addFileArg(b.path("tests/document.py"));
+    document_test.addFileArg(b.path("tests/runner/launch.py"));
+    document_test.addFileArg(b.path("tests/runtime/document/document.py"));
     document_test.addArtifactArg(node_artifact);
     document_test.addArtifactArg(document_proof);
     document_test.has_side_effects = true;
     document_test.stdio = .inherit;
     b.step("test-document", "Prove Document publication, checkpoint and disk recovery").dependOn(&document_test.step);
     const work_items_native = b.addSystemCommand(&.{ "python3", "-B" });
-    work_items_native.addFileArg(b.path("tests/work_items.py"));
+    work_items_native.addFileArg(b.path("tests/runner/launch.py"));
+    work_items_native.addFileArg(b.path("tests/runtime/application/work_items.py"));
     work_items_native.addArtifactArg(node_artifact);
     work_items_native.addArtifactArg(work_items);
     work_items_native.addArtifactArg(work_items_proof);
@@ -1516,7 +1548,8 @@ pub fn build(b: *std.Build) void {
     work_items_native.stdio = .inherit;
     b.step("test-work-items", "Qualify the actual Table migration worker through disk recovery").dependOn(&work_items_native.step);
     const work_items_browser = b.addSystemCommand(&.{ "python3", "-B" });
-    work_items_browser.addFileArg(b.path("tests/work_items_browser.py"));
+    work_items_browser.addFileArg(b.path("tests/runner/launch.py"));
+    work_items_browser.addFileArg(b.path("tests/runtime/application/work_items_browser.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, work_items, query_host, work_items_gateway, work_items_browser_proof }) |artifact| work_items_browser.addArtifactArg(artifact);
     work_items_browser.has_side_effects = true;
     work_items_browser.stdio = .inherit;
@@ -1529,7 +1562,8 @@ pub fn build(b: *std.Build) void {
     }) });
     build_test_step.dependOn(&application_proof.step);
     const application_test = b.addSystemCommand(&.{ "python3", "-B" });
-    application_test.addFileArg(b.path("tests/application.py"));
+    application_test.addFileArg(b.path("tests/runner/launch.py"));
+    application_test.addFileArg(b.path("tests/runtime/application/application.py"));
     application_test.addArtifactArg(node_artifact);
     application_test.addArtifactArg(application_proof);
     application_test.has_side_effects = true;
@@ -1552,7 +1586,8 @@ pub fn build(b: *std.Build) void {
     }) });
     build_test_step.dependOn(&publication_proof.step);
     const publication_test = b.addSystemCommand(&.{ "python3", "-B" });
-    publication_test.addFileArg(b.path("tests/publication.py"));
+    publication_test.addFileArg(b.path("tests/runner/launch.py"));
+    publication_test.addFileArg(b.path("tests/runtime/application/publication.py"));
     publication_test.addArtifactArg(node_artifact);
     publication_test.addArtifactArg(publication_proof);
     publication_test.has_side_effects = true;
@@ -1625,7 +1660,8 @@ pub fn build(b: *std.Build) void {
         b.step("test-sql-wire-placement", "Qualify scoped SQL deployment and fenced physical recovery").dependOn(&placed.step);
     }
     const relational_callers_native = b.addSystemCommand(&.{ "python3", "-B" });
-    relational_callers_native.addFileArg(b.path("tests/direct_table_service.py"));
+    relational_callers_native.addFileArg(b.path("tests/runner/launch.py"));
+    relational_callers_native.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     relational_callers_native.addArtifactArg(node_artifact);
     relational_callers_native.addArtifactArg(direct_table_client);
     const relational_sdk = b.option(enum { python, node }, "relational-sdk", "Include installed relational SDK callers");
@@ -1733,7 +1769,8 @@ pub fn build(b: *std.Build) void {
     examples_step.dependOn(&install_ledger.step);
     b.getInstallStep().dependOn(&install_ledger.step);
     const station_test = b.addSystemCommand(&.{ "python3", "-B" });
-    station_test.addFileArg(b.path("tests/station.py"));
+    station_test.addFileArg(b.path("tests/runner/launch.py"));
+    station_test.addFileArg(b.path("tests/runtime/station/station.py"));
     station_test.addArtifactArg(node_artifact);
     station_test.addArtifactArg(cli_artifact);
     station_test.addArtifactArg(station_ledger);
@@ -1743,7 +1780,8 @@ pub fn build(b: *std.Build) void {
     station_test.stdio = .inherit;
     b.step("test-station", "Prove recoverable Station callers against durable authority").dependOn(&station_test.step);
     const upgrade_tests = b.addSystemCommand(&.{ "python3", "-B" });
-    upgrade_tests.addFileArg(b.path("tests/runtime_upgrade.py"));
+    upgrade_tests.addFileArg(b.path("tests/runner/launch.py"));
+    upgrade_tests.addFileArg(b.path("tests/runtime/deployment/runtime_upgrade.py"));
     upgrade_tests.addArtifactArg(node_artifact);
     upgrade_tests.addArtifactArg(cli_artifact);
     upgrade_tests.addArtifactArg(controller_artifact);
@@ -1780,7 +1818,8 @@ pub fn build(b: *std.Build) void {
     b.step("test-service", "Prove signed ingress and worker recovery over HTTP").dependOn(&services.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = core.module("transit_core") })).step);
     const integration = b.addSystemCommand(&.{ "python3", "-B" });
-    integration.addFileArg(b.path("tests/storage.py"));
+    integration.addFileArg(b.path("tests/runner/launch.py"));
+    integration.addFileArg(b.path("tests/storage/providers/storage.py"));
     const proofs_step = b.step("proofs", "Install disk conformance proof executables");
     for ([_][]const u8{ "storage", "kernel", "effects", "lifetime", "outbox", "runtime", "deletion", "state", "readiness" }) |name| {
         const proof = b.addExecutable(.{
@@ -1856,7 +1895,8 @@ pub fn build(b: *std.Build) void {
     callers.stdio = .inherit;
     b.step("test-callers", "Prove two independent Zig applications against one generic node").dependOn(&callers.step);
     const vortex = b.addSystemCommand(&.{ "python3", "-B" });
-    vortex.addFileArg(b.path("tests/verification/vortex.py"));
+    vortex.addFileArg(b.path("tests/runner/launch.py"));
+    vortex.addFileArg(b.path("tests/runtime/delivery/vortex.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, cli_artifact, example_artifacts[0], delivery_artifact }) |artifact| vortex.addArtifactArg(artifact);
     vortex.addPassthruArgs();
     vortex.has_side_effects = true;

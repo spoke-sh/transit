@@ -8,11 +8,14 @@ assertions in domain scenarios and provider setup in explicitly named fixtures.
 | [services.py](services.py) | Loopback port selection and bounded HTTP readiness while observing the owned process |
 | [ursula.py](ursula.py) | Isolated disk-backed Ursula configuration, startup, SIGKILL/restart and joined cleanup |
 | [test_services.py](test_services.py) | Real HTTP readiness/retry, early process exit and deadline controls |
+| [abi_support.py](abi_support.py) | Generated native ABI dispatch, bounded handle ownership and exact saved bytes for cross-component fixtures |
+| [operation_helpers.py](operation_helpers.py) | Explicit private operation-driver location; never substitute the installed CLI |
+| [recovery_fixture.py](recovery_fixture.py) | Preserve owned failed state after joining its supplied provider fixtures |
 
 Test drivers on the `tests/` import path use `harness.services` for generic
 helpers. Select `harness.ursula.Fixture` only when the scenario requires Ursula.
-The [storage conformance driver](../storage.py) owns its disk recovery schedules;
-the [direct Table driver](../direct_table_service.py) owns local Table scenarios.
+The [storage conformance driver](../storage/providers/storage.py) owns its disk recovery schedules;
+the [direct Table driver](../storage/tables/direct_table_service.py) owns local Table scenarios.
 Sharing port/readiness helpers does not give either driver the other's backend
 or durability claim.
 
