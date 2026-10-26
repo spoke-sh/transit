@@ -13,6 +13,7 @@ pub const TreeStore = @import("TreeStore.zig");
 pub const OrderedKeyIndex = @import("OrderedKeyIndex.zig");
 pub const TableDeclaration = @import("TableDeclaration.zig");
 pub const TableArchive = @import("TableArchive.zig");
+pub const TableRecovery = @import("TableRecovery.zig");
 pub const TablePartition = @import("TablePartition.zig");
 pub const TableDmlIntent = @import("TableDmlIntent.zig");
 

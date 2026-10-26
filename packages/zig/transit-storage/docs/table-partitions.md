@@ -289,14 +289,15 @@ the original definition, accepted position, logical-change frontier and total
 source-row count. End of this source traversal is distinct from a query's
 terminal result and from a consistent multi-source snapshot.
 
-Data snapshots omit receipt, operation, pending and pin directories from their retained read basis, so
+Data snapshots omit recovery references and receipt, operation, pending and pin directories from their retained read basis, so
 they do not recursively retain earlier pin owners.
 
 This owner retains complete logical history in WAL or accepted immutable archives,
 and retains all immutable objects. It exposes no logical expiry or immutable-object collection. Durable pin ownership is implemented;
 GC/compaction races that actually remove retained data require a collector and
-separate qualification. Recovery follows contiguous, hash-linked records through archive plus WAL
-one frame at a time, verifies top-level roots before serving, and verifies
+separate qualification. Recovery follows contiguous, hash-linked records from a
+published recovery baseline, or from creation when none exists. It consumes
+archive/WAL records one frame at a time, verifies top-level roots before serving, and verifies
 descendant pages/rows on access. Missing history or objects is an error, never an
 empty table. This profile does not promise distributed writers or catalog-wide
 transaction sessions.
@@ -318,8 +319,8 @@ reserved capacity for staging and acceptance when ordinary admission is full.
 
 `trimArchived(guard)` removes only covered WAL files. Retry it after interruption;
 reopen an uncertain WAL owner and recover the Table before continuing. The latest
-acceptance record always remains in WAL and locates the archive for full chain
-validation on recovery. Physical archival/trimming preserves `changed_lsn`,
+acceptance record always remains in WAL and locates the archive and any recovery
+checkpoint. Recovery validates the chain from that baseline, or from creation. Physical archival/trimming preserves `changed_lsn`,
 original receipt positions, pending operation bases, pinned rows and history
 cursor commitments. Old unflushed locators resolve through the latest accepted
 archive directory. A slow or offline history consumer retains its original
@@ -327,10 +328,39 @@ position; archival does not require it to advance.
 
 Current authorization gates both archive publication and trimming. Neither quota
 pressure nor pin release authorizes logical expiry. Missing archive objects fail
-recovery/read rather than returning an empty prefix. The archive mechanism keeps
+when replay or a read requires them, rather than returning an empty prefix. The archive mechanism keeps
 all original logical records and does not collect Table segments, indexes or
 archive objects. See the [storage contract](../../../../contracts/TRANSIT_STORAGE_V1.md#table-history-archives)
 for the mandatory persisted layout and recovery order.
+
+
+## Checkpoint accepted state for restart
+
+Call `checkpoint(through, guard)` with a fixed, nonzero accepted position. The
+owner publishes a bounded capsule of its current root and last record digest,
+then records its reference in the Table WAL. The returned reference covers at
+least the requested cut. Keep the same `through` when retrying a lost reply:
+accepted coverage returns the existing reference without another append, even
+if later work has advanced the Table. Current authorization applies to both
+publication and retries; control adapters provide reserved staging/append space.
+
+The capsule contains the complete row, receipt, operation and pin directories,
+exact declaration, retirement state and archive coordinates, without a resident
+copy of their contents. Its maximum encoded size is 16 KiB plus a 40-byte header.
+Recovery loads that accepted capsule, validates its publishing WAL transition,
+and verifies every later contiguous hash-linked transition before exposing the
+current top-level roots. Missing/corrupt checkpoint data is an error with no
+fallback to older state. `recovery_work.checkpoint_lsn` and `replayed_frames`
+describe the last successful Table replay; they exclude LocalWal startup and
+separate historical/index lookups.
+
+Checkpointing preserves logical-change positions and all original read/retry
+obligations. Old records and descendant objects are verified on access, rather
+than all being scrubbed during restart. A missing old receipt still fails the
+original retry; it cannot become new work. Checkpoints do not permit WAL trimming
+without accepted archive coverage, expire history, release pins, or collect old
+objects. Scheduling is explicit. The [checkpoint contract](../../../../contracts/TRANSIT_STORAGE_V1.md#table-recovery-checkpoints)
+defines the mandatory stored reference and acceptance checks.
 
 
 ## Compact live segments

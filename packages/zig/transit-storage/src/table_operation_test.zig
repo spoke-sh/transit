@@ -86,7 +86,9 @@ test "Table admitted work survives lost replies and disk restart; inspection can
         const through: d.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
         while (!(try table.archive(through, .{ .frames = 1 }, access.guard())).complete) {}
         _ = try table.trimArchived(access.guard());
+        _ = try table.checkpoint(.{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
         try table.recover();
+        try t.expectEqual(@as(u64, 1), table.recovery_work.replayed_frames);
         try t.expect((try table.operationState(exact, access.guard())) == .admitted);
         table.lose_reply = true;
         try t.expectError(error.LostAcknowledgement, table.perform(exact, access.guard()));

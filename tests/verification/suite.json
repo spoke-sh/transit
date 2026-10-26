@@ -191,6 +191,7 @@
       "test::local-storage-faults",
       "test::table-archives",
       "test::table-compaction",
+      "test::table-checkpoints",
       "test::storage-io-faults",
       "test::authorization-serving",
       "test::packages",

@@ -14,6 +14,7 @@ const r = @import("TablePartitionRecord.zig");
 const Declaration = @import("TableDeclaration.zig");
 const Snapshot = @import("TableSnapshot.zig");
 const Archive = @import("TableArchive.zig");
+const Recovery = @import("TableRecovery.zig");
 const Dml = @import("TableDmlIntent.zig");
 const Self = @This();
 pub const Root = r.Root;
@@ -200,6 +201,9 @@ pub const OwnedRow = union(enum) {
     }
 };
 
+/// Last successful recovery work; diagnostic counts confer no authority.
+pub const RecoveryWork = struct { checkpoint_lsn: u64 = 0, replayed_frames: u64 = 0 };
+
 allocator: std.mem.Allocator,
 log: Log.Log,
 objects: Objects.ObjectStore,
@@ -215,6 +219,7 @@ segment_bytes_read: u64 = 0,
 row_groups_decoded: u64 = 0,
 recovery_required: bool = true,
 recovery_archive: ?Archive.Coverage = null,
+recovery_work: RecoveryWork = .{},
 /// Failure injection at the durable append/reply boundary.
 lose_reply: bool = false,
 
@@ -230,7 +235,7 @@ pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaratio
 }
 
 fn emptyRoot(stored: Declaration.Stored, partition: u64) Root {
-    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .archive = .empty };
+    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .archive = .empty, .recovery = null };
 }
 
 fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !void {
@@ -240,6 +245,11 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
             after.archive.through - before.archive.through > Archive.max_frames or
             std.meta.eql(before.archive.directory, after.archive.directory) or !std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
     } else if (!std.meta.eql(before.archive, after.archive)) return error.InvalidTableHistory;
+    if (record.action == .recovery) {
+        const reference = after.recovery orelse return error.InvalidTableHistory;
+        if (reference.next_lsn != before.next_lsn or !std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
+        if (before.recovery) |previous| if (reference.next_lsn <= previous.next_lsn) return error.InvalidTableHistory;
+    } else if (!std.meta.eql(before.recovery, after.recovery)) return error.InvalidTableHistory;
     switch (record.action) {
         inline .mutation, .declaration => |value| {
             const binding = value.binding;
@@ -281,7 +291,7 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
             if (record.action == .operation) {
                 if (!std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
             } else if (!std.meta.eql(before.operations, after.operations) or !std.meta.eql(before.pending, after.pending)) return error.InvalidTableHistory;
-            if (before.retired and record.action != .release and record.action != .archive) return error.InvalidTableHistory;
+            if (before.retired and record.action != .release and record.action != .archive and record.action != .recovery) return error.InvalidTableHistory;
         },
     }
 }
@@ -298,8 +308,9 @@ fn tree(self: *Self) pages.Tree(TreeStore) {
 }
 
 /// Replay uses one bounded frame at a time, retaining only the latest roots.
-/// The latest accepted WAL record locates the archive, then the complete chain
-/// is replayed through archive plus WAL before any state becomes readable.
+/// The latest accepted WAL record locates an optional recovery baseline and the
+/// archive. Replay verifies its publishing transition and the complete later
+/// chain. Without a checkpoint the chain starts at creation.
 pub fn recover(self: *Self) !void {
     self.recovery_required = true;
     self.index.clearCache();
@@ -309,6 +320,8 @@ pub fn recover(self: *Self) !void {
     if (end < self.root.next_lsn) return error.TableHistoryMissing;
     var next = emptyRoot(try self.declaration.stored(), self.root.partition);
     var chain: [32]u8 = @splat(0);
+    var work: RecoveryWork = .{};
+    var selected: ?Recovery.Reference = null;
     self.recovery_archive = .empty;
     defer self.recovery_archive = null;
     if (end != 0) {
@@ -316,28 +329,37 @@ pub fn recover(self: *Self) !void {
         defer latest.deinit();
         if (latest.frames.len != 1 or latest.frames[0].header.partition_id != next.partition or
             latest.frames[0].header.lsn != end - 1) return error.TableHistoryMissing;
-        const record = (try r.decode(self.allocator, latest.frames[0].payload, end - 1)).record;
+        const record = (try decodeFrame(self.allocator, latest.frames[0], next.partition, end - 1)).record;
         if (!std.meta.eql(record.root.interpretation.object, next.interpretation.object) or
             record.root.partition != next.partition) return error.InvalidTableHistory;
         self.recovery_archive = record.root.archive;
+        selected = record.root.recovery;
+    }
+    if (selected) |reference| {
+        const basis = try Recovery.load(self.allocator, self.objects, reference, end, next.partition, next.interpretation.object);
+        next = basis.root;
+        chain = basis.chain;
+        work.checkpoint_lsn = next.next_lsn;
     }
     while (next.next_lsn < end) {
         var batch = try self.readHistoryFrame(next.next_lsn);
         defer batch.deinit();
         if (batch.frames.len != 1) return error.TableHistoryMissing;
         const frame = batch.frames[0];
-        if (frame.header.lsn != next.next_lsn or frame.header.partition_id != next.partition or
-            (frame.header.kind != .row_delta and frame.header.kind != .manifest_checkpoint)) return error.InvalidTableHistory;
-        const decoded = try r.decode(self.allocator, frame.payload, frame.header.lsn);
+        const decoded = try decodeFrame(self.allocator, frame, next.partition, next.next_lsn);
         const record = decoded.record;
         if (!std.mem.eql(u8, &record.previous, &chain) or
             !std.meta.eql(record.root.interpretation.object, next.interpretation.object) or record.root.partition != next.partition or
             record.root.changed_lsn < next.changed_lsn or record.root.next_segment < next.next_segment) return error.InvalidTableHistory;
-        if ((record.action == .mutation) != (frame.header.kind == .row_delta)) return error.InvalidTableHistory;
-        if (record.action != .mutation and decoded.rows.len != 0) return error.InvalidTableHistory;
+        // The baseline is authorized only by this first replayed transition.
+        // A staged object or a copied reference in an unrelated record is not a
+        // checkpoint. Every later record must retain the selected reference.
+        if (selected != null and (!std.meta.eql(record.root.recovery, selected) or
+            (work.replayed_frames == 0 and record.action != .recovery))) return error.InvalidTableHistory;
         try requireTransition(next, record, try self.operationTransition(next, record));
         chain = r.hash(frame.payload);
         next = record.root;
+        work.replayed_frames += 1;
     }
     // Verify all top-level roots before exposing the recovered state. Descendant
     // pages and row objects remain checked on access, never substituted by empty.
@@ -351,6 +373,7 @@ pub fn recover(self: *Self) !void {
     }
     self.root = next;
     self.chain = chain;
+    self.recovery_work = work;
     self.recovery_required = false;
 }
 
@@ -363,12 +386,17 @@ fn readHistoryFrame(self: *Self, lsn: u64) !Log.Log.OwnedBatch {
 /// Physical adapters use only coverage published by this partition's accepted
 /// record. This does not permit logical expiry or collection of archive objects.
 pub fn archivedThrough(allocator: std.mem.Allocator, frame: Log.Frame) !u64 {
-    const decoded = try r.decode(allocator, frame.payload, frame.header.lsn);
-    if (frame.header.partition_id != decoded.record.root.partition or
+    return (try decodeFrame(allocator, frame, frame.header.partition_id, frame.header.lsn)).record.root.archive.through;
+}
+
+fn decodeFrame(allocator: std.mem.Allocator, frame: Log.Frame, partition: u64, lsn: u64) !r.Decoded {
+    const decoded = try r.decode(allocator, frame.payload, lsn);
+    if (frame.header.partition_id != partition or frame.header.lsn != lsn or
+        frame.header.partition_id != decoded.record.root.partition or
         (frame.header.kind != .row_delta and frame.header.kind != .manifest_checkpoint) or
         (decoded.record.action == .mutation) != (frame.header.kind == .row_delta) or
         (decoded.record.action != .mutation and decoded.rows.len != 0)) return error.InvalidTableHistory;
-    return decoded.record.root.archive.through;
+    return decoded;
 }
 
 fn ready(self: *Self) !void {
@@ -432,7 +460,7 @@ pub fn history(self: *Self, from: d.Position, through: d.Position, frames: u8, g
                 result.entries[result.count] = .{ .root = record.root, .receipt = try record.receipt(), .commitment = commitment };
                 result.count += 1;
             },
-            .operation, .checkpoint, .archive, .pin, .release => {},
+            .operation, .checkpoint, .archive, .recovery, .pin, .release => {},
         }
         previous = commitment;
         result.scanned += 1;
@@ -1689,6 +1717,31 @@ pub fn archive(self: *Self, through: d.Position, limits: Archive.Limits, guard: 
     result.through.next_lsn = next.archive.through;
     result.complete = next.archive.through >= through.next_lsn;
     return result;
+}
+
+/// Publish a verified recovery baseline covering at least the requested cut.
+/// Retry the same cut after an uncertain reply; accepted coverage avoids another
+/// append. This changes neither logical retention nor physical trim authority.
+pub fn checkpoint(self: *Self, through: d.Position, guard: Guard) !Recovery.Reference {
+    try self.ready();
+    if (through.partition != self.root.partition or through.next_lsn == 0 or
+        through.next_lsn > self.root.next_lsn) return error.InvalidTableBasis;
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+    }
+    if (self.root.recovery) |reference| if (reference.next_lsn >= through.next_lsn) return reference;
+    const ordinary_log = self.log;
+    defer self.log = ordinary_log;
+    const objects = if (self.options.control) |control| control.objects else self.objects;
+    if (self.options.control) |control| self.log = control.log;
+    const reference = try Recovery.stage(objects, .{ .root = self.root, .chain = self.chain });
+    var next = self.root;
+    next.recovery = reference;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .recovery }, &.{}, guard);
+    try self.reply();
+    return reference;
 }
 
 /// Resume removal of WAL files covered by the accepted immutable archive. The

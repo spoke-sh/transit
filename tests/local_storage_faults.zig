@@ -220,7 +220,7 @@ fn table(init: std.process.Init, io: std.Io, directory: []const u8, operation: [
         _ = try owner.apply(second, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 2 } } }} } } }}, ingestion, access.guard());
         return emit(init, .{ .tail = owner.root.next_lsn });
     }
-    if (std.mem.eql(u8, operation, "inspect") or std.mem.eql(u8, operation, "compact-inspect")) {
+    if (std.mem.eql(u8, operation, "inspect") or std.mem.eql(u8, operation, "compact-inspect") or std.mem.eql(u8, operation, "checkpoint-inspect")) {
         const receipt = (try owner.observe(first, access.guard())).?;
         const pin = (try owner.pinState(pin_owner, access.guard())).handle.?;
         var page = try owner.scanSnapshot(init.gpa, pin, null, .{}, access.guard());
@@ -236,11 +236,16 @@ fn table(init: std.process.Init, io: std.Io, directory: []const u8, operation: [
             defer row.deinit();
             value.* = row.row().cells[0].value.atom.signed;
         }
+        if (std.mem.eql(u8, operation, "checkpoint-inspect")) return emit(init, .{ .archived = owner.root.archive.through, .tail = owner.root.next_lsn, .rows = owner.root.live_rows, .pinned = page.rows[0].?.row().cells[0].value.atom.signed, .receipt = receipt.position.next_lsn, .history = history.count, .current = current, .checkpoint = owner.recovery_work.checkpoint_lsn, .replayed = owner.recovery_work.replayed_frames });
         return emit(init, .{ .archived = owner.root.archive.through, .tail = owner.root.next_lsn, .rows = owner.root.live_rows, .pinned = page.rows[0].?.row().cells[0].value.atom.signed, .receipt = receipt.position.next_lsn, .history = history.count, .current = current, .next_segment = owner.root.next_segment });
     }
     access.calls = 0;
     Fault.arm(point);
-    if (std.mem.eql(u8, operation, "compact")) {
+    if (std.mem.eql(u8, operation, "checkpoint")) {
+        const reference = try owner.checkpoint(.{ .partition = 17, .next_lsn = 3 }, access.guard());
+        Fault.acknowledged();
+        return emit(init, .{ .checkpoint = reference.next_lsn, .tail = owner.root.next_lsn });
+    } else if (std.mem.eql(u8, operation, "compact")) {
         const result = try owner.compact(3, .{}, access.guard());
         Fault.acknowledged();
         return emit(init, .{ .next_segment = owner.root.next_segment, .rows = result.rows });

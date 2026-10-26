@@ -9,6 +9,244 @@ const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64
 const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
 const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
 
+test "Table recovery checkpoint bounds replay while preserving disk receipts and offline history" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var original: p.DataLifecycle.Binding = undefined;
+    var receipt: P.Outcome = undefined;
+    var pin: P.SnapshotHandle = undefined;
+    var lease: P.SnapshotHandle = undefined;
+    var cut: p.DataLifecycle.Position = undefined;
+    var checkpoint: s.TableRecovery.Reference = undefined;
+    var expected: P.Root = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        for (1..66) |id| {
+            const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = id } } };
+            const request = binding(&table, id);
+            const accepted = try table.apply(request, &.{change(&cell, id)}, if (id % 8 == 0) .bulk else .point, access.guard());
+            if (id == 1) {
+                original = request;
+                receipt = accepted;
+                pin = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 1001 }, accepted.position, access.guard());
+                lease = try table.retainHistory(.{ .scope = object.scope, .principal = 4, .operation = 1002 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+            }
+        }
+        try table.recover();
+        try t.expectEqual(table.root.next_lsn, table.recovery_work.replayed_frames);
+        const archive_cut: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        while (!(try table.archive(archive_cut, .{}, access.guard())).complete) {}
+        _ = try table.trimArchived(access.guard());
+        cut = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        const before = table.root;
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.checkpoint(cut, access.guard()));
+        table.lose_reply = false;
+        checkpoint = table.root.recovery.?;
+        try t.expectEqual(cut.next_lsn, checkpoint.next_lsn);
+        try t.expectEqual(before.changed_lsn, table.root.changed_lsn);
+        try t.expectEqualDeep(before.rows, table.root.rows);
+        try t.expectEqualDeep(before.receipts, table.root.receipts);
+        try t.expectEqualDeep(before.pins, table.root.pins);
+        const last: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 66 } } };
+        _ = try table.apply(binding(&table, 66), &.{change(&last, 66)}, .point, access.guard());
+        expected = table.root;
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    try t.expectEqualDeep(expected, table.root);
+    try t.expectEqual(cut.next_lsn, table.recovery_work.checkpoint_lsn);
+    try t.expectEqual(@as(u64, 2), table.recovery_work.replayed_frames);
+    try t.expectEqualDeep(checkpoint, try table.checkpoint(cut, access.guard()));
+    try t.expectEqualDeep(expected, table.root); // Retry after later work is read-only.
+    try t.expectEqualDeep(receipt, (try table.observe(original, access.guard())).?);
+    var retained = try table.scanSnapshot(t.allocator, pin, null, .{}, access.guard());
+    defer retained.deinit();
+    try t.expectEqual(@as(u8, 1), retained.count);
+    try t.expectEqual(@as(i128, 1), retained.rows[0].?.row().cells[0].value.atom.signed);
+    var start = try table.historyStart(t.allocator, lease, access.guard());
+    defer start.deinit();
+    var cursor = start.point.position;
+    var count: u64 = 1;
+    while (cursor.next_lsn < table.root.next_lsn) {
+        const page = try table.retainedHistory(lease, cursor, .{ .partition = 17, .next_lsn = table.root.next_lsn }, 8, access.guard());
+        for (page.entries[0..page.count]) |entry| {
+            count += 1;
+            try t.expectEqual(count, entry.?.receipt.binding.identity.operation);
+        }
+        cursor = page.next;
+    }
+    try t.expectEqual(@as(u64, 66), count);
+    var key_bytes: [4096]u8 = undefined;
+    for (1..67) |id| {
+        var row = (try table.get(t.allocator, try key(@intCast(id), &key_bytes), access.guard())).?;
+        defer row.deinit();
+        try t.expectEqual(@as(i128, @intCast(id)), row.row().cells[0].value.atom.signed);
+    }
+    // A later checkpoint supersedes the old recovery dependency. Its embedded
+    // root is self-contained; loading it must not recursively load old capsules.
+    _ = try table.checkpoint(.{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+    var name: [96]u8 = undefined;
+    try objects.objectStore().delete(try s.TableRecovery.key(checkpoint.content, &name));
+    try table.recover();
+    try t.expectEqual(@as(u64, 1), table.recovery_work.replayed_frames);
+    try t.expectEqualDeep(receipt, (try table.observe(original, access.guard())).?);
+}
+
+test "Table recovery checkpoint requires current authority and refuses missing accepted capsules" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    _ = try table.apply(binding(&table, 1), &.{}, .point, access.guard());
+    const cut: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = 1 };
+    const before = table.root;
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.checkpoint(cut, access.guard()));
+    try t.expectEqualDeep(before, table.root);
+    access.deny_at = std.math.maxInt(usize);
+    try table.recover(); // Durable orphan capsule is not recovery authority.
+    try t.expectEqual(@as(u64, 0), table.recovery_work.checkpoint_lsn);
+    const reference = try table.checkpoint(cut, access.guard());
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.PermissionDenied, table.checkpoint(cut, access.guard()));
+    access.deny_at = std.math.maxInt(usize);
+    var name: [96]u8 = undefined;
+    try objects.objectStore().delete(try s.TableRecovery.key(reference.content, &name));
+    try t.expectError(error.TableRecoveryMissing, table.recover());
+    try t.expectError(error.TableRecoveryRequired, table.checkpoint(cut, access.guard()));
+    try t.expectError(error.TableRecoveryRequired, table.observe(binding(&table, 2), access.guard()));
+    // Replaying the still-present WAL cannot conceal lost accepted checkpoint data.
+    var full = try wal.log().read(t.allocator, 17, 0, 1);
+    defer full.deinit();
+    try t.expectEqual(@as(usize, 1), full.frames.len);
+}
+
+test "Table recovery checkpoint rejects unbound roots chains and foreign capsule identities" {
+    for (0..6) |fault| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        var access: Access = .{};
+        _ = try table.apply(binding(&table, 1), &.{}, .point, access.guard());
+        var basis: s.TableRecovery.Basis = .{ .root = table.root, .chain = table.chain };
+        if (fault == 0) basis.chain[0] ^= 1;
+        if (fault == 1) basis.root.partition += 1;
+        if (fault == 2) basis.root.interpretation.object.object += 1;
+        var forged = table.root;
+        forged.next_lsn += 1;
+        forged.recovery = try s.TableRecovery.stage(objects.objectStore(), basis);
+        if (fault == 3) forged.changed_lsn = 0;
+        if (fault == 4) forged.recovery.?.next_lsn += 1;
+        const buffer = try t.allocator.alloc(u8, s.TransitLog.max_payload_bytes);
+        defer t.allocator.free(buffer);
+        const bytes = try r.encode(.{ .definition = p.Growth.current_definition, .previous = table.chain, .root = forged, .action = if (fault == 5) .checkpoint else .recovery }, &.{}, buffer);
+        _ = try wal.log().append(17, table.root.next_lsn, 1, 1, .manifest_checkpoint, bytes);
+        if (fault == 1 or fault == 2 or fault == 4) {
+            try t.expectError(error.InvalidTableRecovery, table.recover());
+        } else try t.expectError(error.InvalidTableHistory, table.recover());
+        try t.expect(table.recovery_required);
+    }
+}
+
+test "Table recovery checkpoint preserves retirement and checks required root fields" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const original = binding(&table, 1);
+    _ = try table.apply(original, &.{}, .point, access.guard());
+    _ = try table.changeDefinition(ddlBinding(&table, 2, .drop), .{ .drop = "" }, access.guard());
+    _ = try table.checkpoint(.{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+    try table.recover();
+    try t.expect(table.root.retired);
+    try t.expectEqual(@as(u64, 1), table.recovery_work.replayed_frames);
+    try t.expect((try table.observe(original, access.guard())) != null);
+    const serialized = try std.json.Stringify.valueAlloc(t.allocator, table.root, .{});
+    defer t.allocator.free(serialized);
+    var parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, serialized, .{});
+    defer parsed.deinit();
+    try t.expect(parsed.value.object.swapRemove("recovery"));
+    const missing = try std.json.Stringify.valueAlloc(t.allocator, parsed.value, .{});
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, std.json.parseFromSlice(P.Root, t.allocator, missing, .{}));
+}
+
+test "Table recovery checkpoint allocation failures leave accepted work recoverable" {
+    const Case = struct {
+        fn run(allocator: std.mem.Allocator) !void {
+            var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+            defer wal.deinit();
+            var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+            defer objects.deinit();
+            var table = try owner(&wal, &objects);
+            defer table.deinit();
+            var access: Access = .{};
+            _ = try table.apply(binding(&table, 1), &.{}, .point, access.guard());
+            const before = table.root;
+            table.allocator = allocator;
+            _ = table.checkpoint(.{ .partition = 17, .next_lsn = 1 }, access.guard()) catch |err| {
+                try t.expectEqualDeep(before, table.root);
+                return err;
+            };
+            const accepted = table.root;
+            table.recover() catch |err| {
+                try t.expectEqualDeep(accepted, table.root);
+                try t.expect(table.recovery_required);
+                return err;
+            };
+            try t.expectEqualDeep(accepted, table.root);
+            try t.expectEqual(@as(u64, 1), table.recovery_work.replayed_frames);
+        }
+    };
+    try t.checkAllAllocationFailures(t.allocator, Case.run, .{});
+}
+
+test "Table recovery checkpoint defers old archive validation without concealing failed original retries" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const original = binding(&table, 1);
+    _ = try table.apply(original, &.{}, .point, access.guard());
+    _ = try table.archive(.{ .partition = 17, .next_lsn = 1 }, .{}, access.guard());
+    _ = try table.trimArchived(access.guard());
+    const checkpoint = try table.checkpoint(.{ .partition = 17, .next_lsn = 2 }, access.guard());
+    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &table.index };
+    const value = (try tree.get(table.root.archive.directory, try s.TableArchive.key(0))).?;
+    var name: [96]u8 = undefined;
+    try objects.objectStore().delete(try s.TableArchive.objectKey(value.data[4..36].*, &name));
+    try table.recover();
+    try t.expectEqual(checkpoint.next_lsn, table.recovery_work.checkpoint_lsn);
+    const accepted = table.root;
+    try t.expectError(error.TableHistoryMissing, table.observe(original, access.guard()));
+    try t.expectError(error.TableHistoryMissing, table.apply(original, &.{}, .point, access.guard()));
+    try t.expectError(error.TableHistoryMissing, table.history(.{ .partition = 17, .next_lsn = 0 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, 8, access.guard()));
+    try t.expectEqualDeep(accepted, table.root);
+}
+
 test "Table compaction consolidates only live segment rows and resumes the same boundary after lost reply and restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -1719,24 +1957,27 @@ test "Table identity index rejects aliases without publishing partial rows" {
 }
 
 test "Table recovery refuses a missing ordered root before exposing accepted rows" {
-    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
-    defer wal.deinit();
-    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
-    defer objects.deinit();
-    var table = try owner(&wal, &objects);
-    defer table.deinit();
-    var access: Access = .{};
-    const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
-    _ = try table.apply(binding(&table, 1), &.{change(&cell, 1)}, .point, access.guard());
-    const before = table.root;
-    var name: [96]u8 = undefined;
-    const address = try std.fmt.bufPrint(&name, "data-index/{x}.data", .{&before.ordered_rows.?.location});
-    try objects.objectStore().delete(address);
-    try t.expectError(error.MissingDataIndexObject, table.recover());
-    try t.expectEqualDeep(before, table.root);
-    var key_bytes: [4096]u8 = undefined;
-    try t.expectError(error.TableRecoveryRequired, table.get(t.allocator, try key(1, &key_bytes), access.guard()));
-    try t.expectEqual(@as(u64, 1), try wal.log().tail(17));
+    for ([_]bool{ false, true }) |checkpoint| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        var access: Access = .{};
+        const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+        _ = try table.apply(binding(&table, 1), &.{change(&cell, 1)}, .point, access.guard());
+        if (checkpoint) _ = try table.checkpoint(.{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        const before = table.root;
+        var name: [96]u8 = undefined;
+        const address = try std.fmt.bufPrint(&name, "data-index/{x}.data", .{&before.ordered_rows.?.location});
+        try objects.objectStore().delete(address);
+        try t.expectError(error.MissingDataIndexObject, table.recover());
+        try t.expectEqualDeep(before, table.root);
+        var key_bytes: [4096]u8 = undefined;
+        try t.expectError(error.TableRecoveryRequired, table.get(t.allocator, try key(1, &key_bytes), access.guard()));
+        try t.expectEqual(before.next_lsn, try wal.log().tail(17));
+    }
 }
 
 test "Table index batches share paths and reject duplicate identities across private flushes" {

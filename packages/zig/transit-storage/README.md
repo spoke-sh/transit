@@ -59,7 +59,8 @@ automatic archive scheduling, immutable Table-object collection or multi-process
 - `TablePartition.zig`: A serialized Table storage owner with one WAL acceptance
   record for rows, paged indexes and exact operation receipts. It supports point
   WAL batches, staged `.tseg` batches, bounded flushing, durable read pins and
-  accepted history archives with resumable physical WAL trimming.
+  accepted history archives with resumable physical WAL trimming and bounded
+  recovery baselines published by that same acceptance log.
   Explicit bounded compaction merges live segment rows below a fixed boundary
   while retained roots keep their original physical references.
   Frozen row admission, rejection and cancellation share that Table WAL; row
@@ -113,7 +114,8 @@ checks their results against a Python oracle. Descriptor deletion unpublishes th
 key; physical content collection still requires retained-reader/pin ownership.
 
 `just test::local-storage-faults` kills real local owner processes at WAL
-append/fence/trim, Table archive acceptance and object-publication boundaries.
+append/fence/trim, Table archive/compaction/checkpoint acceptance and
+object-publication boundaries.
 Fresh processes verify data,
 epochs, trim floors, Table receipts/snapshots/history and exact object retries against an independent Python
 oracle. The root unit task includes this proof. Repeating an already-published
@@ -132,8 +134,9 @@ segment creation or a possible write still requires reopening, as do other
 storage failures. The disk WAL regressions check both boundaries and preserve
 the acknowledged prefix and exact successor across independent partitions.
 
-`TablePartition` checks contiguous acceptance history and exact declarations
-before exposing recovered rows. Its paged indexes preserve stable row identities;
+`TablePartition` checks an accepted recovery baseline and its contiguous later
+acceptance history, or the complete chain from creation when no baseline exists,
+before exposing recovered rows. It loads the exact current declaration. Its paged indexes preserve stable row identities;
 equal values in keyless rows do not collapse distinct rows. Durable read pins
 retain their original WAL and segment basis across flushes, changes and restart.
 See the [partition contract](docs/table-partitions.md) for recovery gates and

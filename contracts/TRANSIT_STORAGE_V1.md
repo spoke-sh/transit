@@ -92,7 +92,7 @@ DROP publishes a permanently retired successor; it preserves retained read roots
 and receipts. These transitions and their receipts share the Table acceptance
 record. Catalog name reservation and dependency checks remain the caller's duty.
 
-Row mutation records use `row_delta`; declaration, operation control, checkpoint, archive, pin and release records use
+Row mutation records use `row_delta`; declaration, operation control, segment checkpoint, archive, recovery checkpoint, pin and release records use
 `manifest_checkpoint`. The action carries the exact neutral binding, complete
 ordered mutation digest, ingestion choice and outcome, or the affected pin owner
 and immutable basis. An accepted mutation publishes its result and all four row
@@ -237,15 +237,68 @@ checks the requested floor against the latest Table record while holding its
 physical-owner mutex; a caller cannot substitute the WAL tail for coverage.
 Reservations for removed WAL files remain conservative until exclusive reopen.
 
-Recovery obtains archive coordinates from the latest accepted WAL record, then
-replays the complete contiguous hash-linked chain from zero through archive plus
-WAL. It exposes no state before all transition checks succeed. Receipts, admitted
+Recovery obtains archive and optional recovery-checkpoint coordinates from the
+latest accepted WAL record. Without a recovery checkpoint it replays the complete
+contiguous hash-linked chain from zero through archive plus WAL; with one it
+validates the published baseline and every later transition as specified below.
+It exposes no state before those checks succeed. Receipts, admitted
 operations, retained rows and logical history use the latest physical directory,
 including when their saved roots predate archival. Missing archive data fails
 closed; no fallback, implicit reset or skipped cursor prefix is allowed. Archive
 publication creates no logical changefeed event. Unlimited history is retained;
 this format does not introduce a logical retention floor or authorize archive,
 segment or index-object collection.
+
+### Table recovery checkpoints
+
+Every accepted root and saved snapshot root has a mandatory `recovery` field:
+null or `{next_lsn, content}`. A reference requires `0 < next_lsn < root.next_lsn`
+and a content length greater than 40 and at most 16,424 bytes. Missing fields
+reject. The content-addressed key is `table-checkpoints/<digest>.tman`. Its bytes
+are `TCHECK1` followed by a zero byte at `0..8`, the mandatory current definition
+at `8..40`, and JSON `{root, chain}`. The root is the complete accepted state at
+the reference's exclusive frontier; `chain` is the SHA-256 of its last accepted
+Table record payload. Row data remains behind the root's bounded directories.
+
+`TablePartition.checkpoint(through, guard)` requires a nonzero accepted position
+in this partition. If the current recovery reference covers at least that cut,
+it returns the reference under current authorization without appending. Otherwise
+it stages the current verified root and chain, rechecks current authority, then
+appends a `recovery` action that publishes the reference. The action increments
+only `next_lsn` and changes `recovery`; all logical, physical-row, receipt, pin,
+archive and operation roots are preserved. It may run after Table retirement.
+A new reference covers exactly the preceding accepted frontier and strictly
+advances any previous reference. The optional control adapter supplies reserved
+object/append capacity. Retry the same requested cut after a lost reply; an
+uncertain WAL owner must reopen before Table recovery.
+
+Recovery selects the reference only from the latest accepted WAL record. It
+verifies the capsule's descriptor, length, whole-content hash, current definition,
+root shape, partition, object and exact frontier. Starting from the saved root
+and chain, it verifies that the first following record is the `recovery` action
+publishing that exact reference. Every later record retains that reference;
+normal contiguous-position, hash-chain, monotonicity and transition checks apply.
+The exact declaration and every current top-level directory must load before
+readiness. Missing or corrupt capsules fail closed without replay fallback.
+Private staged capsules never become authority. A superseded capsule reference
+inside the saved root is structural history, not a recursive recovery dependency.
+
+`recovery_work` reports the selected checkpoint LSN and number of replayed Table
+frames after successful recovery. It does not count LocalWal startup, object or
+index I/O, and confers no authority. With frontier `N` and checkpoint `C`, Table
+transition replay visits `[C,N)`, including the checkpoint publication. Without
+one it visits `[0,N)`. Resident state holds one bounded capsule, one replay frame
+at a time and the configured index cache; replay operation checks can perform
+separate bounded historical lookups. LocalWal still validates its retained files.
+
+Checkpointing changes neither logical history retention nor WAL trim authority.
+Only accepted archive coverage permits `trimArchived`. Original receipt,
+admission, unflushed-row and history dependencies remain retained. Historical
+records before the checkpoint and descendant objects are verified when accessed;
+restart is not an eager historical integrity scan. Missing required evidence is
+an error, never a new operation, empty result or cursor advance. Data snapshots
+omit recovery references together with control directories. There is no automatic
+checkpoint scheduling or immutable Table-object collection.
 
 ## Ordered full-key index component
 

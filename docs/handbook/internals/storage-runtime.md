@@ -263,8 +263,10 @@ remains in WAL. An interrupted copy leaves unreachable candidates; an interrupte
 publication is resolved from accepted history; an interrupted trim resumes at
 the same accepted coverage. None of these events grants logical expiry.
 
-Recovery uses the latest accepted WAL record only to locate candidate archive
-coverage, then verifies the complete hash-linked chain from zero before serving.
+Recovery uses the latest accepted WAL record to locate candidate archive coverage
+and an optional accepted recovery baseline. Without a baseline it verifies the
+complete hash-linked chain from zero before serving; the baseline case is defined
+below.
 It checks archive object hashes and original frame coordinates as well as the
 normal Table transition rules. This avoids treating an independently discovered
 manifest or an object's existence as acceptance. Missing or substituted frames
@@ -276,10 +278,9 @@ cursor rewrite or synthesized changefeed event.
 `TableArchive` holds one input/output frame pair at a time. Archive calls admit at
 most eight frames, explicit encoded-byte work and the owner's index work/cache
 bounds. This bounds resident work independently of retained history. Complete
-replay still costs time proportional to accepted history plus index lookups;
-archival is not a constant-time restart checkpoint or a compression claim. A
-future replay checkpoint must independently preserve transition/retry evidence
-before it can replace that validation. Archive copies also need physical space
+replay without a recovery checkpoint costs time proportional to accepted history
+plus index lookups; archival alone is not a constant-time restart mechanism or a
+compression claim. Archive copies also need physical space
 before WAL removal; reserved control capacity supports this ordering without
 using disk pressure as retention authority.
 
@@ -288,6 +289,54 @@ The exact layout and transitions are in the
 with implementation in `TableArchive`, `TablePartition` and the local `DataStore`.
 The [proof ledger](../../../tests/README.md) separates disk/restart and process-death
 checks from power-loss behavior, automatic scheduling and future collection.
+
+## Accepted Table recovery baselines
+
+The restart question differs from historical retention: can a Table recover its
+current accepted state without revalidating every archived logical transaction?
+The model assumes the same serialized owner, current authorization fence and
+immutable publication guarantees as archival. A ready owner has already
+validated its accepted state; the checkpoint operation records that state,
+including pending work, exact receipts and pins, rather than deriving a
+latest-value projection from rows.
+
+Let `C` be the exclusive frontier of the saved root, `H` the last accepted record
+payload hash there, and `N` the current frontier. A bounded capsule stores the
+root and `H`. The WAL transition at `C` publishes its content hash and advances
+only the physical recovery reference and accepted frontier. Consequently an
+unpublished capsule cannot authorize restart. Recovery checks the capsule's exact
+identity, then verifies that transition against both the saved root and `H`.
+Every later record must retain the selected reference and extend the normal
+hash-linked chain. Any accepted newer checkpoint would instead be selected from
+the latest record. This reduces Table transition replay from `[0,N)` to `[C,N)`;
+it does not bypass the exclusive WAL owner's retained-file validation.
+
+The capsule is at most 16,424 encoded bytes and contains directory roots rather
+than arrays of rows or receipts. Replay keeps one bounded frame at a time; current
+top-level directories and the declaration load before readiness. Admitted-work
+transitions may still consult older accepted operation records. The dependency
+on that evidence is retained independently of the restart baseline. A superseded
+capsule is not recursively loaded: its root is already contained in the newer
+baseline. This avoids a checkpoint chain whose restart cost grows with the
+number of previous checkpoints.
+
+An alternative is replay from creation on every reopen. That gives an eager
+integrity check of all accepted record bytes but makes reopen proportional to
+retained history even after archival. The implemented baseline instead checks
+older history and descendant objects when accessed; corruption there can fail a
+later historical read or original-operation retry even when current state opens.
+No failure becomes an empty table, a fresh retry identity or a skipped prefix.
+A missing selected capsule always fails readiness, even if older WAL files remain.
+Neither approach establishes correctness after losing the only durable disk or
+arbitrary rollback of accepted storage.
+
+The [checkpoint contract](../../../contracts/TRANSIT_STORAGE_V1.md#table-recovery-checkpoints)
+and `TableRecovery`/`TablePartition` define the bytes and transition checks.
+The focused `test::table-checkpoints` recipe exercises retained disk reads,
+publication uncertainty and bounded replay; executed results belong in the
+[proof ledger](../../../tests/README.md). Its replay counters exclude provider and
+index I/O, and do not establish a latency or whole-process RSS bound. Logical
+expiry, object collection and automatic scheduling remain separate mechanisms.
 
 ## Four-tier storage architecture, `.tseg` segments and multi-writer OCC
 

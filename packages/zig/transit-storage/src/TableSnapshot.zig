@@ -40,6 +40,7 @@ pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, owner: 
     // A data snapshot does not recursively pin earlier pin/receipt directories.
     var basis = root;
     basis.pins = null;
+    basis.recovery = null;
     basis.receipts = null;
     basis.operations = null;
     basis.pending = null;

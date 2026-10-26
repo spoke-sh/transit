@@ -118,6 +118,13 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Table recovery checkpoints now publish a bounded complete root and chain basis
+  through the same acceptance WAL. Restart validates that publishing transition
+  and all later records while preserving receipts, pending operations, pins and
+  unlimited logical history. This advances #115/#116/#127; historical integrity
+  remains checked on access, and logical expiry/object collection remain open.
+  The mandatory stored reference requires a shared current-v1 cutover.
+
 - Bounded Table compaction now consolidates live rows from older segments, omits
   deleted/replaced rows and preserves logical roots, retained snapshots and exact
   operation evidence. A fixed segment boundary plus accepted locators provides
@@ -130,9 +137,9 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   receipts, admitted operations, unflushed snapshots and offline history cursors;
   recovery still validates the complete chain through archive plus WAL. The
   mandatory archive coordinates require a shared current-v1 cutover. This advances
-  #113/#115/#127; logical retention floors, restart checkpoints that reduce replay,
-  Table-object collection, compaction and automatic scheduling remain separate
-  obligations. Executed validation is recorded in the proof ledger.
+  #113/#115/#127; logical retention floors,
+  Table-object collection and automatic scheduling remain separate obligations.
+  The subsequent increments add replay checkpoints and compaction. Executed validation is recorded in the proof ledger.
 
 - Finite Table comparisons now bind binary, ASCII_CI and CP037 semantics through
   scalar/vector/page execution, prepared parameters, captured source descriptors,

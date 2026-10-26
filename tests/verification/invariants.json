@@ -2045,6 +2045,32 @@
       "limits": "Old segment/index bytes remain retained; no immutable-object collection, logical expiry or automatic scheduling. Resident candidate budget is separate from bounded reader caches, index work, acceptance-frame and provider buffers. Process death is not host power loss.",
       "model": null,
       "qualification": "Executed focused checks are recorded in tests/README.md; matched performance controls and complete clean qualification remain separate."
+    },
+    {
+      "id": "STORAGE-06",
+      "claim": "Only a published Table recovery baseline can bound replay; its publishing transition, later chain and current roots validate before readiness while original read/retry obligations remain retained",
+      "owner": "contracts/TRANSIT_STORAGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TableRecovery.zig",
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-storage/src/TablePartitionRecord.zig"
+      ],
+      "profile": "Current native v1; serialized local Table owner with explicit recovery checkpoints and unlimited logical history",
+      "scenarios": [
+        "Disk reopen after mixed point/bulk ingestion, archive/trim and a lost checkpoint reply replays only the publishing transition and later work; receipts, pinned rows and offline history remain exact",
+        "Staged but unpublished capsules confer no authority; current authorization and control reserve apply to publication and retry",
+        "Missing capsules, wrong identities/frontiers/chains, changed roots and a reference copied into the wrong action fail closed",
+        "Pending conditional operations, permanent retirement, required persisted fields and allocation failures survive checkpoint recovery",
+        "SIGKILL at capsule staging and WAL acceptance boundaries preserves original data and idempotent coverage; independent archive/trim still requires its own accepted floor",
+        "Older archived evidence is checked on access; missing receipts reject original retries without a fresh operation or silent history advance"
+      ],
+      "limits": "Table replay counters exclude LocalWal startup and separate historical/index I/O. Checkpointing is not a full historical integrity scrub, logical expiry, object collection, automatic scheduling, power-loss proof or matched latency/RSS claim.",
+      "model": null,
+      "qualification": "Executed focused checks are recorded in tests/README.md; complete committed-HEAD clean qualification is separate.",
+      "tasks": [
+        "test::unit",
+        "test::table-checkpoints"
+      ]
     }
   ]
 }

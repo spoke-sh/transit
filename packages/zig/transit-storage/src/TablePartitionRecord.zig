@@ -35,6 +35,8 @@ pub const Root = struct {
     live_rows: u64 = 0,
     /// Mandatory physical history coverage; absent persisted fields reject.
     archive: @import("TableArchive.zig").Coverage,
+    /// Required even when null. Only a recovery publication may advance it.
+    recovery: ?@import("TableRecovery.zig").Reference,
 
     pub fn declared(self: Root) Declaration.Stored {
         return .{ .interpretation = self.interpretation, .content = self.declaration, .schema_fingerprint = self.schema_fingerprint, .retired = self.retired };
@@ -43,6 +45,7 @@ pub const Root = struct {
     pub fn validate(self: Root) !void {
         try self.declared().validate();
         try self.archive.validate(self.next_lsn);
+        if (self.recovery) |reference| try reference.validate(self.next_lsn);
         if (self.partition == 0 or self.next_segment == 0 or self.changed_lsn > self.next_lsn or
             (self.live_rows == 0) != (self.rows == null) or
             (self.live_rows == 0) != (self.scan_rows == null) or
@@ -101,6 +104,7 @@ pub const Record = struct {
         operation: Operation,
         checkpoint,
         archive,
+        recovery,
         pin: struct { owner: d.Operation, basis: d.Content },
         release: struct { owner: d.Operation, basis: d.Content },
     },
@@ -137,7 +141,7 @@ pub const Record = struct {
                     value.basis.position.partition != self.root.partition or
                     value.basis.position.next_lsn >= self.root.next_lsn) return error.InvalidTableHistory;
             },
-            .checkpoint, .archive => {},
+            .checkpoint, .archive, .recovery => {},
         }
     }
 };

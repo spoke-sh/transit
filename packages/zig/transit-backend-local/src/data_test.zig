@@ -141,6 +141,7 @@ test "direct Table archive uses control reserve and trims only accepted coverage
     owner.limits.bytes = owner.allocated;
     try t.expectEqual(@as(usize, 1), (try table.compact(table.root.next_segment, .{}, authority.guard())).rows);
     try t.expect((try table.archive(accepted.position, .{}, authority.guard())).complete);
+    _ = try table.checkpoint(.{ .partition = 17, .next_lsn = table.root.next_lsn }, authority.guard());
     owner.limits = .{};
     try t.expectError(error.NoCheckpointIntent, data.log().trim(17, table.root.next_lsn));
     _ = try submit(&engine, .{ .grant_resource = .{ .resource = setup.resource, .subject = 1, .permissions = 0 } });

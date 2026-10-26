@@ -28540,3 +28540,60 @@ or index objects, logical expiry, automatic scheduling, host power-loss recovery
 or a matched latency improvement. The clean core attempt at `1f6e1c969` stopped
 at Zig formatting of the new definition enum tag; `9c2b44597` corrects that spelling.
 Later complete clean qualification remains pending.
+
+
+## Accepted Table recovery checkpoints — 2026-10-26
+
+`just test::table-checkpoints` passes its selected storage checks (seven tests
+including the test root and admitted-operation recovery), local native checks
+(two tests) and ReleaseSafe process-death schedules. An additional focused old
+archive failure check passes two tests including the test root. A disk fixture
+accepts 65 point/bulk writes, keeps an unflushed snapshot and history lease,
+archives and trims the prefix, loses a checkpoint reply, then accepts one later
+write. Reopen replays exactly two Table frames: the checkpoint publication and
+that later write. Every original value, the first receipt and the offline logical
+history remain exact. A later checkpoint reopens without recursively loading its
+superseded capsule.
+
+Denied publication after capsule staging leaves the accepted root unchanged;
+retrying covered progress still checks current authority. Missing selected
+capsules, incorrect partition/object/frontier, a broken chain, a changed root and
+an unrelated action carrying a checkpoint reference fail readiness. Required
+stored fields, permanent retirement, pending conditional work and every injected
+allocation failure are checked. The native backend publishes a checkpoint using
+control reserve after ordinary admission fills; checkpointing does not expand
+its separately enforced archive trim floor.
+
+`just test::local-storage-faults` passes **92 SIGKILL schedules**, including **14**
+new checkpoint cases. They stop at all six capsule object sync barriers, before
+acceptance, during a torn acceptance write, at the four WAL acceptance sync
+barriers, at acceptance metadata publication and after acceptance before reply.
+Independent Python expectations check whether coverage was accepted, exact replay
+counts, current values, pinned rows, original receipt/history and unchanged trim
+floors. Repeating the original requested cut publishes at most one checkpoint;
+subsequent archive/trim preserves all of that evidence. These experiments keep
+the operating system/page cache alive and do not simulate power loss.
+
+Checkpoint metadata is at most 16,424 encoded bytes, with paged dependencies.
+The replay counts exclude LocalWal startup and separate historical/index I/O;
+they are not matched latency or whole-process RSS results. Older archive data is
+verified on access: removing an old required receipt fails the original retry
+without creating new work or advancing a history cursor. Unlimited logical
+history remains the policy; this work does not authorize object collection or
+history expiry, and it does not add automatic scheduling.
+
+The shared current-v1 definition is replaced for mandatory recovery references;
+wire/host schemas and independent signed fixtures are regenerated. Native,
+Station/client ABI, logical, direct Table and configuration contract checks pass.
+The complete storage package suite passes **97/97** tests (seven minutes,
+44 MiB maximum RSS). A follow-up missing-index-root test passes both full-chain
+and checkpoint recovery cases. Diagnostic catalog/mapping, formatting and
+documentation checks pass.
+
+The preceding compaction commit `ea35aa43b` passes the clean core lane's
+`check-core` stage in 1,169 seconds, plus transition properties and the delivery,
+resource, scheduler and domain simulations. The lane then fails during independent
+SQL package compilation: its configuration fixture lacked the collation vector
+introduced earlier on this branch. `d2592cbd1` supplies that field; all 31 SQL
+package tests and the complete independent package-build recipe pass. This failed
+lane is not complete clean qualification of the checkpoint increment.

@@ -12860,7 +12860,7 @@
           "deadline"
         ],
         "Definition": [
-          "a7a2490fe8542c8110316f643215eb22178e63aec837a3daede4d9afbd8082a1"
+          "@\"582b6ba0179c531ed01d6b417976f8fd6f2e8cc122e59fb5ee5feae92e24338a\""
         ],
         "Effect.phase": [
           "pending",
@@ -25303,10 +25303,10 @@
         "InvalidDataDefinition": 1,
         "InvalidPartitionLease": 1,
         "InvalidSegmentIndex": 1,
-        "InvalidTableBasis": 7,
+        "InvalidTableBasis": 8,
         "InvalidTableCompactionBudget": 1,
         "InvalidTableDeclaration": 1,
-        "InvalidTableHistory": 39,
+        "InvalidTableHistory": 41,
         "InvalidTableIdentity": 1,
         "InvalidTableKey": 3,
         "InvalidTableOperation": 16,
@@ -25388,9 +25388,11 @@
         "cancel()": "<inferred>",
         "changeDefinition()": "<inferred>",
         "checkExpectations()": "<inferred>",
+        "checkpoint()": "<inferred>",
         "compact()": "<inferred>",
         "compactBounded()": "<inferred>",
         "currentBasis()": "<inferred>",
+        "decodeFrame()": "<inferred>",
         "expectations()": "<inferred>",
         "flush()": "<inferred>",
         "get()": "<inferred>",
@@ -25451,7 +25453,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 455,
+        "try": 463,
         "catch": 6
       },
       "imports": [
@@ -25462,6 +25464,7 @@
         "TableDmlIntent.zig",
         "TableKeyRange.zig",
         "TablePartitionRecord.zig",
+        "TableRecovery.zig",
         "TableSnapshot.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
@@ -25507,6 +25510,7 @@
           "operation",
           "checkpoint",
           "archive",
+          "recovery",
           "pin",
           "release"
         ],
@@ -25532,13 +25536,40 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 18,
         "catch": 0
       },
       "imports": [
         "TableArchive.zig",
         "TableDeclaration.zig",
+        "TableRecovery.zig",
         "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/TableRecovery.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidTableRecovery": 6,
+        "TableRecoveryMissing": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Reference.validate()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 0
+      },
+      "imports": [
+        "TablePartitionRecord.zig",
+        "TransitObjectStore.zig",
         "std",
         "transit_protocol"
       ]
@@ -25720,6 +25751,7 @@
         "TableDmlIntent.zig",
         "TableManifest.zig",
         "TablePartition.zig",
+        "TableRecovery.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig"

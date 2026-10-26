@@ -55,7 +55,10 @@ be rejected through retained floors/retirement facts; they cannot become new wor
 The local Table owner can archive complete accepted records and trim their covered
 WAL files while preserving unlimited logical history. Original receipts, retained
 unflushed snapshots and offline history cursors resolve through the accepted
-archive directory. Missing archive data is a recovery/read failure. This
+archive directory. Missing required archive data is a replay/read failure. A
+published recovery checkpoint bounds Table restart to its accepted root and later
+transitions while preserving those original read/retry obligations. It grants no
+additional trimming or expiry authority. This
 [physical history maintenance](../../../packages/zig/transit-storage/docs/table-partitions.md#archive-complete-history-and-trim-wal-files)
 does not expire history or collect immutable Table objects.
 

@@ -25,6 +25,12 @@ table-archives:
     cd packages/zig/transit-backend-local && zig build test -Dtest-filter="direct Table archive" -Dtest-filter="direct data acceptance" --summary all
     just test::local-storage-faults
 
+# Accepted bounded restart baselines, original evidence and publication crashes.
+table-checkpoints:
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="Table recovery checkpoint" -Dtest-filter="Table admitted work survives" --summary all
+    cd packages/zig/transit-backend-local && zig build test -Dtest-filter="direct Table archive" --summary all
+    just test::local-storage-faults
+
 # Bounded live-row segment consolidation and exact retained roots after restart.
 table-compaction:
     cd packages/zig/transit-storage && zig build test -Dtest-filter="Table compaction" -Dtest-filter="Table segment ranges" -Dtest-filter="Table index batches" --summary all
