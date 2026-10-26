@@ -3019,8 +3019,14 @@ separate obligations.
 
 [Retained task records](verification/results/lifecycle-qualification-2026-10-26/report.json)
 distinguish completed checks from partial lanes. Local clean `check-core` passes
-at `9ab5fb64a` in 1,877.37 seconds. Its subsequent core tasks and full `just check`
-are still running at this checkpoint.
+at `9ab5fb64a` in 1,877.37 seconds. Full `just check` subsequently passes in the
+same committed checkout; the containing core lane remains incomplete.
+
+Clean bindings-2 at `90b0fc45e` completes all five owning tasks: Go (297.17
+seconds), C/C++ (2,732.99), Java (756.83), .NET (666.85) and BEAM (1,753.81).
+The BEAM task includes Erlang and Elixir. The retained task inventory, completion
+metadata and compressed log identify that earlier revision and definition;
+this is not final-source qualification after the later cutover and fixes.
 
 Hosted run `40274455146` executes merge revision `7afcbcc7f`, including main's
 count-range changes. Both launcher tasks pass. Eight experience tasks pass,
@@ -3030,6 +3036,8 @@ fails on a capacity refusal with empty stdout during its Unicode read; later
 experience tasks do not run. Its fixed Unicode/NULL observations now use the
 existing 30-second capacity-refusal window, alongside the two fixed COUNT
 queries. No mutation, denial, partial result or generic error uses this path.
+The four unfinished core/growth/SDK lanes were cancelled when superseded by
+run `40278906228`; they are not complete passes.
 
 The [local diagnostic record](verification/results/installed-sql-diagnostics-2026-10-26/report.json)
 retains the separate cancelled-append/restart failure. Its console was killed

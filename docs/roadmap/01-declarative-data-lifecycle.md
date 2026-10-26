@@ -185,6 +185,14 @@ retains native attempt diagnostics, and the installed fixture preserves the
 original failure and allows the existing 270-second settlement budget to finish.
 These corrections are not a completed installed or combined qualification.
 
+PR #167 is merged as `dc2838b6c`. The subsequent full `just check` at
+`9ab5fb64a` passes, and clean bindings-2 at `90b0fc45e` completes Go, C/C++,
+Java, .NET, Erlang and Elixir. Their
+[source-specific records](../../tests/README.md#installed-lifecycle-qualification-checkpoint--2026-10-26)
+preserve the distinction between those earlier revisions and qualification of
+the final merged implementation. Current-source installed and hosted checks
+remain in progress; #108 and this milestone remain open.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to

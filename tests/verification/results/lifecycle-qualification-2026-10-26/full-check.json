@@ -1,0 +1,18 @@
+{
+  "revision": "9ab5fb64a316b1083d3f8e13646b04432b761e0e",
+  "checkout": "/var/tmp/transit-ci-5tly1g0s/src",
+  "command": [
+    "nix",
+    "develop",
+    "--command",
+    "just",
+    "check"
+  ],
+  "completed": true,
+  "state": "finished",
+  "created": 1792992575.1650624,
+  "started": 1792994385.229492,
+  "exit_code": 0,
+  "finished": 1792994705.464617,
+  "log_sha256": "47fa1b5bbed181488dc103a1d62ae0fc114339f8848d224d8364cb39fcd63195"
+}
