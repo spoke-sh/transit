@@ -32,6 +32,14 @@ creation retains any allocated resource ID for cleanup; it does not undo native
 acceptance. See the [named resource API](../../../packages/zig/transit-station-app/docs/named-resources.md)
 for the sequence, permissions, recovery and bounds.
 
+Declared source dependencies use the direct catalog's explicit
+[definition graph](tables.md#schema-lifecycle-and-retained-reads). Register each
+exact source and allocated dependent interpretation before publishing the name;
+registration checks current source access and dependent metadata ownership.
+It grants no native data access and starts no initialization. Incoming edges
+block logical DROP. Retirement preserves outgoing edges until their owner
+explicitly removes them after resolving any uncertain publication.
+
 A completed definition is publication evidence, not a continuing data-access
 grant. Current reads still enforce native rights, retirement and expiry.
 `Declaration.compile` validates offline `CREATE KV` and `CREATE DOCUMENT` syntax;
