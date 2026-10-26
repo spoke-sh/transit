@@ -1,0 +1,70 @@
+{
+  "base": "d412178078a4a486c057a85dc6e3c46a65b2369d",
+  "change": "Generate boolean validators with messages:false; retain typed caller failures and Transit diagnostic payloads.",
+  "source_patch_sha256": "b44348728f263e6423870c473799b05d289e4aba73ce0b2b3ff875e900ca9a81",
+  "browser": "browser.json",
+  "equivalence": {
+    "command": "nix develop --command vp exec node --test tests/validator_schema.mjs",
+    "exit_code": 0,
+    "passed": 6
+  },
+  "reported_build_sizes_kB": {
+    "query": 831.65,
+    "inspection": 820.55,
+    "application": 736.91,
+    "entry": 416.91,
+    "runtime": 0.58
+  },
+  "files": {
+    "browser.json": {
+      "bytes": 858,
+      "sha256": "2490d87b82854b02f398ce0ffef8af66e8bf6de184acacf2336821f3adfef72a"
+    },
+    "browser.log.gz": {
+      "bytes": 9510,
+      "sha256": "560b8670707fa14f49cd4b87e1385912ca016b3d6f293519d720fb705e4f2e28",
+      "gzip_sha256": "45c5c5e16013f9ab6e220716a667b41bed34627f1226255d23391443ea58dbfb"
+    },
+    "source.patch.gz": {
+      "bytes": 2756830,
+      "sha256": "b44348728f263e6423870c473799b05d289e4aba73ce0b2b3ff875e900ca9a81",
+      "gzip_sha256": "09311b7ab2332d5eb4121dc9cf8e14d5905789702019c27aab3ed5aa63209320"
+    },
+    "equivalence.log.gz": {
+      "bytes": 647,
+      "sha256": "36503d1f481dee9ee2cfa75118a70923b7929d1cd1cb9c937dbba91ddaaf94fb",
+      "gzip_sha256": "62c0d37096ad9dce5798813822ed3a172da9996aef2f824626e5c3c473f52c0d"
+    },
+    "generate.log.gz": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "gzip_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    "check.log.gz": {
+      "bytes": 23413,
+      "sha256": "ebd7f88d1cb4e24401264e83bc287ee330c6280b9f276022573d28eea4270a8b",
+      "gzip_sha256": "a36f207df8426ae83698ae9b346b9fd56828303a4089bee0bc3f078575afcb2d"
+    },
+    "docs.log.gz": {
+      "bytes": 56,
+      "sha256": "f251889f762ccf51d4174a4944da0929b9eaf02bce7b3c358a03c1c6bf90287a",
+      "gzip_sha256": "170f31f69ea099280f027ffa920b5a725cf8376091a42a081c1bf394ea203259"
+    }
+  },
+  "limits": [
+    "Build sizes are rounded, not network-latency measurements.",
+    "Committed-HEAD clean qualification remains pending at this checkpoint.",
+    "No public schema, declared validator API, validation rules, chunk grouping or proof budget changes."
+  ],
+  "repository_check": {
+    "command": "nix develop --command just check",
+    "exit_code": 0,
+    "log": "check.log.gz",
+    "source": "Catalog runtime change and generated-validator changes; frontend generators updated before their contract/frontend checks."
+  },
+  "docs_check": {
+    "command": "nix develop --command python3 -B tests/docs.py",
+    "exit_code": 0,
+    "log": "docs.log.gz"
+  }
+}

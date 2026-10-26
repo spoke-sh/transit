@@ -248,6 +248,13 @@ also retains completed core and both SDK lanes at their exact earlier sources,
 and the separate failed local lifetime run. Final candidate qualification and
 acceptance reconciliation remain open.
 
+Removing unused generated-validator error prose brings that query asset below
+the unchanged bound. The complete
+[embedded browser schedule](../../tests/README.md#compact-standalone-validator-output--2026-10-26)
+passes inspection and the direct worksheet, including replacement, original-pin
+recovery and current denial. Public validation and Transit diagnostics retain
+their existing semantics.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to

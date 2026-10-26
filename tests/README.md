@@ -13152,6 +13152,39 @@ that scoped outbox/history projections do not disclose hidden endpoints.
 
 ## Board qualification
 
+### Compact standalone validator output — 2026-10-26
+
+Hosted run `40293594898` completes all thirteen experience tasks, then its
+embedded browser test rejects a query chunk of 913,584 bytes against the
+existing 900,000-byte limit. The failed baseline is retained in the
+[lifecycle evidence](verification/results/catalog-prefix-2026-10-26/report.json).
+All five standalone-validator generators now omit AJV error-message prose.
+Their declared API returns boolean validity; client failure codes and Transit
+diagnostic payloads remain separately owned. Public schemas, generated type
+declarations, validation rules, asset groups and proof bounds are unchanged.
+
+At `d41217807` plus that generator change, the pinned build reports query
+831.65 kB, inspection 820.55 kB, application 736.91 kB, entry 416.91 kB and
+bundler runtime 0.58 kB. These are rounded uncompressed build sizes, not a
+transfer-latency measurement. Vite's separate 500 kB advisory remains enabled.
+The [retained record](verification/results/board-validator-output-2026-10-26/report.json)
+includes source-patch attribution and the unmodified browser workload.
+
+Six schema-equivalence tests compare the generated configuration against
+ordinary AJV validation on positive/negative values, Unicode, unions, required
+fields and reference scopes. `just transit-board::browser` passes both the
+five-test inspection suite and the direct relational worksheet test in 291.02
+seconds including builds. The former checks actual HTTP module responses and
+the unchanged five-script/900,000-byte bounds. The latter completes 504 public
+requests covering original-pin cleanup, node/Board replacement, cached and
+terminal current denial, private origins and explicit cleanup. Real Zig
+responses pass generated validation; malformed identities, values and lossy
+integers reject. Full `just check` also passes with the catalog-prefix and
+generated-validator changes, including regenerated contracts, diagnostic
+mappings, Zig tests, frontend checks and the documentation build. The final
+evidence links pass the documentation checker. Committed-HEAD clean-checkout
+qualification remains a separate gate.
+
 ### Embedded asset splitting — 2026-10-04
 
 Pinned `just build::debug` emits five JavaScript assets totaling **2,175,523
