@@ -27488,3 +27488,29 @@ The pinned Debug build runs on Linux x86_64 with the host filesystem cache
 available. This establishes component ownership, bounds and read counts, not
 cold-device traffic, CPU/latency improvement, installed throughput, SQL inequality
 pushdown, encoded predicates, maintenance or complete clean-CI qualification.
+
+## Debug decimal argument alignment — 2026-10-26
+
+At `17b57e1ee`, the existing file-query rejection of JSON `1.234` under a nested
+`DECIMAL(4,2)` schema crashes instead of returning the inexact-value diagnostic.
+This reproduces the [hosted growth failure](https://github.com/spoke-sh/transit/actions/runs/40262338677/job/121377263590).
+GDB identifies a `vmovdqa` load of the `i256` coefficient from `rbp + 16`, an
+address aligned to 16 bytes but not the instruction's required 32 bytes. The
+pinned compiler is `0.17.0-dev.2267+48abf1a34`, running Debug on Linux x86_64.
+Smaller arithmetic and rescaling callers pass unchanged; their different call
+layouts do not reproduce this failure or establish a broader compiler diagnosis.
+
+An isolated archive of that baseline, changing only `rescale` to `inline fn`,
+passes all 190 file-query cases. Commit `27a39d544` applies that change on the
+merged selected-segment source. Inlining removes the affected wide-argument call
+boundary while preserving checked arithmetic, precision and rounding behavior.
+It changes no logical, wire or stored definition. On that committed source,
+`nix develop --command just test::fuze-types test::file-query` passes the
+independent type fixtures, all 20 type tests and all 190 file-query cases. The
+file proof retains its inexact rejection, cancellation/cleanup assertions and
+192 MiB input under a 96 MiB address-space limit.
+
+The [source-specific record and compressed logs](verification/results/decimal-rescale-2026-10-26/report.json)
+retain the failing run, debugger observation, isolated control and committed
+checks with hashes. These focused passes do not complete the repository/clean
+lanes or attribute the earlier anonymous hosted unit SIGSEGV to this stack.

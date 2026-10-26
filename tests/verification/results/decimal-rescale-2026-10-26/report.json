@@ -1,0 +1,71 @@
+{
+  "definition": "transit.verification.decimal-rescale.v1",
+  "fixed_revision": "27a39d544f8c72f02e8df6cc93c5dcf9386eb61b",
+  "fixed_tree": "b197201ab4eb6c6b21b6f9d401c7761c27702553",
+  "platform": "Linux x86_64",
+  "compiler": "0.17.0-dev.2267+48abf1a34",
+  "optimization": "Debug",
+  "baseline_revision": "17b57e1ee050608f0f87d5ecda8e341f043e7586",
+  "baseline_observation": "Nested JSON decimal(4,2) rejection of 1.234 crashes in rescale. GDB: vmovdqa ymm load at rbp+16, address 0x7ffffff86b30 (16 mod 32).",
+  "control": "An archive of the baseline with only rescale changed to inline passes all 190 file-query cases. Smaller arithmetic and rescale callers also passed without the change; no general compiler diagnosis is claimed.",
+  "fixed_checks": [
+    {
+      "command": [
+        "just",
+        "test::fuze-types"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.09482741355895996
+    },
+    {
+      "command": [
+        "just",
+        "test::file-query"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 214.5418679714203
+    }
+  ],
+  "limits": [
+    "Focused Debug Linux x86_64 execution, not complete repository or clean-lane qualification.",
+    "The earlier anonymous hosted unit crash is not attributed to this decimal stack.",
+    "Rounding, precision, overflow and stored/wire definitions are unchanged."
+  ],
+  "artifacts": [
+    {
+      "path": "before-file-query.log.gz",
+      "raw_sha256": "2c611742fa67ce5ba7f3b33cf808d88c5ac20cbca8ea67b4641feb01bdb9ef0f",
+      "gzip_sha256": "7be8fe8bbd31ae3b7e84bee636948a7cba6cb38d5761c75ccab72e3acb0282ff"
+    },
+    {
+      "path": "before-gdb.log.gz",
+      "raw_sha256": "f62ea2adc654d946b4af0fb61c39e18aa8422dcc83d18c1a51c0e463d3b65859",
+      "gzip_sha256": "4d1d35e0039875a98aeea688072aed39dd88280d14d1da77c918115c214fc881"
+    },
+    {
+      "path": "inline-control.json.gz",
+      "raw_sha256": "683e4e5f92673d564942c997ad676c62d88ea246e3507a578f736fd8ecdbb77c",
+      "gzip_sha256": "5010e2134b7ccbaa36081a762627dd991d94091e8638669b1ebff6ba91a22d71"
+    },
+    {
+      "path": "inline-control.log.gz",
+      "raw_sha256": "0b4345acb3332d673cf5bc8635423678e995bea2a6d11e2404c210bca47f83a6",
+      "gzip_sha256": "7728937981221da60ca2767391226a961a061b31d88c454366a04b99ed012a2f"
+    },
+    {
+      "path": "committed-checks.json.gz",
+      "raw_sha256": "b9f615468f7f9900d4e956f6469abf7662078c2bcb81f30b618b3e67aa4f255e",
+      "gzip_sha256": "b92b9ec6c28f1da9de5df891210c2276c20a4435d47f66d55ca27e5c5281db5b"
+    },
+    {
+      "path": "fuze-types.log.gz",
+      "raw_sha256": "959af16889044dde0fe5ff066864ca4a09758cea4351b1f63dcf4dba78fc592a",
+      "gzip_sha256": "e81de6d0e2a7331230604739a5673e8cacf6df2c386630b9d72f64d3e8b08619"
+    },
+    {
+      "path": "file-query.log.gz",
+      "raw_sha256": "0b4345acb3332d673cf5bc8635423678e995bea2a6d11e2404c210bca47f83a6",
+      "gzip_sha256": "7728937981221da60ca2767391226a961a061b31d88c454366a04b99ed012a2f"
+    }
+  ]
+}
