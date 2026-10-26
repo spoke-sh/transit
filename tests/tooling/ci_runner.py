@@ -13,6 +13,8 @@ from ci import LANES, ROOT, SUITE
 from ci_select import select
 from ci_clean import profile
 from ci_cost import summarize
+# The discovery driver remains with the verification owner.
+sys.path.insert(0, str(ROOT / "tests"))
 from verification.external_profiles import DISCOVERY
 
 
@@ -23,7 +25,8 @@ def clean_runner():
         root = Path(directory)
         source = root / "source"
         (source / "tests/verification").mkdir(parents=True)
-        (source / "tests/ci_clean.py").write_bytes((ROOT / "tests/ci_clean.py").read_bytes())
+        (source / "tests/tooling").mkdir()
+        (source / "tests/tooling/ci_clean.py").write_bytes((ROOT / "tests/tooling/ci_clean.py").read_bytes())
         (source / "tests/verification/suite.json").write_bytes((ROOT / "tests/verification/suite.json").read_bytes())
         (source / ".gitignore").write_text(".cache/\n")
         for command in (["init", "-q"], ["add", "."],
@@ -36,7 +39,7 @@ from pathlib import Path
 assert not any(key.startswith("TRANSIT_") for key in os.environ)
 with open(os.environ["CI_CLEAN_RECORD"], "a") as log:
     log.write(json.dumps(sys.argv[1:]) + "\\n")
-if "tests/ci.py" in sys.argv or any(arg.startswith("check::") for arg in sys.argv):
+if "tests/tooling/ci.py" in sys.argv or any(arg.startswith("check::") for arg in sys.argv):
     path = Path(".cache/checks" if any(arg.startswith("check::") for arg in sys.argv) else ".cache/ci")
     path.mkdir(parents=True)
     (path / "result.json").write_text('{"fixture": true}\\n')
@@ -55,7 +58,7 @@ if "tests/ci.py" in sys.argv or any(arg.startswith("check::") for arg in sys.arg
             work.mkdir()
             check_scope = lane.removeprefix("check::") if lane.startswith("check::") else None
             selection = ["--check", check_scope] if check_scope else ["--lane", lane]
-            result = subprocess.run([sys.executable, "-B", source / "tests/ci_clean.py",
+            result = subprocess.run([sys.executable, "-B", source / "tests/tooling/ci_clean.py",
                                      *selection, "--work-root", work], cwd=source,
                                     env=env | {"CI_CLEAN_EXIT": str(exit_code)}, capture_output=True)
             assert (result.returncode == 0) == (exit_code == 0), result.stderr.decode()
@@ -67,7 +70,7 @@ if "tests/ci.py" in sys.argv or any(arg.startswith("check::") for arg in sys.arg
             assert all(command[:3] == ["develop", ".#" + expected["shell"], "--command"]
                        for command in commands), commands
             assert [command[5:] for command in commands[1:-1]] == expected["prepare"]
-            expected_command = ["just", lane] if check_scope else ["python3", "-B", "tests/ci.py", lane]
+            expected_command = ["just", lane] if check_scope else ["python3", "-B", "tests/tooling/ci.py", lane]
             assert commands[-1][5:] == expected_command
             if exit_code:
                 reports = list(work.glob("transit-ci-*/preparation.json"))
@@ -220,7 +223,7 @@ def main():
         (path / "docs").mkdir()
         git("mv", "source.zig", "docs/example.md")
         git("commit", "-qm", "test(ci): move source into documentation")
-        command = [sys.executable, "-B", str(ROOT / "tests/ci_select.py"), "--base"]
+        command = [sys.executable, "-B", str(ROOT / "tests/tooling/ci_select.py"), "--base"]
         result = subprocess.run([*command, base], cwd=path, capture_output=True, check=True)
         plan = json.loads(result.stdout)
         assert plan["full"] and plan["paths"] == ["docs/example.md", "source.zig"]
@@ -259,11 +262,11 @@ def main():
         script = path / "just"
         script.write_text(f"#!{sys.executable}\nimport sys\nprint('deliberate task failure')\nsys.exit(23)\n")
         script.chmod(0o755)
-        runner = path / "tests/ci.py"
-        runner.parent.mkdir()
-        runner.write_bytes((ROOT / "tests/ci.py").read_bytes())
-        (runner.parent / "verification").mkdir()
-        (runner.parent / "verification/suite.json").write_bytes((ROOT / "tests/verification/suite.json").read_bytes())
+        runner = path / "tests/tooling/ci.py"
+        runner.parent.mkdir(parents=True)
+        runner.write_bytes((ROOT / "tests/tooling/ci.py").read_bytes())
+        (path / "tests/verification").mkdir()
+        (path / "tests/verification/suite.json").write_bytes((ROOT / "tests/verification/suite.json").read_bytes())
         env = os.environ | {"PATH": str(path) + os.pathsep + os.environ["PATH"],
                             "GITHUB_STEP_SUMMARY": str(path / "summary")}
         result = subprocess.run([sys.executable, "-B", runner, "browser"], env=env, capture_output=True)
@@ -278,11 +281,11 @@ def main():
     # exactly their declared tasks, retaining complete per-lane evidence.
     with tempfile.TemporaryDirectory(prefix="transit-ci-bindings-") as directory:
         path = Path(directory)
-        runner = path / "tests/ci.py"
-        runner.parent.mkdir()
-        runner.write_bytes((ROOT / "tests/ci.py").read_bytes())
-        (runner.parent / "verification").mkdir()
-        (runner.parent / "verification/suite.json").write_bytes((ROOT / "tests/verification/suite.json").read_bytes())
+        runner = path / "tests/tooling/ci.py"
+        runner.parent.mkdir(parents=True)
+        runner.write_bytes((ROOT / "tests/tooling/ci.py").read_bytes())
+        (path / "tests/verification").mkdir()
+        (path / "tests/verification/suite.json").write_bytes((ROOT / "tests/verification/suite.json").read_bytes())
         script = path / "just"
         script.write_text(f"#!{sys.executable}\nimport sys\nfrom pathlib import Path\n"
                           "with Path('executed').open('a') as log: log.write(sys.argv[1]+'\\n')\n")
@@ -305,12 +308,12 @@ def main():
     # SIGKILL executes its finally block; the earlier task must remain recorded.
     with tempfile.TemporaryDirectory(prefix="transit-ci-interrupted-") as directory:
         path = Path(directory)
-        runner = path / "tests/ci.py"
-        runner.parent.mkdir()
-        runner.write_bytes((ROOT / "tests/ci.py").read_bytes())
-        (runner.parent / "verification").mkdir()
+        runner = path / "tests/tooling/ci.py"
+        runner.parent.mkdir(parents=True)
+        runner.write_bytes((ROOT / "tests/tooling/ci.py").read_bytes())
+        (path / "tests/verification").mkdir()
         expected = ["first", "paused", "later"]
-        (runner.parent / "verification/suite.json").write_text(json.dumps({
+        (path / "tests/verification/suite.json").write_text(json.dumps({
             "version": 1, "lanes": {"fixture": expected}, "tiers": {}}))
         script = path / "just"
         script.write_text(f"#!{sys.executable}\nimport os,sys,time\nfrom pathlib import Path\n"

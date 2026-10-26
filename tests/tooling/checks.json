@@ -147,7 +147,7 @@
         "command": [
           "python3",
           "-B",
-          "tests/ci_runner.py"
+          "tests/tooling/ci_runner.py"
         ]
       },
       {

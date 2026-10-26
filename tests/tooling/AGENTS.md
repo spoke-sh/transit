@@ -16,3 +16,9 @@ failure propagation and source-clean execution when changing orchestration.
 
 Do not use elapsed time from one warm host as a cold or hosted qualification. Keep
 build, setup and executed validation costs separate and record source identity.
+
+CI selection must preserve source-to-document rename detection, full non-PR runs
+and failure on missing comparison revisions. A module listing, skipped job or
+interrupted report cannot qualify a selected task. Keep clean runs isolated from
+workspace artifacts and caller environment overrides. Preserve private failure
+evidence before cleanup; never publish credentials or real application payloads.
