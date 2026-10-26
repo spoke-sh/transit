@@ -20,7 +20,8 @@ import threading
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from storage import Fixture, free_port, wait_ready
+from harness.ursula import Fixture
+from harness.services import free_port, wait_ready
 
 ROOT = Path(__file__).resolve().parents[2]
 

@@ -13,7 +13,8 @@ import threading
 import time
 
 from serving import Key, compact
-from storage import Fixture, free_port, wait_ready
+from harness.ursula import Fixture
+from harness.services import free_port, wait_ready
 
 DEFINITION = json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
 DOMAIN = b'transit.immutable.block.v1\0'

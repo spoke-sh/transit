@@ -11,7 +11,7 @@ import urllib.request
 from types import SimpleNamespace
 import time
 
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 
 
 def run(node, worker_binary, caller, query_host):

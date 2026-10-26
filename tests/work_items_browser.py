@@ -9,7 +9,7 @@ import tempfile
 from types import SimpleNamespace
 import urllib.error
 import urllib.request
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 
 
 def run(node, worker, query_host, gateway, caller):

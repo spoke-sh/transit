@@ -11,7 +11,7 @@ import time
 import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 import psycopg
 import mysql.connector
 

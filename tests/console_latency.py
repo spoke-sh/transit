@@ -14,7 +14,7 @@ import sys
 import time
 
 from server import Fixture, children, command
-from storage import free_port
+from harness.services import free_port
 from latency_probe import Probe
 
 

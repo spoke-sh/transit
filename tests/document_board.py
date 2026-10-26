@@ -6,7 +6,7 @@ import subprocess
 import time
 import urllib.error
 from urllib.parse import urlencode
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 
 
 class DocumentBoard:

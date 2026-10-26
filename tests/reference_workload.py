@@ -12,7 +12,7 @@ import urllib.request
 import uuid
 
 import reference as ref
-from storage import free_port
+from harness.services import free_port
 
 
 def diagnostic_records(text):

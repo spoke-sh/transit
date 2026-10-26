@@ -15,7 +15,8 @@ sys.path.insert(0, str(ROOT / "tests"))
 from client_abi_growing import GrowingSystem
 from cold_storage import ColdStore
 from document_contract import encode
-from storage import Fixture, wait_ready
+from harness.ursula import Fixture
+from harness.services import wait_ready
 
 
 def run(*, board=False, browser=False):

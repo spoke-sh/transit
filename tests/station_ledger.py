@@ -37,7 +37,7 @@ def provision(system, configurations):
     system.authority.wait(timeout=15)
     system.config.write_text(json.dumps(settings))
     system.authority = system.start(system.node, system.config)
-    from storage import wait_ready
+    from harness.services import wait_ready
     wait_ready(system.store.http, system.authority, system.url + '/health')
     for _, config in configurations:
         config['authorization'] = authority

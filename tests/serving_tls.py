@@ -6,7 +6,7 @@ import ssl
 import subprocess
 import time
 
-from storage import free_port
+from harness.services import free_port
 
 
 class TLSProxy:

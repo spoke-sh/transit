@@ -8,7 +8,7 @@ import subprocess
 import time
 
 from inspection import System
-from storage import wait_ready
+from harness.services import wait_ready
 
 ROOT = Path(__file__).resolve().parents[1]
 

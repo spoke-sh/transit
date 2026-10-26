@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import sys
 
-from storage import free_port
+from harness.services import free_port
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / ".cache/reference"

@@ -7,7 +7,7 @@ import tempfile
 
 from recovery_fixture import retain_recovery_fixture
 from cold_storage import ColdStore
-from storage import Fixture
+from harness.ursula import Fixture
 
 
 def run(retain=retain_recovery_fixture):

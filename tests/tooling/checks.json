@@ -142,6 +142,15 @@
         ]
       },
       {
+        "id": "service-harness",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/harness/test_services.py"
+        ]
+      },
+      {
         "id": "ci_runner",
         "phase": "static",
         "command": [

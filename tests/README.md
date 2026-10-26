@@ -27,12 +27,12 @@ handoff log. A listed task establishes no passing result at the current revision
 | CLI, Board, serving and reactive interfaces | [CLI](../apps/transit-cli/README.md), [Board](../apps/transit-board/README.md), [Board tasks](../tasks/transit-board.just), [interface test recipes](../tasks/test.just) |
 | Flight and Arrow | [Flight checks](flight/README.md), [independent Arrow check](arrow.py) |
 | Installation, launchers and reference deployments | [Launchers](../launchers/README.md), [launcher tasks](../tasks/launchers.just), [installed server fixture](server.py) |
-| Shared fixtures and test support | [Fixture rules](fixtures/AGENTS.md), [operation drivers](operations/), [fixture ownership rules](AGENTS.md#fixtures-and-independent-oracles) |
+| Shared fixtures and test support | [Service harness](harness/README.md), [data fixture rules](fixtures/AGENTS.md), [operation drivers](operations/), [fixture ownership rules](AGENTS.md#fixtures-and-independent-oracles) |
 | Performance experiments | [Declarative benchmarks](benchmarks/README.md), [Fuze benchmarks](fuze_benchmarks/README.md), [mutation measurements](mutation_latency/), [storage measurements](storage_benchmarks/) |
 
 Many cross-component drivers remain at this directory's root. Use the owning
 recipes above to find their exact binary inputs and environments. A filename
-alone does not identify its backend: `storage.py` owns an Ursula fixture, while
+alone does not identify its backend: `storage.py` runs Ursula conformance, while
 `local_storage_faults.py` exercises local WAL/object storage. Actors belong to
 application execution; direct Table data has its own acceptance owner.
 

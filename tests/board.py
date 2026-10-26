@@ -12,7 +12,7 @@ import struct
 import sys
 import time
 from inspection import System
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 
 
 def run(node, cli, board, browser=False):

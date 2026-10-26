@@ -19,7 +19,7 @@ from latency_probe import Probe
 from server import Fixture, children
 from pages import metrics, sample_process
 from table_console import results as table_results, atom
-from storage import free_port
+from harness.services import free_port
 
 
 class Console:

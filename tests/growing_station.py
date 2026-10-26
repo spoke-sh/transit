@@ -7,7 +7,8 @@ import subprocess
 import sys
 import threading
 import time
-from storage import Fixture, free_port, wait_ready
+from harness.ursula import Fixture
+from harness.services import free_port, wait_ready
 from cold_storage import ColdStore
 
 

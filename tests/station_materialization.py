@@ -7,7 +7,7 @@ import time
 from inspection import System
 from cold_storage import ColdStore
 from station import frame
-from storage import wait_ready
+from harness.services import wait_ready
 
 
 def run(node, cli, libraries):

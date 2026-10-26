@@ -20,7 +20,8 @@ import time
 import tempfile
 from cold_storage import ColdStore
 from pages import metrics, sample_process
-from storage import Fixture, free_port, wait_ready
+from harness.ursula import Fixture
+from harness.services import free_port, wait_ready
 
 
 def distribution(samples):

@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 import time
 from inspection import System
-from storage import wait_ready
+from harness.services import wait_ready
 
 
 def run(node, cli, counter):

@@ -13,7 +13,8 @@ import sys
 import threading
 import time
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
-from storage import Fixture, free_port, wait_ready
+from harness.ursula import Fixture
+from harness.services import free_port, wait_ready
 from cold_storage import ColdStore
 from grpc_faults import Boundary
 

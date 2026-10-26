@@ -11,7 +11,8 @@ import time
 
 import pyarrow as pa
 
-from storage import Fixture, free_port, wait_ready
+from harness.ursula import Fixture
+from harness.services import free_port, wait_ready
 from cold_storage import ColdStore
 from unified_abi import Native, Port, Failure, upload, verify
 

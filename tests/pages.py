@@ -10,7 +10,7 @@ import re
 import subprocess
 import sys
 import time
-from storage import Fixture
+from harness.ursula import Fixture
 
 
 def metrics():

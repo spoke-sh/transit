@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import time
 import urllib.error
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 
 
 class Observer:
