@@ -131,7 +131,7 @@ jobs:
           # Separate closures: the experience lane never restores Kubernetes,
           # provider CLIs, PyArrow, or their build dependencies. Small local
           # plugin/environment changes rebuild locally without a store upload.
-          primary-key: nix-v2-${{ matrix.cache }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix', 'nix/*.nix', 'nix/vite-plus/**', 'nix/ate-upgrade/**', 'deploy/reference/versions.json') }}
+          primary-key: nix-v2-${{ matrix.cache }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix', 'nix/*.nix', 'nix/*.patch', 'nix/vite-plus/**', 'nix/ate-upgrade/**', 'deploy/reference/versions.json') }}
           # Seed new lane caches from the existing store once, avoiding a cold
           # Ursula Rust build just because the workflow was decomposed.
           restore-prefixes-first-match: |

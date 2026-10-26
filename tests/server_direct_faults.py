@@ -25,11 +25,18 @@ def terminal(fixture, identity):
 
 def pending(fixture, boundary, key=None, *, sql=None):
     boundary.pause()
-    process = subprocess.Popen([fixture.cli, 'console', '--no-rc', '--format', 'json'],
+    # Keep the caller alive throughout the 60-second dispatch-observation
+    # window; this proof kills it after capturing its original binding.
+    connection = fixture.console_config()
+    connection['request_timeout_ms'] = 120000
+    path = fixture.root / 'fault-console-connection.json'
+    path.write_text(json.dumps(connection))
+    process = subprocess.Popen([fixture.cli, 'console', '--no-rc', '--format', 'json', '--config', str(path)],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         cwd=fixture.root, text=True, env={'PATH': '/unavailable'})
     process.stdin.write((sql or f'INSERT INTO items (id,value) VALUES ({key},100)') + ';\n')
     process.stdin.flush()
+    captured = False
     try:
         deadline = time.monotonic() + 60
         while not boundary.observed.exists():
@@ -42,11 +49,16 @@ def pending(fixture, boundary, key=None, *, sql=None):
         original = binding['identity']['operation'] if 'identity' in binding else binding['operation']
         matches = [entry for entry in values if int(entry['identity']['id']) == original]
         assert len(matches) == 1 and matches[0]['phase'] != 'terminal', values
+        captured = True
         return matches[0]['identity'], binding
     finally:
         if process.poll() is None:
             process.kill()
-        process.communicate(timeout=10)
+        stdout, stderr = process.communicate(timeout=10)
+        if not captured:
+            print(f'Unobserved direct caller exit: {process.returncode}', file=sys.stderr)
+            print('Unobserved direct caller stdout:', stdout, file=sys.stderr)
+            print('Unobserved direct caller stderr:', stderr, file=sys.stderr)
 
 
 def run(cli, node, host, board, gateway):

@@ -6,7 +6,11 @@
 }:
 # Board and native launchers need no Kubernetes/provider CLIs or Rust build tools.
 # Keep this closure separate so that splitting CI does not copy the full shell.
-pkgs.mkShellNoCC {
+pkgs.mkShell {
+  buildInputs = [
+    pkgs.openssl
+  ]
+  ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.stdenv.cc.libc ];
   packages = [
     pkgs.just
     pkgs.git
@@ -15,6 +19,8 @@ pkgs.mkShellNoCC {
       ps.jsonschema
     ]))
     pkgs.process-compose
+    pkgs.openssl
+    pkgs.pkg-config
     zig
     vite-plus
     ursula

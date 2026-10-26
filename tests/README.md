@@ -26862,3 +26862,82 @@ frontier and accept its successor. The first schedule failed against the prior
 implementation with `WalRecoveryRequired` as expected. These component results
 do not establish the cause of every installed request timeout or replace the
 remaining clean installed lifecycle qualification.
+
+## Native Linux CI library and loader selection — 2026-10-25
+
+Hosted run [40241628332](https://github.com/spoke-sh/transit/actions/runs/40241628332)
+at `c4c5e75359dc211f1dfebb32e065e1a05d305326` fails the core CLI diagnostic
+task because Nix shared libraries require glibc symbols absent from the host
+Ubuntu libc. Experience and launchers separately fail to find OpenSSL while
+linking. The local core lane also fails Station: its original attempt exhausts
+the authority-availability retry during resource association, and an unchanged
+retry later exhausts the query-upload wait after SELECT revocation. Neither
+Station attempt passes; the loader findings do not establish their causes.
+
+The default and CI shells now supply explicit OpenSSL/libc build dependencies
+and the native Linux Zig launcher selects the matching Nix ELF interpreter.
+An offline OpenSSL consumer reproduces a second defect with that explicit path:
+the pinned build runner passes a dangling slice from a temporary target query,
+emitting an empty or corrupted loader argument and crashing compilation.
+The version-asserted helper patch copies those argument bytes into its arena.
+The upstream compiler executable remains byte-identical, and no lockfile input
+or library version changes. Nix cache keys include the helper patches.
+
+With the correction, `nix flake check` passes on Linux x86_64. Its offline proof
+builds and runs the OpenSSL consumer through both direct compilation and the
+build runner, verifies their exact Nix interpreter paths, and verifies explicit
+caller loader overrides without executing those deliberately non-runnable
+artifacts. Other configured systems are not executed by this check.
+`nix develop .#ci-experience --command just test::cli-diagnostics` passes all
+96 helper and 193 CLI cases. `nix develop --command just doctor`, workflow lint
+and documentation link checks pass. Complete committed-source and hosted lanes
+remain separate qualification gates.
+
+## Cached Kubernetes helper CPU portability — 2026-10-25
+
+The core job in hosted run
+[40246531716](https://github.com/spoke-sh/transit/actions/runs/40246531716/job/121329237584)
+at `7a41dc32b91cf4a4033ad56b500a7bd1bda5a664` fails the offline toolchain
+check: `kubectl transit --version` terminates with an illegal instruction.
+The helper's Nix derivation compiled for the builder's native CPU even though
+its cached output could be restored on a different runner. The runtime packages
+already select a baseline CPU; the helper now also passes `-mcpu=baseline`.
+Compiler, library and flake lockfile versions are unchanged.
+
+The actual previous and rebuilt Nix helper executables are run through QEMU
+10.2.4 from the same locked nixpkgs input, using `qemu-x86_64 -cpu qemu64`.
+Both `--version` and `--help` on the previous executable terminate with signal 4;
+both commands on the baseline executable exit 0 and print their expected output.
+The executable is the package's `bin/.kubectl-transit-wrapped`, avoiding the
+shell wrapper so the emulated CPU applies directly to the Zig program. This
+reproduces and resolves a CPU portability failure without contacting a cluster.
+`nix flake check`, `nix develop --command just doctor`, Nix formatting and
+documentation link checks also pass with the baseline helper and pinned
+loader/library changes.
+It does not establish results for every supported architecture or substitute
+for the separate installed lifecycle qualification.
+
+## Blocked direct caller observation budget — 2026-10-25
+
+The clean experience lane at `2daa4615b54758c0c6e6d85efcaa627cefd5a293`
+passes its first six tasks, including the previously failing installed Table
+and namespace lifecycle schedule. The subsequent direct-fault task fails after
+247.42 seconds with `No direct execution attempt`. Its caller output was
+discarded, so that assertion alone does not identify the underlying failure.
+Adding failure-output capture and repeating the same schedule with the same
+committed binaries records `SqlOutcomeUnknown` from the second INSERT caller.
+The original request remains uncertain; the test does not resubmit its SQL.
+
+The fault fixture waits up to 60 seconds to observe a direct execution binding,
+then deliberately kills the waiting caller. It now selects a 120-second client
+request budget so the CLI's default 30-second admission-discovery budget cannot
+end the caller before that observation window. The 60-second observation bound,
+90-second terminal wait, server deadlines, operation identity, recovery and
+cancellation assertions are unchanged. Failed caller output is retained.
+
+The focused Python fault schedule passes with the committed runtime binaries
+and this fixture change: blocked Table and namespace execution preserve control
+and reads; killed callers and abrupt restart retain the original binding;
+resumption applies exactly once and cancellation remains terminal after restart.
+This focused result does not replace the complete clean experience rerun or
+establish that default request budgets meet an interactive latency target.

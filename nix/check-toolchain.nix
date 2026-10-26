@@ -1,5 +1,9 @@
 {
   runCommand,
+  lib,
+  stdenv,
+  patchelf,
+  pkg-config,
   just,
   python3,
   process-compose,
@@ -21,8 +25,11 @@
 }:
 runCommand "transit-toolchain-check"
   {
+    buildInputs = [ openssl ] ++ lib.optionals stdenv.hostPlatform.isLinux [ stdenv.cc.libc ];
     nativeBuildInputs = [
       just
+      stdenv.cc
+      pkg-config
       (python3.withPackages (ps: [ ps.pyyaml ]))
       process-compose
       openssl
@@ -40,7 +47,8 @@ runCommand "transit-toolchain-check"
       kind
       kubectl-ate
       kubectl-transit
-    ];
+    ]
+    ++ lib.optionals stdenv.hostPlatform.isLinux [ patchelf ];
   }
   ''
     # The Nix build sandbox has no network: first-use setup must be self-contained.
@@ -77,6 +85,43 @@ runCommand "transit-toolchain-check"
     }
     ZIG
     zig test smoke.zig
+
+    # Exercise both direct compiler and build-runner target selection. Running
+    # on a new host alone would miss the older Ubuntu loader mismatch.
+    cat > linkage.zig <<'ZIG'
+    extern "c" fn OpenSSL_version_num() c_ulong;
+    pub fn main() void {
+        if (OpenSSL_version_num() == 0) @panic("OpenSSL did not load");
+    }
+    ZIG
+    zig build-exe linkage.zig -lc -lcrypto -femit-bin=linkage
+    ./linkage
+    ${lib.optionalString stdenv.hostPlatform.isLinux ''
+      test "$(patchelf --print-interpreter linkage)" = "${stdenv.cc.bintools.dynamicLinker}"
+    ''}
+    cat > build.zig <<'ZIG'
+    const std = @import("std");
+    pub fn build(b: *std.Build) void {
+        const mod = b.createModule(.{
+            .root_source_file = b.path("linkage.zig"),
+            .target = b.standardTargetOptions(.{}),
+            .link_libc = true,
+        });
+        mod.linkSystemLibrary("crypto", .{});
+        b.installArtifact(b.addExecutable(.{ .name = "linkage", .root_module = mod }));
+    }
+    ZIG
+    zig build
+    ./zig-out/bin/linkage
+    ${lib.optionalString stdenv.hostPlatform.isLinux ''
+      test "$(patchelf --print-interpreter zig-out/bin/linkage)" = "${stdenv.cc.bintools.dynamicLinker}"
+      # Explicit target settings belong to the caller. Inspect this deliberately
+      # non-runnable loader path without attempting to execute the result.
+      zig build -Ddynamic-linker=/transit-toolchain-explicit-loader
+      test "$(patchelf --print-interpreter zig-out/bin/linkage)" = /transit-toolchain-explicit-loader
+      zig build-exe linkage.zig -lc -lcrypto --dynamic-linker /transit-toolchain-explicit-loader -femit-bin=explicit-linkage
+      test "$(patchelf --print-interpreter explicit-linkage)" = /transit-toolchain-explicit-loader
+    ''}
 
     cat > web/package.json <<'JSON'
     {"name":"transit-toolchain-smoke","private":true,"type":"module"}
