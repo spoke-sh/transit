@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 from checks import ROOT, execute, expand
+from capture import run, verify
 
 
 class Checks(unittest.TestCase):
@@ -33,6 +34,7 @@ class Checks(unittest.TestCase):
             root = Path(directory)
             generator = root / "generator with spaces"
             generator.write_text(f"#!{sys.executable}\nimport sys\n"
+                                 "print('generator diagnostic', file=sys.stderr)\n"
                                  "print('observed schema')\nsys.exit(int(sys.argv[1]))\n")
             generator.chmod(0o755)
             checker = root / "check.py"
@@ -67,6 +69,74 @@ class Checks(unittest.TestCase):
                     self.assertFalse(value["checks"][0]["completed"])
                     self.assertEqual(value["checks"][0]["stages"][-1]["exit_code"], generate_code or validate_code)
                 self.assertTrue(all(stage["seconds"] >= 0 for row in value["checks"] for stage in row["stages"]))
+                artifacts = root / value["run_directory"]
+                generated = value["checks"][0]["stages"][0]
+                self.assertEqual((artifacts / generated["log"]).read_text(), "generator diagnostic\n")
+                self.assertEqual((artifacts / generated["stdout"]["path"]).read_bytes(), b"observed schema\n")
+                if success:
+                    verify(artifacts)
+                    successful = artifacts
+                else:
+                    with self.assertRaises(AssertionError):
+                        verify(artifacts)
+            # Later failures do not overwrite the original successful invocation.
+            self.assertEqual(len(list((root / "runs").iterdir())), 3)
+            verify(successful)
+            original_report = (successful / "report.json").read_text()
+            missing_stage = json.loads(original_report)
+            missing_stage["checks"][0]["stages"].pop()
+            (successful / "report.json").write_text(json.dumps(missing_stage))
+            with self.assertRaises(AssertionError):
+                verify(successful)
+            (successful / "report.json").write_text(original_report)
+            original = (successful / "001-generate.stdout").read_bytes()
+            (successful / "001-generate.stdout").write_bytes(b"other schema")
+            with self.assertRaises(AssertionError):
+                verify(successful)
+            (successful / "001-generate.stdout").write_bytes(original)
+            (successful / "001-validate.log").unlink()
+            with self.assertRaises(FileNotFoundError):
+                verify(successful)
+
+    def test_bounded_logs_preserve_console_and_semantic_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            command = [sys.executable, "-c",
+                       "import sys; sys.stdout.buffer.write(b'A' * 8192); "
+                       "sys.stdout.flush(); sys.stderr.buffer.write(b'B' * 8192)"]
+            for generated in (False, True):
+                result, console = {}, io.BytesIO()
+                process = run(command, cwd=root, log=root / "output.log", result=result,
+                              console=console, limit=256, capture_stdout=generated)
+                self.assertEqual(process.returncode, 0)
+                self.assertTrue(result["completed"])
+                expected = b'B' * 8192 if generated else b'A' * 8192 + b'B' * 8192
+                self.assertEqual(console.getvalue(), expected)
+                self.assertEqual(result["diagnostics"]["bytes"], len(expected))
+                self.assertEqual(result["diagnostics"]["retained_bytes"], 256)
+                self.assertEqual(result["diagnostics"]["omitted_bytes"], len(expected) - 256)
+                log = (root / "output.log").read_bytes()
+                self.assertTrue(log.startswith(expected[:128]))
+                self.assertTrue(log.endswith(expected[-128:]))
+                self.assertIn(b"runner omitted", log)
+                if generated:
+                    self.assertEqual(process.stdout, b'A' * 8192)
+                    self.assertEqual((root / "output.stdout").read_bytes(), process.stdout)
+
+    def test_launch_failure_is_incomplete_and_captured(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = root / "report.json"
+            with self.assertRaises(FileNotFoundError):
+                execute([{"id": "missing", "phase": "tooling", "command": [str(root / "absent")]}],
+                        {}, report, root)
+            value = json.loads(report.read_text())
+            self.assertFalse(value["completed"])
+            stage = value["checks"][0]["stages"][0]
+            self.assertFalse(stage["completed"])
+            self.assertIsNone(stage["exit_code"])
+            self.assertEqual(stage["error"], "FileNotFoundError")
+            self.assertTrue((root / value["run_directory"] / stage["log"]).is_file())
 
     def test_empty_inputs_and_missing_generators_cannot_pass(self):
         with tempfile.TemporaryDirectory() as directory:

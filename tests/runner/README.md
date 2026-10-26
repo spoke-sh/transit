@@ -7,6 +7,7 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | --- | --- |
 | [checks.json](checks.json) | Ordered fast checks and generated-contract validators |
 | [checks.py](checks.py) | Execute the inventory, propagate child failures and retain stage timings |
+| [capture.py](capture.py) | Stream diagnostics, preserve automatic run artifacts and verify their identity/completion |
 | [layout.json](layout.json), [layout.py](layout.py), [test_layout.py](test_layout.py) | Domain owners, explicit migration exceptions and real file-layout regression controls |
 | [suite.json](suite.json) | Required lanes, environments, task nesting and focused/external owners |
 | [task_coverage.py](task_coverage.py), [test_task_coverage.py](test_task_coverage.py) | Check task registration and required coverage against real Just recipes |
@@ -45,10 +46,31 @@ explicitly; the fast check has no frontend dependency installation.
 scopes from committed HEAD without workspace outputs. Use `--lane NAME` for CI
 inventory qualification; neither a check scope nor a single lane is full CI.
 
-Reports under `.cache/checks/` record the source revision/dirty state, expected check IDs,
-completion and generation/validation times. Missing completion and failed stages
-cannot pass. Glob inputs expand without a shell and must match at least one file.
-Only a successful generator can supply bytes to its independent validator.
+Each check or CI invocation keeps a private, unique directory under
+`.cache/checks/runs/` or `.cache/ci/runs/`. The top-level profile/lane JSON points
+to the latest invocation; rerunning does not overwrite earlier results. Records
+include source revision/dirty state, pinned lockfile hash, resolved tool paths,
+commands, outcomes and stage timings. They begin incomplete and checkpoint before
+each command. Missing completion and failed stages cannot pass.
+
+Command output streams to the console and a diagnostic log. Each log retains up
+to 16 MiB of original output, keeping its beginning and end with an explicit
+omission count. Generator stdout is saved separately and passed unchanged to its
+validator; it is never truncated or mixed with diagnostics. Logs and generated
+inputs have recorded byte counts and SHA-256 identities. To check a retained
+invocation, run `python3 -B tests/runner/capture.py PATH_TO_RUN_DIRECTORY`.
+Missing or changed artifacts and incomplete runs fail this check.
+
+Clean qualification preserves these records and preparation logs before removing
+a successful clone. Failed clones remain private at the reported path. Local
+records remain until explicitly removed; hosted CI uploads run records and the
+selected proof artifacts with 14-day retention. Durable scientific citations need
+a specifically retained record and identity beyond that expiry; see
+[results and reproducibility](../evidence/README.md). Do not commit ordinary run
+output or write a manual pass ledger.
+
+Glob inputs expand without a shell and must match at least one file. Only a
+successful generator can supply bytes to its independent validator.
 
 Use `python3 -B tests/runner/test_checks.py` to check the runner. Add new checks
 to the owning profile with a distinct ID; keep standalone domain commands usable.

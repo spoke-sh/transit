@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 import time
 
+from capture import directory, provenance, run, write_json
+
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = Path(__file__).with_name("checks.json")
 
@@ -28,30 +30,28 @@ def execute(checks, generators, destination, root=ROOT):
     assert checks and len({check["id"] for check in checks}) == len(checks)
     required = {check["generator"]["name"] for check in checks if "generator" in check}
     assert generators.keys() == required, (required, generators.keys())
-    revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True)
-    status = subprocess.run(["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True)
-    report = {"version": 1, "revision": revision.stdout.strip() or None,
-              "dirty": bool(status.stdout) if status.returncode == 0 else None,
+    artifacts = directory(destination)
+    report = {"version": 1, **provenance(root),
+              "run_directory": str(artifacts.relative_to(destination.parent)),
               "checks_sha256": hashlib.sha256(json.dumps(checks, sort_keys=True).encode()).hexdigest(),
               "started_unix": time.time(),
               "completed": False, "expected_checks": [check["id"] for check in checks],
               "checks": [], "active": None}
-    destination.parent.mkdir(parents=True, exist_ok=True)
-
     def checkpoint():
-        temporary = destination.with_suffix(".tmp")
-        temporary.write_text(json.dumps(report, indent=2) + "\n")
-        temporary.replace(destination)
+        write_json(artifacts / "report.json", report)
+        write_json(destination, report)
 
     def invoke(command, stage, **kwargs):
-        result = {"stage": stage, "command": command, "exit_code": None}
+        log = artifacts / f"{len(report['checks']):03d}-{stage}.log"
+        result = {"stage": stage, "command": command, "exit_code": None,
+                  "log": log.name, "completed": False}
         entry["stages"].append(result)
         report["active"] = {"id": entry["id"], "stage": stage}
         checkpoint()
         started = time.monotonic()
         try:
-            process = subprocess.run(command, cwd=root, check=True, **kwargs)
-            result["exit_code"] = process.returncode
+            process = run(command, cwd=root, log=log, result=result, **kwargs)
+            process.check_returncode()
             return process
         except subprocess.CalledProcessError as error:
             result["exit_code"] = error.returncode
@@ -63,13 +63,14 @@ def execute(checks, generators, destination, root=ROOT):
     checkpoint()
     try:
         for check in checks:
-            entry = {"id": check["id"], "phase": check["phase"], "stages": [], "completed": False}
+            entry = {"id": check["id"], "phase": check["phase"], "stages": [], "completed": False,
+                     "expected_stages": ["generate", "validate"] if "generator" in check else ["validate"]}
             report["checks"].append(entry)
             print(f"Check {check['id']}", flush=True)
             body = None
             if generator := check.get("generator"):
                 command = [generators[generator["name"]], *generator["args"]]
-                body = invoke(command, "generate", stdout=subprocess.PIPE).stdout
+                body = invoke(command, "generate", capture_stdout=True).stdout
             invoke(expand(check["command"], root), "validate", input=body)
             entry["completed"] = True
             report["active"] = None

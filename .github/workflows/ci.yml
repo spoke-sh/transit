@@ -200,7 +200,9 @@ jobs:
           name: ci-${{ matrix.lane }}-${{ github.run_attempt }}
           path: |
             .cache/ci/*.json
+            .cache/ci/runs/
             .cache/checks/*.json
+            .cache/checks/runs/
             .cache/verification/*.json
             .cache/verification/model/*.json
             .cache/verification/model/*.log

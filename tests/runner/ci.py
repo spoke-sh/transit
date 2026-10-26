@@ -3,9 +3,10 @@ import argparse
 import json
 import os
 from pathlib import Path
-import subprocess
 import time
 import platform
+
+from capture import directory, provenance, run, write_json
 
 ROOT = Path(__file__).resolve().parents[2]
 SUITE = json.loads((ROOT / "tests/runner/suite.json").read_text())
@@ -23,13 +24,13 @@ def main():
     lanes = SUITE["tiers"].get(tier, [tier])
     results = []
     destination = ROOT / ".cache/ci" / f"{args.lane}.json"
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    artifacts = directory(destination)
     started_suite = time.monotonic()
     completed = False
     active_task = None
-    revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
-                              capture_output=True, text=True)
-    metadata = {"version": 1, "revision": revision.stdout.strip() or None,
+    metadata = {"version": 1, **provenance(ROOT),
+                "run_directory": str(artifacts.relative_to(destination.parent)),
+                "started_unix": time.time(),
                 "tier": args.lane,
                 "expected_tasks": [task for lane in lanes for task in LANES[lane]],
                 "run_id": os.getenv("GITHUB_RUN_ID"),
@@ -47,10 +48,9 @@ def main():
         metadata.update(completed=completed, active_task=active_task,
                         seconds=round(time.monotonic() - started_suite, 2),
                         checkpoint_unix=time.time(), result_count=len(results))
-        for path, value in ((destination, results), (destination.with_suffix(".meta.json"), metadata)):
-            temporary = path.with_suffix(path.suffix + ".tmp")
-            temporary.write_text(json.dumps(value, indent=2) + "\n")
-            temporary.replace(path)
+        for path, value in ((destination, results), (destination.with_suffix(".meta.json"), metadata),
+                            (artifacts / "results.json", results), (artifacts / "meta.json", metadata)):
+            write_json(path, value)
 
     checkpoint()
     try:
@@ -59,24 +59,28 @@ def main():
                 print(f"::group::{lane}: just {task}" if os.getenv("GITHUB_ACTIONS")
                       else f"CI {lane}: just {task}", flush=True)
                 started = time.monotonic()
-                active_task = {"lane": lane, "task": task}
+                log = artifacts / f"{len(results) + 1:03d}.log"
+                active_task = {"lane": lane, "task": task, "log": log.name}
+                result = {"lane": lane, "task": task, "log": log.name,
+                          "command": ["just", task], "exit_code": None, "completed": False}
                 checkpoint()
                 try:
-                    process = subprocess.run(["just", task], cwd=ROOT)
+                    process = run(["just", task], cwd=ROOT, log=log, result=result)
                     code = process.returncode
                 except BaseException:
                     code = 130
                     raise
                 finally:
                     elapsed = round(time.monotonic() - started, 2)
-                    results.append({"lane": lane, "task": task, "seconds": elapsed, "exit_code": code})
+                    result.update(seconds=elapsed)
+                    results.append(result)
                     active_task = None
                     checkpoint()
                     print(f"{task}: {elapsed:.2f}s, exit {code}", flush=True)
                     if os.getenv("GITHUB_ACTIONS"):
                         print("::endgroup::", flush=True)
                 if code:
-                    raise SystemExit(code)
+                    raise SystemExit(code if code > 0 else 128 - code)
         completed = True
     finally:
         checkpoint()

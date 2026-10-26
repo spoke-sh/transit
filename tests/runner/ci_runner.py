@@ -10,6 +10,7 @@ import time
 
 import yaml
 from ci import LANES, ROOT, SUITE
+from capture import verify
 from ci_select import select
 from ci_clean import profile
 from ci_cost import summarize
@@ -24,6 +25,7 @@ def clean_runner():
         source = root / "source"
         (source / "tests/runner").mkdir(parents=True)
         (source / "tests/runner/ci_clean.py").write_bytes((ROOT / "tests/runner/ci_clean.py").read_bytes())
+        (source / "tests/runner/capture.py").write_bytes((ROOT / "tests/runner/capture.py").read_bytes())
         (source / "tests/runner/suite.json").write_bytes((ROOT / "tests/runner/suite.json").read_bytes())
         (source / ".gitignore").write_text(".cache/\n")
         for command in (["init", "-q"], ["add", "."],
@@ -39,6 +41,8 @@ with open(os.environ["CI_CLEAN_RECORD"], "a") as log:
 if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in sys.argv):
     path = Path(".cache/checks" if any(arg.startswith("check::") for arg in sys.argv) else ".cache/ci")
     path.mkdir(parents=True)
+    (path / "runs/fixture").mkdir(parents=True)
+    (path / "runs/fixture/task.log").write_text("automatic output")
     (path / "result.json").write_text('{"fixture": true}\\n')
     Path(".cache/verification").mkdir()
     Path(".cache/verification/proof.json").write_text('{"fixture": true}\\n')
@@ -79,6 +83,8 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
                 reports = [p for p in reports if json.loads(p.read_text())["selection"] == lane]
                 assert len(reports) == 1
                 assert (reports[0].parent / "verification/proof.json").is_file()
+                result_directory = "checks" if check_scope else "."
+                assert (reports[0].parent / result_directory / "runs/fixture/task.log").read_text() == "automatic output"
                 if check_scope:
                     assert (reports[0].parent / "checks/result.json").is_file()
             metadata = json.loads(reports[0].read_text())
@@ -86,6 +92,8 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
             assert metadata["phases"][-1]["exit_code"] == exit_code
             assert metadata["shell"] == expected["shell"]
             assert all(row["seconds"] >= 0 for row in metadata["phases"])
+            assert all((reports[0].parent / "preparation" / row["log"]).is_file()
+                       for row in metadata["phases"])
 
 
 def main():
@@ -109,6 +117,7 @@ def main():
     artifacts = next(step for step in steps if step.get("name") == "Preserve task timings and completion evidence")
     assert ".cache/m9/station-local-readiness.json" in artifacts["with"]["path"].splitlines()
     assert ".cache/checks/*.json" in artifacts["with"]["path"].splitlines()
+    assert {".cache/ci/runs/", ".cache/checks/runs/"} <= set(artifacts["with"]["path"].splitlines())
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"
@@ -262,6 +271,7 @@ def main():
         runner = path / "tests/runner/ci.py"
         runner.parent.mkdir(parents=True)
         runner.write_bytes((ROOT / "tests/runner/ci.py").read_bytes())
+        (runner.parent / "capture.py").write_bytes((ROOT / "tests/runner/capture.py").read_bytes())
         (path / "tests/runner/suite.json").write_bytes((ROOT / "tests/runner/suite.json").read_bytes())
         env = os.environ | {"PATH": str(path) + os.pathsep + os.environ["PATH"],
                             "GITHUB_STEP_SUMMARY": str(path / "summary")}
@@ -272,6 +282,9 @@ def main():
         metadata = json.loads((path / ".cache/ci/browser.meta.json").read_text())
         assert metadata["completed"] is False
         assert metadata["expected_tasks"] == LANES["browser"]
+        logs = path / ".cache/ci" / metadata["run_directory"]
+        assert (logs / evidence[0]["log"]).read_text() == "deliberate task failure\n"
+        assert json.loads((logs / "results.json").read_text()) == evidence
         assert "transit-board::browser" in (path / "summary").read_text()
     # Both independent binding jobs and the full local selector must execute
     # exactly their declared tasks, retaining complete per-lane evidence.
@@ -280,6 +293,7 @@ def main():
         runner = path / "tests/runner/ci.py"
         runner.parent.mkdir(parents=True)
         runner.write_bytes((ROOT / "tests/runner/ci.py").read_bytes())
+        (runner.parent / "capture.py").write_bytes((ROOT / "tests/runner/capture.py").read_bytes())
         (path / "tests/runner/suite.json").write_bytes((ROOT / "tests/runner/suite.json").read_bytes())
         script = path / "just"
         script.write_text(f"#!{sys.executable}\nimport sys\nfrom pathlib import Path\n"
@@ -299,6 +313,7 @@ def main():
             assert metadata["completed"] and metadata["expected_tasks"] == expected
             assert metadata["result_count"] == len(expected)
             assert all(row["exit_code"] == 0 for row in evidence)
+            verify(path / ".cache/ci" / metadata["run_directory"])
     # Kill the real runner while its second task is active. Neither SIGTERM nor
     # SIGKILL executes its finally block; the earlier task must remain recorded.
     with tempfile.TemporaryDirectory(prefix="transit-ci-interrupted-") as directory:
@@ -306,6 +321,7 @@ def main():
         runner = path / "tests/runner/ci.py"
         runner.parent.mkdir(parents=True)
         runner.write_bytes((ROOT / "tests/runner/ci.py").read_bytes())
+        (runner.parent / "capture.py").write_bytes((ROOT / "tests/runner/capture.py").read_bytes())
         expected = ["first", "paused", "later"]
         (path / "tests/runner/suite.json").write_text(json.dumps({
             "version": 1, "lanes": {"fixture": expected}, "tiers": {}}))
@@ -340,8 +356,11 @@ def main():
             assert len(evidence) == metadata["result_count"] == 1
             assert evidence[0]["task"] == "first" and evidence[0]["exit_code"] == 0
             assert metadata["completed"] is False and metadata["expected_tasks"] == expected
-            assert metadata["active_task"] == {"lane": "fixture", "task": "paused"}
+            assert metadata["active_task"] == {"lane": "fixture", "task": "paused", "log": "002.log"}
             assert metadata["checkpoint_unix"] > 0
+            retained = path / ".cache/ci" / metadata["run_directory"]
+            assert (retained / "002.log").is_file()
+            assert json.loads((retained / "meta.json").read_text()) == metadata
             assert not (path / "later.started").exists()
         # A complete subsequent run replaces the incomplete checkpoint only
         # after every selected task succeeds.
@@ -352,6 +371,9 @@ def main():
         assert metadata["completed"] and metadata["active_task"] is None
         assert [row["task"] for row in evidence] == expected
         assert all(row["exit_code"] == 0 for row in evidence)
+        verify(path / ".cache/ci" / metadata["run_directory"])
+        assert len(list((path / ".cache/ci/runs").iterdir())) == 3
+        assert not json.loads((retained / "meta.json").read_text())["completed"]
     # Run the discovery entry point: a completed first stage followed by a
     # definite task failure must retain both outcomes and stop before stage 3.
     with tempfile.TemporaryDirectory(prefix='transit-discovery-runner-') as directory:

@@ -48,6 +48,8 @@ Report exactly what ran and what did not; task registration is not executed proo
 Keep this README an index. Current behavior belongs in the handbook, reusable
 methods beside their test owner, qualification accounts in
 [history topics](../docs/history/qualification/README.md), and raw records under
-their evidence owner. Use issues/PRs for active investigations and handoffs.
+ignored runner output and CI artifacts. The [evidence owner](evidence/README.md)
+documents specifically retained reproducibility references. Use issues/PRs for
+active investigations and handoffs.
 Never append progress diaries or full command transcripts to `tests/README.md`.
 Preserve original outcomes, source attribution and hashes when moving records.

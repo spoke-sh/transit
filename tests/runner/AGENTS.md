@@ -24,6 +24,10 @@ Pass arguments as arrays, preserve both generator and validator failures, and ke
 check results incomplete until all expected stages finish. Use immutable generator
 artifacts from the build graph; avoid shared mutable installation paths. Test real
 failure propagation and source-clean execution when changing orchestration.
+Use the shared capture helper for commands. Preserve separate exact generator
+stdout and bounded diagnostic logs; record truncation and incomplete attempts.
+Keep each invocation's artifacts automatically, with source/toolchain identity.
+Do not replace runner output with manually authored pass records or Git logs.
 
 Do not use elapsed time from one warm host as a cold or hosted qualification. Keep
 build, setup and executed validation costs separate and record source identity.

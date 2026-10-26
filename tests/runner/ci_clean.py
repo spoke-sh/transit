@@ -9,6 +9,8 @@ import subprocess
 import tempfile
 import time
 
+from capture import provenance, run as capture, write_json
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -65,23 +67,25 @@ def main():
     scratch = Path(directory) / "tmp"
     scratch.mkdir()
     preparation = Path(directory) / "preparation.json"
-    metadata = {"version": 1, "revision": revision, "selection": selected,
+    logs = Path(directory) / "preparation"
+    logs.mkdir()
+    metadata = {"version": 1, **provenance(ROOT), "selection": selected,
                 "shell": environment["shell"], "completed": False, "phases": []}
 
     def checkpoint():
-        temporary = preparation.with_suffix(".tmp")
-        temporary.write_text(json.dumps(metadata, indent=2) + "\n")
-        temporary.replace(preparation)
+        write_json(preparation, metadata)
 
     def phase(name, *command, **kwargs):
         entry = {"phase": name, "command": list(command), "exit_code": None,
-                 "started_unix": time.time()}
+                 "started_unix": time.time(), "completed": False,
+                 "log": f"{len(metadata['phases']) + 1:03d}.log"}
         metadata["phases"].append(entry)
         checkpoint()
         started = time.monotonic()
         try:
-            result = run(*command, **kwargs)
-            entry["exit_code"] = result.returncode
+            result = capture(list(command), cwd=kwargs.pop("cwd", ROOT),
+                             log=logs / entry["log"], result=entry, **kwargs)
+            result.check_returncode()
         except subprocess.CalledProcessError as error:
             entry["exit_code"] = error.returncode
             raise
@@ -119,6 +123,7 @@ def main():
             shutil.copytree(checkout / ".cache/ci", evidence)
         evidence.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(preparation, evidence / "preparation.json")
+        shutil.copytree(logs, evidence / "preparation")
         if (checkout / ".cache/verification").exists():
             shutil.copytree(checkout / ".cache/verification", evidence / "verification")
         if (checkout / ".cache/checks").exists():
