@@ -247,3 +247,78 @@ pub fn delete(self: *Self, key: []const u8) !void {
     // Content and checks remain immutable. Removing their last descriptor does
     // not prove that a captured reader or retained snapshot has released them.
 }
+
+/// Physical primitive for an exclusive retained-root owner. The caller must
+/// fence recreation and prove that no current/history/pin/in-flight reader owns
+/// this exact immutable object. Generic ObjectStore.delete cannot prove that.
+/// An allocation intent supplies the identity even if publication never finished.
+pub fn reclaimImmutable(self: *Self, key: []const u8, expected: object.ObjectMeta) !u64 {
+    try object.validateKey(key);
+    if (expected.size > object.max_object_bytes) return error.ObjectTooLarge;
+    const lock = try self.lockKey(key);
+    defer lock.close(self.io);
+    if (try self.readRecord(key)) |record| {
+        if (record.kind != .immutable or !std.meta.eql(record.meta, expected)) return error.ImmutableObjectConflict;
+    }
+    var keys = try self.dir.openDir(self.io, "keys", .{ .iterate = true });
+    defer keys.close(self.io);
+    var removed = try removeFile(self.io, keys, &keyName(key));
+    // Revoke discovery durably before removing the bytes it described.
+    try sync(self.io, keys);
+    var objects = try self.dir.openDir(self.io, "objects", .{ .iterate = true });
+    defer objects.close(self.io);
+    var filename: [144]u8 = undefined;
+    removed += try removeFile(self.io, objects, contentName(key, expected.sha256, false, &filename));
+    removed += try removeFile(self.io, objects, contentName(key, expected.sha256, true, &filename));
+    try sync(self.io, objects);
+    return removed;
+}
+
+/// Verify and establish durability of an observed immutable publication without
+/// repeating creation. Readable files after a crash are not a directory barrier.
+pub fn confirmImmutable(self: *Self, key: []const u8, expected: object.ObjectMeta) !void {
+    try object.validateKey(key);
+    const lock = try self.lockKey(key);
+    defer lock.close(self.io);
+    const record = (try self.readRecord(key)) orelse return error.ObjectNotFound;
+    if (record.kind != .immutable or !std.meta.eql(record.meta, expected)) return error.ImmutableObjectConflict;
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    var bytes: [chunk_bytes]u8 = undefined;
+    var offset: u64 = 0;
+    if (expected.size == 0) _ = try self.read(key, 0, 0, &bytes);
+    while (offset < expected.size) {
+        const wanted: u32 = @intCast(@min(bytes.len, expected.size - offset));
+        const part = try self.read(key, offset, wanted, &bytes);
+        if (part.len != wanted) return error.ObjectDigestMismatch;
+        hash.update(part);
+        offset += wanted;
+    }
+    if (!std.mem.eql(u8, &hash.finalResult(), &expected.sha256)) return error.ObjectDigestMismatch;
+    const objects = try self.dir.openDir(self.io, "objects", .{});
+    defer objects.close(self.io);
+    var name: [144]u8 = undefined;
+    // Both files must exist even for an empty object.
+    for ([_]bool{ false, true }) |checks| {
+        const file = try objects.openFile(self.io, contentName(key, expected.sha256, checks, &name), .{ .follow_symlinks = false });
+        defer file.close(self.io);
+        try file.sync(self.io);
+    }
+    try sync(self.io, objects);
+    const keys = try self.dir.openDir(self.io, "keys", .{});
+    defer keys.close(self.io);
+    const descriptor = try keys.openFile(self.io, &keyName(key), .{ .follow_symlinks = false });
+    defer descriptor.close(self.io);
+    try descriptor.sync(self.io);
+    try sync(self.io, keys);
+}
+
+fn removeFile(io: std.Io, directory: std.Io.Dir, name: []const u8) !u64 {
+    const file = directory.openFile(io, name, .{ .follow_symlinks = false }) catch |err| switch (err) {
+        error.FileNotFound => return 0,
+        else => return err,
+    };
+    defer file.close(io);
+    const size = try file.length(io);
+    try directory.deleteFile(io, name);
+    return size;
+}

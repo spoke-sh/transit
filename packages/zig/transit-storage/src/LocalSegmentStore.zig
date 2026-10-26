@@ -232,6 +232,37 @@ pub const LocalSegmentStore = struct {
         }
     }
 
+    /// Exclusive physical owner only; ordinary descriptor deletion retains bytes.
+    pub fn reclaimImmutableObject(self: *LocalSegmentStore, key: []const u8, expected: TransitObjectStore.ObjectMeta) !u64 {
+        if (self.disk) |disk| return disk.reclaimImmutable(key, expected);
+        const existing = (self.findMemory(key)) orelse return 0;
+        if (!existing.immutable or existing.bytes.len != expected.size or !std.mem.eql(u8, &existing.sha256, &expected.sha256)) return error.ImmutableObjectConflict;
+        const size = existing.bytes.len;
+        try self.deleteObject(key);
+        return size;
+    }
+
+    /// Confirm observed immutable bytes and their publication barriers. This
+    /// performs no PUT and does not restore missing or damaged object content.
+    pub fn confirmImmutableObject(self: *LocalSegmentStore, key: []const u8, expected: TransitObjectStore.ObjectMeta) !void {
+        try TransitObjectStore.validateKey(key);
+        if (self.disk) |disk| {
+            try disk.confirmImmutable(key, expected);
+            self.counters_mutex.lockUncancelable(disk.io);
+            defer self.counters_mutex.unlock(disk.io);
+            self.bytes_read += expected.size;
+            self.range_reads += @max(1, std.math.divCeil(u64, expected.size, Disk.chunk_bytes) catch unreachable);
+            return;
+        }
+        const existing = (self.findMemory(key)) orelse return error.ObjectNotFound;
+        if (!existing.immutable or existing.bytes.len != expected.size or !std.mem.eql(u8, &existing.sha256, &expected.sha256)) return error.ImmutableObjectConflict;
+        var digest: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(existing.bytes, &digest, .{});
+        if (!std.mem.eql(u8, &digest, &expected.sha256)) return error.ObjectDigestMismatch;
+        self.range_reads += 1;
+        self.bytes_read += expected.size;
+    }
+
     fn putImmutableErased(
         ctx: *anyopaque,
         key: []const u8,

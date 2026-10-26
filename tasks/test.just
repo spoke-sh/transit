@@ -19,6 +19,62 @@ storage-segments:
 local-storage-faults:
     zig build test-local-storage-faults -Doptimize=ReleaseSafe
 
+# Paired disk owner measurements; explicit output, raw samples and value oracles.
+[positional-arguments]
+[script]
+storage-benchmark *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zig build storage-benchmark -Doptimize=ReleaseSafe
+    python3 -B tests/storage_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
+
+# Matched WAL/bulk ingestion, native turn commit and independent reopen readback.
+[positional-arguments]
+[script]
+storage-ingest-benchmark *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zig build storage-benchmark -Doptimize=ReleaseSafe
+    python3 -B tests/storage_ingest_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
+
+# Table/native growth with 16 KiB values and a hard process memory ceiling.
+[positional-arguments]
+[script]
+storage-growth *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zig build storage-benchmark -Doptimize=ReleaseSafe -Dstorage-benchmark-body-bytes=16384 --prefix .cache/storage-growth
+    python3 -B tests/storage_growth.py .cache/storage-growth/bin/transit-storage-benchmark "$@"
+
+# Accepted Table archives, retained reads, current authority and interrupted trim.
+table-archives:
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="Table archive" -Dtest-filter="Table recovery rejects archive" -Dtest-filter="Table admitted work survives" --summary all
+    cd packages/zig/transit-backend-local && zig build test -Dtest-filter="direct Table archive" -Dtest-filter="direct data acceptance" --summary all
+    just test::local-storage-faults
+
+# Accepted bounded restart baselines, original evidence and publication crashes.
+table-checkpoints:
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="Table recovery checkpoint" -Dtest-filter="Table admitted work survives" -Dtest-filter="Table history floor" -Dtest-filter="Table compact evidence" -Dtest-filter="Table storage walk" -Dtest-filter="Table retained root enumeration" --summary all
+    cd packages/zig/transit-backend-local && zig build test -Dtest-filter="direct Table archive" --summary all
+    just test::local-storage-faults
+
+# Explicit private allocation ceilings across Table mutation/maintenance builders.
+table-build-memory:
+    cd packages/zig/transit-fuze && zig build test -Dtest-filter="memory budget" --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="Table build memory" -Dtest-filter="frozen SQL" -Dtest-filter="Table ALTER" -Dtest-filter="Table definition acceptance makes" -Dtest-filter="Table admitted work survives" --summary all
+    just test::local-storage-faults
+
+# Bounded live-row segment consolidation and exact retained roots after restart.
+table-compaction:
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="Table compaction" -Dtest-filter="Table segment ranges" -Dtest-filter="Table index batches" --summary all
+    cd packages/zig/transit-backend-local && zig build test -Dtest-filter="direct Table archive" --summary all
+    just test::local-storage-faults
+
+# Real process death during native object deletion and allocation FIFO progress.
+local-native-collection:
+    zig build test-local-native
+    zig build test-local-native-collection-faults -Doptimize=ReleaseSafe
+
 # Disk owner error propagation with real partial writes and injected syscall failures.
 storage-io-faults:
     cd packages/zig/transit-storage && zig build test -Dtest-filter="disk space errors" -Dtest-filter="disk sync errors" -Dtest-filter="disk recovery syncs complete" -Dtest-filter="disk opening syncs observed metadata" -Dtest-filter="object write errors" -Dtest-filter="object publication sync failures" --summary all
@@ -32,6 +88,20 @@ storage-key-ranges:
 table-count-ranges:
     cd packages/zig/transit-query && zig build test-unit -Dtest-filter="count range" --summary all
     just test::direct-table-service count-ranges
+
+# Projected segment pages, retained wire cursors and finite signed SQL reads.
+table-projection:
+    cd packages/zig/transit-fuze && zig build test -Dtest-filter="Table projection" --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="projected Table snapshots" --summary all
+    cd packages/zig/transit-catalog && zig build test -Dtest-filter="retained column scan" -Dtest-filter="retained reader binds" --summary all
+    just test::direct-table-service projection
+
+# Encoded decisions, retained visibility, empty coverage and owned output.
+table-filtering:
+    cd packages/zig/transit-fuze && zig build test -Dtest-filter="TSeg" --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="filtered Table" -Dtest-filter="projected Table snapshots" --summary all
+    cd packages/zig/transit-catalog && zig build test -Dtest-filter="retained filter" -Dtest-filter="retained reader" --summary all
+    just test::direct-table-service projection
 
 # Independent provider stalls, exact publication races and current revocation.
 node-concurrency:

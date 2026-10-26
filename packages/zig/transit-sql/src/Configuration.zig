@@ -228,6 +228,7 @@ test "SQL mappings reject shared native sequence owners and mismatched catalogs"
                 .object = "1",
                 .interpretation = .{ .revision = "1", .digest = @splat(1), .bytes = "1", .schema = @splat(2) },
                 .row_type = .{ .structure = &.{.{ .name = "id", .type = .int64 }} },
+                .collations = &.{.none},
             } } },
             .limits = .{ .pages = "100", .segments = "10", .result_bytes = "65536" },
         },

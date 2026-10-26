@@ -2,6 +2,7 @@
 const common = @import("CallerCodes.zig");
 pub const Entry = common.Entry;
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidProjection, .code = "catalog.invalid_projection", .category = .binding, .message = "Select increasing unique column ordinals from the retained schema, including every primary-key column." },
     .{ .cause = error.InvalidTableResponse, .code = "catalog.invalid_direct_response", .category = .integrity, .message = "The direct response does not match its exact request and source evidence. Preserve the original binding and inspect its owner." },
     .{ .cause = error.InvalidCatalogCursor, .code = "catalog.invalid_cursor", .category = .binding, .message = "The cursor must retain its original connection, selection, authority and position." },
     .{ .cause = error.CatalogObservationChanged, .code = "catalog.observation_changed", .category = .conflict, .message = "The directory changed during traversal. The earlier prefix does not establish complete coverage." },
@@ -23,5 +24,6 @@ pub const entries = [_]Entry{
     .{ .cause = error.QueryPageBudget, .code = "catalog.metadata_page_budget", .category = .limit, .message = "The metadata response exceeds the bounded page budget. No complete observation was established." },
     .{ .cause = error.StaleAuthorizationCredential, .code = "catalog.credential_changed", .category = .access, .message = "The current credential no longer matches the prepared authorization subject. Inspect current rights and preserve any earlier accepted work." },
     .{ .cause = error.TableBatchTooLarge, .code = "catalog.batch_limit", .category = .limit, .message = "The batch exceeds the explicit row limit. Prepare a bounded batch with its own operation identity." },
+    .{ .cause = error.TableBuildBudget, .code = "catalog.build_memory_limit", .category = .limit, .message = "The Table operation exceeds its configured build memory budget." },
     .{ .cause = error.TablePayloadTooLarge, .code = "catalog.payload_limit", .category = .limit, .message = "The saved Table intent exceeds its byte limit. Prepare bounded work before staging or admission." },
 };

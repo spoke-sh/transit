@@ -3,6 +3,8 @@
 const std = @import("std");
 const storage = @import("transit_storage");
 const Wal = storage.LocalWal.LocalWal;
+const p = @import("transit_protocol");
+const f = @import("transit_fuze");
 
 const Fault = struct {
     var real: std.Io = undefined;
@@ -174,6 +176,90 @@ fn objects(init: std.process.Init, io: std.Io, directory: []const u8, operation:
     return error.InvalidArguments;
 }
 
+const TableAccess = struct {
+    calls: usize = 0,
+    fn acquire(context: *anyopaque) !storage.TablePartition.Guard.Fence {
+        const self: *TableAccess = @ptrCast(@alignCast(context));
+        self.calls += 1;
+        if (self.calls == 2) {
+            if (std.mem.eql(u8, Fault.point, "before-accept")) Fault.stop();
+            if (std.mem.startsWith(u8, Fault.point, "accept-")) Fault.arm(Fault.point[7..]);
+        }
+        return .{ .writer_epoch = 1, .policy_epoch = 1 };
+    }
+    fn release(_: *anyopaque) void {}
+    fn guard(self: *TableAccess) storage.TablePartition.Guard {
+        return .{ .context = self, .acquire = acquire, .release = release };
+    }
+};
+
+fn table(init: std.process.Init, io: std.Io, directory: []const u8, operation: []const u8, point: []const u8) !void {
+    try std.Io.Dir.cwd().createDirPath(io, directory);
+    const dir = try std.Io.Dir.cwd().openDir(io, directory, .{});
+    defer dir.close(io);
+    var log = try Wal.openDiskWithOptions(init.gpa, io, dir, "wal", .{ .segment_bytes = storage.TransitLog.alignedFrameSize(1) });
+    defer log.deinit();
+    var store = try storage.LocalSegmentStore.LocalSegmentStore.openDiskAt(init.gpa, io, dir, "objects");
+    defer store.deinit();
+    const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
+    const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }}, .primary_key = &.{1} };
+    var owner = try storage.TablePartition.init(init.gpa, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, log.log(), store.objectStore(), .{ .resident_pages = 1 });
+    defer owner.deinit();
+    try owner.recover();
+    var access: TableAccess = .{};
+    const first: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = object.scope, .principal = 4, .operation = 1 }, .target = object, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(7) };
+    const pin_owner: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 100 };
+    if (std.mem.eql(u8, operation, "init") or std.mem.eql(u8, operation, "compact-init")) {
+        const ingestion: storage.TablePartition.Ingestion = if (std.mem.eql(u8, operation, "compact-init")) .bulk else .point;
+        _ = try owner.apply(first, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 1 } } }} } } }}, ingestion, access.guard());
+        _ = try owner.pin(pin_owner, .{ .partition = 17, .next_lsn = 1 }, access.guard());
+        var second = first;
+        second.identity.operation = 2;
+        second.action = .insert;
+        second.expected_definition = owner.root.interpretation;
+        _ = try owner.apply(second, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 2 } } }} } } }}, ingestion, access.guard());
+        return emit(init, .{ .tail = owner.root.next_lsn });
+    }
+    if (std.mem.eql(u8, operation, "inspect") or std.mem.eql(u8, operation, "compact-inspect") or std.mem.eql(u8, operation, "checkpoint-inspect")) {
+        const receipt = (try owner.observe(first, access.guard())).?;
+        const pin = (try owner.pinState(pin_owner, access.guard())).handle.?;
+        var page = try owner.scanSnapshot(init.gpa, pin, null, .{}, access.guard());
+        defer page.deinit();
+        if (page.count != 1 or page.next != null) return error.WrongSnapshot;
+        const history = try owner.history(.{ .partition = 17, .next_lsn = 0 }, .{ .partition = 17, .next_lsn = 3 }, 3, access.guard());
+        if (history.count != 2 or history.entries[0].?.receipt.binding.identity.operation != 1 or history.entries[1].?.receipt.binding.identity.operation != 2) return error.WrongHistory;
+        var current: [2]i128 = undefined;
+        for (&current, 1..) |*value, id| {
+            var bytes: [4096]u8 = undefined;
+            const key = try f.Collation.encodePrimaryKeySortKey(schema, &.{.{ .value = .{ .atom = .{ .signed = id } } }}, false, &bytes);
+            var row = (try owner.get(init.gpa, key, access.guard())) orelse return error.MissingRow;
+            defer row.deinit();
+            value.* = row.row().cells[0].value.atom.signed;
+        }
+        if (std.mem.eql(u8, operation, "checkpoint-inspect")) return emit(init, .{ .archived = owner.root.archive.through, .tail = owner.root.next_lsn, .rows = owner.root.live_rows, .pinned = page.rows[0].?.row().cells[0].value.atom.signed, .receipt = receipt.position.next_lsn, .history = history.count, .current = current, .checkpoint = owner.recovery_work.checkpoint_lsn, .replayed = owner.recovery_work.replayed_frames });
+        return emit(init, .{ .archived = owner.root.archive.through, .tail = owner.root.next_lsn, .rows = owner.root.live_rows, .pinned = page.rows[0].?.row().cells[0].value.atom.signed, .receipt = receipt.position.next_lsn, .history = history.count, .current = current, .next_segment = owner.root.next_segment });
+    }
+    access.calls = 0;
+    Fault.arm(point);
+    if (std.mem.eql(u8, operation, "checkpoint")) {
+        const reference = try owner.checkpoint(.{ .partition = 17, .next_lsn = 3 }, access.guard());
+        Fault.acknowledged();
+        return emit(init, .{ .checkpoint = reference.next_lsn, .tail = owner.root.next_lsn });
+    } else if (std.mem.eql(u8, operation, "compact")) {
+        const result = try owner.compact(3, .{}, access.guard());
+        Fault.acknowledged();
+        return emit(init, .{ .next_segment = owner.root.next_segment, .rows = result.rows });
+    } else if (std.mem.eql(u8, operation, "archive")) {
+        _ = try owner.archive(.{ .partition = 17, .next_lsn = 3 }, .{ .frames = 1 }, access.guard());
+    } else if (std.mem.eql(u8, operation, "archive-all")) {
+        while (!(try owner.archive(.{ .partition = 17, .next_lsn = 3 }, .{ .frames = 1 }, access.guard())).complete) {}
+    } else if (std.mem.eql(u8, operation, "trim")) {
+        _ = try owner.trimArchived(access.guard());
+    } else return error.InvalidArguments;
+    Fault.acknowledged();
+    return emit(init, .{ .archived = owner.root.archive.through });
+}
+
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 4) return error.InvalidArguments;
@@ -190,5 +276,6 @@ pub fn main(init: std.process.Init) !void {
     const operation = args[2][split + 1 ..];
     if (std.mem.eql(u8, kind, "wal")) return wal(init, io, args[1], operation, args[3]);
     if (std.mem.eql(u8, kind, "objects")) return objects(init, io, args[1], operation, args[3]);
+    if (std.mem.eql(u8, kind, "table")) return table(init, io, args[1], operation, args[3]);
     return error.InvalidArguments;
 }

@@ -30,12 +30,17 @@ throughput. It answers a memory-growth question, not every scaling question.
 
 ### Private object staging and native progress
 
-Can a private object write block unrelated native reads and control publication?
+Can a private direct-data write block unrelated native reads and control publication?
 The exclusive local backend uses one mutex for WAL access, accepted-head state
-and quota reservations. Immutable object publication needs neither a new native
+and quota reservations. Direct-data object publication needs neither a new native
 root nor that mutex while its files are written and synced. Each disk object key
 has its own publication lock; readers capture an atomic descriptor and verify
-the requested content. No physical object collector runs in this owner.
+the requested content. Direct-data objects remain outside physical collection.
+The explicit native collector has a different creation/deletion boundary:
+`Backend.putNative` holds the journal mutex through allocation recording and
+object publication, and native reclamation holds the same mutex. This prevents
+a delayed creator from recreating an object after its allocation is consumed;
+native allocation/object syncs can therefore delay unrelated journal work.
 
 [`Backend.put`](../../../packages/zig/transit-backend-local/src/Backend.zig)
 checks for an existing descriptor, reserves encoded bytes under the shared
@@ -244,6 +249,155 @@ The [namespace request contract](../../../contracts/DIRECT_TABLE_V1.md#namespace
 defines those separate lifetimes. Catalog, signed native and HTTP evidence is
 recorded in the [proof ledger](../../../tests/README.md#direct-namespace-lifecycle--2026-10-23).
 
+## Complete Table history with bounded archive publication
+
+The local Table maintenance question is whether WAL files can be removed while
+preserving the original accepted changes, retry receipts and retained unflushed
+rows. The implemented archive profile assumes a serialized Table owner, durable
+immutable object publication, an exclusive local WAL, and the current authority
+check at publication/trimming. Archival preserves unlimited logical history by
+default. Explicit logical expiry is a separate transition described below;
+immutable Table-object collection remains unimplemented.
+
+Let `A` be the exclusive archived LSN and `N` the accepted frontier. A nonempty
+archive satisfies `0 < A < N`; its paged directory maps every LSN in `[0,A)` to
+one complete original TWAL frame. Archiving stages a bounded contiguous extension
+and its immutable directory before publishing `A` in a Table acceptance record.
+That transition preserves all logical row, definition, receipt, pin and operation
+roots. Trimming can remove only `[0,A)`, so at least the latest acceptance record
+remains in WAL. An interrupted copy leaves unreachable candidates; an interrupted
+publication is resolved from accepted history; an interrupted trim resumes at
+the same accepted coverage. None of these events grants logical expiry.
+
+Recovery uses the latest accepted WAL record to locate candidate archive coverage
+and an optional accepted recovery baseline. Without a baseline it verifies the
+complete hash-linked chain from zero before serving; the baseline case is defined
+below.
+It checks archive object hashes and original frame coordinates as well as the
+normal Table transition rules. This avoids treating an independently discovered
+manifest or an object's existence as acceptance. Missing or substituted frames
+fail closed. A retained root keeps its original LSNs and commitments while reads
+resolve physical placement through the latest accepted archive directory.
+Consequently a slow consumer and a snapshot containing unflushed rows require no
+cursor rewrite or synthesized changefeed event.
+
+`TableArchive` holds one input/output frame pair at a time. Archive calls admit at
+most eight frames, explicit encoded-byte work and the owner's index work/cache
+bounds. This bounds resident work independently of retained history. Complete
+replay without a recovery checkpoint costs time proportional to accepted history
+plus index lookups; archival alone is not a constant-time restart mechanism or a
+compression claim. Archive copies also need physical space
+before WAL removal; reserved control capacity supports this ordering without
+using disk pressure as retention authority.
+
+The exact layout and transitions are in the
+[storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#table-history-archives),
+with implementation in `TableArchive`, `TablePartition` and the local `DataStore`.
+The [proof ledger](../../../tests/README.md) separates disk/restart and process-death
+checks from power-loss behavior, automatic scheduling and future collection.
+
+## Accepted Table recovery baselines
+
+The restart question differs from historical retention: can a Table recover its
+current accepted state without revalidating every archived logical transaction?
+The model assumes the same serialized owner, current authorization fence and
+immutable publication guarantees as archival. A ready owner has already
+validated its accepted state; the checkpoint operation records that state,
+including pending work, exact receipts and pins, rather than deriving a
+latest-value projection from rows.
+
+Let `C` be the exclusive frontier of the saved root, `H` the last accepted record
+payload hash there, and `N` the current frontier. A bounded capsule stores the
+root and `H`. The WAL transition at `C` publishes its content hash and advances
+only the physical recovery reference and accepted frontier. Consequently an
+unpublished capsule cannot authorize restart. Recovery checks the capsule's exact
+identity, then verifies that transition against both the saved root and `H`.
+Every later record must retain the selected reference and extend the normal
+hash-linked chain. Any accepted newer checkpoint would instead be selected from
+the latest record. This reduces Table transition replay from `[0,N)` to `[C,N)`;
+it does not bypass the exclusive WAL owner's retained-file validation.
+
+The capsule is at most 16,424 encoded bytes and contains directory roots rather
+than arrays of rows or receipts. Replay keeps one bounded frame at a time; current
+top-level directories and the declaration load before readiness. Admitted-work
+transitions may still consult compact original operation evidence. The dependency
+on that evidence is retained independently of the restart baseline. A superseded
+capsule is not recursively loaded: its root is already contained in the newer
+baseline. This avoids a checkpoint chain whose restart cost grows with the
+number of previous checkpoints.
+
+An alternative is replay from creation on every reopen. That gives an eager
+integrity check of all accepted record bytes but makes reopen proportional to
+retained history even after archival. The implemented baseline instead checks
+older history and descendant objects when accessed; corruption there can fail a
+later historical read or original-operation retry even when current state opens.
+No failure becomes an empty table, a fresh retry identity or a skipped prefix.
+A missing selected capsule always fails readiness, even if older WAL files remain.
+Neither approach establishes correctness after losing the only durable disk or
+arbitrary rollback of accepted storage.
+
+The [checkpoint contract](../../../contracts/TRANSIT_STORAGE_V1.md#table-recovery-checkpoints)
+and `TableRecovery`/`TablePartition` define the bytes and transition checks.
+The focused `test::table-checkpoints` recipe exercises retained disk reads,
+publication uncertainty and bounded replay; executed results belong in the
+[proof ledger](../../../tests/README.md). Its replay counters exclude provider and
+index I/O, and do not establish a latency or whole-process RSS bound. Logical
+expiry, object collection and automatic scheduling remain separate mechanisms.
+
+## Logical expiry and original outcome retention
+
+The retention question is which obligations can release historical row payloads
+without losing an accepted result or an offline consumer's position. The model
+uses the same exclusive Table owner and immutable publication assumptions as
+recovery. Logical history, exact snapshots, current state, operation outcomes and
+recovery are distinct obligations. A logical floor changes only the first;
+storage pressure grants no authority to change any of them.
+
+Let `F` be the logical floor, `A` the archive frontier, `C` the published recovery
+baseline and `L` the oldest live history lease's exclusive frontier. An explicitly
+requested advance `F'` requires `F < F' <= min(A,C,N)` and, when a live lease
+exists, `F' <= L`. Zero is the unlimited default. A paged index ordered by
+`(frontier, principal, operation)` supplies the minimum through a bounded tree
+path. Acquisition/release publishes that entry with the owner-keyed pin record;
+recovery validates the same transition. History reads below the accepted floor
+fail after checking current authorization, including empty intervals. Ordinary
+snapshot pins retain their exact data independently of this logical floor.
+A live history lease also retains its anchor frame at `L - 1`: reopening the
+exclusive position `L` verifies that frame's commitment. Thus `F = L` does not
+make every physical frame below `F` disposable.
+
+Original receipts could instead continue pointing to complete accepting frames.
+That representation makes an outcome lookup depend on the old row payload and
+embeds row-root references in evidence retained for unrelated purposes. The
+implemented `TableEvidence` representation stores bounded outcome/control
+metadata separately. The accepting WAL transition publishes its content reference
+in the same paged receipt or operation directory. Recomputing that reference from
+the acceptance binds the object to its original result, identity and position.
+The evidence retains the original declaration or frozen intent, with no old row,
+archive, recovery or pin roots. This costs one immutable evidence staging call
+per accepted mutation/control plus hashing its bounded metadata; its latency
+effect requires measurement and is not implied by reduced retention dependencies.
+
+These mechanisms establish a logical read boundary and remove one physical
+dependency. They are not a collector: current/unflushed rows, snapshots, complete
+unexpired history, checkpoints and other owners still require a complete retained
+graph before deleting any shared object. Missing evidence fails even when its
+old WAL frame happens to remain. An alternative fallback would obscure corruption
+and make physical retention depend on which observation path executes.
+
+The [floor contract](../../../contracts/TRANSIT_STORAGE_V1.md#table-logical-history-floors)
+and [evidence contract](../../../contracts/TRANSIT_STORAGE_V1.md#compact-table-outcome-and-operation-evidence)
+own exact bytes and transitions. Implementation is in
+[`TablePartition`](../../../packages/zig/transit-storage/src/TablePartition.zig)
+and [`TableEvidence`](../../../packages/zig/transit-storage/src/TableEvidence.zig).
+The disk and negative cases in
+[`table_partition_test.zig`](../../../packages/zig/transit-storage/src/table_partition_test.zig)
+exercise lease blocking, lost replies, restart, missing/corrupt evidence and
+original outcomes after test-only removal of expired payload frames. The
+`test::table-checkpoints` recipe groups these checks; the [proof ledger](../../../tests/README.md)
+records reproduction commands, executed results and source limits. This does not prove a deletion
+algorithm, automatic service retention or recovery after disk loss.
+
 ## Four-tier storage architecture, `.tseg` segments and multi-writer OCC
 
 This section is architectural design analysis anchored against the measured
@@ -257,7 +411,8 @@ local development (`transit server`) and disaggregated cloud/Kubernetes topologi
 The tier diagram and hierarchy below describe proposed profiles. They do not
 establish installed memtable recovery, group commit, remote caching, automatic
 trimming or compaction. The current direct Table owner uses paged indexes and
-retains its complete WAL and immutable objects; it does not recover through the
+retains complete logical history through WAL plus accepted archives and keeps
+immutable objects; it does not recover through the
 standalone memtable/manifest composition. Its
 [partition contract](../../../packages/zig/transit-storage/docs/table-partitions.md)
 owns the implemented acceptance, read-pin and recovery boundaries.
@@ -725,6 +880,72 @@ restarts processes/provider between phases, loses a deletion acknowledgement,
 corrupts a reachable block and checks retained read versions after relocation.
 These finite schedules do not prove arbitrary provider rollback safety, immediate
 filesystem/cold-object space return, distributed clock correctness or throughput.
+
+### Local immutable-object collection
+
+The local implementation asks the same ownership question at individual object
+granularity: which native pages and blocks can be removed without invalidating
+accepted history, a current root or a live capture? The
+[local collector](../../../packages/zig/transit-backend-local/src/StorageCollection.zig)
+uses the same typed root enumeration and graph traversal. It assumes exclusive
+directory ownership, durable local sync, the native request/snapshot bounds and
+trusted time. It excludes Table objects and standalone payload publication.
+
+An [allocation FIFO](../../../packages/zig/transit-backend-local/src/NativeAllocations.zig)
+records intent before the exact marker and content can become visible. Carrying
+a retained item and advancing the consumed prefix use one WAL append. Thus a
+crash after physical deletion but before private progress publication leaves
+either the original intent or an already consumed item; recovery cannot invent
+a new deletion target. Duplicate uncertain creation intents refer to the same
+immutable identity. The accepted storage epoch rejects delayed old creators,
+so the local owner does not require Ursula's permanent closed-stream fence.
+
+The mark index distinguishes traversal kind and captured-resource scope before
+reusing a visited subtree. A separate physical-object mark protects its bytes.
+History and current live captures are independent root sources; historical closed
+capture metadata is not recursive ownership. An incomplete mark set, including
+one interrupted by an authorized history trim, never reaches sweep. After the
+snapshot/request grace and a persisted time floor, the exact pending allocation
+authorizes descriptor, payload, checksum and marker removal in that order.
+
+Each step visits at most four graph edges, one allocation, or 64 empty FIFO
+records. Tree height, private metadata size and cache budgets bound resident
+work independently of retained cardinality. A directory-search cursor would
+also bound memory but would repeatedly enumerate the inventory; the FIFO avoids
+that scan. It adds durable writes and inherits WAL recovery/trim I/O. Control
+capacity must cover its progress and mark pages. File-length accounting remains
+conservative after uncertainty and does not measure filesystem blocks or inodes.
+
+The [native disk tests](../../../packages/zig/transit-backend-local/src/collection_test.zig)
+and [process-death harness](../../../tests/local_native_collection_faults.py)
+check current and retained values, relocation, old creators, corrupt metadata,
+FIFO sync uncertainty and resumed deletion. Reproduction and executed outcomes
+are recorded in the [proof ledger](../../../tests/README.md). These finite controls
+do not prove arbitrary filesystem rollback or power-loss behavior, and automatic
+installed scheduling is separate from the component mechanism. No latency or
+throughput claim follows from its bounded resident state.
+
+Standalone payloads have a separate question: after losing a creation reply,
+what evidence permits the publisher to declare the original bytes ready? The
+[local payload adapter](../../../packages/zig/transit-backend-local/src/PayloadStore.zig)
+keeps a permanent attempt marker and verifies the current accepted declaration.
+It never retries creation during recovery. A readable descriptor can have survived
+process death before its directory sync, so read-and-hash alone would let a later
+`payload_ready` outlive that publication after a subsequent power failure. The
+[confirmation primitive](../../../packages/zig/transit-storage/src/DiskObjects.zig)
+verifies complete content and syncs content/checksum files, their directory,
+the descriptor and its directory. The marker has its own file/directory barriers.
+Only successful verification permits the trusted caller to publish readiness.
+Native authentication and payload phase transitions remain independent checks.
+
+The [payload tests](../../../packages/zig/transit-backend-local/src/payload_test.zig)
+inject all creation and verification sync failures, race independent creator
+lanes, corrupt markers/content and resume deletion while preserving native
+retirement. The [disk-object control](../../../packages/zig/transit-storage/src/disk_objects_test.zig)
+checks confirmation barrier order and empty-object corruption. These establish
+the observed local syscall boundaries; they do not model every filesystem's
+power-loss behavior. The alternative of repeating an immutable PUT is unsuitable
+for this owner because its contract preserves one uncertain creation attempt.
 
 ## Reducing durable mutation work
 

@@ -8,7 +8,7 @@ const t = f.Types;
 const w = c.DirectTableProtocol;
 const d = q.protocol.DataLifecycle;
 const Self = @This();
-pub const max_bytes = 174 + t.max_encoding_bytes;
+pub const max_bytes = 174 + t.max_encoding_bytes + f.TableSchema.max_columns;
 scope: d.Scope,
 /// The explicitly configured Table service audience, independent of query PID.
 owner: u64,
@@ -17,6 +17,7 @@ namespace: u64,
 object: u64,
 interpretation: c.storage.TableDeclaration.Stored,
 row_type: t.Type,
+collations: f.QueryCollations = .{},
 
 pub const Owned = struct {
     descriptor: t.Decoded,
@@ -34,6 +35,7 @@ pub fn validate(self: Self) !void {
     const object: d.Object = .{ .scope = self.scope, .branch = self.branch, .object = self.object };
     if (!std.meta.eql(object, self.interpretation.interpretation.object) or self.interpretation.retired) return error.InvalidQuerySource;
     try self.row_type.validate(.{});
+    try self.collations.validate(self.row_type);
     if (self.row_type != .structure or self.row_type.structure.len == 0 or self.row_type.structure.len > f.TableSchema.max_columns) return error.InvalidQuerySource;
 }
 /// Copy the admitted schema. The interpretation commits physical descriptors,
@@ -50,7 +52,7 @@ pub fn from(allocator: std.mem.Allocator, connection: w.Connection, definition: 
     var fields: [f.TableSchema.max_columns]t.Field = undefined;
     var descriptor = try (try schema.schema.rowType(&fields)).clone(allocator);
     errdefer descriptor.deinit();
-    const source: Self = .{ .scope = connection.scope, .owner = connection.audience, .branch = connection.branch, .namespace = definition.namespace, .object = schema.schema.object, .interpretation = definition.interpretation, .row_type = descriptor.type };
+    const source: Self = .{ .scope = connection.scope, .owner = connection.audience, .branch = connection.branch, .namespace = definition.namespace, .object = schema.schema.object, .interpretation = definition.interpretation, .row_type = descriptor.type, .collations = .fromTable(schema.schema) };
     try source.validate();
     return .{ .descriptor = descriptor, .source = source };
 }
@@ -69,6 +71,7 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
     try writer.writeAll(&self.interpretation.schema_fingerprint);
     try writer.writeInt(u16, @intCast(encoded.len), .little);
     try writer.writeAll(encoded);
+    try self.collations.write(self.row_type, &writer);
     return writer.buffered();
 }
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
@@ -100,8 +103,9 @@ pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !Self {
         .retired = false,
     };
     const type_bytes = try reader.take(try reader.takeInt(u16, .little));
-    if (reader.bufferedLen() != 0) return error.InvalidSourceEncoding;
     source.row_type = try t.decodeInto(arena, type_bytes);
+    source.collations = try f.QueryCollations.read(source.row_type, &reader);
+    if (reader.bufferedLen() != 0) return error.InvalidSourceEncoding;
     try source.validate();
     var canonical: [max_bytes]u8 = undefined;
     if (!std.mem.eql(u8, try source.encode(&canonical), bytes)) return error.InvalidSourceEncoding;
@@ -130,6 +134,7 @@ pub fn checkDefinition(self: Self, client: c.DirectTableClient) !void {
     // supplied logical descriptor used by SQL binding and metadata disclosure.
     if (!std.meta.eql(current.source.interpretation, self.interpretation) or
         current.source.namespace != self.namespace or
+        !std.meta.eql(current.source.collations, self.collations) or
         !try current.source.row_type.eql(self.row_type)) return error.TableSchemaChanged;
 }
 pub fn requireGrant(self: Self, allocator: std.mem.Allocator, grant: c.DirectReadDelegation) !void {
@@ -152,6 +157,7 @@ pub fn basis(self: Self, retained: c.DirectTableReader.Basis, schema: f.TableSch
     try self.validate();
     if (!std.meta.eql(retained.interpretation, self.interpretation) or !std.mem.eql(u8, &try schema.fingerprint(), &self.interpretation.schema_fingerprint)) return error.SourceChanged;
     try q.DirectTableQuery.qualify(schema);
+    if (!std.meta.eql(self.collations, f.QueryCollations.fromTable(schema))) return error.TableSchemaChanged;
     var fields: [f.TableSchema.max_columns]t.Field = undefined;
     if (!try self.row_type.eql(try schema.rowType(&fields))) return error.TableSchemaChanged;
     return .{ .declaration = try self.fingerprint(), .schema = try self.row_type.fingerprint(), .retained = retained };
@@ -193,7 +199,7 @@ pub const Page = struct {
 pub fn page(self: Self, allocator: std.mem.Allocator, captured: Basis, cursor: Cursor, plan: f.LogicalQuery.Plan, client: c.DirectTableClient) !Page {
     try self.requireConnection(client);
     const binding = try captured.fingerprint();
-    if (!std.mem.eql(u8, &binding, &cursor.binding) or !std.mem.eql(u8, &binding, &plan.source_basis) or !try self.row_type.eql(plan.schema)) return error.SourceChanged;
+    if (!std.mem.eql(u8, &binding, &cursor.binding) or !std.mem.eql(u8, &binding, &plan.source_basis) or !try self.row_type.eql(plan.schema) or !std.meta.eql(plan.collations, self.collations)) return error.SourceChanged;
     if (cursor.done) return error.QueryComplete;
     if (cursor.scanned > captured.retained.row_count or (cursor.scanned == 0) != (cursor.after == null)) return error.InvalidQueryCursor;
     try plan.validate();

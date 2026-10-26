@@ -7,6 +7,8 @@ const TSeg = @import("TSeg.zig");
 const TableSchema = @import("TableSchema.zig");
 const Values = @import("Values.zig");
 const PhysicalCodecs = @import("PhysicalCodecs.zig");
+const ColumnPredicate = @import("ColumnPredicate.zig");
+const PredicateMachine = @import("PredicateMachine.zig");
 const Self = @This();
 
 pub const Source = struct {
@@ -21,11 +23,96 @@ pub const Limits = struct {
     decoded_bytes: usize = 64 * 1024 * 1024,
 };
 
+pub const Filter = struct { column: usize, predicate: ColumnPredicate.Predicate };
+pub const FilterFailure = struct { row: u32, column: usize, instruction: u8 = 0, outcome: ColumnPredicate.Outcome };
+
+/// A bounded owner-selected page, in logical traversal order. Physical segment
+/// ordinals may differ from that order; visibility remains the owner's decision.
+pub const Candidates = struct {
+    pub const max_rows = 1024;
+    rows: []const u32,
+    matches: ?usize = null,
+    fn validate(self: Candidates, source_rows: u32) !void {
+        if (self.rows.len > max_rows) return error.InvalidColumnSelection;
+        for (self.rows, 0..) |row, i| {
+            if (row >= source_rows) return error.InvalidColumnSelection;
+            for (self.rows[0..i]) |previous| if (previous == row) return error.InvalidColumnSelection;
+        }
+    }
+};
+pub const CandidateGroup = struct {
+    group: Group,
+    /// Positions consumed from the supplied candidate page, including misses.
+    /// A match limit may leave a suffix unexamined. This is not source coverage.
+    examined: usize,
+    pub fn deinit(self: *CandidateGroup) void {
+        self.group.deinit();
+        self.* = undefined;
+    }
+};
+
+/// A deferred filter decision. Unknown and false both skip the row; eager
+/// semantic failures remain data until the owner visits this physical ordinal.
+pub const Decision = struct {
+    selected: bool = false,
+    failure: ?struct { column: u8, instruction: u8, outcome: ColumnPredicate.Outcome } = null,
+};
+pub const Decisions = struct {
+    workspace: *Workspace,
+    index: usize,
+    rows: []const Decision,
+    pub fn deinit(self: *Decisions) void {
+        self.workspace.deinit();
+        self.* = undefined;
+    }
+    pub fn allocatedBytes(self: Decisions) usize {
+        return self.workspace.used;
+    }
+};
+
+/// Evaluate encoded atoms once for bounded reuse across owner-selected rows.
+/// This visits no logical source rows: the owner decides visibility, ordering,
+/// LIMIT and failure disclosure. Pruning represents only a non-selection, not
+/// exact three-valued truth. Structural/page integrity errors still fail now.
+pub fn decisions(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, limits: Limits) !Decisions {
+    if (schema.object != self.footer.object_id or schema.revision != self.footer.schema_revision or
+        !std.mem.eql(u8, &try schema.layoutFingerprint(), &self.footer.layout_fingerprint)) return error.TableSchemaChanged;
+    if (index >= self.footer.row_groups.len or self.footer.row_groups[index].pages.len != schema.columns.len) return error.InvalidSegmentCoordinate;
+    try program.validate(schema);
+    const workspace = try Workspace.init(allocator, limits.decoded_bytes);
+    errdefer workspace.deinit();
+    const metadata = self.footer.row_groups[index];
+    const rows = workspace.arena.allocator().alloc(Decision, metadata.row_count) catch |err| return workspace.failure(err);
+    @memset(rows, .{});
+    if (try program.mayMatch(schema, metadata.zone_maps)) {
+        var columns = ProgramColumns.init(self, allocator, workspace, source, schema, index, program, limits.page_bytes) catch |err| return workspace.failure(err);
+        defer columns.deinit();
+        for (rows, 0..) |*row, ordinal| row.* = try columns.decision(program, ordinal);
+    }
+    return .{ .workspace = workspace, .index = index, .rows = rows };
+}
+
+pub const Column = union(enum) {
+    cells: []Values.Cell,
+    plain: PhysicalCodecs.PlainColumn,
+    pub fn len(self: Column) usize {
+        return switch (self) {
+            .cells => |cells| cells.len,
+            .plain => |plain| plain.buffers.tags.len,
+        };
+    }
+    pub fn cell(self: Column, row: usize) Values.Cell {
+        return switch (self) {
+            .cells => |cells| cells[row],
+            .plain => |plain| plain.cell(row),
+        };
+    }
+};
 pub const Group = struct {
     workspace: *Workspace,
     index: usize,
     source_rows: u32,
-    columns: [][]Values.Cell,
+    columns: []Column,
     /// Null denotes all rows; otherwise ordinals are owned, sorted and unique.
     rows: ?[]const u32 = null,
     pub fn deinit(self: *Group) void {
@@ -52,6 +139,19 @@ pub const Group = struct {
     }
 };
 
+/// One independently owned group with plain byte payloads borrowed from its
+/// verified page buffers. Release decoded metadata before those buffers. The
+/// source and reader can close immediately; views cannot outlive this owner.
+pub const BufferedGroup = struct {
+    encoded: EncodedGroup,
+    decoded: Group,
+    pub fn deinit(self: *BufferedGroup) void {
+        self.decoded.deinit();
+        self.encoded.deinit();
+        self.* = undefined;
+    }
+};
+
 /// Owned encoded pages for one projected group. Repeated point selections can
 /// reuse verified bytes without retaining unrelated expanded values. This is
 /// an explicit owner, independent of the source and reader lifetimes.
@@ -64,7 +164,7 @@ pub const EncodedGroup = struct {
     row_count: u32,
     pages: []Page,
     bytes: usize,
-    const Page = struct { column: usize, bytes: []u8 };
+    const Page = struct { column: usize, bytes: []align(64) u8 };
 
     pub fn deinit(self: *EncodedGroup) void {
         for (self.pages) |page| self.allocator.free(page.bytes);
@@ -87,11 +187,11 @@ pub const EncodedGroup = struct {
         errdefer workspace.deinit();
         const a = workspace.arena.allocator();
         const owned_rows = a.dupe(u32, rows) catch |err| return workspace.failure(err);
-        const columns = a.alloc([]Values.Cell, self.pages.len) catch |err| return workspace.failure(err);
+        const columns = a.alloc(Column, self.pages.len) catch |err| return workspace.failure(err);
         for (self.pages, columns) |page, *cells| {
             const selected = PhysicalCodecs.decodeColumnPageSelected(workspace.bounded(), a, schema.columns[page.column], page.bytes, rows) catch |err| return workspace.failure(err);
             if (selected.row_count != self.row_count) return error.InvalidSegment;
-            cells.* = selected.cells;
+            cells.* = .{ .cells = selected.cells };
         }
         return .{ .workspace = workspace, .index = self.index, .source_rows = self.row_count, .columns = columns, .rows = owned_rows };
     }
@@ -149,11 +249,206 @@ pub fn group(self: *const Self, allocator: std.mem.Allocator, source: Source, sc
     if (projection.len > schema.columns.len or limits.decoded_bytes == 0) return error.SegmentReadBudgetExceeded;
     const workspace = try Workspace.init(allocator, limits.decoded_bytes);
     errdefer workspace.deinit();
-    const cells = workspace.arena.allocator().alloc([]Values.Cell, projection.len) catch |err| return workspace.failure(err);
+    const cells = workspace.arena.allocator().alloc(Column, projection.len) catch |err| return workspace.failure(err);
     for (projection, cells) |column_index, *out| {
-        out.* = self.column(allocator, workspace.arena.allocator(), source, schema, index, column_index, limits.page_bytes) catch |err| return workspace.failure(err);
+        out.* = .{ .cells = self.column(allocator, workspace.arena.allocator(), source, schema, index, column_index, limits.page_bytes) catch |err| return workspace.failure(err) };
     }
     return .{ .workspace = workspace, .index = index, .source_rows = self.footer.row_groups[index].row_count, .columns = cells };
+}
+
+/// Retain projected verified pages under a total encoded-byte allowance and
+/// borrow compatible plain payloads while decoding bounded cell metadata.
+/// Compressed columns use the same bounded owned expansion as `group`.
+pub fn bufferedGroup(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, encoded_budget: usize, decoded_budget: usize) !BufferedGroup {
+    if (decoded_budget == 0) return error.SegmentReadBudgetExceeded;
+    var encoded = try self.encodedGroup(allocator, source, schema, index, projection, encoded_budget);
+    errdefer encoded.deinit();
+    const workspace = try Workspace.init(allocator, decoded_budget);
+    errdefer workspace.deinit();
+    const a = workspace.arena.allocator();
+    const columns = a.alloc(Column, projection.len) catch |err| return workspace.failure(err);
+    for (encoded.pages, columns) |page, *cells| {
+        const descriptor = schema.columns[page.column];
+        if (descriptor.encoding == .plain and PhysicalCodecs.PlainBuffers.supports(descriptor.type)) {
+            const plain = PhysicalCodecs.borrowPlainColumn(workspace.bounded(), a, descriptor, page.bytes) catch |err| return workspace.failure(err);
+            if (plain.buffers.tags.len != encoded.row_count) return error.InvalidSegment;
+            cells.* = .{ .plain = plain };
+        } else {
+            const decoded = PhysicalCodecs.decodeColumnPageBorrowingBytes(workspace.bounded(), a, descriptor, page.bytes, null) catch |err| return workspace.failure(err);
+            if (decoded.row_count != encoded.row_count) return error.InvalidSegment;
+            cells.* = .{ .cells = decoded.cells };
+        }
+    }
+    return .{ .encoded = encoded, .decoded = .{ .workspace = workspace, .index = index, .source_rows = encoded.row_count, .columns = columns } };
+}
+
+/// Use trusted, interpretation-bound zone maps before fetching the predicate
+/// page. Evaluate that page without retaining decoded payloads, then decode
+/// only matching rows of projected columns. Error/conflict outcomes remain
+/// eager and row-addressed; no result escapes a failed group. Source order is
+/// unchanged. The caller still owns snapshot, deletion and authorization gates.
+pub fn filteredGroup(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, filter: Filter, limits: Limits, failure: *?FilterFailure) !Group {
+    failure.* = null;
+    if (filter.column >= schema.columns.len or filter.column >= TableSchema.max_columns) return error.InvalidSegmentCoordinate;
+    const instructions = [_]ColumnPredicate.Program.Instruction{.{ .atom = .{ .column = @intCast(filter.column), .predicate = filter.predicate } }};
+    return self.filteredProgram(allocator, source, schema, index, projection, .{ .instructions = &instructions }, limits, failure);
+}
+
+/// Evaluate a bounded eager Boolean program over encoded column outcomes.
+/// Group pruning is conservative under NOT/AND/OR and unknown values. All atoms
+/// remain eager; failures arbitrate by source row then original instruction.
+pub fn filteredProgram(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, program: ColumnPredicate.Program, limits: Limits, failure: *?FilterFailure) !Group {
+    return (try self.filterProgram(allocator, source, schema, index, projection, program, null, limits, failure)).group;
+}
+
+/// Evaluate only the owner's visible candidates, in their logical order, and
+/// stop operator evaluation after the requested number of matches. Encoded page
+/// validation remains complete. Omitted rows cannot introduce semantic failures;
+/// invalid page bytes still reject. Returned cells are indexed by sorted physical
+/// ordinal; use Group.rowIndex while traversing the original candidate prefix.
+pub fn filteredCandidates(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, program: ColumnPredicate.Program, candidates: Candidates, limits: Limits, failure: *?FilterFailure) !CandidateGroup {
+    return self.filterProgram(allocator, source, schema, index, projection, program, candidates, limits, failure);
+}
+
+fn filterProgram(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, program: ColumnPredicate.Program, candidates: ?Candidates, limits: Limits, failure: *?FilterFailure) !CandidateGroup {
+    failure.* = null;
+    if (schema.object != self.footer.object_id or schema.revision != self.footer.schema_revision or
+        !std.mem.eql(u8, &try schema.layoutFingerprint(), &self.footer.layout_fingerprint)) return error.TableSchemaChanged;
+    if (index >= self.footer.row_groups.len or
+        self.footer.row_groups[index].pages.len != schema.columns.len or
+        self.footer.row_groups[index].zone_maps.len != schema.columns.len) return error.InvalidSegmentCoordinate;
+    if (projection.len > schema.columns.len or limits.decoded_bytes == 0) return error.SegmentReadBudgetExceeded;
+    for (projection) |column_index| if (column_index >= schema.columns.len) return error.InvalidSegmentCoordinate;
+    try program.validate(schema);
+    const metadata = self.footer.row_groups[index];
+    if (candidates) |selected| try selected.validate(metadata.row_count);
+    const workspace = try Workspace.init(allocator, limits.decoded_bytes);
+    errdefer workspace.deinit();
+    const a = workspace.arena.allocator();
+    const requested = if (candidates) |selected| selected.rows.len else metadata.row_count;
+    const selection: ProgramSelection = if (requested == 0 or (candidates != null and candidates.?.matches == 0))
+        .{ .rows = &.{}, .examined = 0 }
+    else if (try program.mayMatch(schema, metadata.zone_maps))
+        self.programRows(allocator, workspace, source, schema, index, program, candidates, limits.page_bytes, failure) catch |err| return workspace.failure(err)
+    else
+        .{ .rows = &.{}, .examined = requested };
+    const rows = selection.rows;
+    const columns = a.alloc(Column, projection.len) catch |err| return workspace.failure(err);
+    for (projection, columns) |column_index, *cells| {
+        cells.* = .{ .cells = if (rows.len == 0) &.{} else self.selectedColumn(allocator, workspace, source, schema, index, column_index, rows, limits.page_bytes) catch |err| return workspace.failure(err) };
+    }
+    return .{ .group = .{ .workspace = workspace, .index = index, .source_rows = metadata.row_count, .columns = columns, .rows = rows }, .examined = selection.examined };
+}
+
+const OutcomeAtom = struct {
+    instruction: u8,
+    pub fn validateShape(self: OutcomeAtom) !void {
+        if (self.instruction >= ColumnPredicate.Program.max_instructions) return error.InvalidPredicateProgram;
+    }
+    pub fn truth(self: OutcomeAtom, row: OutcomeRow) !@import("Finite.zig").Truth {
+        return row.columns[self.instruction].?[row.row].truth();
+    }
+};
+const OutcomeRow = struct { columns: []const ?[]ColumnPredicate.Outcome, row: usize };
+
+const ProgramColumns = struct {
+    allocator: std.mem.Allocator,
+    columns: [ColumnPredicate.Program.max_instructions]?[]ColumnPredicate.Outcome = @splat(null),
+    instructions: [ColumnPredicate.Program.max_instructions]PredicateMachine.Instruction(OutcomeAtom) = undefined,
+    fn init(reader: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, page_budget: usize) !ProgramColumns {
+        var result: ProgramColumns = .{ .allocator = workspace.bounded() };
+        errdefer result.deinit();
+        for (program.instructions, 0..) |instruction, i| {
+            result.instructions[i] = switch (instruction) {
+                .atom => |atom| blk: {
+                    if (atom.predicate == .all) {
+                        result.columns[i] = try result.allocator.alloc(ColumnPredicate.Outcome, reader.footer.row_groups[index].row_count);
+                        @memset(result.columns[i].?, .yes);
+                    } else {
+                        result.columns[i] = try reader.columnOutcomes(allocator, workspace, source, schema, index, atom, page_budget);
+                    }
+                    break :blk .{ .atom = .{ .instruction = @intCast(i) } };
+                },
+                .negate => .negate,
+                .conjunction => .conjunction,
+                .disjunction => .disjunction,
+            };
+        }
+        return result;
+    }
+    fn deinit(self: *ProgramColumns) void {
+        for (self.columns) |slot| if (slot) |outcomes| self.allocator.free(outcomes);
+    }
+    fn decision(self: *const ProgramColumns, program: ColumnPredicate.Program, row: usize) !Decision {
+        var instruction: ?u8 = null;
+        const truth = PredicateMachine.truthDiagnostic(self.instructions[0..program.instructions.len], OutcomeRow{ .columns = &self.columns, .row = row }, &instruction) catch |err| switch (err) {
+            error.QueryTypeError, error.QueryConflict => {
+                const at = instruction orelse return err;
+                return .{ .failure = .{ .column = program.instructions[at].atom.column, .instruction = at, .outcome = self.columns[at].?[row] } };
+            },
+            else => return err,
+        };
+        return .{ .selected = truth.selects() };
+    }
+};
+
+const ProgramSelection = struct { rows: []const u32, examined: usize };
+fn programRows(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, candidates: ?Candidates, page_budget: usize, failure: *?FilterFailure) !ProgramSelection {
+    const row_count = self.footer.row_groups[index].row_count;
+    var columns = try ProgramColumns.init(self, allocator, workspace, source, schema, index, program, page_budget);
+    defer columns.deinit();
+    var count: usize = 0;
+    var examined: usize = 0;
+    const requested = if (candidates) |selected| selected.rows.len else row_count;
+    for (0..requested) |position| {
+        if (candidates) |selected| if (selected.matches) |limit| if (count == limit) break;
+        const row = if (candidates) |selected| selected.rows[position] else position;
+        const decision = try columns.decision(program, row);
+        if (decision.failure) |failed| {
+            failure.* = .{ .row = @intCast(row), .column = failed.column, .instruction = failed.instruction, .outcome = failed.outcome };
+            _ = try failed.outcome.truth();
+            unreachable;
+        }
+        examined += 1;
+        if (decision.selected) count += 1;
+    }
+    const rows = try workspace.arena.allocator().alloc(u32, count);
+    var selected: usize = 0;
+    for (0..examined) |at| {
+        const row = if (candidates) |page| page.rows[at] else at;
+        if ((try columns.decision(program, row)).selected) {
+            rows[selected] = @intCast(row);
+            selected += 1;
+        }
+    }
+    if (candidates != null) std.mem.sort(u32, rows, {}, std.sort.asc(u32));
+    return .{ .rows = rows, .examined = examined };
+}
+
+fn columnOutcomes(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, atom: ColumnPredicate.Atom, page_budget: usize) ![]ColumnPredicate.Outcome {
+    const coordinate = self.footer.row_groups[index].pages[atom.column];
+    if (coordinate.length > page_budget) return error.SegmentReadBudgetExceeded;
+    const bytes = try allocator.alloc(u8, coordinate.length);
+    defer allocator.free(bytes);
+    try source.read(source.context, coordinate.offset, bytes);
+    try TSeg.verifyColumnRange(schema, &self.footer, bytes, index, atom.column);
+    const bounded = workspace.bounded();
+    const result = try PhysicalCodecs.evaluateColumnPage(bounded, bounded, schema.columns[atom.column], bytes, atom.predicate);
+    errdefer bounded.free(result.outcomes);
+    if (result.outcomes.len != self.footer.row_groups[index].row_count) return error.InvalidSegment;
+    return result.outcomes;
+}
+
+fn selectedColumn(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, column_index: usize, rows: []const u32, page_budget: usize) ![]Values.Cell {
+    const coordinate = self.footer.row_groups[index].pages[column_index];
+    if (coordinate.length > page_budget) return error.SegmentReadBudgetExceeded;
+    const bytes = try allocator.alloc(u8, coordinate.length);
+    defer allocator.free(bytes);
+    try source.read(source.context, coordinate.offset, bytes);
+    try TSeg.verifyColumnRange(schema, &self.footer, bytes, index, column_index);
+    const selected = try PhysicalCodecs.decodeColumnPageSelected(workspace.bounded(), workspace.arena.allocator(), schema.columns[column_index], bytes, rows);
+    if (selected.row_count != self.footer.row_groups[index].row_count) return error.InvalidSegment;
+    return selected.cells;
 }
 
 /// Read and verify projected encoded pages under a total retained-byte budget.
@@ -177,7 +472,7 @@ pub fn encodedGroup(self: *const Self, allocator: std.mem.Allocator, source: Sou
     errdefer for (pages[0..loaded]) |page| allocator.free(page.bytes);
     for (projection, pages) |column_index, *page| {
         const coordinate = metadata.pages[column_index];
-        page.* = .{ .column = column_index, .bytes = try allocator.alloc(u8, coordinate.length) };
+        page.* = .{ .column = column_index, .bytes = try allocator.alignedAlloc(u8, .fromByteUnits(64), coordinate.length) };
         loaded += 1;
         try source.read(source.context, coordinate.offset, page.bytes);
         try TSeg.verifyColumnRange(schema, &self.footer, page.bytes, index, column_index);

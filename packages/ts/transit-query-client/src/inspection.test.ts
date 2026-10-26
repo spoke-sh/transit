@@ -27,6 +27,7 @@ test("compiled metadata preserves output names and rejects malformed name vector
     schema: Array(32).fill(8),
     plan: {
       version: 1,
+      collations: null,
       projection: [1, 0],
       output_names: ["Result", null],
       limit: null,
@@ -142,6 +143,7 @@ test("compiled Table metadata is complete and scope-bound independently of displ
     schema: Array(32).fill(8),
     plan: {
       version: 1,
+      collations: null,
       projection: [0],
       output_names: null,
       limit: null,
@@ -160,6 +162,9 @@ test("compiled Table metadata is complete and scope-bound independently of displ
     { ...table, interpretation: { ...table.interpretation, revision: "0" } },
     { ...table, interpretation: { ...table.interpretation, bytes: "0" } },
     { ...table, row_type: { int64: {} } },
+    { ...table, collations: [] },
+    { ...table, collations: ["ascii_ci", "none"] },
+    { ...table, collations: ["none", "icu_root"] },
     { id: 1, names: ["id", "value"], value_type: "int64" },
   ])
     expect(

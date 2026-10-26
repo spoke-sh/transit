@@ -57,6 +57,12 @@ Arrow output and durable publication keep their existing independent bounds.
 A valid large decoded row executes under its source owner when it cannot fit the
 compute buffer. File LIMIT still verifies the complete captured input.
 
+Finite direct Table execution retains one decoded source page while compute
+columns borrow its variable and recursive payloads. It consumes that page before
+replacing it; returned results own their values and survive query close. Source
+page memory is separate from the compute budget. Transport decoding, current
+authorization and result materialization keep their existing boundaries.
+
 Linux x86_64 can select AVX2 comparisons after CPU and operating-system checks.
 The Zig host APIs allow portable selection and an optional bounded compute pool.
 Source acquisition, authorization, failure arbitration and publication stay with
@@ -68,11 +74,29 @@ Resumable logical/Unified pages and relational predicates share the kernels.
 Their progress encodings and original source-validation/work boundaries remain
 unchanged. Relational joins and group updates retain their one-pair work quantum.
 
+Fuze's [segment reader](../../../packages/zig/transit-fuze/README.md) also exposes
+typed column predicates over encoded pages. Verified zone maps can skip groups;
+candidate groups evaluate runs or dictionary codes before materializing selected
+projected rows. This component preserves declared collations, unknown values and
+eager error/conflict outcomes. Identity-ordered finite direct Table scans send the
+bound predicate to the retained owner and select output, predicate and primary-key
+columns before materializing matching segment rows. Empty source pages retain
+continuations; original source positions preserve error attribution across misses.
+The reader verifies complete coverage or the selected LIMIT prefix and current
+rights before disclosure. WAL rows use bounded full-row decoding. Captured and
+relational scans retain their existing predicate paths; compatible borrowed
+segment batches have a separate ownership contract.
+
 ## Source declarations
 
 A query selects one explicit KV decoder, Table schema or accepted Document
 projection with finite execution budgets. General Table declarations bind an
-immutable catalog definition and admit up to 128 columns. KV has two explicit
+immutable catalog definition and admit up to 128 columns. Finite Table filters,
+prepared comparisons and range counts honor binary, `ASCII_CI` and
+`EBCDIC_CP037` column collations. Saved source and plan bytes bind the complete
+comparison vector independently of logical types and physical codecs; reopening
+checks it against the retained declaration. Relational text joins/group/order
+and expression collation overrides are unsupported. KV has two explicit
 decoders; Document projections retain their independent eight-column bound.
 Durable callers upload the finite plan bundle through bounded commands.
 Flight exposes a Table subset with primitive int64 output; the adapter verifies

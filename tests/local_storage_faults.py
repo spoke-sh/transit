@@ -127,9 +127,86 @@ def run(binary):
                     "after" if operation == "replace" else "immutable")
                 if operation == "immutable":
                     assert call(directory, "objects-conflict") == {"conflict": True}
-    assert schedules == 42, schedules
+        def table_rows(directory, archived):
+            result = call(directory, "table-inspect")
+            assert result == dict(archived=archived, tail=3 + archived, rows=2,
+                                  pinned=1, receipt=1, history=2, current=[1, 2], next_segment=1), result
+
+        archive_points = ["sync-1", "sync-5", "sync-6", "sync-11", "sync-12",
+                          "before-accept", "accept-write", "accept-sync-1",
+                          "accept-sync-2", "accept-sync-3", "accept-publish",
+                          "accept-sync-4", "ack"]
+        for point in archive_points:
+            directory = root / f"table-archive-{point}"
+            assert call(directory, "table-init") == {"tail": 3}
+            kill(directory, "table-archive", point)
+            accepted = int(point in {"accept-sync-1", "accept-sync-2", "accept-sync-3",
+                                    "accept-publish", "accept-sync-4", "ack"})
+            table_rows(directory, accepted)
+            assert metadata(directory / "wal")["floor"] == 0
+            assert call(directory, "table-archive-all") == {"archived": 3}
+            assert call(directory, "table-trim") == {"archived": 3}
+            table_rows(directory, 3)
+            assert metadata(directory / "wal")["floor"] == 3
+
+        for point in ["sync-1", "publish", "sync-2", "delete-1", "delete-2", "delete-3", "sync-3", "ack"]:
+            directory = root / f"table-trim-{point}"
+            assert call(directory, "table-init") == {"tail": 3}
+            assert call(directory, "table-archive-all") == {"archived": 3}
+            kill(directory, "table-trim", point)
+            assert metadata(directory / "wal")["floor"] == (0 if point == "sync-1" else 3)
+            table_rows(directory, 3)
+            assert call(directory, "table-trim") == {"archived": 3}
+            for lsn in range(3):
+                assert not (directory / "wal" / f"part-17-{lsn}.twal").exists()
+            table_rows(directory, 3)
+
+        compact_points = ["sync-1", "sync-5", "sync-6", "sync-11", "sync-12",
+                          "sync-17", "sync-18", "before-accept", "accept-write",
+                          "accept-sync-1", "accept-sync-2", "accept-sync-3",
+                          "accept-publish", "accept-sync-4", "ack"]
+        for point in compact_points:
+            directory = root / f"table-compact-{point}"
+            assert call(directory, "table-compact-init") == {"tail": 3}
+            kill(directory, "table-compact", point)
+            accepted = int(point in {"accept-sync-1", "accept-sync-2", "accept-sync-3",
+                                    "accept-publish", "accept-sync-4", "ack"})
+            expected = dict(archived=0, tail=3 + accepted, rows=2, pinned=1,
+                            receipt=1, history=2, current=[1, 2], next_segment=3 + accepted)
+            assert call(directory, "table-compact-inspect") == expected
+            assert call(directory, "table-compact") == dict(next_segment=4, rows=0 if accepted else 2)
+            expected.update(tail=4, next_segment=4)
+            assert call(directory, "table-compact-inspect") == expected
+            assert call(directory, "table-compact") == dict(next_segment=4, rows=0)
+            assert call(directory, "table-compact-inspect") == expected
+        checkpoint_points = [*(f"sync-{i}" for i in range(1, 7)), "before-accept",
+                             "accept-write", "accept-sync-1", "accept-sync-2",
+                             "accept-sync-3", "accept-publish", "accept-sync-4", "ack"]
+        for point in checkpoint_points:
+            directory = root / f"table-checkpoint-{point}"
+            assert call(directory, "table-init") == {"tail": 3}
+            kill(directory, "table-checkpoint", point)
+            accepted = int(point in {"accept-sync-1", "accept-sync-2", "accept-sync-3",
+                                    "accept-publish", "accept-sync-4", "ack"})
+            expected = dict(archived=0, tail=3 + accepted, rows=2, pinned=1, receipt=1,
+                            history=2, current=[1, 2], checkpoint=3 if accepted else 0,
+                            replayed=1 if accepted else 3)
+            assert call(directory, "table-checkpoint-inspect") == expected
+            assert metadata(directory / "wal")["floor"] == 0
+            for _ in range(2):
+                assert call(directory, "table-checkpoint") == dict(checkpoint=3, tail=4)
+                expected.update(tail=4, checkpoint=3, replayed=1)
+                assert call(directory, "table-checkpoint-inspect") == expected
+            # Checkpointing did not expire old data. Archive/trim remains an
+            # independent operation with its own accepted prefix coverage.
+            assert call(directory, "table-archive-all") == {"archived": 3}
+            assert call(directory, "table-trim") == {"archived": 3}
+            expected.update(archived=3, tail=7, replayed=4)
+            assert call(directory, "table-checkpoint-inspect") == expected
+    assert schedules == 92, schedules
     print(f"Local storage: {schedules} SIGKILL schedules preserve acknowledged WAL data, "
-          "fences, resumable trim, complete object descriptors and exact immutable retries.")
+          "fences, resumable trim, complete object descriptors, exact immutable retries "
+          "and Table archival/compaction/checkpoints with original receipts, snapshots and logical history.")
 
 
 if __name__ == "__main__":

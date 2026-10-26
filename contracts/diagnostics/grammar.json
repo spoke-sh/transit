@@ -670,7 +670,7 @@
     },
     {
       "id": "literal-string",
-      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
@@ -2225,7 +2225,7 @@
     },
     {
       "id": "literal-string.wrong-source",
-      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
@@ -5657,6 +5657,109 @@
       "expected": {
         "accepted": false,
         "code": "configuration.invalid_value",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "ddl-collation-utf8_binary",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE UTF8_BINARY)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ddl-collation-ascii_ci",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE ASCII_CI)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ddl-collation-ebcdic_cp037",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_CP037)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ddl-contextual-collate",
+      "sql": "CREATE TABLE collate (id INT64)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ddl-contextual-utf8_binary",
+      "sql": "CREATE TABLE utf8_binary (id INT64)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ddl-contextual-ascii_ci",
+      "sql": "CREATE TABLE ascii_ci (id INT64)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ddl-contextual-ebcdic_cp037",
+      "sql": "CREATE TABLE ebcdic_cp037 (id INT64)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "ddl-collation-duplicate",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE ASCII_CI COLLATE UTF8_BINARY)",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.duplicate_column_constraint",
+        "category": "constraint"
+      }
+    },
+    {
+      "id": "ddl-collation-cp037-literal",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_CP037 DEFAULT '東京')",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unrepresentable_cp037",
         "category": "binding"
       }
     }

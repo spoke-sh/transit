@@ -44,15 +44,17 @@ fn requireSource(delegation: ?c.DirectReadDelegation, source: c.storage.TablePar
     }
 }
 fn historySource(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, delegation: ?c.DirectReadDelegation, object: d.Object, lease: c.storage.TablePartition.SnapshotHandle, point: ?c.storage.TablePartition.HistoryPoint) !w.HistorySource {
-    // Verify the original lease as well as the selected successor. Possession
-    // of a later root cannot replace the grant's exact original acquisition.
+    // Reject a foreign original grant before opening the selected successor.
+    // Its valid commitment cannot replace the original acquisition's authority.
     if (delegation != null) {
         var original = try catalog.snapshotDefinition(allocator, object, lease, policy);
         defer original.deinit();
         try requireSource(delegation, original);
     }
-    var found = try catalog.historyDefinition(allocator, object, lease, point, policy);
-    defer found.deinit();
+    // Selected history and current authority share one request-local owner.
+    var read = try catalog.historyRead(allocator, object, lease, point, policy);
+    defer read.deinit();
+    const found = &read.definition;
     if (delegation) |grant| try grant.requireHistory(found.root.interpretation, found.point.position);
     return .{ .point = found.point, .source = .{
         .snapshot = .{ .object = object, .handle = lease },
@@ -61,7 +63,7 @@ fn historySource(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, de
         .changed_lsn = found.root.changed_lsn,
         .row_count = found.root.live_rows,
         .schema = try schema(allocator, found.declaration.schema.schema),
-        .authority = try catalog.readAuthority(object, lease.owner, policy, false),
+        .authority = read.authority,
     } };
 }
 pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
@@ -256,9 +258,10 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             return .{ .pin_state = .{ .interpretation = state.interpretation, .position = state.position, .retired = state.retired, .handle = state.handle, .released = state.released, .authority = try catalog.readAuthority(value.object, value.owner, policy, true) } };
         },
         .snapshot => |value| {
-            var found = try catalog.snapshotDefinition(allocator, value.object, value.handle, policy);
-            defer found.deinit();
-            try requireSource(delegation, found);
+            var read = try catalog.snapshotRead(allocator, value.object, value.handle, policy);
+            defer read.deinit();
+            const found = &read.definition;
+            try requireSource(delegation, found.*);
             return .{ .snapshot = .{
                 .snapshot = value,
                 .interpretation = found.root.declared(),
@@ -266,7 +269,7 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
                 .changed_lsn = found.root.changed_lsn,
                 .row_count = found.root.live_rows,
                 .schema = try schema(allocator, found.schema.schema),
-                .authority = try catalog.readAuthority(value.object, value.handle.owner, policy, false),
+                .authority = read.authority,
             } };
         },
         .read_key => |value| {
@@ -284,17 +287,60 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             } else null;
             return .{ .point = .{ .snapshot = value.snapshot, .interpretation = definition.root.declared(), .accepted = .{ .partition = definition.root.partition, .next_lsn = definition.root.next_lsn }, .changed_lsn = definition.root.changed_lsn, .total_rows = definition.root.live_rows, .row = encoded } };
         },
-        .scan => |value| {
+        inline .scan, .column_scan => |value, tag| {
             var definition = try catalog.snapshotDefinition(allocator, value.snapshot.object, value.snapshot.handle, policy);
             defer definition.deinit();
             try requireSource(delegation, definition);
-            var page = try catalog.scanRows(allocator, value.snapshot.object, value.snapshot.handle, value.after, value.limits, policy);
+            var projected_columns: [c.fuze.TableSchema.max_columns]c.fuze.TableSchema.Column = undefined;
+            const selected: ?c.fuze.TableProjection = if (tag == .column_scan) try value.projection() else null;
+            const row_schema = if (selected) |*projection| try projection.projectedSchema(definition.schema.schema, &projected_columns) else definition.schema.schema;
+            var page = if (selected) |*projection| try catalog.scanColumns(allocator, value.snapshot.object, value.snapshot.handle, projection.columns(), value.after, value.limits, policy) else try catalog.scanRows(allocator, value.snapshot.object, value.snapshot.handle, value.after, value.limits, policy);
             defer page.deinit();
             const rows = try allocator.alloc(w.Binary, page.count);
             const scratch = try allocator.alloc(u8, c.fuze.TableRow.max_bytes);
             defer allocator.free(scratch);
-            for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(definition.schema.schema, scratch));
+            for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(row_schema, scratch));
             return .{ .page = .{ .snapshot = value.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } };
+        },
+        .filter_scan => |value| {
+            var read = try catalog.snapshotRead(allocator, value.snapshot.object, value.snapshot.handle, policy);
+            defer read.deinit();
+            const definition = &read.definition;
+            try requireSource(delegation, definition.*);
+            const basis: c.DirectTableReader.Basis = .{
+                .snapshot = value.snapshot,
+                .interpretation = definition.root.declared(),
+                .accepted = .{ .partition = definition.root.partition, .next_lsn = definition.root.next_lsn },
+                .changed_lsn = definition.root.changed_lsn,
+                .row_count = definition.root.live_rows,
+                .authority = read.authority,
+            };
+            const plan = try value.decodePlan(allocator, definition.schema.schema, try basis.fingerprint());
+            const selected = try c.fuze.TableProjection.fromPlan(definition.schema.schema, plan);
+            var columns: [c.fuze.TableSchema.max_columns]c.fuze.TableSchema.Column = undefined;
+            const row_schema = try selected.projectedSchema(definition.schema.schema, &columns);
+            var result = try catalog.scanFiltered(allocator, value.snapshot.object, value.snapshot.handle, plan, value.after, value.limits, policy);
+            defer result.deinit();
+            const page = &result.page;
+            const rows = try allocator.alloc(w.Binary, page.count);
+            const scratch = try allocator.alloc(u8, c.fuze.TableRow.max_bytes);
+            defer allocator.free(scratch);
+            for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(row_schema, scratch));
+            return .{ .filtered_page = .{
+                .page = .{ .snapshot = value.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next },
+                .examined = result.examined,
+                .offsets = result.offsets,
+                .failure = if (result.failure) |failure| .{
+                    .identity = failure.identity,
+                    .column = failure.column,
+                    .instruction = failure.instruction,
+                    .outcome = switch (failure.outcome) {
+                        .type_error => .type_error,
+                        .conflict => .conflict,
+                        else => unreachable,
+                    },
+                } else null,
+            } };
         },
         .key_range => |value| {
             var definition = try catalog.snapshotDefinition(allocator, value.snapshot.object, value.snapshot.handle, policy);

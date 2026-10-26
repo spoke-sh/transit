@@ -181,4 +181,5 @@ fn registered(context: *anyopaque, kind: a.Kind, logical: u64) !?p.Authorization
 
 test {
     _ = @import("local_catalog_policy_test.zig");
+    _ = @import("LocalTableHost.zig");
 }

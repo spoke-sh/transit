@@ -722,8 +722,10 @@ INSERT uses the concrete row operation. A data-frontier expectation is mandatory
 Its intent digest uses `transit.table.direct.statement.v1`, a zero byte and
 canonical JSON of `interpretation`, `schema`, `plan` in that order. The retained
 plan owns predicate and assignment values; execution never recompiles SQL or
-resolves the name again. Predicate text comparison supports `none` and
-`utf8_binary` column collations; other declared collations reject before admission.
+resolves the name again. Predicate text comparison uses the exact schema's
+`none`, `utf8_binary`, `ascii_ci` or `ebcdic_cp037` collation. ICU rejects, and
+CP037 literals outside U+0000–U+00FF reject before admission. The physical codec
+does not select the comparison semantics.
 
 The Table owner checks the action privilege, selects rows privately and publishes
 the complete result once. Selection does not disclose rows or require SELECT.
@@ -764,6 +766,62 @@ eight owned rows under an explicit encoded-byte budget, with a cursor bound to
 that retained root and its last returned canonical 20-byte row identity. Rows
 are strictly increasing by identity, independent of their current physical
 locators. It never substitutes the latest name or definition.
+
+`column_scan` accepts `snapshot`, `columns`, nullable `after` and `limits` and
+returns the same `page` envelope as `scan`. `columns` is a JSON array of 1–128
+unsigned integer ordinals, each in 0–127, strictly increasing without duplicates.
+They select columns by position in the retained schema and must include every
+primary-key column. Ordinals outside that schema reject. This read representation
+preserves each selected column's original ID, name, logical type, physical codec,
+collation and constraints, plus the original object, revision, next-column floor
+and primary-key declaration. FTR1 rows carry that projected layout fingerprint.
+The response's interpretation, accepted/logical-change frontiers and `total_rows`
+still describe the complete retained source. Every source row is visited in
+identity order; projection does not filter rows or change coverage.
+
+A projected cursor retains the canonical last-returned row identity. Its `source`
+is a Content descriptor whose `bytes` is the length and `sha256` the SHA-256 of:
+`transit.table.projected-cursor.v1` followed by a zero byte, the 32-byte shared
+definition, retained pin-content length as little-endian u64, its 32-byte SHA-256,
+the selected-column count as u8, then each ordinal as u8. A different column set,
+pin or ordinary scan cursor rejects. Page/byte limits, final authorization and
+pin checks match `scan`. The operation supports ordinary retained snapshots;
+historical-lease scans retain their complete-row representation.
+
+`filter_scan` accepts `snapshot`, a base64 canonical FQP1 `plan`, its 32-byte
+logical `fingerprint`, nullable `after` and `limits`. Admission binds the decoded
+plan to the complete retained source basis, logical schema and declared
+collations, then verifies its fingerprint. This operation examines at most eight
+live identity-index entries per call. Encoded segment decisions precede selected
+column decoding; WAL rows use the same predicate semantics. Output columns are
+the canonical union of the plan's projections, predicate columns and primary key.
+The operation does not compute aggregates or apply the plan's overall LIMIT.
+Callers enforce the remaining match limit through `limits.rows` and issue no
+scan for LIMIT 0.
+
+The `filtered_page` result contains the ordinary `page` metadata plus `examined`,
+eight `offsets` and nullable `failure`. `examined` counts successfully consumed
+source identities, including misses. Each returned row's offset is one-based
+within that examined prefix; offsets increase strictly, do not exceed `examined`
+and are zero in unused slots. Empty pages may carry a continuation. Its identity
+is the last consumed source identity, which may follow the last returned row.
+Its Content descriptor hashes `transit.table.filtered-cursor.v1` followed by a
+zero byte, the shared definition bytes, retained pin-content length as
+little-endian u64, its SHA-256, and the complete logical plan fingerprint.
+The descriptor length is the preimage length. Other plans, pins and cursor kinds
+reject.
+
+A semantic `failure` names the next source identity, original column ordinal,
+postfix predicate instruction and `type_error` or `conflict` outcome. That identity
+is excluded from `examined`; failure cannot coexist with a continuation or imply
+completion. The preceding rows remain available so an earlier aggregate error or
+LIMIT can settle first. Structural, integrity and authorization failures reject
+the call. A terminal page without failure establishes complete coverage only
+when cumulative examined entries equal the retained `total_rows`. Current rights
+and pin checks apply to selected, empty, failing and terminal pages. Filtered
+scans support ordinary retained snapshots, including borrowed reads of that
+exact snapshot; they do not authorize a new acquisition or history advancement.
+
 `read_key` accepts one nonempty canonical storage key (base64, at most the
 physical collation key bound). Its `point` result carries the same snapshot,
 interpretation, accepted frontier, logical-change frontier and total row count,

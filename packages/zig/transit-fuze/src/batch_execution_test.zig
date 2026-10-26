@@ -167,6 +167,125 @@ fn integer(value: i64) Cell {
     return .{ .value = .{ .atom = .{ .signed = value } } };
 }
 
+/// Each replacement releases all prior payloads. The source owns one page;
+/// no owned-row entry point exists for the batch coordinator to fall back to.
+const BorrowedFixture = struct {
+    allocator: std.mem.Allocator,
+    rows: []const [2]Cell,
+    arena: ?std.heap.ArenaAllocator = null,
+    page: [3][2]Cell = undefined,
+    index: usize = 0,
+    end: usize = 0,
+    complete: bool = false,
+    fail_at: ?usize = null,
+    denied: bool = false,
+    pub fn deinit(self: *BorrowedFixture) void {
+        if (self.arena) |*arena| arena.deinit();
+    }
+    pub fn nextBorrowed(self: *BorrowedFixture) !?[]const Cell {
+        if (self.fail_at == self.index) return error.SourceFault;
+        if (self.index == self.rows.len) {
+            self.complete = true;
+            return null;
+        }
+        if (self.index == self.end) {
+            var arena: std.heap.ArenaAllocator = .init(self.allocator);
+            errdefer arena.deinit();
+            const end = @min(self.index + self.page.len, self.rows.len);
+            var page: [3][2]Cell = undefined;
+            for (self.rows[self.index..end], 0..) |row, i| {
+                for (row, &page[i]) |cell, *out| out.* = try types.Values.cloneValidated(arena.allocator(), cell);
+            }
+            if (self.arena) |*previous| previous.deinit();
+            self.arena = arena;
+            self.page = page;
+            self.end = end;
+        }
+        const slot = self.index % self.page.len;
+        self.index += 1;
+        return &self.page[slot];
+    }
+    pub fn batchAvailable(self: *const BorrowedFixture) usize {
+        return self.end - self.index;
+    }
+    pub fn validateBatchDisclosure(self: *const BorrowedFixture) !void {
+        if (self.denied) return error.AccessDenied;
+    }
+};
+
+fn borrowedLifetime(allocator: std.mem.Allocator) !void {
+    const t = std.testing;
+    const text: [8192]u8 = @splat('Z');
+    const rows = [_][2]Cell{
+        .{ integer(1), .{ .value = .{ .atom = .{ .bytes = "first" } } } },
+        .{ integer(2), .{ .value = .{ .atom = .{ .bytes = &text } } } },
+        .{ integer(3), .{ .value = .{ .atom = .{ .bytes = "third" } } } },
+        .{ integer(4), .{ .value = .{ .atom = .{ .bytes = "replacement" } } } },
+        .{ integer(5), .{ .value = .{ .atom = .{ .bytes = "last" } } } },
+    };
+    const plan: logical.Plan = .{ .schema = .{ .structure = &.{ .{ .name = "key", .type = .int64 }, .{ .name = "value", .type = .utf8 } } }, .source_basis = @splat(71), .projection = &.{1} };
+    var output: [rows.len]logical.Row = undefined;
+    var count: usize = 0;
+    defer for (output[0..count]) |*row| row.deinit();
+    {
+        var execution = try Execution(BorrowedFixture, .selected_prefix).initBudget(.{ .allocator = allocator, .rows = &rows }, plan, .{ .rows = 64, .bytes = 4096 });
+        defer execution.deinit();
+        for (&output, 0..) |*row, i| {
+            row.* = (try execution.next()).?;
+            count += 1;
+            try t.expectEqualStrings(rows[i][1].value.atom.bytes, row.cells[0].value.atom.bytes);
+            try t.expectEqual(execution.physical.payload_start, execution.physical.memory.end_index);
+            try t.expect(execution.row_allocator == null and execution.pending == null and !execution.oversized);
+            try t.expectEqual(@as(usize, 4096), execution.physical.residentBytes());
+            if (i == 1) {
+                try t.expectEqual(@as(usize, 3), execution.scan.index);
+                try t.expectEqual(@as(usize, 2), execution.physical.len);
+                try t.expectEqual(execution.scan.page[1][1].value.atom.bytes.ptr, execution.physical.columns[1].view(2).cell(0).value.atom.bytes.ptr);
+            }
+        }
+        try t.expect(try execution.next() == null);
+        try t.expect(execution.complete);
+    }
+    for (output, rows) |row, input| try t.expectEqualStrings(input[1].value.atom.bytes, row.cells[0].value.atom.bytes);
+}
+
+test "borrowed batch pages avoid payload copies and outputs survive source replacement and close" {
+    try borrowedLifetime(std.testing.allocator);
+}
+test "borrowed batch allocation failures release page and detached results" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, borrowedLifetime, .{});
+}
+test "borrowed batch preserves deferred read failures LIMIT and current disclosure" {
+    const t = std.testing;
+    const rows = [_][2]Cell{ .{ integer(1), integer(std.math.maxInt(i64)) }, .{ integer(1), integer(1) }, .{ integer(1), integer(2) } };
+    const plan: logical.Plan = .{ .schema = fixture_schema, .source_basis = @splat(71), .projection = &.{1}, .aggregate = .sum };
+    var sum = try Execution(BorrowedFixture, .selected_prefix).init(.{ .allocator = t.allocator, .rows = &rows, .fail_at = 2 }, plan);
+    defer sum.deinit();
+    try t.expectError(error.Overflow, sum.next());
+    try t.expectEqual(@as(u64, 2), sum.failure.?.row);
+    try t.expectEqual(.sum, sum.failure.?.operation);
+    try t.expectError(error.FailedQuery, sum.next());
+    inline for (.{ .full_source, .selected_prefix }) |verification| {
+        var limited = plan;
+        limited.aggregate = .rows;
+        limited.limit = 1;
+        var execution = try Execution(BorrowedFixture, verification).init(.{ .allocator = t.allocator, .rows = &rows, .fail_at = 2 }, limited);
+        defer execution.deinit();
+        var row = (try execution.next()).?;
+        defer row.deinit();
+        if (verification == .full_source) try t.expectError(error.SourceFault, execution.next()) else try t.expect(try execution.next() == null);
+    }
+    var output = plan;
+    output.aggregate = .rows;
+    var execution = try Execution(BorrowedFixture, .selected_prefix).init(.{ .allocator = t.allocator, .rows = &rows }, output);
+    defer execution.deinit();
+    var first = (try execution.next()).?;
+    defer first.deinit();
+    execution.scan.denied = true;
+    try t.expectError(error.AccessDenied, execution.next());
+    try t.expectEqual(@as(usize, 1), execution.scan.index);
+}
+
 test "batch coordinator preserves earlier COUNT failure over later predicate and read failure" {
     const t = std.testing;
     const rows = [_][2]Cell{ .{ integer(1), .{ .type_error = .utf8 } }, .{ .{ .type_error = .boolean }, integer(3) } };
@@ -254,4 +373,132 @@ test "deferred source rejection is restored only at its own failure frontier" {
     }
     try std.testing.expectError(error.SourceFault, execution.next());
     try std.testing.expectEqual(.fixture_denied, execution.scan.rejection.?);
+}
+
+const SparseFixture = struct {
+    allocator: std.mem.Allocator,
+    rows: []const [2]Cell,
+    ordinals: []const u64,
+    coverage: u64,
+    index: usize = 0,
+    complete: bool = false,
+    failure: ?logical.Failure = null,
+    pub fn deinit(_: *SparseFixture) void {}
+    pub fn next(self: *SparseFixture) !?logical.Row {
+        if (self.index == self.rows.len) {
+            if (self.failure != null) return error.QueryTypeError;
+            self.complete = true;
+            return null;
+        }
+        var arena: std.heap.ArenaAllocator = .init(self.allocator);
+        errdefer arena.deinit();
+        const cells = try arena.allocator().dupe(Cell, &self.rows[self.index]);
+        for (cells) |*cell| cell.* = try types.Values.cloneValidated(arena.allocator(), cell.*);
+        self.index += 1;
+        return .{ .arena = arena, .cells = cells };
+    }
+    pub fn batchOrdinal(self: *const SparseFixture) u64 {
+        return self.ordinals[self.index - 1];
+    }
+    pub fn batchCoverage(self: *const SparseFixture) u64 {
+        return self.coverage;
+    }
+    pub fn batchFailure(self: *const SparseFixture) ?logical.Failure {
+        return self.failure;
+    }
+};
+fn deferredPredicate(plan: logical.Plan) !logical.Failure {
+    var result: logical.Failure = .{ .operation = .predicate, .row = 25, .column_len = 3, .column_truncated = false, .expected = @splat(0), .expected_len = 5, .state = .type_error, .instruction = 0, .binding = plan.source_basis, .plan = try plan.fingerprint() };
+    @memcpy(result.column[0..3], "key");
+    @memcpy(result.expected[0..5], "int64");
+    return result;
+}
+
+test "filtered batch sources preserve original failure ordinals and deferred source arbitration" {
+    const t = std.testing;
+    const rows = [_][2]Cell{ .{ integer(1), integer(std.math.maxInt(i64)) }, .{ integer(1), integer(1) } };
+    const plan: logical.Plan = .{ .schema = fixture_schema, .source_basis = @splat(71), .projection = &.{1}, .aggregate = .sum };
+    for ([_]usize{ 1, 2, 8, 256 }) |target| {
+        var execution = try Execution(SparseFixture, .selected_prefix).initBudget(.{ .allocator = t.allocator, .rows = &rows, .ordinals = &.{ 4, 19 }, .coverage = 25, .failure = try deferredPredicate(plan) }, plan, .{ .rows = target });
+        defer execution.deinit();
+        try t.expectError(error.Overflow, execution.next());
+        try t.expectEqual(@as(u64, 19), execution.failure.?.row);
+        try t.expectEqual(.sum, execution.failure.?.operation);
+        try t.expectEqual(@as(u64, 19), execution.scanned);
+    }
+    const small = [_][2]Cell{.{ integer(1), integer(7) }};
+    var deferred = try Execution(SparseFixture, .selected_prefix).init(.{ .allocator = t.allocator, .rows = &small, .ordinals = &.{4}, .coverage = 25, .failure = try deferredPredicate(plan) }, plan);
+    defer deferred.deinit();
+    try t.expectError(error.QueryTypeError, deferred.next());
+    try t.expectEqual(@as(u64, 25), deferred.scanned);
+    try t.expectEqualDeep(try deferredPredicate(plan), deferred.failure.?);
+    try t.expect(!deferred.complete);
+}
+
+test "filtered batch coverage counts skipped tails while LIMIT retains its selected prefix" {
+    const t = std.testing;
+    const rows = [_][2]Cell{ .{ integer(1), integer(7) }, .{ integer(1), integer(11) } };
+    var plan: logical.Plan = .{ .schema = fixture_schema, .source_basis = @splat(71), .projection = &.{1}, .aggregate = .count };
+    var full = try Execution(SparseFixture, .selected_prefix).init(.{ .allocator = t.allocator, .rows = &rows, .ordinals = &.{ 4, 19 }, .coverage = 23 }, plan);
+    defer full.deinit();
+    var count = (try full.next()).?;
+    defer count.deinit();
+    try t.expectEqual(@as(u128, 2), count.cells[0].value.atom.unsigned);
+    try t.expectEqual(@as(u64, 23), full.scanned);
+    try t.expect(full.complete);
+    plan.limit = 1;
+    var prefix = try Execution(SparseFixture, .selected_prefix).init(.{ .allocator = t.allocator, .rows = &rows, .ordinals = &.{ 4, 19 }, .coverage = 23, .failure = try deferredPredicate(plan) }, plan);
+    defer prefix.deinit();
+    var limited = (try prefix.next()).?;
+    defer limited.deinit();
+    try t.expectEqual(@as(u128, 1), limited.cells[0].value.atom.unsigned);
+    try t.expectEqual(@as(u64, 4), prefix.scanned);
+    try t.expectEqual(@as(usize, 1), prefix.scan.index);
+    try t.expect(prefix.complete);
+    // An empty filtered result still requires complete original source coverage.
+    plan.limit = null;
+    var empty = try Execution(SparseFixture, .selected_prefix).init(.{ .allocator = t.allocator, .rows = &.{}, .ordinals = &.{}, .coverage = 23 }, plan);
+    defer empty.deinit();
+    var zero = (try empty.next()).?;
+    defer zero.deinit();
+    try t.expectEqual(@as(u128, 0), zero.cells[0].value.atom.unsigned);
+    try t.expectEqual(@as(u64, 23), empty.scanned);
+}
+
+test "filtered batch sources reject regressing ordinals coverage and foreign failure attribution" {
+    const t = std.testing;
+    const rows = [_][2]Cell{ .{ integer(1), integer(7) }, .{ integer(1), integer(11) } };
+    const plan: logical.Plan = .{ .schema = fixture_schema, .source_basis = @splat(71), .projection = &.{1}, .aggregate = .count };
+    for ([_]struct { ordinals: [2]u64, coverage: u64 }{ .{ .ordinals = .{ 0, 19 }, .coverage = 23 }, .{ .ordinals = .{ 4, 4 }, .coverage = 23 }, .{ .ordinals = .{ 4, 19 }, .coverage = 18 } }) |case| {
+        var execution = try Execution(SparseFixture, .selected_prefix).init(.{ .allocator = t.allocator, .rows = &rows, .ordinals = &case.ordinals, .coverage = case.coverage }, plan);
+        defer execution.deinit();
+        try t.expectError(error.SourceChanged, execution.next());
+        try t.expect(!execution.complete);
+    }
+    var failure = try deferredPredicate(plan);
+    failure.plan[0] ^= 1;
+    var foreign = try Execution(SparseFixture, .selected_prefix).init(.{ .allocator = t.allocator, .rows = &rows, .ordinals = &.{ 4, 19 }, .coverage = 25, .failure = failure }, plan);
+    defer foreign.deinit();
+    try t.expectError(error.SourceChanged, foreign.next());
+    try t.expect(foreign.failure == null);
+}
+
+test "filtered oversized rows retain original provenance across a held batch suffix" {
+    const t = std.testing;
+    const text: [8192]u8 = @splat('x');
+    const rows = [_][2]Cell{ .{ integer(1), .{ .value = .{ .atom = .{ .bytes = "small" } } } }, .{ integer(2), .{ .value = .{ .atom = .{ .bytes = &text } } } }, .{ .{ .type_error = .utf8 }, .{ .value = .{ .atom = .{ .bytes = "last" } } } } };
+    const plan: logical.Plan = .{ .schema = .{ .structure = &.{ .{ .name = "key", .type = .int64 }, .{ .name = "value", .type = .utf8 } } }, .source_basis = @splat(71), .projection = &.{1}, .predicate = .{ .compare = .{ .column = 0, .op = .ge, .value = .{ .signed = 0 } } } };
+    var execution = try Execution(SparseFixture, .selected_prefix).initBudget(.{ .allocator = t.allocator, .rows = &rows, .ordinals = &.{ 4, 19, 23 }, .coverage = 23 }, plan, .{ .bytes = 4096 });
+    defer execution.deinit();
+    execution.startup_rows = 0;
+    for ([_][]const u8{ "small", &text }, [_]u64{ 4, 19 }) |expected, ordinal| {
+        var row = (try execution.next()).?;
+        defer row.deinit();
+        try t.expectEqualStrings(expected, row.cells[0].value.atom.bytes);
+        try t.expectEqual(ordinal, execution.scanned);
+    }
+    try t.expectError(error.QueryTypeError, execution.next());
+    try t.expectEqual(@as(u64, 23), execution.failure.?.row);
+    try t.expectEqual(.predicate, execution.failure.?.operation);
+    try t.expectEqual(@as(usize, 4096), execution.physical.residentBytes());
 }

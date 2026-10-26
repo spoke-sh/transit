@@ -240,6 +240,18 @@ pub fn build(b: *std.Build) void {
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const storage = b.dependency("transit_storage", .{ .target = target, .optimize = optimize });
     const local_backend = b.dependency("transit_backend_local", .{ .target = target, .optimize = optimize });
+    const storage_benchmark = b.addExecutable(.{ .name = "transit-storage-benchmark", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/storage_benchmark.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_storage", .module = b.dependency("transit_storage", .{ .target = target, .optimize = optimize }).module("transit_storage") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") } },
+    }) });
+    const storage_benchmark_options = b.addOptions();
+    const storage_body_bytes = b.option(u32, "storage-benchmark-body-bytes", "Deterministic storage probe payload bytes (16..65536)") orelse 1024;
+    if (storage_body_bytes < 16 or storage_body_bytes > 65536) @panic("storage-benchmark-body-bytes must be 16..65536");
+    storage_benchmark_options.addOption(u32, "body_bytes", storage_body_bytes);
+    storage_benchmark.root_module.addOptions("storage_benchmark_options", storage_benchmark_options);
+    b.step("storage-benchmark", "Build paired disk-backed native and Table owner measurements").dependOn(&b.addInstallArtifact(storage_benchmark, .{}).step);
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
@@ -327,6 +339,19 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&local_catalog_tests.step);
     test_step.dependOn(&local_native_tests.step);
     b.step("test-local-native", "Verify native authority over local disk storage").dependOn(&local_native_tests.step);
+    const local_collection_faults = b.addExecutable(.{ .name = "transit-local-native-collection-faults", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/local_native_collection_faults.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") } },
+    }) });
+    const local_collection_test = b.addSystemCommand(&.{ "python3", "-B" });
+    local_collection_test.addFileArg(b.path("tests/local_native_collection_faults.py"));
+    local_collection_test.addArtifactArg(local_collection_faults);
+    local_collection_test.has_side_effects = true;
+    local_collection_test.stdio = .inherit;
+    test_step.dependOn(&local_collection_test.step);
+    b.step("test-local-native-collection-faults", "Verify process death during native physical collection").dependOn(&local_collection_test.step);
     const local_objects = b.addExecutable(.{ .name = "transit-local-objects-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/local_objects.zig"),
         .target = target,
@@ -344,7 +369,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/local_storage_faults.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_storage", .module = storage.module("transit_storage") }},
+        .imports = &.{ .{ .name = "transit_storage", .module = storage.module("transit_storage") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_protocol", .module = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize }).module("transit_protocol") } },
     }) });
     const local_faults_test = b.addSystemCommand(&.{ "python3", "-B" });
     local_faults_test.addFileArg(b.path("tests/local_storage_faults.py"));

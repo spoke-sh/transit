@@ -712,6 +712,10 @@
         "UnsupportedColumnCollation": {
           "code": "sql.unsupported_column_collation",
           "category": "unsupported"
+        },
+        "UnrepresentableEbcdic037": {
+          "code": "sql.unrepresentable_cp037",
+          "category": "binding"
         }
       }
     },
@@ -1627,6 +1631,10 @@
         "RelationalWorkspaceInUse": {
           "code": "query.relational_workspace_in_use",
           "category": "conflict"
+        },
+        "InvalidQueryCollations": {
+          "code": "query.invalid_collations",
+          "category": "binding"
         }
       },
       "exceptions": [
@@ -3036,6 +3044,10 @@
         "RelationalWorkspaceInUse": {
           "code": "query.relational_workspace_in_use",
           "category": "conflict"
+        },
+        "InvalidQueryCollations": {
+          "code": "query.invalid_collations",
+          "category": "binding"
         }
       },
       "exceptions": [],
@@ -4468,6 +4480,10 @@
           "code": "catalog.batch_limit",
           "category": "limit"
         },
+        "TableBuildBudget": {
+          "code": "catalog.build_memory_limit",
+          "category": "limit"
+        },
         "TablePayloadTooLarge": {
           "code": "catalog.payload_limit",
           "category": "limit"
@@ -4715,6 +4731,10 @@
         "InvalidCatalogRecord": {
           "code": "catalog.invalid_record",
           "category": "integrity"
+        },
+        "InvalidProjection": {
+          "code": "catalog.invalid_projection",
+          "category": "binding"
         }
       },
       "exceptions": [],

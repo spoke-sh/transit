@@ -8,6 +8,14 @@ sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or
 native authority. No optimizer rewrites are enabled.
 
+Finite logical plans bind a separate `QueryCollations` value to every input
+column. Binary, ASCII case folding and CP037 order apply consistently in scalar
+predicates, vector batches and resumable pages. Plan fingerprints and canonical
+FQP1 bytes include the vector. Table DML binds it from its exact schema. CREATE
+TABLE and ADD COLUMN accept the corresponding `COLLATE` clauses; types and
+physical codecs remain independent. ICU, expression overrides and text
+relational joins/group/order are unsupported.
+
 `TSegReader` reads one host-bound immutable segment through a synchronous range
 callback. Opening reads the 64-byte header, 16-byte trailer and bounded footer;
 projected decoding requests only the selected column pages. The reader verifies
@@ -21,9 +29,8 @@ page buffer. `group` additionally enforces a byte limit on actual arena backing
 allocations across the selected columns (64 MiB by default), and returns an
 owned `Group` released with `deinit`. Footer and page encoded-byte allowances
 are separate from that decoded limit and from result buffers. The segment limit
-is 16 MiB. Returned values outlive the reader and source; no borrowed Arrow or
-zero-copy profile is implied. Callback errors propagate and partial allocations
-are released by the owner. Requests are synchronous; cancellation is the host's
+is 16 MiB. Returned values outlive the reader and source. Callback errors
+propagate and partial allocations are released by the owner. Requests are synchronous; cancellation is the host's
 responsibility between calls, with no background reads surviving return.
 
 `encodedGroup` owns a projected group's verified encoded pages under a total
@@ -37,16 +44,103 @@ scratch at its peak. The encoded owner and decoded results have independent
 lifetimes. Footer metadata, allocator overhead and final caller result buffers
 are separate from these allowances.
 
+`bufferedGroup` returns a `BufferedGroup` containing verified encoded pages and
+column views. Plain int64, uint64, float64, Boolean, UTF-8, binary and JSON use
+64-byte-aligned value buffers, with sparse owned error/conflict details. These
+columns avoid materializing a cell array. Other plain types retain decoded
+metadata and borrowed byte payloads; other codecs retain bounded owned decoding. The total
+encoded-page allowance includes the page directory, while the separate decoded
+allowance includes live validation scratch and arena growth. Views remain valid
+until `BufferedGroup.deinit`, which releases metadata before page buffers; the
+reader and source may close earlier. Each column supplies `len` and `cell`;
+`Values.cloneValidated` detaches a cell for longer use. Qualified `.plain`
+columns also expose `buffers.arrowValues`, which fills a caller's three-entry
+buffer directory and returns borrowed Arrow `ArrayData` on little-endian hosts.
+It verifies 64-byte address alignment. All non-value states are null in this
+nullable value child; the complete column retains state and error/conflict
+evidence separately. Both directory and group must outlive every derived Arrow
+view. Buffer `retain` does not extend these borrowed lifetimes. This is local
+value-buffer interchange, without a C data release callback or external import.
+
 `PhysicalCodecs.decodeColumnPageSelected` accepts sorted, unique row ordinals
 and owns only their decoded cells in the output arena. It validates the complete
 page, including skipped values and conflict details, using a reusable scratch
 workspace. Dictionary entries borrow encoded scalar bytes until selected;
 selected repetitions share one owned value. Symbol-table and EBCDIC strings
 still require transient expansion for validation. This reduces retained decoded
-values without claiming to skip all decoding work or supply encoded predicates.
+values without skipping complete-page validation.
+`decodeColumnPageBorrowingBytes` uses the same validation with an explicit input
+lifetime for plain payloads, including selected nested and conflict values.
+Both immutable input and the metadata arena must outlive its cells. Compressed
+columns use the owned fallback; unselected rows are still validated.
 `Types.Codec.decodeBoundBorrowingBytes` exposes the underlying explicit lifetime:
 text, binary and JSON bytes borrow immutable input, recursive arrays belong to
 the supplied arena, and `Values.cloneValidated` produces a detached owned cell.
+
+`PhysicalCodecs.evaluateColumnPage` evaluates one `ColumnPredicate` over physical
+values, runs or dictionary codes. Its output owns one byte per row, preserving
+true, false, unknown, type error and conflict separately. RLE runs and dictionary
+entries evaluate once; symbol-table and EBCDIC strings use bounded transient
+decoding. The caller keeps the typed literal alive during evaluation and owns
+scratch/output allocations. The complete encoded page is validated before
+success, including nonmatching values. Comparisons use the column's declared
+logical type and binary, ASCII case-insensitive or CP037 collation.
+
+`TableProjection` derives a canonical input-column set from a finite Table plan,
+including predicate inputs and all primary-key columns. Its projected schema
+preserves stable column descriptors; its private plan remaps positions without
+changing output names, collations, LIMIT or source basis. Remapped plans borrow
+the caller's bounded workspace until copied into execution. The direct Table
+query owner keeps the original plan fingerprint for failure attribution.
+
+`TSegReader.filteredGroup` combines that kernel with verified zone-map pruning
+and projected row selection. It validates interpretation and projection before
+pruning, reads the predicate column only for candidate groups, then decodes
+requested columns only at matching ordinals. No projected payload is read for an
+empty selection. Error/conflict counts prevent comparison pruning from hiding
+eager failures; `FilterFailure` records the first failing source row/column.
+State predicates can select errors/conflicts while retaining their details.
+The decoded budget includes outcomes, selection ordinals, output arena and
+simultaneously live validation/dictionary scratch. At most one encoded page is
+held; projecting the predicate column reads that page again after selection.
+Missing/oversized sort keys use the unpruned path. Pruning trusts the bound
+footer's statistics and does not verify omitted payloads. Hosts own deletion
+visibility, query limits, snapshot retention and final disclosure; direct SQL
+does not yet lower general predicates into this component API.
+
+`filteredCandidates` applies the same program to at most 1,024 unique physical
+row ordinals supplied in the owner's logical traversal order. The owner supplies
+only rows visible in its retained directory. An optional match limit stops
+semantic evaluation at that prefix; omitted or later rows cannot win an operator
+failure. Encoded pages still undergo complete integrity and value validation.
+The result reports how many supplied candidates were examined, including misses,
+and owns matching cells indexed by sorted physical ordinal. `Group.rowIndex`
+lets the owner restore its original traversal order. Examined candidates do not
+establish complete-source coverage. This component supplies no snapshot,
+visibility, authorization or SQL execution authority.
+
+`TSegReader.decisions` retains a bounded group of filter decisions so an owner
+can visit physical rows in a different logical order without repeating encoded
+predicate evaluation. Each row records selection or its first semantic failure
+and original instruction/column. False and unknown are both non-selections;
+pruned groups do not claim exact three-valued truth. Structural and requested-page
+integrity failures still fail the read immediately. Decisions own no source
+cells or borrowed literals. The host binds cached decisions to its exact plan
+and group, selects live identities, and discloses failures only when visiting
+those identities. Outcome vectors, scratch and retained decisions share the
+supplied decoded allocation budget.
+
+`filteredProgram` accepts a `ColumnPredicate.Program` with at most 64 postfix
+instructions across the declared columns. It evaluates all atoms, then uses the
+shared Boolean machine to preserve eager row/instruction failure order.
+Conservative zone-map truth sets retain unknown values under NOT/AND/OR; any
+possible eager error prevents pruning. Each atom's outcome vector shares the
+decoded budget, and only one encoded page is live. Repeated atoms can read the
+same column again. `Program.fromLogical` and `Program.fromPlan` retain atom and instruction order while
+borrowing literals into caller-supplied instruction storage. The host binds its
+exact Table interpretation; this conversion creates no saved plan or new wire
+identity. Plain decoded `Program.truth` and encoded evaluation use the same
+declared collation and Boolean semantics.
 
 `AuthorizationSql.compile` parses the selected role, membership, privilege,
 default-privilege, schema and ownership statements into unresolved typed syntax.
@@ -385,3 +479,11 @@ the shared [diagnostic value](../../../contracts/DIAGNOSTICS_V1.md): stable SQL
 codes, source coordinates, expected/actual types, parameter sites and typed
 correction actions. It does not perform additional catalog reads. Human console
 hints remain a separate presentation; structured actions contain no dot commands.
+
+
+`MemoryBudget` accounts concurrent requested backing bytes for query and storage
+workspaces, including arena growth slack. Successful free/shrink operations
+release capacity; failed growth leaves accounting unchanged. Callers own the
+budget's stable lifetime and map exhaustion at their domain boundary. The finite
+relational owner and Table compaction share this allocator; reader caches and
+provider buffers keep their separately declared bounds.

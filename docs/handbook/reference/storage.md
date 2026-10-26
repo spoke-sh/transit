@@ -27,13 +27,22 @@ Current database/schema/Table rights apply to both paths.
 
 Direct Table point reads use a paged key directory to select their WAL row or
 immutable segment. Segment reads fetch verified footer and row-group column
-ranges; the owner retains at most one footer and one bounded decoded group.
+ranges; the owner retains at most one footer and one bounded projected group.
+Qualified plain scalar columns use aligned value buffers with separate state
+and error/conflict evidence. Other plain types borrow byte payloads while
+retaining bounded metadata; compressed columns use bounded decoding. Encoded buffers and decoded metadata
+have separate byte limits.
 New segments use 256-row groups by default. Output rows own their values across
 cache eviction, and current authorization still applies before disclosure.
 Retained key-range reads seek through a separate paged full-key directory and
 return bounded pages in the declaration's collation order. Their continuations
-preserve the exact snapshot and interval. SQL projection and predicate pushdown
-remain separate query capabilities.
+preserve the exact snapshot and interval. Finite direct SQL scans select required
+output, predicate and key columns before reading segment pages. Identity-ordered
+predicates execute over encoded segment groups before materializing selected
+rows. Filtered continuations bind the retained source and full plan; examined
+counts and per-row positions preserve skipped-row coverage, LIMIT and ordered
+failure attribution. Empty pages can carry continuations. The owner rechecks
+current rights for selected, empty and terminal pages.
 
 The installed owner does not automatically flush point writes or expose physical
 Table garbage collection. Absence of a new `.tseg` after a point write does not
@@ -72,13 +81,17 @@ shared registry operation and retain the global pin quotas. See the
 [node limits](../../../apps/transit-node/docs/growing.md#public-surface-and-limits)
 for execution-lane and memory budgets.
 
-The local backend reserves encoded object bytes under the journal mutex, then
-publishes immutable objects outside it using per-key disk locks. Reads likewise
-avoid that mutex. A stalled private object sync therefore does not itself hold
-the native journal lock; WAL acceptance and its current authority checks remain
+For direct-data staging, the local backend reserves encoded object bytes under
+the journal mutex, then publishes immutable objects outside it using per-key disk
+locks. Immutable reads likewise avoid that mutex. A stalled direct-data object
+sync therefore does not itself hold the native journal lock; WAL acceptance and
+its current authority checks remain
 serialized. Simultaneous missing-key attempts can conservatively reserve the
 same object more than once until exclusive reopen recounts actual files. This
 separation does not remove device contention or promise a completion deadline.
+Native page/block creation and explicit native collection still serialize
+allocation, publication and reclamation under that mutex to protect delayed
+creators; their syncs can delay journal work.
 
 The [performance reference](performance.md) quantifies current small-page read
 and write amplification. Catalog reads stop at namespace boundaries. Bounded tree mutation batches copy
@@ -147,10 +160,22 @@ ledgers, snapshots, WAL and filesystem headroom have separate costs.
 
 The local CLI profile composes the native log and object store inside the node.
 Lifecycle maintenance and accepted-floor trimming run in that owner; local
-immutable-object collection and compaction are unavailable. The physical
-collection and compaction mechanisms above apply to Ursula. Provider budgets,
+automatic immutable-object collection is not scheduled. The local backend exposes
+[native collection and bounded compaction](../../../packages/zig/transit-backend-local/docs/maintenance.md)
+as explicit component operations. They preserve native history and captures,
+reject old creators by accepted epoch, and resume physical object deletion from
+a durable intent. Direct Table and catalog guards also retain the epoch acquired
+before staging: an intervening storage fence rejects publication, while a fresh
+request can rebuild an unaccepted operation using the same identity. Receipt
+observation and reads continue to require current authorization. The local
+collector does not collect Table objects. Ursula uses the stream
+closure fences described above. Provider budgets,
 disk headroom and trusted clock assumptions are deployment responsibilities;
 an in-memory store test does not establish WAL or host power-loss behavior.
+The local backend also exposes explicit [standalone payload operations](../../../packages/zig/transit-backend-local/docs/payloads.md).
+They verify the accepted declaration, preserve uncertain creation and require
+opted-in native retirement before physical deletion. Installed local payload
+routes remain separate from these component operations.
 See [retention](retention.md) and [deployment](deployment.md).
 
 The [backend package](../../../packages/zig/transit-backend-ursula/README.md) and

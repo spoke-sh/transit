@@ -73,6 +73,32 @@ source order. Captured queries retain their separate complete-key equality path.
 Finite reads also keep the scan when a valid comparison literal exceeds the
 stored key's character or encoded-byte limit.
 
+Identity-ordered finite scans push their required columns into the Table owner.
+The selected set includes output and predicate inputs plus all primary-key
+columns used to verify row-directory entries. Segment reads fetch and decode
+only these columns; WAL rows use bounded full-row decoding before selecting
+cells. Hidden key and predicate inputs do not enter the output schema. The
+private execution plan remaps column positions while preserving the original
+plan identity and column names in failure evidence. Aliases, repeated output
+columns, declared collations, source order, LIMIT and complete-source coverage
+retain their original meaning. Point/count-range paths keep their full rows.
+
+Predicates in identity-ordered finite scans execute in the Table owner before
+selected segment columns are materialized. The signed request carries a canonical
+plan bound to the retained source and collations. Source pages examine at most
+eight identities, including misses, and may return no rows while retaining a
+continuation. The reader verifies cumulative coverage and copies original source
+positions into compute batches; skipped rows do not renumber overflow or predicate
+failures. LIMIT stops at the selected prefix and limits each source request's
+remaining matches. Empty full-source results still verify all source coverage.
+A deferred predicate failure follows earlier selected rows so prior aggregate
+failures or a satisfied LIMIT retain precedence. The finite executor borrows
+variable and recursive payloads from one decoded reader page until its compute
+prefix is consumed, then resets those views before replacing the page. Returned
+results own their values independently. This avoids a compute payload copy;
+transport decoding and result materialization retain their existing owners.
+Arrow buffer interchange and relational predicate pushdown have separate owners.
+
 `DirectTablePrepared.prepare` checks current SELECT rights and owns an immutable
 schema-bound template without acquiring a pin. Its preparation fingerprint
 includes the complete connection, selected role, namespace, name and declaration.
@@ -85,9 +111,10 @@ See the [Table parameter contract](../../../contracts/SQL_PARAMETERS_V1.md#catal
 for fresh execution, current policy and definition-change rules.
 
 This direct caller accepts the finite Transit SELECT profile over one explicit
-retained source. Text uses `none` or `UTF8_BINARY` collation; other declared
-collations reject before execution because the shared logical evaluator does
-not yet apply them. Closing a computation leaves its source available for other
+retained source. Text comparisons use the exact Table column's binary,
+`ASCII_CI` or `EBCDIC_CP037` collation in direct, prepared and captured plans.
+The source and plan both commit the complete comparison vector; reopening
+checks it against the retained schema. Closing a computation leaves its source available for other
 queries until the pin owner explicitly releases it. See the [direct catalog guide](../transit-catalog/docs/direct-catalog.md)
 for pin acquisition, authority and recovery.
 
@@ -148,8 +175,9 @@ defines configuration, ownership, cancellation and memory accounting.
 
 Direct Table scans read accepted WAL and segment rows through `TablePartition`
 at retained cuts. Fuze's `TSegReader` verifies bounded footer and column ranges;
-point reads select owned cells and scans reuse decoded groups. Segment Zone Map
-and Bloom-filter primitives do not establish SQL predicate or projection pushdown.
+point reads select owned cells and scans reuse decoded groups. Finite identity
+scans select columns before segment reads. Segment Zone Map and Bloom-filter
+primitives do not establish general SQL predicate pushdown.
 
 `RelationalCompilation.prepare` resolves explicit catalog routes through current
 inspection reads, owns immutable schemas and compiles a prepared relational plan

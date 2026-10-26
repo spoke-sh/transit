@@ -52,10 +52,37 @@ replay, duplicate rejection and post-retirement inspection can have different
 horizons. After detailed retry evidence is reclaimed, old identities must still
 be rejected through retained floors/retirement facts; they cannot become new work.
 
+The local Table owner can archive complete accepted records and trim their covered
+WAL files while preserving unlimited logical history. Original receipts, retained
+unflushed snapshots and offline history cursors resolve through the accepted
+archive directory. Missing required archive data is a replay/read failure. A
+published recovery checkpoint bounds Table restart to its accepted root and later
+transitions while preserving those original read/retry obligations. It grants no
+additional trimming or expiry authority. This
+[physical history maintenance](../../../packages/zig/transit-storage/docs/table-partitions.md#archive-complete-history-and-trim-wal-files)
+does not expire history or collect immutable Table objects.
+
+The Table storage component also accepts explicit `expireHistory` calls with
+maintenance authority. A call advances a durable logical history floor only
+within published archive/checkpoint coverage and never past a live history
+lease's original frontier. Reads starting below that floor report expiry.
+Ordinary pinned snapshots, original receipts, current data and admitted work
+remain retained. An offline history consumer keeps its lease until explicit
+release. The paged lease directory bounds the oldest-lease check independently
+of pin count. This operation does not reclaim physical objects; the installed
+service has no automatic Table history-expiry policy.
+
 Logical deletion precedes physical reclamation. Cleanup is fenced, resumable and
 dependency-aware; a delayed delete cannot target a replacement identity. An
 adapter's delete acknowledgement does not prove removal from every backup or
 external copy. Broad physical-erasure guarantees need a contract for those copies.
+
+The [local native maintenance API](../../../packages/zig/transit-backend-local/docs/maintenance.md)
+marks retained roots and live captured versions before deleting immutable pages
+and blocks. It requires an accepted epoch fence and a persisted time fence after
+snapshot/request grace. Allocation and deletion progress survive reopen. Native
+compaction preserves values and resource revisions; Table retention and automatic
+local collection scheduling have separate owners.
 
 Documents add an explicit merge epoch/history floor. Old replicas may need
 resynchronization after opted-in compaction; they cannot replay stale edits into

@@ -5205,6 +5205,13 @@
           "actions": [
             "contact_operator"
           ]
+        },
+        "InvalidQueryCollations": {
+          "code": "query.invalid_collations",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
         }
       }
     },
@@ -7551,6 +7558,14 @@
             "contact_operator"
           ],
           "transport_status": 409
+        },
+        "InvalidQueryCollations": {
+          "code": "query.invalid_collations",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
         }
       }
     },
@@ -9038,6 +9053,14 @@
             "contact_operator"
           ],
           "transport_status": 10
+        },
+        "InvalidQueryCollations": {
+          "code": "query.invalid_collations",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 3
         }
       }
     },
@@ -9226,6 +9249,13 @@
         },
         "TableBatchTooLarge": {
           "code": "catalog.batch_limit",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "TableBuildBudget": {
+          "code": "catalog.build_memory_limit",
           "category": "limit",
           "actions": [
             "correct_input"
@@ -9679,6 +9709,13 @@
           "category": "integrity",
           "actions": [
             "contact_operator"
+          ]
+        },
+        "InvalidProjection": {
+          "code": "catalog.invalid_projection",
+          "category": "binding",
+          "actions": [
+            "correct_input"
           ]
         }
       },
@@ -12410,6 +12447,13 @@
           "category": "conflict",
           "actions": [
             "contact_operator"
+          ]
+        },
+        "InvalidQueryCollations": {
+          "code": "query.invalid_collations",
+          "category": "binding",
+          "actions": [
+            "correct_input"
           ]
         }
       }

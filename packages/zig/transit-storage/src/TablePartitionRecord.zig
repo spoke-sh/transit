@@ -29,10 +29,18 @@ pub const Root = struct {
     ordered_rows: ?pages.Reference,
     receipts: ?pages.Reference = null,
     pins: ?pages.Reference = null,
+    /// Mandatory logical read boundary. Zero retains all accepted history.
+    history_floor: u64,
+    /// Live history leases ordered by their original exclusive frontier.
+    history_pins: ?pages.Reference,
     /// Required on disk: older roots must not silently lose admitted work.
     operations: ?pages.Reference,
     pending: ?pages.Reference,
     live_rows: u64 = 0,
+    /// Mandatory physical history coverage; absent persisted fields reject.
+    archive: @import("TableArchive.zig").Coverage,
+    /// Required even when null. Only a recovery publication may advance it.
+    recovery: ?@import("TableRecovery.zig").Reference,
 
     pub fn declared(self: Root) Declaration.Stored {
         return .{ .interpretation = self.interpretation, .content = self.declaration, .schema_fingerprint = self.schema_fingerprint, .retired = self.retired };
@@ -40,7 +48,10 @@ pub const Root = struct {
 
     pub fn validate(self: Root) !void {
         try self.declared().validate();
-        if (self.partition == 0 or self.next_segment == 0 or self.changed_lsn > self.next_lsn or
+        try self.archive.validate(self.next_lsn);
+        if (self.recovery) |reference| try reference.validate(self.next_lsn);
+        if (self.partition == 0 or self.next_segment == 0 or self.changed_lsn > self.next_lsn or self.history_floor > self.next_lsn or
+            (self.history_pins != null and self.pins == null) or
             (self.live_rows == 0) != (self.rows == null) or
             (self.live_rows == 0) != (self.scan_rows == null) or
             (self.live_rows == 0) != (self.ordered_rows == null) or
@@ -97,6 +108,9 @@ pub const Record = struct {
         },
         operation: Operation,
         checkpoint,
+        archive,
+        recovery,
+        history_floor,
         pin: struct { owner: d.Operation, basis: d.Content },
         release: struct { owner: d.Operation, basis: d.Content },
     },
@@ -133,7 +147,7 @@ pub const Record = struct {
                     value.basis.position.partition != self.root.partition or
                     value.basis.position.next_lsn >= self.root.next_lsn) return error.InvalidTableHistory;
             },
-            .checkpoint => {},
+            .checkpoint, .archive, .recovery, .history_floor => {},
         }
     }
 };
@@ -152,6 +166,15 @@ pub fn encode(record: Record, rows: []const u8, output: []u8) ![]const u8 {
 }
 
 pub const Decoded = struct { record: Record, rows: []const u8 };
+pub fn decodeFrame(allocator: std.mem.Allocator, frame: @import("TransitLog.zig").Frame, partition: u64, lsn: u64) !Decoded {
+    const decoded = try decode(allocator, frame.payload, lsn);
+    if (frame.header.partition_id != partition or frame.header.lsn != lsn or
+        frame.header.partition_id != decoded.record.root.partition or
+        (frame.header.kind != .row_delta and frame.header.kind != .manifest_checkpoint) or
+        (decoded.record.action == .mutation) != (frame.header.kind == .row_delta) or
+        (decoded.record.action != .mutation and decoded.rows.len != 0)) return error.InvalidTableHistory;
+    return decoded;
+}
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8, lsn: u64) !Decoded {
     if (bytes.len < header_bytes or !std.mem.eql(u8, bytes[0..8], "TACCEPT1")) return error.InvalidTableHistory;
     if (!std.mem.eql(u8, bytes[8..40], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;

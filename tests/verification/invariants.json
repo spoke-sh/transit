@@ -1995,6 +1995,139 @@
       ],
       "limits": "Three draft classes, four filter classes, start/end cursors and one borrower. The graph abstracts generation counters, grammar, text algorithms, undo contents, I/O, allocation and terminal rendering. Edge replay uses representative paths, not every Zig history, and is not an unbounded refinement proof. Fairness is an environment assumption, not proof that transport cancellation terminates or a latency guarantee.",
       "model": "tests/verification/models/Console.tla"
+    },
+    {
+      "id": "STORAGE-04",
+      "claim": "Accepted Table archive coverage precedes physical WAL trimming and preserves original receipts, pending operations, snapshots and complete logical history",
+      "owner": "contracts/TRANSIT_STORAGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TableArchive.zig",
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-storage/src/TablePartitionRecord.zig",
+        "packages/zig/transit-backend-local/src/DataStore.zig"
+      ],
+      "profile": "Current native v1; serialized local Table owner with unlimited logical history",
+      "tasks": [
+        "test::unit",
+        "test::table-archives"
+      ],
+      "scenarios": [
+        "Bounded archive publication, exact lost-reply recovery and two-pass archival across disk restart with a one-page cache",
+        "Unflushed snapshots, offline history cursors, exact receipts and admitted work remain readable after physical trim",
+        "Current authority rejects publication after staging and trim after revocation; control reserve allows archival after ordinary admission fills",
+        "Missing/foreign/malformed coverage, regressed frontiers and substituted original coordinates fail closed",
+        "SIGKILL during archive object/index staging, acceptance publication and resumable physical prefix deletion"
+      ],
+      "limits": "Complete logical history and immutable objects remain retained. Full replay still scales with history. Process death preserves the OS/page cache; no power-loss, logical expiry, immutable Table-object collection or automatic installed maintenance claim.",
+      "model": null,
+      "qualification": "Executed component and process-death results are recorded in tests/README.md; full clean qualification is separate."
+    },
+    {
+      "id": "STORAGE-05",
+      "claim": "Bounded Table compaction changes live-row physical placement while preserving logical state and retained roots, with restart progress below a fixed segment boundary",
+      "owner": "contracts/TRANSIT_STORAGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-fuze/src/MemoryBudget.zig"
+      ],
+      "profile": "Current native v1; serialized local Table owner, immutable retained history",
+      "tasks": [
+        "test::unit",
+        "test::table-compaction"
+      ],
+      "scenarios": [
+        "Consolidate live rows from multiple partially deleted segments; retained snapshots still include old rows and unflushed current rows remain in WAL",
+        "Exact fixed-boundary retries do not compact their own output; lost replies and disk restart preserve progress",
+        "Private row/encoder/build memory, encoded-row bytes, row counts and index staging work reject before publication",
+        "Current authority and reserved control capacity apply to compaction publication",
+        "SIGKILL at segment/index staging and acceptance boundaries preserves original receipts, rows and snapshots"
+      ],
+      "limits": "Old segment/index bytes remain retained; no immutable-object collection, logical expiry or automatic scheduling. Resident candidate budget is separate from bounded reader caches, index work, acceptance-frame and provider buffers. Process death is not host power loss.",
+      "model": null,
+      "qualification": "Executed focused checks are recorded in tests/README.md; matched performance controls and complete clean qualification remain separate."
+    },
+    {
+      "id": "STORAGE-06",
+      "claim": "Only a published Table recovery baseline can bound replay; its publishing transition, later chain and current roots validate before readiness while original read/retry obligations remain retained",
+      "owner": "contracts/TRANSIT_STORAGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TableRecovery.zig",
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-storage/src/TablePartitionRecord.zig"
+      ],
+      "profile": "Current native v1; serialized local Table owner with explicit recovery checkpoints and unlimited logical history",
+      "scenarios": [
+        "Disk reopen after mixed point/bulk ingestion, archive/trim and a lost checkpoint reply replays only the publishing transition and later work; receipts, pinned rows and offline history remain exact",
+        "Staged but unpublished capsules confer no authority; current authorization and control reserve apply to publication and retry",
+        "Missing capsules, wrong identities/frontiers/chains, changed roots and a reference copied into the wrong action fail closed",
+        "Pending conditional operations, permanent retirement, required persisted fields and allocation failures survive checkpoint recovery",
+        "SIGKILL at capsule staging and WAL acceptance boundaries preserves original data and idempotent coverage; independent archive/trim still requires its own accepted floor",
+        "Older archived evidence is checked on access; missing receipts reject original retries without a fresh operation or silent history advance"
+      ],
+      "limits": "Table replay counters exclude LocalWal startup and separate historical/index I/O. Checkpointing is not a full historical integrity scrub, logical expiry, object collection, automatic scheduling, power-loss proof or matched latency/RSS claim.",
+      "model": null,
+      "qualification": "Executed focused checks are recorded in tests/README.md; complete committed-HEAD clean qualification is separate.",
+      "tasks": [
+        "test::unit",
+        "test::table-checkpoints"
+      ]
+    },
+    {
+      "id": "STORAGE-07",
+      "claim": "Table mutation, retained execution, rewrite and flush candidates obey a configured private allocation ceiling without publishing partial rows or converting parent allocator failure into terminal work rejection",
+      "owner": "contracts/TRANSIT_STORAGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-fuze/src/MemoryBudget.zig"
+      ],
+      "profile": "Current native v1; serialized local Table owner and explicit private build workspace",
+      "scenarios": [
+        "One-byte point/bulk/flush budgets and a near-peak bulk budget refuse candidates with unchanged accepted roots and bounded measured backing allocations",
+        "A declaration candidate can be staged before rewrite allocation fails; the original definition and rows survive recovery",
+        "Predicate work exceeding private memory records the original admitted operation as work_limit; later recovery cannot reopen that terminal identity",
+        "Every allocation failure in definition acceptance cleans up private memory and leaves accepted state intact; retained declarations and reader caches outlive private allocators",
+        "A parent allocation failure following an earlier configured refusal remains OutOfMemory instead of budget exhaustion",
+        "Existing multi-group ALTER and UPDATE, exact admitted work recovery and publication SIGKILL schedules retain their semantics"
+      ],
+      "limits": "Counts requested private backing allocations and arena slack, not allocator bookkeeping or process RSS. Caller input, persistent declaration, reader/index caches, WAL buffers and provider I/O have separate bounds. No logical retention or physical collection change.",
+      "model": null,
+      "qualification": "Executed focused results belong in tests/README.md; repository-wide and matched performance qualification remain separate.",
+      "tasks": [
+        "test::unit",
+        "test::table-build-memory"
+      ]
+    },
+    {
+      "id": "STORAGE-08",
+      "claim": "Encoded retained Table filtering preserves live identity traversal, consumed source coverage, plan-bound continuation and current disclosure under separate predicate and decoder budgets",
+      "owner": "packages/zig/transit-storage/docs/table-partitions.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-fuze/src/TSegReader.zig",
+        "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
+        "packages/zig/transit-catalog/src/DirectTableReader.zig",
+        "packages/zig/transit-catalog/src/DirectTableDispatch.zig",
+        "packages/zig/transit-query/src/DirectTableScan.zig"
+      ],
+      "profile": "Serialized Table owner, signed retained reads and identity-ordered finite SQL plans",
+      "scenarios": [
+        "Interleaved segments with reversed key order and a WAL suffix retain identity order across pages, deletion and disk reopen",
+        "Empty nonterminal pages count skipped rows; matching-row and byte limits resume without skipping an unreturned match",
+        "Independent binary, ASCII_CI and CP037 masks agree, NULL does not select, and changed plans invalidate cached decisions and cursors",
+        "Encoded semantic failures are row-addressed decisions; requested-page corruption still rejects immediately",
+        "Every injected allocation failure releases partial dictionaries, decisions and output; configured predicate exhaustion preserves the accepted root",
+        "Final authorization covers returned rows and empty pages; released pins cannot reopen",
+        "Signed plans bind original source, schema, collations and fingerprint; borrowed reads require the exact retained target",
+        "Reader validates sparse offsets, failure position and terminal coverage without advancing failed decodes; original ordinals reach SQL SUM diagnostics",
+        "Empty source pages, LIMIT zero/one, prepared predicates and empty aggregates preserve final disclosure gates"
+      ],
+      "limits": "Visits at most one eight-entry identity page per call; outcomes cache one bounded segment group. Finite query owner applies total LIMIT and aggregates; the signed adapter validates source-basis authority. Structural I/O failures are immediate. No installed latency, physical collection or complete clean qualification claim.",
+      "model": null,
+      "qualification": "Component, signed service and SQL execution are recorded separately in tests/README.md.",
+      "tasks": [
+        "test::unit",
+        "test::table-filtering"
+      ]
     }
   ]
 }

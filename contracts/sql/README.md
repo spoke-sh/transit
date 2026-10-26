@@ -5,8 +5,9 @@ covers every statement below with syntax, examples and execution limits, includi
 the separate [historical-read fragment](../../docs/handbook/reference/sql/as-of.md).
 The [grammar surface inventory](../../docs/handbook/reference/sql/grammar-surface.md)
 separates implemented profiles, checked grammar, proposed syntax and undecided
-syntax. Proposed graph, foreign-relation, physical encoding (`ENCODING`),
-collation (`COLLATE`), branching, and historical-selector examples are
+syntax. Column `COLLATE UTF8_BINARY`, `ASCII_CI` and `EBCDIC_CP037` clauses
+belong to the checked Table grammar. Proposed graph, foreign-relation, physical
+encoding (`ENCODING`), expression collation, branching, and historical-selector examples are
 not inputs to this checked grammar. The integer system-time fragment has no
 execution semantics; the intended language reserves that spelling for SQL
 temporal meaning and uses separate typed Transit selectors.

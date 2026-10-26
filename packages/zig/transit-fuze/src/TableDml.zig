@@ -33,7 +33,7 @@ pub const Plan = struct {
         }
         if (self.predicate) |program| {
             var fields: [s.max_columns]t.Field = undefined;
-            try program.validate(try self.schema.rowType(&fields));
+            try program.validateCollations(try self.schema.rowType(&fields), .fromTable(self.schema));
         }
     }
     /// Bind recovery to the complete typed intent, not data read during
@@ -94,7 +94,7 @@ pub const Plan = struct {
         try self.schema.validateRow(row);
         const program = self.predicate orelse return true;
         var fields: [s.max_columns]t.Field = undefined;
-        return (try program.truth(try self.schema.rowType(&fields), row)).selects();
+        return (try @import("PredicateMachine.zig").truth(program.instructions, Predicate.Row{ .schema = try self.schema.rowType(&fields), .cells = row, .collations = .fromTable(self.schema) })).selects();
     }
     /// Qualify only a conjunction of exactly one equality per declared key
     /// column. Extra conditions, duplicate atoms, OR and NOT keep scan semantics.

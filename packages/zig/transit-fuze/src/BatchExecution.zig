@@ -10,10 +10,17 @@ const RowAllocator = @import("RowAllocator.zig");
 pub fn Execution(comptime Scan: type, comptime verification: logical.Verification) type {
     return struct {
         const Self = @This();
+        const borrows = @hasDecl(Scan, "nextBorrowed");
+        comptime {
+            if (borrows and !@hasDecl(Scan, "batchAvailable")) @compileError("A borrowed source must declare its retained page boundary with batchAvailable");
+        }
         scan: Scan,
         row_allocator: ?*RowAllocator = null,
         physical: batch,
         fingerprint: [32]u8,
+        /// A host may remap private physical input columns while preserving the
+        /// original admitted plan identity in user-facing failure evidence.
+        diagnostic_plan: ?[32]u8 = null,
         /// Optional public borrowed-plan contract; the physical program owns its copy.
         borrowed_plan: ?logical.Plan = null,
         runner: ?batch.Runner = null,
@@ -32,6 +39,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         pending_provenance: batch.Provenance = .{ .row = 1, .boundary = 1 },
         oversized: bool = false,
         read_error: ?anyerror = null,
+        read_failure: ?logical.Failure = null,
         read_rejection: if (@hasField(Scan, "rejection")) @FieldType(Scan, "rejection") else void = if (@hasField(Scan, "rejection")) null else {},
 
         /// Takes ownership of scan only on success. Decoder/source and returned
@@ -42,7 +50,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         pub fn initBudget(scan: Scan, plan: logical.Plan, limits: batch.Limits) !Self {
             var physical = try batch.init(scan.allocator, plan, limits);
             errdefer physical.deinit();
-            const row_allocator = if (@hasDecl(Scan, "nextAllocated")) try RowAllocator.init(scan.allocator) else null;
+            const row_allocator = if (!borrows and @hasDecl(Scan, "nextAllocated")) try RowAllocator.init(scan.allocator) else null;
             return .{ .scan = scan, .row_allocator = row_allocator, .physical = physical, .fingerprint = physical.fingerprint };
         }
         pub fn deinit(self: *Self) void {
@@ -59,6 +67,42 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
             if (@hasDecl(Scan, "nextAllocated")) return self.scan.nextAllocated(self.row_allocator.?.allocator());
             return self.scan.next();
         }
+        fn readFailed(self: *Self, err: anyerror) void {
+            self.read_error = err;
+            if (@hasDecl(Scan, "batchFailure")) self.read_failure = self.scan.batchFailure();
+            if (@hasField(Scan, "rejection")) {
+                self.read_rejection = self.scan.rejection;
+                self.scan.rejection = null;
+            }
+        }
+        /// A source retains the complete current page, including earlier rows,
+        /// until nextBorrowed is called after batchAvailable reaches zero. It
+        /// also preserves that page on errors. Stop before that invalidation;
+        /// fill resets physical views before asking for a subsequent page.
+        fn fillBorrowed(self: *Self, target: usize) void {
+            while (self.physical.len < target) {
+                const cells = (self.scan.nextBorrowed() catch |err| {
+                    self.readFailed(err);
+                    break;
+                }) orelse break;
+                const ordinal = std.math.add(u64, self.scanned, self.physical.len + 1) catch |err| {
+                    self.readFailed(err);
+                    break;
+                };
+                const source_row = if (@hasDecl(Scan, "batchOrdinal")) self.scan.batchOrdinal() else ordinal;
+                const provenance: batch.Provenance = .{ .row = source_row, .boundary = source_row, .identity = if (@hasDecl(Scan, "batchIdentity")) self.scan.batchIdentity() else null, .location = if (@hasDecl(Scan, "batchPosition")) self.scan.batchPosition() else null };
+                const previous = if (self.physical.len == 0) self.scanned else self.physical.provenance[self.physical.len - 1].row;
+                if (provenance.row <= previous) {
+                    self.readFailed(error.SourceChanged);
+                    break;
+                }
+                self.physical.appendBorrowedValidated(cells, provenance) catch |err| {
+                    self.readFailed(err);
+                    break;
+                };
+                if (self.scan.batchAvailable() == 0) break;
+            }
+        }
         fn fill(self: *Self) !void {
             self.physical.reset();
             self.index = 0;
@@ -68,17 +112,13 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
             if (verification == .selected_prefix) if (self.physical.plan.limit) |limit| {
                 target = @min(target, limit - self.selected);
             };
-            while (self.physical.len < target) {
+            if (borrows) self.fillBorrowed(target) else while (self.physical.len < target) {
                 const had_pending = self.pending != null;
                 const acquired = if (self.pending) |row| held: {
                     self.pending = null;
                     break :held row;
                 } else self.acquire() catch |err| {
-                    self.read_error = err;
-                    if (@hasField(Scan, "rejection")) {
-                        self.read_rejection = self.scan.rejection;
-                        self.scan.rejection = null;
-                    }
+                    self.readFailed(err);
                     break;
                 };
                 var row = acquired orelse break;
@@ -87,7 +127,14 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     self.read_error = err;
                     break;
                 };
-                const provenance: batch.Provenance = if (had_pending) self.pending_provenance else .{ .row = ordinal, .boundary = ordinal, .identity = if (@hasDecl(Scan, "batchIdentity")) self.scan.batchIdentity() else null, .location = if (@hasDecl(Scan, "batchPosition")) self.scan.batchPosition() else null };
+                const source_row = if (@hasDecl(Scan, "batchOrdinal")) self.scan.batchOrdinal() else ordinal;
+                const provenance: batch.Provenance = if (had_pending) self.pending_provenance else .{ .row = source_row, .boundary = source_row, .identity = if (@hasDecl(Scan, "batchIdentity")) self.scan.batchIdentity() else null, .location = if (@hasDecl(Scan, "batchPosition")) self.scan.batchPosition() else null };
+                const previous = if (self.physical.len == 0) self.scanned else self.physical.provenance[self.physical.len - 1].row;
+                if (provenance.row <= previous) {
+                    row.deinit();
+                    self.read_error = error.SourceChanged;
+                    break;
+                }
                 self.physical.appendValidated(row.cells, provenance) catch |err| {
                     if (err == error.BatchFull) {
                         self.pending = row;
@@ -116,10 +163,15 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     // Full-file verification still runs all conversions and EOF
                     // checks beyond LIMIT, without evaluating discarded operators.
                     if (verification == .full_source and self.atLimit() and self.pending == null and self.read_error == null) {
-                        while (try self.acquire()) |input| {
-                            var row = input;
-                            defer row.deinit();
-                            self.scanned = try std.math.add(u64, self.scanned, 1);
+                        self.physical.reset();
+                        while (if (borrows) (try self.scan.nextBorrowed()) != null else blk: {
+                            var row = (try self.acquire()) orelse break :blk false;
+                            row.deinit();
+                            break :blk true;
+                        }) {
+                            const ordinal = if (@hasDecl(Scan, "batchOrdinal")) self.scan.batchOrdinal() else try std.math.add(u64, self.scanned, 1);
+                            if (ordinal <= self.scanned) return error.SourceChanged;
+                            self.scanned = ordinal;
                         }
                         break;
                     }
@@ -131,6 +183,14 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     if (self.physical.len == 0) {
                         if (self.read_error) |err| {
                             if (@hasField(Scan, "rejection")) self.scan.rejection = self.read_rejection;
+                            if (self.read_failure) |failure| {
+                                if ((err != error.QueryTypeError and err != error.QueryConflict) or failure.operation != .predicate or failure.row <= self.scanned or
+                                    failure.state != (if (err == error.QueryTypeError) types.State.type_error else types.State.conflict) or
+                                    !std.mem.eql(u8, &failure.binding, &self.physical.plan.source_basis) or
+                                    !std.mem.eql(u8, &failure.plan, &(self.diagnostic_plan orelse self.physical.fingerprint))) return error.SourceChanged;
+                                self.failure = failure;
+                                self.scanned = failure.row;
+                            }
                             return err;
                         }
                         break;
@@ -138,7 +198,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 }
                 const i = self.index;
                 self.index += 1;
-                self.scanned = try std.math.add(u64, self.scanned, 1);
+                self.scanned = self.physical.provenance[i].row;
                 if (self.atLimit()) continue;
                 switch (self.physical.outcomes[i]) {
                     .type_error, .conflict => |_, tag| {
@@ -180,6 +240,11 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 }
             }
             if (!self.scan.complete and !(verification == .selected_prefix and self.atLimit())) return error.IncompleteSource;
+            if (@hasDecl(Scan, "batchCoverage")) if (self.scan.complete and !(verification == .selected_prefix and self.atLimit())) {
+                const covered = self.scan.batchCoverage();
+                if (covered < self.scanned) return error.SourceChanged;
+                self.scanned = covered;
+            };
             if (plan.aggregate != .rows) {
                 var arena: std.heap.ArenaAllocator = .init(self.scan.allocator);
                 errdefer arena.deinit();
@@ -207,7 +272,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
             var returned = false;
             defer if (!returned) row.deinit();
             const plan = self.physical.plan;
-            var counters: logical.Counters = .{ .scanned = self.scanned, .selected = self.selected, .value_count = self.value_count, .sum = self.sum };
+            var counters: logical.Counters = .{ .scanned = self.pending_provenance.row - 1, .selected = self.selected, .value_count = self.value_count, .sum = self.sum };
             defer {
                 self.scanned = counters.scanned;
                 self.selected = counters.selected;
@@ -260,7 +325,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 .state = state,
                 .instruction = instruction,
                 .binding = plan.source_basis,
-                .plan = self.physical.fingerprint,
+                .plan = self.diagnostic_plan orelse self.physical.fingerprint,
             };
             @memcpy(detail.column[0..detail.column_len], field.name[0..detail.column_len]);
             self.failure = detail;

@@ -118,6 +118,107 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- The [ingestion/commit matrix](../../tests/storage_benchmarks/2026-10-26-ingestion/README.md)
+  completes 384 independently verified write/readback samples with median/p95
+  owner and WAL timings, allocation/RSS and retained-file attribution. Bulk
+  ingestion reduces WAL bytes without a consistent total latency/storage gain.
+  The [full growth attempt](../../tests/storage_benchmarks/2026-10-26-growth/README.md)
+  remains failed at native setup timeout, despite both Table fixtures completing
+  under the fixed process memory ceiling. These source-attributed accounts
+  advance #124/#76; native growth, final-revision qualification and the local
+  group-commit disposition remain open.
+
+- Table history/recovery root enumeration follows a fixed accepted cut with
+  one bounded frame or capsule per step. Complete-chain checks bind its final
+  root and selected checkpoint while keeping historical control graphs weak.
+  This advances #116/#127; live pin/data edges, all-owner selection, durable
+  marks/inventory and physical deletion still require collector integration.
+
+- Native policy evaluation reuses at most eight verified membership/grant scan
+  pages at one exact immutable policy root. Typed decoding, evaluator budgets,
+  current authority and publication/disclosure fences still run. This targets
+  repeated index I/O observed while investigating the native growth timeout
+  (#124/#126); complete growth and matched performance qualification remain open.
+
+- A fixed-memory Table directory walker verifies page paths and emits typed
+  row, pin, evidence and archive edges. Long ordered-key child directories are
+  separate queued work; released pins do not recursively retain snapshots.
+  This advances the collection foundation for #116/#127. Global retained-root
+  selection, durable work/mark queues, allocation inventory and physical
+  Table-object deletion remain open.
+
+- Table receipts and operation controls reference bounded immutable evidence
+  instead of full accepting WAL frames. The original definition, outcome,
+  request identity and frozen intent remain retained without holding an old
+  row-root graph. This advances the retention dependency foundation for
+  #116/#127. Safe collection still requires a complete inventory and traversal
+  of all live owners, history, snapshots and recovery roots; no Table collector
+  is implied by the evidence format.
+
+- Explicit Table history expiry now publishes a monotone logical floor through
+  the existing acceptance WAL, after archive and recovery coverage. A paged
+  directory of live history leases protects offline consumers without scanning
+  all pins. Exact snapshots, receipts and admitted work remain retained. Required
+  root fields use a shared current-v1 cutover. This advances #127; safe physical
+  Table-object collection and automatic installed scheduling remain open.
+
+- Direct Table/catalog guards retain the storage epoch from their first
+  successful authorization through staging and publication. A native fence
+  rejects an old candidate even after it reacquires current policy. Point and
+  bulk race tests, the complete local backend suite and signed Table
+  authorization proof cover fresh retries and original receipts. This closes a
+  prerequisite for safe data-object collection; it does not supply the
+  remaining retained-root inventory or physical collector (#114/#116/#127).
+
+- A paired ReleaseSafe disk-owner matrix completes 768 verified samples across
+  native/Table sizes, checkpoint variants, scan/range access and cold/warm file
+  pages. The [measurement account](../../tests/storage_benchmarks/2026-10-26-owners/README.md)
+  retains raw values, build/fixture identities and phase/allocation/RSS/I/O
+  evidence. Narrow ranges reduce requested data; Table checkpointing reduces
+  logical replay and warm recovery. Cold recovery gains are inconsistent, and
+  native straddling-segment startup/read work remains. This advances #124/#76;
+  ingestion/commit percentiles, larger-than-RAM growth and final common-revision
+  qualification remain open.
+
+- Concrete Table writes, retained statement execution, ALTER rewrites and flushes
+  now share an explicit private allocation ceiling, independent of encoded-row
+  and index-work limits. This advances the remaining builder audit in #116/#128.
+  Exhaustion preserves accepted state or records the admitted operation's existing
+  work-limit outcome; transient allocator failure remains distinct. This is an
+  allocation bound, not matched whole-process RSS/performance qualification.
+
+- Table recovery checkpoints now publish a bounded complete root and chain basis
+  through the same acceptance WAL. Restart validates that publishing transition
+  and all later records while preserving receipts, pending operations, pins and
+  unlimited logical history. This advances #115/#116/#127; historical integrity
+  remains checked on access, and logical expiry/object collection remain open.
+  The mandatory stored reference requires a shared current-v1 cutover.
+
+- Bounded Table compaction now consolidates live rows from older segments, omits
+  deleted/replaced rows and preserves logical roots, retained snapshots and exact
+  operation evidence. A fixed segment boundary plus accepted locators provides
+  restart progress; private build allocations, rows, bytes and index work have
+  explicit bounds. This advances #116/#127 and the builder audit. Old physical
+  objects remain retained pending the separate collection/retention owner.
+
+- Table roots now publish a paged archive of complete original WAL records before
+  physical prefix trimming. Bounded archive calls and resumable trimming preserve
+  receipts, admitted operations, unflushed snapshots and offline history cursors;
+  recovery still validates the complete chain through archive plus WAL. The
+  mandatory archive coordinates require a shared current-v1 cutover. This advances
+  #113/#115/#127; logical retention floors,
+  Table-object collection and automatic scheduling remain separate obligations.
+  The subsequent increments add replay checkpoints and compaction. Executed validation is recorded in the proof ledger.
+
+- Finite Table comparisons now bind binary, ASCII_CI and CP037 semantics through
+  scalar/vector/page execution, prepared parameters, captured source descriptors,
+  UPDATE/DELETE and range-count qualification. CREATE TABLE and ADD COLUMN accept
+  column COLLATE declarations. The shared current-v1 cutover replaces FQP1/TQS1
+  identities and regenerates consumers; older accepted artifacts reject.
+  Independent scalar/vector masks, 280 grammar cases and the signed disk-backed
+  Table collation proof cover the delivered profile. Text relational joins,
+  grouping/order and general SQL encoded pushdown remain outstanding.
+
 - The standalone unbounded `TableMemtable`, `TableStorageEngine` and
   `TableSegmentScan` profile is retired. The installed paged `TablePartition`
   remains the Table acceptance and retained-read owner. The shared current-v1
@@ -189,9 +290,97 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   existing paths. This advances SQL inequality pushdown for #116/#128 without
   claiming general pruning or encoded predicate execution. See the
   [query owner](../../packages/zig/transit-query/README.md) for the exact profile.
-- General SQL inequality pushdown, encoded predicates/pruned execution,
+- Compatible borrowed batches, relational text comparison/hash/order,
   retained checkpoint/maintenance and native-owner obligations remain
   open. A passing Table range test does not close #113–#118 or #123–#128.
+
+- Finite identity-ordered Table SELECTs, including prepared execution, push
+  required output/predicate/key columns through the signed retained reader to
+  segment page selection. Projected cursors bind the exact column set; source
+  coverage and original plan/error attribution remain intact. WAL fallback keeps
+  bounded full-row decoding. This advances projection integration for #116/#128;
+  compatible borrowed batches and relational text comparison/hash/order remain
+  outstanding.
+
+- Encoded filtering accepts bounded visible-candidate pages in logical traversal
+  order, with an explicit selected-prefix boundary. It preserves failure order
+  when segment positions differ from identities and excludes semantic failures
+  in omitted rows. Whole-page integrity checks still run. This supplies a
+  prerequisite used by retained Table filtering; signed source attribution and
+  final SQL disclosure are exercised by the integration below.
+
+- The retained Table owner now applies encoded predicates to live identity
+  locators, caches bounded deferred group decisions and reports skipped-row
+  coverage, per-row offsets and plan-bound continuations. Mixed segment/WAL
+  sources, deletion, restart, finite collations, allocation failures and final
+  authorization have focused component checks. Signed `filter_scan` now binds
+  canonical FQP1 to the exact source, schema, collation vector and plan identity.
+  The retained reader validates sparse offsets and complete coverage; finite
+  direct/prepared SQL preserves original failure positions and LIMIT prefixes.
+  Signed disk-owner, delegated/borrowed-read and post-compute revocation proofs
+  pass. Projected and filtered reads share the node's per-Table lock stripe.
+  This advances #116/#118/#128 without claiming borrowed segment batches,
+  relational predicate lowering or new installed performance measurements.
+
+- Retained snapshot/history metadata resolves the selected interpretation and
+  current authority through one request-local recovered Table owner. Original
+  delegation checks still precede historical successor reads. The focused
+  metadata fixture reduces snapshot object ranges from 14 to 8 while checking
+  identical retained evidence, final denial, allocation failures and no writes.
+  The broad history-replay rerun remains an independent completion gate.
+
+- Table group scans retain verified encoded pages and borrow plain text, binary
+  and JSON payloads through an explicit group owner. Recursive/conflict metadata
+  and compressed expansion retain bounded decoded ownership; result rows detach
+  before cache replacement. This advances shared reader ownership in #128 without
+  changing stored formats. Arrow-compatible physical buffers, broader batch
+  handoff and relational text comparison/hash/order remain open.
+
+- Finite direct Table computation now borrows variable and recursive cells from
+  one retained decoded reader page. The executor stops at its page boundary and
+  resets views before replacement, while returned results remain independently
+  owned. Focused lifetime and allocation-failure controls cover this handoff.
+  This advances #128 without changing stored pages or claiming Arrow-compatible
+  physical buffers; transport decoding and output materialization still copy.
+
+- Qualified plain segment columns now store aligned Arrow validity, offsets and
+  value buffers under a new shared current-v1 definition. Buffered Table scans
+  use these arrays without retaining a decoded cell array; sparse error/conflict
+  details preserve the complete state model. The group supplies a borrowed
+  nullable Arrow value-child view with explicit directory/group lifetimes.
+  Recursive and other encoded columns retain bounded decoding. This advances
+  #128's physical-buffer boundary; external C data import/export, relational text
+  comparison/hash/order and the remaining maintenance/evidence gates retain
+  their explicit owners.
+
+- The shared codec walker now supports encoded single-column predicates with
+  one-byte row outcomes, dictionary/run evaluation reuse and detached selected
+  output. `TSegReader.filteredGroup` combines collation-aware zone-map pruning
+  with late projected decoding under the existing resident budgets. Independent
+  byte/mask controls and allocation-failure checks cover this component path;
+  general SQL lowering and installed/disk performance
+  qualification remain open. This advances #118/#128 without closing their
+  integration or complete comparison/hash/order obligations.
+- Encoded group filtering also executes bounded multi-column Boolean programs.
+  Zone-map abstract truth preserves unknown and eager source errors under
+  NOT/AND/OR, and the shared row machine arbitrates row/instruction order.
+  Logical program lowering keeps its original atoms and borrows their literals
+  under the exact Table interpretation; no wire or accepted-plan identity changes.
+  This is reader-component execution, with direct-service lowering still open.
+- Local native collection now uses an allocation FIFO over a separate segmented
+  WAL, accepted epoch/time fences, shared retained-root traversal, paged marks
+  and resumable exact-object deletion. Disk cases preserve captured block values
+  across bounded native compaction/checkpoint and restart; process-death schedules
+  exercise deletion and FIFO progress. This advances #114/#116/#126/#127 and
+  replaces the shared current-v1 definition for the mandatory inventory layout.
+  Table checkpoint/history/collection, standalone payload ownership, automatic
+  installed triggers and complete performance qualification remain open.
+- The local standalone payload adapter now binds one immutable creation attempt
+  and verification/deletion to the current native payload record. Recovery syncs
+  observed publication without repeating creation; opted-in retirement retains a
+  permanent attempt marker. This advances the payload ownership item in #126.
+  Installed local payload routes and lifecycle scheduling remain milestone 3
+  integration work; Table retention and full storage acceptance remain open.
 
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,

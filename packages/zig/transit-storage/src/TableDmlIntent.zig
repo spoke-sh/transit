@@ -40,11 +40,6 @@ pub const Request = struct {
                 plan.action == .insert or !std.mem.eql(u8, @tagName(plan.action), @tagName(self.binding.action))) return error.InvalidTableStatementIntent;
             try plan.validate();
             if (!std.mem.eql(u8, &try plan.schema.fingerprint(), &self.interpretation.schema_fingerprint)) return error.TableSchemaChanged;
-            // Predicate evaluation currently compares text as UTF-8 bytes.
-            for (plan.schema.columns) |column| switch (column.collation) {
-                .none, .utf8_binary => {},
-                else => return error.UnsupportedTableStatementCollation,
-            };
             return;
         }
         for (self.changes, 0..) |change, ordinal| switch (self.binding.action) {

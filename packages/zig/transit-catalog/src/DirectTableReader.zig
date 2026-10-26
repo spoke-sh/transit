@@ -61,6 +61,8 @@ pub const Batch = struct {
     rows: [8]?f.TableRow.Owned = @splat(null),
     count: usize = 0,
     complete: bool,
+    ordinals: [8]u64 = @splat(0),
+    failure: ?f.LogicalQuery.Failure = null,
     pub fn deinit(self: *Batch) void {
         for (&self.rows) |*slot| if (slot.*) |*row| row.deinit();
         self.* = undefined;
@@ -84,6 +86,37 @@ consumed: u64 = 0,
 complete: bool = false,
 released: bool = false,
 history_point: ?P.HistoryPoint = null,
+projection: ?f.TableProjection = null,
+projection_wire: [f.TableSchema.max_columns]u16 = undefined,
+filter: ?struct { plan: f.LogicalPlanCodec.Owned, wire: w.Binary, fingerprint: [32]u8 } = null,
+failure: ?f.LogicalQuery.Failure = null,
+
+/// Select physical input columns before traversal. The source descriptor stays
+/// complete; returned FTR1 rows use the canonical projected Table layout.
+pub fn selectColumns(self: *Self, columns: []const u8) !void {
+    if (self.after != null or self.consumed != 0 or self.complete or self.released or self.history_point != null or self.filter != null) return error.InvalidTableCursor;
+    self.projection = try f.TableProjection.init(self.schema.schema, columns);
+    for (columns, self.projection_wire[0..columns.len]) |index, *wire| wire.* = index;
+}
+
+/// Freeze the original plan and its canonical bytes before traversal. The
+/// physical projection is derived from that same plan, never caller hints.
+pub fn selectPlan(self: *Self, plan: f.LogicalQuery.Plan) !void {
+    if (self.after != null or self.consumed != 0 or self.complete or self.released or self.history_point != null or self.filter != null) return error.InvalidTableCursor;
+    const basis = try self.basis.fingerprint();
+    if (!std.mem.eql(u8, &basis, &plan.source_basis)) return error.SourceChanged;
+    const selected = try f.TableProjection.fromPlan(self.schema.schema, plan);
+    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+    var scratch: [f.LogicalPlanCodec.max_bytes]u8 = undefined;
+    const bytes = try f.LogicalPlanCodec.encode(plan, &scratch);
+    var owned = try f.LogicalPlanCodec.decode(self.allocator, try self.schema.schema.rowType(&fields), basis, bytes);
+    errdefer owned.deinit();
+    const wire = try w.Binary.encode(self.allocator, bytes);
+    errdefer self.allocator.free(wire.base64);
+    const fingerprint = try owned.plan.fingerprint();
+    self.filter = .{ .plan = owned, .wire = wire, .fingerprint = fingerprint };
+    self.projection = selected;
+}
 
 /// Opening inspects an existing pin. Retain `snapshot` separately so an open
 /// failure never loses the durable handle needed for retry or explicit release.
@@ -128,6 +161,10 @@ fn init(allocator: std.mem.Allocator, connection: w.Connection, source: w.Source
     return .{ .allocator = allocator, .connection = connection, .basis = Basis.from(source), .schema = schema };
 }
 pub fn deinit(self: *Self) void {
+    if (self.filter) |*filter| {
+        filter.plan.deinit();
+        self.allocator.free(filter.wire.base64);
+    }
     self.schema.deinit();
     self.* = undefined;
 }
@@ -145,12 +182,16 @@ pub fn check(self: *const Self, client: c.DirectTableClient) !void {
     if (!std.meta.eql(self.basis, Basis.from(source))) return error.InvalidTableResponse;
 }
 fn scanAction(self: *const Self, after: ?P.SnapshotCursor, limits: P.ReadLimits) w.Action {
+    if (self.filter) |filter| return .{ .filter_scan = .{ .snapshot = self.basis.snapshot, .plan = filter.wire, .fingerprint = filter.fingerprint, .after = after, .limits = limits } };
+    if (self.projection) |*selected| return .{ .column_scan = .{ .snapshot = self.basis.snapshot, .columns = self.projection_wire[0..selected.len], .after = after, .limits = limits } };
     return if (self.history_point) |point|
         .{ .history_scan = .{ .source = .{ .object = self.basis.snapshot.object, .point = point }, .after = after, .limits = limits } }
     else
         .{ .scan = .{ .snapshot = self.basis.snapshot, .after = after, .limits = limits } };
 }
 fn cursorSource(self: *const Self) !d.Content {
+    if (self.filter) |filter| return P.filteredCursorFingerprint(self.basis.snapshot.handle, filter.fingerprint);
+    if (self.projection) |*selected| return selected.cursorSource(self.basis.snapshot.handle.content);
     return if (self.history_point) |point| point.cursorSource() else self.basis.snapshot.handle.content;
 }
 /// A failed exchange, invalid page or decode failure leaves traversal progress
@@ -159,12 +200,17 @@ pub fn next(self: *Self, client: c.DirectTableClient, limits: P.ReadLimits) !?Ba
     try self.requireClient(client);
     try limits.validate();
     if (limits.encoded_bytes > w.max_page_bytes) return error.InvalidTableReadBudget;
+    if (self.failure) |failure| {
+        try self.check(client);
+        return if (failure.state == .type_error) error.QueryTypeError else error.QueryConflict;
+    }
     if (self.complete) {
         try self.check(client);
         return null;
     }
     const response = try client.call(self.scanAction(self.after, limits));
     defer response.deinit();
+    if (self.filter != null) return try self.consumeFiltered(response.value.result.filtered_page, limits);
     return try self.consume(if (self.history_point != null) response.value.result.history_page.page else response.value.result.page, limits);
 }
 /// Ordered lookup on the same retained identity index, without changing this
@@ -172,6 +218,7 @@ pub fn next(self: *Self, client: c.DirectTableClient, limits: P.ReadLimits) !?Ba
 /// its accepted identity; an empty suffix does not claim full-table consumption.
 pub fn readAfter(self: *const Self, client: c.DirectTableClient, after: ?f.TableRow.Identity, limits: P.ReadLimits) !Batch {
     try self.requireClient(client);
+    if (self.filter != null) return error.InvalidTableCursor;
     try limits.validate();
     if (limits.encoded_bytes > w.max_page_bytes) return error.InvalidTableReadBudget;
     const cursor: ?P.SnapshotCursor = if (after) |identity| .{ .source = try self.cursorSource(), .after = try identity.encode() } else null;
@@ -292,12 +339,14 @@ fn decodePage(self: *const Self, page: w.Page, limits: P.ReadLimits, after: ?P.S
     errdefer batch.deinit();
     var encoded_bytes: u64 = 0;
     var previous: ?[f.TableRow.Identity.encoded_bytes]u8 = if (after) |cursor| cursor.after else null;
+    var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
+    const row_schema = if (self.projection) |*selected| try selected.projectedSchema(self.schema.schema, &columns) else self.schema.schema;
     for (page.rows, 0..) |binary, i| {
         const bytes = try binary.decode(self.allocator, f.TableRow.max_bytes);
         defer self.allocator.free(bytes);
         encoded_bytes += bytes.len;
         if (encoded_bytes > limits.encoded_bytes) return error.InvalidTableResponse;
-        batch.rows[i] = try f.TableRow.decode(self.allocator, self.schema.schema, bytes);
+        batch.rows[i] = try f.TableRow.decode(self.allocator, row_schema, bytes);
         batch.count += 1;
         const identity = try batch.rows[i].?.identity.encode();
         if (previous) |before| if (std.mem.order(u8, &identity, &before) != .gt) return error.InvalidTableResponse;
@@ -307,6 +356,65 @@ fn decodePage(self: *const Self, page: w.Page, limits: P.ReadLimits, after: ?P.S
     if (encoded_bytes != page.encoded_bytes) return error.InvalidTableResponse;
     return batch;
 }
+fn consumeFiltered(self: *Self, value: w.FilteredPage, limits: P.ReadLimits) !Batch {
+    const filter = self.filter orelse return error.InvalidTableResponse;
+    const page = value.page;
+    try value.validate();
+    if (self.complete or self.released or self.failure != null or !std.meta.eql(self.basis.snapshot, page.snapshot) or
+        !std.meta.eql(self.basis.interpretation, page.interpretation) or !std.meta.eql(self.basis.accepted, page.accepted) or
+        self.basis.changed_lsn != page.changed_lsn or self.basis.row_count != page.total_rows or
+        page.rows.len > limits.rows or page.encoded_bytes > limits.encoded_bytes) return error.InvalidTableResponse;
+    const consumed = std.math.add(u64, self.consumed, value.examined) catch return error.InvalidTableResponse;
+    if (consumed > self.basis.row_count) return error.InvalidTableResponse;
+    const complete = page.next == null and value.failure == null;
+    if (complete != (consumed == self.basis.row_count)) return error.InvalidTableResponse;
+    if (page.next) |cursor| {
+        if (!std.meta.eql(cursor.source, try self.cursorSource())) return error.InvalidTableResponse;
+        if (self.after) |previous| if (std.mem.order(u8, &cursor.after, &previous.after) != .gt) return error.InvalidTableResponse;
+    }
+    var batch: Batch = .{ .complete = complete };
+    errdefer batch.deinit();
+    var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
+    const row_schema = try self.projection.?.projectedSchema(self.schema.schema, &columns);
+    var encoded_bytes: u64 = 0;
+    var previous: ?[f.TableRow.Identity.encoded_bytes]u8 = if (self.after) |cursor| cursor.after else null;
+    for (page.rows, 0..) |binary, i| {
+        const bytes = try binary.decode(self.allocator, f.TableRow.max_bytes);
+        defer self.allocator.free(bytes);
+        encoded_bytes += bytes.len;
+        if (encoded_bytes > limits.encoded_bytes) return error.InvalidTableResponse;
+        batch.rows[i] = try f.TableRow.decode(self.allocator, row_schema, bytes);
+        batch.count += 1;
+        batch.ordinals[i] = self.consumed + value.offsets[i];
+        const identity = try batch.rows[i].?.identity.encode();
+        if (previous) |before| if (std.mem.order(u8, &identity, &before) != .gt) return error.InvalidTableResponse;
+        previous = identity;
+    }
+    if (encoded_bytes != page.encoded_bytes) return error.InvalidTableResponse;
+    if (page.next) |cursor| if (previous) |before| {
+        const order = std.mem.order(u8, &cursor.after, &before);
+        if (order == .lt) return error.InvalidTableResponse;
+        if (page.rows.len > 0 and (order == .eq) != (value.offsets[page.rows.len - 1] == value.examined)) return error.InvalidTableResponse;
+    };
+    if (value.failure) |failure| {
+        const identity = try failure.identity.encode();
+        if (previous) |before| if (std.mem.order(u8, &identity, &before) != .gt) return error.InvalidTableResponse;
+        var instructions: [f.ColumnPredicate.Program.max_instructions]f.ColumnPredicate.Program.Instruction = undefined;
+        const program = try f.ColumnPredicate.Program.fromPlan(filter.plan.plan, &instructions);
+        if (failure.instruction >= program.instructions.len or program.instructions[failure.instruction] != .atom or
+            program.instructions[failure.instruction].atom.column != failure.column) return error.InvalidTableResponse;
+        const atom = program.instructions[failure.instruction].atom.predicate;
+        if (atom != .compare and atom != .null_compare) return error.InvalidTableResponse;
+        batch.failure = f.LogicalQuery.Failure.init(.predicate, consumed + 1, filter.plan.plan.schema.structure[failure.column], if (failure.outcome == .type_error) .type_error else .conflict, failure.instruction, filter.plan.plan.source_basis, filter.fingerprint);
+    }
+    // Publish traversal state only after every envelope, row and failure check.
+    self.after = page.next;
+    self.consumed = consumed;
+    self.complete = complete;
+    self.failure = batch.failure;
+    return batch;
+}
+
 /// Explicit and retryable. If its reply is lost, retain this original reader or
 /// snapshot handle and retry release; destruction alone performs no remote work.
 pub fn release(self: *Self, client: c.DirectTableClient) !void {
@@ -330,6 +438,16 @@ fn rangeAllocationFailures(allocator: std.mem.Allocator, connection: w.Connectio
     defer batch.deinit();
     try std.testing.expectEqual(@as(u64, 0), reader.consumed);
 }
+fn projectionAllocationFailures(allocator: std.mem.Allocator, connection: w.Connection, source: w.Source, first: w.Page, final: w.Page) !void {
+    var reader = try init(allocator, connection, source);
+    defer reader.deinit();
+    try reader.selectColumns(&.{0});
+    var prefix = try reader.consume(first, .{});
+    defer prefix.deinit();
+    var ending = try reader.consume(final, .{});
+    defer ending.deinit();
+    try std.testing.expect(reader.complete and reader.consumed == 3);
+}
 
 test "retained reader binds pages, complete consumption and original schema without advancing failed reads" {
     const t = std.testing;
@@ -337,8 +455,8 @@ test "retained reader binds pages, complete consumption and original schema with
     defer arena.deinit();
     const alloc = arena.allocator();
     const connection: w.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .principal = 4, .role = null, .audience = 5 };
-    const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "value", .type = .binary }};
-    const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns };
+    const columns = [_]f.TableSchema.Column{ .{ .id = 1, .name = "value", .type = .binary }, .{ .id = 2, .name = "unused", .type = .int64 } };
+    const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 3, .columns = &columns };
     var declaration = try c.storage.TableDeclaration.prepare(alloc, .{ .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .revision = 1, .schema = schema, .properties = "" });
     defer declaration.deinit();
     var scratch: [65536]u8 = undefined;
@@ -353,7 +471,7 @@ test "retained reader binds pages, complete consumption and original schema with
     };
     var reader = try init(t.allocator, connection, source);
     defer reader.deinit();
-    const cells = [_]f.Types.Values.Cell{.{ .value = .{ .atom = .{ .bytes = "\x00\xff\x80" } } }};
+    const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "\x00\xff\x80" } } }, .null };
     var binary: [3]w.Binary = undefined;
     var lengths: [3]u32 = undefined;
     for (&binary, &lengths, 0..) |*encoded, *length, i| {
@@ -475,4 +593,179 @@ test "retained reader binds pages, complete consumption and original schema with
     var different = try initHistory(t.allocator, connection, .{ .point = different_point, .source = source });
     defer different.deinit();
     try t.expectError(error.InvalidTableResponse, different.consume(historical_first, .{}));
+
+    var projected = try init(t.allocator, connection, source);
+    defer projected.deinit();
+    try projected.selectColumns(&.{0});
+    try t.expectEqual(@as(usize, 2), projected.schema.schema.columns.len);
+    var projected_columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
+    const projected_schema = try projected.projection.?.projectedSchema(schema, &projected_columns);
+    var projected_binary: [3]w.Binary = undefined;
+    var projected_lengths: [3]u32 = undefined;
+    for (&projected_binary, &projected_lengths, 0..) |*encoded, *length, i| {
+        const row: f.TableRow.Row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = @intCast(i) }, .cells = cells[0..1] };
+        const bytes = try row.encode(projected_schema, &scratch);
+        encoded.* = try w.Binary.encode(alloc, bytes);
+        length.* = @intCast(bytes.len);
+    }
+    var projected_first = first;
+    projected_first.rows = projected_binary[0..1];
+    projected_first.encoded_bytes = projected_lengths[0];
+    projected_first.next.?.source = try projected.cursorSource();
+    try t.expectError(error.InvalidTableResponse, projected.consume(first, .{}));
+    var projected_batch = try projected.consume(projected_first, .{});
+    defer projected_batch.deinit();
+    try t.expectError(error.InvalidTableCursor, projected.selectColumns(&.{1}));
+    try t.expectEqual(@as(usize, 1), projected_batch.rows[0].?.row().cells.len);
+    // Complete-source metadata cannot turn an incomplete prefix into coverage.
+    var projected_final = final;
+    projected_final.rows = projected_binary[1..2];
+    projected_final.encoded_bytes = projected_lengths[1];
+    try t.expectError(error.InvalidTableResponse, projected.consume(projected_final, .{}));
+    try t.expectEqual(@as(u64, 1), projected.consumed);
+    projected_final.rows = projected_binary[1..];
+    projected_final.encoded_bytes = projected_lengths[1] + projected_lengths[2];
+    try t.checkAllAllocationFailures(t.allocator, projectionAllocationFailures, .{ connection, source, projected_first, projected_final });
+    var projected_end = try projected.consume(projected_final, .{});
+    defer projected_end.deinit();
+    try t.expect(projected.complete and projected.consumed == 3);
+    try t.expectEqualStrings("\x00\xff\x80", projected_batch.rows[0].?.row().cells[0].value.atom.bytes);
+    projected.released = true;
+    try t.expectError(error.InvalidTableResponse, projected.decodePage(projected_final, .{}, projected_first.next));
+    try t.expectError(error.InvalidTableCursor, historical.selectColumns(&.{0}));
+}
+
+fn filteredAllocationFailures(allocator: std.mem.Allocator, connection: w.Connection, source: w.Source, plan: f.LogicalQuery.Plan, first: w.FilteredPage, final: w.FilteredPage) !void {
+    var reader = try init(allocator, connection, source);
+    defer reader.deinit();
+    try reader.selectPlan(plan);
+    var prefix = try reader.consumeFiltered(first, .{});
+    defer prefix.deinit();
+    errdefer std.debug.assert(reader.consumed == first.examined and !reader.complete and reader.failure == null);
+    var ending = try reader.consumeFiltered(final, .{});
+    defer ending.deinit();
+}
+
+test "retained filtered reader validates sparse coverage and deferred failure without advancing failed reads" {
+    const t = std.testing;
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const connection: w.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .principal = 4, .role = null, .audience = 5 };
+    const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 4, .columns = &.{
+        .{ .id = 1, .name = "id", .type = .int64, .nullable = false },
+        .{ .id = 2, .name = "payload", .type = .binary },
+        .{ .id = 3, .name = "label", .type = .utf8, .collation = .ascii_ci },
+    }, .primary_key = &.{1} };
+    var declaration = try c.storage.TableDeclaration.prepare(a, .{ .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .revision = 1, .schema = schema, .properties = "" });
+    defer declaration.deinit();
+    var scratch: [4096]u8 = undefined;
+    const source: w.Source = .{
+        .snapshot = .{ .object = declaration.definition.object, .handle = .{ .owner = .{ .scope = connection.scope, .principal = 4, .operation = 2 }, .content = .{ .bytes = 1, .sha256 = @splat(1) } } },
+        .interpretation = try declaration.stored(),
+        .accepted = .{ .partition = 2, .next_lsn = 3 },
+        .changed_lsn = 2,
+        .row_count = 12,
+        .schema = try w.Binary.encode(a, try schema.encode(&scratch)),
+        .authority = .{ .database = 11, .schema = 12, .table = 13 },
+    };
+    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+    var literal = [_]u8{'a'};
+    const plan: f.LogicalQuery.Plan = .{ .schema = try schema.rowType(&fields), .source_basis = try Basis.from(source).fingerprint(), .projection = &.{2}, .collations = .fromTable(schema), .predicate = .{ .compare = .{ .column = 2, .op = .eq, .value = .{ .bytes = &literal } } } };
+    var reader = try init(t.allocator, connection, source);
+    defer reader.deinit();
+    try reader.selectPlan(plan);
+    literal[0] = 'b';
+    try t.expectEqualStrings("a", reader.filter.?.plan.plan.predicate.compare.value.bytes);
+    literal[0] = 'a';
+    try t.expectEqualSlices(u8, &.{ 0, 2 }, reader.projection.?.columns());
+    try t.expectError(error.InvalidTableCursor, reader.selectColumns(&.{ 0, 2 }));
+    try t.expectError(error.InvalidTableCursor, reader.selectPlan(plan));
+    const first: w.FilteredPage = .{ .page = .{
+        .snapshot = source.snapshot,
+        .interpretation = source.interpretation,
+        .accepted = source.accepted,
+        .changed_lsn = source.changed_lsn,
+        .total_rows = 12,
+        .rows = &.{},
+        .encoded_bytes = 0,
+        .next = .{ .source = try reader.cursorSource(), .after = try (f.TableRow.Identity{ .origin = 7, .operation = 1, .ordinal = 8 }).encode() },
+    }, .examined = 8, .offsets = @splat(0), .failure = null };
+    var prefix = try reader.consumeFiltered(first, .{});
+    defer prefix.deinit();
+    try t.expect(!prefix.complete and prefix.count == 0 and reader.consumed == 8);
+    var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
+    const projected = try reader.projection.?.projectedSchema(schema, &columns);
+    var rows: [2]w.Binary = undefined;
+    var lengths: [2]u32 = undefined;
+    for ([_]u32{ 9, 11 }, &rows, &lengths) |ordinal, *row, *length| {
+        const bytes = try (f.TableRow.Row{ .identity = .{ .origin = 7, .operation = 1, .ordinal = ordinal }, .cells = &.{ .{ .value = .{ .atom = .{ .signed = ordinal } } }, .{ .value = .{ .atom = .{ .bytes = "Alpha" } } } } }).encode(projected, &scratch);
+        row.* = try w.Binary.encode(a, bytes);
+        length.* = @intCast(bytes.len);
+    }
+    var final = first;
+    final.page.next = null;
+    final.page.rows = &rows;
+    final.page.encoded_bytes = lengths[0] + lengths[1];
+    final.examined = 4;
+    final.offsets = .{ 1, 3, 0, 0, 0, 0, 0, 0 };
+    var invalid = final;
+    invalid.examined = 3; // A valid decoded prefix cannot claim full coverage.
+    try t.expectError(error.InvalidTableResponse, reader.consumeFiltered(invalid, .{}));
+    invalid = final;
+    invalid.page.rows = &.{ rows[0], try w.Binary.encode(a, "broken") };
+    try t.expectError(error.InvalidTableRowEncoding, reader.consumeFiltered(invalid, .{}));
+    invalid = final;
+    invalid.offsets[1] = 1;
+    try t.expectError(error.InvalidTableResponse, reader.consumeFiltered(invalid, .{}));
+    invalid = final;
+    invalid.page.next = first.page.next;
+    try t.expectError(error.InvalidTableResponse, reader.consumeFiltered(invalid, .{}));
+    invalid = final;
+    invalid.page.accepted.next_lsn += 1;
+    try t.expectError(error.InvalidTableResponse, reader.consumeFiltered(invalid, .{}));
+    try t.expect(reader.consumed == 8 and !reader.complete and reader.failure == null);
+    try t.expectEqualDeep(first.page.next, reader.after);
+    // Arena growth must not depend on whether the backing allocator happens
+    // to resize an allocation in place during a particular failure sweep.
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), filteredAllocationFailures, .{ connection, source, plan, first, final });
+    var failed = final;
+    failed.examined = 3;
+    failed.failure = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = 12 }, .column = 2, .instruction = 0, .outcome = .conflict };
+    invalid = failed;
+    invalid.failure.?.column = 0;
+    try t.expectError(error.InvalidTableResponse, reader.consumeFiltered(invalid, .{}));
+    invalid = failed;
+    invalid.failure.?.identity.ordinal = 11;
+    try t.expectError(error.InvalidTableResponse, reader.consumeFiltered(invalid, .{}));
+    invalid = failed;
+    invalid.failure.?.instruction = 1;
+    try t.expectError(error.InvalidTableResponse, reader.consumeFiltered(invalid, .{}));
+    try t.checkAllAllocationFailures(no_resize.allocator(), filteredAllocationFailures, .{ connection, source, plan, first, failed });
+    var failure_batch = try reader.consumeFiltered(failed, .{});
+    defer failure_batch.deinit();
+    try t.expectEqualSlices(u64, &.{ 9, 11 }, failure_batch.ordinals[0..2]);
+    const failure = failure_batch.failure.?;
+    try t.expectEqual(@as(u64, 12), failure.row);
+    try t.expectEqualStrings("label", failure.columnName());
+    try t.expectEqualStrings("utf8", failure.expectedType());
+    try t.expectEqual(.conflict, failure.state);
+    try t.expectEqualDeep(try plan.fingerprint(), failure.plan);
+    try t.expectEqualDeep(plan.source_basis, failure.binding);
+    try t.expect(!reader.complete and reader.consumed == 11);
+    try t.expectError(error.InvalidTableResponse, reader.consumeFiltered(final, .{}));
+    var completed: Batch = undefined;
+    {
+        var another = try init(t.allocator, connection, source);
+        defer another.deinit();
+        try another.selectPlan(plan);
+        var empty = try another.consumeFiltered(first, .{});
+        empty.deinit();
+        completed = try another.consumeFiltered(final, .{});
+        try t.expect(another.complete and another.consumed == 12);
+    }
+    defer completed.deinit();
+    try t.expect(completed.complete and completed.failure == null);
+    try t.expectEqualStrings("Alpha", completed.rows[1].?.row().cells[1].value.atom.bytes);
 }

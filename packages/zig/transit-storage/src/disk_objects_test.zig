@@ -66,6 +66,8 @@ test "one disk facade supports concurrent publishers and counts completed reads"
             // still have one winner even when they share a facade and counters.
             _ = try store.objectStore().putImmutable("shared", "bytes", hash("bytes"));
             const won = try store.objectStore().putConditional("head", .if_none_match, "bytes");
+            try store.confirmImmutableObject(path, .{ .size = 5, .sha256 = hash("bytes") });
+            try store.confirmImmutableObject("shared", .{ .size = 5, .sha256 = hash("bytes") });
             var out: [5]u8 = undefined;
             try t.expectEqualStrings("bytes", try store.objectStore().getRange(path, 0, out.len, &out));
             try t.expectEqualStrings("bytes", try store.objectStore().getRange("shared", 0, out.len, &out));
@@ -94,9 +96,9 @@ test "one disk facade supports concurrent publishers and counts completed reads"
     try t.expectEqual(@as(u64, 16), store.puts);
     try t.expectEqual(@as(u64, 1), store.conditional_puts);
     try t.expectEqual(@as(u64, 7), store.conditional_conflicts);
-    try t.expectEqual(@as(u64, 16), store.range_reads);
+    try t.expectEqual(@as(u64, 32), store.range_reads);
     try t.expectEqual(@as(u64, 85), store.bytes_written);
-    try t.expectEqual(@as(u64, 80), store.bytes_read);
+    try t.expectEqual(@as(u64, 160), store.bytes_read);
 }
 
 test "immutable identity and conditional kind survive restart" {
@@ -280,4 +282,105 @@ test "object publication sync failures leave a complete old or complete new desc
         try t.expectEqualDeep(hash(expected), (try owner.objectStore().head("head")).?.sha256);
         try t.expect(try reopened.objectStore().putConditional("head", .{ .if_match = hash(expected) }, "reconciled"));
     }
+}
+
+test "exclusive immutable reclamation validates identity and resumes every deletion sync failure" {
+    const Fault = struct {
+        var real: *const std.Io.VTable = undefined;
+        var remaining: usize = 0;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (remaining != 0) {
+                remaining -= 1;
+                if (remaining == 0) return error.InputOutput;
+            }
+            return real.fileSync(context, file);
+        }
+    };
+    Fault.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    for (1..3) |failure| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
+        defer owner.deinit();
+        const expected = try owner.objectStore().putImmutable("retired", "immutable bytes", hash("immutable bytes"));
+        const keep = try owner.objectStore().putImmutable("live", "same independent bytes", hash("same independent bytes"));
+        var wrong = expected;
+        wrong.sha256[0] ^= 1;
+        try t.expectError(error.ImmutableObjectConflict, owner.reclaimImmutableObject("retired", wrong));
+        try t.expect(try owner.objectStore().putConditional("head", .if_none_match, "conditional"));
+        try t.expectError(error.ImmutableObjectConflict, owner.reclaimImmutableObject("head", (try owner.objectStore().head("head")).?));
+        Fault.remaining = failure;
+        try t.expectError(error.InputOutput, owner.reclaimImmutableObject("retired", expected));
+        try t.expectEqual(@as(usize, 0), Fault.remaining);
+        var reopened = try open(tmp.dir);
+        defer reopened.deinit();
+        _ = try reopened.reclaimImmutableObject("retired", expected);
+        try t.expectEqual(@as(u64, 0), try reopened.reclaimImmutableObject("retired", expected));
+        try t.expectEqual(null, try reopened.objectStore().head("retired"));
+        try t.expectEqualDeep(keep, (try reopened.objectStore().head("live")).?);
+        var bytes: [32]u8 = undefined;
+        try t.expectEqualStrings("same independent bytes", try reopened.objectStore().getRange("live", 0, bytes.len, &bytes));
+        try t.expectEqualStrings("conditional", try reopened.objectStore().getRange("head", 0, bytes.len, &bytes));
+    }
+}
+
+test "immutable confirmation verifies content and syncs observed publications without a PUT" {
+    const Fault = struct {
+        var real: std.Io = undefined;
+        var remaining: usize = 0;
+        var kinds: [8]bool = undefined;
+        var calls: usize = 0;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (calls < kinds.len) kinds[calls] = (file.stat(real) catch return error.InputOutput).kind == .directory;
+            calls += 1;
+            if (remaining != 0) {
+                remaining -= 1;
+                if (remaining == 0) return error.InputOutput;
+            }
+            return real.vtable.fileSync(context, file);
+        }
+    };
+    Fault.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
+    defer owner.deinit();
+    const meta = try owner.objectStore().putImmutable("observed", "original bytes", hash("original bytes"));
+    const puts = owner.puts;
+    Fault.calls = 0;
+    try owner.confirmImmutableObject("observed", meta);
+    try t.expectEqual(@as(usize, 5), Fault.calls);
+    try t.expectEqualSlices(bool, &.{ false, false, true, false, true }, Fault.kinds[0..5]);
+    for (1..6) |failure| {
+        Fault.calls = 0;
+        Fault.remaining = failure;
+        try t.expectError(error.InputOutput, owner.confirmImmutableObject("observed", meta));
+        try t.expectEqual(failure, Fault.calls);
+        try owner.confirmImmutableObject("observed", meta);
+    }
+    try t.expectEqual(puts, owner.puts);
+    try t.expectError(error.ObjectNotFound, owner.confirmImmutableObject("absent", meta));
+    try t.expect(try owner.objectStore().putConditional("conditional", .if_none_match, "original bytes"));
+    try t.expectError(error.ImmutableObjectConflict, owner.confirmImmutableObject("conditional", meta));
+    const empty = try owner.objectStore().putImmutable("empty", "", hash(""));
+    try owner.confirmImmutableObject("empty", empty);
+    var path: [200]u8 = undefined;
+    const file = try tmp.dir.openFile(t.io, try std.fmt.bufPrint(&path, "objects/objects/{x}-{x}.data", .{ &hash("empty"), &hash("") }), .{ .mode = .read_write });
+    defer file.close(t.io);
+    try file.writePositionalAll(t.io, "unexpected", 0);
+    try t.expectError(error.ObjectDigestMismatch, owner.confirmImmutableObject("empty", empty));
+    var memory = Store.initMemory(t.allocator);
+    defer memory.deinit();
+    const volatile_meta = try memory.objectStore().putImmutable("memory", "original bytes", hash("original bytes"));
+    try memory.confirmImmutableObject("memory", volatile_meta);
+    memory.objects.items[0].bytes[0] ^= 1;
+    try t.expectError(error.ObjectDigestMismatch, memory.confirmImmutableObject("memory", volatile_meta));
 }

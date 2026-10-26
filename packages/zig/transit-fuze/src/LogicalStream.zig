@@ -123,6 +123,10 @@ pub fn step(plan: q.Plan, previous: Progress, page: Page, workspace: []u8, outpu
             return err;
         };
     }
+    for (page.rows, 0..) |row, row_index| plan.collations.validateCells(row.cells) catch |err| {
+        if (diagnostic) |detail| detail.* = .{ .operation = .validate, .row = std.math.add(u64, previous.counters.scanned, row_index + 1) catch return err, .page_row = @intCast(row_index) };
+        return err;
+    };
     var next = previous;
     next.pages = try std.math.add(u64, next.pages, 1);
     var cells: [max_rows][128]t.Values.Cell = undefined;

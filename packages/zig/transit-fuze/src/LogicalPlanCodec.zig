@@ -8,7 +8,7 @@ pub const max_bytes = 8192 + 256;
 pub const definition = blk: {
     @setEvalBranchQuota(10000);
     var hash: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash("transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters", &hash, .{});
+    std.crypto.hash.sha2.Sha256.hash("transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations", &hash, .{});
     break :blk hash;
 };
 pub const Owned = struct {
@@ -66,6 +66,7 @@ pub fn encode(plan: q.Plan, output: []u8) ![]const u8 {
         },
         inline else => |value, tag| try writeAtom(&writer, plan.schema, @unionInit(q.Plan.Atom, @tagName(tag), value)),
     }
+    try plan.collations.write(plan.schema, &writer);
     return writer.buffered();
 }
 fn readAtom(arena: std.mem.Allocator, reader: *std.Io.Reader, schema: t.Type, tag: u8) !q.Plan.Atom {
@@ -139,6 +140,7 @@ pub fn decodeInto(arena: std.mem.Allocator, schema: t.Type, basis: [32]u8, bytes
             inline else => |value, kind| @unionInit(@FieldType(q.Plan, "predicate"), @tagName(kind), value),
         };
     }
+    plan.collations = try @import("QueryCollations.zig").read(plan.schema, &reader);
     if (reader.bufferedLen() != 0) return error.InvalidPlanEncoding;
     var canonical: [max_bytes]u8 = undefined;
     if (!std.mem.eql(u8, bytes, try encode(plan, &canonical))) return error.InvalidPlanEncoding;

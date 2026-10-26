@@ -23,6 +23,8 @@ point_key: ?Key = null,
 count_range: ?CountRange = null,
 range_after: ?q.storage.TablePartition.KeyRange.Cursor = null,
 range_complete: bool = false,
+ordinal: u64 = 0,
+selected: u64 = 0,
 
 pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
     if (request_limit < 2) return error.InvalidQueryBudget;
@@ -80,11 +82,24 @@ pub fn selectPoint(self: *Self, plan: f.LogicalQuery.Plan) void {
     const key = f.Collation.encodePrimaryKeySortKey(schema, values, false, &encoded) catch return;
     self.point_key = Key.init(key) catch unreachable; // bounded by encoded above
 }
-pub fn selectAccess(self: *Self, plan: f.LogicalQuery.Plan) void {
+pub fn selectAccess(self: *Self, plan: f.LogicalQuery.Plan) !void {
     self.selectPoint(plan);
     if (self.point_key == null) self.count_range = CountRange.qualify(self.reader.schema.schema, plan);
+    if (self.point_key != null or self.count_range != null) return;
+    if (plan.predicate != .all) return self.reader.selectPlan(plan);
+    const selected = try f.TableProjection.fromPlan(self.reader.schema.schema, plan);
+    if (selected.len < self.reader.schema.schema.columns.len) try self.reader.selectColumns(selected.columns());
 }
 pub fn next(self: *Self) !?f.LogicalQuery.Row {
+    const cells = (try self.nextBorrowed()) orelse return null;
+    const row = self.page.?.rows[self.index - 1].?;
+    self.page.?.rows[self.index - 1] = null;
+    return .{ .arena = row.value.descriptor.arena, .cells = cells };
+}
+/// Borrow the decoded page without detaching each row. All page payloads remain
+/// immutable until the next call after batchAvailable reaches zero, or deinit.
+/// A caller must consume/reset its views before crossing that page boundary.
+pub fn nextBorrowed(self: *Self) !?[]const f.Types.Values.Cell {
     try self.checkCancellation();
     if (self.complete) return null;
     if (self.point_key) |*key| {
@@ -94,13 +109,21 @@ pub fn next(self: *Self) !?f.LogicalQuery.Row {
         // coverage. A missing key has the same post-compute authorization gate.
         self.complete = true;
         const found = row orelse return null;
+        self.page = .{ .complete = true, .count = 1 };
+        self.page.?.rows[0] = found;
+        self.index = 1;
         self.after = found.identity;
-        return .{ .arena = found.value.descriptor.arena, .cells = found.row().cells };
+        self.ordinal += 1;
+        return found.row().cells;
     }
-    if (self.page == null or self.index == self.page.?.count) {
+    while (self.page == null or self.index == self.page.?.count) {
         if (self.page) |*page| page.deinit();
         self.page = null;
         self.index = 0;
+        if (self.reader.failure) |failure| {
+            try self.validateCurrent();
+            return if (failure.state == .type_error) error.QueryTypeError else error.QueryConflict;
+        }
         if (self.reader.complete or self.range_complete) {
             self.complete = true;
             return null;
@@ -112,21 +135,38 @@ pub fn next(self: *Self) !?f.LogicalQuery.Row {
             self.range_after = page.next;
             self.range_complete = page.batch.complete;
         } else {
-            self.page = (self.reader.next(self.client, .{}) catch |err| return self.rejected(err)) orelse return error.IncompleteSource;
+            var limits: q.storage.TablePartition.ReadLimits = .{};
+            if (self.reader.filter) |filter| if (filter.plan.plan.limit) |limit| {
+                if (self.selected >= limit) return error.IncompleteSource;
+                limits.rows = @intCast(@min(limits.rows, limit - self.selected));
+            };
+            self.page = (self.reader.next(self.client, limits) catch |err| return self.rejected(err)) orelse return error.IncompleteSource;
         }
         if (self.page.?.count == 0) {
+            if (self.reader.filter != null) continue;
             if (!self.reader.complete and !self.range_complete) return error.IncompleteSource;
             self.complete = true;
             return null;
         }
     }
     const row = self.page.?.rows[self.index].?;
-    self.page.?.rows[self.index] = null;
+    self.ordinal = if (self.reader.filter != null) self.page.?.ordinals[self.index] else self.ordinal + 1;
+    self.selected += 1;
     self.index += 1;
     self.after = row.identity;
-    // TableRow owns its value and descriptor in one arena. Transfer that arena
-    // to Fuze; the source page can be freed independently of the returned row.
-    return .{ .arena = row.value.descriptor.arena, .cells = row.row().cells };
+    return row.row().cells;
+}
+pub fn batchAvailable(self: *const Self) usize {
+    return if (self.page) |page| page.count - self.index else 0;
+}
+pub fn batchOrdinal(self: *const Self) u64 {
+    return self.ordinal;
+}
+pub fn batchCoverage(self: *const Self) u64 {
+    return if (self.reader.filter != null) self.reader.consumed else self.ordinal;
+}
+pub fn batchFailure(self: *const Self) ?f.LogicalQuery.Failure {
+    return self.reader.failure;
 }
 pub fn batchIdentity(self: *const Self) ?f.TableRow.Identity {
     return self.after;
@@ -136,7 +176,7 @@ pub fn batchIdentity(self: *const Self) ?f.TableRow.Identity {
 pub fn nextAfter(self: *Self, after: ?f.TableRow.Identity) !?f.LogicalQuery.Row {
     // Relational rewinds require identity order; only the finite count owner
     // selects a range and it consumes next() without identity-based rewinds.
-    std.debug.assert(self.count_range == null);
+    std.debug.assert(self.count_range == null and self.reader.filter == null);
     try self.checkCancellation();
     if (std.meta.eql(after, self.after)) return self.next();
     if (self.page) |*page| page.deinit();
@@ -146,6 +186,8 @@ pub fn nextAfter(self: *Self, after: ?f.TableRow.Identity) !?f.LogicalQuery.Row 
     self.complete = false;
     self.reader.after = null;
     self.reader.consumed = 0;
+    self.ordinal = 0;
+    self.selected = 0;
     self.reader.complete = false;
     while (try self.next()) |value| {
         var row = value;

@@ -238,7 +238,7 @@ recompiling or rebinding is a new operation.
 
 The logical predicate and FDM1 payload add atom tag 4, followed by column:u8 and
 comparison:u8, for a bound NULL comparison. FQP1 uses the definition derived from
-`transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters`.
+`transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations`.
 The shared native definition changes with this stored-semantics cutover. Generated
 schemas, binding resources and independent canonical/signing fixtures use that
 same definition. Missing and foreign definitions reject before execution.

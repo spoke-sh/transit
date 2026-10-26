@@ -114,6 +114,7 @@ def column(ctx, identity):
     for constraint in ctx.columnConstraint():
         if constraint.nullability(): result['nullable']=nullable(constraint.nullability())
         elif constraint.DEFAULT(): result['default']=literal(constraint.literal(),typ)
+        elif constraint.COLLATE(): result['collation']=constraint.collation().getText().lower()
         else: assert constraint.PRIMARY(); primary=True
     if primary: result['nullable']=False
     return result,primary
@@ -145,4 +146,9 @@ def schema_bytes(schema):
             cell=b'FVL1'+struct.pack('<H',len(desc))+desc+bytes([column['nullable']])+cell_bytes(column['default'],column['type'])
             data+=struct.pack('<I',len(cell))+cell
     data+=struct.pack('<H',len(schema['primary_key']))+b''.join(struct.pack('<Q',int(k)) for k in schema['primary_key'])
+    if any(c['encoding'] != 'plain' or c['collation'] != 'none' for c in schema['columns']):
+        data += b'FTP1'
+        for c in schema['columns']:
+            assert c['encoding'] == 'plain'
+            data += bytes([0, {'none': 0, 'utf8_binary': 1, 'ascii_ci': 2, 'ebcdic_cp037': 3}[c['collation']]])
     return data

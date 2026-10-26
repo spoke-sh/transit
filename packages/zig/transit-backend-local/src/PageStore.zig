@@ -103,10 +103,9 @@ fn stageImpl(self: *Self, reference: pages.Reference, page: *const pages.Page) !
     const encoded = bytes[0 .. envelope_bytes + body.len];
     var result = reference;
     result.location = try self.location('p', reference.digest, encoded.len);
-    var name: [96]u8 = undefined;
     self.create_payload_bytes_attempted +|= encoded.len;
     self.observe.metrics.request_payload_bytes +|= encoded.len;
-    try self.backend.put(try key('p', result.location, &name), encoded, self.control);
+    try self.backend.putNative(self.candidate.?.epoch, .page, result.location, encoded, self.control);
     self.created +|= 1;
     self.remember(result, page.*);
     return result;
@@ -151,10 +150,9 @@ fn stageBlockImpl(self: *Self, spec: p.Blocks.Spec, body: []const u8) !core.bloc
     @memcpy(bytes[envelope_bytes..][0..body.len], body);
     const encoded = bytes[0 .. envelope_bytes + body.len];
     const address = try self.location('b', spec.digest, encoded.len);
-    var name: [96]u8 = undefined;
     self.block_payload_bytes_attempted +|= encoded.len;
     self.observe.metrics.request_payload_bytes +|= encoded.len;
-    try self.backend.put(try key('b', address, &name), encoded, self.control);
+    try self.backend.putNative(self.candidate.?.epoch, .block, address, encoded, self.control);
     self.blocks_created +|= 1;
     return .{ .value = spec, .location = address };
 }

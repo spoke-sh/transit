@@ -477,6 +477,55 @@
       "expression": "16 * 1024 * 1024",
       "classification": "working-set",
       "meaning": "Canonical cell bytes per owned result disclosure batch; one bounded lookahead row is separate."
+    },
+    {
+      "source": "packages/zig/transit-storage/src/TableArchive.zig",
+      "symbol": "max_frame_bytes",
+      "expression": "Log.header_bytes + Log.max_payload_bytes",
+      "classification": "working-set",
+      "meaning": "One archived original WAL frame; the archive operation retains at most one input/output pair, independently of history cardinality."
+    },
+    {
+      "source": "packages/zig/transit-storage/src/TableArchive.zig",
+      "symbol": "max_frames",
+      "expression": "pages.mutation_batch",
+      "classification": "operation",
+      "meaning": "At most eight contiguous frames per archive publication; explicit byte and index-work budgets can stop the batch earlier."
+    },
+    {
+      "source": "packages/zig/transit-storage/src/TableRecovery.zig",
+      "symbol": "max_bytes",
+      "expression": "header_bytes + r.max_metadata_bytes",
+      "classification": "encoding",
+      "meaning": "Recovery capsule holds only a bounded accepted root and chain; durable rows, receipts and pins remain paged dependencies."
+    },
+    {
+      "source": "packages/zig/transit-storage/src/TablePartition.zig",
+      "symbol": "default_build_resident_bytes",
+      "expression": "64 * 1024 * 1024",
+      "classification": "working-set",
+      "meaning": "Default configurable simultaneous private allocation ceiling for Table mutations, retained execution, definition rewrites and flushes; independent of durable cardinality and index/reader/provider budgets."
+    },
+    {
+      "source": "packages/zig/transit-storage/src/TablePartition.zig",
+      "symbol": "max_changes",
+      "expression": "Changes.max_changes",
+      "classification": "operation",
+      "meaning": "Maximum concrete changes or rows in one private Table build group; durable Tables have no total row ceiling."
+    },
+    {
+      "source": "packages/zig/transit-storage/src/TablePartition.zig",
+      "symbol": "max_row_bytes",
+      "expression": "Log.max_payload_bytes - r.max_metadata_bytes - r.header_bytes",
+      "classification": "operation",
+      "meaning": "Canonical row bytes in a Table acceptance or private build group after its fixed metadata reserve; decoded/private memory is a separate explicit budget."
+    },
+    {
+      "source": "packages/zig/transit-storage/src/TablePartition.zig",
+      "symbol": "default_predicate_resident_bytes",
+      "expression": "4 * 1024 * 1024",
+      "classification": "working-set",
+      "meaning": "Default configurable bound for one retained segment group of encoded predicate decisions and simultaneous validation/dictionary scratch; separate from output decoding, encoded page buffers and total durable rows."
     }
   ],
   "identities": [

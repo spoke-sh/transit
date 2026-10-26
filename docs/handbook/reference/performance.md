@@ -53,6 +53,29 @@ claimed. Medians are not tail percentiles or service latency guarantees.
 
 ## Retained Table key-range measurements
 
+A paired ReleaseSafe disk-owner matrix measures 1,024-row Table scans and a
+four-row interval at the same retained snapshot. With warm fixture pages, the
+baseline median / p95 read times are **621.72 / 645.94 ms** for a complete scan
+and **11.89 / 16.33 ms** for the interval. With verified cold fixture pages at
+process entry, they are **1,675.38 / 3,059.07 ms** and **68.00 / 122.30 ms**.
+Each arm has 31 observations on a shared Linux Threadripper host, one resident
+index page and separate 128 KiB encoded/decode limits. The interval opens two
+of 64 segments and requests 40,950 segment bytes versus 1,310,400 for the scan.
+Both verify the same selected values; the scan also verifies all visited rows.
+
+In that matrix, a Table recovery checkpoint reduces logical replay from 65
+records to one and warm logical recovery median from 8.21 to 0.92 ms. Physical
+startup still validates the WAL. Cold logical recovery shows no consistent
+latency improvement. A separate native 64-turn fixture preserves KV values,
+blocks and process progress after checkpoint, with essentially unchanged read
+costs: its history floor falls inside one retained WAL segment. No physical
+space reclamation is demonstrated. Maximum observed executable RSS is 8,968 KiB
+for Table and 6,868 KiB for native samples. These are observations, not limits.
+The [complete measurement account and raw samples](../../../tests/storage_benchmarks/2026-10-26-owners/README.md)
+identify source hashes, all phases, memory/I/O boundaries and contention. These
+fixtures exceed owner caches, not host RAM; they do not measure installed SQL or
+ingestion/commit percentiles.
+
 The disk-backed Table owner can traverse complete primary keys within an
 inclusive or exclusive interval on a retained snapshot. In a 512-row fixture
 with eight immutable segments, a four-row interval crossing a segment boundary
@@ -75,6 +98,35 @@ system page cache is not cleared. SQL inequality predicates still use their
 existing scan path; this measurement exercises the retained range operation.
 The [proof ledger](../../../tests/README.md#retained-table-cross-segment-range-control--2026-10-26)
 records the fixture and reproduction command.
+
+## Local ingestion and bounded growth measurements
+
+A separate disk-owner matrix completes 384 verified write/readback samples,
+including 31 observations per arm. At a 1,024-row baseline, inserting sixteen
+1 KiB rows takes median / p95 **473.68 / 1,188.34 ms** through point ingestion
+and **486.99 / 641.78 ms** through bulk ingestion with warm fixture pages.
+Verified cold entry raises these to **4,861.01 / 5,795.64 ms** and
+**4,882.02 / 6,883.45 ms**. Every sample verifies the complete original and new
+values, receipt and retained snapshot in a fresh process.
+
+Bulk ingestion reduces that batch's WAL bytes from 23,552 to 3,712, but total
+staging bytes and latency do not improve consistently. Both paths append once
+with three measured WAL syncs; final append medians are about 0.5–1.2% of total
+owner ingestion medians in these fixtures. A native turn's preparation includes
+input/view acceptance and private staging, so its timing is a separate workload.
+The [ingestion account and raw observations](../../../tests/storage_benchmarks/2026-10-26-ingestion/README.md)
+record both owners, exact source/build identities, allocation/RSS boundaries,
+cache conditioning and shared-host contention. Later Table evidence and native
+policy caching changes are outside this measurement; installed SQL and concurrent
+group commit are not measured.
+
+A [separate growth attempt](../../../tests/storage_benchmarks/2026-10-26-growth/README.md)
+verifies 8,192 Table rows with 16 KiB values and 191,717,253 retained file bytes
+under a 134,217,728-byte process address-space ceiling. Fresh-process cold readback
+checks every value without changing storage. This exceeds the process ceiling,
+not host RAM. The full growth run fails when native setup exceeds its unchanged
+1,800-second timeout; completed Table observations do not establish native growth
+or a complete growth-matrix pass.
 
 ## Table point-read decoding measurements
 
@@ -776,9 +828,10 @@ staging pipeline:
   segment. `TSegReader` verifies footer and column ranges, retains encoded pages
   for selected point reads and decoded groups for scans, and enforces separate
   byte budgets. Full-key ranges use the paged ordered index with declared
-  collations. SQL predicate/projection pushdown and encoded operators remain
-  separate work; segment Zone Map and Bloom-filter primitives alone do not
-  establish those execution paths.
+  collations. Finite direct scans select required columns before reading segment
+  pages. General SQL predicate pushdown and encoded operators remain separate
+  work; segment Zone Map and Bloom-filter primitives alone do not establish
+  those execution paths.
 - **Cache and manifest components:** `NvmeCache` caches `64 KiB`
   SHA-256-verified ranges and protects `.metadata_or_index` chunks from
   sequential `.column_data` scans. `PartitionLease.OccCoordinator` can rebase

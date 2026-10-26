@@ -271,6 +271,44 @@ pub const CurrentRead = struct {
     expected: d.Position,
     selection: union(enum) { key: Binary, rows: struct { after: ?f.TableRow.Identity, limits: P.ReadLimits } },
 };
+pub const ColumnScan = struct {
+    pub const json_schema_sequence_bounds = .{ .columns = 128 };
+    snapshot: Snapshot,
+    columns: []const u16,
+    after: ?P.SnapshotCursor,
+    limits: P.ReadLimits,
+    pub fn projection(self: ColumnScan) !f.TableProjection {
+        if (self.columns.len == 0 or self.columns.len > f.TableSchema.max_columns) return error.InvalidProjection;
+        var indices: [f.TableSchema.max_columns]u8 = undefined;
+        for (self.columns, indices[0..self.columns.len]) |value, *index| {
+            if (value >= f.TableSchema.max_columns) return error.InvalidProjection;
+            index.* = @intCast(value);
+        }
+        return f.TableProjection.fromColumns(indices[0..self.columns.len]);
+    }
+};
+/// FQP1 is decoded against the authorized retained schema and complete source
+/// basis. The declared fingerprint must match that canonical decoded plan.
+pub const FilterScan = struct {
+    snapshot: Snapshot,
+    plan: Binary,
+    fingerprint: [32]u8,
+    after: ?P.SnapshotCursor,
+    limits: P.ReadLimits,
+    /// The request arena owns all decoded plan values. Only the authorized
+    /// source owner supplies this basis and schema; caller bytes cannot do so.
+    pub fn decodePlan(self: FilterScan, arena: std.mem.Allocator, schema: f.TableSchema.Schema, basis: [32]u8) !f.LogicalQuery.Plan {
+        var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+        const bytes = try self.plan.decode(arena, f.LogicalPlanCodec.max_bytes);
+        const plan = f.LogicalPlanCodec.decodeInto(arena, try schema.rowType(&fields), basis, bytes) catch |err| switch (err) {
+            error.OutOfMemory => return err,
+            else => return error.InvalidPlanEncoding,
+        };
+        if (!std.mem.eql(u8, &try plan.fingerprint(), &self.fingerprint)) return error.SourceChanged;
+        _ = try f.TableProjection.fromPlan(schema, plan);
+        return plan;
+    }
+};
 pub const Action = union(enum) {
     pub const json_schema_sequence_bounds = .{ .check_set = 16 };
     initialize,
@@ -316,6 +354,8 @@ pub const Action = union(enum) {
     history_scan: struct { source: Historical, after: ?P.SnapshotCursor, limits: P.ReadLimits },
     read_key: struct { snapshot: Snapshot, key: Binary },
     scan: struct { snapshot: Snapshot, after: ?P.SnapshotCursor, limits: P.ReadLimits },
+    column_scan: ColumnScan,
+    filter_scan: FilterScan,
     key_range: struct { snapshot: Snapshot, interval: KeyInterval, after: ?KeyCursor, limits: P.ReadLimits },
     release: Snapshot,
 };
@@ -536,6 +576,22 @@ pub const Request = struct {
                 if (value.limits.encoded_bytes > max_page_bytes) return error.InvalidTableReadBudget;
                 if (value.after) |cursor| if (!std.meta.eql(cursor.source, value.snapshot.handle.content)) return error.InvalidTableCursor;
             },
+            .column_scan => |value| {
+                try validateSnapshot(connection, value.snapshot);
+                try value.limits.validate();
+                if (value.limits.encoded_bytes > max_page_bytes) return error.InvalidTableReadBudget;
+                const selected = try value.projection();
+                if (value.after) |cursor| if (!std.meta.eql(cursor.source, try selected.cursorSource(value.snapshot.handle.content))) return error.InvalidTableCursor;
+            },
+            .filter_scan => |value| {
+                try validateSnapshot(connection, value.snapshot);
+                try value.limits.validate();
+                if (value.limits.encoded_bytes > max_page_bytes) return error.InvalidTableReadBudget;
+                const bytes = try value.plan.decode(allocator, f.LogicalPlanCodec.max_bytes);
+                defer allocator.free(bytes);
+                if (bytes.len == 0) return error.InvalidPlanEncoding;
+                if (value.after) |cursor| if (!std.meta.eql(cursor.source, try P.filteredCursorFingerprint(value.snapshot.handle, value.fingerprint))) return error.InvalidTableCursor;
+            },
             .key_range => |value| {
                 try validateSnapshot(connection, value.snapshot);
                 try value.limits.validate();
@@ -627,6 +683,32 @@ pub const Page = struct {
     encoded_bytes: u32,
     next: ?P.SnapshotCursor,
 };
+pub const FilteredPage = struct {
+    page: Page,
+    examined: u8,
+    offsets: [8]u8,
+    failure: ?struct {
+        identity: f.TableRow.Identity,
+        column: u8,
+        instruction: u8,
+        outcome: enum { type_error, conflict },
+    },
+    /// Envelope checks independent of schema decoding and traversal progress.
+    pub fn validate(self: FilteredPage) !void {
+        if (self.examined > 8 or self.page.rows.len > self.examined or self.examined > self.page.total_rows) return error.InvalidTableResponse;
+        var previous: u8 = 0;
+        for (self.offsets, 0..) |offset, i| {
+            if (i < self.page.rows.len) {
+                if (offset <= previous or offset > self.examined) return error.InvalidTableResponse;
+                previous = offset;
+            } else if (offset != 0) return error.InvalidTableResponse;
+        }
+        if (self.failure) |failure| {
+            if (self.page.next != null or self.examined == 8 or self.examined == self.page.total_rows or failure.column >= f.TableSchema.max_columns or failure.instruction >= f.LogicalPredicate.Program.max_instructions) return error.InvalidTableResponse;
+            _ = try failure.identity.encode();
+        } else if (self.page.next != null and self.examined == 0) return error.InvalidTableResponse;
+    }
+};
 pub const KeyRangePage = struct {
     pub const json_schema_sequence_bounds = .{ .rows = 8 };
     snapshot: Snapshot,
@@ -682,6 +764,7 @@ pub const Result = union(enum) {
     history_page: struct { point: P.HistoryPoint, page: Page },
     point: Point,
     page: Page,
+    filtered_page: FilteredPage,
     key_range: KeyRangePage,
     released,
 };

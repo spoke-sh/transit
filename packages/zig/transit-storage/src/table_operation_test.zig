@@ -83,6 +83,13 @@ test "Table admitted work survives lost replies and disk restart; inspection can
         // Physical relocation and pin acquisition do not stale admitted work.
         _ = try table.flush(access.guard());
         _ = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 50 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        const through: d.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        while (!(try table.archive(through, .{ .frames = 1 }, access.guard())).complete) {}
+        _ = try table.trimArchived(access.guard());
+        _ = try table.checkpoint(.{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        try table.recover();
+        try t.expectEqual(@as(u64, 1), table.recovery_work.replayed_frames);
+        try t.expect((try table.operationState(exact, access.guard())) == .admitted);
         table.lose_reply = true;
         try t.expectError(error.LostAcknowledgement, table.perform(exact, access.guard()));
         try t.expectEqual(@as(u64, 1), table.root.live_rows);
@@ -361,4 +368,39 @@ test "Table recovery rejects a terminal operation forged back into admitted work
     _ = try wal.log().append(17, table.root.next_lsn, 1, 1, .manifest_checkpoint, try r.encode(record, &.{}, &bytes));
     try t.expectError(error.InvalidTableOperation, table.recover());
     try t.expectError(error.TableRecoveryRequired, table.operationState(exact, access.guard()));
+}
+
+test "Table build memory parent failures keep admitted work unresolved" {
+    const Case = struct {
+        fn run(allocator: std.mem.Allocator) !void {
+            var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+            defer wal.deinit();
+            var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+            defer objects.deinit();
+            var table = try owner(&wal, &objects);
+            defer table.deinit();
+            var access: Access = .{};
+            _ = try table.apply(binding(&table, 1), &.{}, .point, access.guard());
+            const exact = binding(&table, 2);
+            const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 7 } } };
+            _ = try table.admit(request(&table, exact, &.{change(&cell, 2)}), access.guard());
+            const before = table.root;
+            // In-place arena growth depends on the backing heap's layout. Make
+            // every growth allocate so the exhaustive failure ordinal is stable
+            // and each allocation still passes through the injected allocator.
+            var vtable = allocator.vtable.*;
+            vtable.resize = std.mem.Allocator.noResize;
+            vtable.remap = std.mem.Allocator.noRemap;
+            table.allocator = .{ .ptr = allocator.ptr, .vtable = &vtable };
+            const result = table.perform(exact, access.guard()) catch |err| {
+                // Parent OOM must not clear pending work or publish a terminal
+                // work-limit outcome. The exact accepted identity stays intact.
+                try t.expectEqualDeep(before, table.root);
+                return err;
+            };
+            try t.expect(result == .committed);
+            try t.expectEqual(@as(u64, 1), result.committed.outcome.affected);
+        }
+    };
+    try t.checkAllAllocationFailures(t.allocator, Case.run, .{});
 }

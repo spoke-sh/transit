@@ -131,8 +131,8 @@ pub fn trace(engine: *Engine, parent: ?telemetry.Context) void {
 }
 
 pub fn collect(_: *Engine, _: Maintenance.Config, _: core.Ed25519.KeyPair, _: *core.protocol.Growth.Request) !bool {
-    // No local retained-root collector exists yet. Keep every immutable object;
-    // logical lifecycle progress never pretends to have reclaimed physical data.
+    // The backend exposes explicit native collection; this runtime does not
+    // schedule it. Logical lifecycle progress is not physical reclamation.
     return false;
 }
 

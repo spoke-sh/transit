@@ -21,13 +21,17 @@ control reserve. Failed/uncertain writes conservatively retain their reservation
 until exclusive reopen recounts actual files. Exhausting quota stops new staging;
 it never authorizes expiry, trimming or deletion. Accounting bounds encoded file
 bytes and conservative publication overhead, not filesystem block/inode usage.
-Quota reservations hold the journal mutex briefly; private immutable object
-publication and reads run outside it. Per-key disk locks serialize competing
+Direct-data quota reservations hold the journal mutex briefly; private direct
+object publication and immutable reads run outside it. Per-key disk locks serialize competing
 publications, and completed object-attempt counters have a separate short lock.
 Concurrent attempts that both observe a missing key can reserve twice; those
-conservative reservations remain charged until reopen. Object syncs therefore
+conservative reservations remain charged until reopen. Direct-object syncs therefore
 do not hold up unrelated native reads or control publication through this mutex.
 Device contention and the serialized WAL can still delay them.
+Native page/block creation and explicit native collection retain the journal
+mutex through allocation, publication and reclamation. Their syncs can delay
+journal work; this serialization prevents a delayed native creator from
+recreating an object after collection consumes its allocation record.
 
 The object root requires the shared definition and a 64-byte `.native-owner`
 marker (`TNOWNER1`, the 32 definition bytes, then 24 zeros), locked exclusively
@@ -49,8 +53,10 @@ data owners inside the same exclusive directory and physical quota. It checks
 native storage and authorization epochs at append, under the physical owner
 mutex. It does not compare the native progress position: an unrelated accepted
 input does not invalidate an otherwise current Table candidate. Direct owners
-still compare their own partition frontier. Data history trim, mutable objects
-and physical collection are unavailable through this adapter.
+still compare their own partition frontier. Table WAL trimming requires coverage
+published in the latest accepted Table archive record; it preserves the last WAL
+record and every archived logical record. Mutable data objects and Table-object
+collection are unavailable through this adapter.
 
 `DataAuthority` authenticates the original signed subject and checks the supplied
 generic native requirements. It separately verifies the catalog resource's
@@ -59,21 +65,39 @@ The service must bind the proof context to the complete request and choose its
 requirements; the adapter cannot infer those from a row batch. A shared authority
 fence covers the check and data commit/disclosure. Native publication takes its
 exclusive side. Private staging holds neither side, and independent data owners
-can hold shared fences together. Short data commits can delay native publication;
+can hold shared fences together. The first successful acquisition fixes the
+candidate's storage epoch. Later acquisitions recheck current permissions and
+resource lifetime but preserve that epoch: a storage fence during private
+staging makes publication fail with `StaleStorageEpoch`. A fresh request may
+rebuild the same unaccepted operation under the current epoch; accepted retries
+still resolve to their original receipt. Reads continue to check current rights
+and can disclose an accepted receipt across a storage fence. Short data commits
+can delay native publication;
 this is a local serialization profile, not a distributed fencing protocol.
 
 The component tests compose this guard and quota adapter with `TablePartition`,
 including actual native revocation after segment staging. The
 [node's public Table route](../../../apps/transit-node/README.md) uses this
-adapter for direct catalog and Table operations, and the
+adapter's request-owned guards through `LocalCatalogPolicy` for direct catalog
+and Table operations, and the
 [local SQL service](../../../docs/handbook/reference/sql.md) uses that same
 acceptance owner. Native resource turns and direct Table mutations retain
 separate commit boundaries.
+Component race tests cover point/WAL and bulk/segment staging across a storage
+fence, unchanged accepted roots, fresh retries and original receipt recovery.
 
 `Store.maintain` trims only an already accepted native history floor and keeps
-the latest entry. It does not collect immutable objects. Superseded and staged
-objects remain until a retained-root collector can establish safe reclamation;
-the package does not provide that collector or standalone payload publication.
+the latest entry. `StorageCollection` separately collects native pages and blocks
+after a signed storage fence, complete retained-root marking and the snapshot
+and request grace interval. Its durable allocation FIFO, paged marks and deletion
+intent resume after reopen. `storage_compact` relocates bounded native data while
+retained captures keep their original values. See [native maintenance](docs/maintenance.md)
+for invocation, ownership, quotas and recovery. Table objects and standalone
+payloads retain separate ownership; this collector does not delete them or
+schedule automatic local collection. `PayloadStore` implements explicit
+[standalone payload publication and retirement](docs/payloads.md) under the
+existing native declarations. These component operations are separate from
+installed node payload routes and automatic maintenance.
 
 Run `nix develop --command zig build test-local-native` from the repository root,
 or `zig build test` here inside the pinned development shell. The root unit task

@@ -19,6 +19,7 @@ pub const Program = @import("LogicalPredicate.zig").Program;
 pub const Plan = struct {
     schema: types.Type,
     source_basis: [32]u8,
+    collations: @import("QueryCollations.zig") = .{},
     projection: []const u8,
     /// Empty retains defaults; otherwise one optional borrowed name per output.
     /// Names and their vector must remain immutable through execution.
@@ -41,6 +42,7 @@ pub const Plan = struct {
     // remain immutable during lowering. Public plans still validate both parts.
     pub fn validateShape(self: Plan) !void {
         if (self.schema != .structure or self.schema.structure.len > 128) return error.InvalidQuerySchema;
+        try self.collations.validate(self.schema);
         if (self.projection.len == 0 or self.projection.len > 128) return error.InvalidProjection;
         if (self.output_names.len != 0 and self.output_names.len != self.projection.len) return error.InvalidOutputNames;
         const renamed = self.hasOutputNames();
@@ -56,8 +58,8 @@ pub const Plan = struct {
         // keep its stack probing/initialization out of ordinary validation.
         if (renamed) try @call(.never_inline, validateOutput, .{&self});
         switch (self.predicate) {
-            .program => |program| try program.validate(self.schema),
-            inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).validate(self.schema),
+            .program => |program| try program.validateCollations(self.schema, self.collations),
+            inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).validateCollations(self.schema, self.collations),
         }
     }
     pub fn fingerprint(self: Plan) ![32]u8 {
@@ -93,8 +95,8 @@ pub const Plan = struct {
             },
             inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).write(self.schema, &writer),
         }
-        // Preserve existing unnamed-plan identities. Named plans commit every
-        // optional name, including its position, within the same byte budget.
+        // Named plans commit every optional name and its output position;
+        // all plans subsequently commit their input comparison semantics.
         if (self.hasOutputNames()) {
             try writer.writeAll("output_names\x00");
             for (self.output_names) |name| {
@@ -105,6 +107,8 @@ pub const Plan = struct {
                 }
             }
         }
+        try writer.writeAll("collations\x00");
+        try self.collations.write(self.schema, &writer);
         var digest: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(writer.buffered(), &digest, .{});
         return digest;
@@ -139,7 +143,7 @@ pub const Plan = struct {
     pub const PredicateFailure = struct { column: u8, instruction: u8 };
     pub fn matches(self: Plan, cells: []const values.Cell, failed: *?PredicateFailure) !bool {
         failed.* = null;
-        const row: PredicateRow = .{ .schema = self.schema, .cells = cells };
+        const row: PredicateRow = .{ .schema = self.schema, .cells = cells, .collations = self.collations };
         const truth = switch (self.predicate) {
             .program => |program| result: {
                 var instruction: ?u8 = null;
@@ -183,6 +187,23 @@ pub const Failure = struct {
     instruction: ?u8,
     binding: [32]u8,
     plan: [32]u8,
+    pub fn init(operation: @FieldType(Failure, "operation"), row: u64, field: types.Field, state: types.State, instruction: ?u8, binding: [32]u8, plan: [32]u8) Failure {
+        const typed = @import("FileValueDiagnostic.zig").init(.{}, field.type, null);
+        var result: Failure = .{
+            .operation = operation,
+            .row = row,
+            .column_len = @intCast(@min(field.name.len, 128)),
+            .column_truncated = field.name.len > 128,
+            .expected = typed.expected,
+            .expected_len = typed.expected_len,
+            .state = state,
+            .instruction = instruction,
+            .binding = binding,
+            .plan = plan,
+        };
+        @memcpy(result.column[0..result.column_len], field.name[0..result.column_len]);
+        return result;
+    }
     pub fn columnName(self: *const Failure) []const u8 {
         return self.column[0..self.column_len];
     }
@@ -321,22 +342,7 @@ pub fn Execution(comptime Scan: type, comptime verification: Verification) type 
         }
         fn capture(self: *Self, operation: @FieldType(Failure, "operation"), cells: []const values.Cell, column: u8, instruction: ?u8) void {
             if (self.failure != null or column >= self.plan.schema.structure.len or column >= cells.len) return;
-            const field = self.plan.schema.structure[column];
-            const typed = @import("FileValueDiagnostic.zig").init(.{}, field.type, null);
-            var detail: Failure = .{
-                .operation = operation,
-                .row = self.scanned,
-                .column_len = @intCast(@min(field.name.len, 128)),
-                .column_truncated = field.name.len > 128,
-                .expected = typed.expected,
-                .expected_len = typed.expected_len,
-                .state = std.meta.activeTag(cells[column]),
-                .instruction = instruction,
-                .binding = self.plan.source_basis,
-                .plan = self.fingerprint,
-            };
-            @memcpy(detail.column[0..detail.column_len], field.name[0..detail.column_len]);
-            self.failure = detail;
+            self.failure = Failure.init(operation, self.scanned, self.plan.schema.structure[column], std.meta.activeTag(cells[column]), instruction, self.plan.source_basis, self.fingerprint);
         }
     };
 }

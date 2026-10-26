@@ -104,6 +104,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         head: Head,
         record_cache: catalog.RecordCache = .{},
         authorization_cache: catalog.RecordCache = .{},
+        authorization_scans: catalog.PolicyScanCache = .{},
         clock: ?core.Time.Source = null,
         /// Inject a fresh secure epoch at service startup. Volatile read pins
         /// cannot survive restart or replace retained durable read versions.
@@ -195,6 +196,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         pub fn authorization(self: *Self) !core.authorization_store.Store(PageStore) {
             var store = try core.authorization_store.Store(PageStore).open(self.page_store, self.head.authorization);
             store.catalog.record_cache = &self.authorization_cache;
+            store.catalog.policy_scan_cache = &self.authorization_scans;
             store.next_id = self.head.authorization_next_id;
             return store;
         }

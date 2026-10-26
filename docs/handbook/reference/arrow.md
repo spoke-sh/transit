@@ -47,6 +47,18 @@ arrays/streams exactly as specified. A release callback cannot run while another
 consumer still references its buffers. Host cancellation does not automatically
 join native work or release a live resource safely.
 
+Fuze's retained segment group exposes aligned Arrow value buffers for plain
+int64, uint64, float64, Boolean, UTF-8, binary and JSON columns on little-endian
+hosts. The local `arrowValues` view borrows both the group and a caller-owned
+buffer directory. Non-value cells appear null in that value child; the enclosing
+column's state tags and error/conflict details preserve their full meaning.
+Retaining a borrowed buffer does not extend the group's lifetime. Recursive and
+other encoded columns use bounded logical decoding. This view supplies neither
+a C data release callback nor an external import boundary. See the
+[segment reader](../../../packages/zig/transit-fuze/README.md) for ownership and
+the [stored layout](../../../contracts/TRANSIT_STORAGE_V1.md#qualified-plain-value-buffers)
+for offsets, validity and canonical padding.
+
 Decode bounded batches and validate full-width identities, lengths and semantic
 cell states at language boundaries. A readable IPC prefix is not a verified
 complete query. Result manifests, ordered segment coverage and digests remain

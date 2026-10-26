@@ -1,5 +1,144 @@
 # Validation and evidence
 
+## Local standalone payload ownership — 2026-10-26
+
+On `09d24daa8` plus the payload adapter and immutable-publication confirmation,
+the local backend's focused payload run passes **7/7 tests** (33 seconds,
+reported MaxRSS 16 MiB), including the package root test. It verifies accepted
+declarations, a lost creation reply and disk reopen, the 64 KiB limit, quota
+refusal, two independent creator lanes, current-identity rejection, corrupt
+markers/content, unlimited retention, opted-in retirement, repeated deletion and
+the permanent creation marker after checkpoint/reopen. The physical adapter does
+not publish native readiness or deletion completion on its own.
+
+The creation schedule discovers **eight sync barriers**, fails each one and
+reopens the owner. Only verification resolves the original bytes; no PUT or new
+native acceptance occurs. Two deletion-sync failures resume the same accepted
+retirement and preserve the attempt fence. The verification schedule fails each
+of **seven recovery barriers** and proves that native state and PUT counts remain
+unchanged. Missing bytes remain unavailable, never an empty or recreated payload.
+
+The storage confirmation control passes **2/2 tests**, including the package root
+test. It independently checks the five object-publication barriers in order:
+content file, checksum file, content directory, descriptor file and descriptor
+directory. Each injected failure propagates. Confirmation rejects conditional
+identity, missing objects and corrupt empty-object data. These are local disk
+and syscall-boundary observations, not a filesystem power-loss model.
+
+Reproduce in `nix develop` with the local backend's `zig build test
+-Dtest-filter="local standalone payload" -Dtest-filter="local payload"
+--summary all`, and the storage package's `zig build test
+-Dtest-filter="immutable confirmation" --summary all`. Diagnostics and local
+documentation links pass. Installed local payload routes and automatic lifecycle
+reclamation remain separate integration work; no complete milestone or clean-CI
+claim follows from these focused cases.
+
+## Local native allocation and physical collection — 2026-10-26
+
+On `78d43b93a` plus the local collection implementation, pinned local-backend
+`zig build test --summary all` passes **17/17 tests** (three minutes, reported
+MaxRSS 48 MiB). The first run of the retained-block
+case used a stale fixture generation and failed before collection; the corrected
+fixture reads the actual process generation. These are component disk proofs.
+
+`zig build test-local-native-collection-faults -Doptimize=ReleaseSafe` passes
+**15 SIGKILL schedules**: all eight observed sync boundaries, four physical
+unlinks, FIFO publication, private-state publication and lost completion reply.
+Each schedule kills a real blocked child, reopens the same disk bytes, resumes
+the exact pending identity and verifies the physical absence of its descriptor,
+payload, checksums and allocation marker. Native accepted position/process state
+and unrelated Table-owned bytes remain intact. Repeated reopen preserves the
+completed result. The Python parent independently verifies the exact allocation
+marker bytes, definition, object length and both hashes before the schedules.
+This does not simulate filesystem rollback or power loss.
+
+The owner tests cover retained history, incomplete-mark abort after an authorized
+trim, old-epoch creators, exact allocation retries, unpublished content, corrupted
+private state/allocation markers, control reserve under ordinary quota pressure,
+and independent retained block values after compaction, checkpoint and restart.
+Revocation still denies the retained read. The FIFO carry test discovers and
+injects every sync boundary in one carry operation, then reopens and proves that
+cursor advancement retains ownership exactly once. The storage package's focused
+immutable/publication run passes **5/5**, including both deletion-directory sync
+failures, identity/kind rejection and unchanged unrelated objects.
+Missing allocation history rejects without recreating a queue or resetting
+persisted objects.
+
+Reproduce with `just test::local-native-collection`; the root unit suite includes
+the native owner and process-death cases. The shared definition is replaced and
+schema, signing and host/browser artifacts are regenerated together. Application
+tests pass **52/52** after regenerating the new definition's signing fixture;
+native/host and browser contract checks, diagnostics and documentation links pass.
+The initial `just check` caught stale Table-query/signing fixtures. The run that
+had compiled the old signing fixture was stopped after its failure; its remaining
+disk checks are incomplete. Repository and clean-lane qualification remain
+separate from these executed cases. This
+does not close Table maintenance, standalone payload ownership, installed local
+collection scheduling, or the full storage milestone.
+
+## Encoded Boolean segment programs — 2026-10-26
+
+On `cdf5cdda7` plus bounded program selection, pinned Fuze `zig build test
+--summary all` passes **369/369 tests** (one minute, reported MaxRSS 84 MiB).
+The encoded path and the decoded program share the existing predicate machine.
+Explicit masks exercise multi-column conjunction, disjunction and negation,
+comparing selected values/order with complete decoded groups. Noncandidate groups
+perform no payload reads. A bound NULL remains unknown under NOT and therefore
+does not select a row. Logical lowering preserves instruction order and binds
+the supplied declared collation.
+
+A synthetic two-column five-state page puts a later type error in the first
+physical column and an earlier conflict in the second. Encoded evaluation reports
+the earlier source row and its original instruction. A true left operand of OR
+does not hide the right operand's error; swapping atoms updates the instruction
+coordinate without changing source ordering. Malformed programs reject before
+I/O. Allocation-failure enumeration covers multiple outcome vectors and late
+projected decoding. Every outcome vector, selection ordinal and decoding
+workspace shares the configured resident allowance.
+
+These controls extend the preceding component evidence. They do not establish
+SQL pushdown, cross-column correlation-aware pruning, disk/latency improvements
+or complete milestone qualification. Repeated atoms may reread a column, and
+projection of predicate columns may read those pages again. No stored or wire
+definition changes.
+
+## Encoded column predicates and projected segment filtering — 2026-10-26
+
+On merged `d553aa9c` plus this increment, the pinned Fuze selection
+`zig build test -Dtest-filter=TSeg -Dtest-filter=column -Dtest-filter=physical
+--summary all` passes **78/78 tests**. The public
+`just test::storage-segments` passes **70/70 Fuze tests** and **2/2 disk-backed
+Table segment-range tests** (two minutes, reported MaxRSS 39 MiB for storage).
+The latter preserves existing live-owner read/cache behavior; it does not wire
+the new predicate API into SQL. The complete Fuze `zig build test` also passes
+**365/365 tests**.
+
+Independent TCP1 byte fixtures check bitpacked offsets, RLE runs and dictionary
+codes. Outcomes distinguish true, false, unknown, type error and conflict across
+all ten codecs. Explicit byte-order masks cover UTF-8, ASCII case folding and
+CP037, including prefixes, NUL and accented text. Direct malformed COMP-3 bytes
+produce an error outcome without changing source bytes. Truncated/trailing data
+reject even when every predicate result would be discarded. Dictionary and run
+controls count one physical-value evaluation per entry/run; each retained row
+outcome occupies one byte. Allocation-failure enumeration checks partial owners.
+
+Verified segment controls compare pruned selections with unpruned values and
+independent masks. Four two-row groups require three metadata reads plus four
+payload reads for a narrow projected filter; two excluded groups request no
+payload. Source destruction preserves selected strings and row coordinates.
+A 64-row group with 2 KiB strings fits one selected projected row within a
+16 KiB decoded budget; materializing the complete column fails that same budget.
+Synthetic five-state segment metadata confirms that nonmatching bounds cannot
+hide an earlier conflict, and state selection retains its alternative stamps.
+Schema, projection, page integrity and allocation gates also cover empty groups.
+
+These are component correctness and allocation/range controls, not installed
+latency/RSS measurements. The reader trusts its immutable footer's statistics,
+does not validate pruned payloads, and acquires neither retention nor current
+rights. Multi-column program lowering, query LIMIT semantics, shared hash/order
+collation propagation and direct SQL integration remain separate work. Stored
+formats and the shared definition are unchanged.
+
 ## Finite retained Table count ranges — 2026-10-26
 
 The pinned-shell `just test::table-count-ranges` passes the focused query suite
@@ -28291,3 +28430,883 @@ complete telemetry. Private configurations and durable fixture state remain
 outside Git. The committed reactive fixture and runtime deadlines are unchanged;
 the broader physical browser failure remains recorded separately from the
 data-plane lock-independence result.
+
+## Declared finite query collations — 2026-10-26
+
+`just test::direct-table-service collations` passes in ReleaseSafe through the
+signed local disk-backed Table service. SQL CREATE TABLE declares ASCII_CI and
+CP037 columns; independently expected counts distinguish their order/equality.
+The proof compares same-pin range and identity scans, bound parameters, captured
+source/plan and neutral-value round trips, current UPDATE/DELETE outcomes and
+old retained snapshots. A substituted plan collation rejects. It exercises the
+local owner; installed lifecycle/performance qualification is separate.
+
+Focused Fuze checks pass 37 tests covering independent text masks across scalar,
+vector and page evaluation, saved plan ownership/identity, unknown values, eager
+error provenance and the counters used by oversized rows. Unsupported/mismatched
+profiles, unmappable CP037 literals/values, truncated/foreign plans and duplicate
+DDL clauses reject. The complete Fuze suite passes 374 tests and the complete query suite passes 142.
+The browser query client passes 57 tests, strict types, formatting and lint;
+native/host and browser contract checks pass. The diagnostic outcome proof passes
+3,407 projections, including the collation error across caller/Board/Flight boundaries.
+`just test::table-ddl-sql`
+passes 280 independent grammar/compiler cases with 244 exact schema comparisons,
+including all three COLLATE spellings, ADD COLUMN and invalid declaration controls.
+The new collation tests are in
+[`query_collation_test.zig`](../packages/zig/transit-fuze/src/query_collation_test.zig)
+and [`direct_table_collations.zig`](direct_table_collations.zig).
+
+These checks do not establish text relational join/group/order support, general
+SQL encoded pushdown, benchmark percentiles or complete milestone qualification.
+The clean core lane at commit `09d24daa8ad037abe1359e31f68e6e5f9d700ef4`
+passed `check-core`, properties, simulations, package builds and Zig SDK checks,
+then failed `test::station` with `Station domain work did not complete` during
+replacement recovery. That run is failed, not a clean qualification of later
+payload or collation changes.
+
+
+## Complete Table archives and physical WAL trimming — 2026-10-26
+
+The selected storage checks pass **5/5 tests**, including one-page-cache archival
+of 33 rows across multiple WAL segments, lost publication replies, restart before
+and after trimming, and a second archive pass over earlier physical records.
+Original receipts, retained unflushed rows, offline history commitments and
+admitted operations remain exact. Denial after staging leaves only unpublished
+objects; missing archive bytes, a substituted frame LSN, regressed coverage and
+an omitted mandatory archive field reject. Selected local native checks pass
+**3/3 tests**, including control-reserve archival after ordinary quota fills,
+refused trim beyond accepted coverage and revocation before trim. The focused
+entry point is `nix develop --command just test::table-archives`, which passes.
+The complete storage suite also passes **88/88 tests** (10 minutes, 47 MiB maximum
+RSS in this run); that process measurement is not a matched performance control.
+
+`just test::local-storage-faults` passes **63 SIGKILL schedules** in ReleaseSafe,
+including **21** new Table cases. Thirteen stop during archive object/index
+publication, before acceptance, during partial WAL acceptance or its durability
+barriers, and after acceptance before the reply. Eight stop during trim metadata
+publication, three individual prefix deletions or completion. A new process
+checks original receipt positions, pinned rows and independently expected logical
+operations; retries complete archive coverage before removing WAL files. The
+parent independently checks persisted trim metadata and actual prefix-file absence.
+The first run rejected the harness's below-minimum WAL segment setting before
+Table initialization; the corrected run uses the admitted 256-byte roll target.
+These schedules preserve the operating system/page cache and do not simulate
+power loss or host disk loss.
+
+The shared current-v1 cutover makes archive coordinates mandatory. Native/host
+contract checks pass, with regenerated signed fixtures. The Station ABI suite
+passes 22 tests and the focused reactive signature suite passes two after fixing
+the two omissions found by clean core at `d599e0b8e`: Table ABI test constructors
+lacked collation vectors, and the reactive fixture retained an earlier definition's
+cursor signature. That clean run failed during `check-core` (1,380/1,381 executed
+unit tests passed, plus an ABI compilation failure); it is not qualification of
+this later revision. Documentation links, diagnostic mappings/inventory and the
+verification catalog pass.
+
+Archiving preserves unlimited logical history and retains immutable objects.
+It does not establish logical retention floors, a faster replay checkpoint,
+Table-object collection, automatic installed scheduling or full clean-CI results.
+
+
+## Bounded live Table segment compaction — 2026-10-26
+
+`just test::table-compaction` passes its selected storage, local native and
+ReleaseSafe process-death checks. The storage checks merge live rows from four
+partially deleted segments in bounded two-row calls, lose a publication reply,
+reopen disk owners and finish the same exclusive segment boundary. A second
+boundary merges the two outputs; old snapshots still contain removed rows and
+current unflushed rows remain WAL-backed. Complete/no-op retries append nothing.
+Identity/order roots, live counts and logical-change frontiers remain unchanged.
+
+Private memory, encoded-row bytes, row count and index-work limits reject before
+publication. Revocation after staging preserves the old root. The allocation
+failure sweep separately passes every compactor/cold-reader allocation point,
+checking unchanged accepted roots and cleanup. The shared `MemoryBudget` suite
+passes 22 selected Fuze tests; its relational consumers pass 36 tests, including
+16,840 input rows and 8,420 groups with bounded disk spill. The local native
+control-reserve case compacts and archives after ordinary allocation admission
+fills, then checks current authorization before trimming.
+
+`just test::local-storage-faults` passes **78 SIGKILL schedules**, including **15**
+new compaction cases. They stop during segment/index object durability, before
+acceptance, during a partial acceptance frame and each acceptance durability
+barrier, and after acceptance before reply. Fresh owners compare current values,
+retained snapshots, original receipts and logical history with independent Python
+expectations. Retrying the fixed boundary produces exactly one accepted physical
+checkpoint and never selects its own output. The previous 63 schedules continue
+to pass with explicit current-row values in their oracle.
+
+These checks establish bounded physical relocation, not deletion of old segment
+or index objects, logical expiry, automatic scheduling, host power-loss recovery
+or a matched latency improvement. The clean core attempt at `1f6e1c969` stopped
+at Zig formatting of the new definition enum tag; `9c2b44597` corrects that spelling.
+Later complete clean qualification remains pending.
+
+
+## Accepted Table recovery checkpoints — 2026-10-26
+
+`just test::table-checkpoints` passes its selected storage checks (seven tests
+including the test root and admitted-operation recovery), local native checks
+(two tests) and ReleaseSafe process-death schedules. An additional focused old
+archive failure check passes two tests including the test root. A disk fixture
+accepts 65 point/bulk writes, keeps an unflushed snapshot and history lease,
+archives and trims the prefix, loses a checkpoint reply, then accepts one later
+write. Reopen replays exactly two Table frames: the checkpoint publication and
+that later write. Every original value, the first receipt and the offline logical
+history remain exact. A later checkpoint reopens without recursively loading its
+superseded capsule.
+
+Denied publication after capsule staging leaves the accepted root unchanged;
+retrying covered progress still checks current authority. Missing selected
+capsules, incorrect partition/object/frontier, a broken chain, a changed root and
+an unrelated action carrying a checkpoint reference fail readiness. Required
+stored fields, permanent retirement, pending conditional work and every injected
+allocation failure are checked. The native backend publishes a checkpoint using
+control reserve after ordinary admission fills; checkpointing does not expand
+its separately enforced archive trim floor.
+
+`just test::local-storage-faults` passes **92 SIGKILL schedules**, including **14**
+new checkpoint cases. They stop at all six capsule object sync barriers, before
+acceptance, during a torn acceptance write, at the four WAL acceptance sync
+barriers, at acceptance metadata publication and after acceptance before reply.
+Independent Python expectations check whether coverage was accepted, exact replay
+counts, current values, pinned rows, original receipt/history and unchanged trim
+floors. Repeating the original requested cut publishes at most one checkpoint;
+subsequent archive/trim preserves all of that evidence. These experiments keep
+the operating system/page cache alive and do not simulate power loss.
+
+Checkpoint metadata is at most 16,424 encoded bytes, with paged dependencies.
+The replay counts exclude LocalWal startup and separate historical/index I/O;
+they are not matched latency or whole-process RSS results. Older archive data is
+verified on access: removing an old required receipt fails the original retry
+without creating new work or advancing a history cursor. Unlimited logical
+history remains the policy; this work does not authorize object collection or
+history expiry, and it does not add automatic scheduling.
+
+The shared current-v1 definition is replaced for mandatory recovery references;
+wire/host schemas and independent signed fixtures are regenerated. Native,
+Station/client ABI, logical, direct Table and configuration contract checks pass.
+The complete storage package suite passes **97/97** tests (seven minutes,
+44 MiB maximum RSS). A follow-up missing-index-root test passes both full-chain
+and checkpoint recovery cases. Diagnostic catalog/mapping, formatting and
+documentation checks pass.
+
+The preceding compaction commit `ea35aa43b` passes the clean core lane's
+`check-core` stage in 1,169 seconds, plus transition properties and the delivery,
+resource, scheduler and domain simulations. The lane then fails during independent
+SQL package compilation: its configuration fixture lacked the collation vector
+introduced earlier on this branch. `d2592cbd1` supplies that field; all 31 SQL
+package tests and the complete independent package-build recipe pass. This failed
+lane is not complete clean qualification of the checkpoint increment.
+
+A subsequent clean core lane at `8aa9b2199f01c82f13a643732e8225627d7e024f`
+passes `check-core` (2,016 seconds), transition/delivery/resource/scheduler/domain
+simulations, independent package builds (249 seconds), Zig SDK and runtime/client
+boundary checks. It then fails `test::station`: the requester ledger's
+`example-station-ledger --once` process exceeds its 30-second wait in
+`tests/station.py`. The lane is failed, not complete clean qualification; its
+successful earlier stages do not prove the Station lifecycle finished.
+
+## Bounded Table build allocations — 2026-10-26
+
+`just test::table-build-memory` passes the selected allocator, Table mutation,
+frozen-statement, ALTER and admitted-operation checks, followed by all **92**
+local storage SIGKILL schedules. The shared allocator's separate run passes
+**23/23** tests; **36/36** relational query regressions pass, including the
+16,840-input/8,420-group disk-spill case. A further allocation-failure sweep
+passes every injected parent failure while performing admitted Table work:
+pending work and the accepted root remain unchanged until successful commit.
+
+Point/bulk candidates, statement input decoding, per-group UPDATE/ALTER work and
+flushes share their operation's private budget. Tests reject one-byte budgets,
+reject just below a measured successful bulk peak, preserve roots/rows across
+failed rewrite and restart, and use declarations and cached rows after temporary
+workspaces are gone. Budget exhaustion records the existing admitted work-limit
+outcome; an underlying allocator failure remains unresolved. The allocator
+regression distinguishes a later parent failure from an earlier refused resize.
+
+Diagnostic error and outcome proofs pass, including **3,409** executed outcome
+projections across **24** declared surfaces. Inventory/mapping, formatting,
+verification-catalog and documentation checks pass. These are explicit private
+allocation bounds; persistent declarations, reader/index caches, WAL and provider
+allocations retain their separate owners and bounds. This evidence does not
+establish whole-process RSS ceilings, matched latency or complete clean CI.
+
+## Paired local storage measurement harness — 2026-10-26
+
+The ReleaseSafe native/Table [owner measurement harness](storage_benchmark.md)
+passes a **24-sample** smoke matrix: 32 Table rows, two native turns, one warmup
+and one recorded repetition per arm under both warm and cold fixture-page
+conditions. Independent Python expectations verify every visited value/payload,
+the four selected Table rows and exact checkpoint/replay coordinates. The paired
+arms preserve current native KV/block/process state and the same retained Table
+snapshot. No sample publishes work. The report validator's three tests reject
+false completion, wrong values, incomplete phases, writes during reads, incorrect
+replay counts and missing repetitions.
+
+The harness records physical startup, logical recovery and read/verification
+phases separately, with owner I/O counters, backing allocation peaks, executable
+RSS, child resource usage and retained file inventories. Cold runs require
+verified file-page eviction. This smoke run establishes the harness and selected
+value controls; it has too few samples for latency percentiles, and its fixtures
+do not exceed host RAM. The 31-repetition matrix remains a separate executed
+measurement, not a conclusion inferred from this smoke run.
+
+The subsequent full matrix completes **768/768** samples with **24** arms,
+one discarded warmup and **31** recorded repetitions per arm. The
+[archived report and account](storage_benchmarks/2026-10-26-owners/README.md)
+record the frozen production revision, then-uncommitted harness hashes and
+matching committed harness, shared-host contention, cache conditioning and
+complete phase/I/O/allocation/RSS evidence. All returned and visited values,
+payload digests, non-publication checks, checkpoint coordinates and repetition
+sets pass. Independent validation and summary recomputation pass again when
+archiving the report. Native trim advances its read floor but retains the
+straddling segment; this run does not demonstrate physical reclamation or a
+native read improvement. Ingestion/commit percentiles, growth beyond host RAM,
+installed latency and clean qualification of later changes remain unproved.
+
+## Projected retained Table scans — 2026-10-26
+
+Focused checks pass **21/21** Fuze projection/import tests, **2/2** storage
+projection/import tests, **5/5** retained-reader/contract tests and **11/11**
+direct-query tests. A separate physical-batch/LIMIT regression run passes
+**39/39** tests. The disk fixture scans key columns from 16 KiB payload rows
+with an 8 KiB decoder budget; a full-row scan rejects that budget. It preserves
+17 identities across segment and WAL locators, rejects foreign column cursors,
+survives cache changes and rechecks authority after buffering.
+
+`just test::direct-table-service projection` passes through the signed local
+disk owner. Seventeen bulk rows with 16 KiB payloads plus one WAL row fit into
+1 KiB projected pages. A later write does not alter the retained 18-row source.
+The proof checks owned rows across subsequent pages, primary-key inclusion,
+column-bound cursor rejection, prepared ASCII_CI predicates, named duplicate
+outputs, COUNT/SUM, keyless identity traversal, original plan/name attribution
+on ordered SUM overflow, selected-prefix LIMIT, post-compute and repeated-terminal
+revocation, and released-pin rejection. Wide fixture ingestion uses the typed
+intent API; SQL scalar parameters retain their separate 220-byte bound.
+
+Independent Python signing/cursor vectors and the generated direct contract
+pass. Reader allocation-failure sweeps preserve cleanup and exact consumption.
+Diagnostic error/outcome checks pass **3,411** projections across **24** declared
+surfaces; mapping, verification-catalog and documentation checks pass. Projection
+does not filter source rows, expire retained data or establish general encoded
+predicate pushdown. WAL rows retain bounded full-record decoding; point and
+count-range paths keep complete-row representations. The broader current-tree
+check and committed clean lanes remain separate qualifications.
+
+The broader `test::direct-table-service` run passes initial writes, disk restart,
+retained delegation/history, pin-journal recovery, original receipts and
+conditional names. Its later `lifecycle` caller exceeds the existing 180-second
+phase deadline while the server continues returning successful name-assertion
+responses. This run is failed; later phases did not execute. It overlapped the
+owner benchmark and full checks, so a retry without that disk workload is needed
+before attributing the timeout to either contention or a regression.
+
+The retry after the disk-owner matrix finishes reaches the same lifecycle
+history phase and again exceeds 180 seconds. The timeout remains unresolved;
+it cannot be attributed solely to that benchmark. The repository `just check`
+launched with the projection changes completes successfully, including contracts,
+root units, frontend checks and the documentation production build. That run
+predates the encoded decision/owner changes below and is not their final
+committed-source clean qualification.
+
+## Encoded visible-candidate prefixes — 2026-10-26
+
+The focused TSEG suite passes **39/39** tests with `filteredCandidates`. An
+owner-supplied page admits at most 1,024 unique physical ordinals and retains its
+logical traversal order. Tests reverse physical order to change the first
+semantic failure, omit a failing row, stop after one matching row before a later
+error, preserve conflict/type-error details in ordinary projection, and reject
+duplicate/out-of-range candidates before I/O. A zero-match limit reads no payload;
+a zone-map-pruned page reports its complete candidate count without claiming
+complete-source coverage.
+
+Selected-prefix reads still reject corrupt encoded pages. Allocation-failure
+sweeps cover both full-group and candidate-prefix outputs; copied payloads and
+sorted physical result indices retain their owned lifetimes. Diagnostic
+inventory/mapping, verification-catalog, formatting and documentation checks
+pass. These component checks do not establish live Table visibility selection,
+filtered wire continuations, SQL lowering or final authorization for an encoded
+predicate path; those remain with the integration owner.
+
+## Encoded retained Table filtering — 2026-10-26
+
+`just test::table-filtering` passes **39/39** TSEG tests and **4/4** selected
+storage tests (filtering, projection and imports). A real-disk fixture interleaves
+two segments whose key order reverses identity order, plus a retained WAL row.
+It verifies matching-row limits, empty nonterminal pages, exact examined counts,
+per-row source offsets, changed-plan/cross-projection cursor rejection, final
+revocation and owned outputs. Deletion and reopen preserve different current and
+retained results; released pins reject. Projection avoids 16 KiB payload columns
+with an 8 KiB output decoder budget.
+
+Independent binary/ASCII_CI/CP037 masks exercise bitpacked keys, dictionary text
+and NULL. Repeated pages reuse one group's decisions; changing the plan forces
+reevaluation. Byte-bound continuations preserve the unreturned match. A one-byte
+predicate budget refuses work without changing the accepted root. Exhaustive
+allocation failures cover reopening, dictionaries, cached decisions and result
+ownership. They exposed and now guard cleanup of a partially built decision
+cache and the predicate codec's outcome allocation after dictionary failure.
+The codec frees that allocation on error even when its output allocator is not
+an arena.
+
+Five-state segment fixtures retain each physical row's first semantic failure
+without disclosing it prematurely; requested-page corruption still rejects.
+Diagnostic mapping/error/outcome checks pass **3,411** projections across **24**
+declared surfaces. This storage operation supplies no wire protocol, SQL
+aggregate/LIMIT owner or authority for the plan's external source basis. Filtered
+service integration and final clean qualification remain separate work.
+
+## Filtered source ordinals in batch execution — 2026-10-26
+
+The focused physical batch/oversized/LIMIT suite passes **51/51** tests. A sparse
+source supplies rows at original positions 4 and 19, with terminal coverage 23.
+Ordered SUM overflow reports row 19 across compute capacities 1, 2, 8 and 256,
+ahead of a deferred predicate failure at row 25. Without that earlier overflow,
+the original predicate failure wins after the acquired prefix. Empty filtered
+results retain complete source coverage; LIMIT one retains only position 4.
+Regressing/zero ordinals, insufficient terminal coverage and a foreign failure
+plan reject. A held 8 KiB row executes under the unchanged 4 KiB compute budget
+and preserves the next row's original failure attribution.
+
+Diagnostic mapping/error/outcome, verification-catalog, formatting and
+documentation checks pass. Source hooks do not establish wire continuation or
+SQL filtering support; their source owner must validate exact coverage and
+current authority. The instrumented broad service retry still times out during
+history replay after one complete eight-transaction pass; remaining replay and
+later service phases are unproved by that run.
+
+## Signed filtered Table reads and finite SQL — 2026-10-26
+
+`just test::direct-table-service projection` passes against the signed local disk
+owner with finite scans lowering predicates through `filter_scan`. The fixture
+contains 17 wide segment rows and an accepted WAL row, then a later write outside
+the retained cut. It verifies two empty eight-identity pages before matches at
+source positions 17 and 18, 1 KiB projected pages, complete skipped-row coverage,
+LIMIT zero/one, empty COUNT, COUNT(column), SUM and prepared ASCII_CI predicates.
+A keyless fixture skips a NULL before SUM overflow and reports original row 3,
+column name and plan identity. Wrong-source plans reject as InvalidRequest and
+wrong fingerprints as Conflict. Revocation after physical evaluation denies
+both selected rows and empty aggregate results; repeated terminal disclosure and
+released-pin reads also reject.
+
+The catalog reader/protocol suite passes **7/7** tests. Independent signed
+fixtures bind the filtered cursor domain and full plan fingerprint. Malformed
+coverage, offsets, failure instruction/column, source positions, foreign plans,
+schemas/collations and incomplete rows reject without advancing traversal.
+Exhaustive allocation failures cover owned plans, empty prefixes, selected rows
+and deferred failures; the failure injector disables backing-allocator resizing
+to keep allocation counts deterministic. Returned rows and copied diagnostics
+outlive their reader.
+
+`zig build test-local-catalog` passes **3/3** tests, including filtered execution
+through original delegation and an exact borrowed snapshot, substituted-pin
+rejection and revocation before the reply. Projected and filtered actions select
+the same per-Table host lock as ordinary reads. The focused logical/batch suite
+passes **91/91** tests, and the direct/logical/relational query suite passes
+**47/47**, including the 16,840-row relational growth fixture. Reflected direct
+contracts, diagnostic mappings/error boundaries/outcomes (**3,411** projections,
+**24** surfaces), verification catalog and documentation checks pass.
+
+The earlier service attempt reached the wrong-plan rejection but expected the
+wrong local error tag; the assertion now expects the client's existing Conflict
+translation. The passing rerun includes the corrected assertion and host lock
+routing. These focused runs do not close the broad history-replay timeout or
+establish final committed-HEAD clean qualification, borrowed batches, relational
+text pushdown, physical Table collection or a performance improvement.
+
+## Retained metadata recovery reuse — 2026-10-26
+
+The focused catalog metadata suite passes **4/4** tests. Equivalent retained
+snapshot inspection plus current authority metadata uses **8 object-range reads**
+through one recovered Table owner, compared with **14** for the separate calls
+in the same one-page-cache component fixture. This is an operation-count
+comparison over memory adapters, not a disk latency measurement. The retained
+interpretation survives a committed rename, and the authority IDs agree with the
+separate read. Historical points retain their exact commitment and declaration;
+snapshot manifests intentionally omit control directories present in WAL roots.
+
+Denying each guard, including the final check after output construction, releases
+partial results and returns no successful metadata. Exhaustive allocation
+failures cover owner recovery, snapshot decoding and selected history. Reads
+leave the accepted root and object-put count unchanged. Corrupt commitments,
+foreign leases and released pins reject. Historical dispatch retains its
+original-grant check before opening a selected successor; the added signed
+regression and broad service replay are still running at this commit. Earlier
+full lifecycle runs timed out during repeated history replay, so this component
+result alone does not close that failure. The five history phase markers make
+the unfinished proof's location visible without changing its checks or deadline.
+
+
+## Rebased retained Table service qualification — 2026-10-26
+
+At `acbc873be`, after rebasing onto `310a3f25e`, the complete
+`just test::direct-table-service` run passes **1,944 typed calls**. Both retained
+history replays complete all eight transactions and final checkpoints, using
+**210 charged requests** per replay through the eighth transaction. Main's
+physical history paging fix combines with request-local metadata recovery reuse;
+this run resolves the earlier broad lifecycle timeout without changing the
+180-second limit. Recovery, retained source closure, prepared lifetimes,
+count-range controls, collations, projected/filtered SQL, delegated closure and
+authorization lifetime all pass. This precedes the buffered segment change below.
+
+The final signed local metadata regression also passes **3/3** tests, including
+original-grant denial before malformed successor inspection. Contract reflection,
+independent signing/work-item fixtures, diagnostic inventory, verification catalog
+and documentation links pass after the rebase. The pre-rebase clean core run was
+interrupted to incorporate main's toolchain fixes; it is not a completed lane.
+Final committed-HEAD clean qualification remains open.
+
+
+## Borrowed plain segment payload ownership — 2026-10-26
+
+The focused codec/segment suite passes **48/48** tests. Plain UTF-8, nested text
+and conflict alternatives point into immutable page bytes; recursive arrays and
+conflict stamps survive temporary-arena resets. Every physical codec agrees with
+the independent logical cells, and compressed fallbacks remain detached. A
+handwritten TCP1 fixture rejects every truncated prefix, foreign definitions,
+invalid ordinals, trailing bytes and corruption in an unselected suffix.
+Exhaustive allocation failures release recursive metadata and both group owners.
+
+A 64-row group of 2 KiB strings retains all payloads under a separate encoded
+allowance while fitting a **16 KiB decoded budget**; owned full decoding rejects
+that same decoded budget. Projected groups retain exact schema/page commitments
+and footer counts. Views survive source destruction and reader closure; explicitly
+cloned output survives releasing the buffered group. Compressed expansion still
+fails when its decoded budget is insufficient.
+
+The focused disk Table/compaction/filter suite passes **6/6** tests. Its 512-row
+point/scan control records **3,898 bytes** of point metadata/owned payload and
+**86,754 bytes** of buffered group metadata, with **530,562 encoded bytes** under
+its separate allowance. Sixteen 16 KiB plain payloads fit an **8 KiB decoded
+metadata budget**. Cache projection/group replacement and reopen preserve detached
+rows, accepted roots and receipts. A one-byte decode budget leaves no partially
+published cache. Allocation failures exposed an intermediate tagged-cache
+construction bug; results are now constructed locally before assignment, and
+both compaction and filtered-read allocation schedules pass after the fix.
+
+The complete Table suite subsequently passes **59/59** tests. Documentation site,
+verification catalog and link checks pass. The signed projection service rerun
+and repository-wide check are running; those unfinished runs are not
+qualification evidence. This increment changes no
+stored definition and does not supply Arrow-compatible physical buffers or an
+end-to-end query latency measurement.
+
+## Disk ingestion measurement harness — 2026-10-26
+
+`just test::storage-ingest-benchmark` completes a **12-sample smoke matrix** with
+32 existing Table rows and two existing native turns. Both Table ingestion paths
+append the same sixteen new rows. Native samples prepare and commit one further
+KV/block/input/output turn. Warm/cold conditions each include one discarded
+warmup and one recorded repetition. Every sample reopens and verifies all data;
+Table checks also preserve the original retained cut, accepted receipt and
+physical point/bulk distinction. This is executable harness validation, not
+percentile evidence. The full 31-repetition matrix remains to run.
+
+The extended probe also passes the existing **24-sample read/checkpoint smoke
+matrix**. Six report-validator tests reject missing/changed values, incomplete
+phase or repetition sets, missing sync/append attribution, invented native append
+timers, invalid allocation peaks and verification writes. The
+[measurement guide](storage_benchmark.md#ingestion-and-commit-measurement)
+defines the distinct Table ingestion/append and native preparation/commit scopes.
+
+The buffered-reader signed projection rerun passes, including encoded filtering,
+owned output, prepared comparisons, ordered failures and post-compute/terminal
+revocation. The broader repository check and clean core lane at `d80f5c1ed` are
+still running; no completed clean-lane result is claimed here.
+
+## Bounded growth harness smoke — 2026-10-26
+
+`storage_growth.py` passes its two-fixture smoke with 32 Table rows and two
+native turns, each carrying 16 KiB payloads. Creation and cold fresh-process
+readback run under a **128 MiB RLIMIT_AS limit**, verify all values and accepted
+positions, and leave file content/allocation unchanged. Table creation records
+**76,204 KiB** peak virtual memory, **33,592 KiB** RSS and **67,015,687 bytes** of
+tracked live allocation; its readback records **10,992 KiB**, **7,288 KiB** and
+**323,252 bytes**, respectively. Native creation/readback peak virtual memory is
+**10,496/9,480 KiB**. These smoke fixtures do not exceed the process limit.
+The earlier 64 MiB Table creation failed with OutOfMemory; it is not a pass.
+
+Seven report-validator tests pass, including rejection of a wrong payload
+configuration, incomplete values/positions, missing memory evidence, peaks over
+the ceiling and writes during readback. The normal increasing-size proof still
+requires both owners' larger retained fixtures to exceed that ceiling. The
+[method](storage_benchmark.md#growth-under-a-process-memory-ceiling) distinguishes
+this process limit from host RAM and the Python inventory/oracle's memory.
+
+The workspace `just check` was interrupted while duplicating the clean core
+lane's disk-heavy unit suite. Its completed phases include contract fixtures,
+92 storage and 15 native collection process-death schedules, relational growth
+and retained-metadata checks; the run as a whole remains incomplete. The clean
+core run at `d80f5c1ed` continues independently. No lane or milestone completion
+is inferred from these partial runs.
+
+## Borrowed finite Table compute pages — 2026-10-26
+
+Finite direct Table execution retains one decoded reader page while compute
+columns borrow its variable, recursive and conflict payloads. It consumes the
+page before replacing that owner. The focused Fuze run passes **47/47** tests,
+including an 8 KiB value in a 4 KiB compute buffer with no payload-arena growth,
+pointer identity, all five states and nested/conflict details. Independent output
+rows survive source replacement and executor destruction. Exhaustive allocation
+failures release pages and detached outputs. Deferred read errors preserve prior
+SUM overflow, selected-prefix LIMIT and full-source verification; current
+disclosure denial prevents further source acquisition.
+
+The complete query unit suite passes **141/141**, including its existing
+16,840-row relational growth case. The signed `projection` service proof passes
+encoded filtering, sparse coverage, segment/WAL reads, owned results, prepared
+`ASCII_CI` comparisons, ordered failures and post-compute/terminal revocation.
+Diagnostic inventory, verification catalog and documentation links pass.
+
+The [batch guide](../packages/zig/transit-fuze/docs/batches.md) specifies page
+invalidation and separate source/compute/output budgets. This change removes one
+compute payload copy; it does not change stored formats, export Arrow buffers or
+establish a whole-query latency improvement. The earlier clean core lane and
+ingestion matrix remain in progress at their recorded revisions.
+
+## Aligned plain segment value buffers — 2026-10-26
+
+Qualified plain int64, uint64, float64, Boolean, UTF-8, binary and JSON columns
+use canonical aligned Arrow value buffers. The shared current-v1 definition is
+`ee8cd16789fd88d229945c3dee87bbaadf11e948adadffd8f5dc0e5f3b9fb422`;
+earlier definitions reject. Native schemas, binding resources, browser contracts
+and independent signing/physical fixtures are regenerated together.
+
+The focused codec/reader run passes **85/85** tests; the complete Fuze suite
+passes **396/396** and query units pass **141/141**. Independently authored page
+bytes verify validity, signed full-width words, offsets, non-value lanes and
+padding. Pinned Arrow accessors read the original buffers, with pointer identity
+checked after reader/source destruction. All five states, conflict stamps, exact
+JSON, signed zero, variable bytes, empty buffers, allocation failures, malformed
+offsets/UTF-8/tail bits, unaligned export, foreign definitions and every truncated
+prefix are covered. Selected output survives overwriting input storage.
+
+The full Table run initially passes **58/59**, then fails an old expectation
+that complete-group metadata exceeds 16 KiB; the successful row also exposes a
+test-only unreleased result on that unexpected-success path. The corrected
+focused rerun passes **2/2**. It checks all 512 rows under the original 16 KiB
+allowance, a separate one-byte failure with no partial cache, original receipts,
+retained cuts, restart and detached output. The measured group uses **456 bytes**
+of decoded metadata plus **528,240 encoded bytes**; the point selection uses
+**4,584 decoded bytes**. These are distinct allocation owners, not whole-process
+RSS or end-to-end latency measurements. The earlier failed suite remains
+recorded; this is its focused correction, not a second complete Table-suite run.
+
+The signed `projection` service proof passes filtering, sparse coverage,
+segment/WAL reads, prepared comparisons, ordered failures and current/terminal
+revocation under the new definition. Contract and independent-fixture checks,
+diagnostic inventory/mappings/error boundaries, verification catalog, links and
+the complete documentation site check pass. The earlier clean core lane and
+ingestion matrix retain their original revisions and remain separate evidence.
+
+The [storage contract](../contracts/TRANSIT_STORAGE_V1.md#qualified-plain-value-buffers)
+defines exact layouts and bounded fallback. The local Arrow view is a borrowed
+nullable value child; complete Transit state/error/conflict evidence stays with
+the column. It supplies no C data release callback or external import profile.
+
+## Cache-conditioning retries and incomplete clean lane — 2026-10-26
+
+The ingestion matrix at `1330787a3` stops after **231 of 384 samples** because
+the cold-cache observation finds resident fixture pages. That run is failed and
+has no complete percentile result. The revised driver records whole-fixture
+observations after each conditioning sweep and retries mismatching files at
+most three times. Every timed sample still requires the exact requested
+residency state; exhaustion reports the mismatches and fails. The ingestion
+driver also freezes and verifies its executable before running the matrix.
+
+Nine harness tests pass, including transient conditioning and bounded permanent
+failure. With the aligned-buffer probe built at `040959617`, the revised driver
+passes the **12-sample ingestion smoke** and **24-sample read/checkpoint smoke**.
+All values, accepted positions, original receipts, retained cuts, allocation
+accounting and fresh-process readback checks pass. These small runs validate the
+driver, not the pending full ingestion percentiles or beyond-memory growth.
+
+The committed-HEAD clean core lane at `d80f5c1ed` finishes `check-core`, including
+the full unit suite, and the subsequent simulations, package builds, Zig SDK,
+Nix packages, compute and client ABI checks. It then fails in `test::station`:
+the query-upload capture proof times out waiting for Station domain work.
+The complete clean lane therefore fails. This older revision does not establish
+clean-lane qualification for the later aligned-buffer implementation.
+
+## Direct candidate epochs across native storage fences — 2026-10-26
+
+The complete local backend suite passes **25/25** tests. A focused **5/5** run
+includes a real native storage fence between Table staging and append for both
+point/WAL and bulk/segment ingestion. Publication rejects with
+`StaleStorageEpoch`, leaves accepted roots and the WAL frontier unchanged, and
+does not renew the old candidate on a later authorization check. Recovery and a
+fresh request accept the original unaccepted operation exactly once. Original
+receipt reads still work across the fence and continue to check current rights.
+The same suite preserves policy revocation, prerequisite authorization and
+unrelated native-progress behavior.
+
+The signed Table `authorization` service proof passes explicit role grants,
+future-only defaults, filtered metadata, SELECT-only write/DDL denial and retained
+cut recovery after revocation/restoration. Documentation links pass. The first
+diagnostic-inventory check detects only the quoted-to-unquoted definition enum
+spelling produced by Zig formatting in `040959617`; its reviewed inventory is
+refreshed, and inventory, mappings and inferred boundary checks pass. This fence
+correction does not add Table-object collection or change
+the stored definition.
+
+## Table logical history floors — 2026-10-26
+
+The shared current-v1 definition is
+`ebc59054719c82fc7358f55b1f7044b499bf2ec361df39ed9c8323a68a1de3c0`.
+Table roots require an explicit logical history floor and a paged index ordered
+by live history-lease frontier. Earlier definitions and missing persisted fields
+reject. Schemas, bindings, independent fixtures and signing resources are
+regenerated together.
+
+The complete Table-filtered storage suite passes **63/63**. A final focused
+**5/5** run additionally checks admitted work across expiry/restart and empty
+history intervals below the floor. Disk-backed cases cover required archive and
+recovery coverage, live lease blocking and release, exact lease-frontier expiry,
+publication-time denial, lost acknowledgement, monotonic retry after reopen,
+original receipts, retained snapshot values and new work after expiry. A
+65-lease case with a one-page cache bounds the oldest-lease lookup and rejects a
+forged floor that crosses a live lease. Allocation-failure sweeps preserve the
+accepted root during lease acquisition, release and floor publication.
+
+The complete local backend suite passes **25/25**, including expiry through
+reserved control capacity after ordinary quota exhaustion. The complete signed
+direct Table service proof passes **1,942 typed calls**, including CRUD/DDL,
+retained cuts, lifecycle/history replay, authorization, prepared queries,
+collations, filtered projection and original outcomes across three restarts.
+This service proof checks existing public operations under the new definition;
+logical expiry is a component maintenance operation, not a new service endpoint.
+
+Contract/fixture checks, diagnostic inventory/mappings/inferred boundaries and
+documentation links pass. The [history-floor contract](../contracts/TRANSIT_STORAGE_V1.md#table-logical-history-floors)
+separates explicit logical expiry from physical collection: the floor neither
+deletes objects nor authorizes expiry under quota pressure. Full ingestion and
+beyond-process-memory growth runs retain their earlier frozen revisions; neither
+is claimed complete here. Clean CI qualification for this revision remains
+outstanding.
+
+## Compact Table outcomes independent of historical row payloads — 2026-10-26
+
+The shared current-v1 definition is
+`16c0cfe22317dcf6541123f20017e9cd3105ad41b8c8ddc724637901c26af9df`.
+Receipt, operation and pending indexes now publish bounded immutable evidence
+references. Earlier eight-byte frame pointers reject. Canonical evidence is
+bound to the accepting Table transition; schemas, SDK/browser resources and
+independent signing/physical fixtures are regenerated together.
+
+The complete Table-filtered storage run passes **63/65**, with two failures. One
+old checkpoint test expects a missing archive to break original-receipt lookup;
+the corrected test independently removes archive and receipt evidence and checks
+their distinct failures. The parent-allocation fault test reports nondeterministic
+allocation counts: diagnostics observe 20 allocations/five in-place resizes in
+its baseline and 19 allocations/six resizes in the later run. Its test allocator
+now disables in-place resize/remap so every growth passes through the injected
+allocation schedule. Runtime allocation behavior is unchanged. The corrected
+focused run passes **5/5**, including both corrections and the new evidence cases;
+this is not a second complete Table-suite run.
+
+The disk case flushes rows, publishes archive/recovery coverage and explicitly
+expires history, then removes old payload frames through the test storage
+interface. Reopening preserves original outcomes/definitions, exact point and
+DDL retries, cancellation, current denial and pending work that can still commit
+once. Negative cases reject missing/corrupt evidence without WAL fallback, old
+reference lengths, foreign definitions, every truncated prefix, invalid outcome
+metadata and a forged acceptance that omits its receipt index entry. An earlier
+version of the disk fixture stops at inserted-row identity validation; it is
+corrected to use the owning intent's identity constructor before these passes.
+
+The complete local backend suite passes **25/25**. The complete signed Table
+service proof passes **1,942 typed calls** under the new definition, including
+original receipts, current authority, three restarts, retained history, prepared
+queries, collations and filtered projection. `just test::local-storage-faults`
+passes **92 SIGKILL schedules** with original outcomes, snapshots, archives and
+checkpoints. Contract/browser drift checks, diagnostic inventory/mappings/error
+boundaries, verification catalog and documentation links pass. The site check
+initially rejects a repository command embedded in public Internals; reproduction
+commands move to this ledger, and the complete site check/build passes.
+
+Reproduce with `nix develop`, then `just test::table-checkpoints` for the expanded
+focused retention/recovery recipe. The corrected unit invocation is
+`zig build test -Dtest-filter='Table build memory parent failures' -Dtest-filter='Table recovery checkpoint separates' -Dtest-filter='Table compact evidence' --summary all`
+in `packages/zig/transit-storage`. This representation separates retention
+dependencies; it does not implement physical Table collection. New immutable
+evidence staging is not covered by the still-running earlier-revision ingestion
+matrix. The frozen growth proof at `b85a0a076` has verified both Table fixtures,
+including **191,717,253 retained bytes** for 8,192 rows under a **128 MiB** process
+address-space limit; native-owner cases remain pending. Neither complete growth
+qualification nor clean CI qualification for this revision is claimed.
+
+## Bounded Table directory traversal — 2026-10-26
+
+`TableStorageWalk` traverses one selected immutable directory with at most 33
+page frames, a cursor smaller than 4 KiB, and at most 34 page loads per call.
+The focused storage run passes **11/11**, covering the walker, archive ownership
+and ordered-key cases. Reproduce in `packages/zig/transit-storage` after entering
+`nix develop` with `zig build test -Dtest-filter='Table storage walk' -Dtest-filter='Table archive' -Dtest-filter='ordered full key' --summary all`.
+The expanded `just test::table-checkpoints` recipe includes the walker cases.
+
+The component cases walk 257 row locators with a one-page cache, round-trip
+the owned cursor between steps, and inject a failed load before every step.
+They reject corrupt page digests, invalid parent/child heights and malformed
+typed leaves without advancing. A 4,096-byte ordered key emits 64 separately
+queued child directories instead of accumulating nested stacks. The disk case
+reopens accepted point/bulk rows, live and released pins, admitted work, compact
+receipts and archives; every emitted object is read through its owning verifier,
+and the accepted root remains unchanged. The first compile attempt uses a Zig
+reserved word for the page-only role and fails; renaming it precedes these passes.
+
+Diagnostic inventory, semantic mappings, inferred error boundaries, verification
+catalog and 6,409 documentation links pass. This component does not select all
+retained roots, persist a collection queue, inventory allocations or delete
+objects. Test cursor JSON is not a stored maintenance format. Complete Table
+collection and final committed-HEAD clean qualification remain outstanding.
+
+## Archived ingestion and growth observations — 2026-10-26
+
+The [ingestion account](storage_benchmarks/2026-10-26-ingestion/README.md) preserves
+the exact successful 384-sample report and all twelve recomputed summaries.
+Every sample's independent value/count/digest, accepted position, retained
+snapshot and original receipt checks are revalidated before archiving. Recorded
+source hashes match clean revision `e7334f03e6c645f26de8186fc00e4aa8b7994f14`;
+later rebases do not change that attribution. The earlier conditioning failure
+remains a separate failed run. The [growth account](storage_benchmarks/2026-10-26-growth/README.md)
+similarly preserves the exact failed attempt from `b85a0a076`: its completed
+Table fixtures pass the independent validators and cold-entry checks, while
+native setup exceeds the unchanged 1,800-second deadline. There is no complete
+growth or beyond-host-RAM result to infer from these artifacts.
+
+## Rebase over private object I/O separation — 2026-10-26
+
+The branch rebases 31 commits onto `443404722` with all author dates preserved
+and matching committer dates. Resolution preserves direct-data namespace checks,
+the upstream removal of the journal mutex from private direct-object reads and
+publication, both proof-ledger histories and regenerated diagnostic inventory.
+Native allocation/collection serialization remains its existing separate scope.
+
+At rebased revision `db0214006`, `zig build test-local-native --summary all`
+passes **26/26**, including the upstream paused-sync/control-progress regression
+and this branch's native collection, quota, fencing and recovery cases. Focused
+storage tests pass **6/6** for disk-facade concurrency, independent conditional
+publishers, publication-sync failure and retained Table root enumeration.
+Diagnostic inventory matches. Commands run inside the pinned Nix shell; the
+storage selection uses `-Dtest-filter='disk facade'`,
+`-Dtest-filter='concurrent local publishers'`,
+`-Dtest-filter='object publication sync failures'` and
+`-Dtest-filter='Table retained root enumeration'` in `packages/zig/transit-storage`.
+
+The preceding full `just check` at `fcefc1e67` is **interrupted with exit 130**
+to perform the requested rebase. Python harnesses, toolchain checks, formatting
+and contracts complete; unit execution reports the 92 local storage and 15
+native collection SIGKILL schedules before interruption. The overall unit step,
+Board/site checks and full check do not complete. Its log remains
+`/var/tmp/transit-m2-retained-roots-check.log`. Focused post-rebase passes do not
+replace a completed full check or final committed-HEAD clean CI.
+
+## Concurrent immutable confirmation counters — 2026-10-26
+
+Post-rebase review finds that `confirmImmutableObject` still updates disk read
+counters without the short counter mutex introduced for ordinary object reads.
+It now takes that mutex only after verification and sync finish. The existing
+eight-caller disk-facade proof also confirms each private and shared immutable
+object, then checks exact completed put/read/byte counts after joining all
+callers. Publication and acceptance semantics are unchanged.
+
+The focused disk-facade, confirmation and publication-sync run passes **4/4**:
+`zig build test -Dtest-filter='disk facade' -Dtest-filter='confirmation' -Dtest-filter='object publication sync failures' --summary all`
+in `packages/zig/transit-storage` inside the pinned Nix shell. The log is
+`/var/tmp/transit-m2-pr-confirmation-test.log`. Full workspace and clean core
+checks started at `9ae8b801f` are interrupted with exit 130 during toolchain
+qualification to include this correction; neither is a passed full check.
+
+## Process-limited growth attempt and native setup timeout — 2026-10-26
+
+The frozen full growth run started at `b85a0a076` finishes **failed** when the
+first native fixture (512 rows) exceeds its unchanged 1,800-second setup limit.
+`/var/tmp/transit-m2-aligned-growth-full.json` and its sibling `.log` retain the
+failure and completed Table samples; the temporary fixtures are removed by the
+driver. The probe SHA-256 is
+`4d1bddccb9ecf0366dd20d583d1314499e1069abeb44edccbb42cbb1385581a0`.
+
+Both Table cases complete independent value/digest checks, strictly cold reopened
+readback and unchanged file manifests under a **134,217,728-byte** address-space
+limit. The 2,048-row fixture retains 44,586,146 bytes; the 8,192-row fixture retains
+191,717,253 bytes and allocates 501,526,528 filesystem bytes. The latter setup
+takes 1,794.4 seconds and readback 17.5 seconds; its probe-image virtual peaks are
+76,216 KiB and 10,996 KiB respectively. These are process-image observations,
+distinct from `wait4` RSS including inherited pre-exec driver memory. Retained
+bytes exceed the process ceiling, not host RAM. Native growth and the complete
+growth matrix remain unproved; this run also predates compact evidence staging.
+
+## Verified policy-page reuse and native setup diagnostics — 2026-10-26
+
+The native engine adds a bounded eight-entry cache of owned membership/grant
+scan pages. Complete immutable root, namespace/identity range and exact cursor
+select an entry; changing the root invalidates the cache. Ordinary data scans
+cannot populate or evict it. Every hit still passes typed decoding and the
+authorization evaluator, including its record/vertex/depth limits and current
+publication/disclosure fences. No stored format or permission decision changes.
+
+The complete core suite passes **125/125**, including 19-record continuation,
+exact minor/major/namespace isolation, empty-page replacement/removal, retained
+root switching, 80 distinct range lookups within fixed residency, failed/corrupt
+reads and rejection of unflushed candidate scans. Warmed evaluation returns the
+same decision and charged record count; a one-record-short budget still rejects,
+and replacing the active grant at another root immediately removes permission.
+The fixed scan-cache value is asserted smaller than 140 KiB on the test target.
+
+The complete local backend suite passes **25/25**, including signed block reads
+followed by revocation after disk restart. `just test::authorization` passes its
+five-restart signed native schedule: private revocation visibility, SIGKILL and
+lost replies, original admission constraints, scoped/stale inspection cursors,
+credential rotation and exact receipt recovery. Diagnostic inventory, mappings,
+inferred boundaries, verification catalog, documentation links and formatting
+checks pass before subsequent Table-root work begins.
+
+A diagnostic `strace -c` of the earlier frozen 16-turn/16 KiB native setup counts
+476,762 system calls, including 151,352 `openat`, 81,577 `preadv` and 5,686 `fsync`
+calls; owner counters report 20,004 index misses. A separate four-case setup
+comparison under the unchanged 128 MiB process ceiling completes independent
+value/count/digest checks. It compares the earlier `b85a0a076` frozen binary with
+the candidate at `b818156c0` plus the policy cache; it is not an isolated matched
+revision or percentile study. Its raw report is
+`/var/tmp/transit-m2-policy-pages-comparison.json`.
+
+| Native turns | Earlier index misses | Candidate index misses | Earlier / candidate wall seconds |
+| --- | ---: | ---: | ---: |
+| 16 | 20,004 | 2,278 | 67.8 / 63.2 |
+| 64 | 81,227 | 11,853 | 273.1 / 293.5 |
+
+Read work falls in these fixtures; elapsed time does not improve consistently.
+The shared host runs other tests and benchmarks, and native setup still stages
+many small immutable objects with separate durability barriers. These single
+observations do not close the earlier full-growth timeout, establish latency
+percentiles, or qualify final committed-HEAD clean CI.
+
+## Retained Table history and recovery root enumeration — 2026-10-26
+
+`TableStorageRoots` follows a caller-retained accepted root/chain cut. It emits
+the current root, one selected recovery capsule and one owned record per frame
+from the logical floor through that fixed frontier. Historical data roots are
+distinguished from control dependencies needed by replay. The canonical frame
+decoder is shared with the existing Table recovery path; stored bytes and
+acceptance semantics are unchanged.
+
+The focused run passes **13/13** with
+`zig build test -Dtest-filter='Table retained root enumeration' -Dtest-filter='Table recovery checkpoint' -Dtest-filter='Table history floor' --summary all`
+in `packages/zig/transit-storage` after entering `nix develop`. The disk case
+covers no checkpoint, unlimited history, a floor below the recovery baseline,
+and a floor exactly at that baseline, followed by physical WAL trim and reopen.
+It deletes a superseded capsule through the test store: its structural reference
+is never recursively opened. A later append cannot extend an earlier selected
+cut. Missing selected capsules, lost required history and a wrong terminal chain
+fail without advancing the cursor. The final accepted root remains unchanged;
+cursor size is asserted below 8 KiB. Existing checkpoint/floor tests run alongside
+these cases. The first focused checkpoint/root run passes 8/8 before the final
+additional boundary cases.
+
+Diagnostic inventory/mappings/inferred boundaries, verification catalog and
+6,409 documentation links pass. Current live pins, lease anchor frames and
+unflushed-row dependencies remain separate edges to traverse. Only complete
+enumeration can support a future collector's marks; this component supplies no
+all-owner cut, persisted mark/work queue, physical inventory or deletion. Full
+collection and final committed-HEAD clean qualification remain outstanding.

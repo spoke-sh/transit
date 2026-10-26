@@ -29,27 +29,32 @@ pub const Column = struct {
         return .{ .type = kind, .data = if (!retain) .states_only else if (hot(kind)) .{ .words = try a.alloc(u64, capacity) } else .{ .values = try a.alloc(t.Values.Value, capacity) }, .states = try a.alloc(t.State, capacity), .details = try a.alloc(Detail, capacity) };
     }
     pub fn append(self: Column, a: std.mem.Allocator, i: usize, cell: t.Values.Cell) !void {
+        const owned = if (self.data == .states_only or (self.data == .words and cell != .conflict)) cell else try t.Values.cloneValidated(a, cell);
+        self.appendBorrowed(i, owned);
+    }
+    /// The complete cell (including recursive/conflict payloads) stays immutable
+    /// under its source owner until every view of this lane has been consumed.
+    pub fn appendBorrowed(self: Column, i: usize, cell: t.Values.Cell) void {
         if (self.data == .states_only) {
             self.states[i] = std.meta.activeTag(cell);
             self.details[i] = .none;
             return;
         }
-        const owned = if (self.data == .words and cell != .conflict) cell else try t.Values.cloneValidated(a, cell);
-        self.states[i] = std.meta.activeTag(owned);
-        self.details[i] = switch (owned) {
+        self.states[i] = std.meta.activeTag(cell);
+        self.details[i] = switch (cell) {
             .conflict => |alternatives| .{ .conflict = alternatives },
             .type_error => |kind| .{ .type_error = kind },
             else => .none,
         };
         switch (self.data) {
-            .words => |words| words[i] = if (owned != .value) 0 else switch (self.type) {
-                .int64 => @bitCast(@as(i64, @intCast(owned.value.atom.signed))),
-                .uint64 => @intCast(owned.value.atom.unsigned),
-                .float64 => @bitCast(owned.value.atom.float),
-                .boolean => @intFromBool(owned.value.atom.boolean),
+            .words => |words| words[i] = if (cell != .value) 0 else switch (self.type) {
+                .int64 => @bitCast(@as(i64, @intCast(cell.value.atom.signed))),
+                .uint64 => @intCast(cell.value.atom.unsigned),
+                .float64 => @bitCast(cell.value.atom.float),
+                .boolean => @intFromBool(cell.value.atom.boolean),
                 else => unreachable,
             },
-            .values => |values| values[i] = if (owned == .value) owned.value else .{ .atom = .{ .signed = 0 } },
+            .values => |values| values[i] = if (cell == .value) cell.value else .{ .atom = .{ .signed = 0 } },
             .states_only => unreachable,
         }
     }
@@ -139,6 +144,9 @@ pub const Atom = struct {
     run: *const fn (Atom, View, usize, []Outcome) void,
     pub fn bind(atom: q.Plan.Atom, schema: t.Type) Atom {
         return bindType(atom, if (atom == .compare) schema.structure[atom.compare.column].type else .int64);
+    }
+    pub fn bindPlan(atom: q.Plan.Atom, plan: q.Plan) Atom {
+        return if (atom == .compare) bindCollation(atom, plan.schema.structure[atom.compare.column].type, plan.collations.columns[atom.compare.column]) else bind(atom, plan.schema);
     }
     pub fn bindType(atom: q.Plan.Atom, kind: t.Type) Atom {
         return bindCollation(atom, kind, .utf8_binary);
@@ -260,14 +268,14 @@ pub const Program = struct {
                 .program => unreachable,
                 inline else => |v, tag| @unionInit(q.Plan.Atom, @tagName(tag), v),
             };
-            destination[0] = .{ .atom = Atom.bind(atom, plan.schema) };
+            destination[0] = .{ .atom = Atom.bindPlan(atom, plan) };
             return .{ .instructions = destination[0..1], .depth = 1 };
         }
         var depth: usize = 0;
         var maximum: usize = 0;
         for (plan.predicate.program.instructions, destination[0..plan.predicate.program.instructions.len]) |instruction, *out| switch (instruction) {
             .atom => |atom| {
-                out.* = .{ .atom = Atom.bind(atom, plan.schema) };
+                out.* = .{ .atom = Atom.bindPlan(atom, plan) };
                 depth += 1;
                 maximum = @max(maximum, depth);
             },

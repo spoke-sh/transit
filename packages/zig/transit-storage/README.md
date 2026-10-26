@@ -11,7 +11,7 @@ The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's
 Table component tests do not establish installed SQL execution, automatic flushing,
-collector races, policy-authorized trimming or multi-process Table commits.
+automatic archive scheduling, immutable Table-object collection or multi-process Table commits.
 
 ## Modules
 
@@ -58,24 +58,53 @@ collector races, policy-authorized trimming or multi-process Table commits.
   page paths; longer keys retain bounded chunk traversal and preserve prefixes.
 - `TablePartition.zig`: A serialized Table storage owner with one WAL acceptance
   record for rows, paged indexes and exact operation receipts. It supports point
-  WAL batches, staged `.tseg` batches, bounded flushing and durable read pins.
+  WAL batches, staged `.tseg` batches, bounded flushing, durable read pins and
+  accepted history archives with resumable physical WAL trimming and bounded
+  recovery baselines published by that same acceptance log.
+  Explicit logical history floors require archive/checkpoint coverage, preserve
+  snapshots and receipts, and respect a paged minimum of live history leases.
+  Explicit bounded compaction merges live segment rows below a fixed boundary
+  while retained roots keep their original physical references.
+  Mutation, rewrite and flush workspaces have an explicit allocation ceiling,
+  separate from encoded row limits and index/cache budgets.
   Frozen row admission, rejection and cancellation share that Table WAL; row
   acceptance atomically clears pending work and records matched/changed counts.
   Bounded logical-history inspection separates accepted statements from physical
   maintenance while preserving original no-op receipts and a fixed upper cut.
   See [Table partition ownership](docs/table-partitions.md) for caller obligations,
   budgets and the current integration boundary.
+- `TableEvidence.zig`: Bounded immutable outcome and operation metadata,
+  published through the Table's paged indexes. Original receipt and pending-work
+  recovery do not read the accepting row payload or retain its old row roots.
+  Current authorization, original declarations and exact retry identity remain
+  required; missing or corrupt evidence rejects.
+- `TableStorageWalk.zig`: A bounded cursor over one typed immutable Table
+  directory. It verifies page paths and emits explicit row, pin, evidence and
+  archive dependencies. Ordered-key child directories are separate work items.
+  Selecting all retained roots, validating referenced objects and authorizing
+  deletion remain the maintenance owner's responsibilities.
+- `TableStorageRoots.zig`: Fixed-cut enumeration of retained history and
+  recovery roots. It verifies the complete selected frame chain before a
+  collector can use its marks and does not recursively open old checkpoints.
 
 The direct owner reads immutable Table data through Fuze's shared `TSegReader`.
 Point lookup selects one segment through its paged hash-key directory; footer
 and selected row-group ranges replace full-object buffering. Point reads retain
 verified encoded pages and expand only the requested row into owned output;
 complete-page validation still checks skipped values. Adjacent point reads reuse
-encoded pages. Scans cache decoded groups. Both decoding paths have an explicit
-allocation budget and returned rows own their values. Physical
+encoded pages. Scans retain one verified projected group. Plain int64, uint64,
+float64, Boolean, text, binary and JSON columns use aligned value buffers with
+sparse error/conflict details. Other plain types retain bounded metadata and
+borrowed byte payloads; compressed columns use bounded owned decoding.
+Encoded buffers and decoded metadata/expansion have separate allocation
+budgets, and returned rows detach their values before cache replacement. Physical
 groups default to 256 rows, independently of statement and response bounds.
 Retained `rangeSnapshot` reads follow the paged full-key directory in collation
-order. SQL predicate/projection pushdown remains separate from these source reads.
+order. Retained column scans select required input columns; the finite query
+owner uses that projection. `scanSnapshotFiltered` also supplies bounded encoded
+predicate decisions over live identities, with explicit skipped-row coverage
+and deferred failures. Signed filtered reads bind those decisions to the retained
+source and plan; finite SQL preserves coverage, LIMIT and original error positions.
 
 Opening a disk WAL validates every retained partition before returning, even
 when segment names span multiple directory pages. Nested recovery scans use an
@@ -110,8 +139,10 @@ checks their results against a Python oracle. Descriptor deletion unpublishes th
 key; physical content collection still requires retained-reader/pin ownership.
 
 `just test::local-storage-faults` kills real local owner processes at WAL
-append/fence/trim and object-publication boundaries. Fresh processes verify data,
-epochs, trim floors and exact object retries against an independent Python
+append/fence/trim, Table archive/compaction/checkpoint acceptance and
+object-publication boundaries.
+Fresh processes verify data,
+epochs, trim floors, Table receipts/snapshots/history and exact object retries against an independent Python
 oracle. The root unit task includes this proof. Repeating an already-published
 WAL trim boundary finishes interrupted prefix removal. These schedules preserve
 the operating system and its page cache; they do not simulate power loss or
@@ -128,8 +159,9 @@ segment creation or a possible write still requires reopening, as do other
 storage failures. The disk WAL regressions check both boundaries and preserve
 the acknowledged prefix and exact successor across independent partitions.
 
-`TablePartition` checks contiguous acceptance history and exact declarations
-before exposing recovered rows. Its paged indexes preserve stable row identities;
+`TablePartition` checks an accepted recovery baseline and its contiguous later
+acceptance history, or the complete chain from creation when no baseline exists,
+before exposing recovered rows. It loads the exact current declaration. Its paged indexes preserve stable row identities;
 equal values in keyless rows do not collapse distinct rows. Durable read pins
 retain their original WAL and segment basis across flushes, changes and restart.
 See the [partition contract](docs/table-partitions.md) for recovery gates and

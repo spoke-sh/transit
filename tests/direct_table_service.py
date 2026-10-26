@@ -13,7 +13,7 @@ from storage import free_port, wait_ready
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("tables", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -128,7 +128,7 @@ def run(node, caller, mode="tables", *artifacts):
                             data = json.dumps(parsed).encode()
                             fault["assertion_changed"] = True
                         pin = envelope["action"].get("pin")
-                        if mode not in ("growth", "prepared", "count-ranges", "authorization", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") and pin and envelope["delegation"] is None and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
+                        if mode not in ("growth", "prepared", "count-ranges", "collations", "projection", "authorization", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") and pin and envelope["delegation"] is None and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
                             assert response.status == 200, data
                             parsed = json.loads(data)
                             assert "pin" in parsed["result"]
@@ -270,6 +270,18 @@ def run(node, caller, mode="tables", *artifacts):
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
                 subprocess.run([caller, endpoint, "prepared-lifetime", str(profile)], check=True, timeout=180)
                 print("Direct prepared Table: metadata-only binding, typed values, fresh snapshots, current denial and definition replacement passed.", flush=True)
+                return
+            if mode == "projection":
+                subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
+                subprocess.run([caller, endpoint, "projection", str(profile)], check=True, timeout=180)
+                assert list((root / "native").rglob("*.tseg"))
+                assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
+                print("Direct Table projected reads and finite SQL passed.", flush=True)
+                return
+            if mode == "collations":
+                subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
+                subprocess.run([caller, endpoint, "collations", str(profile)], check=True, timeout=180)
+                print("Direct Table collation declarations, comparison paths and retained mutations passed.", flush=True)
                 return
             if mode == "count-ranges":
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
@@ -441,6 +453,8 @@ def run(node, caller, mode="tables", *artifacts):
             subprocess.run([caller, endpoint, "lifecycle", str(profile)], check=True, timeout=180)
             subprocess.run([caller, endpoint, "prepared-lifetime", str(profile)], check=True, timeout=180)
             subprocess.run([caller, endpoint, "count-ranges", str(profile)], check=True, timeout=180)
+            subprocess.run([caller, endpoint, "collations", str(profile)], check=True, timeout=180)
+            subprocess.run([caller, endpoint, "projection", str(profile)], check=True, timeout=180)
             assert fault["delegated_release"] and fault["history_release"] and fault["namespace_changed"]
             stop(authority)
             authority = None

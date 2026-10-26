@@ -100,10 +100,21 @@ test "retained revoked grants do not consume the active decision budget" {
         try store.putGrant(.{ .id = id, .object = reference, .grantee = 1, .grantor = 0, .privileges = 0, .revision = 1 });
     }
     try store.putGrant(.{ .id = 101, .object = reference, .grantee = 1, .grantor = 0, .privileges = 1, .revision = 1 });
+    var scans: core.catalog.PolicyScanCache = .{};
+    store.catalog.policy_scan_cache = &scans;
     var check = try core.authorization.Evaluator(Store).init(&store, 1, .{ .records = 32 });
-    try t.expect((try check.evaluate(1, reference, 1)).permits());
+    const first = try check.evaluate(1, reference, 1);
+    try t.expect(first.permits());
+    check = try core.authorization.Evaluator(Store).init(&store, 1, .{ .records = 32 });
+    try t.expectEqualDeep(first, try check.evaluate(1, reference, 1));
+    try t.expect(scans.hits > 0);
+    check = try core.authorization.Evaluator(Store).init(&store, 1, .{ .records = @intCast(first.records - 1) });
+    try t.expectError(error.AuthorizationBudgetExceeded, check.evaluate(1, reference, 1));
     try t.expectEqual(@as(u64, 0), (try store.grant(1)).?.privileges);
     const active = try store.grants(reference, 1, null);
     try t.expectEqual(@as(u64, 101), active.records[0].?.id);
     try t.expect(active.records[1] == null and active.next == null);
+    try store.putGrant(.{ .id = 101, .object = reference, .grantee = 1, .grantor = 0, .privileges = 0, .revision = 1 });
+    check = try core.authorization.Evaluator(Store).init(&store, 1, .{ .records = 32 });
+    try t.expect(!(try check.evaluate(1, reference, 1)).permits());
 }

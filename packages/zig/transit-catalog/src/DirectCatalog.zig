@@ -68,6 +68,24 @@ pub const CurrentRead = struct {
         self.* = undefined;
     }
 };
+/// Owned retained interpretation and its current native authorization objects,
+/// resolved through one request-local Table owner. This is not a retention pin.
+pub const SnapshotRead = struct {
+    definition: P.SnapshotDefinition,
+    authority: c.DirectReadAuthority,
+    pub fn deinit(self: *SnapshotRead) void {
+        self.definition.deinit();
+        self.* = undefined;
+    }
+};
+pub const HistoryRead = struct {
+    definition: P.HistoryDefinition,
+    authority: c.DirectReadAuthority,
+    pub fn deinit(self: *HistoryRead) void {
+        self.definition.deinit();
+        self.* = undefined;
+    }
+};
 pub const Observation = union(enum) {
     not_observed,
     admitted: r.Operation,
@@ -1818,6 +1836,19 @@ pub fn historyDefinition(self: *Self, allocator: std.mem.Allocator, object: d.Ob
     return if (point) |required| access.view.table.historyAt(allocator, required, access.current) else access.view.table.historyStart(allocator, lease, access.current);
 }
 
+/// Resolve the selected history point without reopening/recovering the same
+/// Table for authority metadata. The dispatcher checks original grants first.
+pub fn historyRead(self: *Self, allocator: std.mem.Allocator, object: d.Object, lease: P.SnapshotHandle, point: ?P.HistoryPoint, policy: Policy) !HistoryRead {
+    if (point) |required| if (!std.meta.eql(lease, required.lease)) return error.DataIdentityConflict;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, lease.owner, policy, false);
+    defer access.view.deinit();
+    var definition = if (point) |required| try access.view.table.historyAt(allocator, required, access.current) else try access.view.table.historyStart(allocator, lease, access.current);
+    errdefer definition.deinit();
+    return .{ .definition = definition, .authority = try self.sourceAuthority(&access) };
+}
+
 pub fn scanHistory(self: *Self, allocator: std.mem.Allocator, object: d.Object, point: P.HistoryPoint, after: ?P.SnapshotCursor, limits: P.ReadLimits, policy: Policy) !P.HistoryRows {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
@@ -1842,6 +1873,24 @@ pub fn snapshotDefinition(self: *Self, allocator: std.mem.Allocator, object: d.O
     return access.view.table.inspectSnapshot(allocator, handle, access.current);
 }
 
+pub fn snapshotRead(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, policy: Policy) !SnapshotRead {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, false);
+    defer access.view.deinit();
+    var definition = try access.view.table.inspectSnapshot(allocator, handle, access.current);
+    errdefer definition.deinit();
+    return .{ .definition = definition, .authority = try self.sourceAuthority(&access) };
+}
+
+fn sourceAuthority(self: *Self, access: *const SnapshotAccess) !c.DirectReadAuthority {
+    const namespace = try self.authorizationSchema(access.view.properties.namespace);
+    const result: c.DirectReadAuthority = .{ .database = self.config().authority.database, .schema = namespace.authorization, .table = access.view.properties.authorization };
+    try result.validate();
+    try check(access.current);
+    return result;
+}
+
 /// Resolve exactly the native objects whose current rights guard this source.
 /// This does not grant access or acquire a pin. A computation uses these same
 /// references in its own native publication guard after reading direct rows.
@@ -1850,11 +1899,7 @@ pub fn readAuthority(self: *Self, object: d.Object, owner: d.Operation, policy: 
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, control);
     defer access.view.deinit();
-    const namespace = try self.authorizationSchema(access.view.properties.namespace);
-    const result: c.DirectReadAuthority = .{ .database = self.config().authority.database, .schema = namespace.authorization, .table = access.view.properties.authorization };
-    try result.validate();
-    try check(access.current);
-    return result;
+    return self.sourceAuthority(&access);
 }
 
 /// Current rights for retained evidence are independent of live definition and
@@ -1865,11 +1910,7 @@ pub fn currentReadAuthority(self: *Self, object: d.Object, policy: Policy) !c.Di
     defer arena.deinit();
     var access = try self.readAccess(arena.allocator(), object, policy, false);
     defer access.view.deinit();
-    const namespace = try self.authorizationSchema(access.view.properties.namespace);
-    const result: c.DirectReadAuthority = .{ .database = self.config().authority.database, .schema = namespace.authorization, .table = access.view.properties.authorization };
-    try result.validate();
-    try check(access.current);
-    return result;
+    return self.sourceAuthority(&access);
 }
 
 pub fn readRow(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, key: []const u8, policy: Policy) !?P.OwnedRow {
@@ -1886,6 +1927,22 @@ pub fn scanRows(self: *Self, allocator: std.mem.Allocator, object: d.Object, han
     var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, false);
     defer access.view.deinit();
     return access.view.table.scanSnapshot(allocator, handle, after, limits, access.current);
+}
+
+pub fn scanColumns(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, columns: []const u8, after: ?P.SnapshotCursor, limits: P.ReadLimits, policy: Policy) !P.SnapshotPage {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, false);
+    defer access.view.deinit();
+    return access.view.table.scanSnapshotColumns(allocator, handle, columns, after, limits, access.current);
+}
+
+pub fn scanFiltered(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, plan: c.fuze.LogicalQuery.Plan, after: ?P.SnapshotCursor, limits: P.ReadLimits, policy: Policy) !P.FilteredPage {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, false);
+    defer access.view.deinit();
+    return access.view.table.scanSnapshotFiltered(allocator, handle, plan, after, limits, access.current);
 }
 
 pub fn releaseRows(self: *Self, object: d.Object, handle: P.SnapshotHandle, policy: Policy) !void {

@@ -145,7 +145,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .pin_status => .pin_state,
         .snapshot => .snapshot,
         .read_key => .point,
-        .scan => .page,
+        .scan, .column_scan => .page,
+        .filter_scan => .filtered_page,
         .key_range => .key_range,
         .release => .released,
     };
@@ -524,8 +525,25 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         },
         .page => |value| {
             if (request.delegation) |delegation| delegation.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;
-            const query = request.action.scan;
-            try validatePage(allocator, request.connection, query.snapshot, query.snapshot.handle.content, query.after, query.limits, value);
+            switch (request.action) {
+                .scan => |query| try validatePage(allocator, request.connection, query.snapshot, query.snapshot.handle.content, query.after, query.limits, value),
+                .column_scan => |query| {
+                    const selected = try query.projection();
+                    try validatePage(allocator, request.connection, query.snapshot, try selected.cursorSource(query.snapshot.handle.content), query.after, query.limits, value);
+                },
+                else => unreachable,
+            }
+        },
+        .filtered_page => |value| {
+            const query = request.action.filter_scan;
+            if (request.delegation) |grant| grant.requireSource(value.page.interpretation.interpretation, value.page.accepted) catch return error.InvalidTableResponse;
+            try validateRowEnvelope(allocator, request.connection, query.snapshot, query.limits, value.page);
+            try value.validate();
+            if (value.page.next) |next| {
+                if (!std.meta.eql(next.source, try P.filteredCursorFingerprint(query.snapshot.handle, query.fingerprint))) return error.InvalidTableResponse;
+                if (query.after) |cursor| if (std.mem.order(u8, &next.after, &cursor.after) != .gt) return error.InvalidTableResponse;
+            }
+            if (value.failure) |failure| if (query.after) |cursor| if (std.mem.order(u8, &try failure.identity.encode(), &cursor.after) != .gt) return error.InvalidTableResponse;
         },
         .key_range => |value| {
             if (request.delegation) |grant| grant.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;

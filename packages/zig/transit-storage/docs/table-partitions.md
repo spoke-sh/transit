@@ -34,7 +34,22 @@ row-byte budget, and builds private replacement indexes. New-key collisions and
 row validation failures leave the previous definition and all rows visible. One
 acceptance publishes the new declaration, both indexes and the receipt. The
 64 MiB default index-work budget applies to the complete attempt and can be
-configured independently of the fixed resident cache. This synchronous component
+configured independently of the fixed resident cache. Private candidate
+allocations have a separate `build_resident_bytes` budget, defaulting to 64 MiB.
+It covers retained intent decoding during execution, encoders, copied rows,
+mutation vectors and segment builders, including arena backing slack. The same
+budget applies to concrete point/bulk changes, predicate UPDATE/DELETE, ALTER
+rewrites and flushes. Each rewrite group releases its private memory before the
+next group. `build_resident_peak` records the last attempt's private allocation
+peak. Cache/index memory, the bounded persistent declaration, WAL acceptance
+buffer, provider I/O and caller-owned input have separate bounds; this counter is
+not process RSS.
+
+`TableBuildBudget` refuses an unpublished candidate without changing accepted
+rows or definitions. Executing an admitted operation records the existing
+terminal `work_limit` outcome under the original identity. Parent allocator
+failure remains `OutOfMemory`; it cannot masquerade as configured budget
+exhaustion and terminally reject that work. This synchronous component
 has no durable pending rewrite or automatic restart of rejected private staging.
 
 DROP records permanent retirement and preserves receipts and retained read
@@ -100,6 +115,18 @@ admitted work. Once rows are committed, it returns that original result.
 `operationState` and bounded `pendingOperations` inspect without executing.
 Definition changes reject while any admitted row operation remains pending.
 
+Receipt, operation and pending directories reference compact immutable
+`TableEvidence` objects. An original receipt preserves its complete binding,
+change digest, outcome and resulting declaration; a control preserves its frozen
+intent and admission/terminal state. Their accepted positions remain unchanged.
+The objects contain no old row/index/pin roots. Receipt lookup therefore reads
+bounded evidence metadata independently of the original WAL row payload.
+Publication and recovery bind each reference to its exact accepting transition.
+Missing or corrupt evidence fails explicitly, even if the old WAL frame remains.
+The [storage contract](../../../../contracts/TRANSIT_STORAGE_V1.md#compact-table-outcome-and-operation-evidence)
+defines the layout and current-definition cutover. This separates retention
+dependencies; physical object collection still needs all live owner roots.
+
 Admission checks an optional exact source frontier. It must belong to this
 partition, lie within accepted history and be at or after the latest logical
 change. Acquiring a pin or flushing rows before admission does not stale that
@@ -145,10 +172,23 @@ reject even when both revisions share one lease. Current rights apply before
 work and after buffering, including empty pages. `releaseSnapshot` closes either
 retention kind and prevents subsequent history disclosure.
 
-The owner still retains its complete WAL and immutable pages. It exposes no
-physical collector or trim operation; a future collector must preserve every
-root and log record covered by a live history lease. Lease acquisition does not
-schedule or advance a maintained computation.
+History remains unlimited until an application explicitly calls
+`expireHistory(through, guard)` with maintenance authority. The operation advances
+a durable logical read floor to a fixed accepted frontier only after archive and
+recovery-checkpoint coverage exist. A live history lease blocks expiry past its
+original frontier, including while its consumer is offline. A paged directory
+ordered by lease frontier keeps the oldest-lease check bounded as pins grow.
+Releasing the lease permits a later explicit expiry call; it does not itself
+expire history. Retrying an already covered floor performs no new append.
+
+Starting `history` below the floor returns `TableHistoryExpired`, even for an
+empty interval. Ordinary snapshot pins still read their original values below
+that boundary. Original receipts, current rows and admitted work remain exact.
+Expiry uses the optional control reserve and rechecks current authority before
+publication. It does not collect immutable objects or remove archive records.
+Physical collection must preserve each live snapshot, history lease and remaining
+receipt/recovery dependency. Lease acquisition does not schedule or advance a
+maintained computation.
 
 ## Typed predicate mutations
 
@@ -167,8 +207,9 @@ DELETE reads it once. `statement_scan_rows` defaults to 1,000,000 decoded row
 visits and `statement_scan_bytes` to 64 MiB of canonical input row bytes across
 all passes, including re-read group boundaries. Exhaustion records `work_limit`.
 The separate index work budget and physical quota still apply. These are
-operation quotas, not limits on retained Table cardinality. Predicates currently
-admit only `none`/`utf8_binary` collations; other declared collations reject.
+operation quotas, not limits on retained Table cardinality. Predicates use the
+exact schema's binary, ASCII case folding or CP037 collation. The predicate
+literal must be representable under the selected collation before admission.
 
 ## Retained reads and physical flushing
 
@@ -220,6 +261,48 @@ rows. Switching from a selected point cache to a full-group scan discards encode
 pages and reads the group's columns again. Existing fully decoded groups can
 also serve point reads. These choices change physical access, not source identity,
 accepted roots or disclosure authorization.
+
+`scanSnapshotColumns` visits the retained identity directory with a canonical
+set of selected column ordinals. All primary-key columns are required so every
+returned row still verifies its directory key. Segment groups fetch, validate
+and retain only selected column pages under the same decoder budget. Changing
+column sets invalidates the group's encoded/decoded cache while retaining its
+verified footer. WAL rows still decode their bounded full record before cloning
+the selected cells. Output rows own their values; metadata and total row count
+describe the complete original source. The continuation binds both that source
+and the column set. Projection does not prune rows or expire history.
+
+`scanSnapshotFiltered` applies a finite plan's predicate to at most one eight-entry
+identity-index page and returns the required output/predicate/key columns. The
+adapter must establish the original plan's authorized source basis; the component
+checks its exact row type and collation vector. This operation performs neither
+aggregation nor the plan's overall LIMIT: the caller supplies its remaining
+match allowance through `ReadLimits.rows`, and stops without requesting a page
+for LIMIT zero. It visits only live locators from the retained root, preserving
+identity order when segments, key order, updates or WAL rows are interleaved.
+
+`FilteredPage.examined` counts consumed identities, including misses. `offsets`
+maps returned rows to one-based positions within that page. An empty page can
+have a continuation; it is not an empty complete source. A continuation binds
+the retained content and complete original plan and names the last consumed
+identity. A returned `failure` describes the next identity's semantic predicate
+failure. Earlier rows remain available so an earlier aggregate failure can win;
+the failure is not a continuation or completion. Only a page without either a
+failure or continuation establishes exhaustion. Current authorization is checked
+after buffering, including empty, failed and terminal pages.
+
+Segment filtering caches one group's deferred decisions under the exact plan
+fingerprint. Encoded predicate kernels validate requested pages; matching rows
+use the existing selected decoder and verify their complete directory key.
+Pruned or unselected rows require valid locator/identity/footer-key bindings
+but do not decode unrelated payload pages. WAL fallback decodes a bounded full
+row and uses the same predicate semantics before cloning required cells.
+`segment_predicate_bytes` independently bounds predicate decisions and scratch
+(4 MiB by default), alongside the output decoder and encoded-page budgets.
+`row_groups_filtered` counts completed group evaluations, including zone-pruned
+groups. A cached decision carries no authority. Filtered pages are a storage
+component operation; signed-service continuations and finite SQL integration
+have their own delivery and validation boundary.
 
 Segment bytes are bounded by 16 MiB; this owner writes at most 1,024 rows per
 segment in groups of 256 by default. `segment_rows_per_group` may select 1–1,024
@@ -288,14 +371,17 @@ the original definition, accepted position, logical-change frontier and total
 source-row count. End of this source traversal is distinct from a query's
 terminal result and from a consistent multi-source snapshot.
 
-Data snapshots omit receipt, operation, pending and pin directories from their retained read basis, so
-they do not recursively retain earlier pin owners.
+Data snapshots omit recovery references and receipt, operation, pending and both
+pin directories from their retained read basis, so they do not recursively
+retain earlier pin owners.
 
-This owner retains its entire WAL and all immutable objects. It exposes no trim,
-physical collection or retention expiry. Durable pin ownership is implemented;
-GC/compaction races that actually remove retained data require a collector and
-separate qualification. Recovery follows contiguous, hash-linked WAL records
-one frame at a time, verifies top-level roots before serving, and verifies
+This owner preserves accepted WAL records in WAL or immutable archives and retains
+all immutable objects. The explicit history floor controls logical disclosure;
+immutable-object collection remains separate. Durable pin ownership is implemented;
+collection races that actually remove retained data require a collector and
+separate qualification. Recovery follows contiguous, hash-linked records from a
+published recovery baseline, or from creation when none exists. It consumes
+archive/WAL records one frame at a time, verifies top-level roots before serving, and verifies
 descendant pages/rows on access. Missing history or objects is an error, never an
 empty table. This profile does not promise distributed writers or catalog-wide
 transaction sessions.
@@ -303,3 +389,134 @@ transaction sessions.
 The [storage contract](../../../../contracts/TRANSIT_STORAGE_V1.md#table-acceptance-records-and-indexes)
 owns byte layouts. The [proof ledger](../../../../tests/README.md) records executed
 component checks and their limits.
+
+
+## Archive complete history and trim WAL files
+
+`archive(through, limits, guard)` copies a bounded prefix into immutable history
+objects and publishes its directory through the same acceptance log. Supply one
+fixed accepted `through` position and repeat until `complete`; each result reports
+the accepted archive frontier, frame count and encoded bytes. The default accepts
+at most eight frames and one maximum-sized frame's encoded-byte budget per call.
+The configured index work/cache bounds still apply. Control adapters can use the
+reserved capacity for staging and acceptance when ordinary admission is full.
+
+`trimArchived(guard)` removes only covered WAL files. Retry it after interruption;
+reopen an uncertain WAL owner and recover the Table before continuing. The latest
+acceptance record always remains in WAL and locates the archive and any recovery
+checkpoint. Recovery validates the chain from that baseline, or from creation. Physical archival/trimming preserves `changed_lsn`,
+original receipt positions, pending operation bases, pinned rows and history
+cursor commitments. Old unflushed locators resolve through the latest accepted
+archive directory. A slow or offline history consumer retains its original
+position; archival does not require it to advance.
+
+Current authorization gates both archive publication and trimming. Neither quota
+pressure nor pin release authorizes logical expiry. Missing archive objects fail
+when replay or a read requires them, rather than returning an empty prefix. The archive mechanism keeps
+all original logical records and does not collect Table segments, indexes or
+archive objects. See the [storage contract](../../../../contracts/TRANSIT_STORAGE_V1.md#table-history-archives)
+for the mandatory persisted layout and recovery order.
+
+
+## Checkpoint accepted state for restart
+
+Call `checkpoint(through, guard)` with a fixed, nonzero accepted position. The
+owner publishes a bounded capsule of its current root and last record digest,
+then records its reference in the Table WAL. The returned reference covers at
+least the requested cut. Keep the same `through` when retrying a lost reply:
+accepted coverage returns the existing reference without another append, even
+if later work has advanced the Table. Current authorization applies to both
+publication and retries; control adapters provide reserved staging/append space.
+
+The capsule contains the complete row, receipt, operation and pin directories,
+exact declaration, retirement state and archive coordinates, without a resident
+copy of their contents. Its maximum encoded size is 16 KiB plus a 40-byte header.
+Recovery loads that accepted capsule, validates its publishing WAL transition,
+and verifies every later contiguous hash-linked transition before exposing the
+current top-level roots. Missing/corrupt checkpoint data is an error with no
+fallback to older state. `recovery_work.checkpoint_lsn` and `replayed_frames`
+describe the last successful Table replay; they exclude LocalWal startup and
+separate historical/index lookups.
+
+Checkpointing preserves logical-change positions and all original read/retry
+obligations. Old records and descendant objects are verified on access, rather
+than all being scrubbed during restart. A missing old receipt still fails the
+original retry; it cannot become new work. Checkpoints do not permit WAL trimming
+without accepted archive coverage, expire history, release pins, or collect old
+objects. Scheduling is explicit. The [checkpoint contract](../../../../contracts/TRANSIT_STORAGE_V1.md#table-recovery-checkpoints)
+defines the mandatory stored reference and acceptance checks.
+
+
+## Traverse retained index dependencies
+
+The separate `TableStorageWalk` component traverses one retained index directory
+with a fixed cursor of at most 33 page frames. Each call loads at most 34 pages
+and emits one verified page or typed ownership edge. Failed reads, corrupt pages,
+invalid child heights and malformed leaf records leave its cursor unchanged.
+Call `skip` only immediately after a page was emitted and a retained mark proves
+the complete subtree was already visited under the same Table context,
+directory kind and ordered-key prefix depth.
+
+Directory roles distinguish row locators, scan locators, ordered keys, compact
+receipts/operations, live pins and archive frames. Released pins have no snapshot
+edge. `pages_only` walks just page ownership; it does not interpret arbitrary
+metadata as a pin. A long ordered key emits its child directory as separate work,
+which a collector must put in a bounded durable work queue rather than a growing
+resident list. Segment, snapshot, evidence and archive edges still require
+content and semantic validation by their owning readers.
+
+This cursor neither selects all retained roots nor grants read/deletion rights.
+The caller must retain its selected roots for the entire traversal. History
+anchors, unflushed rows, snapshots, recovery baselines, current roots and other
+owners remain separate retention obligations. Cursor JSON used in component
+tests is not a persisted maintenance format. The component supplies no physical
+Table collector or automatic scheduling.
+
+`TableStorageRoots` enumerates the current root, selected recovery capsule and
+frames from a fixed cut's logical history floor through its accepted frontier.
+Construct its cut from a recovered Table's root and chain and keep that storage
+available. Each step loads at most one bounded frame or capsule and returns
+owned metadata. It checks frame identity/kind, contiguous hashes, the selected
+checkpoint's baseline and publication, and the exact final root and chain.
+Failed reads or validation preserve the cursor; a partial traversal is never
+completion evidence. Later appends do not extend the selected cut.
+
+Historical roots retain their data and exact declaration; their old control/pin
+graphs do not create new live owners. Recovery roots additionally retain control
+dependencies needed by replay, including pin/release metadata. A capsule's old
+recovery reference remains weak. Live pins still require separate traversal from
+the current directories: history leases retain their original anchor frame at
+`original.next_lsn - 1`, even when their frontier equals the history floor.
+Unflushed rows can require still earlier frames. This enumerator supplies no
+global root selection, durable work/marks, archive pruning or deletion authority.
+
+## Compact live segments
+
+Capture the current `root.next_segment` and pass it as the fixed exclusive boundary
+to `compact(before_segment, limits, guard)` until its result is `complete`. Each
+call rewrites a bounded group of live rows from older segments into one new
+segment. It skips WAL rows and any segment at or above that boundary. Persist the
+same boundary if a maintenance driver must resume this pass after replacement.
+Accepted row locators record progress: a retry after an uncertain reply does not
+rewrite the segment produced by that accepted call. A zero-row complete response
+performs no append and requires no private row/build workspace.
+
+The current paged row directories determine liveness. Compaction merges small
+segments and omits their removed or replaced rows; the direct owner does not
+require a separate `.tdel` bitmap to make those rows invisible. It preserves row
+identities, full-key order, definitions, receipts, pending operations, pins,
+`live_rows` and `changed_lsn`. Its physical checkpoint uses the same acceptance
+path as flushing. Older retained roots continue to use their original segments.
+No segment or index object is deleted by this operation.
+
+`CompactionLimits` admits at most 1,024 rows and the Table operation's encoded-row
+byte bound per call. The default private allocation budget is 64 MiB; it accounts
+requested backing bytes for row, encoder and segment-build allocations, including
+arena growth slack. Allocator bookkeeping and process RSS are separate measurements.
+Reader caches and decoded groups retain their existing separate bounds, as do
+index staging, the acceptance-frame buffer and provider I/O. The result reports
+rows, contributing input segments, encoded row bytes and private peak allocation.
+Budget exhaustion, staging failure or revocation before publication leaves the
+accepted root unchanged. Configured control adapters supply reserved staging and
+append capacity. Compaction rejects retired Tables; retained reads remain separate.
+Automatic candidate selection and scheduling are not part of this component API.

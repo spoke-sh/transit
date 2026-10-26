@@ -67,7 +67,7 @@ literals, then owns all descriptor children, names, projections and literals.
 Releasing the encoded input or original descriptor does not invalidate the plan.
 
 The codec definition is SHA-256 of the UTF-8 bytes
-`transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters`.
+`transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations`.
 All multibyte integers below are little-endian:
 
 1. `FQP1`, the 32-byte codec definition, 32-byte source binding and 32-byte logical
@@ -83,8 +83,18 @@ All multibyte integers below are little-endian:
    comparison 4 (column byte and comparison byte, no literal payload). Program tag 3 is
    followed by a one-byte instruction count and ordered instructions: atom 0
    followed by its atom; negate 1; conjunction 2; disjunction 3.
+6. One mandatory collation byte per input field: none 0, UTF8_BINARY 1,
+   ASCII_CI 2, EBCDIC_CP037 3. Non-text fields require none; ICU and unknown tags
+   reject. None uses binary comparison. No missing suffix defaults to binary.
 
-The existing logical-plan fingerprint and 8-KiB identity allowance remain the
+The logical-plan fingerprint appends `collations`, a NUL byte and that same
+vector after its existing operator/output-name bytes. Every input column is
+bound, including unprojected columns. Table source and plan vectors must agree;
+KV, Document and file plans use none. CP037 literals must be representable before
+execution. Scalar, vector and oversized-row paths preserve the same eager
+five-state predicate rules under these collations.
+
+The logical-plan fingerprint and 8-KiB identity allowance remain the
 operator admission boundary. The encoded envelope allows 8 KiB plus 256 bytes
 for its explicit definition, binding and per-output framing. Predicates retain
 their 64-instruction and 4-KiB variable-width literal bounds. Unknown tags,
@@ -143,9 +153,12 @@ this data source.
 Canonical declaration bytes are `TQS1`, the 32-byte current shared definition,
 uint64 realm/resource/catalog/audience/branch/namespace/object, uint64 declaration
 revision, its 32-byte digest, uint64 declaration byte length, 32-byte schema
-fingerprint, uint16 logical descriptor length and the `FTY1` descriptor. Integers
+fingerprint, uint16 logical descriptor length, the `FTY1` descriptor and one
+mandatory collation byte per input field, with the same tags as FQP1. Integers
 are little-endian. The envelope is 174 bytes plus the existing 16-KiB logical
-descriptor budget. Decode owns recursive descriptors and rejects incompatible,
+descriptor budget and at most 128 collation bytes. Reopening compares the vector
+with the exact retained Table schema; an interpretation digest alone cannot
+validate separately supplied comparison semantics. Decode owns recursive descriptors and rejects incompatible,
 incomplete or noncanonical bytes. `decodeInto` instead borrows the caller's
 request arena. The declaration fingerprint hashes
 `transit.table.query.declaration.v1`, a zero byte and those canonical bytes.

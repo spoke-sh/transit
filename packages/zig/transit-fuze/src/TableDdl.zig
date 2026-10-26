@@ -85,6 +85,7 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
     var value: s.Column = .{ .id = id, .name = name, .type = data_type.type, .max_characters = data_type.max_characters };
     var seen_null = false;
     var seen_default = false;
+    var seen_collation = false;
     var primary = false;
     while (true) {
         if (parser.word("NOT") or parser.word("NULL")) {
@@ -99,6 +100,11 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
             if (primary) return error.MultiplePrimaryKeys;
             primary = true;
             try parser.requireWord("KEY");
+        } else if (try parser.takeWord("COLLATE")) {
+            if (seen_collation) return error.DuplicateColumnConstraint;
+            seen_collation = true;
+            value.collation = if (try parser.takeWord("UTF8_BINARY")) .utf8_binary else if (try parser.takeWord("ASCII_CI")) .ascii_ci else if (try parser.takeWord("EBCDIC_CP037")) .ebcdic_cp037 else return error.UnsupportedColumnCollation;
+            try value.validateEncodingAndCollation();
         } else if (unsupportedConstraint(parser.*)) {
             return error.UnsupportedTableConstraint;
         } else break;
@@ -111,7 +117,7 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
     return .{ .value = value, .primary = primary, .explicit_nullable = explicit_nullable };
 }
 fn unsupportedConstraint(parser: Parser) bool {
-    inline for (.{ "UNIQUE", "CHECK", "REFERENCES", "FOREIGN", "CONSTRAINT", "GENERATED", "IDENTITY", "COLLATE", "AUTO_INCREMENT" }) |word| if (parser.token.tag == .word and std.ascii.eqlIgnoreCase(parser.token.text, word)) return true;
+    inline for (.{ "UNIQUE", "CHECK", "REFERENCES", "FOREIGN", "CONSTRAINT", "GENERATED", "IDENTITY", "AUTO_INCREMENT" }) |word| if (parser.token.tag == .word and std.ascii.eqlIgnoreCase(parser.token.text, word)) return true;
     return false;
 }
 fn create(parser: *Parser) !Create {
@@ -243,7 +249,7 @@ fn alter(parser: *Parser, hints: ?s.Schema) !AlterSyntax {
         _ = try parser.takeWord("COLUMN");
         const added = try column(parser, 1);
         if (added.primary) return error.UnsupportedTableConstraint;
-        break :blk .{ .add = .{ .name = added.value.name, .type = added.value.type, .nullable = added.value.nullable, .default = added.value.default, .max_characters = added.value.max_characters } };
+        break :blk .{ .add = .{ .name = added.value.name, .type = added.value.type, .nullable = added.value.nullable, .default = added.value.default, .max_characters = added.value.max_characters, .encoding = added.value.encoding, .collation = added.value.collation } };
     } else if (try parser.takeWord("DROP")) blk: {
         _ = try parser.takeWord("COLUMN");
         result.column = try Reference.unqualified(parser, .column);
