@@ -28622,3 +28622,23 @@ verification-catalog and documentation checks pass. These are explicit private
 allocation bounds; persistent declarations, reader/index caches, WAL and provider
 allocations retain their separate owners and bounds. This evidence does not
 establish whole-process RSS ceilings, matched latency or complete clean CI.
+
+## Paired local storage measurement harness — 2026-10-26
+
+The ReleaseSafe native/Table [owner measurement harness](storage_benchmark.md)
+passes a **24-sample** smoke matrix: 32 Table rows, two native turns, one warmup
+and one recorded repetition per arm under both warm and cold fixture-page
+conditions. Independent Python expectations verify every visited value/payload,
+the four selected Table rows and exact checkpoint/replay coordinates. The paired
+arms preserve current native KV/block/process state and the same retained Table
+snapshot. No sample publishes work. The report validator's three tests reject
+false completion, wrong values, incomplete phases, writes during reads, incorrect
+replay counts and missing repetitions.
+
+The harness records physical startup, logical recovery and read/verification
+phases separately, with owner I/O counters, backing allocation peaks, executable
+RSS, child resource usage and retained file inventories. Cold runs require
+verified file-page eviction. This smoke run establishes the harness and selected
+value controls; it has too few samples for latency percentiles, and its fixtures
+do not exceed host RAM. The 31-repetition matrix remains a separate executed
+measurement, not a conclusion inferred from this smoke run.

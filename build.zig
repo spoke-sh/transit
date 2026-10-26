@@ -240,6 +240,13 @@ pub fn build(b: *std.Build) void {
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const storage = b.dependency("transit_storage", .{ .target = target, .optimize = optimize });
     const local_backend = b.dependency("transit_backend_local", .{ .target = target, .optimize = optimize });
+    const storage_benchmark = b.addExecutable(.{ .name = "transit-storage-benchmark", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/storage_benchmark.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_storage", .module = b.dependency("transit_storage", .{ .target = target, .optimize = optimize }).module("transit_storage") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") } },
+    }) });
+    b.step("storage-benchmark", "Build paired disk-backed native and Table owner measurements").dependOn(&b.addInstallArtifact(storage_benchmark, .{}).step);
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");

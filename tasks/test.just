@@ -19,6 +19,15 @@ storage-segments:
 local-storage-faults:
     zig build test-local-storage-faults -Doptimize=ReleaseSafe
 
+# Paired disk owner measurements; explicit output, raw samples and value oracles.
+[positional-arguments]
+[script]
+storage-benchmark *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zig build storage-benchmark -Doptimize=ReleaseSafe
+    python3 -B tests/storage_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
+
 # Accepted Table archives, retained reads, current authority and interrupted trim.
 table-archives:
     cd packages/zig/transit-storage && zig build test -Dtest-filter="Table archive" -Dtest-filter="Table recovery rejects archive" -Dtest-filter="Table admitted work survives" --summary all
