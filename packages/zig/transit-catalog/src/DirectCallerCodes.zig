@@ -2,6 +2,7 @@
 const common = @import("CallerCodes.zig");
 pub const Entry = common.Entry;
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidProjection, .code = "catalog.invalid_projection", .category = .binding, .message = "Select increasing unique column ordinals from the retained schema, including every primary-key column." },
     .{ .cause = error.InvalidTableResponse, .code = "catalog.invalid_direct_response", .category = .integrity, .message = "The direct response does not match its exact request and source evidence. Preserve the original binding and inspect its owner." },
     .{ .cause = error.InvalidCatalogCursor, .code = "catalog.invalid_cursor", .category = .binding, .message = "The cursor must retain its original connection, selection, authority and position." },
     .{ .cause = error.CatalogObservationChanged, .code = "catalog.observation_changed", .category = .conflict, .message = "The directory changed during traversal. The earlier prefix does not establish complete coverage." },

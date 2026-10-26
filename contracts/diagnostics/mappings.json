@@ -4731,6 +4731,10 @@
         "InvalidCatalogRecord": {
           "code": "catalog.invalid_record",
           "category": "integrity"
+        },
+        "InvalidProjection": {
+          "code": "catalog.invalid_projection",
+          "category": "binding"
         }
       },
       "exceptions": [],

@@ -234,6 +234,15 @@ the cursor unchanged. Returned batches own their values independently of the
 reader. Completion requires exact source consumption; it establishes no completed
 query result or consistent cut across independently retained Tables.
 
+Before traversal, `selectColumns` chooses increasing unique column ordinals,
+including every primary-key column. `next` and `readAfter` then use `column_scan`
+and decode its projected FTR1 layout; the owned source schema and metadata remain
+complete. Continuations bind the original source and column set. Selection cannot
+change after traversal starts and is unavailable for historical-lease readers.
+`readKey` and `readRange` retain their complete-row representations. See the
+[retained-read contract](../../../../contracts/DIRECT_TABLE_V1.md#retained-reads-and-binary-payloads)
+for the exact column and cursor encoding.
+
 `readAfter` seeks an ordered suffix on the retained identity index without
 changing sequential coverage. `readKey` performs a collision-checked lookup with
 the retained schema's physical storage key and returns one owned row or absence.

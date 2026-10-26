@@ -48,6 +48,7 @@ pub const TableDml = @import("TableDml.zig");
 pub const TableDmlPrepared = @import("TableDmlPrepared.zig");
 pub const TableSchemaJson = @import("TableSchemaJson.zig");
 pub const TableSelect = @import("TableSelect.zig");
+pub const TableProjection = @import("TableProjection.zig");
 pub const TableDmlCodec = @import("TableDmlCodec.zig");
 pub const Declaration = @import("Declaration.zig");
 pub const QueryCollations = @import("QueryCollations.zig");
@@ -78,6 +79,7 @@ test {
     _ = TableDmlPrepared;
     _ = TableSchemaJson;
     _ = TableSelect;
+    _ = TableProjection;
     _ = Collation;
     _ = PhysicalCodecs;
     _ = TDel;

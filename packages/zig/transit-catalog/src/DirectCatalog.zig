@@ -1888,6 +1888,14 @@ pub fn scanRows(self: *Self, allocator: std.mem.Allocator, object: d.Object, han
     return access.view.table.scanSnapshot(allocator, handle, after, limits, access.current);
 }
 
+pub fn scanColumns(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, columns: []const u8, after: ?P.SnapshotCursor, limits: P.ReadLimits, policy: Policy) !P.SnapshotPage {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, false);
+    defer access.view.deinit();
+    return access.view.table.scanSnapshotColumns(allocator, handle, columns, after, limits, access.current);
+}
+
 pub fn releaseRows(self: *Self, object: d.Object, handle: P.SnapshotHandle, policy: Policy) !void {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();

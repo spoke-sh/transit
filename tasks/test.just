@@ -71,6 +71,13 @@ table-count-ranges:
     cd packages/zig/transit-query && zig build test-unit -Dtest-filter="count range" --summary all
     just test::direct-table-service count-ranges
 
+# Projected segment pages, retained wire cursors and finite signed SQL reads.
+table-projection:
+    cd packages/zig/transit-fuze && zig build test -Dtest-filter="Table projection" --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="projected Table snapshots" --summary all
+    cd packages/zig/transit-catalog && zig build test -Dtest-filter="retained column scan" -Dtest-filter="retained reader binds" --summary all
+    just test::direct-table-service projection
+
 # Independent provider stalls, exact publication races and current revocation.
 node-concurrency:
     zig build test-node-concurrency -Doptimize=ReleaseSafe

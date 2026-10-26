@@ -14,6 +14,9 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         row_allocator: ?*RowAllocator = null,
         physical: batch,
         fingerprint: [32]u8,
+        /// A host may remap private physical input columns while preserving the
+        /// original admitted plan identity in user-facing failure evidence.
+        diagnostic_plan: ?[32]u8 = null,
         /// Optional public borrowed-plan contract; the physical program owns its copy.
         borrowed_plan: ?logical.Plan = null,
         runner: ?batch.Runner = null,
@@ -260,7 +263,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 .state = state,
                 .instruction = instruction,
                 .binding = plan.source_basis,
-                .plan = self.physical.fingerprint,
+                .plan = self.diagnostic_plan orelse self.physical.fingerprint,
             };
             @memcpy(detail.column[0..detail.column_len], field.name[0..detail.column_len]);
             self.failure = detail;

@@ -776,9 +776,10 @@ staging pipeline:
   segment. `TSegReader` verifies footer and column ranges, retains encoded pages
   for selected point reads and decoded groups for scans, and enforces separate
   byte budgets. Full-key ranges use the paged ordered index with declared
-  collations. SQL predicate/projection pushdown and encoded operators remain
-  separate work; segment Zone Map and Bloom-filter primitives alone do not
-  establish those execution paths.
+  collations. Finite direct scans select required columns before reading segment
+  pages. General SQL predicate pushdown and encoded operators remain separate
+  work; segment Zone Map and Bloom-filter primitives alone do not establish
+  those execution paths.
 - **Cache and manifest components:** `NvmeCache` caches `64 KiB`
   SHA-256-verified ranges and protects `.metadata_or_index` chunks from
   sequential `.column_data` scans. `PartitionLease.OccCoordinator` can rebase

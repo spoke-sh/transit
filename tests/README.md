@@ -28598,6 +28598,14 @@ introduced earlier on this branch. `d2592cbd1` supplies that field; all 31 SQL
 package tests and the complete independent package-build recipe pass. This failed
 lane is not complete clean qualification of the checkpoint increment.
 
+A subsequent clean core lane at `8aa9b2199f01c82f13a643732e8225627d7e024f`
+passes `check-core` (2,016 seconds), transition/delivery/resource/scheduler/domain
+simulations, independent package builds (249 seconds), Zig SDK and runtime/client
+boundary checks. It then fails `test::station`: the requester ledger's
+`example-station-ledger --once` process exceeds its 30-second wait in
+`tests/station.py`. The lane is failed, not complete clean qualification; its
+successful earlier stages do not prove the Station lifecycle finished.
+
 ## Bounded Table build allocations — 2026-10-26
 
 `just test::table-build-memory` passes the selected allocator, Table mutation,
@@ -28642,3 +28650,32 @@ verified file-page eviction. This smoke run establishes the harness and selected
 value controls; it has too few samples for latency percentiles, and its fixtures
 do not exceed host RAM. The 31-repetition matrix remains a separate executed
 measurement, not a conclusion inferred from this smoke run.
+
+## Projected retained Table scans — 2026-10-26
+
+Focused checks pass **21/21** Fuze projection/import tests, **2/2** storage
+projection/import tests, **5/5** retained-reader/contract tests and **11/11**
+direct-query tests. A separate physical-batch/LIMIT regression run passes
+**39/39** tests. The disk fixture scans key columns from 16 KiB payload rows
+with an 8 KiB decoder budget; a full-row scan rejects that budget. It preserves
+17 identities across segment and WAL locators, rejects foreign column cursors,
+survives cache changes and rechecks authority after buffering.
+
+`just test::direct-table-service projection` passes through the signed local
+disk owner. Seventeen bulk rows with 16 KiB payloads plus one WAL row fit into
+1 KiB projected pages. A later write does not alter the retained 18-row source.
+The proof checks owned rows across subsequent pages, primary-key inclusion,
+column-bound cursor rejection, prepared ASCII_CI predicates, named duplicate
+outputs, COUNT/SUM, keyless identity traversal, original plan/name attribution
+on ordered SUM overflow, selected-prefix LIMIT, post-compute and repeated-terminal
+revocation, and released-pin rejection. Wide fixture ingestion uses the typed
+intent API; SQL scalar parameters retain their separate 220-byte bound.
+
+Independent Python signing/cursor vectors and the generated direct contract
+pass. Reader allocation-failure sweeps preserve cleanup and exact consumption.
+Diagnostic error/outcome checks pass **3,411** projections across **24** declared
+surfaces; mapping, verification-catalog and documentation checks pass. Projection
+does not filter source rows, expire retained data or establish general encoded
+predicate pushdown. WAL rows retain bounded full-record decoding; point and
+count-range paths keep complete-row representations. The broader current-tree
+check and committed clean lanes remain separate qualifications.

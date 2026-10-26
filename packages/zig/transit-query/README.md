@@ -73,6 +73,16 @@ source order. Captured queries retain their separate complete-key equality path.
 Finite reads also keep the scan when a valid comparison literal exceeds the
 stored key's character or encoded-byte limit.
 
+Identity-ordered finite scans push their required columns into the Table owner.
+The selected set includes output and predicate inputs plus all primary-key
+columns used to verify row-directory entries. Segment reads fetch and decode
+only these columns; WAL rows use bounded full-row decoding before selecting
+cells. Hidden key and predicate inputs do not enter the output schema. The
+private execution plan remaps column positions while preserving the original
+plan identity and column names in failure evidence. Aliases, repeated output
+columns, declared collations, source order, LIMIT and complete-source coverage
+retain their original meaning. Point/count-range paths keep their full rows.
+
 `DirectTablePrepared.prepare` checks current SELECT rights and owns an immutable
 schema-bound template without acquiring a pin. Its preparation fingerprint
 includes the complete connection, selected role, namespace, name and declaration.
@@ -149,8 +159,9 @@ defines configuration, ownership, cancellation and memory accounting.
 
 Direct Table scans read accepted WAL and segment rows through `TablePartition`
 at retained cuts. Fuze's `TSegReader` verifies bounded footer and column ranges;
-point reads select owned cells and scans reuse decoded groups. Segment Zone Map
-and Bloom-filter primitives do not establish SQL predicate or projection pushdown.
+point reads select owned cells and scans reuse decoded groups. Finite identity
+scans select columns before segment reads. Segment Zone Map and Bloom-filter
+primitives do not establish general SQL predicate pushdown.
 
 `RelationalCompilation.prepare` resolves explicit catalog routes through current
 inspection reads, owns immutable schemas and compiles a prepared relational plan

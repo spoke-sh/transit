@@ -271,6 +271,22 @@ pub const CurrentRead = struct {
     expected: d.Position,
     selection: union(enum) { key: Binary, rows: struct { after: ?f.TableRow.Identity, limits: P.ReadLimits } },
 };
+pub const ColumnScan = struct {
+    pub const json_schema_sequence_bounds = .{ .columns = 128 };
+    snapshot: Snapshot,
+    columns: []const u16,
+    after: ?P.SnapshotCursor,
+    limits: P.ReadLimits,
+    pub fn projection(self: ColumnScan) !f.TableProjection {
+        if (self.columns.len == 0 or self.columns.len > f.TableSchema.max_columns) return error.InvalidProjection;
+        var indices: [f.TableSchema.max_columns]u8 = undefined;
+        for (self.columns, indices[0..self.columns.len]) |value, *index| {
+            if (value >= f.TableSchema.max_columns) return error.InvalidProjection;
+            index.* = @intCast(value);
+        }
+        return f.TableProjection.fromColumns(indices[0..self.columns.len]);
+    }
+};
 pub const Action = union(enum) {
     pub const json_schema_sequence_bounds = .{ .check_set = 16 };
     initialize,
@@ -316,6 +332,7 @@ pub const Action = union(enum) {
     history_scan: struct { source: Historical, after: ?P.SnapshotCursor, limits: P.ReadLimits },
     read_key: struct { snapshot: Snapshot, key: Binary },
     scan: struct { snapshot: Snapshot, after: ?P.SnapshotCursor, limits: P.ReadLimits },
+    column_scan: ColumnScan,
     key_range: struct { snapshot: Snapshot, interval: KeyInterval, after: ?KeyCursor, limits: P.ReadLimits },
     release: Snapshot,
 };
@@ -535,6 +552,13 @@ pub const Request = struct {
                 try value.limits.validate();
                 if (value.limits.encoded_bytes > max_page_bytes) return error.InvalidTableReadBudget;
                 if (value.after) |cursor| if (!std.meta.eql(cursor.source, value.snapshot.handle.content)) return error.InvalidTableCursor;
+            },
+            .column_scan => |value| {
+                try validateSnapshot(connection, value.snapshot);
+                try value.limits.validate();
+                if (value.limits.encoded_bytes > max_page_bytes) return error.InvalidTableReadBudget;
+                const selected = try value.projection();
+                if (value.after) |cursor| if (!std.meta.eql(cursor.source, try selected.cursorSource(value.snapshot.handle.content))) return error.InvalidTableCursor;
             },
             .key_range => |value| {
                 try validateSnapshot(connection, value.snapshot);

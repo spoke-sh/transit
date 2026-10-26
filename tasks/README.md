@@ -56,6 +56,9 @@ retain more objects and rows than those caches without discarding accepted work.
 `just test::table-count-ranges` checks finite primary-key count intervals against
 full scans of the same retained source, including prepared bounds, request
 exhaustion, cancellation and current disclosure rights.
+`just test::table-projection` checks selected segment columns, source/column-bound
+cursors, retained coverage and signed finite/prepared SQL with current disclosure
+checks after buffering.
 
 `just test::station` uses a ReleaseSafe local node with Debug administration,
 ledger worker, courier and controller binaries. Its finite query-completion

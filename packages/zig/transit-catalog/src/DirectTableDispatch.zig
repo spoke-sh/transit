@@ -284,16 +284,19 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             } else null;
             return .{ .point = .{ .snapshot = value.snapshot, .interpretation = definition.root.declared(), .accepted = .{ .partition = definition.root.partition, .next_lsn = definition.root.next_lsn }, .changed_lsn = definition.root.changed_lsn, .total_rows = definition.root.live_rows, .row = encoded } };
         },
-        .scan => |value| {
+        inline .scan, .column_scan => |value, tag| {
             var definition = try catalog.snapshotDefinition(allocator, value.snapshot.object, value.snapshot.handle, policy);
             defer definition.deinit();
             try requireSource(delegation, definition);
-            var page = try catalog.scanRows(allocator, value.snapshot.object, value.snapshot.handle, value.after, value.limits, policy);
+            var projected_columns: [c.fuze.TableSchema.max_columns]c.fuze.TableSchema.Column = undefined;
+            const selected: ?c.fuze.TableProjection = if (tag == .column_scan) try value.projection() else null;
+            const row_schema = if (selected) |*projection| try projection.projectedSchema(definition.schema.schema, &projected_columns) else definition.schema.schema;
+            var page = if (selected) |*projection| try catalog.scanColumns(allocator, value.snapshot.object, value.snapshot.handle, projection.columns(), value.after, value.limits, policy) else try catalog.scanRows(allocator, value.snapshot.object, value.snapshot.handle, value.after, value.limits, policy);
             defer page.deinit();
             const rows = try allocator.alloc(w.Binary, page.count);
             const scratch = try allocator.alloc(u8, c.fuze.TableRow.max_bytes);
             defer allocator.free(scratch);
-            for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(definition.schema.schema, scratch));
+            for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(row_schema, scratch));
             return .{ .page = .{ .snapshot = value.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } };
         },
         .key_range => |value| {

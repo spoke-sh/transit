@@ -80,9 +80,12 @@ pub fn selectPoint(self: *Self, plan: f.LogicalQuery.Plan) void {
     const key = f.Collation.encodePrimaryKeySortKey(schema, values, false, &encoded) catch return;
     self.point_key = Key.init(key) catch unreachable; // bounded by encoded above
 }
-pub fn selectAccess(self: *Self, plan: f.LogicalQuery.Plan) void {
+pub fn selectAccess(self: *Self, plan: f.LogicalQuery.Plan) !void {
     self.selectPoint(plan);
     if (self.point_key == null) self.count_range = CountRange.qualify(self.reader.schema.schema, plan);
+    if (self.point_key != null or self.count_range != null) return;
+    const selected = try f.TableProjection.fromPlan(self.reader.schema.schema, plan);
+    if (selected.len < self.reader.schema.schema.columns.len) try self.reader.selectColumns(selected.columns());
 }
 pub fn next(self: *Self) !?f.LogicalQuery.Row {
     try self.checkCancellation();

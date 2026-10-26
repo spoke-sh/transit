@@ -232,6 +232,14 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   retained checkpoint/maintenance and native-owner obligations remain
   open. A passing Table range test does not close #113–#118 or #123–#128.
 
+- Finite identity-ordered Table SELECTs, including prepared execution, push
+  required output/predicate/key columns through the signed retained reader to
+  segment page selection. Projected cursors bind the exact column set; source
+  coverage and original plan/error attribution remain intact. WAL fallback keeps
+  bounded full-row decoding. This advances projection integration for #116/#128;
+  general encoded predicate execution, compatible borrowed batches and relational
+  text comparison/hash/order remain outstanding.
+
 - The shared codec walker now supports encoded single-column predicates with
   one-byte row outcomes, dictionary/run evaluation reuse and detached selected
   output. `TSegReader.filteredGroup` combines collation-aware zone-map pruning

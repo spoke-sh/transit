@@ -145,7 +145,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .pin_status => .pin_state,
         .snapshot => .snapshot,
         .read_key => .point,
-        .scan => .page,
+        .scan, .column_scan => .page,
         .key_range => .key_range,
         .release => .released,
     };
@@ -524,8 +524,14 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         },
         .page => |value| {
             if (request.delegation) |delegation| delegation.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;
-            const query = request.action.scan;
-            try validatePage(allocator, request.connection, query.snapshot, query.snapshot.handle.content, query.after, query.limits, value);
+            switch (request.action) {
+                .scan => |query| try validatePage(allocator, request.connection, query.snapshot, query.snapshot.handle.content, query.after, query.limits, value),
+                .column_scan => |query| {
+                    const selected = try query.projection();
+                    try validatePage(allocator, request.connection, query.snapshot, try selected.cursorSource(query.snapshot.handle.content), query.after, query.limits, value);
+                },
+                else => unreachable,
+            }
         },
         .key_range => |value| {
             if (request.delegation) |grant| grant.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;

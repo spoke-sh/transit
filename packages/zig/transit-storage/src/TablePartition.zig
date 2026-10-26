@@ -1387,10 +1387,20 @@ pub fn readRow(self: *Self, allocator: std.mem.Allocator, basis: Root, key: page
     return self.readRowWithSchema(allocator, basis, self.declaration.schema.schema, key, value, .group);
 }
 
-fn readRowWithSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: f.TableSchema.Schema, key: pages.Key, value: pages.Value, mode: enum { point, group }) !OwnedRow {
+const ReadMode = enum { point, group };
+
+fn readRowWithSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: f.TableSchema.Schema, key: pages.Key, value: pages.Value, mode: ReadMode) !OwnedRow {
+    var selected: f.TableProjection = .{ .len = @intCast(schema.columns.len) };
+    for (selected.indices[0..selected.len], 0..) |*column, i| column.* = @intCast(i);
+    return self.readRowWithColumns(allocator, basis, schema, key, value, mode, selected);
+}
+
+fn readRowWithColumns(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: f.TableSchema.Schema, key: pages.Key, value: pages.Value, mode: ReadMode, selected: f.TableProjection) !OwnedRow {
     try self.ready();
     try self.requireBasis(basis);
     if (!std.mem.eql(u8, &try schema.fingerprint(), &basis.schema_fingerprint)) return error.InvalidTableBasis;
+    var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
+    const projected_schema = if (selected.len == schema.columns.len) schema else try selected.projectedSchema(schema, &columns);
     const locator = try r.Locator.decode(value);
     var result: OwnedRow = switch (locator.kind) {
         .wal => blk: {
@@ -1403,7 +1413,14 @@ fn readRowWithSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, sch
                 locator.offset > decoded.rows.len or locator.length > decoded.rows.len - locator.offset) return error.InvalidTableRowReference;
             const bytes = decoded.rows[locator.offset..][0..locator.length];
             if (!std.mem.eql(u8, &r.hash(bytes), &locator.digest)) return error.InvalidTableRowReference;
-            break :blk .{ .wal = try f.TableRow.decode(allocator, schema, bytes) };
+            var full = try f.TableRow.decode(allocator, schema, bytes);
+            if (selected.len == schema.columns.len) break :blk .{ .wal = full };
+            defer full.deinit();
+            var arena = std.heap.ArenaAllocator.init(allocator);
+            errdefer arena.deinit();
+            const cells = try arena.allocator().alloc(f.Types.Values.Cell, selected.len);
+            for (selected.columns(), cells) |index, *cell| cell.* = try f.Types.Values.cloneValidated(arena.allocator(), full.row().cells[index]);
+            break :blk .{ .segment = .{ .arena = arena, .identity = full.identity, .cells = cells } };
         },
         .segment => blk: {
             var temporary: ?CachedSegment = null;
@@ -1414,6 +1431,13 @@ fn readRowWithSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, sch
                 !std.mem.eql(u8, &footer.layout_fingerprint, &try schema.layoutFingerprint())) return error.TableSchemaChanged;
             if (footer.segment_id != locator.lsn or locator.offset >= footer.pk_index.len or footer.pk_index[locator.offset].global_row_offset != locator.offset) return error.InvalidTableRowReference;
             const entry = footer.pk_index[locator.offset];
+            if (!std.mem.eql(u8, segment.projection.columns(), selected.columns())) {
+                if (segment.decoded) |*group| group.deinit();
+                if (segment.encoded) |*encoded| encoded.deinit();
+                segment.decoded = null;
+                segment.encoded = null;
+                segment.projection = selected;
+            }
             if (segment.decoded) |*group| if (group.index != entry.row_group or group.rowIndex(entry.row_in_group) == null or (mode == .group and group.rows != null)) {
                 group.deinit();
                 segment.decoded = null;
@@ -1424,22 +1448,22 @@ fn readRowWithSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, sch
             };
             if (segment.decoded == null) {
                 var projection: [128]usize = undefined;
-                for (projection[0..schema.columns.len], 0..) |*slot, i| slot.* = i;
+                for (projection[0..selected.len], selected.columns()) |*slot, index| slot.* = index;
                 var source: SegmentSource = .{ .owner = self, .locator = locator };
                 if (mode == .point) {
-                    if (segment.encoded == null) segment.encoded = try segment.reader.encodedGroup(self.allocator, source.source(), schema, entry.row_group, projection[0..schema.columns.len], f.TSeg.max_segment_bytes);
+                    if (segment.encoded == null) segment.encoded = try segment.reader.encodedGroup(self.allocator, source.source(), schema, entry.row_group, projection[0..selected.len], f.TSeg.max_segment_bytes);
                     segment.decoded = try segment.encoded.?.select(self.allocator, schema, &.{entry.row_in_group}, self.options.segment_decode_bytes);
                 } else {
                     // Scans amortize full-group decoding across adjacent rows.
                     if (segment.encoded) |*encoded| encoded.deinit();
                     segment.encoded = null;
-                    segment.decoded = try segment.reader.group(self.allocator, source.source(), schema, entry.row_group, projection[0..schema.columns.len], .{ .decoded_bytes = self.options.segment_decode_bytes });
+                    segment.decoded = try segment.reader.group(self.allocator, source.source(), schema, entry.row_group, projection[0..selected.len], .{ .decoded_bytes = self.options.segment_decode_bytes });
                 }
                 self.row_groups_decoded +|= 1;
             }
             var arena = std.heap.ArenaAllocator.init(allocator);
             errdefer arena.deinit();
-            const cells = try arena.allocator().alloc(f.Types.Values.Cell, schema.columns.len);
+            const cells = try arena.allocator().alloc(f.Types.Values.Cell, selected.len);
             const row_index = segment.decoded.?.rowIndex(entry.row_in_group) orelse return error.InvalidTableRowReference;
             for (segment.decoded.?.columns, cells) |column, *cell| {
                 if (row_index >= column.len) return error.InvalidTableRowReference;
@@ -1450,7 +1474,7 @@ fn readRowWithSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, sch
     };
     errdefer result.deinit();
     var actual: [f.Collation.max_sort_key_bytes]u8 = undefined;
-    if (!std.meta.eql(key, try r.rowKey(try result.row().storageKey(schema, &actual)))) return error.InvalidTableRowReference;
+    if (!std.meta.eql(key, try r.rowKey(try result.row().storageKey(projected_schema, &actual)))) return error.InvalidTableRowReference;
     return result;
 }
 
@@ -1464,6 +1488,7 @@ const CachedSegment = struct {
     reader: f.TSegReader,
     decoded: ?f.TSegReader.Group = null,
     encoded: ?f.TSegReader.EncodedGroup = null,
+    projection: f.TableProjection = .{},
     fn deinit(self: *CachedSegment, _: std.mem.Allocator) void {
         if (self.decoded) |*group| group.deinit();
         if (self.encoded) |*group| group.deinit();
@@ -1928,6 +1953,35 @@ pub fn scanSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     return self.scanRetainedRoot(allocator, frozen.root, frozen.schema.schema, handle, handle.content, after, limits, guard);
 }
 
+/// Read a canonical physical column subset while preserving identity traversal,
+/// full-key verification and the original retained interpretation. WAL rows use
+/// bounded full decoding; segment reads fetch only the selected column pages.
+pub fn scanSnapshotColumns(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle, columns: []const u8, after: ?SnapshotCursor, limits: ReadLimits, guard: Guard) !SnapshotPage {
+    try limits.validate();
+    var frozen = try self.inspectSnapshot(allocator, handle, guard);
+    defer frozen.deinit();
+    const selected = try f.TableProjection.init(frozen.schema.schema, columns);
+    const source = try selected.cursorSource(handle.content);
+    const cursor: ?pages.Key = if (after) |value| blk: {
+        if (!std.meta.eql(value.source, source)) return error.InvalidTableSnapshotCursor;
+        const key = try pages.Key.init(&value.after);
+        if (try self.tree().get(frozen.root.identities, key) == null) return error.InvalidTableSnapshotCursor;
+        break :blk key;
+    } else null;
+    const page = try self.scanRootColumns(allocator, frozen.root, frozen.schema.schema, selected, cursor, limits, guard);
+    return .{
+        .source = handle,
+        .interpretation = frozen.root.declared(),
+        .accepted = .{ .partition = frozen.root.partition, .next_lsn = frozen.root.next_lsn },
+        .changed_lsn = frozen.root.changed_lsn,
+        .total_rows = frozen.root.live_rows,
+        .rows = page.rows,
+        .count = page.count,
+        .encoded_bytes = page.encoded_bytes,
+        .next = if (page.next) |next| .{ .source = source, .after = next } else null,
+    };
+}
+
 /// Traverse complete collation-aware keys on an exact retained root. A cursor
 /// cannot change either its source or interval, including after rename/rewrite.
 pub fn rangeSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle, range: KeyRange, after: ?KeyRange.Cursor, limits: ReadLimits, guard: Guard) !KeyRangePage {
@@ -2086,6 +2140,14 @@ pub fn scanCurrent(self: *Self, allocator: std.mem.Allocator, expected: d.Positi
 }
 
 fn scanRootRows(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: f.TableSchema.Schema, cursor: ?pages.Key, limits: ReadLimits, guard: Guard) !RowPage {
+    var selected: f.TableProjection = .{ .len = @intCast(schema.columns.len) };
+    for (selected.indices[0..selected.len], 0..) |*column, i| column.* = @intCast(i);
+    return self.scanRootColumns(allocator, basis, schema, selected, cursor, limits, guard);
+}
+
+fn scanRootColumns(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: f.TableSchema.Schema, selected: f.TableProjection, cursor: ?pages.Key, limits: ReadLimits, guard: Guard) !RowPage {
+    var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
+    const projected_schema = if (selected.len == schema.columns.len) schema else try selected.projectedSchema(schema, &columns);
     const batch = try self.tree().scan(basis.identities, cursor);
     var result: RowPage = .{};
     errdefer result.deinit();
@@ -2101,11 +2163,11 @@ fn scanRootRows(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: 
         if (entry.key.len != f.TableRow.Identity.encoded_bytes or entry.value.len != 32) return error.InvalidTableRowReference;
         const row_key = try pages.Key.init(entry.value.data[0..32]);
         const locator = try self.tree().get(basis.rows, row_key) orelse return error.InvalidTableRowReference;
-        var row = try self.readRowWithSchema(allocator, basis, schema, row_key, locator, .group);
+        var row = try self.readRowWithColumns(allocator, basis, schema, row_key, locator, .group, selected);
         var moved = false;
         defer if (!moved) row.deinit();
         if (!std.mem.eql(u8, entry.key.data[0..entry.key.len], &try row.row().identity.encode())) return error.InvalidTableRowReference;
-        const encoded = try row.row().encode(schema, scratch);
+        const encoded = try row.row().encode(projected_schema, scratch);
         if (encoded.len > limits.encoded_bytes - result.encoded_bytes) {
             if (result.count == 0) return error.TableReadBudgetTooSmall;
             result.next = previous.?.data[0..f.TableRow.Identity.encoded_bytes].*;

@@ -38,6 +38,69 @@ fn pin(table: *P, id: u64, access: *Access) !P.SnapshotHandle {
     return table.pin(.{ .scope = object.scope, .principal = 4, .operation = id }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
 }
 
+test "projected Table snapshots skip segment payloads and bind cursors without changing row coverage" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const payload: [16 * 1024]u8 = @splat('x');
+    var cells: [16][2]f.Types.Values.Cell = undefined;
+    var changes: [16]P.Change = undefined;
+    for (&cells, &changes, 0..) |*values, *change, i| {
+        values.* = .{ .{ .value = .{ .atom = .{ .signed = @intCast(i) } } }, .{ .value = .{ .atom = .{ .bytes = &payload } } } };
+        change.* = .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = @intCast(i) }, .cells = values } } };
+    }
+    _ = try table.apply(binding(&table, 1, .create), &changes, .bulk, access.guard());
+    const last = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 16 } } }, .{ .value = .{ .atom = .{ .bytes = &payload } } } };
+    _ = try table.apply(binding(&table, 2, .insert), &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &last } } }}, .point, access.guard());
+    const handle = try pin(&table, 80, &access);
+    const accepted = table.root;
+    table.options.segment_decode_bytes = 8 * 1024;
+    var first = try table.scanSnapshotColumns(t.allocator, handle, &.{0}, null, .{ .rows = 2 }, access.guard());
+    defer first.deinit();
+    try t.expectEqual(@as(u8, 2), first.count);
+    try t.expectEqual(@as(u64, 17), first.total_rows);
+    try t.expect(first.next != null);
+    try t.expectEqual(@as(usize, 1), first.rows[0].?.row().cells.len);
+    try t.expectEqual(@as(i128, 0), first.rows[0].?.row().cells[0].value.atom.signed);
+    const projected_bytes = table.segment_bytes_read;
+    try t.expect(projected_bytes < payload.len);
+    try t.expectError(error.InvalidProjection, table.scanSnapshotColumns(t.allocator, handle, &.{1}, null, .{}, access.guard()));
+    try t.expectError(error.InvalidTableSnapshotCursor, table.scanSnapshotColumns(t.allocator, handle, &.{ 0, 1 }, first.next, .{}, access.guard()));
+    try t.expectError(error.InvalidTableSnapshotCursor, table.scanSnapshot(t.allocator, handle, first.next, .{}, access.guard()));
+    // Switching back to a complete scan must not reinterpret the projected
+    // decoder cache as a complete row, even when that full decode cannot fit.
+    try t.expectError(error.SegmentReadBudgetExceeded, table.scanSnapshot(t.allocator, handle, null, .{}, access.guard()));
+    var after = first.next;
+    var count: u64 = first.count;
+    while (after != null) {
+        var page = try table.scanSnapshotColumns(t.allocator, handle, &.{0}, after, .{}, access.guard());
+        defer page.deinit();
+        for (page.rows[0..page.count]) |slot| {
+            try t.expectEqual(@as(usize, 1), slot.?.row().cells.len);
+            try t.expectEqual(@as(i128, @intCast(count)), slot.?.row().cells[0].value.atom.signed);
+            count += 1;
+        }
+        after = page.next;
+    }
+    try t.expectEqual(@as(u64, 17), count);
+    try t.expectEqualDeep(accepted, table.root);
+    // Output owns its cells independently of all later cache replacement.
+    try t.expectEqual(@as(i128, 1), first.rows[1].?.row().cells[0].value.atom.signed);
+    access.deny_at = access.calls + 3;
+    try t.expectError(error.PermissionDenied, table.scanSnapshotColumns(t.allocator, handle, &.{0}, null, .{}, access.guard()));
+    access.deny_at = std.math.maxInt(usize);
+    table.options.segment_decode_bytes = 64 * 1024 * 1024;
+    var full = try table.scanSnapshot(t.allocator, handle, null, .{ .rows = 1 }, access.guard());
+    defer full.deinit();
+    try t.expectEqualStrings(&payload, full.rows[0].?.row().cells[1].value.atom.bytes);
+}
+
 test "retained Table key ranges preserve exact intervals through writes flush rewrite and restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

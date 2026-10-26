@@ -65,6 +65,13 @@ scratch/output allocations. The complete encoded page is validated before
 success, including nonmatching values. Comparisons use the column's declared
 logical type and binary, ASCII case-insensitive or CP037 collation.
 
+`TableProjection` derives a canonical input-column set from a finite Table plan,
+including predicate inputs and all primary-key columns. Its projected schema
+preserves stable column descriptors; its private plan remaps positions without
+changing output names, collations, LIMIT or source basis. Remapped plans borrow
+the caller's bounded workspace until copied into execution. The direct Table
+query owner keeps the original plan fingerprint for failure attribution.
+
 `TSegReader.filteredGroup` combines that kernel with verified zone-map pruning
 and projected row selection. It validates interpretation and projection before
 pruning, reads the predicate column only for candidate groups, then decodes

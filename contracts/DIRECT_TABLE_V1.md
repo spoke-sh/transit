@@ -766,6 +766,28 @@ eight owned rows under an explicit encoded-byte budget, with a cursor bound to
 that retained root and its last returned canonical 20-byte row identity. Rows
 are strictly increasing by identity, independent of their current physical
 locators. It never substitutes the latest name or definition.
+
+`column_scan` accepts `snapshot`, `columns`, nullable `after` and `limits` and
+returns the same `page` envelope as `scan`. `columns` is a JSON array of 1–128
+unsigned integer ordinals, each in 0–127, strictly increasing without duplicates.
+They select columns by position in the retained schema and must include every
+primary-key column. Ordinals outside that schema reject. This read representation
+preserves each selected column's original ID, name, logical type, physical codec,
+collation and constraints, plus the original object, revision, next-column floor
+and primary-key declaration. FTR1 rows carry that projected layout fingerprint.
+The response's interpretation, accepted/logical-change frontiers and `total_rows`
+still describe the complete retained source. Every source row is visited in
+identity order; projection does not filter rows or change coverage.
+
+A projected cursor retains the canonical last-returned row identity. Its `source`
+is a Content descriptor whose `bytes` is the length and `sha256` the SHA-256 of:
+`transit.table.projected-cursor.v1` followed by a zero byte, the 32-byte shared
+definition, retained pin-content length as little-endian u64, its 32-byte SHA-256,
+the selected-column count as u8, then each ordinal as u8. A different column set,
+pin or ordinary scan cursor rejects. Page/byte limits, final authorization and
+pin checks match `scan`. The operation supports ordinary retained snapshots;
+historical-lease scans retain their complete-row representation.
+
 `read_key` accepts one nonempty canonical storage key (base64, at most the
 physical collation key bound). Its `point` result carries the same snapshot,
 interpretation, accepted frontier, logical-change frontier and total row count,

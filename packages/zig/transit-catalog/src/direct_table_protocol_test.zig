@@ -638,3 +638,29 @@ test "retained key range consumes independent signed bounds and interval fingerp
     changed.proof.claim.context = try w.Request.context(changed.input(), t.allocator);
     try t.expectError(error.InvalidTableCursor, changed.validate(t.allocator));
 }
+
+test "retained column scan consumes independent signed projection and cursor fingerprint" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-table-projection-v1.json"));
+    defer parsed.deinit();
+    const request = parsed.value.request;
+    try request.validate(t.allocator);
+    try request.proof.verify(parsed.value.public_key);
+    const selected = try request.action.column_scan.projection();
+    try t.expectEqualSlices(u8, &.{ 0, 2, 127 }, selected.columns());
+    try t.expectEqualDeep(request.action.column_scan.after.?.source, try selected.cursorSource(request.action.column_scan.snapshot.handle.content));
+    for ([_][]const u16{ &.{}, &.{ 2, 0 }, &.{ 0, 0 }, &.{ 0, 128 }, &.{65535} }) |columns| {
+        var changed = request;
+        changed.action.column_scan.columns = columns;
+        changed.proof.claim.context = try w.Request.context(changed.input(), t.allocator);
+        try t.expectError(error.InvalidProjection, changed.validate(t.allocator));
+    }
+    var changed = request;
+    changed.action.column_scan.columns = &.{ 0, 2 };
+    changed.proof.claim.context = try w.Request.context(changed.input(), t.allocator);
+    try t.expectError(error.InvalidTableCursor, changed.validate(t.allocator));
+    changed = request;
+    changed.action.column_scan.after.?.source = request.action.column_scan.snapshot.handle.content;
+    changed.proof.claim.context = try w.Request.context(changed.input(), t.allocator);
+    try t.expectError(error.InvalidTableCursor, changed.validate(t.allocator));
+}

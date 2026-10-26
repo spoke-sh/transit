@@ -88,8 +88,12 @@ fn start(scan: *Scan, compiled: *f.TableSelect.Owned, limits: Limits, compute: C
     if (encoded.len > limits.result_bytes) return error.QueryResultBudget;
     if (!std.meta.eql(compiled.plan.collations, f.QueryCollations.fromTable(scan.reader.schema.schema))) return error.SourceChanged;
     try scan.validateCurrent();
-    scan.selectAccess(compiled.plan);
-    var execution = try Engine.initBudget(scan.*, compiled.plan, compute.limits);
+    try scan.selectAccess(compiled.plan);
+    var workspace: f.TableProjection.Workspace = .{};
+    const physical_plan = if (scan.reader.projection) |*selected| try selected.remap(scan.reader.schema.schema, compiled.plan, &workspace) else compiled.plan;
+    const diagnostic_plan = try compiled.plan.fingerprint();
+    var execution = try Engine.initBudget(scan.*, physical_plan, compute.limits);
+    execution.diagnostic_plan = diagnostic_plan;
     execution.runner = compute.runner;
     return .{ .compiled = compiled.*, .execution = execution, .limits = limits, .result_bytes = encoded.len };
 }

@@ -72,8 +72,11 @@ Fuze's [segment reader](../../../packages/zig/transit-fuze/README.md) also expos
 typed column predicates over encoded pages. Verified zone maps can skip groups;
 candidate groups evaluate runs or dictionary codes before materializing selected
 projected rows. This component preserves declared collations, unknown values and
-eager error/conflict outcomes. Direct SQL retains its current access paths;
-general predicate/projection lowering to this reader is separate integration work.
+eager error/conflict outcomes. Finite direct Table scans select output, predicate
+and primary-key columns before reading segment pages. Their source order,
+coverage, declared collations and original failure attribution remain unchanged;
+WAL rows use bounded full-row decoding. General encoded predicate lowering and
+row-group pruning remain separate integration work.
 
 ## Source declarations
 

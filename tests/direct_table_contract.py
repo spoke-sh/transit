@@ -119,6 +119,21 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(range_claim)).digest())}}
     range_fixture = {"request": range_request, "public_key": public_key}
 
+    projection_source = borrow_binding["target"]["snapshot"]["handle"]["content"]
+    projection_bytes = (b"transit.table.projected-cursor.v1\0" + bytes.fromhex(definition)
+                        + struct.pack("<Q", projection_source["bytes"])
+                        + bytes(projection_source["sha256"]) + bytes([3, 0, 2, 127]))
+    projection_input = {**request_input, "action": {"column_scan": {
+        "snapshot": borrow_binding["target"]["snapshot"], "columns": [0, 2, 127],
+        "after": {"source": {"bytes": len(projection_bytes), "sha256": list(hashlib.sha256(projection_bytes).digest())},
+                  "after": list(struct.pack(">QQI", 4, 10, 2))},
+        "limits": {"rows": 3, "encoded_bytes": 4096},
+    }}}
+    projection_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(projection_input)).digest())}
+    projection_request = {**projection_input, "proof": {"claim": projection_claim,
+        "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(projection_claim)).digest())}}
+    projection_fixture = {"request": projection_request, "public_key": public_key}
+
     dependent_definition = {"object": {"scope": {"realm": 42, "resource": 9, "catalog": 8}, "branch": 1, "object": 99}, "revision": 2**64 - 1, "digest": [4] * 32}
     source_definition = {"object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 2**64 - 2}, "revision": 2**64 - 3, "digest": [3] * 32}
     edge = {"source": source_definition, "dependent": {"kind": "captured", "interpretation": dependent_definition}, "privileges": 1}
@@ -159,6 +174,11 @@ validator.validate(delegated_request)
 validator.validate(borrowed_request)
 validator.validate(current_request)
 validator.validate(range_request)
+validator.validate(projection_request)
+for columns in ("abc", [0] * 129):
+    invalid = copy.deepcopy(projection_request)
+    invalid["action"]["column_scan"]["columns"] = columns
+    assert not validator.is_valid(invalid)
 validator.validate(dependency_request)
 validator.validate(resource_request)
 for field in ("definition", "connection", "operation", "object", "expected", "action"):
@@ -201,6 +221,8 @@ def persist(path, content):
 
 
 persist(root / "contracts/direct-table-v1.schema.json", raw)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-projection-v1.json",
+        (json.dumps(projection_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-key-range-v1.json",
         (json.dumps(range_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-v1.json",

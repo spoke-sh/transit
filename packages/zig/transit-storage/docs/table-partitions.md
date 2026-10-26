@@ -237,6 +237,16 @@ pages and reads the group's columns again. Existing fully decoded groups can
 also serve point reads. These choices change physical access, not source identity,
 accepted roots or disclosure authorization.
 
+`scanSnapshotColumns` visits the retained identity directory with a canonical
+set of selected column ordinals. All primary-key columns are required so every
+returned row still verifies its directory key. Segment groups fetch, validate
+and retain only selected column pages under the same decoder budget. Changing
+column sets invalidates the group's encoded/decoded cache while retaining its
+verified footer. WAL rows still decode their bounded full record before cloning
+the selected cells. Output rows own their values; metadata and total row count
+describe the complete original source. The continuation binds both that source
+and the column set. Projection does not prune rows or expire history.
+
 Segment bytes are bounded by 16 MiB; this owner writes at most 1,024 rows per
 segment in groups of 256 by default. `segment_rows_per_group` may select 1–1,024
 rows independently of operation, execution and result-page limits. Existing

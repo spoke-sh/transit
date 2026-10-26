@@ -3120,6 +3120,7 @@
         "InvalidDirectCatalogOperation": 1,
         "InvalidNamedResource": 1,
         "InvalidNamedResourceOperation": 1,
+        "InvalidProjection": 1,
         "InvalidTableBasis": 1,
         "InvalidTableDelegation": 1,
         "InvalidTableResponse": 1,
@@ -3316,6 +3317,7 @@
         "retainHistory()": "<inferred>",
         "rowOperation()": "<inferred>",
         "rowStatus()": "<inferred>",
+        "scanColumns()": "<inferred>",
         "scanHistory()": "<inferred>",
         "scanRows()": "<inferred>",
         "schema()": "<inferred>",
@@ -4239,7 +4241,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 130,
+        "try": 133,
         "catch": 0
       },
       "imports": [
@@ -4380,13 +4382,14 @@
         "InvalidCatalogStepBudget": 3,
         "InvalidDirectCatalogOperation": 1,
         "InvalidNamedResourceOperation": 1,
+        "InvalidProjection": 2,
         "InvalidTableBasis": 3,
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
-        "InvalidTableCursor": 4,
+        "InvalidTableCursor": 5,
         "InvalidTableDelegation": 5,
         "InvalidTableKey": 2,
-        "InvalidTableReadBudget": 6,
+        "InvalidTableReadBudget": 7,
         "TableBatchTooLarge": 1,
         "TablePayloadTooLarge": 6,
         "TableSchemaChanged": 2
@@ -4434,6 +4437,7 @@
           "history_scan",
           "read_key",
           "scan",
+          "column_scan",
           "key_range",
           "release"
         ],
@@ -4526,6 +4530,7 @@
         "Binary.encode()": "<inferred>",
         "Change.cell()": "<inferred>",
         "Change.native()": "<inferred>",
+        "ColumnScan.projection()": "<inferred>",
         "Connection.binding()": "<inferred>",
         "Connection.object()": "<inferred>",
         "Connection.owner()": "<inferred>",
@@ -4550,7 +4555,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 138,
+        "try": 142,
         "catch": 2
       },
       "imports": [
@@ -4561,7 +4566,7 @@
     "packages/zig/transit-catalog/src/DirectTableReader.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
-        "InvalidTableCursor": 1,
+        "InvalidTableCursor": 2,
         "InvalidTableKey": 1,
         "InvalidTableReadBudget": 3,
         "InvalidTableResponse": 26,
@@ -4587,16 +4592,18 @@
         "openHistory()": "<inferred>",
         "openHistoryStart()": "<inferred>",
         "pointAllocationFailures()": "<inferred>",
+        "projectionAllocationFailures()": "<inferred>",
         "rangeAllocationFailures()": "<inferred>",
         "readAfter()": "<inferred>",
         "readKey()": "<inferred>",
         "readRange()": "<inferred>",
         "release()": "<inferred>",
-        "requireClient()": "<inferred>"
+        "requireClient()": "<inferred>",
+        "selectColumns()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 58,
+        "try": 65,
         "catch": 1
       },
       "imports": [
@@ -4626,7 +4633,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 150,
+        "try": 153,
         "catch": 8
       },
       "imports": [
@@ -10247,6 +10254,37 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/TableProjection.zig": {
+      "errors": {
+        "InvalidProjection": 6,
+        "SourceChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "cursorSource()": "<inferred>",
+        "fromColumns()": "<inferred>",
+        "fromPlan()": "<inferred>",
+        "init()": "<inferred>",
+        "ordinal()": "<inferred>",
+        "projectedSchema()": "<inferred>",
+        "remap()": "<inferred>",
+        "remapAtom()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 20,
+        "catch": 0
+      },
+      "imports": [
+        "LogicalQuery.zig",
+        "QueryCollations.zig",
+        "TableSchema.zig",
+        "Types.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/TableRow.zig": {
       "errors": {
         "InvalidRowIdentity": 1,
@@ -11398,6 +11436,7 @@
         "TableDmlCodec.zig",
         "TableDmlPrepared.zig",
         "TableEvolution.zig",
+        "TableProjection.zig",
         "TableRow.zig",
         "TableSchema.zig",
         "TableSchemaJson.zig",
@@ -14254,7 +14293,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 29,
         "catch": 1
       },
       "imports": [
@@ -14281,11 +14320,12 @@
         "nextAfter()": "<inferred>",
         "open()": "<inferred>",
         "rejected()": "anyerror",
+        "selectAccess()": "<inferred>",
         "validateCurrent()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 9,
+        "try": 11,
         "catch": 7
       },
       "imports": [
@@ -25315,7 +25355,7 @@
         "InvalidTableReceipt": 2,
         "InvalidTableRowReference": 22,
         "InvalidTableSegment": 2,
-        "InvalidTableSnapshotCursor": 4,
+        "InvalidTableSnapshotCursor": 6,
         "InvalidTableStatementIntent": 1,
         "LostAcknowledgement": 1,
         "OutOfMemory": 2,
@@ -25364,7 +25404,7 @@
           "wal",
           "segment"
         ],
-        "readRowWithSchema().mode": [
+        "ReadMode": [
           "point",
           "group"
         ]
@@ -25430,6 +25470,7 @@
         "readCurrent()": "<inferred>",
         "readHistoryFrame()": "<inferred>",
         "readRow()": "<inferred>",
+        "readRowWithColumns()": "<inferred>",
         "readRowWithSchema()": "<inferred>",
         "readSnapshot()": "<inferred>",
         "ready()": "<inferred>",
@@ -25448,8 +25489,10 @@
         "scanCurrent()": "<inferred>",
         "scanHistory()": "<inferred>",
         "scanRetainedRoot()": "<inferred>",
+        "scanRootColumns()": "<inferred>",
         "scanRootRows()": "<inferred>",
         "scanSnapshot()": "<inferred>",
+        "scanSnapshotColumns()": "<inferred>",
         "scope()": "<inferred>",
         "segmentKey()": "<inferred>",
         "stageSegment()": "<inferred>",
@@ -25460,7 +25503,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 463,
+        "try": 474,
         "catch": 9
       },
       "imports": [

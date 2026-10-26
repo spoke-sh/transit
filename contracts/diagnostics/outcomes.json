@@ -9710,6 +9710,13 @@
           "actions": [
             "contact_operator"
           ]
+        },
+        "InvalidProjection": {
+          "code": "catalog.invalid_projection",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
         }
       },
       "mapping_boundary": "direct-catalog-caller"

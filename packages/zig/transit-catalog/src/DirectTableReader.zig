@@ -84,6 +84,16 @@ consumed: u64 = 0,
 complete: bool = false,
 released: bool = false,
 history_point: ?P.HistoryPoint = null,
+projection: ?f.TableProjection = null,
+projection_wire: [f.TableSchema.max_columns]u16 = undefined,
+
+/// Select physical input columns before traversal. The source descriptor stays
+/// complete; returned FTR1 rows use the canonical projected Table layout.
+pub fn selectColumns(self: *Self, columns: []const u8) !void {
+    if (self.after != null or self.consumed != 0 or self.complete or self.released or self.history_point != null) return error.InvalidTableCursor;
+    self.projection = try f.TableProjection.init(self.schema.schema, columns);
+    for (columns, self.projection_wire[0..columns.len]) |index, *wire| wire.* = index;
+}
 
 /// Opening inspects an existing pin. Retain `snapshot` separately so an open
 /// failure never loses the durable handle needed for retry or explicit release.
@@ -145,12 +155,14 @@ pub fn check(self: *const Self, client: c.DirectTableClient) !void {
     if (!std.meta.eql(self.basis, Basis.from(source))) return error.InvalidTableResponse;
 }
 fn scanAction(self: *const Self, after: ?P.SnapshotCursor, limits: P.ReadLimits) w.Action {
+    if (self.projection) |*selected| return .{ .column_scan = .{ .snapshot = self.basis.snapshot, .columns = self.projection_wire[0..selected.len], .after = after, .limits = limits } };
     return if (self.history_point) |point|
         .{ .history_scan = .{ .source = .{ .object = self.basis.snapshot.object, .point = point }, .after = after, .limits = limits } }
     else
         .{ .scan = .{ .snapshot = self.basis.snapshot, .after = after, .limits = limits } };
 }
 fn cursorSource(self: *const Self) !d.Content {
+    if (self.projection) |*selected| return selected.cursorSource(self.basis.snapshot.handle.content);
     return if (self.history_point) |point| point.cursorSource() else self.basis.snapshot.handle.content;
 }
 /// A failed exchange, invalid page or decode failure leaves traversal progress
@@ -292,12 +304,14 @@ fn decodePage(self: *const Self, page: w.Page, limits: P.ReadLimits, after: ?P.S
     errdefer batch.deinit();
     var encoded_bytes: u64 = 0;
     var previous: ?[f.TableRow.Identity.encoded_bytes]u8 = if (after) |cursor| cursor.after else null;
+    var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
+    const row_schema = if (self.projection) |*selected| try selected.projectedSchema(self.schema.schema, &columns) else self.schema.schema;
     for (page.rows, 0..) |binary, i| {
         const bytes = try binary.decode(self.allocator, f.TableRow.max_bytes);
         defer self.allocator.free(bytes);
         encoded_bytes += bytes.len;
         if (encoded_bytes > limits.encoded_bytes) return error.InvalidTableResponse;
-        batch.rows[i] = try f.TableRow.decode(self.allocator, self.schema.schema, bytes);
+        batch.rows[i] = try f.TableRow.decode(self.allocator, row_schema, bytes);
         batch.count += 1;
         const identity = try batch.rows[i].?.identity.encode();
         if (previous) |before| if (std.mem.order(u8, &identity, &before) != .gt) return error.InvalidTableResponse;
@@ -330,6 +344,16 @@ fn rangeAllocationFailures(allocator: std.mem.Allocator, connection: w.Connectio
     defer batch.deinit();
     try std.testing.expectEqual(@as(u64, 0), reader.consumed);
 }
+fn projectionAllocationFailures(allocator: std.mem.Allocator, connection: w.Connection, source: w.Source, first: w.Page, final: w.Page) !void {
+    var reader = try init(allocator, connection, source);
+    defer reader.deinit();
+    try reader.selectColumns(&.{0});
+    var prefix = try reader.consume(first, .{});
+    defer prefix.deinit();
+    var ending = try reader.consume(final, .{});
+    defer ending.deinit();
+    try std.testing.expect(reader.complete and reader.consumed == 3);
+}
 
 test "retained reader binds pages, complete consumption and original schema without advancing failed reads" {
     const t = std.testing;
@@ -337,8 +361,8 @@ test "retained reader binds pages, complete consumption and original schema with
     defer arena.deinit();
     const alloc = arena.allocator();
     const connection: w.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .principal = 4, .role = null, .audience = 5 };
-    const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "value", .type = .binary }};
-    const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns };
+    const columns = [_]f.TableSchema.Column{ .{ .id = 1, .name = "value", .type = .binary }, .{ .id = 2, .name = "unused", .type = .int64 } };
+    const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 3, .columns = &columns };
     var declaration = try c.storage.TableDeclaration.prepare(alloc, .{ .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .revision = 1, .schema = schema, .properties = "" });
     defer declaration.deinit();
     var scratch: [65536]u8 = undefined;
@@ -353,7 +377,7 @@ test "retained reader binds pages, complete consumption and original schema with
     };
     var reader = try init(t.allocator, connection, source);
     defer reader.deinit();
-    const cells = [_]f.Types.Values.Cell{.{ .value = .{ .atom = .{ .bytes = "\x00\xff\x80" } } }};
+    const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "\x00\xff\x80" } } }, .null };
     var binary: [3]w.Binary = undefined;
     var lengths: [3]u32 = undefined;
     for (&binary, &lengths, 0..) |*encoded, *length, i| {
@@ -475,4 +499,44 @@ test "retained reader binds pages, complete consumption and original schema with
     var different = try initHistory(t.allocator, connection, .{ .point = different_point, .source = source });
     defer different.deinit();
     try t.expectError(error.InvalidTableResponse, different.consume(historical_first, .{}));
+
+    var projected = try init(t.allocator, connection, source);
+    defer projected.deinit();
+    try projected.selectColumns(&.{0});
+    try t.expectEqual(@as(usize, 2), projected.schema.schema.columns.len);
+    var projected_columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
+    const projected_schema = try projected.projection.?.projectedSchema(schema, &projected_columns);
+    var projected_binary: [3]w.Binary = undefined;
+    var projected_lengths: [3]u32 = undefined;
+    for (&projected_binary, &projected_lengths, 0..) |*encoded, *length, i| {
+        const row: f.TableRow.Row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = @intCast(i) }, .cells = cells[0..1] };
+        const bytes = try row.encode(projected_schema, &scratch);
+        encoded.* = try w.Binary.encode(alloc, bytes);
+        length.* = @intCast(bytes.len);
+    }
+    var projected_first = first;
+    projected_first.rows = projected_binary[0..1];
+    projected_first.encoded_bytes = projected_lengths[0];
+    projected_first.next.?.source = try projected.cursorSource();
+    try t.expectError(error.InvalidTableResponse, projected.consume(first, .{}));
+    var projected_batch = try projected.consume(projected_first, .{});
+    defer projected_batch.deinit();
+    try t.expectError(error.InvalidTableCursor, projected.selectColumns(&.{1}));
+    try t.expectEqual(@as(usize, 1), projected_batch.rows[0].?.row().cells.len);
+    // Complete-source metadata cannot turn an incomplete prefix into coverage.
+    var projected_final = final;
+    projected_final.rows = projected_binary[1..2];
+    projected_final.encoded_bytes = projected_lengths[1];
+    try t.expectError(error.InvalidTableResponse, projected.consume(projected_final, .{}));
+    try t.expectEqual(@as(u64, 1), projected.consumed);
+    projected_final.rows = projected_binary[1..];
+    projected_final.encoded_bytes = projected_lengths[1] + projected_lengths[2];
+    try t.checkAllAllocationFailures(t.allocator, projectionAllocationFailures, .{ connection, source, projected_first, projected_final });
+    var projected_end = try projected.consume(projected_final, .{});
+    defer projected_end.deinit();
+    try t.expect(projected.complete and projected.consumed == 3);
+    try t.expectEqualStrings("\x00\xff\x80", projected_batch.rows[0].?.row().cells[0].value.atom.bytes);
+    projected.released = true;
+    try t.expectError(error.InvalidTableResponse, projected.decodePage(projected_final, .{}, projected_first.next));
+    try t.expectError(error.InvalidTableCursor, historical.selectColumns(&.{0}));
 }
