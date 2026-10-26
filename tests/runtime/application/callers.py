@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import threading
 import time
 from harness.ursula import Fixture
@@ -243,3 +244,7 @@ def run(node, cli, counter, byte_log, probe, delivery):
                 child.wait(timeout=10)
             for log in logs:
                 log.close()
+
+
+if __name__ == '__main__':
+    run(*(Path(path).resolve() for path in sys.argv[1:]))

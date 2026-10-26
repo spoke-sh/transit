@@ -1878,7 +1878,9 @@ pub fn build(b: *std.Build) void {
     state_api.has_side_effects = true;
     state_api.stdio = .inherit;
     b.step("test-state", "Prove state resources through the public service").dependOn(&state_api.step);
-    const callers = b.addSystemCommand(&.{ "python3", "-B", "-c", "import sys; sys.path.insert(0, 'tests'); from pathlib import Path; from callers import run; run(*[Path(p).resolve() for p in sys.argv[1:]])" });
+    const callers = b.addSystemCommand(&.{ "python3", "-B" });
+    callers.addFileArg(b.path("tests/runner/launch.py"));
+    callers.addFileArg(b.path("tests/runtime/application/callers.py"));
     // Both callers use the exact same authority and public CLI artifacts.
     callers.addArtifactArg(node_artifact);
     callers.addArtifactArg(cli_artifact);
