@@ -152,9 +152,13 @@ of layout and SIMD optimizations.
 ### T4. Transaction decisions, isolation and atomic outbox publication
 
 Candidate: the discussion's `TransactionSSI.tla`, renamed for the chosen protocol.
-The initial planned local profile selects whole-object optimistic validation;
-SSI is a possible later mechanism. Model begin/read/private write, absent-key or
-predicate dependencies, savepoints, participant preparation, the common decision,
+The initial planned local profile in [Milestone 5](05-transactions-and-atomic-composition.md)
+selects whole-object optimistic validation, while [Milestone 8](08-indexing-and-access-paths.md)
+and [Milestone 15](15-storage-providers-and-concurrency.md) escalate read-write
+concurrency to fine-grained key-range and predicate-level Serializable Snapshot
+Isolation (SSI / index-range `rw-antidependency` tracking). Model begin/read/private write,
+absent-key, index-range or predicate dependencies, cross-table `FOREIGN KEY` and
+`CHECK` constraints, savepoints, participant preparation, the common decision,
 commit/abort races, lost replies and recovery under replacement ownership.
 
 Check read-your-writes, atomic visibility within the declared domain, the selected
@@ -324,11 +328,18 @@ formal encoding functions.
 
 Candidate: `PolicyLattice.lean`, after the enterprise policy contract settles.
 Model authenticated actor, represented subject, scope/audience, delegation chain,
-current membership/grants and target policy distinctly. Establish attenuation:
+current membership/grants, declarative Row-Level Security (RLS) security-barrier
+predicates, Column-Level Security (CLS) / dynamic masking rules and target policy
+distinctly. Establish attenuation:
 delegated permissions are contained in the currently permitted subject actions
 and every applicable delegation restriction, with any actor checks required by
-the contract. Define monotonicity only for specified inputs/orderings; revocation
-and explicit restrictions do not make the whole policy evaluator monotone.
+the contract. Prove **security-barrier non-interference** for RLS and masking in
+conjunction with A1 (`FuzeRewrite.lean`): query rewrites, filter pushdown,
+zone-map/index statistics and eager 5-state `type_error` or checked-arithmetic
+failures must never evaluate untrusted user predicates or leak error side-channels
+from rows or columns excluded by the caller's policy at `policy_epoch`. Define
+monotonicity only for specified inputs/orderings; revocation and explicit
+restrictions do not make the whole policy evaluator monotone.
 
 Prove that delegated agents cannot borrow human-only approval authority and that
 protected destinations cannot be changed through an equivalent direct-write

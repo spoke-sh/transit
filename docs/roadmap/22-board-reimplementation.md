@@ -91,9 +91,12 @@ or agent activation require their own contracts.
    Profiles identify their population, source basis and excluded states; a
    preview cap is not whole-dataset coverage. Keep logical type, physical codec and collation
    separate, with deeper detail on demand. Focus graphs on a selected
-   neighborhood. Distinguish declared relationships, unverified join candidates
-   and computation dependencies; name/type similarity proves neither a foreign
-   key nor cardinality. Inserting generated SQL edits a draft and does not run it.
+   neighborhood. Distinguish declared `FOREIGN KEY` and `CHECK` constraints,
+   partitioning/clustering keys (`PARTITION BY`, `CLUSTER BY`), active Row-Level
+   Security (RLS) and dynamic column-masking attribution, unverified join
+   candidates and computation dependencies; name/type similarity proves neither a
+   foreign key nor cardinality. Inserting generated SQL edits a draft and does not
+   run it.
 4. **Deliver durable workbooks over shared statement and investigation owners.**
    Combine narrative, SQL cells and their attributable outputs. Define workbook
    identity, save/concurrency behavior, sharing/disclosure and retained result
@@ -118,9 +121,11 @@ or agent activation require their own contracts.
    outcomes separate. Mark unknown or incomplete coverage rather than inventing
    dependencies or freshness. Preserve existing process/resource, ownership,
    history and connector inspection as reachable operational views. Add
-   replication/recovery or other operational detail only through qualified
-   public inspection operations; no provider/storage access or new administrative
-   power is implied by an Operations screen.
+   replication/recovery, segment compaction/tombstone ratios, CDC ingress
+   watermarks, Workload Management (WLM) resource-group queues and erasure audit
+   evidence only through qualified public inspection operations; no
+   provider/storage access or new administrative power is implied by an
+   Operations screen.
 7. **Implement separate change and review workflows.** Present DDL admissibility
    with exact statement/catalog evidence and registered blockers. Present branch
    proposals with base/source/target identities, typed diffs/conflicts, impact

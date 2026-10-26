@@ -162,6 +162,14 @@ bottlenecks keeping interactive SQL and server workflows slow:
    through the accepted direct path. Integrate WAL/memtable writes and bulk
    segment publication, exact schema/source bindings, current access and the
    bounded reader from [#128](https://github.com/spoke-sh/transit/issues/128).
+   Evaluate compatible `ALTER TABLE` schema evolutions (`ADD COLUMN`,
+   `DROP COLUMN`, nullable/default projection) lazily on read by projecting each
+   immutable `.tseg` segment's recorded `DefinitionId` and 5-state `missing` cells
+   into the requested table definition, avoiding synchronous full-table segment
+   rewrites on the interactive DDL path while deferring physical rewrites to
+   background compaction or the phased online rewrite contract in
+   [historical catalogs](07-standards-and-catalogs.md) and
+   [online maintenance](08-indexing-and-access-paths.md).
    Remove pre-commit mirrors, dummy leases/time, swallowed errors and borrowed
    command memory. Retire superseded Table staging/storage consumers through
    #112 rather than shipping dual writable authorities or silent fallbacks.

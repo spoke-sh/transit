@@ -78,21 +78,21 @@ combines that evidence at one revision.
 | --- | --- | --- | --- |
 | 1 | [Data identities, declarations and commit contracts](01-declarative-data-lifecycle.md) | In Progress ([#108](https://github.com/spoke-sh/transit/issues/108)) | Neutral data/definition identities, lifecycle operations, atomic-domain/isolation decisions and snapshot contracts before dependent formats |
 | 2 | [Local durable storage, `.tseg` segments and bounded queries](02-storage-and-query-performance.md) | In Progress ([#109](https://github.com/spoke-sh/transit/issues/109)) | Durable native local WAL/object storage across all owners, bounded segments/readers, logical history, codecs/collations and safe local publication |
-| 3 | [Executable data lifecycles and live storage/SQL cutover](03-live-storage-and-sql-cutover.md) | In Progress ([#110](https://github.com/spoke-sh/transit/issues/110)) | Installed direct Table and named KV/Document/computation lifecycles, local storage/SQL wiring and exact restart recovery |
+| 3 | [Executable data lifecycles and live storage/SQL cutover](03-live-storage-and-sql-cutover.md) | In Progress ([#110](https://github.com/spoke-sh/transit/issues/110)) | Installed direct Table and named KV/Document/computation lifecycles, lazy `.tseg` schema projection, local storage/SQL wiring and exact restart recovery |
 | 4 | [SQL statement results and client consumption](04-statement-results-and-consumption.md) | Planned | Shared command/result lifecycle, bounded batches/readers, verified completion and explicit transaction attribution |
 | 5 | [Transactions, consistent snapshots and atomic composition](05-transactions-and-atomic-composition.md) | Planned | Consistent reads, supported multi-object SQL/SDK transactions, savepoints, durable commit recovery and transactional outbox |
 | 6 | [Shared client foundation and language-native APIs](06-client-foundation-and-language-apis.md) | Planned | Reusable data packages, bounded shared client infrastructure and idiomatic direct APIs before SDK expansion |
-| 7 | [Standards, collations and historical catalogs](07-standards-and-catalogs.md) | Planned | Capability evidence, collation-preserving history and exact retained catalog/data interpretation |
-| 8 | [Indexing model, access paths and online maintenance](08-indexing-and-access-paths.md) | Planned | Shared index definitions, bounded ordered/covering/partial access, transactional maintenance, recoverable builds and exact historical coverage |
+| 7 | [Standards, collations and historical catalogs](07-standards-and-catalogs.md) | Planned | Capability evidence, declarative `CHECK`/`FOREIGN KEY` catalog bindings, collation-preserving history and exact retained catalog/data interpretation |
+| 8 | [Indexing model, access paths and online maintenance](08-indexing-and-access-paths.md) | Planned | Shared index definitions, bounded ordered/covering/partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement and recoverable online index/table builds |
 
 ### Phase II: Data composition, performance and interface coverage
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 9 | [Managed computations and WAL-activated dataflows](09-sql-and-dataflows.md) | Planned | Relational composition, prepared plans and WAL-driven managed computations respecting complete transaction boundaries |
-| 10 | [Data structures, query optimization and runtime performance](10-data-structures-and-performance.md) | Planned | Measured structures, statistics and plan selection, durable runtime optimization, comparative workload scorecards and regression budgets |
-| 11 | [Multi-model and multi-format foreign relations](11-multi-model-and-foreign-relations.md) | Planned | Document/graph projections, foreign formats and typed COPY/import/export through shared ingestion and result contracts |
-| 12 | [Branches, merges and restore](12-branches-merges-and-restore.md) | Planned | Durable multi-commit branches, logical three-way merge and forward restore under current authority |
+| 9 | [Managed computations and WAL-activated dataflows](09-sql-and-dataflows.md) | Planned | Complete analytical SQL (window functions, CTEs, subqueries, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress and WAL-driven managed computations |
+| 10 | [Data structures, query optimization and runtime performance](10-data-structures-and-performance.md) | Planned | Measured structures, statistics/costing, declarative partitioning/clustering keys, LSM/`.tseg` compaction bounds, scan-resistant caching and comparative workload scorecards |
+| 11 | [Multi-model and multi-format foreign relations](11-multi-model-and-foreign-relations.md) | Planned | Document/graph projections, native BM25 full-text and vector/hybrid search, foreign formats, streaming CDC ingress and typed COPY/import/export |
+| 12 | [Branches, merges and restore](12-branches-merges-and-restore.md) | Planned | Durable multi-commit branches, logical three-way merge with `FOREIGN KEY`/`CHECK` verification, branch-aware compaction/GC and forward restore under current authority |
 | 13 | [Service and SDK coverage](13-service-and-sdk-coverage.md) | In Progress | Preserved Go raw/console slices and broader service, language, type and platform coverage over the shared API foundation |
 | 14 | [Formal semantics and implementation correspondence](14-formal-semantics-and-correspondence.md) | Planned | Selected temporal models and algebraic proofs over delivered local contracts, connected to production behavior before distributed extensions |
 
@@ -100,7 +100,7 @@ combines that evidence at one revision.
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 15 | [Storage providers and concurrent-writer qualification](15-storage-providers-and-concurrency.md) | Planned | Real provider/cache profiles, enforceable partitioned authority and concurrent-writer qualification |
+| 15 | [Storage providers and concurrent-writer qualification](15-storage-providers-and-concurrency.md) | Planned | Real provider/cache profiles, KMS/BYOK envelope encryption at rest, enforceable partitioned authority and distributed fine-grained concurrent-writer qualification |
 | 16 | [Replication and durable failover](16-replication-and-failover.md) | Planned | Complete replicated history, transaction decisions and objects, bounded catch-up and fenced failover |
 | 17 | [Operations, backup, restore and upgrades](17-operations-and-recovery.md) | Planned | Verified transaction-consistent backups/PITR, authority-safe disaster recovery, upgrades and operational workflows |
 | 18 | [Clustered execution and storage-disaggregated placement](18-clustered-execution.md) | Planned | Fenced placement changes and distributed queries preserving qualified transaction, replication and operational contracts |
@@ -109,7 +109,7 @@ combines that evidence at one revision.
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 19 | [Enterprise identity and the Control & Policy Plane](19-control-and-policy-plane.md) | Planned | Trusted enterprise identity, membership freshness, bounded delegation and shared branch/publication policy |
+| 19 | [Enterprise identity and the Control & Policy Plane](19-control-and-policy-plane.md) | Planned | Trusted enterprise identity, security-barrier RLS, dynamic column masking, GDPR crypto-shredding/purge, Hierarchical Workload Management (WLM) and shared branch/publication policy |
 | 20 | [Published business resources and consistent investigations](20-published-resources-and-investigations.md) | Planned | Deliberate resource exposure, disclosure policy and retained multi-call investigation bases |
 | 21 | [Versioned proposals and reviewed publication](21-reviewed-data-collaboration.md) | Planned | Comparable branch proposals, branching-only policy and exact reviewed publication |
 | 22 | [Board reimplementation and data-first workbench](22-board-reimplementation.md) | Planned | Installed catalog, previews, workbooks, lineage and governed change workflows over shared contracts, with bounded accessible UI and preserved operational inspection |
@@ -119,7 +119,7 @@ combines that evidence at one revision.
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
 | 23 | [MCP service and interactive Apps](23-mcp-service-and-apps.md) | Planned | Authenticated agent access and optional Apps over shared published capabilities |
-| 24 | [Reactive context, subscriptions and agent activation](24-reactive-context-and-agent-activation.md) | Planned | Meaningful change conditions, durable interests and version-bound context through subscriptions/tasks |
+| 24 | [Reactive context, subscriptions and agent activation](24-reactive-context-and-agent-activation.md) | Planned | Meaningful change conditions, durable interests and governed version-bound hybrid context through subscriptions/tasks |
 | 25 | [Recorded outbound MCP and application guidance](25-recorded-mcp-integrations.md) | Planned | Governed outbound MCP, captured observations, network-free replay and reviewed application guidance |
 | 26 | [Language-native programming model and mixed application composition](26-programming-model.md) | Planned | Complete language-native direct, Station and mixed composition over the earlier client/transaction foundation |
 
@@ -150,15 +150,15 @@ evidence rather than assuming every preceding number is a technical dependency.
 | I | Establish the local system | 2–3; #113–#116/#119/#120/#122/#124 | Qualify local disk storage, complete native persistence, direct Table and named resource/computation lifecycles; prove installed WAL-only commits, controlled flush, bounded reads and exact restart recovery without Ursula/MinIO |
 | I | Deliver statement and transaction experiences | 4–5 | Shared result lifecycle first; then supported multi-object transactions, consistent reads, savepoints, isolation/decision evidence and outbox recovery. Design provisional results and commit attribution together |
 | I | Establish the application API foundation | 6 | Extract shared data packages, compose bounded client/host infrastructure and qualify representative installed language APIs with original-operation recovery before SDK expansion |
-| I | Retain exact data interpretation | 7 | Qualify historical catalog/data bindings, collation and encoding fidelity, current permissions and explicit capability evidence over the earlier snapshot contracts |
-| I | Declare and maintain indexes | 8 | Qualify ordered, covering and partial access, transaction/constraint maintenance, online build recovery and snapshot-specific coverage through shared callers |
-| II | Maintain declared computations | 9 | Qualify service-owned activation, complete-commit change consumption, bounded operator state and recovered completed revisions |
-| II | Optimize database and runtime work | 10 | Establish workload/competitor baselines and numeric budgets, compare structures, deliver statistics/planning and runtime improvements, and pass installed correctness/resource/performance gates |
-| II | Compose data models and history | 11–12 | Qualify foreign COPY/projections, multi-commit branches and conditional forward publication with index coverage/constraint evidence and measured costs |
+| I | Retain exact data interpretation | 7 | Qualify historical catalog/data bindings, declarative `CHECK`/`FOREIGN KEY` constraints, lazy `.tseg` schema projection, collation and encoding fidelity, current permissions and explicit capability evidence over the earlier snapshot contracts |
+| I | Declare and maintain indexes | 8 | Qualify ordered, covering and partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement, online index/table build recovery and snapshot-specific coverage through shared callers |
+| II | Maintain declared computations | 9 | Qualify complete analytical SQL (windows, CTEs, subqueries, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress, service-owned activation, complete-commit change consumption, bounded operator state and recovered completed revisions |
+| II | Optimize database and runtime work | 10 | Establish workload/competitor baselines and numeric budgets, compare structures, deliver statistics/planning, partitioning/clustering keys, LSM/`.tseg` compaction bounds, scan-resistant caching and runtime improvements, and pass installed correctness/resource/performance gates |
+| II | Compose data models and history | 11–12 | Qualify foreign COPY/projections, streaming CDC ingress, native BM25 full-text and vector/hybrid search, multi-commit branches, branch-aware compaction/GC and conditional forward publication with `FOREIGN KEY`/uniqueness/constraint evidence and measured costs |
 | II | Expand qualified interfaces | 13 | Extend the language/service/platform matrix over the existing foundation; preserve delivered Go raw and console evidence and reject unsupported transaction/feed profiles |
 | II | Establish formal semantics and correspondence | 14 | Select settled local contracts, execute temporal/algebraic checks with implementation replay or independent fixtures, challenge them with negative controls and assign later extensions |
-| III | Qualify distributed infrastructure | 15–18 | Real providers and writer fencing/OCC, then replication, backup/PITR/upgrade procedures and automatic placement/distributed queries; repeat transaction and native-owner recovery across each failure profile |
-| IV | Establish governed collaboration contracts | 19–21 | Enterprise identity, published resources/investigations and exact reviewed publication through independently usable public owners |
+| III | Qualify distributed infrastructure | 15–18 | Real providers, KMS/BYOK envelope encryption at rest and writer fencing/fine-grained distributed SSI, then replication, backup/PITR/upgrade procedures and automatic placement/distributed queries; repeat transaction and native-owner recovery across each failure profile |
+| IV | Establish governed collaboration contracts | 19–21 | Enterprise identity, security-barrier RLS, dynamic column masking, GDPR crypto-shredding/purge, Hierarchical Workload Management (WLM), published resources/investigations and exact reviewed publication through independently usable public owners |
 | IV | Reimplement the Board workbench | 22 | Deliver the installed data-first interface, bounded profiles/workbooks/lineage and separately authorized change review; preserve operational inspection and prove real browser/recovery journeys |
 | V | Extend agent-host interfaces and activation | 23–25 | MCP/Apps, reactive context and recorded outbound MCP over shared owners; no dependency on Board's frontend or configured credential |
 | V | Prove complete application composition | 26 | Installed direct, Station and all mixed capabilities in every claimed language; transaction/turn/checkpoint/effect boundaries and recovery remain explicit |
@@ -169,6 +169,84 @@ Track first-three-milestone acceptance and explicitly transferred scope through
 this sequence; retain original diagnoses, delivered evidence and incomplete
 checks. #123 corrects current documentation as implementation changes, and #124
 owns traceable installed acceptance. No planning edit changes their runtime status.
+
+## Enterprise database and governance review — 2026-10-25
+
+An architectural review of the 28-milestone plan against enterprise HTAP,
+zero-copy branching and governed multi-agent database requirements identified
+ten capabilities that needed explicit ownership within the existing sequence:
+
+1. **Fine-grained Serializable Snapshot Isolation (SSI / key-range conflict tracking):**
+   [Milestone 5](05-transactions-and-atomic-composition.md) retains conservative
+   whole-Table read conflict validation for its initial local slice, while
+   [Milestone 8](08-indexing-and-access-paths.md) and
+   [Milestone 15](15-storage-providers-and-concurrency.md) explicitly own the
+   progression to index-range and predicate-level conflict detection so concurrent
+   read-write transactions touching disjoint keys on shared Tables commit without
+   false whole-Table aborts.
+2. **LSM/`.tseg` compaction invariants, branch-aware GC and multi-dimensional clustering:**
+   [Milestone 10](10-data-structures-and-performance.md) owns leveled/size-tiered
+   `.tseg` overlap bounds ($K_{\max}$), `.tdel` tombstone compaction thresholds
+   and declarative `PARTITION BY` / `CLUSTER BY` (including Z-order/Hilbert sort
+   keys decoupled from primary keys); [Milestone 12](12-branches-merges-and-restore.md)
+   owns branch-aware compaction and shared-segment garbage collection watermarks.
+3. **Security-barrier Row-Level Security (RLS), Column-Level Security (CLS) / dynamic masking and GDPR crypto-shredding:**
+   [Milestone 15](15-storage-providers-and-concurrency.md) owns authenticated
+   encryption at rest and KMS/BYOK per-tenant/per-subject envelope encryption over
+   `TransitLog` and `.tseg`/`.tdel` objects;
+   [Milestone 19](19-control-and-policy-plane.md) owns security-barrier RLS
+   (preventing side-channel leakage via 5-state `type_error`, division-by-zero or
+   zone-map/index statistics), dynamic column masking and auditable cross-branch
+   crypto-shredding/purge workflows.
+4. **Declarative `FOREIGN KEY` and `CHECK` relational integrity:**
+   [Milestone 7](07-standards-and-catalogs.md) owns catalog bindings and dependency
+   graphs for `CHECK` and `FOREIGN KEY` constraints;
+   [Milestone 8](08-indexing-and-access-paths.md) owns index-backed transaction
+   enforcement; and [Milestone 12](12-branches-merges-and-restore.md) validates
+   referential integrity across 3-way branch merges.
+5. **First-class bitemporal SQL (`AS OF JOIN` and application-time periods):**
+   [Milestone 9](09-sql-and-dataflows.md) and
+   [Milestone 10](10-data-structures-and-performance.md) pair `FOR SYSTEM_TIME AS OF`
+   with declarative valid-time periods (`PERIOD FOR valid_time`) and streaming
+   $O(N + M)$ `AS OF JOIN` merge execution so point-in-time backtesting and
+   decision audits never leak later corrections into earlier simulated decisions.
+6. **Complete analytical SQL and deterministic in-engine UDFs:**
+   [Milestone 9](09-sql-and-dataflows.md) and
+   [Milestone 10](10-data-structures-and-performance.md) explicitly enumerate
+   multi-way/non-equi/`SEMI`/`ANTI`/`LATERAL` joins, correlated subquery
+   decorrelation, window functions (`OVER (...)` / `QUALIFY`), CTEs (`WITH` /
+   bounded `WITH RECURSIVE`), set operations, rich aggregates, external NVMe
+   spill and sandboxed scalar/table UDFs (SQL macros and deterministic Wasm
+   kernels running over `Fuze` vectors without actor-mailbox round-trips).
+7. **Native segment-backed Full-Text Search (BM25) and Vector / Hybrid Retrieval:**
+   [Milestone 11](11-multi-model-and-foreign-relations.md) and
+   [Milestone 24](24-reactive-context-and-agent-activation.md) own immutable
+   inverted full-text segments (BM25) and `.tseg` vector/ANN similarity indexes
+   so lexical, semantic and relational queries execute under a single `SnapshotId`,
+   branch and `policy_epoch` without exporting data to external search/vector stores.
+8. **Hierarchical Workload Management (WLM) and scan-resistant caching:**
+   [Milestone 10](10-data-structures-and-performance.md) owns scan-resistant
+   buffer-pool/NVMe eviction (2Q/ARC/W-TinyLFU) and background I/O token buckets;
+   [Milestone 19](19-control-and-policy-plane.md) owns multi-tenant WLM resource
+   groups isolating OLTP writes, interactive Board/SQL queries, continuous
+   dataflows, background compaction and autonomous MCP agent bursts.
+9. **Lazy `.tseg` schema projection and online phased table rewrites:**
+   [Milestone 3](03-live-storage-and-sql-cutover.md) and
+   [Milestone 7](07-standards-and-catalogs.md) project historical `.tseg`
+   `DefinitionId` layouts and 5-state `missing`/default cells lazily on read for
+   compatible `ALTER TABLE` operations, while
+   [Milestone 8](08-indexing-and-access-paths.md) executes physical type/collation
+   rewrites through the recoverable online snapshot-to-tail lifecycle.
+10. **Continuous Change Data Capture (CDC) ingress and `CHANGES(...)` SQL egress:**
+    [Milestone 9](09-sql-and-dataflows.md) exposes committed deltas via a
+    `CHANGES(table, ...)` table-valued function, and
+    [Milestone 11](11-multi-model-and-foreign-relations.md) delivers governed
+    streaming CDC ingress adapters (PostgreSQL logical replication, MySQL binlog,
+    Debezium/Kafka CDC envelopes) with watermark and checkpoint recovery.
+
+All 28 milestone numbers, phase boundaries and existing statuses remain unchanged.
+This planning update establishes delivery ownership and acceptance criteria, not
+implemented runtime support.
 
 ## Formal semantics and correspondence review — 2026-10-25
 

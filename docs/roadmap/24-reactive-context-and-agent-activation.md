@@ -10,11 +10,16 @@ the same versioned event without an open MCP connection owning the application.
 ## Prerequisites and scope
 
 Extend [managed computation scheduling](09-sql-and-dataflows.md),
+[native full-text, vector and hybrid retrieval](11-multi-model-and-foreign-relations.md),
+[enterprise RLS, masking and WLM governance](19-control-and-policy-plane.md),
 [published resources](20-published-resources-and-investigations.md),
 [proposal lifecycle](21-reviewed-data-collaboration.md) and the
 [MCP service](23-mcp-service-and-apps.md). Durable source/change semantics stay
 with their current owners; this milestone supplies consumer-specific conditions,
-context delivery and protocol projections. Reasoning loops remain applications.
+governed hybrid context assembly (combining relational/bitemporal filters, BM25
+full-text search and vector similarity under a single `SnapshotId`, branch and
+security-barrier `policy_epoch`), context delivery and protocol projections
+within the caller's WLM resource group. Reasoning loops remain applications.
 
 ## Delivery sequence
 

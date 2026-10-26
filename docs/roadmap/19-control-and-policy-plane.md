@@ -58,8 +58,39 @@ the shared plane validates the resulting authorization delegation.
    reject direct-write bypasses. Source/data versions do not freeze permissions.
    Policy inheritance, explicit restrictions and their composition with grants
    must be defined before exposing them; introduce no assumed deny semantics.
-6. **Expose bounded administration and explanation.** Show identity-binding and
-   policy provenance, effective permitted actions and attributable denials under
+6. **Enforce declarative Row-Level Security (RLS), Column-Level Security (CLS) and Dynamic Data Masking.**
+   Allow operators to declare fine-grained row-access policies (`CREATE POLICY ...
+   ON table USING (...) WITH CHECK (...)`) and column-level privileges or dynamic
+   masking transformations (redaction, partial masking, hash or `NULL` projection)
+   bound to `policy_epoch` and the shared access context (principal, role,
+   delegated actor/subject claims). Enforce RLS predicates as mandatory **security
+   barriers** inside `Fuze` query planning and execution: untrusted user
+   predicates, UDFs and eager 5-state `type_error` or checked-arithmetic failures
+   must never evaluate on—or leak side-channel existence/statistics via zone maps
+   or index probes for—rows excluded by an RLS policy. Apply RLS and column
+   masking consistently across SQL, Arrow Flight, SDKs, Board previews, incremental
+   dataflows and MCP adapters.
+7. **Deliver Right-to-Erasure (GDPR/CCPA) governance, crypto-shredding and audited purge workflows.**
+   Reconcile legal data erasure and tenant/subject offboarding with Transit's
+   immutable `.tseg` storage and unlimited-by-default retention. Combine
+   per-tenant/per-subject envelope encryption key destruction (crypto-shredding
+   over KMS/BYOK keys from [storage providers](15-storage-providers-and-concurrency.md))
+   with an explicitly authorized, auditable cross-branch and cross-snapshot purge
+   compaction workflow that tombstones and rewrites affected segments while
+   recording tamper-evident erasure receipts in the Control & Policy Plane without
+   silently resetting unrelated history.
+8. **Enforce Hierarchical Workload Management (WLM) and multi-tenant resource groups.**
+   Let operators declare workload classes and resource groups binding principals,
+   roles and work kinds (latency-sensitive OLTP transactions, interactive
+   Board/SQL sessions, continuous dataflows, background compaction/index builds
+   and autonomous MCP agent bursts) to explicit CPU shares, memory pool quotas,
+   concurrency slots, admission priorities and `TransitObjectStore`/NVMe I/O
+   bandwidth budgets. Guarantee that an analytical scan storm, compaction pass
+   or MCP agent burst cannot starve OLTP writes, interactive governance or the
+   reserved control/recovery capacity.
+9. **Expose bounded administration and explanation.** Show identity-binding and
+   policy provenance, effective permitted actions, active RLS/masking attribution,
+   erasure receipts, WLM resource-group utilization and attributable denials under
    current inspection rights. Reuse existing policy publication/recovery and
    migrate all adapters together when a current-v1 contract changes.
 
@@ -78,7 +109,11 @@ abstract lattice may introduce deny semantics or a second grant authority.
 Use an independent identity-provider fixture and real SQL/SDK/HTTP callers.
 Exercise issuer/subject collisions, wrong audience, rotation, expired credentials,
 stale groups, offboarding, provider outage, conflicting management sources,
-delegation attenuation and revocation between pages. An agent must fail to claim
+delegation attenuation, security-barrier RLS non-leakage (confirming that
+division-by-zero, `type_error` cells and zone-map/index statistics on unauthorized
+rows never leak through user predicates), dynamic column masking across SQL/Flight/MCP,
+crypto-shredding and audited cross-branch purge receipts, WLM resource-group isolation
+under concurrent agent/scan bursts and revocation between pages. An agent must fail to claim
 another subject or borrow its represented user's approval power. Prove that
 branch-only and protected-destination policies cannot be bypassed through a
 different adapter, including native operations. Inspect an original accepted

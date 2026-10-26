@@ -51,14 +51,27 @@ over those contracts, rather than introducing a second snapshot representation.
    collation recorded at the snapshot manifest, while checking authorization
    against the current `policy_epoch`. Moving a branch cannot change an accepted
    request's basis.
-5. **Expose historical inspection and explicit projections through shared operations:**
+5. **Define declarative relational integrity (`CHECK` and `FOREIGN KEY` constraints) and lazy vs. phased schema evolution:**
+   bind deterministic row-level `CHECK` expressions (preserving 5-state `type_error`
+   and `null` rules) and cross-table `FOREIGN KEY ... REFERENCES ...` declarations
+   (`RESTRICT`, `NO ACTION`, `CASCADE`, `SET NULL` on update/delete) to stable
+   `CatalogId`, `DefinitionId` and `ColumnId` identities in the catalog dependency
+   graph. Separate metadata- and projection-only `ALTER TABLE` evolutions—evaluated
+   lazily on read by projecting each historical `.tseg` segment's recorded
+   `DefinitionId` and 5-state `missing`/default cells into the active schema—from
+   physical type or collation rewrites, which must execute through the recoverable
+   online phased rewrite lifecycle in [Milestone 8](08-indexing-and-access-paths.md)
+   rather than blocking large tables with synchronous full-table rewrites.
+6. **Expose historical inspection and explicit projections through shared operations:**
    distinguish metadata permission from row/segment access and report exact
-   manifest provenance.
+   manifest provenance, constraint dependencies and per-segment schema projection
+   coverage.
 
 ## Boundaries and evidence
 
 Bind [index definitions and coverage](08-indexing-and-access-paths.md) to these
-same retained source/column identities and exact comparison/collation versions.
+same retained source/column identities, declared `FOREIGN KEY`/`CHECK` constraints
+and exact comparison/collation versions.
 Specify rejection or rebuild when an index cannot interpret a requested cut;
 current physical indexes are not automatically valid for historical queries.
 Register indexing DDL/access-method options as explicit Transit extensions with
@@ -73,7 +86,8 @@ revisions, `TransitLog` LSNs and snapshot manifest versions remain distinct type
 
 Qualify rename/drop/recreate, changed historical views, collation-sensitive
 historical comparisons (`EBCDIC` versus `UCS_BASIC`), unavailable/expired
-`.tseg` history, old-column success/new-column rejection, explicit projections,
-metadata-only rights, revocation after a prefix and branch movement after
-admission. Publish independent transition/canonical fixtures before implementing
-branch storage.
+`.tseg` history, lazy multi-version `.tseg` schema projection, declarative `CHECK`
+and `FOREIGN KEY` catalog bindings, old-column success/new-column rejection,
+explicit projections, metadata-only rights, revocation after a prefix and branch
+movement after admission. Publish independent transition/canonical fixtures before
+implementing branch storage.

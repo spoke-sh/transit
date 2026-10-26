@@ -80,21 +80,35 @@ does not supply a portable cross-vendor indexing grammar.
    Bound candidate-segment discovery, index pages, row fetches, batches and
    resident memory. Report overlapping-segment costs and cold/warm I/O; a fast
    per-segment index does not establish bounded table-wide lookup work.
-3. **Integrate transaction maintenance and recoverable online builds.** Keep
-   row changes, required index changes and constraint validation consistent with
-   the owning commit decision. Preserve absent-key/range conflicts and
-   read-your-writes; an index cannot choose the isolation algorithm. Build from
-   an exact pinned cut including committed unflushed WAL data, retain the
-   complete intervening changes, catch up and validate before conditional
-   publication of query eligibility. Use storage's snapshot-to-tail and commit
-   contracts directly; the later managed-dataflow scheduler is not a prerequisite.
+3. **Integrate transaction maintenance, fine-grained conflict tracking, referential integrity and recoverable online builds.**
+   Keep row changes, required index changes and constraint validation consistent
+   with the owning commit decision. Upgrade the local transaction validator from
+   [Milestone 5's](05-transactions-and-atomic-composition.md) conservative
+   whole-Table read conflict rule to **fine-grained key-range and predicate-level
+   Serializable Snapshot Isolation (SSI / index-range `rw-antidependency` tracking)**
+   over primary and secondary access paths so concurrent read-write transactions
+   touching disjoint keys or ranges on the same Table commit without false
+   whole-Table aborts while still preventing phantoms and write skew. Enforce
+   declarative row-level `CHECK` constraints and index-backed cross-table
+   `FOREIGN KEY` constraints (`RESTRICT`, `NO ACTION`, `CASCADE`, `SET NULL`) from
+   [Milestone 7](07-standards-and-catalogs.md) within the transaction domain,
+   requiring supporting parent/child indexes so parent deletes/updates and child
+   inserts validate without unindexed full-table scans or parent-delete /
+   child-insert races. Build secondary indexes and execute **online phased Table
+   rewrites** (for physical `ALTER TABLE` type or collation conversions that
+   cannot be satisfied by lazy `.tseg` schema projection) from an exact pinned
+   cut including committed unflushed WAL data, retain the complete intervening
+   changes, catch up and validate before conditional publication of query or
+   schema eligibility. Use storage's snapshot-to-tail and commit contracts
+   directly; the later managed-dataflow scheduler is not a prerequisite.
    Record original operation identity, durable progress, quotas and build-owner
    fencing. Define crash/resume, duplicate delivery, unavailable history,
-   cancellation races, failed uniqueness validation and concurrent schema changes.
-   An incomplete build never establishes complete query coverage. Any asynchronous
-   acceleration path must prove coverage of the requested cut or combine with
-   the complete committed delta; otherwise use another qualified path. Unique
-   constraint enforcement cannot lag behind accepted writes.
+   cancellation races, failed uniqueness or foreign-key validation and concurrent
+   schema changes. An incomplete build or table rewrite never establishes complete
+   query coverage. Any asynchronous acceleration path must prove coverage of the
+   requested cut or combine with the complete committed delta; otherwise use
+   another qualified path. Unique, `CHECK` and `FOREIGN KEY` constraint
+   enforcement cannot lag behind accepted writes.
 4. **Add covering and deterministic partial-index slices.** Define included
    payload columns separately from comparison keys and uniqueness. An index-only
    read must establish requested-version visibility and current authorization;
@@ -102,9 +116,11 @@ does not supply a portable cross-vendor indexing grammar.
    initial partial-predicate language to a documented, side-effect-free subset.
    Use a sound implication check before selecting it for a query; if implication
    is unknown, choose another path. Preserve error/five-state semantics and
-   validate updates that enter or leave the indexed subset. Expression-key,
-   inverted/document-path, spatial and approximate-vector indexes require their
-   own admitted profiles; they are not implied by these ordered-index slices.
+   validate updates that enter or leave the indexed subset. Expression-key and
+   spatial indexes require their own admitted profiles; segment-backed inverted
+   full-text (BM25) and vector/hybrid search indexes are owned by
+   [multi-model and foreign relations](11-multi-model-and-foreign-relations.md)
+   and [reactive agent context](24-reactive-context-and-agent-activation.md).
 5. **Integrate the planner and shared public operations.** Expose define, inspect,
    build/rebuild and retire/drop through owning typed operations and SQL adapters,
    using shared statement outcomes and original-operation recovery. Define DDL
@@ -132,8 +148,8 @@ does not supply a portable cross-vendor indexing grammar.
 | --- | --- |
 | Define and inspect | SQL and typed callers observe the same definition, accepted operation, build progress and terminal outcome; denial and unsupported combinations are explicit |
 | Query through each admitted access path | Independent full-scan oracle at the same cut agrees on values, multiplicity, specified order, errors and completion; include composite/collated keys, duplicates, empty results and all admitted cell states |
-| Change indexed data | Updates, deletes, private writes, aborts, savepoints, uniqueness races and absent-key/range conflicts preserve the selected transaction guarantee |
-| Build while serving | Concurrent committed changes, WAL-only rows, interrupted backfill/catch-up and lost replies produce no omitted or double-counted rows and recover the original operation |
+| Change indexed data | Updates, deletes, private writes, aborts, savepoints, uniqueness races, cross-table `FOREIGN KEY` and `CHECK` enforcement, and fine-grained key-range/predicate SSI conflict detection (committing concurrent disjoint-key read-write transactions while rejecting write skew and phantoms) preserve the selected transaction guarantee |
+| Build and rewrite while serving | Concurrent committed changes, WAL-only rows, interrupted index backfill/catch-up or phased online table rewrites and lost replies produce no omitted or double-counted rows and recover the original operation |
 | Use history and evolve layout | Rename/drop/recreate, collation changes, rebuild, compaction and deletion-vector replacement preserve old readers or explicitly reject unavailable history |
 | Exceed RAM and lose authority | Bounded build/scan/retirement work survives allocation/storage pressure, restart and revocation; no cached coverage or data grants access |
 

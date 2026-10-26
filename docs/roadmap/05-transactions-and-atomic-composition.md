@@ -72,8 +72,13 @@ executable syntax or implemented transaction support.
    predicate dependencies, absent keys, uniqueness, keyless row identities,
    collation-sensitive ranges, Document causal rules and schema changes.
    The foundation selects whole-object optimistic validation under ordered
-   participant guards for the first local Table profile. SSI and finer-grained
-   locking remain alternatives for later profiles; neither can weaken the
+   participant guards for the first local Table profile. Because whole-Table
+   read conflict detection aborts concurrent read-write transactions touching
+   disjoint keys on the same Table, [indexing and access paths](08-indexing-and-access-paths.md)
+   and [concurrent-writer qualification](15-storage-providers-and-concurrency.md)
+   explicitly own the progression to fine-grained key-range and predicate-level
+   Serializable Snapshot Isolation (SSI / index-range conflict tracking) over the
+   same transaction session and recovery contract; neither can weaken the
    declared anomaly rules without explicit caller selection and qualification.
 2. **Define transaction identity, session state and statement outcomes.** Specify
    begin, execute, inspect, commit, rollback and savepoint operations before their
@@ -139,15 +144,22 @@ executable syntax or implemented transaction support.
 ## Later owners and execution gates
 
 Define index-maintenance, constraint and DDL interactions with the
+[historical catalog](07-standards-and-catalogs.md) and
 [indexing owner](08-indexing-and-access-paths.md) before dependent formats.
 Every constraint advertised here must already be enforceable in the supported
-domain. The later indexing delivery adds secondary structures and online builds;
+domain, expanding from primary-key and `NOT NULL` checks to declarative row-level
+`CHECK` constraints and cross-table `FOREIGN KEY` referential integrity as those
+catalog and index slices land. The later indexing delivery adds secondary
+structures, online builds, index-backed `FOREIGN KEY` validation and fine-grained
+key-range/predicate conflict tracking (moving concurrent read-write transactions
+from conservative whole-Table read conflicts to key/range serializability);
 it cannot defer transaction correctness. Index-backed reads and private writes
-must preserve absent-key/range conflict tracking, uniqueness and savepoint/abort
-behavior. Distinguish constraint enforcement readiness from query eligibility;
-an asynchronously populated structure cannot authorize duplicate commits.
-Choose isolation mechanisms on their own evidence, not because a tree offers
-optimistic traversal. Include indexed/unindexed histories in later qualification.
+must preserve absent-key/range conflict tracking, referential integrity, uniqueness
+and savepoint/abort behavior. Distinguish constraint enforcement readiness from
+query eligibility; an asynchronously populated structure cannot authorize duplicate
+or referentially invalid commits. Choose isolation mechanisms on their own evidence,
+not because a tree offers optimistic traversal. Include indexed/unindexed and
+parent/child foreign-key histories in later qualification.
 
 [Historical catalogs](07-standards-and-catalogs.md) retain exact interpretation;
 [dataflows](09-sql-and-dataflows.md) consume complete transaction changes without
