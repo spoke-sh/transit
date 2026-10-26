@@ -1118,6 +1118,7 @@ pub fn build(b: *std.Build) void {
     b.step("test-server-sql-lifetimes", "Qualify idle SQL connections, native leases and partial frame deadlines").dependOn(&lifetime_test.step);
     inline for (.{ .{ "test-server-sql", "tests/interfaces/installation/server_sql.py" }, .{ "test-server-sql-faults", "tests/interfaces/installation/server_sql_faults.py" }, .{ "test-server-sql-local", "tests/interfaces/installation/server_sql_local.py" } }) |proof| {
         const run = b.addSystemCommand(&.{ "python3", "-B" });
+        run.addFileArg(b.path("tests/runner/launch.py"));
         run.addFileArg(b.path(proof[1]));
         if (comptime std.mem.eql(u8, proof[0], "test-server-sql-local")) {
             // Exercise the default installation users run from zig-out/bin,
