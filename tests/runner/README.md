@@ -66,3 +66,9 @@ exercises the actual packaged runtime and SQL gateway. Its input controls use
 small independent trees and the pinned Nix library; they do not compile a runtime
 and are not part of `just check fast`. The subsequent package builds qualify the
 selected real source trees. Neither check requalifies unrelated SDK languages.
+
+The [migration map](../../docs/roadmap/development-workflow-migration.json)
+accounts for the original test inventory. Layout checks reject missing or
+duplicate dispositions and changes to retained observation bytes. Use
+`python3 -B tests/runner/layout.py --complete` for the final destination audit;
+it fails while old paths or migration exceptions remain.

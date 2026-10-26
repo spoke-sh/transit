@@ -1,12 +1,13 @@
 """Exercise layout admission against actual added, deleted and moved files."""
 import json
+import hashlib
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
 
-from layout import validate
+from layout import validate, validate_migration
 
 ENTRY = Path(__file__).with_name("layout.py")
 
@@ -99,6 +100,52 @@ class Layout(unittest.TestCase):
         old.unlink()
         with self.assertRaisesRegex(AssertionError, "stale migration exceptions"):
             validate(self.root)
+
+    def migration(self):
+        first = self.write("old/one.log", "original failed observation\n")
+        second = self.write("old/two.py", "independent oracle\n")
+        baseline = dict(revision="basis", files=[dict(path=str(p.relative_to(self.root)),
+            sha256=hashlib.sha256(p.read_bytes()).hexdigest()) for p in (first, second)])
+        self.write("runner/baseline.json", json.dumps(baseline))
+        mapping = dict(version=1, baseline="tests/runner/baseline.json", baseline_revision="basis", files=[
+            dict(source="tests/old/one.log", destination="tests/runner/one.log", owner="runner", role="retained-observation"),
+            dict(source="tests/old/two.py", destination="tests/runner/two.py", owner="runner", role="oracle")])
+        return mapping
+
+    def check_migration(self, mapping, complete=False):
+        self.write("runner/migration.json", json.dumps(mapping))
+        validate_migration(self.root, "tests/runner/migration.json", ["runner"], complete)
+
+    def test_duplicate_destinations_and_missing_dispositions(self):
+        mapping = self.migration()
+        mapping["files"][1]["destination"] = mapping["files"][0]["destination"]
+        with self.assertRaisesRegex(AssertionError, "Duplicate migration destinations"):
+            self.check_migration(mapping)
+        mapping["files"].pop()
+        with self.assertRaisesRegex(AssertionError, "Missing or duplicate source"):
+            self.check_migration(mapping)
+
+    def test_evidence_bytes_survive_move_and_detect_edit(self):
+        mapping = self.migration()
+        self.check_migration(mapping)
+        (self.root / "tests/old/one.log").rename(self.root / "tests/runner/one.log")
+        self.check_migration(mapping)
+        self.write("runner/one.log", "passed\n")
+        with self.assertRaisesRegex(AssertionError, "Changed retained evidence"):
+            self.check_migration(mapping)
+
+    def test_complete_requires_destinations_and_removal_of_old_paths(self):
+        mapping = self.migration()
+        with self.assertRaisesRegex(AssertionError, "Unmigrated file"):
+            self.check_migration(mapping, complete=True)
+        for entry in mapping["files"]:
+            source = self.root / entry["source"]
+            (self.root / entry["destination"]).write_bytes(source.read_bytes())
+        with self.assertRaisesRegex(AssertionError, "Old migration path remains"):
+            self.check_migration(mapping, complete=True)
+        for entry in mapping["files"]:
+            (self.root / entry["source"]).unlink()
+        self.check_migration(mapping, complete=True)
 
 
 if __name__ == "__main__":
