@@ -293,6 +293,34 @@ on `fix/lifecycle-final-qualification`; combined qualification remains open.
 The separate hosted SQL lifetime failure now has bounded stderr diagnostics,
 but its historical cause is not yet established.
 
+### Close-out scope reconciliation — 2026-10-26
+
+The data plane accepts Table operations through its own WAL-backed owner;
+Station actors belong to application execution. Row storage, ingestion and
+scans must not acquire actor-turn or mailbox dependencies. The existing
+[foundation completion criteria](#completion-evidence) and the
+[installed integration owner](03-live-storage-and-sql-cutover.md#installed-lifecycle-integration)
+remain distinct. Broad repository checks reveal regressions, but do not make
+every application-runtime latency target a new lifecycle-foundation obligation.
+Their failed results must remain visible with an explicit owner and disposition.
+
+The shared local backend's private-object mutex correction supports both direct
+Table storage and native control persistence. It preserves the intended owner
+boundary and is not an optimization of the retired actor Table implementation.
+The reactive timeout, however, measures a serving application coordinating a
+direct Table mutation through its own durable application turns. A diagnostic
+with that correction observes the original accepted operation completing after
+17.917 seconds, beyond the fixture's ten-second assertion. It establishes neither
+a passing browser suite nor a direct Table latency measurement. Further serving
+workflow/lease timing work stays in the broader #124 qualification; milestone 3
+retains installed cutover obligations and milestone 10 owns broader runtime
+performance. No runtime deadline or assertion is weakened by this classification.
+
+Close-out must reconcile the delivered lifecycle/contract evidence, current
+data-plane safety and recovery, and transferred installed obligations. Unknown
+SQL failures still require classification before they can be assigned or
+resolved; they cannot be dismissed as application latency without evidence.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to

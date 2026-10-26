@@ -270,6 +270,13 @@ can reclaim them. The adapter and `transit-node` `local_directory` composition
 pass native turn/restart and signed public-caller fault proofs. The local CLI
 now selects that backend with maintenance inside the node; its bundle no longer
 includes Ursula or MinIO. The bundle still composes multiple Transit executables;
-the single-binary target remains part of #122. Standalone payload ownership
-and direct Table SQL integration remain incomplete. See the scoped
+the single-binary target remains part of #122. Direct Table SQL integration now
+uses this backend through the separate catalog and Table acceptance owners,
+as recorded in the installed lifecycle integration above. Row data does not
+pass through Station actor turns. Application workers can separately coordinate
+direct operations and persist their own dispatch/result evidence; those turns
+are application execution, not the Table's storage or acceptance authority.
+Standalone payload ownership, automatic point flushing, observable segment
+maintenance and the remaining installed cutover obligations are incomplete.
+See the scoped
 [executed evidence](../../tests/README.md#native-authority-over-local-storage--2026-10-22).

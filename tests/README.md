@@ -28248,3 +28248,46 @@ fixture state stays outside Git. The original clean fixture deleted its own
 temporary state on failure; later diagnostic fixtures retain theirs. Runtime
 and protocol deadlines are unchanged. Physical reactive qualification and its
 cause remain open; no successful control relabels the failed run as passed.
+
+## Private object I/O and native progress — 2026-10-26
+
+Commit `5b10004c3` separates private immutable-object I/O from the local
+backend's journal/quota mutex. Reservation still serializes, disk publication
+still locks by key, and final native/data acceptance retains its authority and
+epoch checks. A separate short mutex protects disk-object attempt counters.
+Concurrent missing-key attempts can conservatively reserve twice until reopen.
+
+`nix develop --command zig build test-local-native --summary all` passes all
+11 tests (49 seconds of test execution). The new regression pauses an actual
+private object sync, completes immutable reads and a quota-reserved checkpoint
+before releasing it, then reopens and verifies both outcomes. Ordinary staging
+still rejects at the exhausted data quota. Replacing only `Backend.zig` with
+its preceding implementation makes that regression fail at its control-completion
+wait while the other ten tests pass. The controller's literal error-name matcher
+does not recognize Zig's shortened build output; the raw record retains that
+classification, and manual review identifies the sole intended failure location.
+The source is restored byte-for-byte after the control.
+
+Focused storage tests pass all four selected cases (one second): independent
+conditional publishers, eight concurrent callers sharing one disk facade,
+exact completed-attempt counters and object-publication sync failures. Run
+`zig build test -Dtest-filter='disk facade' -Dtest-filter='concurrent local publishers' -Dtest-filter='object publication sync failures' --summary all`
+from `packages/zig/transit-storage` in the pinned development shell. The native
+and object tests use temporary directories on the checkout's physical filesystem.
+
+A matched ext4 reactive control replaces only the node binary with this commit;
+the caller binaries, `717f55793` fixture and deadlines remain unchanged. It still
+fails in 83.25 seconds at the same ten-second serving completion assertion.
+The lock correction therefore does not establish a fix for that failed suite.
+A separate diagnostic retains that failure flag but observes the same original
+operation for up to 60 seconds. Its checked result completes after 17.917 seconds;
+the diagnostic stops there and does not execute the remaining browser trace.
+No replacement operation is submitted. This is serving application coordination
+over a direct Table owner, not a measurement of isolated Table acceptance.
+
+The [source-attributed bundle](verification/results/lifecycle-private-object-io-2026-10-26/report.json)
+preserves component logs, the negative control, node hashes, diagnostic patch and
+complete telemetry. Private configurations and durable fixture state remain
+outside Git. The committed reactive fixture and runtime deadlines are unchanged;
+the broader physical browser failure remains recorded separately from the
+data-plane lock-independence result.
