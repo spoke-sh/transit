@@ -165,6 +165,7 @@ pub fn verify(client: c.DirectTableClient, state: State) !void {
     defer unchanged.deinit();
     try rows(&unchanged, delegated);
     try t.expectEqual(original.basis.changed_lsn, unchanged.basis.changed_lsn);
+    std.debug.print("Direct Table history: original and no-op sources passed\n", .{});
     const observed = try status(delegated, state);
     defer observed.deinit();
     const upper = observed.value.result.pin_state.position;
@@ -195,6 +196,7 @@ pub fn verify(client: c.DirectTableClient, state: State) !void {
     }
     try t.expect(dropped and schema_changed);
     try t.expectEqual(@as(usize, 1), no_ops);
+    std.debug.print("Direct Table history: bounded acceptance scan passed\n", .{});
     // Restarted callers decode the saved original lease/point. A row prefix
     // cannot become a checkpoint; reopening replays the complete transaction.
     var partial = try tail(client, state, upper);
@@ -222,7 +224,8 @@ pub fn verify(client: c.DirectTableClient, state: State) !void {
         try t.expect(event != .caught_up);
     } else return error.TableTailNotCaughtUp;
     try t.expect(allocation_failed);
-    for (0..2) |_| {
+    std.debug.print("Direct Table history: partial delivery and allocation failure passed\n", .{});
+    for (0..2) |replay| {
         var changes = try tail(client, state, upper);
         defer changes.deinit();
         const operations = [_]u64{ 8301, 8302, 8303, 4, 5, 6, 7, 8 };
@@ -275,10 +278,12 @@ pub fn verify(client: c.DirectTableClient, state: State) !void {
                     try t.expectEqual(transactions == operations.len - 1, transaction.after.interpretation.retired);
                     transactions += 1;
                     changed = 0;
+                    std.debug.print("Direct Table history: replay {d} transaction {d} passed ({d} charged requests)\n", .{ replay, transactions, changes.requests });
                 },
                 .caught_up => break,
             }
         } else return error.TableTailNotCaughtUp;
+        std.debug.print("Direct Table history: replay {d} final checkpoint passed\n", .{replay});
         try t.expectEqual(operations.len, transactions);
         try t.expectEqual(@as(u64, 0), changed);
         const checkpoint = try changes.checkpoint();

@@ -27717,3 +27717,24 @@ trace needed to attribute them to either focused regression above.
 
 Full installed SQL, lifecycle history replay, SDK lanes and combined committed
 clean-checkout qualification remain separate gates.
+
+## Paged Table history observation — 2026-10-26
+
+`nix develop --command just test::direct-table-service` passes with the existing
+one-page native cache and unchanged 180-second lifecycle subprocess deadline.
+The [baseline and corrected logs](verification/results/table-history-pages-2026-10-26/report.json)
+retain the preceding timeout during the second replay, after transaction four.
+The reader now uses the owner's existing eight-frame history page to cross
+physical maintenance. It consumes only the first logical acceptance and advances
+to that acceptance's exact point, so later transactions in the page are reread
+rather than skipped.
+
+Both complete replays assert all eight original transaction receipts, no-ops,
+paired rows under original schemas, definition changes and retirement. Charged
+requests through the eighth transaction decrease from 300 to 210 per replay.
+Partial delivery still cannot produce a checkpoint; allocation failure preserves
+progress. Final checkpoints resume at the fixed upper bound. The complete proof
+passes history/delegation closure, caller/node replacement, current revocation
+and reserved-control denial, across 1,407 typed calls. Row ownership, request
+budgets, cache size and authorization checks are unchanged. This is not a latency
+benchmark or a complete clean growth-lane pass.

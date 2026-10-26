@@ -169,7 +169,11 @@ pub fn next(self: *Self) !Event {
         try self.check();
         if (self.scan.next_lsn == self.through.next_lsn) return .caught_up;
         try self.charge();
-        const response = try self.client.call(.{ .history = .{ .snapshot = self.position.snapshot(), .from = self.scan, .through = self.through, .frames = 1 } });
+        // Use the owner's bounded eight-frame page to cross maintenance records
+        // without a separate authorization/source round trip for each frame.
+        // Only consume the first acceptance: complete advances to its exact
+        // point, so other acceptances in this page are read again, never skipped.
+        const response = try self.client.call(.{ .history = .{ .snapshot = self.position.snapshot(), .from = self.scan, .through = self.through, .frames = 8 } });
         defer response.deinit();
         const page = response.value.result.history;
         if (page.entries.len == 0) {
