@@ -3015,6 +3015,29 @@ closed by these checks. Broader multi-source schedules, maintained logical-chang
 history, remaining caller migration and GC/compaction race coverage remain
 separate obligations.
 
+## Installed lifecycle qualification checkpoint — 2026-10-26
+
+[Retained task records](verification/results/lifecycle-qualification-2026-10-26/report.json)
+distinguish completed checks from partial lanes. Local clean `check-core` passes
+at `9ab5fb64a` in 1,877.37 seconds. Its subsequent core tasks and full `just check`
+are still running at this checkpoint.
+
+Hosted run `40274455146` executes merge revision `7afcbcc7f`, including main's
+count-range changes. Both launcher tasks pass. Eight experience tasks pass,
+including Board/docs checks, observability, server logging, direct Table SQL,
+direct fault recovery and database/native session lifetimes. `server-sql` then
+fails on a capacity refusal with empty stdout during its Unicode read; later
+experience tasks do not run. Its fixed Unicode/NULL observations now use the
+existing 30-second capacity-refusal window, alongside the two fixed COUNT
+queries. No mutation, denial, partial result or generic error uses this path.
+
+The [local diagnostic record](verification/results/installed-sql-diagnostics-2026-10-26/report.json)
+retains the separate cancelled-append/restart failure. Its console was killed
+by the fixture after 180 seconds, before the client's existing 270-second
+accepted-operation settlement budget. The fixture now allows 300 seconds and
+preserves the original SQL exception if cleanup finds an already-joined worker.
+These fixture and diagnostic changes still require their installed rerun.
+
 ## Retained-source publication authority — 2026-10-23
 
 The current shared definition is
@@ -27687,3 +27710,107 @@ for MySQL. Their logs are retained beside the successful control; the correction
 asserts MySQL's existing error numbers, SQLSTATEs and snapshot-change message.
 No MySQL error mapping changed. This focused slice does not complete installed
 SQL, the SDK matrix or combined clean-checkout qualification.
+
+## SQL observation budgets — 2026-10-26
+
+The shared SQL unit suite and real-console protocol fixture pass the
+[focused controls](verification/results/sql-observation-budgets-2026-10-26/report.json).
+The baseline control-preparation test fails after 64 unavailable observations,
+before its five-second deadline; the corrected owner survives 80 refusals and
+publishes one exact signed control. Current denial remains terminal, moving
+metadata retains its 64-retry bound, and both expired and live short deadlines
+prevent publication. The exact prepared request cannot be replaced while pending.
+
+The baseline console exits with `SqlOutcomeUnknown` after one status response
+reports `AuthorityTimeout`. The corrected client observes the same token again
+and receives the applied outcome, with two status calls and one SQL submission.
+Continued timeouts during admission discovery still exhaust the original budget.
+Existing denial, changed-instance, session-expiry, lost-execute, incomplete-result
+and cancellation schedules pass. No SQL text is replayed by recovery.
+
+The [retained installation observations](verification/results/sql-outcome-observations-2026-10-26/report.json)
+recover original INSERT 216 as applied with one matched/changed row and original
+RENAME 348 as applied. They restart the same installations and inspect public
+status without resubmitting either mutation. These later observations do not
+establish the instant of acceptance relative to the earlier client failure.
+Original CREATE 155 remains uploading and execution-ineligible after restart;
+its installed five-minute wait and the follow-up observation are failures, not
+successful qualification. The original incidents lack the phase/status-code
+trace needed to attribute them to either focused regression above.
+
+Full installed SQL, lifecycle history replay, SDK lanes and combined committed
+clean-checkout qualification remain separate gates.
+
+## Paged Table history observation — 2026-10-26
+
+`nix develop --command just test::direct-table-service` passes with the existing
+one-page native cache and unchanged 180-second lifecycle subprocess deadline.
+The [baseline and corrected logs](verification/results/table-history-pages-2026-10-26/report.json)
+retain the preceding timeout during the second replay, after transaction four.
+The reader now uses the owner's existing eight-frame history page to cross
+physical maintenance. It consumes only the first logical acceptance and advances
+to that acceptance's exact point, so later transactions in the page are reread
+rather than skipped.
+
+Both complete replays assert all eight original transaction receipts, no-ops,
+paired rows under original schemas, definition changes and retirement. Charged
+requests through the eighth transaction decrease from 300 to 210 per replay.
+Partial delivery still cannot produce a checkpoint; allocation failure preserves
+progress. Final checkpoints resume at the fixed upper bound. The complete proof
+passes history/delegation closure, caller/node replacement, current revocation
+and reserved-control denial, across 1,407 typed calls. Row ownership, request
+budgets, cache size and authorization checks are unchanged. This is not a latency
+benchmark or a complete clean growth-lane pass.
+
+## Work-item command definition cutover — 2026-10-26
+
+The clean core run at `e3cbe9cca` finds an old shared definition in the independent
+WI1 command fixture: the Python drift check fails and the application unit suite
+reports 12 passes and one failure. Regenerating with
+`tests/work_items_contract.py --write` changes only that definition. The generator
+check and `zig build test-work-items-unit -Doptimize=ReleaseSafe` then pass;
+[recorded evidence](verification/results/work-item-definition-2026-10-26/report.json)
+preserves both failures. Contract generation/checking now includes this fixture,
+so future definition changes regenerate it and detect drift before root unit
+execution. Existing foreign/missing-definition rejection remains unchanged.
+
+## Relational setup outcome recovery — 2026-10-26
+
+`nix develop .#bindings --command just bindings::relational-node` passes the
+[installed control](verification/results/relational-setup-recovery-2026-10-26/report.json).
+It builds matching packages and checks Node sources before exercising native,
+port and installed Node relational callers. The direct proxy corrupts the
+accepted DDL reply for setup operation 1002; the fixture must inspect that same
+saved reference and establish its committed outcome. It never recompiles the SQL
+or allocates a new operation after uncertainty. Current denial and other semantic
+failures still escape; unavailable inspection has a bounded observation window.
+
+All three callers pass retained joins, current denial, node/host replacement,
+ordered overflow and original retention checks, across 1,088 typed requests.
+The earlier clean bindings-1 failure at `dd3687e01` is retained: Python completed
+its task, and Node passed its client/Station/HTTP/gRPC schedules before relational
+setup stopped on an unknown outcome. The first direct invocation of the focused
+Zig target was stopped because it lacked installed package prerequisites; only
+the owning just task is a pass. This does not complete the full SDK matrix.
+
+## WAL append inspection cancellation — 2026-10-26
+
+The [disk-backed regression](verification/results/wal-append-inspection-2026-10-26/report.json)
+fails against `9ab5fb64a`: cancelling the open of an existing segment causes the
+next tail read to return `WalRecoveryRequired`, although no write occurred.
+The corrected owner remains usable after cancellation at both open and length
+inspection. Independent partitions retain their acknowledged rows and the next
+append uses the unchanged successor LSN.
+
+Focused cancellation/sync tests and all `disk_wal_test` cases pass through
+`nix develop` and the package's `zig build test -Dtest-filter=...` selection.
+Injected `InputOutput` and cancellation at all three existing-segment and four
+new-segment append syncs still require reopening; recovery retains complete
+uncertain frames. This does not weaken corruption, incompatible-definition or
+post-mutation recovery gates.
+
+A separate installed trace records a cancelled native append followed by
+`WalRecoveryRequired` and supervisor replacement. It does not identify the
+cancelled syscall, so it does not establish that this particular cancellation
+preceded mutation. Installed SQL and complete clean-lane qualification remain
+separate obligations.

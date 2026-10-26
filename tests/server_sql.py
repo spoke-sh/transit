@@ -191,11 +191,16 @@ def run(cli, node, host, board, gateway, *, bundle=None):
             args, env = pg_args(name)
             return (denied if reject else call)([*args, sql], env=env)
 
-        def count(name, *, second_row=False, protocol='postgres'):
+        def observe(sql, name, *, protocol='postgres'):
             # These fixed, finite observations can start a fresh query after an
             # explicit capacity refusal with no disclosed rows. Never route
             # mutations, reloads or a partially returned result through here.
-            sql = 'SELECT COUNT(*) FROM shared_rows' + (' WHERE id=2' if second_row else '')
+            assert sql in {
+                'SELECT COUNT(*) FROM shared_rows',
+                'SELECT COUNT(*) FROM shared_rows WHERE id=2',
+                'SELECT label FROM shared_rows WHERE id=1',
+                'SELECT COUNT(*) FROM shared_rows WHERE label IS NULL',
+            }, sql
             assert protocol in ('postgres', 'mysql'), protocol
             args, env = pg_args(name) if protocol == 'postgres' else (mysql_args(name), None)
             deadline = time.monotonic() + 30
@@ -205,11 +210,15 @@ def run(cli, node, host, board, gateway, *, bundle=None):
                                         timeout=max(1, deadline-time.monotonic()))
                 if result.returncode == 0:
                     if refused:
-                        print(f'Local SQL: {protocol} refused {refused} empty COUNT observations for capacity before recovery.', flush=True)
+                        print(f'Local SQL: {protocol} refused {refused} empty data observations for capacity before recovery.', flush=True)
                     return result.stdout.strip()
                 assert not result.stdout and 'Native request capacity exhausted' in result.stderr and time.monotonic() < deadline, (result.stdout, result.stderr)
                 refused += 1
                 time.sleep(.2)
+
+        def count(name, *, second_row=False, protocol='postgres'):
+            sql = 'SELECT COUNT(*) FROM shared_rows' + (' WHERE id=2' if second_row else '')
+            return observe(sql, name, protocol=protocol)
 
         def mysql(sql, name='owner', reject=False):
             return (denied if reject else call)([*mysql_args(name), sql])
@@ -262,9 +271,9 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         policy(fixture, 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.shared_rows TO writer;', 'writer-data')
         policy(fixture, 'GRANT SELECT ON TABLE public.shared_rows TO reader;', 'reader-data')
         write("INSERT INTO shared_rows (id,label) VALUES (1,'snow ☃')", name='writer', protocol='mysql')
-        assert pg('SELECT label FROM shared_rows WHERE id=1', 'reader') == 'snow ☃'
+        assert observe('SELECT label FROM shared_rows WHERE id=1', 'reader') == 'snow ☃'
         write('UPDATE shared_rows SET label=NULL WHERE id=1', name='writer')
-        assert mysql('SELECT COUNT(*) FROM shared_rows WHERE label IS NULL', 'reader') == '1'
+        assert observe('SELECT COUNT(*) FROM shared_rows WHERE label IS NULL', 'reader', protocol='mysql') == '1'
         mysql('DELETE FROM shared_rows WHERE id=1', 'reader', reject=True)
         print('Local SQL: both verified TLS CLIs share Unicode/NULL data with explicit writer/reader grants.', flush=True)
 

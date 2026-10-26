@@ -21,7 +21,9 @@ class LifecycleFixture(Fixture):
         # This correctness schedule configures 120-second server commands.
         # Use the same discovery budget in the real CLI; its default 30 seconds
         # can expire before the admission reply, correctly leaving uncertainty.
-        return super().console(text, expected, request_timeout_ms=120000, timeout=180)
+        # Accepted work has the CLI's separate 270-second settlement budget.
+        # Let it report that result instead of killing it after 180 seconds.
+        return super().console(text, expected, request_timeout_ms=120000, timeout=300)
 
 
 def gateway_lookup(fixture, record):
@@ -136,7 +138,14 @@ def run(cli, node, host, board, gateway):
                 print('Timed-out DDL batch stderr:', error.stderr, file=sys.stderr)
                 raise
         finally:
-            os.kill(source, signal.SIGCONT)
+            failure = sys.exception()
+            try:
+                os.kill(source, signal.SIGCONT)
+            except ProcessLookupError:
+                # Preserve the SQL failure if a supervisor restart already
+                # joined the stopped worker. Unexpected loss still fails.
+                if failure is None:
+                    raise
         fixture.stop(kill=True)
         fixture.start()
         fixture.ready(timeout=300)

@@ -1,0 +1,56 @@
+[
+  {
+    "lane": "experience",
+    "task": "transit-board::check",
+    "seconds": 191.44,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "transit-docs::check",
+    "seconds": 88.56,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "bindings::node-check",
+    "seconds": 21.98,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "test::observability",
+    "seconds": 68.77,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-logging",
+    "seconds": 658.14,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-direct-tables",
+    "seconds": 123.31,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-direct-faults",
+    "seconds": 54.43,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-sql-lifetimes",
+    "seconds": 62.39,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-sql",
+    "seconds": 45.54,
+    "exit_code": 1
+  }
+]

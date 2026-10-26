@@ -15,8 +15,11 @@ it does not reacquire retention or resolve a name. `next` yields paired row chan
 and complete transaction boundaries, including accepted no-ops and definition
 changes. The boundary includes the original acceptance receipt and both source
 bases. Save its next position only with the complete transaction's application.
-Physical maintenance advances a separate cursor and cannot fabricate a logical
-transaction. A caught-up event covers only the supplied upper bound.
+History reads scan at most eight physical records per page. Physical maintenance
+advances a separate cursor and cannot fabricate a logical transaction. Each
+logical acceptance is still consumed separately; a page containing several
+acceptances cannot advance the checkpoint past an unconsumed transaction.
+A caught-up event covers only the supplied upper bound.
 
 Each diff step owns at most two rows and uses at most two maximum-row buffers
 for exact canonical comparison. Values retain their original schema, including

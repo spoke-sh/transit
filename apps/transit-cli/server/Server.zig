@@ -297,6 +297,9 @@ fn node(self: *Self, allocator: std.mem.Allocator) !void {
     installation.wire.deinit();
     installation.wire.* = q.wire.Client.init(self.init.gpa, self.init.io, address);
     installation.wire.timeout_ms = timeout;
+    // Keep native refusal codes and attempt timings visible through startup
+    // and every replacement; a generic supervisor failure loses that context.
+    installation.wire.observer = self.diagnostics;
     const node_config = try installation.path("node.json");
     try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .local_directory = try installation.path("data/native"), .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = config.storage, .table = try @import("Tables.zig").node(installation), .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
     const node_args = [_][]const u8{ config.executables.node, node_config, "--bootstrap" };

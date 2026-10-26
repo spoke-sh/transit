@@ -47,6 +47,12 @@ intent reference, observes its original direct operation and explicitly admits,
 executes or cancels that same work. A lost response never allocates a replacement
 intent or resolves its target name again.
 
+Before a ledger control is sent, temporary unavailability of its preparation
+reads uses the original statement deadline. Repeated changes to observed state
+retain a separate 64-retry bound. Once prepared, the control lane retains the
+exact signed request through uncertain sends and receipt observation; retries
+do not restart the statement's budget.
+
 Temporary direct-operation transport failures, current direct-access denial and
 allocation pressure retain the original operation for another bounded recovery
 pass. They do not mark a healthy native ledger owner unavailable. The gateway

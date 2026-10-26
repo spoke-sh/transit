@@ -1,0 +1,31 @@
+{
+  "local_check_core": {
+    "revision": "9ab5fb64a316b1083d3f8e13646b04432b761e0e",
+    "command": "nix develop --command just ci-clean --lane core",
+    "task": {
+      "lane": "core",
+      "task": "check-core",
+      "seconds": 1877.37,
+      "exit_code": 0
+    },
+    "containing_lane_complete": false,
+    "full_just_check": "running separately in the same committed checkout"
+  },
+  "hosted": {
+    "run_url": "https://github.com/spoke-sh/transit/actions/runs/40274455146",
+    "revision": "7afcbcc7f3079e74ba401c85a98dc78e432f1b51",
+    "task_reports": [
+      "launchers.json",
+      "launchers.meta.json",
+      "experience.json",
+      "experience.meta.json"
+    ],
+    "launchers": "complete pass",
+    "experience": "incomplete: explicit capacity refusal with no rows at fixed Unicode SELECT",
+    "later_lanes": "still running at this checkpoint"
+  },
+  "limits": [
+    "These records do not qualify later commits or complete the milestone.",
+    "Skipped and unexecuted tasks are not passes."
+  ]
+}

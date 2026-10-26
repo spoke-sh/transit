@@ -380,22 +380,34 @@ pub fn append(self: *Self, id: u64, expected_lsn: ?u64, writer: u64, policy: u64
     defer self.allocator.free(bytes);
     _ = try log.encodeFrame(id, writer, policy, state.next, 0, kind, payload, bytes);
     if (try self.metadata(id) == null) try self.save(state.*);
-    // After the first possible disk change, an error is an uncertain outcome.
-    // Do not reuse this owner's cached frontier or roll back an attempted write.
-    errdefer self.poisoned = true;
     var next = state.*;
     if (next.offset != 0 and (next.offset > self.options.segment_bytes or bytes.len > self.options.segment_bytes - next.offset)) {
         next.segment = state.next;
         next.offset = 0;
     }
+    // Opening and checking an existing segment changes no accepted bytes.
+    // Cancellation there leaves this owner usable. Creation or the first write
+    // can change disk state; every later error still requires recovery. Other
+    // storage failures remain fail-closed even before a possible mutation.
+    var poison_on_error = true;
+    errdefer if (poison_on_error) {
+        self.poisoned = true;
+    };
     var name: [96]u8 = undefined;
     const filename = segmentName(id, next.segment, &name);
     const file = if (next.offset == 0)
         try self.dir.createFile(self.io, filename, .{ .read = true, .truncate = false, .permissions = .fromMode(0o600) })
     else
-        try self.dir.openFile(self.io, filename, .{ .mode = .read_write, .follow_symlinks = false });
+        self.dir.openFile(self.io, filename, .{ .mode = .read_write, .follow_symlinks = false }) catch |err| {
+            if (err == error.Canceled) poison_on_error = false;
+            return err;
+        };
     defer file.close(self.io);
-    if (try file.length(self.io) != next.offset) return error.WalRecoveryRequired;
+    const length = file.length(self.io) catch |err| {
+        if (next.offset != 0 and err == error.Canceled) poison_on_error = false;
+        return err;
+    };
+    if (length != next.offset) return error.WalRecoveryRequired;
     try file.writePositionalAll(self.io, bytes, next.offset);
     try file.sync(self.io);
     self.syncs += 1;

@@ -1,0 +1,58 @@
+{
+  "command": "nix develop .#bindings --command just bindings::relational-node",
+  "exit_code": 0,
+  "source_base": "d03eb94e2",
+  "fixture_patch_sha256": "d1b06a2bb02528e83145564b6cfed03fb8ab074b391fb12ba1417e41445b772b",
+  "executed_fixture_sha256": {
+    "tests/relational_callers_native.py": "8cee24c9c19be90ad0f3cdb2459c862b36fabe72a5a2476bfdc19b9244f0532b",
+    "tests/direct_table_service.py": "dd03feef0c57bed8c11e6d99b71ba56cfa6c7a85b36e28f852984571da9254e3"
+  },
+  "source_note": "The committed fixture adds only an uncertain-reply progress counter/print after this run imported the Python module; assertions and recovery logic are unchanged.",
+  "baseline": {
+    "revision": "dd3687e01",
+    "state": "failed_bindings1",
+    "failure": "AuthorityTimeout while executing original setup operation1002; the old fixture stops on unknown outcome."
+  },
+  "fault": "Corrupt the context of the accepted direct DDL reply for operation1002. Require the original saved operation to reach committed and the fixture to observe the injected loss.",
+  "typed_requests": 1088,
+  "results": [
+    {
+      "caller": "native",
+      "calls": 103,
+      "join_layouts": 3,
+      "current_denial": true,
+      "node_replacement": true,
+      "original_retention": true,
+      "ordered_overflow": true,
+      "budget_preserves_failure": true
+    },
+    {
+      "caller": "port",
+      "calls": 103,
+      "join_layouts": 3,
+      "current_denial": true,
+      "node_replacement": true,
+      "original_retention": true,
+      "ordered_overflow": true,
+      "budget_preserves_failure": true
+    },
+    {
+      "language": "node",
+      "join_layouts": 3,
+      "current_denial": true,
+      "lost_host": true,
+      "ordered_overflow": true,
+      "original_retention": true,
+      "artifacts": {
+        "transit-client-0.2.0.tgz": "0eaf8871e2f79ee93f66ad5205ea2d870201850d0513d3b0c1d5d2b10f77851e",
+        "transit-native-client-0.2.0.tgz": "cb80f056673fa6b89dba5920a438839e493934ff4ee78e18f8a95787e4acb025",
+        "transit-station-0.2.0.tgz": "5cbb0d456bed53f554b010693d92d41e9f9d560cf59c39e37a0d88320df1f8e6",
+        "transit-native-station-0.2.0.tgz": "767131b6c411e14875698ae2540d47e05ccb98cb5579a63575e66669573c1bfe"
+      }
+    }
+  ],
+  "limits": [
+    "This is the focused installed Node relational task, not a complete SDK lane.",
+    "The first direct Zig invocation lacked installed Node package prerequisites and was stopped before completion; it is not a pass."
+  ]
+}

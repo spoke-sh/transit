@@ -246,8 +246,9 @@ tag, so its human output uses “Statement completed” rather than guessing a
 statement kind from SQL text.
 
 After a lost write response, the shared client checks the original request
-within a bounded deadline. It never submits the SQL again. If the original
-session expired, a separate authenticated observation session can check that
+within a bounded deadline. It never submits the SQL again. A temporary authority
+timeout during a status read continues observation within that same deadline.
+If the original session expired, a separate authenticated observation session can check that
 request against the same instance and account. This does not restore the user's
 session or its settings; further SQL requires reconnection. A timeout, missing
 observation or failed authorization cannot establish that a write failed.

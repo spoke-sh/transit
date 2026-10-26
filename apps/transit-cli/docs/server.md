@@ -68,7 +68,11 @@ ambient `LOG_*` variables configure standalone executables, not the supervisor.
 Provider tools keep their own logging conventions and bounded capture.
 
 Startup, readiness, retries, SQL transitions and shutdown share the same bounded
-logger. SQL waiting for its first health check reports `starting`; loss of a
+logger. The supervisor's native calls emit `transit.client.request` events with
+attempt duration, operation, HTTP status and the validated native refusal code
+when available. Successful calls use debug level; failed attempts use warn.
+These observations remain attached after node replacement and contain no request
+payloads or credentials. SQL waiting for its first health check reports `starting`; loss of a
 previously ready SQL service reports `unavailable`. A failed native authority
 observation can report `busy` or `unavailable` with its cause even during startup;
 recovery retains the same pending work and requires a fresh readiness check.

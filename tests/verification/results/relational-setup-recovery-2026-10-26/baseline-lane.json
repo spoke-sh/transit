@@ -1,0 +1,26 @@
+[
+  {
+    "lane": "bindings-1",
+    "task": "bindings::check",
+    "seconds": 342.1,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::native",
+    "seconds": 790.04,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::python-test",
+    "seconds": 2220.46,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::node-sdk-test",
+    "seconds": 1043.24,
+    "exit_code": 1
+  }
+]

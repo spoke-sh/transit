@@ -374,14 +374,66 @@ test "canceling a cold read before mutation preserves the local log owner" {
     _ = try wal.log().append(0, 1, 1, 1, .row_delta, "successor");
 }
 
+test "canceling append inspection before an existing segment write preserves the log owner" {
+    const Fault = struct {
+        var real: *const std.Io.VTable = undefined;
+        var point: enum { none, open, length } = .none;
+        var target: ?std.Io.File = null;
+        fn openFile(context: ?*anyopaque, dir: std.Io.Dir, name: []const u8, options: std.Io.Dir.OpenFileOptions) std.Io.File.OpenError!std.Io.File {
+            const selected = options.mode == .read_write and std.mem.eql(u8, name, "part-0-0.twal");
+            if (selected and point == .open) {
+                point = .none;
+                return error.Canceled;
+            }
+            const file = try real.dirOpenFile(context, dir, name, options);
+            if (selected and point == .length) target = file;
+            return file;
+        }
+        fn length(context: ?*anyopaque, file: std.Io.File) std.Io.File.LengthError!u64 {
+            if (point == .length and target != null and target.?.handle == file.handle) {
+                point = .none;
+                target = null;
+                return error.Canceled;
+            }
+            return real.fileLength(context, file);
+        }
+    };
+    Fault.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.dirOpenFile = Fault.openFile;
+    vtable.fileLength = Fault.length;
+    var io = t.io;
+    io.vtable = &vtable;
+    inline for (.{ .open, .length }) |point| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        _ = try wal.log().append(0, 0, 1, 1, .row_delta, "accepted");
+        _ = try wal.log().append(1, 0, 1, 1, .row_delta, "independent");
+        Fault.point = point;
+        try t.expectError(error.Canceled, wal.log().append(0, 1, 1, 1, .row_delta, "not-written"));
+        try t.expectEqual(.none, Fault.point);
+        try t.expectEqual(@as(u64, 1), try wal.log().tail(0));
+        try t.expectEqual(@as(u64, 1), try wal.log().tail(1));
+        _ = try wal.log().append(0, 1, 1, 1, .row_delta, "successor");
+        var batch = try wal.log().read(t.allocator, 0, 0, 8);
+        defer batch.deinit();
+        try t.expectEqual(@as(usize, 2), batch.frames.len);
+        try t.expectEqualStrings("accepted", batch.frames[0].payload);
+        try t.expectEqualStrings("successor", batch.frames[1].payload);
+    }
+}
+
 test "disk sync errors poison WAL owners and preserve complete uncertain work" {
     const Fault = struct {
         var real: *const std.Io.VTable = undefined;
         var remaining: usize = 0;
+        var cancellation: bool = false;
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
             if (remaining != 0) {
                 remaining -= 1;
-                if (remaining == 0) return error.InputOutput;
+                if (remaining == 0) return if (cancellation) error.Canceled else error.InputOutput;
             }
             return real.fileSync(context, file);
         }
@@ -392,7 +444,8 @@ test "disk sync errors poison WAL owners and preserve complete uncertain work" {
     var io = t.io;
     io.vtable = &vtable;
     // Three syncs for append, four when publishing a new segment directory entry.
-    for ([_]usize{ 192, 4096 }) |segment_bytes| {
+    for ([_]bool{ false, true }) |cancellation| for ([_]usize{ 192, 4096 }) |segment_bytes| {
+        Fault.cancellation = cancellation;
         const sync_count: usize = if (segment_bytes == 192) 4 else 3;
         for (1..sync_count + 1) |failure| {
             var tmp = t.tmpDir(.{});
@@ -402,7 +455,7 @@ test "disk sync errors poison WAL owners and preserve complete uncertain work" {
                 defer wal.deinit();
                 _ = try wal.log().append(1, 0, 1, 1, .row_delta, "known");
                 Fault.remaining = failure;
-                try t.expectError(error.InputOutput, wal.log().append(1, 1, 1, 1, .row_delta, "uncertain"));
+                try t.expectError(if (cancellation) error.Canceled else error.InputOutput, wal.log().append(1, 1, 1, 1, .row_delta, "uncertain"));
                 try t.expectEqual(@as(usize, 0), Fault.remaining);
                 try t.expectError(error.WalRecoveryRequired, wal.log().append(1, 1, 1, 1, .row_delta, "wrong-retry"));
                 try t.expectError(error.WalRecoveryRequired, wal.log().tail(1));
@@ -417,7 +470,7 @@ test "disk sync errors poison WAL owners and preserve complete uncertain work" {
             try t.expectEqualStrings("uncertain", batch.frames[1].payload);
             _ = try wal.log().append(1, 2, 1, 1, .row_delta, "successor");
         }
-    }
+    };
 }
 
 test "disk recovery syncs complete uncertain frames before publishing a usable frontier" {

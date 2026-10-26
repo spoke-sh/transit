@@ -62,7 +62,7 @@ def run(node, caller, mode="tables", *artifacts):
                 child.kill()
                 child.wait(timeout=15)
 
-        fault = {"changed": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "execute": None, "requests": 0, "commands": []}
+        fault = {"changed": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "relational_setup": False, "execute": None, "requests": 0, "commands": []}
 
         dependency_faults = set()
         resource_faults = set()
@@ -171,6 +171,13 @@ def run(node, caller, mode="tables", *artifacts):
                         if operation and operation["command"] == "execute":
                             fault["execute"] = body
                             identity = operation["binding"]["identity"]["operation"]
+                            if mode in ("relational", "relational-python", "relational-node") and identity == 1002 and not fault["relational_setup"]:
+                                assert response.status == 200, data
+                                parsed = json.loads(data)
+                                assert "committed" in parsed["result"]["ddl"], parsed["result"]
+                                parsed["context"][0] ^= 1
+                                data = json.dumps(parsed).encode()
+                                fault["relational_setup"] = True
                             if mode in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") and identity in (2, 12) and identity not in abi_faults:
                                 assert response.status == 200, data
                                 parsed = json.loads(data)
@@ -283,6 +290,7 @@ def run(node, caller, mode="tables", *artifacts):
                         subprocess.run([caller, endpoint, "caller-allow" if allow else "caller-deny", str(profile)], check=True, timeout=180)
                     language = mode.removeprefix("relational-") if mode != "relational" else None
                     exercise(*artifacts, root, url, endpoint, json.loads(profile.read_text()), relational_restart, relational_policy, language)
+                    assert fault["relational_setup"], "Relational setup never recovered the lost original DDL reply"
                     assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
                     assert list((root / "native").rglob("*.tseg"))
                     print(f"Direct relational callers: {fault['requests']} public requests, original retained joins, current denial, node/caller replacement, budget and ordered overflow passed.")

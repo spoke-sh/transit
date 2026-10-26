@@ -23,12 +23,14 @@ generate:
     mv "$generated/data-lifecycle-v1.schema.json" contracts/data-lifecycle-v1.schema.json
     mv "$generated/index-lifecycle-v1.schema.json" contracts/index-lifecycle-v1.schema.json
     python3 -B tests/index_lifecycle_contract.py --write < contracts/index-lifecycle-v1.schema.json
+    python3 -B tests/work_items_contract.py --write
     zig build application-installation-fixture > contracts/application-installation-v1.fixture.json
 
 # Detect public schema/default/signing changes that were not reviewed together.
 check:
     zig build contract | python3 -B tests/contract.py
     python3 -B tests/native_fixtures.py
+    python3 -B tests/work_items_contract.py
     zig build application-installation-contract | python3 -B tests/contract.py --installation
     zig build application-installation-fixture | python3 -B tests/installation_contract.py
     zig build diagnostic-contract | python3 -B tests/diagnostic_contract.py

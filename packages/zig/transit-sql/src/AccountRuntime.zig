@@ -319,8 +319,13 @@ fn prepareControl(lane: *g.ControlLane, client: anytype, command: g.Control.Comm
     while (true) {
         try deadline.check(io);
         lane.start(client, command) catch |err| {
-            if (attempts == 64 or !retryObservation(client.transport, err)) return err;
-            attempts += 1;
+            const unavailable = s.client.Client.unavailable(err);
+            // Refused observation has published no request. Keep the caller's
+            // original deadline, rather than abandoning a partially uploaded
+            // intent after 64 fast capacity refusals. Moving metadata retains
+            // its separate conflict bound; denial and fencing still escape.
+            if (!retryObservation(client.transport, err) or (!unavailable and attempts == 64)) return err;
+            if (!unavailable) attempts += 1;
             try io.sleep(.fromMilliseconds(20), .awake);
             continue;
         };
@@ -530,10 +535,11 @@ test "unsent control preparation retries observations and preserves the publishe
     const Fake = struct {
         transport: *s.client.Client,
         attempts: u8 = 0,
+        failures: u8 = 80,
         failure: anyerror = error.AuthorityUnavailable,
         pub fn prepare(self: *@This(), command: g.Control.Command) !g.Client.Prepared {
             self.attempts += 1;
-            if (self.attempts <= 2) return self.failure;
+            if (self.attempts <= self.failures) return self.failure;
             const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(11));
             return .{ .version = 1, .definition = p.Growth.current_definition, .realm = 1, .resource = 2, .owner = 3, .configuration = @splat(7), .signed = try p.Growth.sign(.{ .realm = 1, .principal = 4, .sequence = 5, .command = .{ .send = .{ .pid = 3, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, key) };
         }
@@ -544,7 +550,7 @@ test "unsent control preparation retries observations and preserves the publishe
     var lane: g.ControlLane = .{};
     const deadline: Deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 5000 };
     try prepareControl(&lane, &client, .{ .seal_intent = 17 }, deadline, t.io);
-    try t.expectEqual(@as(u8, 3), client.attempts);
+    try t.expectEqual(@as(u8, 81), client.attempts);
     const saved = lane.pending.?.prepared;
     try t.expectError(error.GatewayControlBusy, prepareControl(&lane, &client, .{ .seal_intent = 18 }, deadline, t.io));
     try t.expectEqualDeep(saved, lane.pending.?.prepared);
@@ -552,5 +558,20 @@ test "unsent control preparation retries observations and preserves the publishe
     client = .{ .transport = &wire, .failure = error.AccessDenied };
     try t.expectError(error.AccessDenied, prepareControl(&lane, &client, .{ .seal_intent = 17 }, deadline, t.io));
     try t.expectEqual(@as(u8, 1), client.attempts);
+    try t.expect(lane.pending == null);
+    wire.last_rejection = .StaleStateResource;
+    client = .{ .transport = &wire, .failure = error.Conflict };
+    try t.expectError(error.Conflict, prepareControl(&lane, &client, .{ .seal_intent = 17 }, deadline, t.io));
+    try t.expectEqual(@as(u8, 65), client.attempts);
+    try t.expect(lane.pending == null);
+    wire.last_rejection = .HttpCapacity;
+    client = .{ .transport = &wire };
+    const expired: Deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 0 };
+    try t.expectError(error.GatewayDeadline, prepareControl(&lane, &client, .{ .seal_intent = 17 }, expired, t.io));
+    try t.expectEqual(@as(u8, 0), client.attempts);
+    try t.expect(lane.pending == null);
+    const brief: Deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 10 };
+    try t.expectError(error.GatewayDeadline, prepareControl(&lane, &client, .{ .seal_intent = 17 }, brief, t.io));
+    try t.expect(client.attempts > 0 and client.attempts < client.failures);
     try t.expect(lane.pending == null);
 }

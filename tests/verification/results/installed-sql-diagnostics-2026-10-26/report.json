@@ -1,0 +1,23 @@
+{
+  "source_base": "9ab5fb64a316b1083d3f8e13646b04432b761e0e",
+  "diagnostic_source": "Server.zig attaches the existing native client observer after transport recreation; private exec wrapper preserves node stderr. No node behavior change.",
+  "local": {
+    "installation": "/var/tmp/transit-server-proof-u9vy0jzk",
+    "result": "failed during CREATE TABLE other: outer fixture killed its console at180seconds",
+    "trace": "Cancelled native append at05:57:02.286Z; subsequent native.tail reportsWalRecoveryRequired; supervisor replaces node afterthreefailedprobes.",
+    "limits": "The exact cancelled syscall is not recorded. This does not prove cancellation before mutation."
+  },
+  "hosted": {
+    "run": 40274455146,
+    "revision": "7afcbcc7f3079e74ba401c85a98dc78e432f1b51",
+    "launchers": "complete pass",
+    "experience": "8tasks pass; server-sql fails empty explicitcapacityrefusal on SELECT label FROM shared_rows WHERE id=1",
+    "limits": "Experience incomplete; later tasks did not run."
+  },
+  "pending_changes": [
+    "Observer wiring and capacity-attempt assertions in server logging.",
+    "Preserve original SQL failure when cleanup finds a replaced worker.",
+    "Outer console fixture allowance300seconds covers existing270second accepted-operation settlement; innerrequest/discovery120seconds unchanged.",
+    "Fixed Unicode and NULL read checks join existing finite capacity-refusal observation helper; no writes, denial, partial output or generic errors retried."
+  ]
+}

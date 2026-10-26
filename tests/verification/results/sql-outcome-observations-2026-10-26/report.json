@@ -1,0 +1,25 @@
+{
+  "cases": {
+    "insert216": {
+      "observation": "applied, matched=changed=1; no SQL resubmission",
+      "report": "insert216.json",
+      "script": "insert216.py"
+    },
+    "rename348": {
+      "observation": "applied; read-only Table inventory contains renamed; no SQL resubmission",
+      "report": "rename348.json",
+      "script": "rename348.py"
+    },
+    "create155": {
+      "observation": "incomplete: uploading, dispatch_eligible=false, terminal=null after restart",
+      "report": "create155.json",
+      "script": "create155.py"
+    }
+  },
+  "method": "Restart the retained installation, then use public status/inventory and read-only SQL; never resubmit the original mutation.",
+  "limits": [
+    "A terminal status after restart does not establish when acceptance occurred relative to the original client error.",
+    "CREATE155 remains incomplete; this is retained failure evidence, not a pass.",
+    "These controls do not complete the full installed SQL or clean experience schedules."
+  ]
+}

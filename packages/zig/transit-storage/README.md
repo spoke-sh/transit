@@ -118,6 +118,11 @@ errors around real disk writes and syncs. A WAL owner requires reopening after
 an uncertain write, preserving complete recoverable frames; object publication
 keeps private partial files out of the public descriptor. These error schedules
 do not exhaust the host filesystem or establish hardware failure behavior.
+Cancellation while opening or checking the length of an existing WAL segment
+leaves the log usable because those steps change no bytes. Cancellation after
+segment creation or a possible write still requires reopening, as do other
+storage failures. The disk WAL regressions check both boundaries and preserve
+the acknowledged prefix and exact successor across independent partitions.
 
 `TablePartition` checks contiguous acceptance history and exact declarations
 before exposing recovered rows. Its paged indexes preserve stable row identities;
