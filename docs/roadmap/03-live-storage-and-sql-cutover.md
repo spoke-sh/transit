@@ -61,12 +61,18 @@ instruction to keep bulk data in the superseded actor/page path.
 
 ## Installed lifecycle integration
 
-The implementation branch now has direct Table, named KV/Document and explicit
+The merged lifecycle work supplies direct Table, named KV/Document and explicit
 computation owners, migrated callers and a coordinated current-v1 cutover. The
-[current lifecycle review](01-declarative-data-lifecycle.md#current-implementation-review--2026-10-24)
-links the delivered slices, executed evidence and still-open qualification.
-This milestone remains In Progress: those results do not complete every storage
-maintenance, performance or installed integration gate below.
+[final lifecycle acceptance review](01-declarative-data-lifecycle.md#final-lifecycle-acceptance-review--2026-10-26)
+links delivered caller/recovery outcomes, exact sources and the separate open
+logging, launcher and browser checks. Preserve those lifecycle guarantees through
+subsequent integration. This milestone remains In Progress: the remaining
+storage/maintenance integration, packaging and matched performance/installed gates
+below are not completed by that lifecycle review. [#173](https://github.com/spoke-sh/transit/issues/173)
+owns temporary launcher bootstrap recovery when the native WAL owner requires
+reopening; exact saved-request recovery must preserve accepted identity and
+exclusive ownership. The lifecycle review establishes no new qualification of
+the storage changes and current-v1 definition subsequently merged in PR #172.
 
 The sequencing review transfers executable lifecycle delivery from milestone 1
 to this installed integration owner. Preserve #108's original acceptance gates:
@@ -106,9 +112,10 @@ Original lifecycle acceptance, retained from milestone 1:
 
 Distributed-provider and concurrent-writer integration transfers explicitly to
 [milestone 15](15-storage-providers-and-concurrency.md), retaining #117/#121 and
-their #124 proof gates. This milestone remains In Progress; the split establishes
-no newly completed lifecycle or deployment. #108/#110 retain their delivered
-evidence and track these installed outcomes together.
+their #124 proof gates. This milestone remains In Progress. #108's delivered
+lifecycle acceptance is recorded separately; #110 retains the remaining installed
+storage, maintenance and performance obligations. Neither the split nor the
+lifecycle acceptance completes those broader gates.
 
 ## Recorded diagnosis of live runtime latency
 

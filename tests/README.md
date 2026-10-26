@@ -29310,3 +29310,107 @@ unflushed-row dependencies remain separate edges to traverse. Only complete
 enumeration can support a future collector's marks; this component supplies no
 all-owner cut, persisted mark/work queue, physical inventory or deletion. Full
 collection and final committed-HEAD clean qualification remain outstanding.
+
+## Final lifecycle qualification and remaining checks — 2026-10-26
+
+Merged PR #170 (`4434047222851efa5e26cf661d66158df88c0171`) has the same Git
+tree, `90ce763836c21c92023a02019228375f976072ec`, as tested source
+`a048b154f081d80dbbf2b57f70e3fb787d546ca1`. Its runtime change separates private
+immutable-object I/O from the native journal mutex. It changes no wire/ABI or
+stored definition, actor workflow, runtime deadline or test assertion. The
+[paused-sync and negative-control evidence](#private-object-io-and-native-progress--2026-10-26)
+establishes the shared backend's scoped concurrency behavior.
+
+`nix develop --option eval-cache false --command just check` passes at that
+source in 2,070.32 seconds after the locked Board dependency installation. It
+includes contracts, diagnostic mappings, the full unit stage, CLI checks,
+frontend checks and the handbook build. The earlier check fails on generated
+diagnostic inventory counts; its original result remains in the bundle, and
+the corrected inventory is committed before the passing run.
+
+The committed-HEAD `just ci-clean --lane experience` run on ext4 **fails** in
+445.13 seconds. Board checks, docs checks, Node binding checks and observability
+pass; `test::server-logging` fails after 237.78 seconds including its build.
+The no-argument node exits 1 with empty stdout but emits `service.starting` and
+`telemetry.loss` (`dropped: 1`) without the expected `service.failed` event.
+Argument validation returns `ExpectedConfigAndMode` before configuration reading
+or storage opening. The exact telemetry-loss cause is not established.
+[#171](https://github.com/spoke-sh/transit/issues/171) tracks this observability
+failure. The original lane's later eight tasks do not run, and its recorded
+result remains failed.
+
+The remaining eight owning tasks run separately from the preserved isolated
+checkout: seven pass and the Station launcher bootstrap fails. Fixtures,
+assertions and deadlines are unchanged. The controller runs
+each ordinary `just` task in the pinned bindings shell with that checkout's
+physical scratch directory. It does not reuse outputs from the main checkout,
+alter the CI inventory or overwrite the failed lane's records. This is focused
+installed qualification, not a completed `ci-clean` lane.
+
+| Task | Seconds, including task build | Outcome |
+| --- | ---: | --- |
+| `test::server-direct-tables` | 177.88 | Pass |
+| `test::server-direct-faults` | 81.67 | Pass |
+| `test::server-sql-lifetimes` | 76.66 | Pass |
+| `test::server-sql` | 142.12 | Pass |
+| `test::server-sql-local` | 458.99 | Pass |
+| `transit-board::test` | 30.99 | Pass |
+| `transit-board::query-test` | 328.51 | Pass |
+| `launchers::local::test-station` | 38.47 | Fail |
+
+Total focused-run time is 1335.31 seconds. The seven passes
+establish their installed lifecycle, original-operation recovery, current access
+and result behavior. They do not establish every filesystem, provider,
+concurrent-writer or application latency profile.
+
+The Station bootstrap's original native sequence 10 encounters cancellation
+during append near the request's two-second work budget; the exact I/O stage is
+not established. The owner then refuses with `WalRecoveryRequired`. The launcher
+keeps the original request and retries the same temporary owner until its existing
+20-second wait expires. Its long-lived service manager has not yet started.
+[#173](https://github.com/spoke-sh/transit/issues/173) owns bootstrap-owner
+replacement/recovery in the installed-runtime cutover.
+
+A separate diagnostic reopens the original directory with the same binary and
+configuration. Signed reads report position 11/principal sequence 10. The existing
+exact-retry helper recovers the saved original request's receipt at position 10;
+a second signed read still reports position 11/sequence 10. There is no new
+acceptance, new operation identity, SQL resubmission or continued provisioning.
+This proves recovery of that original receipt, not the complete Station launcher
+schedule. The WAL recovery refusal, authority checks and runtime deadlines remain
+unchanged.
+
+The separate hosted run
+[40344710693](https://github.com/spoke-sh/transit/actions/runs/40344710693) tests
+merge `3db30c84a0d01a0b32d8129e38feacb18769025e`. Its tree
+`2fe496883aeb40d81d5caa119587c024df8e2e94` equals PR #169 head
+`ce26cccb93a52f95a33f77aeaaba628860ce2b2e` and merged `17b73b4f2`; it predates
+the mutex correction. Core passes 28/28 (4,291.74 seconds), launchers 2/2
+(927.79), bindings-1 17/17 (6,830.81), bindings-2 5/5 (4,252.89), and experience
+13/13 (2,604.74), including SQL lifetimes in 61.53 seconds. These exact-source
+passes do not identify the cause of an earlier missing-stderr SQL timeout.
+
+That hosted job's later browser stage is **failed**: embedded Board passes,
+then query-browser fails a five-second visibility assertion after **Resume
+without rerunning**. The error snapshot still shows **Checking current query
+evidence** with the original query reference; it does not establish a terminal
+runtime failure. The later five browser tasks do not run. Separately, the
+[physical reactive failures](#physical-reactive-qualification--2026-10-26)
+and the 17.917-second original-operation diagnostic remain unchanged. No browser
+pass, isolated Table latency improvement or complete combined-suite pass is
+inferred from the successful installed tasks. Those broader browser failures remain
+with #124; startup logging and bootstrap recovery remain with #171 and #173.
+
+The [evidence bundle](verification/results/lifecycle-final-qualification-2026-10-26/report.json)
+retains exact commands, sources, task outcomes, compressed logs and hashes,
+including the failed clean lane and hosted artifacts. Private configurations,
+credentials and durable uncertain-outcome fixtures remain outside Git. Earlier
+DELETE/CREATE/UPDATE/INSERT observations retain their original attribution; no
+SQL was resubmitted to replace those uncertain outcomes.
+
+The documentation base also includes subsequently merged PR #172
+(`ceb109a03f4e0c9495b5a34721b09e683f0b94fc`), which extends Table execution and
+storage maintenance and changes the current-v1 definition. The runs above retain
+their earlier source and definition attribution. They do not qualify that later
+implementation or establish cross-definition compatibility; current storage
+integration and qualification remain separate.

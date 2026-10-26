@@ -1,6 +1,6 @@
 # 1. Data identities, declarations and commit contracts
 
-[Roadmap](README.md) · [Current data model](../handbook/reference/data-model.md) · [Tracker #108](https://github.com/spoke-sh/transit/issues/108) · **Status:** In Progress
+[Roadmap](README.md) · [Current data model](../handbook/reference/data-model.md) · [Tracker #108](https://github.com/spoke-sh/transit/issues/108) · **Status:** Completed
 
 Define how an application describes data, schemas, computations and policies,
 and how public operations bind that declaration to identities, dependencies,
@@ -10,9 +10,109 @@ before storage formats and runtime integration depend on them.
 The 2026-10-24 sequencing review separates this contract/metadata foundation from
 the installed lifecycle implementation in [milestone 3](03-live-storage-and-sql-cutover.md).
 The original direct Table, named KV/Document and computation-lifecycle acceptance
-obligations transfer explicitly to that owner; #108 continues tracking both
-the foundation and those outstanding outcomes. This milestone remains In Progress.
-Neither the split nor a contract fixture completes the original executable scope.
+obligations transfer explicitly to that owner. The final review below accepts
+the foundation and the delivered original caller outcomes tracked by #108.
+It preserves the unfinished storage, maintenance and broader cutover obligations
+under their existing owners; the sequencing split alone established no completion.
+
+## Final lifecycle acceptance review — 2026-10-26
+
+The contract foundation and delivered original lifecycle scope are accepted on
+the evidence below. This closes the milestone's implementation review and #108's
+delivered caller obligations; it does not close the remaining storage/cutover
+milestones or shared tracking issues wholesale.
+
+The acceptance boundary is data-first: Table ingestion, row acceptance and
+scans use the direct WAL-backed owner. Station coordinates application work;
+its mailbox and turn bounds do not define the storage engine. The shared local
+backend correction releases the journal mutex during private immutable-object
+I/O while preserving quota reservation, per-key publication and final authority
+checks. Its component tests include a paused-sync progress schedule and a
+negative control restoring the earlier lock extent.
+
+| Acceptance area | Delivered scope and executed evidence | Remaining owner |
+| --- | --- | --- |
+| Stable identities and direct acceptance | [Public CRUD/DDL](../../tests/README.md#direct-table-crudddl-recovery--2026-10-23), [shared preparation](../../tests/README.md#shared-direct-table-ddl-preparation--2026-10-24), [preview](../../tests/README.md#shared-direct-preview--2026-10-24) and [139-Table growth](../../tests/README.md#direct-catalog-growth-and-retained-rows--2026-10-24) establish the direct owning path, exact lost-reply recovery, current policy, stale-content/definition rejection and name replacement. | Broader client/statement APIs remain milestones 4 and 6. |
+| Durable snapshot interpretation | [Retained SQL cuts](../../tests/README.md#direct-sql-ledger-recovery-and-pin-authority--2026-10-24) include accepted unflushed rows; original pin acquisition/release and metadata survive replacement. [Competing checkpoints](../../tests/README.md#snapshot-pins-against-competing-checkpoints--2026-10-24) preserve pinned history. Multi-source reads expose independent vectors explicitly. | Multi-Table consistent cuts and transaction histories remain milestone 5; destructive collection and branch/provider qualification retain their storage owners. |
+| Named usable KV/Document resources | [Allocation and initialization](../../tests/README.md#named-native-resource-allocation-and-initialization--2026-10-24), [lifetime/dependency recovery](../../tests/README.md#named-resource-dependency-authority-and-retirement--2026-10-24) and [shared caller recovery](../../tests/README.md#direct-host-named-resource-recovery--2026-10-24) use real native resources. [139-resource](../../tests/README.md#public-named-resource-growth-and-restart--2026-10-25) and [139-edge](../../tests/README.md#public-dependency-graph-growth-and-restart--2026-10-24) schedules exceed resident caches and recover after restart. | Service-managed reconciliation remains a later lifecycle extension; associations still confer neither authority nor ownership. |
+| Computation results and freshness | [Result/source attribution](../../tests/README.md#result-source-freshness-and-named-attribution--2026-10-23) and [named query publication](../../tests/README.md#named-query-dependency-publication-and-retirement--2026-10-24) bind actual captured/maintained results and exact data/definition revisions. Activation, source-change detection, denial and recovery are exercised. Inspection starts no work. | Automatic WAL-driven scheduling and managed computation remain milestone 9. |
+| Admitted representations and comparison limits | [Independent physical-column checks](../../tests/README.md#lossless-physical-column-admission-and-public-sql--2026-10-23) establish lossless values across WAL/segment reads, definition rejection and the then-explicit non-binary SQL refusal at their recorded sources. [Neutral schema checks](../../tests/README.md#neutral-physical-schemas-across-language-callers--2026-10-23) preserve codec/collation descriptors. The recorded repository and hosted core runs exercise the fixtures at those sources. | Broader codec/storage qualification remains #118 in milestone 2. Later SQL collation support in PR #172 has separate evidence; ICU remains unsupported. |
+| Neutral index foundation | [Neutral index checks](../../tests/README.md#neutral-index-contracts--2026-10-25) cover immutable source/key/constraint identities, build generations and exact snapshot coverage through owning types, generated contracts and independent positive/negative fixtures. | Installed index operations, secondary access paths and online maintenance remain milestone 8. |
+| Cutover and caller agreement | [The actor Table owner is retired](../../tests/README.md#direct-catalog-hard-cutover-and-retired-owner--2026-10-24). [SDK selected-role checks](../../tests/README.md#direct-catalog-sdk-selected-roles--2026-10-24), shared native/port and installed SDK lanes pass with exact outcomes, current-definition rejection and current authorization. | Additional language/platform profiles retain their SDK owner; a v1 label never implies compatibility between builds. |
+| Documentation and evidence | Current capabilities and limits are in the public data-model, architecture, Table/state/caller, storage and verification references. The proof ledger retains exact sources, failures, raw artifacts and the scope of each pass. | #123/#124 retain broader storage/provider/performance obligations. |
+
+The 2026-10-26 close-out decision replaces the earlier requirement to finish
+every combined suite before this milestone closes with the scoped lifecycle
+acceptance above. The user explicitly requested separate launcher tracking and
+documentation close-out. Full combined qualification remains open under #124;
+the failures below retain their assertions, evidence and owners. This decision
+does not relabel the failed suite or waive the delivered lifecycle's caller,
+authorization, growth and recovery requirements.
+
+The [final qualification record](../../tests/README.md#final-lifecycle-qualification-and-remaining-checks--2026-10-26)
+binds full `just check` (2,070.32 seconds) and seven passing focused installed
+tasks, followed by a failed Station launcher bootstrap (1,335.31 seconds total),
+to `a048b154f`, whose tree equals merged
+PR #170 (`443404722`). The original clean experience lane remains **failed**:
+four tasks pass, then the no-argument node logging assertion observes a dropped
+terminal event before storage opens. Its later eight tasks do not run in that
+lane. Seven pass separately from the same isolated checkout, with unchanged
+fixtures and deadlines; the final Station bootstrap task fails. [#171](https://github.com/spoke-sh/transit/issues/171)
+owns the logging failure. [#173](https://github.com/spoke-sh/transit/issues/173)
+owns the Station launcher's missing bootstrap-owner replacement after a required
+WAL reopen. A diagnostic recovers its original sequence-10 receipt after reopening
+the same directory, with accepted position unchanged. No new work or subsequent
+provisioning is submitted. This confirms the original native acceptance/recovery
+boundary while leaving the launcher task failed. These distinctions are part of
+the acceptance review; there is no claim of a complete combined-suite pass.
+
+Earlier source-attributed core, SDK, launcher and growth qualification remains
+valid for those recorded runs. The merged PR #169 tree separately passes all
+13 hosted experience tasks, including SQL lifetimes, direct Table faults and
+installed SQL recovery. Later passes do not identify historical SQL failure
+causes or replace their original incomplete outcomes.
+
+The physical reactive and hosted Board browser failures remain open in #124;
+the startup logging failure remains open in #171.
+The first is an end-to-end application serving workflow: a diagnostic observes
+the same original operation completing after 17.917 seconds, beyond the test's
+ten-second assertion. The second fails a five-second visibility assertion during
+resuming an existing captured query, with the UI still checking current evidence.
+Neither result is reported as a passed browser suite or used as an isolated
+Table latency measurement. Further application-runtime performance work is not
+added to the lifecycle foundation; installed cutover and broader performance
+retain milestones 3 and 10 and their existing proof requirements.
+
+No actor performance change, deadline increase or fallback data authority is
+part of this close-out. No failed or incomplete proof is labelled as passed.
+The accepted scope combines independent contract, direct caller, recovery and
+current-policy evidence; contract checks alone are not its installed proof.
+
+Linked component issues #111/#112/#119/#120 are already closed. This review
+reconciles #108's delivered lifecycle scope while preserving unfinished
+work in #118/#122/#123/#124/#125/#126. Remaining storage/maintenance integration,
+transactions, online indexes, WAL-driven managed computation and provider
+expansion keep their explicit later owners.
+
+Only the main worktree is registered. The merged feature branch is removed;
+the current documentation branch, user notes, original unpublished branch and
+the separate storage checkout are preserved.
+Compiler caches are removable only as rebuildable outputs; original uncertain
+fixtures and source-attributed evidence remain preserved.
+
+PR #172 subsequently merges as `ceb109a03`, including the shared backend mutex
+correction, native allocation/collection guards and synchronized disk-facade
+confirmation counters. It extends bounded Table execution and retained storage
+maintenance and changes the current-v1 definition. The acceptance records above
+retain their earlier source/definition attribution; they do not qualify that new
+definition or establish compatibility with it. The storage work retains its own
+integration and qualification obligations. Current supported collation behavior
+is in the [Table reference](../handbook/reference/tables.md#schemas-and-identities),
+including SQL `UTF8_BINARY`, `ASCII_CI` and `EBCDIC_CP037` comparisons added by
+that later change.
+
+The dated sections below preserve earlier checkpoints and their then-open work.
+Use the final acceptance review above for the current disposition.
 
 ## Reopened assessment — 2026-10-22
 
@@ -987,7 +1087,9 @@ A contract fixture is not that end-to-end evidence.
 
 The matrix below preserves the original obligations transferred to
 [milestone 3](03-live-storage-and-sql-cutover.md#installed-lifecycle-integration).
-It does not expand the foundation-only completion criteria above or close #108.
+The [final acceptance review](#final-lifecycle-acceptance-review--2026-10-26)
+records the delivered scope and the separate remaining qualification owners.
+This matrix alone establishes no completed implementation or proof.
 
 The implementation review uses the following matrix. Descriptor validation and
 contract fixtures are a foundation, not closure of the public caller gates.

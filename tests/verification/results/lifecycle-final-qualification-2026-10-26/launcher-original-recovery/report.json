@@ -1,0 +1,51 @@
+{
+  "source_revision": "a048b154f081d80dbbf2b57f70e3fb787d546ca1",
+  "method": "Reopen the original directory and recover only the already-saved native command through the existing exact-retry helper. No new operation identity, SQL or subsequent provisioning. Compare accepted positions before and after recovery.",
+  "pending_id": "resource-coordinator",
+  "sequence": 10,
+  "status": "original_receipt_recovered_without_new_acceptance",
+  "command_kind": [
+    "create_resource"
+  ],
+  "node_sha256": "f4a28bd01d76f7c67db0731c2cbca7398b8fd1c8cdb9d8a72cd6c5b899f6aafb",
+  "original_operator_state_sha256": "93c01bb2399f0aad808bca2ea6354e58ba690fb3d44e6b75c5c94fd0b4e158b6",
+  "before": {
+    "version": 1,
+    "definition": "797a232fae8565cae9c6f149ab3dca2b4cc5c85516f6b3436df98ffcfec70ba0",
+    "realm": 111480983,
+    "position": 11,
+    "principal_sequence": 10,
+    "body": {
+      "identity": {
+        "principal": 0,
+        "permissions": 255,
+        "pid": null,
+        "policy_revision": 10
+      }
+    }
+  },
+  "original_receipt": {
+    "id": "resource-coordinator",
+    "position": 10,
+    "same_request": true
+  },
+  "after": {
+    "version": 1,
+    "definition": "797a232fae8565cae9c6f149ab3dca2b4cc5c85516f6b3436df98ffcfec70ba0",
+    "realm": 111480983,
+    "position": 11,
+    "principal_sequence": 10,
+    "body": {
+      "identity": {
+        "principal": 0,
+        "permissions": 255,
+        "pid": null,
+        "policy_revision": 10
+      }
+    }
+  },
+  "operator_state": {
+    "sequence": 10,
+    "pending": null
+  }
+}

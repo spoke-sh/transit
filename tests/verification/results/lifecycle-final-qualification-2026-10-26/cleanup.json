@@ -1,0 +1,6 @@
+{
+  "checked": "2026-10-26T17:44:14.811978+00:00",
+  "worktrees": "worktree /home/alex/workspace/rupurt/rey\nHEAD ceb109a03f4e0c9495b5a34721b09e683f0b94fc\nbranch refs/heads/docs/lifecycle-final-acceptance\n\n",
+  "branches": "* docs/lifecycle-final-acceptance\n  feat/single-turn-sql-and-tseg-cutover\n  main\n",
+  "scope": "Only stale owned registered worktrees and merged branches were removed. Preserve original unpublished branch, user notes, separate storage checkout, original uncertain installations and the failed clean checkout supporting issues 171 and 173."
+}

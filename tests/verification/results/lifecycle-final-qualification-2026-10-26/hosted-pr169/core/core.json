@@ -1,0 +1,170 @@
+[
+  {
+    "lane": "core",
+    "task": "check-core",
+    "seconds": 1660.56,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::properties",
+    "seconds": 63.02,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::simulation",
+    "seconds": 132.22,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::resource-simulation-smoke",
+    "seconds": 20.34,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::scheduler-simulation",
+    "seconds": 111.9,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::domain-simulation",
+    "seconds": 38.67,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::vortex",
+    "seconds": 73.27,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::codecs",
+    "seconds": 6.72,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::dev-environment",
+    "seconds": 0.08,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::kubectl-transit",
+    "seconds": 3.67,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::deployments",
+    "seconds": 1.58,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::telemetry",
+    "seconds": 3.31,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::packages-build",
+    "seconds": 337.65,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "bindings::zig-test",
+    "seconds": 185.4,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "bindings::runtime-boundary",
+    "seconds": 687.15,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::sql-wire-contracts",
+    "seconds": 5.28,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::compute",
+    "seconds": 0.41,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::client-abi",
+    "seconds": 9.98,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::station",
+    "seconds": 395.33,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::storage",
+    "seconds": 176.77,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::service",
+    "seconds": 58.0,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::authorization",
+    "seconds": 10.73,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::authorization-cli",
+    "seconds": 12.11,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::authorization-tables",
+    "seconds": 255.71,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::runtime-upgrade",
+    "seconds": 5.37,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::callers",
+    "seconds": 21.16,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::inspection",
+    "seconds": 4.5,
+    "exit_code": 0
+  },
+  {
+    "lane": "core",
+    "task": "test::state",
+    "seconds": 10.81,
+    "exit_code": 0
+  }
+]
