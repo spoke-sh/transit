@@ -27443,3 +27443,48 @@ passes launchers and observability but retains a unit-executable SIGSEGV, Python
 public-query deadline failure and standalone gateway SIGSEGV. Complete
 qualification with the loader correction remains separate from these focused
 passes; the earlier Table recovery and installed-session failures remain open.
+
+## Selected Table segment decoding — 2026-10-26
+
+On merged baseline `5e77e1b2`, `18132128` adds selected physical column decoding
+and explicit borrowed-byte validation; `558c9863` adds the owned encoded-group
+reader. The live Table point path uses these readers while physical, identity
+and key-range scans retain full-group decoding. No wire/storage definition changes.
+
+`nix develop --command just test::storage-segments` passes 59 Fuze checks and two
+storage/import checks. The column tests compare every supported encoding against
+explicit logical cells, including all five states, recursive strings and conflict
+counter/replica provenance. Independent literal TCP1 fixtures cover plain mixed
+states and bitpacked/RLE/dictionary streams. They reject malformed skipped values,
+truncated suffixes, invalid row selections and foreign definitions. Existing
+independent CP037, rational HFP and mainframe page fixtures still pass; this is
+not comprehensive external conformance for every codec.
+
+Reader checks cover projected ranges, source/reader/cache destruction, repeated
+selections without source reads, page corruption, mismatched footer row counts,
+actual allocation budgets and exhaustive allocator failures. A skipped 16 KiB
+symbol-table string still consumes transient validation memory: a 4 KiB combined
+budget refuses it, and a 32 KiB budget succeeds with less than 4 KiB retained
+output. Selection therefore does not bypass validation or promise zero decoding
+of skipped values. The format and shared definition are unchanged.
+
+The disk control writes 512 rows with 2,048-byte text values, reopens with one
+resident index page and reads 256-row groups. Selected point decoding retains
+3,898 arena bytes (also its decoded peak), plus 530,562 bytes of encoded pages and
+their directory. Full-group decoding retains 891,024 arena bytes and uses transient
+encoded-page scratch. These numbers exclude footer metadata, index pages, returned
+row copies, allocator overhead and process RSS; the decoded-only reduction is not
+the reduction in total resident memory.
+
+The cold point requests 563,420 segment bytes in five ranges, the adjacent point
+requests zero more, and the complete same-root scan requests 1,093,934 bytes in
+seven ranges. Every scanned key/payload is checked against the input fixture.
+Current and retained-snapshot points succeed within 16 KiB of decoded memory;
+full-group decoding refuses that budget without changing accepted roots or the
+original receipt. Returned rows survive eviction/recovery. The existing
+cross-segment interval control also passes with unchanged byte/range counts.
+
+The pinned Debug build runs on Linux x86_64 with the host filesystem cache
+available. This establishes component ownership, bounds and read counts, not
+cold-device traffic, CPU/latency improvement, installed throughput, SQL inequality
+pushdown, encoded predicates, maintenance or complete clean-CI qualification.

@@ -610,7 +610,7 @@ test "Table segment ranges bound cold point IO and preserve owned rows across ev
         creation = binding(&table, 1);
         _ = try table.apply(creation, &changes, .bulk, access.guard());
     }
-    var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    var table = try P.init(t.allocator, 17, definition, wal.log(), objects.objectStore(), .{ .resident_pages = 1, .segment_decode_bytes = 16 * 1024 });
     defer table.deinit();
     try table.recover();
     var key_buffer: [4096]u8 = undefined;
@@ -621,19 +621,34 @@ test "Table segment ranges bound cold point IO and preserve owned rows across ev
     try t.expect(full_bytes > 1024 * 1024);
     try t.expectEqual(@as(u64, 5), table.segment_range_reads); // header/trailer/footer + two columns
     try t.expect(cold_bytes * 10 < @as(u64, full_bytes) * 6);
-    try t.expect(table.segment_cache.?.decoded.?.allocatedBytes() < 4 * 1024 * 1024);
+    const point_resident = table.segment_cache.?.decoded.?.allocatedBytes();
+    const point_peak = table.segment_cache.?.decoded.?.peakAllocatedBytes();
+    const encoded_resident = table.segment_cache.?.encoded.?.allocatedBytes();
+    try t.expect(point_peak <= 16 * 1024);
+    try t.expectEqual(@as(usize, 1), table.segment_cache.?.decoded.?.columns[0].len);
     var adjacent = (try table.get(t.allocator, try key(1, &key_buffer), access.guard())).?;
     defer adjacent.deinit();
     try t.expectEqual(cold_bytes, table.segment_bytes_read);
-    try t.expectEqual(@as(u64, 1), table.row_groups_decoded);
+    try t.expectEqual(@as(u64, 2), table.row_groups_decoded);
     var distant = (try table.get(t.allocator, try key(511, &key_buffer), access.guard())).?;
     defer distant.deinit();
     try t.expectEqual(@as(u64, 7), table.segment_range_reads);
-    try t.expectEqual(@as(u64, 2), table.row_groups_decoded);
+    try t.expectEqual(@as(u64, 3), table.row_groups_decoded);
     try t.expectEqual(@as(i128, 511), distant.row().cells[0].value.atom.signed);
     try t.expectEqualStrings(&body, first.row().cells[1].value.atom.bytes);
     try table.recover(); // destroys both caches
     try t.expectEqualStrings(&body, adjacent.row().cells[1].value.atom.bytes);
+
+    // A complete group needs more memory than a singleton. Failure leaves
+    // the accepted root untouched and does not invalidate earlier owned rows.
+    const accepted_before_scan = table.root;
+    const one_page = try table.scan(table.root, null);
+    const one_entry = one_page.entries[0].?;
+    try t.expectError(error.SegmentReadBudgetExceeded, table.readRow(t.allocator, table.root, one_entry.key, one_entry.value));
+    try t.expectEqualDeep(accepted_before_scan, table.root);
+    try t.expectEqualStrings(&body, first.row().cells[1].value.atom.bytes);
+    table.options.segment_decode_bytes = 64 * 1024 * 1024;
+    try table.recover();
 
     // A complete same-root physical scan is the value/count control. Each row
     // is checked against the independent ordinal and payload, not just a count.
@@ -656,11 +671,27 @@ test "Table segment ranges bound cold point IO and preserve owned rows across ev
     try t.expectEqual(@as(usize, 512), count);
     try t.expectEqual(@as(u64, 7), table.segment_range_reads - ranges_before);
     const scan_bytes = table.segment_bytes_read - bytes_before;
+    const scan_resident = table.segment_cache.?.decoded.?.allocatedBytes();
+    try t.expect(point_resident * 20 < scan_resident);
+    std.debug.print("Table selected decoding: point={d} retained/{d} peak decoded bytes, encoded cache={d}; full group={d} retained decoded bytes\n", .{ point_resident, point_peak, encoded_resident, scan_resident });
     try t.expect(scan_bytes <= full_bytes);
     std.debug.print("Table segment ranges: segment={d} cold_point={d} warm_point=0 same_cut_scan={d} bytes; point_ranges=5 scan_ranges=7 rows={d}\n", .{ full_bytes, cold_bytes, scan_bytes, count });
     const scan_index_misses = table.index.misses - scan_index_before;
     const snapshot = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 90 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+    table.options.segment_decode_bytes = 16 * 1024;
     try table.recover();
+    var retained_point = (try table.readSnapshot(t.allocator, snapshot, try key(255, &key_buffer), access.guard())).?;
+    defer retained_point.deinit();
+    const retained_point_bytes = table.segment_bytes_read;
+    var current_point = (try table.readCurrent(t.allocator, .{ .partition = 17, .next_lsn = table.root.next_lsn }, try key(254, &key_buffer), access.guard())).?;
+    defer current_point.deinit();
+    try t.expectEqual(retained_point_bytes, table.segment_bytes_read);
+    try t.expectEqual(@as(i128, 255), retained_point.row().cells[0].value.atom.signed);
+    try t.expectEqual(@as(i128, 254), current_point.row().cells[0].value.atom.signed);
+    try t.expectEqualStrings(&body, retained_point.row().cells[1].value.atom.bytes);
+    table.options.segment_decode_bytes = 64 * 1024 * 1024;
+    try table.recover();
+    try t.expectEqualStrings(&body, current_point.row().cells[1].value.atom.bytes);
     const key_bytes_before = table.segment_bytes_read;
     const key_index_before = table.index.misses;
     var upper_key: [4096]u8 = undefined;

@@ -70,8 +70,11 @@ collector races, policy-authorized trimming or multi-process Table commits.
 
 The direct owner reads immutable Table data through Fuze's shared `TSegReader`.
 Point lookup selects one segment through its paged hash-key directory; footer
-and selected row-group ranges replace full-object buffering. Decoded groups have
-an explicit allocation budget and returned rows own their values. Physical
+and selected row-group ranges replace full-object buffering. Point reads retain
+verified encoded pages and expand only the requested row into owned output;
+complete-page validation still checks skipped values. Adjacent point reads reuse
+encoded pages. Scans cache decoded groups. Both decoding paths have an explicit
+allocation budget and returned rows own their values. Physical
 groups default to 256 rows, independently of statement and response bounds.
 Retained `rangeSnapshot` reads follow the paged full-key directory in collation
 order. SQL predicate/projection pushdown remains separate from these source reads.

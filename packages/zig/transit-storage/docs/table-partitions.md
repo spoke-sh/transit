@@ -205,18 +205,32 @@ the entire retained source and is not a match count.
 
 `TreeStore` defaults to sixteen resident index pages and a separate 64 MiB
 encoded staging-work budget. `TablePartition` caches at most one segment footer
-and one decoded row group. It reads the fixed header/trailer and verified footer,
+and one row group's data. It reads the fixed header/trailer and verified footer,
 then only the target group's column pages through `TSegReader`; it does not
 allocate a complete encoded segment. The point directory selects the segment
 without scanning all retained candidates. Footer keys remain a resident sorted
-array; this is not an ordered primary-key range index.
+array, separate from the Table's paged full-key directory.
+
+Point reads retain verified encoded column pages and one selected decoded row.
+Adjacent points in that group reuse encoded bytes and validate the complete
+pages again; skipped values are not retained in decoded output. Current and
+retained-snapshot point operations use the same path. Physical, identity and
+ordered-key scans instead cache a fully decoded group to amortize decoding across
+rows. Switching from a selected point cache to a full-group scan discards encoded
+pages and reads the group's columns again. Existing fully decoded groups can
+also serve point reads. These choices change physical access, not source identity,
+accepted roots or disclosure authorization.
 
 Segment bytes are bounded by 16 MiB; this owner writes at most 1,024 rows per
 segment in groups of 256 by default. `segment_rows_per_group` may select 1–1,024
 rows independently of operation, execution and result-page limits. Existing
 segments keep their original group layout. `segment_decode_bytes` bounds actual
-live decoder arena allocations (64 MiB by default); one transient encoded column
-page, footer metadata, cache owner and output rows have separate allocations.
+live decoder allocations (64 MiB by default), including simultaneously live
+selection output, dictionary entries and validation scratch. An encoded point
+cache has a separate 16 MiB total allowance for page buffers and their directory;
+a scan uses one transient encoded column page. Footer metadata, cache owner,
+allocator overhead and output rows have separate allocations. Compressed strings
+may require transient expansion for validation even if their rows are unselected.
 `segment_cache_bytes` selects the largest encoded segment eligible for retained
 footer/group caching; zero disables that retention, not transient decoding.
 Returned rows own their values across group eviction and owner destruction.
@@ -224,7 +238,8 @@ Query owners must bound their result buffers and enclosing allocators separately
 
 `segment_reads`, `segment_range_reads`, `segment_bytes_read` and
 `row_groups_decoded` count loaded footers, successful TSEG range requests,
-returned encoded bytes and completed group decodes for the component owner.
+returned encoded bytes and completed decoding calls for the component owner.
+The last counter includes singleton selections as well as full-group decodes.
 They exclude data-index and WAL reads, provider chunk-verification amplification,
 filesystem cache effects and transport work. A cache hit retains no permission;
 current guards still control disclosure.

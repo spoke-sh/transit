@@ -1256,7 +1256,7 @@ pub fn getAt(self: *Self, allocator: std.mem.Allocator, basis: Root, key: []cons
     try self.ready();
     try self.requireBasis(basis);
     const value = try self.tree().get(basis.rows, try r.rowKey(key)) orelse return null;
-    var row = try self.readRow(allocator, basis, try r.rowKey(key), value);
+    var row = try self.readRowWithSchema(allocator, basis, self.declaration.schema.schema, try r.rowKey(key), value, .point);
     errdefer row.deinit();
     var actual: [f.Collation.max_sort_key_bytes]u8 = undefined;
     if (!std.mem.eql(u8, key, try row.row().storageKey(self.declaration.schema.schema, &actual))) return error.TableKeyHashCollision;
@@ -1287,10 +1287,10 @@ pub fn scan(self: *Self, basis: Root, after: ?pages.Key) !pages.Slice {
 }
 
 pub fn readRow(self: *Self, allocator: std.mem.Allocator, basis: Root, key: pages.Key, value: pages.Value) !OwnedRow {
-    return self.readRowWithSchema(allocator, basis, self.declaration.schema.schema, key, value);
+    return self.readRowWithSchema(allocator, basis, self.declaration.schema.schema, key, value, .group);
 }
 
-fn readRowWithSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: f.TableSchema.Schema, key: pages.Key, value: pages.Value) !OwnedRow {
+fn readRowWithSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: f.TableSchema.Schema, key: pages.Key, value: pages.Value, mode: enum { point, group }) !OwnedRow {
     try self.ready();
     try self.requireBasis(basis);
     if (!std.mem.eql(u8, &try schema.fingerprint(), &basis.schema_fingerprint)) return error.InvalidTableBasis;
@@ -1317,23 +1317,36 @@ fn readRowWithSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, sch
                 !std.mem.eql(u8, &footer.layout_fingerprint, &try schema.layoutFingerprint())) return error.TableSchemaChanged;
             if (footer.segment_id != locator.lsn or locator.offset >= footer.pk_index.len or footer.pk_index[locator.offset].global_row_offset != locator.offset) return error.InvalidTableRowReference;
             const entry = footer.pk_index[locator.offset];
-            if (segment.decoded) |*group| if (group.index != entry.row_group) {
+            if (segment.decoded) |*group| if (group.index != entry.row_group or group.rowIndex(entry.row_in_group) == null or (mode == .group and group.rows != null)) {
                 group.deinit();
                 segment.decoded = null;
+            };
+            if (segment.encoded) |*encoded| if (encoded.index != entry.row_group) {
+                encoded.deinit();
+                segment.encoded = null;
             };
             if (segment.decoded == null) {
                 var projection: [128]usize = undefined;
                 for (projection[0..schema.columns.len], 0..) |*slot, i| slot.* = i;
                 var source: SegmentSource = .{ .owner = self, .locator = locator };
-                segment.decoded = try segment.reader.group(self.allocator, source.source(), schema, entry.row_group, projection[0..schema.columns.len], .{ .decoded_bytes = self.options.segment_decode_bytes });
+                if (mode == .point) {
+                    if (segment.encoded == null) segment.encoded = try segment.reader.encodedGroup(self.allocator, source.source(), schema, entry.row_group, projection[0..schema.columns.len], f.TSeg.max_segment_bytes);
+                    segment.decoded = try segment.encoded.?.select(self.allocator, schema, &.{entry.row_in_group}, self.options.segment_decode_bytes);
+                } else {
+                    // Scans amortize full-group decoding across adjacent rows.
+                    if (segment.encoded) |*encoded| encoded.deinit();
+                    segment.encoded = null;
+                    segment.decoded = try segment.reader.group(self.allocator, source.source(), schema, entry.row_group, projection[0..schema.columns.len], .{ .decoded_bytes = self.options.segment_decode_bytes });
+                }
                 self.row_groups_decoded +|= 1;
             }
             var arena = std.heap.ArenaAllocator.init(allocator);
             errdefer arena.deinit();
             const cells = try arena.allocator().alloc(f.Types.Values.Cell, schema.columns.len);
+            const row_index = segment.decoded.?.rowIndex(entry.row_in_group) orelse return error.InvalidTableRowReference;
             for (segment.decoded.?.columns, cells) |column, *cell| {
-                if (entry.row_in_group >= column.len) return error.InvalidTableRowReference;
-                cell.* = try f.Types.Values.cloneValidated(arena.allocator(), column[entry.row_in_group]);
+                if (row_index >= column.len) return error.InvalidTableRowReference;
+                cell.* = try f.Types.Values.cloneValidated(arena.allocator(), column[row_index]);
             }
             break :blk .{ .segment = .{ .arena = arena, .identity = entry.identity, .cells = cells } };
         },
@@ -1353,8 +1366,10 @@ const CachedSegment = struct {
     length: u32,
     reader: f.TSegReader,
     decoded: ?f.TSegReader.Group = null,
+    encoded: ?f.TSegReader.EncodedGroup = null,
     fn deinit(self: *CachedSegment, _: std.mem.Allocator) void {
         if (self.decoded) |*group| group.deinit();
+        if (self.encoded) |*group| group.deinit();
         self.reader.deinit();
     }
 };
@@ -1572,7 +1587,7 @@ pub fn readSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     try self.requireBasis(frozen.root);
     const index_key = try r.rowKey(key);
     const value = try self.tree().get(frozen.root.rows, index_key) orelse return null;
-    var row = try self.readRowWithSchema(allocator, frozen.root, frozen.schema.schema, index_key, value);
+    var row = try self.readRowWithSchema(allocator, frozen.root, frozen.schema.schema, index_key, value, .point);
     errdefer row.deinit();
     var actual: [f.Collation.max_sort_key_bytes]u8 = undefined;
     if (!std.mem.eql(u8, key, try row.row().storageKey(frozen.schema.schema, &actual))) return error.TableKeyHashCollision;
@@ -1638,7 +1653,7 @@ pub fn rangeSnapshot(self: *Self, allocator: std.mem.Allocator, handle: Snapshot
         }
         const row_key = try pages.Key.init(&entry.value);
         const locator = try self.tree().get(frozen.root.rows, row_key) orelse return error.InvalidTableRowReference;
-        var row = try self.readRowWithSchema(allocator, frozen.root, frozen.schema.schema, row_key, locator);
+        var row = try self.readRowWithSchema(allocator, frozen.root, frozen.schema.schema, row_key, locator, .group);
         var moved = false;
         defer if (!moved) row.deinit();
         var key_bytes: [f.Collation.max_sort_key_bytes]u8 = undefined;
@@ -1736,7 +1751,7 @@ pub fn readCurrent(self: *Self, allocator: std.mem.Allocator, expected: d.Positi
     const basis = try self.currentBasis(expected, guard);
     const index_key = try r.rowKey(key);
     var row: ?OwnedRow = if (try self.tree().get(basis.rows, index_key)) |value|
-        try self.readRowWithSchema(allocator, basis, self.declaration.schema.schema, index_key, value)
+        try self.readRowWithSchema(allocator, basis, self.declaration.schema.schema, index_key, value, .point)
     else
         null;
     errdefer if (row) |*value| value.deinit();
@@ -1780,7 +1795,7 @@ fn scanRootRows(self: *Self, allocator: std.mem.Allocator, basis: Root, schema: 
         if (entry.key.len != f.TableRow.Identity.encoded_bytes or entry.value.len != 32) return error.InvalidTableRowReference;
         const row_key = try pages.Key.init(entry.value.data[0..32]);
         const locator = try self.tree().get(basis.rows, row_key) orelse return error.InvalidTableRowReference;
-        var row = try self.readRowWithSchema(allocator, basis, schema, row_key, locator);
+        var row = try self.readRowWithSchema(allocator, basis, schema, row_key, locator, .group);
         var moved = false;
         defer if (!moved) row.deinit();
         if (!std.mem.eql(u8, entry.key.data[0..entry.key.len], &try row.row().identity.encode())) return error.InvalidTableRowReference;
