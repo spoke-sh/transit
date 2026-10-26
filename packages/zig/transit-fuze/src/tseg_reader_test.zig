@@ -154,6 +154,10 @@ test "TSeg projected decoding enforces actual resident arena bytes" {
     try t.expectEqual(before + 1, input.calls);
     try t.expect(group.allocatedBytes() <= 4096);
     try t.expectEqualStrings("zero", group.columns[0][0].value.atom.bytes);
+    var empty = try reader.group(t.allocator, input.source(), schema, 0, &.{}, .{});
+    defer empty.deinit();
+    try t.expectEqual(@as(?usize, 1), empty.rowIndex(1));
+    try t.expectEqual(@as(?usize, null), empty.rowIndex(2));
 }
 
 fn selectedAllocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {

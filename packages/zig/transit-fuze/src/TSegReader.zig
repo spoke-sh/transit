@@ -24,6 +24,7 @@ pub const Limits = struct {
 pub const Group = struct {
     workspace: *Workspace,
     index: usize,
+    source_rows: u32,
     columns: [][]Values.Cell,
     /// Null denotes all rows; otherwise ordinals are owned, sorted and unique.
     rows: ?[]const u32 = null,
@@ -41,7 +42,8 @@ pub const Group = struct {
         return self.workspace.peak;
     }
     pub fn rowIndex(self: Group, row: u32) ?usize {
-        const rows = self.rows orelse return if (self.columns.len == 0 or row < self.columns[0].len) row else null;
+        if (row >= self.source_rows) return null;
+        const rows = self.rows orelse return row;
         for (rows, 0..) |ordinal, i| {
             if (ordinal == row) return i;
             if (ordinal > row) break;
@@ -91,7 +93,7 @@ pub const EncodedGroup = struct {
             if (selected.row_count != self.row_count) return error.InvalidSegment;
             cells.* = selected.cells;
         }
-        return .{ .workspace = workspace, .index = self.index, .columns = columns, .rows = owned_rows };
+        return .{ .workspace = workspace, .index = self.index, .source_rows = self.row_count, .columns = columns, .rows = owned_rows };
     }
 };
 
@@ -151,7 +153,7 @@ pub fn group(self: *const Self, allocator: std.mem.Allocator, source: Source, sc
     for (projection, cells) |column_index, *out| {
         out.* = self.column(allocator, workspace.arena.allocator(), source, schema, index, column_index, limits.page_bytes) catch |err| return workspace.failure(err);
     }
-    return .{ .workspace = workspace, .index = index, .columns = cells };
+    return .{ .workspace = workspace, .index = index, .source_rows = self.footer.row_groups[index].row_count, .columns = cells };
 }
 
 /// Read and verify projected encoded pages under a total retained-byte budget.
