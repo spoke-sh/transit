@@ -127,16 +127,53 @@ The scan index key is kind followed by big-endian `u64` LSN/segment ID and `u32`
 offset. Its value is the 32-byte point key followed by the 49-byte locator.
 Acceptance publishes all row indexes together; physical-order traversal does not
 claim SQL sort order. Receipt keys are big-endian principal/operation `u64` pairs
-within the owning Table. Their values are the little-endian accepted frame LSN.
+within the owning Table. Their values reference compact original evidence, as
+specified below.
 
 Operation and pending indexes use the same principal/operation key and an
-eight-byte little-endian control-frame LSN. Operation controls retain the exact
+identical compact evidence reference. Operation controls retain the exact
 binding, immutable intent content, definition/frontier/logical-change basis,
 phase (`admitted`, `rejected` or `cancelled`) and typed rejection reason. A new
 control is admitted or rejected; an admitted operation can become terminal once.
 An accepted mutation retains its admission evidence and removes pending work in
 the same append that publishes its receipt. Terminal operations cannot reopen.
 DDL requires an empty pending-operation index.
+
+### Compact Table outcome and operation evidence
+
+`TableEvidence` stores original outcomes and operation controls independently of
+their complete accepting WAL frames. Receipt, operation and pending index values
+are exactly 40 bytes: an eight-byte little-endian object length followed by its
+complete 32-byte SHA-256. Eight-byte historical LSN pointers reject. The shared
+current definition changes with this stored interpretation; there is no fallback
+to the earlier index layout.
+
+The immutable object at `table-evidence/<digest>.data` contains `TEVID1` and two
+zero bytes at `0..8`, mandatory shared definition bytes at `8..40`, then at most
+16 KiB of JSON metadata. Metadata has an exclusive accepted `position` and a
+tagged `evidence` value:
+
+- `receipt` contains the complete original `binding`, ordered `changes` digest
+  and `outcome` inside `receipt`, the original `resulting` stored declaration,
+  and `ingestion` (`point`, `bulk` or `declaration`).
+- `operation` contains the complete original operation control, including its
+  frozen intent, interpretation/data basis, phase and reason.
+
+These objects have no row, archive, recovery or pin directories. Outcome evidence
+retains the original declaration; operation evidence retains its frozen intent.
+Neither requires retaining an otherwise obsolete row payload merely to recover
+an accepted outcome. Unlimited logical history, current/unflushed rows and
+retained snapshots can independently require the same WAL/archive frames.
+
+Staging evidence creates no acceptance. The same Table WAL append publishes its
+index entry, row changes and pending-work transition. Publication and recovery
+check that the indexed length/hash equals the canonical evidence derived from
+that exact accepting record. Observations validate content length/hash,
+definition, original identity and accepted position against the current owner,
+under current authorization. Missing or corrupt evidence fails without falling
+back to WAL bytes or substituting the current declaration. Failed staging leaves
+the accepted root unchanged; lost acknowledgements recover the original result.
+This representation does not itself authorize physical deletion.
 
 Frozen row work has `TDMLREQ1` at `0..8`, mandatory definition bytes at `8..40`,
 and a little-endian `u32` metadata length at `40..44`. At most 4 KiB of JSON
@@ -305,13 +342,14 @@ Recovery obtains archive and optional recovery-checkpoint coordinates from the
 latest accepted WAL record. Without a recovery checkpoint it replays the complete
 contiguous hash-linked chain from zero through archive plus WAL; with one it
 validates the published baseline and every later transition as specified below.
-It exposes no state before those checks succeed. Receipts, admitted
-operations, retained rows and logical history use the latest physical directory,
-including when their saved roots predate archival. Missing archive data fails
-closed; no fallback, implicit reset or skipped cursor prefix is allowed. Archive
-publication creates no logical changefeed event. Unlimited history is retained;
-this format does not introduce a logical retention floor or authorize archive,
-segment or index-object collection.
+It exposes no state before those checks succeed. Retained unflushed rows and
+logical history use the latest physical directory, including when their saved
+roots predate archival. Original receipts and operation controls use their
+separate compact evidence. Missing required archive data fails closed; no
+fallback, implicit reset or skipped cursor prefix is allowed. Archive publication
+creates no logical changefeed event. Unlimited history is the default; advancing
+an explicit logical floor is a separate acceptance transition. Neither operation
+authorizes archive, segment or index-object collection by itself.
 
 ### Table recovery checkpoints
 

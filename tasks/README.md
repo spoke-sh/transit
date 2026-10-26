@@ -82,7 +82,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::storage-benchmark --output PATH` | Paired native/Table disk startup, recovery and read measurements with independent values, warm/cold input pages and raw samples |
 | `just test::storage-ingest-benchmark --output PATH` | Matched Table WAL/bulk ingestion and native turn preparation/commit with independent fresh-process readback and raw samples |
 | `just test::storage-growth --output PATH` | Increasing Table/native data with 16 KiB values, a hard process address-space limit and cold fresh-process value verification |
-| `just test::table-checkpoints` | Verify published restart baselines, bounded replay, retained evidence and interrupted publication |
+| `just test::table-checkpoints` | Verify published restart baselines, bounded replay, logical history floors, compact original evidence and interrupted publication |
 | `just test::table-compaction` | Verify live-row consolidation, fixed-boundary restart, private memory/work limits and retained snapshots |
 | `just test::table-archives` | Verify bounded Table archival, retained reads and pending work, native authority/control reserve and real process death during publication/trim |
 | `just test::local-native-collection` | Verify native retained roots, compaction and allocation/deletion recovery on disk, then kill real collectors at publication boundaries |

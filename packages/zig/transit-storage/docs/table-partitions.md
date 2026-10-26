@@ -115,6 +115,18 @@ admitted work. Once rows are committed, it returns that original result.
 `operationState` and bounded `pendingOperations` inspect without executing.
 Definition changes reject while any admitted row operation remains pending.
 
+Receipt, operation and pending directories reference compact immutable
+`TableEvidence` objects. An original receipt preserves its complete binding,
+change digest, outcome and resulting declaration; a control preserves its frozen
+intent and admission/terminal state. Their accepted positions remain unchanged.
+The objects contain no old row/index/pin roots. Receipt lookup therefore reads
+bounded evidence metadata independently of the original WAL row payload.
+Publication and recovery bind each reference to its exact accepting transition.
+Missing or corrupt evidence fails explicitly, even if the old WAL frame remains.
+The [storage contract](../../../../contracts/TRANSIT_STORAGE_V1.md#compact-table-outcome-and-operation-evidence)
+defines the layout and current-definition cutover. This separates retention
+dependencies; physical object collection still needs all live owner roots.
+
 Admission checks an optional exact source frontier. It must belong to this
 partition, lie within accepted history and be at or after the latest logical
 change. Acquiring a pin or flushing rows before admission does not stale that

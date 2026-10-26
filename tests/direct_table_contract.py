@@ -12,7 +12,7 @@ import jsonschema
 from serving import Key
 
 root = Path(__file__).resolve().parents[1]
-definition = "ebc59054719c82fc7358f55b1f7044b499bf2ec361df39ed9c8323a68a1de3c0"
+definition = "16c0cfe22317dcf6541123f20017e9cd3105ad41b8c8ddc724637901c26af9df"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)

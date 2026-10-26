@@ -73,6 +73,11 @@ automatic archive scheduling, immutable Table-object collection or multi-process
   maintenance while preserving original no-op receipts and a fixed upper cut.
   See [Table partition ownership](docs/table-partitions.md) for caller obligations,
   budgets and the current integration boundary.
+- `TableEvidence.zig`: Bounded immutable outcome and operation metadata,
+  published through the Table's paged indexes. Original receipt and pending-work
+  recovery do not read the accepting row payload or retain its old row roots.
+  Current authorization, original declarations and exact retry identity remain
+  required; missing or corrupt evidence rejects.
 
 The direct owner reads immutable Table data through Fuze's shared `TSegReader`.
 Point lookup selects one segment through its paged hash-key directory; footer

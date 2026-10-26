@@ -385,7 +385,13 @@ test "Table build memory parent failures keep admitted work unresolved" {
             const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 7 } } };
             _ = try table.admit(request(&table, exact, &.{change(&cell, 2)}), access.guard());
             const before = table.root;
-            table.allocator = allocator;
+            // In-place arena growth depends on the backing heap's layout. Make
+            // every growth allocate so the exhaustive failure ordinal is stable
+            // and each allocation still passes through the injected allocator.
+            var vtable = allocator.vtable.*;
+            vtable.resize = std.mem.Allocator.noResize;
+            vtable.remap = std.mem.Allocator.noRemap;
+            table.allocator = .{ .ptr = allocator.ptr, .vtable = &vtable };
             const result = table.perform(exact, access.guard()) catch |err| {
                 // Parent OOM must not clear pending work or publish a terminal
                 // work-limit outcome. The exact accepted identity stays intact.

@@ -250,8 +250,9 @@ The local Table maintenance question is whether WAL files can be removed while
 preserving the original accepted changes, retry receipts and retained unflushed
 rows. The implemented archive profile assumes a serialized Table owner, durable
 immutable object publication, an exclusive local WAL, and the current authority
-check at publication/trimming. It preserves unlimited logical history; it does
-not implement opted-in expiry or immutable Table-object collection.
+check at publication/trimming. Archival preserves unlimited logical history by
+default. Explicit logical expiry is a separate transition described below;
+immutable Table-object collection remains unimplemented.
 
 Let `A` be the exclusive archived LSN and `N` the accepted frontier. A nonempty
 archive satisfies `0 < A < N`; its paged directory maps every LSN in `[0,A)` to
@@ -314,7 +315,7 @@ it does not bypass the exclusive WAL owner's retained-file validation.
 The capsule is at most 16,424 encoded bytes and contains directory roots rather
 than arrays of rows or receipts. Replay keeps one bounded frame at a time; current
 top-level directories and the declaration load before readiness. Admitted-work
-transitions may still consult older accepted operation records. The dependency
+transitions may still consult compact original operation evidence. The dependency
 on that evidence is retained independently of the restart baseline. A superseded
 capsule is not recursively loaded: its root is already contained in the newer
 baseline. This avoids a checkpoint chain whose restart cost grows with the
@@ -337,6 +338,60 @@ publication uncertainty and bounded replay; executed results belong in the
 [proof ledger](../../../tests/README.md). Its replay counters exclude provider and
 index I/O, and do not establish a latency or whole-process RSS bound. Logical
 expiry, object collection and automatic scheduling remain separate mechanisms.
+
+## Logical expiry and original outcome retention
+
+The retention question is which obligations can release historical row payloads
+without losing an accepted result or an offline consumer's position. The model
+uses the same exclusive Table owner and immutable publication assumptions as
+recovery. Logical history, exact snapshots, current state, operation outcomes and
+recovery are distinct obligations. A logical floor changes only the first;
+storage pressure grants no authority to change any of them.
+
+Let `F` be the logical floor, `A` the archive frontier, `C` the published recovery
+baseline and `L` the oldest live history lease's exclusive frontier. An explicitly
+requested advance `F'` requires `F < F' <= min(A,C,N)` and, when a live lease
+exists, `F' <= L`. Zero is the unlimited default. A paged index ordered by
+`(frontier, principal, operation)` supplies the minimum through a bounded tree
+path. Acquisition/release publishes that entry with the owner-keyed pin record;
+recovery validates the same transition. History reads below the accepted floor
+fail after checking current authorization, including empty intervals. Ordinary
+snapshot pins retain their exact data independently of this logical floor.
+A live history lease also retains its anchor frame at `L - 1`: reopening the
+exclusive position `L` verifies that frame's commitment. Thus `F = L` does not
+make every physical frame below `F` disposable.
+
+Original receipts could instead continue pointing to complete accepting frames.
+That representation makes an outcome lookup depend on the old row payload and
+embeds row-root references in evidence retained for unrelated purposes. The
+implemented `TableEvidence` representation stores bounded outcome/control
+metadata separately. The accepting WAL transition publishes its content reference
+in the same paged receipt or operation directory. Recomputing that reference from
+the acceptance binds the object to its original result, identity and position.
+The evidence retains the original declaration or frozen intent, with no old row,
+archive, recovery or pin roots. This costs one immutable evidence staging call
+per accepted mutation/control plus hashing its bounded metadata; its latency
+effect requires measurement and is not implied by reduced retention dependencies.
+
+These mechanisms establish a logical read boundary and remove one physical
+dependency. They are not a collector: current/unflushed rows, snapshots, complete
+unexpired history, checkpoints and other owners still require a complete retained
+graph before deleting any shared object. Missing evidence fails even when its
+old WAL frame happens to remain. An alternative fallback would obscure corruption
+and make physical retention depend on which observation path executes.
+
+The [floor contract](../../../contracts/TRANSIT_STORAGE_V1.md#table-logical-history-floors)
+and [evidence contract](../../../contracts/TRANSIT_STORAGE_V1.md#compact-table-outcome-and-operation-evidence)
+own exact bytes and transitions. Implementation is in
+[`TablePartition`](../../../packages/zig/transit-storage/src/TablePartition.zig)
+and [`TableEvidence`](../../../packages/zig/transit-storage/src/TableEvidence.zig).
+The disk and negative cases in
+[`table_partition_test.zig`](../../../packages/zig/transit-storage/src/table_partition_test.zig)
+exercise lease blocking, lost replies, restart, missing/corrupt evidence and
+original outcomes after test-only removal of expired payload frames. The
+`test::table-checkpoints` recipe groups these checks; the [proof ledger](../../../tests/README.md)
+records reproduction commands, executed results and source limits. This does not prove a deletion
+algorithm, automatic service retention or recovery after disk loss.
 
 ## Four-tier storage architecture, `.tseg` segments and multi-writer OCC
 

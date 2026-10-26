@@ -15,6 +15,7 @@ const Declaration = @import("TableDeclaration.zig");
 const Snapshot = @import("TableSnapshot.zig");
 const Archive = @import("TableArchive.zig");
 const Recovery = @import("TableRecovery.zig");
+const StoredEvidence = @import("TableEvidence.zig");
 const Dml = @import("TableDmlIntent.zig");
 const Self = @This();
 pub const Root = r.Root;
@@ -387,6 +388,7 @@ pub fn recover(self: *Self) !void {
         if (selected != null and (!std.meta.eql(record.root.recovery, selected) or
             (work.replayed_frames == 0 and record.action != .recovery))) return error.InvalidTableHistory;
         try requireTransition(next, record, try self.operationTransition(next, record));
+        try self.requireReceiptTransition(next, record);
         try self.requireHistoryRetentionTransition(next, record);
         chain = r.hash(frame.payload);
         next = record.root;
@@ -439,19 +441,34 @@ fn scope(self: *Self, operation: d.Operation) !void {
     if (!std.meta.eql(operation.scope, self.root.interpretation.object.scope)) return error.DataIdentityConflict;
 }
 
-fn observed(self: *Self, binding: d.Binding) !?r.Record {
+fn observed(self: *Self, binding: d.Binding) !?StoredEvidence.Accepted {
     try binding.validate();
     try self.scope(binding.identity);
     const value = try self.tree().get(self.root.receipts, try r.operationKey(binding.identity)) orelse return null;
-    if (value.len != 8) return error.InvalidTableReceipt;
-    const at = std.mem.readInt(u64, value.data[0..8], .little);
-    if (at >= self.root.next_lsn) return error.InvalidTableReceipt;
-    var batch = try self.readHistoryFrame(at);
-    defer batch.deinit();
-    if (batch.frames.len != 1 or batch.frames[0].header.lsn != at) return error.TableHistoryMissing;
-    const record = (try r.decode(self.allocator, batch.frames[0].payload, at)).record;
-    try (try record.receipt()).binding.requireSame(binding);
-    return record;
+    const record = try StoredEvidence.load(self.allocator, self.objects, value);
+    if (record.evidence != .receipt or record.position.partition != self.root.partition or
+        record.position.next_lsn > self.root.next_lsn) return error.InvalidTableReceipt;
+    const accepted = record.evidence.receipt;
+    try accepted.receipt.binding.requireSame(binding);
+    return accepted;
+}
+
+fn requireReceiptTransition(self: *Self, before: Root, record: r.Record) !void {
+    switch (record.action) {
+        .mutation, .declaration => {},
+        else => return,
+    }
+    const receipt = try record.receipt();
+    const key = try r.operationKey(receipt.binding.identity);
+    if (try self.tree().get(before.receipts, key) != null) return error.InvalidTableReceipt;
+    const pointer = try self.tree().get(record.root.receipts, key) orelse return error.InvalidTableReceipt;
+    if (!std.meta.eql(pointer, try StoredEvidence.expectedReference(try StoredEvidence.Record.fromAcceptance(record)))) return error.InvalidTableReceipt;
+}
+
+fn stageReceipt(self: *Self, record: *r.Record) !void {
+    const receipt = try record.receipt();
+    const value = try StoredEvidence.stage(self.index.store, try StoredEvidence.Record.fromAcceptance(record.*));
+    record.root.receipts = try self.tree().put(record.root.receipts, try r.operationKey(receipt.binding.identity), value);
 }
 
 /// Inspect a fixed, exclusive WAL interval after validated recovery. At most
@@ -565,15 +582,10 @@ fn operationAt(self: *Self, basis: Root, binding: d.Binding) !?Operation {
 
 fn operationForKey(self: *Self, basis: Root, key: pages.Key, binding: ?d.Binding) !?Operation {
     const value = try self.tree().get(basis.operations, key) orelse return null;
-    if (value.len != 8) return error.InvalidTableOperation;
-    const at = std.mem.readInt(u64, value.data[0..8], .little);
-    if (at >= basis.next_lsn) return error.InvalidTableOperation;
-    var batch = try self.readHistoryFrame(at);
-    defer batch.deinit();
-    if (batch.frames.len != 1 or batch.frames[0].header.lsn != at or batch.frames[0].header.partition_id != basis.partition or batch.frames[0].header.kind != .manifest_checkpoint) return error.TableHistoryMissing;
-    const record = (try r.decode(self.allocator, batch.frames[0].payload, at)).record;
-    if (record.action != .operation or !std.meta.eql(record.root.interpretation.object, basis.interpretation.object)) return error.InvalidTableOperation;
-    const operation = record.action.operation;
+    const record = try StoredEvidence.load(self.allocator, self.objects, value);
+    if (record.evidence != .operation or record.position.partition != basis.partition or record.position.next_lsn > basis.next_lsn or
+        !std.meta.eql(record.binding().target, basis.interpretation.object)) return error.InvalidTableOperation;
+    const operation = record.evidence.operation;
     if (!std.meta.eql(key, try r.operationKey(operation.binding.identity))) return error.InvalidTableOperation;
     if (binding) |exact| try operation.binding.requireSame(exact);
     return operation;
@@ -607,7 +619,7 @@ fn operationTransition(self: *Self, before: Root, record: r.Record) !?Operation 
             if (next.phase == .admitted) try requireAdmissionBasis(before, next);
         }
         const pointer = try self.tree().get(record.root.operations, key) orelse return error.InvalidTableOperation;
-        if (pointer.len != 8 or std.mem.readInt(u64, pointer.data[0..8], .little) != before.next_lsn) return error.InvalidTableOperation;
+        if (!std.meta.eql(pointer, try StoredEvidence.expectedReference(try StoredEvidence.Record.fromAcceptance(record)))) return error.InvalidTableOperation;
         if (next.phase == .admitted) {
             const pending = after_pending orelse return error.InvalidTableOperation;
             if (!std.meta.eql(pointer, pending)) return error.InvalidTableOperation;
@@ -631,7 +643,7 @@ pub fn operationState(self: *Self, binding: d.Binding, guard: Guard) !OperationS
     try self.ready();
     _ = try guard.acquire(guard.context);
     defer guard.release(guard.context);
-    if (try self.observed(binding)) |record| return .{ .committed = .{ .binding = binding, .resulting = record.root.declared(), .outcome = (try record.receipt()).outcome } };
+    if (try self.observed(binding)) |accepted| return .{ .committed = .{ .binding = binding, .resulting = accepted.resulting, .outcome = accepted.receipt.outcome } };
     return stateOf(try self.operationAt(self.root, binding) orelse return .not_observed);
 }
 
@@ -651,9 +663,7 @@ fn writeOperation(self: *Self, operation: Operation, guard: Guard) !OperationSta
     var next = self.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     const key = try r.operationKey(operation.binding.identity);
-    var pointer: [8]u8 = undefined;
-    std.mem.writeInt(u64, &pointer, self.root.next_lsn, .little);
-    const value = try pages.Value.init(&pointer);
+    const value = try StoredEvidence.stage(self.index.store, .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .evidence = .{ .operation = operation } });
     next.operations = try self.tree().put(next.operations, key, value);
     next.pending = if (operation.phase == .admitted) try self.tree().put(next.pending, key, value) else try self.tree().remove(next.pending, key);
     try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .operation = operation } }, &.{}, guard);
@@ -768,9 +778,8 @@ pub fn observeEvidence(self: *Self, binding: d.Binding, guard: Guard) !?Evidence
     try self.ready();
     _ = try guard.acquire(guard.context);
     defer guard.release(guard.context);
-    const record = try self.observed(binding) orelse return null;
-    const receipt = try record.receipt();
-    return .{ .binding = receipt.binding, .resulting = record.root.declared(), .outcome = receipt.outcome };
+    const accepted = try self.observed(binding) orelse return null;
+    return .{ .binding = accepted.receipt.binding, .resulting = accepted.resulting, .outcome = accepted.receipt.outcome };
 }
 
 /// Read-only expectation check under the current caller's authority fence.
@@ -812,7 +821,7 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
     try self.ready();
     if (changes.len > max_changes) return error.TableBatchTooLarge;
     if (binding.action != .create and binding.action != .insert and binding.action != .update and binding.action != .delete) return error.UnsupportedTableAction;
-    var accepted: ?r.Record = null;
+    var accepted: ?StoredEvidence.Accepted = null;
     var operation: ?Operation = null;
     {
         _ = try guard.acquire(guard.context);
@@ -829,7 +838,7 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
     }
     var original: ?Declaration.Owned = null;
     defer if (original) |*value| value.deinit();
-    if (accepted) |record| original = try Declaration.load(allocator, self.objects, record.root.declared());
+    if (accepted) |record| original = try Declaration.load(allocator, self.objects, record.resulting);
     if (operation) |known| {
         var frozen = try Dml.load(allocator, self.objects, known.intent);
         defer frozen.deinit();
@@ -907,7 +916,7 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
     if (accepted) |record| {
         _ = try guard.acquire(guard.context);
         defer guard.release(guard.context);
-        const receipt = try record.receipt();
+        const receipt = record.receipt;
         if (!std.mem.eql(u8, &changes_digest, &receipt.changes)) return error.DataIdentityConflict;
         return receipt.outcome;
     }
@@ -995,18 +1004,16 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
         try index_batch.insert(key, index_key, change.row().?.identity, locators[i]);
     }
     try index_batch.flush();
-    var receipt: [8]u8 = undefined;
-    std.mem.writeInt(u64, &receipt, self.root.next_lsn, .little);
-    next.receipts = try self.tree().put(next.receipts, try r.operationKey(binding.identity), try pages.Value.init(&receipt));
     if (operation != null) next.pending = try self.tree().remove(next.pending, try r.operationKey(binding.identity));
     if (affected != 0 or binding.action == .create) next.changed_lsn = next.next_lsn;
     const outcome: Outcome = .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .matched = matched, .affected = affected, .live_rows = next.live_rows };
-    const record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .mutation = .{
+    var record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .mutation = .{
         .binding = binding,
         .changes = changes_digest,
         .outcome = outcome,
         .ingestion = if (ingestion == .point) .point else .bulk,
     } } };
+    try self.stageReceipt(&record);
     try self.publish(record, if (ingestion == .point) rows.buffered() else &.{}, guard);
     try self.reply();
     return outcome;
@@ -1135,13 +1142,12 @@ fn applyStatement(self: *Self, allocator: std.mem.Allocator, operation: Operatio
         if (written != affected) return error.InvalidTableHistory;
     }
     const key = try r.operationKey(operation.binding.identity);
-    var pointer: [8]u8 = undefined;
-    std.mem.writeInt(u64, &pointer, self.root.next_lsn, .little);
-    next.receipts = try self.tree().put(next.receipts, key, try pages.Value.init(&pointer));
     next.pending = try self.tree().remove(next.pending, key);
     if (affected != 0) next.changed_lsn = next.next_lsn;
     const outcome: Outcome = .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .matched = matched, .affected = affected, .live_rows = next.live_rows };
-    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .mutation = .{ .binding = operation.binding, .changes = operation.intent.sha256, .outcome = outcome, .ingestion = .bulk } } }, &.{}, guard);
+    var record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .mutation = .{ .binding = operation.binding, .changes = operation.intent.sha256, .outcome = outcome, .ingestion = .bulk } } };
+    try self.stageReceipt(&record);
+    try self.publish(record, &.{}, guard);
     try self.reply();
     return outcome;
 }
@@ -1174,7 +1180,7 @@ fn changeDefinitionWithinBudget(self: *Self, allocator: std.mem.Allocator, bindi
         inline else => |value| value,
     };
     if (properties.len > Declaration.max_properties_bytes) return error.InvalidTableDeclaration;
-    var accepted: ?r.Record = null;
+    var accepted: ?StoredEvidence.Accepted = null;
     {
         _ = try guard.acquire(guard.context);
         defer guard.release(guard.context);
@@ -1193,7 +1199,7 @@ fn changeDefinitionWithinBudget(self: *Self, allocator: std.mem.Allocator, bindi
     if (accepted) |record| {
         _ = try guard.acquire(guard.context);
         defer guard.release(guard.context);
-        const receipt = try record.receipt();
+        const receipt = record.receipt;
         if (!std.mem.eql(u8, &digest, &receipt.changes)) return error.DataIdentityConflict;
         return receipt.outcome;
     }
@@ -1222,11 +1228,10 @@ fn changeDefinitionWithinBudget(self: *Self, allocator: std.mem.Allocator, bindi
         value.after = replacement.schema.schema;
         try self.rewrite(allocator, &next, value.*);
     }
-    var receipt: [8]u8 = undefined;
-    std.mem.writeInt(u64, &receipt, self.root.next_lsn, .little);
-    next.receipts = try self.tree().put(next.receipts, try r.operationKey(binding.identity), try pages.Value.init(&receipt));
     const outcome: Outcome = .{ .position = .{ .partition = next.partition, .next_lsn = next.next_lsn }, .matched = 0, .affected = 0, .live_rows = next.live_rows };
-    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .declaration = .{ .binding = binding, .changes = digest, .outcome = outcome } } }, &.{}, guard);
+    var record: r.Record = .{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .declaration = .{ .binding = binding, .changes = digest, .outcome = outcome } } };
+    try self.stageReceipt(&record);
+    try self.publish(record, &.{}, guard);
     // Both allocations were prepared before acceptance. Even a lost reply leaves
     // this live owner using exactly the schema selected by its accepted root.
     self.declaration.deinit();
@@ -1344,6 +1349,7 @@ fn rewrite(self: *Self, allocator: std.mem.Allocator, next: *Root, transition: f
 fn publish(self: *Self, record: r.Record, row_bytes: []const u8, guard: Guard) !void {
     try record.validate(self.root.next_lsn);
     try requireTransition(self.root, record, try self.operationTransition(self.root, record));
+    try self.requireReceiptTransition(self.root, record);
     try self.requireHistoryRetentionTransition(self.root, record);
     if (self.root.next_lsn == 0) _ = try Declaration.stage(self.objects, &self.declaration);
     const buffer = try self.allocator.alloc(u8, Log.max_payload_bytes);

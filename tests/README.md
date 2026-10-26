@@ -29083,3 +29083,54 @@ deletes objects nor authorizes expiry under quota pressure. Full ingestion and
 beyond-process-memory growth runs retain their earlier frozen revisions; neither
 is claimed complete here. Clean CI qualification for this revision remains
 outstanding.
+
+## Compact Table outcomes independent of historical row payloads — 2026-10-26
+
+The shared current-v1 definition is
+`16c0cfe22317dcf6541123f20017e9cd3105ad41b8c8ddc724637901c26af9df`.
+Receipt, operation and pending indexes now publish bounded immutable evidence
+references. Earlier eight-byte frame pointers reject. Canonical evidence is
+bound to the accepting Table transition; schemas, SDK/browser resources and
+independent signing/physical fixtures are regenerated together.
+
+The complete Table-filtered storage run passes **63/65**, with two failures. One
+old checkpoint test expects a missing archive to break original-receipt lookup;
+the corrected test independently removes archive and receipt evidence and checks
+their distinct failures. The parent-allocation fault test reports nondeterministic
+allocation counts: diagnostics observe 20 allocations/five in-place resizes in
+its baseline and 19 allocations/six resizes in the later run. Its test allocator
+now disables in-place resize/remap so every growth passes through the injected
+allocation schedule. Runtime allocation behavior is unchanged. The corrected
+focused run passes **5/5**, including both corrections and the new evidence cases;
+this is not a second complete Table-suite run.
+
+The disk case flushes rows, publishes archive/recovery coverage and explicitly
+expires history, then removes old payload frames through the test storage
+interface. Reopening preserves original outcomes/definitions, exact point and
+DDL retries, cancellation, current denial and pending work that can still commit
+once. Negative cases reject missing/corrupt evidence without WAL fallback, old
+reference lengths, foreign definitions, every truncated prefix, invalid outcome
+metadata and a forged acceptance that omits its receipt index entry. An earlier
+version of the disk fixture stops at inserted-row identity validation; it is
+corrected to use the owning intent's identity constructor before these passes.
+
+The complete local backend suite passes **25/25**. The complete signed Table
+service proof passes **1,942 typed calls** under the new definition, including
+original receipts, current authority, three restarts, retained history, prepared
+queries, collations and filtered projection. `just test::local-storage-faults`
+passes **92 SIGKILL schedules** with original outcomes, snapshots, archives and
+checkpoints. Contract/browser drift checks, diagnostic inventory/mappings/error
+boundaries, verification catalog and documentation links pass. The site check
+initially rejects a repository command embedded in public Internals; reproduction
+commands move to this ledger, and the complete site check/build passes.
+
+Reproduce with `nix develop`, then `just test::table-checkpoints` for the expanded
+focused retention/recovery recipe. The corrected unit invocation is
+`zig build test -Dtest-filter='Table build memory parent failures' -Dtest-filter='Table recovery checkpoint separates' -Dtest-filter='Table compact evidence' --summary all`
+in `packages/zig/transit-storage`. This representation separates retention
+dependencies; it does not implement physical Table collection. New immutable
+evidence staging is not covered by the still-running earlier-revision ingestion
+matrix. The frozen growth proof at `b85a0a076` has verified both Table fixtures,
+including **191,717,253 retained bytes** for 8,192 rows under a **128 MiB** process
+address-space limit; native-owner cases remain pending. Neither complete growth
+qualification nor clean CI qualification for this revision is claimed.

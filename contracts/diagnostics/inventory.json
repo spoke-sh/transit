@@ -12977,7 +12977,7 @@
           "deadline"
         ],
         "Definition": [
-          "ebc59054719c82fc7358f55b1f7044b499bf2ec361df39ed9c8323a68a1de3c0"
+          "@\"16c0cfe22317dcf6541123f20017e9cd3105ad41b8c8ddc724637901c26af9df\""
         ],
         "Effect.phase": [
           "pending",
@@ -25367,6 +25367,51 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/TableEvidence.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidTableEvidence": 15,
+        "TableEvidenceMissing": 1
+      },
+      "outcomes": {
+        "Accepted.ingestion": [
+          "point",
+          "bulk",
+          "declaration"
+        ],
+        "Record.evidence": [
+          "receipt",
+          "operation"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Record.fromAcceptance()": "<inferred>",
+        "Record.validate()": "<inferred>",
+        "decode()": "<inferred>",
+        "decodeReference()": "<inferred>",
+        "encode()": "<inferred>",
+        "expectedReference()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "reference()": "<inferred>",
+        "stage()": "<inferred>",
+        "validateContent()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 25,
+        "catch": 0
+      },
+      "imports": [
+        "TableDeclaration.zig",
+        "TablePartitionRecord.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/TableKeyRange.zig": {
       "errors": {
         "InvalidTableKey": 1
@@ -25430,10 +25475,10 @@
         "InvalidTableHistory": 45,
         "InvalidTableIdentity": 1,
         "InvalidTableKey": 3,
-        "InvalidTableOperation": 16,
+        "InvalidTableOperation": 14,
         "InvalidTablePin": 9,
         "InvalidTableReadBudget": 2,
-        "InvalidTableReceipt": 2,
+        "InvalidTableReceipt": 4,
         "InvalidTableRowReference": 30,
         "InvalidTableSegment": 2,
         "InvalidTableSnapshotCursor": 8,
@@ -25452,7 +25497,7 @@
         "TableHistoryConflict": 1,
         "TableHistoryCoverageRequired": 1,
         "TableHistoryExpired": 1,
-        "TableHistoryMissing": 9,
+        "TableHistoryMissing": 7,
         "TableHistoryPinned": 1,
         "TableHistoryRetentionRequired": 1,
         "TableKeyHashCollision": 4,
@@ -25575,6 +25620,7 @@
         "requireBasis()": "<inferred>",
         "requireHistoryRetentionTransition()": "<inferred>",
         "requirePin()": "<inferred>",
+        "requireReceiptTransition()": "<inferred>",
         "requireTransition()": "<inferred>",
         "retain()": "<inferred>",
         "retainHistory()": "<inferred>",
@@ -25592,6 +25638,7 @@
         "scope()": "<inferred>",
         "segmentDecision()": "<inferred>",
         "segmentKey()": "<inferred>",
+        "stageReceipt()": "<inferred>",
         "stageSegment()": "<inferred>",
         "statementEncode()": "<inferred>",
         "statementReplacement()": "<inferred>",
@@ -25600,7 +25647,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 533,
+        "try": 536,
         "catch": 10
       },
       "imports": [
@@ -25609,6 +25656,7 @@
         "TableChanges.zig",
         "TableDeclaration.zig",
         "TableDmlIntent.zig",
+        "TableEvidence.zig",
         "TableKeyRange.zig",
         "TablePartitionRecord.zig",
         "TableRecovery.zig",
@@ -25899,6 +25947,7 @@
         "TableArchive.zig",
         "TableDeclaration.zig",
         "TableDmlIntent.zig",
+        "TableEvidence.zig",
         "TableManifest.zig",
         "TablePartition.zig",
         "TableRecovery.zig",

@@ -118,6 +118,14 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Table receipts and operation controls reference bounded immutable evidence
+  instead of full accepting WAL frames. The original definition, outcome,
+  request identity and frozen intent remain retained without holding an old
+  row-root graph. This advances the retention dependency foundation for
+  #116/#127. Safe collection still requires a complete inventory and traversal
+  of all live owners, history, snapshots and recovery roots; no Table collector
+  is implied by the evidence format.
+
 - Explicit Table history expiry now publishes a monotone logical floor through
   the existing acceptance WAL, after archive and recovery coverage. A paged
   directory of live history leases protects offline consumers without scanning
