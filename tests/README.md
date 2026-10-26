@@ -27738,3 +27738,15 @@ passes history/delegation closure, caller/node replacement, current revocation
 and reserved-control denial, across 1,407 typed calls. Row ownership, request
 budgets, cache size and authorization checks are unchanged. This is not a latency
 benchmark or a complete clean growth-lane pass.
+
+## Work-item command definition cutover — 2026-10-26
+
+The clean core run at `e3cbe9cca` finds an old shared definition in the independent
+WI1 command fixture: the Python drift check fails and the application unit suite
+reports 12 passes and one failure. Regenerating with
+`tests/work_items_contract.py --write` changes only that definition. The generator
+check and `zig build test-work-items-unit -Doptimize=ReleaseSafe` then pass;
+[recorded evidence](verification/results/work-item-definition-2026-10-26/report.json)
+preserves both failures. Contract generation/checking now includes this fixture,
+so future definition changes regenerate it and detect drift before root unit
+execution. Existing foreign/missing-definition rejection remains unchanged.

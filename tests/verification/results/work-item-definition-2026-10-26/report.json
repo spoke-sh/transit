@@ -1,0 +1,12 @@
+{
+  "baseline_source": "e3cbe9ccacd00e7b1d06bc1b31264eb0be5bb792",
+  "baseline": "Independent WI1 generator rejects fixture drift; application unit suite reports 12 pass/1 fail for the same stale definition.",
+  "commands": [
+    "nix develop --command python3 -B tests/work_items_contract.py --write",
+    "nix develop --command python3 -B tests/work_items_contract.py",
+    "nix develop --command zig build test-work-items-unit -Doptimize=ReleaseSafe"
+  ],
+  "exit_code": 0,
+  "fixture_sha256": "03d4cae72f59bb15618dc17317fedc392c541de6efccf64818eb9d8b3d6c5602",
+  "scope": "Regenerated existing v1 definition bytes only; no decoder fallback, missing-definition default or semantic change. Full repository/core checks remain separate."
+}
