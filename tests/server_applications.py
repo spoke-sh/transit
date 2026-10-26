@@ -13,7 +13,7 @@ import sys
 import time
 
 from server import Fixture, children, command, freeze_executables
-from storage import free_port
+from harness.services import free_port
 
 
 class Applications(Fixture):

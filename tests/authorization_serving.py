@@ -16,7 +16,7 @@ from urllib.request import Request
 from reactive import SSE, WebSocket
 from serving import post, Key, compact, subject_proof
 from serving_table import watch
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 
 
 def run(system, executable, apply, query, owner_key, reader_role, database, schema,

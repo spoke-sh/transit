@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 import uuid
 
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 
 
 def inside(mount, node, proof):

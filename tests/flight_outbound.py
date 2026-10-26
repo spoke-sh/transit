@@ -7,7 +7,8 @@ import sys
 import time
 import pyarrow as pa
 import pyarrow.flight as flight
-from storage import Fixture, free_port, wait_ready
+from harness.ursula import Fixture
+from harness.services import free_port, wait_ready
 
 
 def run(node, provision, worker, adapter):

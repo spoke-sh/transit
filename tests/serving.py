@@ -17,7 +17,7 @@ import time
 import urllib.request
 from types import SimpleNamespace
 
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 from serving_table import authorize, bootstrap as bootstrap_counter, populate_query_rows, provision_catalog
 
 REALM = 49

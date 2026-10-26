@@ -14,7 +14,7 @@ import pyarrow as pa
 
 from station_ledger import AUDIT, audit_total, query_key, query_result, provision
 from inspection import System
-from storage import wait_ready
+from harness.services import wait_ready
 
 
 def frame(payload, kind=1, correlation=0):

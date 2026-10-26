@@ -9,7 +9,7 @@ import pyarrow as pa
 import pyarrow.flight as flight
 from google.protobuf.any_pb2 import Any
 from serving import Key
-from storage import wait_ready
+from harness.services import wait_ready
 
 
 def qualify(env):

@@ -7,7 +7,7 @@ import time
 import urllib.error
 import urllib.request
 
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 
 
 def check(binary, root, kind, invoke, expected, fixture, start, browser=False):

@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 from inspection import System
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 
 
 def records(path):

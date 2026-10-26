@@ -11,7 +11,7 @@ import subprocess
 import time
 import tempfile
 from pages import metrics, sample_process
-from storage import Fixture
+from harness.ursula import Fixture
 
 
 def main():

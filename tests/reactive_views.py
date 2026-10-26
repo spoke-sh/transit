@@ -11,7 +11,7 @@ from urllib.request import Request
 from serving_table import watch as table_watch, query_policy, source_value, authorize
 from reactive import reactive
 from serving import policy, post, signed_read, submit, Key
-from storage import wait_ready
+from harness.services import wait_ready
 
 
 def run(env, tls):

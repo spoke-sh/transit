@@ -386,7 +386,7 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
             system.authority.kill(); system.authority.wait(timeout=10)
             system.store.stop(); system.store.start()
             system.authority = system.start(node, system.config)
-            from storage import wait_ready
+            from harness.services import wait_ready
             wait_ready(system.store.http, system.authority, system.url + '/health')
             seed_path = Path(source['seed_file'])
             saved_seed = seed_path.read_bytes(); seed_path.unlink()

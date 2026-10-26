@@ -8,7 +8,7 @@ import subprocess
 import sys
 import threading
 
-from storage import Fixture
+from harness.ursula import Fixture
 
 
 def run(executable):

@@ -12,7 +12,8 @@ import pyarrow.flight as flight
 from google.protobuf.any_pb2 import Any
 from serving_tls import TLSProxy
 from flight_faults import NativeBoundary
-from storage import Fixture, free_port, wait_ready
+from harness.ursula import Fixture
+from harness.services import free_port, wait_ready
 from cold_storage import ColdStore
 
 

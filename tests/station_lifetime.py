@@ -7,7 +7,7 @@ import time
 from inspection import System
 from station import frame
 from station_ledger import audit_total, provision
-from storage import wait_ready
+from harness.services import wait_ready
 
 
 def run(node, cli, worker, courier):

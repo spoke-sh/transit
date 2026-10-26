@@ -9,7 +9,7 @@ import tempfile
 import time
 import urllib.request
 
-from storage import free_port, wait_ready
+from harness.services import free_port, wait_ready
 
 
 def run(node, caller):

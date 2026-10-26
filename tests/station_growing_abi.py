@@ -11,7 +11,7 @@ import threading
 import time
 
 from client_abi_growing import GrowingSystem
-from storage import wait_ready
+from harness.services import wait_ready
 from cold_storage import ColdStore
 from station import frame
 from abi_support import rejects

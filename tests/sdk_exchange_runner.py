@@ -229,7 +229,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 system.authority.kill(); system.authority.wait(timeout=10)
                 system.store.stop(); system.store.start()
                 system.authority = system.start(system.node, system.config)
-                from storage import wait_ready
+                from harness.services import wait_ready
                 wait_ready(system.store.http, system.authority, system.url + '/health')
                 own(service); worker_config['generation'] = service['generation']
                 if rpc: worker_config['credentials'] = [{'binding': 'api', 'version': 7, 'metadata': 'authorization', 'file': str(credential)}]
@@ -297,7 +297,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 system.authority.kill(); system.authority.wait(timeout=10)
                 system.store.stop(); system.store.start()
                 system.authority = system.start(system.node, system.config)
-                from storage import wait_ready
+                from harness.services import wait_ready
                 wait_ready(system.store.http, system.authority, system.url + '/health')
                 own(service); worker_config['generation'] = service['generation']
                 assert invoke()['phase'] == 'complete'

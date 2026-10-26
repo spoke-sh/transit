@@ -5,7 +5,8 @@ import subprocess
 import time
 
 from cold_storage import ColdStore
-from storage import Fixture, free_port, wait_ready
+from harness.ursula import Fixture
+from harness.services import free_port, wait_ready
 from unified_abi import Native, Failure, upload
 
 

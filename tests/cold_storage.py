@@ -14,7 +14,7 @@ import time
 import urllib.request
 import urllib.error
 import xml.etree.ElementTree as ET
-from storage import free_port
+from harness.services import free_port
 
 
 def minio_binary():

@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / 'tests'))
 from cold_storage import ColdStore
 from flight_adbc import verify
 from serving_tls import TLSProxy
-from storage import wait_ready
+from harness.services import wait_ready
 from placement import Compose, Reference
 
 

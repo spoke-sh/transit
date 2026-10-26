@@ -13,7 +13,7 @@ from client_abi_growing import GrowingSystem
 from station import frame
 from abi_support import rejects
 from station_growing_abi import Native, Port
-from storage import wait_ready
+from harness.services import wait_ready
 from sdk_scenarios import check
 from abi_support import Client, TransitError
 

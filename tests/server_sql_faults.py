@@ -11,7 +11,7 @@ import sys
 from server import Fixture, joined
 from server_application_faults import arm, descendants, install_peer, wait_file
 from server_sql import account, apply, call, freeze, wait_status
-from storage import free_port
+from harness.services import free_port
 
 
 def run(cli, node, host, board, gateway):
