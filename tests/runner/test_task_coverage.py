@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class TaskCoverage(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.suite = json.loads((ROOT / "tests/verification/suite.json").read_text())
+        cls.suite = json.loads((ROOT / "tests/runner/suite.json").read_text())
         cls.invariants = json.loads((ROOT / "tests/verification/invariants.json").read_text())
         cls.recipes = read_recipes(ROOT)
 

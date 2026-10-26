@@ -8,7 +8,7 @@ import time
 import platform
 
 ROOT = Path(__file__).resolve().parents[2]
-SUITE = json.loads((ROOT / "tests/verification/suite.json").read_text())
+SUITE = json.loads((ROOT / "tests/runner/suite.json").read_text())
 if SUITE["version"] != 1:
     raise ValueError("Unsupported verification suite version")
 LANES = SUITE["lanes"]

@@ -40,7 +40,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--complete", action="store_true", help="include the installed Chromium proof")
-    suite = json.loads((ROOT / "tests/verification/suite.json").read_text())
+    suite = json.loads((ROOT / "tests/runner/suite.json").read_text())
     selection.add_argument("--lane", choices=[*suite["lanes"], "bindings"],
                            help="qualify one lane or both bindings lanes in a clean checkout; not the full suite")
     selection.add_argument("--check", choices=("fast", "contracts", "core", "all"),
@@ -107,7 +107,7 @@ def main():
         # putting those builds in a shared tmpfs can exhaust unrelated fixtures.
         # This is the same inventory runner used by every ci::* recipe, entered
         # once with the pinned lane tools and this checkout's owned scratch.
-        command = ["just", selected] if args.check else ["python3", "-B", "tests/tooling/ci.py", selected]
+        command = ["just", selected] if args.check else ["python3", "-B", "tests/runner/ci.py", selected]
         phase("checks", *shell, "env", f"TMPDIR={scratch}", *command, cwd=checkout, env=env)
         metadata["completed"] = True
         checkpoint()

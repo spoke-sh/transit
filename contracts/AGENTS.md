@@ -19,7 +19,7 @@ Lean rewrite proofs and executable Zig semantics have distinct owners in the
 
 Inside `nix develop`, use `just check contracts` for generated schemas and
 fixtures. Its TypeScript validator needs the pinned client compiler; setup and
-clean commands are in the [tooling guide](../tests/tooling/README.md).
+clean commands are in the [tooling guide](../tests/runner/README.md).
 Run affected caller/compatibility and model checks as well. `just check fast`
 does not compile these exporters, and a contract check alone does not qualify
 runtime execution or every language adapter.

@@ -9,7 +9,7 @@ installed-consumer checks, independent oracles and verification infrastructure.
 
 - Identify the invariant, public operation, backend and failure schedule before
   adding a driver. Extend the owning scenario instead of copying a whole fixture.
-- Follow the [suite inventory](verification/suite.json) and
+- Follow the [suite inventory](runner/suite.json) and
   [invariant catalog](verification/invariants.json). Register new runnable checks
   and their execution owner; distinguish nested checks from additional executions.
 - Keep direct Table/storage acceptance separate from Station/application turns.

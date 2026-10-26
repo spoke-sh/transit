@@ -8,7 +8,7 @@ _default:
 
 # Formatting, tooling, independent Python oracles and docs; no runtime build.
 fast:
-    python3 -B tests/tooling/checks.py fast
+    python3 -B tests/runner/checks.py fast
 
 # Reflected schemas, signing fixtures and generated language resource drift.
 contracts:

@@ -174,7 +174,7 @@ runner time, cache hit/size, setup, compile, scenario and cleanup separately.
    Prefer PR validation plus main-branch push validation, preserving explicitly
    needed non-PR branch or merge-queue coverage. This reduces aggregate work;
    it does not halve a single run's duration.
-2. **Measure inside the expensive tasks.** [The task runner](../../../tests/tooling/ci.py)
+2. **Measure inside the expensive tasks.** [The task runner](../../../tests/runner/ci.py)
    already reports timings. Add build/setup/scenario/cleanup subdivisions and
    retain small JSON/failed-trace artifacts. The clean-checkout runner currently
    deletes successful timing files with its temporary clone. Preserve summaries

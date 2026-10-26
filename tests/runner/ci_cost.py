@@ -8,7 +8,7 @@ import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
-ORDINARY_LANES = json.loads((ROOT / 'tests/verification/suite.json').read_text())['tiers']['ordinary']
+ORDINARY_LANES = json.loads((ROOT / 'tests/runner/suite.json').read_text())['tiers']['ordinary']
 
 
 def seconds(start, end):
@@ -98,7 +98,7 @@ def main():
         else:
             logs.append(fetched.stdout)
     log = '\n'.join(logs)
-    budgets = json.loads((ROOT / 'tests/verification/ci-budgets.json').read_text())
+    budgets = json.loads((ROOT / 'tests/runner/ci-budgets.json').read_text())
     result = summarize(run, response['jobs'], log, budgets)
     result['unavailable_job_logs'] = missing_logs
     if missing_logs:

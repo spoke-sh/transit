@@ -156,7 +156,7 @@
         "command": [
           "python3",
           "-B",
-          "tests/tooling/ci_runner.py"
+          "tests/runner/ci_runner.py"
         ]
       },
       {
@@ -183,7 +183,7 @@
         "command": [
           "python3",
           "-B",
-          "tests/verification/test_task_coverage.py"
+          "tests/runner/test_task_coverage.py"
         ]
       },
       {
@@ -226,7 +226,7 @@
         "command": [
           "python3",
           "-B",
-          "tests/tooling/test_checks.py"
+          "tests/runner/test_checks.py"
         ]
       },
       {

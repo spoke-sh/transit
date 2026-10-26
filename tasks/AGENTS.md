@@ -26,8 +26,8 @@ Compiled contracts, package tests, real services, disk/recovery checks, frontend
 builds and full CI have explicit owners. A fast or selected-lane pass is not full
 qualification. Module defaults and dry runs cannot count as executed checks.
 
-Use the [check inventory](../tests/tooling/checks.json) and
-[CI inventory](../tests/verification/suite.json), keeping hosted/local selection
+Use the [check inventory](../tests/runner/checks.json) and
+[CI inventory](../tests/runner/suite.json), keeping hosted/local selection
 consistent. Preserve failure exit codes, uncertainty and incomplete execution in
 timing records. Keep generation, validation, preparation and build costs distinct;
 do not skip existing assertions or shrink a proof merely to improve its timing.
