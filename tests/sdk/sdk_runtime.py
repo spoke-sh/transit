@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix='transit-runtime-build-boundary-') as di
     # Explicitly disabled registration cannot expose a successful test target.
     disabled = subprocess.run([*command, 'diagnostic-grammar', '-Dchecks=false'],
                               cwd=source, capture_output=True, text=True)
-    assert disabled.returncode != 0 and 'no step named' in disabled.stderr, disabled.stderr
+    assert disabled.returncode != 0 and 'no such step: diagnostic-grammar' in disabled.stderr, disabled.stderr
     # Enabling tests requires their inputs. Do not silently skip absent sources.
     missing = subprocess.run([*command, 'diagnostic-grammar', '-Dchecks=true', '-Dsdk-examples=false'],
                              cwd=source, capture_output=True, text=True)
