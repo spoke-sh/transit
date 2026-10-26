@@ -27020,3 +27020,29 @@ exact repeated receipt assertions remain. Persistent admission exhaustion still
 fails the finite fill budget. `nix develop --command just test::observability`
 passes after this fixture correction; the hosted lane must still be rerun. No
 listener limit, telemetry behavior or accepted-work retry policy changes.
+
+## Native C driver loader selection — 2026-10-26
+
+Hosted bindings run [40246276730](https://github.com/spoke-sh/transit/actions/runs/40246276730)
+fails the installed C native-image lifetime fixture with SIGSEGV. Independent
+local probes show that `zig cc` selected the host ELF interpreter while native
+Zig builds selected the Nix interpreter. A small local dynamic-library probe
+executes successfully with either loader; that observation alone does not
+reproduce or establish the cause of the hosted crash. The baseline full C SDK
+rerun was stopped during compilation after its toolchain was superseded; it is
+not a passing SDK result.
+
+The Linux wrapper now selects the pinned glibc ABI/version and matching ELF
+interpreter for native C/C++ drivers, preserving explicit caller target/loader
+settings. The first expanded offline check exposes missing native ABI detection
+inside the Nix sandbox: libc++ selects musl with glibc headers. The next attempt
+selects GNU without a version and fails against OpenSSL's newer glibc symbols.
+Explicitly matching the pinned glibc version resolves both; no dependency or
+compiler pin changes.
+
+`nix flake check` now passes on Linux x86_64, compiling and running OpenSSL
+consumers through direct Zig compilation, the build runner and both C drivers.
+It checks the exact ELF interpreter and deliberate caller overrides. Other
+platforms and the hosted C SDK rerun remain separate qualification gates. The
+intermediate full `just check` failed on the unfinished toolchain derivation;
+that run does not qualify the final correction.

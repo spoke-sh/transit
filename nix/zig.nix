@@ -44,6 +44,20 @@ else
           done
           exec ${compiler}/bin/zig "$command" --dynamic-linker ${stdenv.cc.bintools.dynamicLinker} "$@"
           ;;
+        cc|c++)
+          for arg in "$@"; do
+            case "$arg" in
+              --) break ;;
+              -target|--target|-target=*|--target=*|--dynamic-linker|--dynamic-linker=*|--no-dynamic-linker|-dynamic-linker|-Wl,*dynamic-linker*)
+                exec ${compiler}/bin/zig "$command" "$@"
+                ;;
+            esac
+          done
+          # In a Nix build sandbox the static upstream compiler cannot inspect
+          # a host executable to infer the libc ABI. These native C drivers
+          # consume the shell's GNU libc headers/libraries, including libc++.
+          exec ${compiler}/bin/zig "$command" -target native-native-gnu.${lib.versions.majorMinor stdenv.cc.libc.version} -Wl,--dynamic-linker=${stdenv.cc.bintools.dynamicLinker} "$@"
+          ;;
         *) exec ${compiler}/bin/zig "$command" "$@" ;;
       esac
     '';

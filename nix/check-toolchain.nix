@@ -96,8 +96,23 @@ runCommand "transit-toolchain-check"
     ZIG
     zig build-exe linkage.zig -lc -lcrypto -femit-bin=linkage
     ./linkage
+    cat > linkage.c <<'C'
+    #include <openssl/crypto.h>
+    int main(void) { return OpenSSL_version_num() == 0; }
+    C
+    cp linkage.c linkage.cpp
+    zig cc linkage.c $(pkg-config --cflags --libs libcrypto) -o linkage-c
+    zig c++ linkage.cpp $(pkg-config --cflags --libs libcrypto) -o linkage-cpp
+    ./linkage-c
+    ./linkage-cpp
     ${lib.optionalString stdenv.hostPlatform.isLinux ''
       test "$(patchelf --print-interpreter linkage)" = "${stdenv.cc.bintools.dynamicLinker}"
+      test "$(patchelf --print-interpreter linkage-c)" = "${stdenv.cc.bintools.dynamicLinker}"
+      test "$(patchelf --print-interpreter linkage-cpp)" = "${stdenv.cc.bintools.dynamicLinker}"
+      zig cc linkage.c $(pkg-config --cflags --libs libcrypto) -Wl,--dynamic-linker=/transit-toolchain-c-loader -o explicit-c
+      test "$(patchelf --print-interpreter explicit-c)" = /transit-toolchain-c-loader
+      zig c++ -target native-native-gnu.${lib.versions.majorMinor stdenv.cc.libc.version} linkage.cpp $(pkg-config --cflags --libs libcrypto) -Xlinker --dynamic-linker -Xlinker /transit-toolchain-cpp-loader -o explicit-cpp
+      test "$(patchelf --print-interpreter explicit-cpp)" = /transit-toolchain-cpp-loader
     ''}
     cat > build.zig <<'ZIG'
     const std = @import("std");
