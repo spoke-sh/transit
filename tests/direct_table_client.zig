@@ -480,11 +480,17 @@ pub fn main(init: std.process.Init) !void {
             _ = try reader.checkpoint();
         } else if (std.mem.eql(u8, args[2], "lifecycle")) {
             try Delegation.verify(client, profile.delegation.?);
+            std.debug.print("Direct Table lifecycle: delegated readback passed\n", .{});
             try Lifecycle.verify(init.gpa, client, profile.lifecycle.?, true);
+            std.debug.print("Direct Table lifecycle: retained sources and closure passed\n", .{});
             try Conditions.verify(client, profile.conditions.?);
+            std.debug.print("Direct Table lifecycle: conditional names passed\n", .{});
             try History.verify(client, profile.history.?);
+            std.debug.print("Direct Table lifecycle: history replay passed\n", .{});
             try History.close(client, profile.history.?);
+            std.debug.print("Direct Table lifecycle: history closure passed\n", .{});
             try Delegation.close(client, profile.delegation.?);
+            std.debug.print("Direct Table lifecycle: delegation closure passed\n", .{});
         } else if (std.mem.eql(u8, args[2], "delegated-closed")) {
             try Delegation.closed(client, profile.delegation.?);
             try History.closed(client, profile.history.?);
