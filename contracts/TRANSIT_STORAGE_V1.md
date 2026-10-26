@@ -745,6 +745,45 @@ untracked content. Creation checks the accepted native epoch under the publicati
 mutex, allowing the current epoch or the next epoch for a prepared fence and
 rejecting older creators. Direct data access reserves the `native/` namespace.
 
+Direct-data creation and reuse have a separate mandatory `data-allocations/`
+directory. Every object PUT first records its key, exact metadata and observed
+native storage epoch. Existing immutable content reused in a newer epoch records
+a new intent before confirming its bytes; an exact same-epoch retry syncs its
+existing marker without appending another intent. Older epochs reject. A
+conflicting key/content binding rejects even if the first attempt did not finish
+object publication. These private records establish neither acceptance nor
+reachability, and do not authorize deletion.
+
+The latest marker's name is the 64 lowercase hexadecimal SHA-256 of the object
+key. Its 512 bytes contain `TDALLOC1` at `0..8`, the mandatory definition at
+`8..40`, little-endian storage epoch at `40..48`, little-endian `u16` key length
+at `48..50`, six zeros, little-endian object length at `56..64`, object SHA-256
+at `64..96`, the key in a zero-padded 256-byte field at `96..352`, 128 zeros,
+and SHA-256 of `0..480` at `480..512`. The key must satisfy the object contract
+and exclude `native/`; the epoch is nonzero and within the native counter bound.
+The marker filename must match the decoded key hash.
+
+`data-allocations/queue/` is a separate segmented `LocalWal`, using partition
+zero, writer/policy epoch one and `manifest_checkpoint` frames. Its 576-byte
+payload contains `TDALQ1` plus two zeros at `0..8`, the definition at `8..40`,
+little-endian position and consumed-prefix cursor at `40..48` and `48..56`, an
+item-present byte at `56`, seven zeros, and the 512-byte allocation at `64..576`
+(all zero when absent). Position equals LSN, and cursor cannot exceed position.
+One append atomically advances the cursor and optionally carries a retained
+item; one empty-prefix advance reads at most 64 records. Queue append and latest
+marker publication are durable before content creation. An uncertain attempt can
+leave duplicate intents. Removal must match the latest marker exactly, so an
+older item cannot erase a newer reuse. Missing queue history with existing
+markers rejects; an existing owner never recreates a missing inventory directory.
+
+Direct creation holds a shared creation/reclamation fence through inventory
+recording and object publication. Private inventory updates serialize separately
+from the native journal mutex; only quota reservations and the accepted-epoch
+read take that mutex. Reclamation requires the exclusive creation fence before
+checking the latest marker. The local adapter does not yet expose direct-data
+collection. This stored-layout change replaces the shared current-v1 definition;
+earlier directories reject instead of acquiring an empty inventory.
+
 `Storage.Limits` bounds candidate bytes and encoded-file allocation admission.
 The core carries its control classification with the prepared transition through
 commit; a later candidate cannot change its reserve eligibility. Reservations

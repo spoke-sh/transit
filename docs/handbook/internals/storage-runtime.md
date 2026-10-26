@@ -925,6 +925,32 @@ do not prove arbitrary filesystem rollback or power-loss behavior, and automatic
 installed scheduling is separate from the component mechanism. No latency or
 throughput claim follows from its bounded resident state.
 
+Direct Table and catalog objects pose an additional ownership problem: their
+content-addressed keys can be reused after a storage fence. A creation-only FIFO
+would let an older allocation stand for bytes newly needed by a later candidate.
+The [direct-data inventory](../../../packages/zig/transit-backend-local/src/DataAllocations.zig)
+therefore appends each newer epoch's reuse and replaces a latest-per-key marker
+before creating or confirming the object. Exact metadata and key hashes bind the
+marker to the immutable content. An older allocation cannot remove that marker.
+Creation holds a shared reclamation fence through both inventory publication
+and object staging; an eventual collector must take the exclusive side before
+checking the marker and removing bytes. This prevents a paused creator from
+finishing inside a deletion interval.
+
+The inventory has a constant-size record and a durable consumed-prefix cursor;
+retained cardinality does not determine resident memory. Its disk syncs use a
+separate mutex from native journal publication, with short native locking for
+quota and accepted-epoch observation. This preserves independent native control
+progress but serializes direct inventory publication and adds durability work.
+The [disk schedules](../../../packages/zig/transit-backend-local/src/data_test.zig)
+check reuse across a native fence, quota exhaustion, exact recount on reopen,
+creation sync failures and a paused creator alongside native progress. The
+[inventory tests](../../../packages/zig/transit-backend-local/src/data_allocations_test.zig)
+check bounded growth, corrupt metadata and interrupted reuse. Executed results
+belong to the [qualification record](../../history/qualification/storage.md#direct-data-allocation-and-content-reuse-inventory--2026-10-26). These prerequisites do
+not supply all-owner retained-root selection, marking, sweep authority or a
+physical Table collector; they also establish no ingestion performance bound.
+
 Standalone payloads have a separate question: after losing a creation reply,
 what evidence permits the publisher to declare the original bytes ready? The
 [local payload adapter](../../../packages/zig/transit-backend-local/src/PayloadStore.zig)

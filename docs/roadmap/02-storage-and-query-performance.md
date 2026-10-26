@@ -118,6 +118,14 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Direct-data creation records a durable bounded allocation/reuse FIFO and the
+  latest per-key epoch before object publication. Newer content reuse protects
+  its marker from older allocation entries. The separate inventory mutex keeps
+  disk syncs outside the native journal lock, and quota includes its mandatory
+  current-definition files. This advances the physical collection prerequisites
+  for #114/#116/#127; all-owner cuts, durable marks/work and Table-object deletion
+  remain open.
+
 - The [ingestion/commit matrix](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-ingestion/README.md)
   completes 384 independently verified write/readback samples with median/p95
   owner and WAL timings, allocation/RSS and retained-file attribution. Bulk

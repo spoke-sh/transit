@@ -12,4 +12,5 @@ test {
     _ = @import("data_test.zig");
     _ = @import("collection_test.zig");
     _ = @import("payload_test.zig");
+    _ = @import("data_allocations_test.zig");
 }

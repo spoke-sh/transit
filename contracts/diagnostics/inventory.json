@@ -2224,11 +2224,13 @@
     },
     "packages/zig/transit-backend-local/src/Backend.zig": {
       "errors": {
+        "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
         "MissingStorageObject": 1,
         "NativeObjectReserved": 1,
         "NativeStorageInUse": 1,
         "NativeStorageUnmarked": 2,
+        "ObjectTooLarge": 1,
         "StaleStorageEpoch": 1,
         "StorageObjectTooLarge": 1,
         "StorageQuota": 1
@@ -2247,13 +2249,55 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 42,
+        "try": 53,
         "catch": 2
       },
       "imports": [
+        "DataAllocations.zig",
         "LocalFiles.zig",
         "NativeAllocations.zig",
         "Store.zig",
+        "std",
+        "transit_core",
+        "transit_storage"
+      ]
+    },
+    "packages/zig/transit-backend-local/src/DataAllocations.zig": {
+      "errors": {
+        "AllocationConflict": 4,
+        "FileNotFound": 1,
+        "ImmutableObjectConflict": 1,
+        "IncompatibleDefinition": 2,
+        "InvalidAllocationHistory": 4,
+        "InvalidDataAllocation": 4,
+        "MissingAllocationHistory": 3,
+        "StaleStorageEpoch": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Allocation.decode()": "<inferred>",
+        "Allocation.encode()": "<inferred>",
+        "Allocation.init()": "<inferred>",
+        "Allocation.validate()": "<inferred>",
+        "append()": "<inferred>",
+        "at()": "<inferred>",
+        "consume()": "<inferred>",
+        "consumeEmpty()": "<inferred>",
+        "current()": "<inferred>",
+        "latest()": "<inferred>",
+        "open()": "<inferred>",
+        "record()": "<inferred>",
+        "remove()": "<inferred>",
+        "trim()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 38,
+        "catch": 1
+      },
+      "imports": [
+        "LocalFiles.zig",
         "std",
         "transit_core",
         "transit_storage"
@@ -12999,7 +13043,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"16c0cfe22317dcf6541123f20017e9cd3105ad41b8c8ddc724637901c26af9df\""
+          "eaf59de84b753ede2b5dc94abce538a75c2ba1e69c0cf4f025a47fa99f65735c"
         ],
         "Effect.phase": [
           "pending",

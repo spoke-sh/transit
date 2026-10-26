@@ -28,6 +28,17 @@ Concurrent attempts that both observe a missing key can reserve twice; those
 conservative reservations remain charged until reopen. Direct-object syncs therefore
 do not hold up unrelated native reads or control publication through this mutex.
 Device contention and the serialized WAL can still delay them.
+Direct creation also records a durable key/content inventory before publication.
+The private FIFO and latest per-key epoch use a separate mutex: slow inventory
+syncs can delay other direct creators, but do not hold the native journal mutex.
+Reusing existing content after a storage fence records the newer epoch, which
+prevents an older inventory item from removing its latest marker. Creation holds
+a shared reclamation fence until publication finishes. Inventory markers, queue
+records and object files all consume the physical quota and control reserve;
+even deduplicated reuse can fail quota when it requires a newer epoch record.
+This inventory supplies no reachability or deletion authority. Its mandatory
+directory is created only for a fresh current-definition installation; missing
+history rejects on reopen instead of being reset.
 Native page/block creation and explicit native collection retain the journal
 mutex through allocation, publication and reclamation. Their syncs can delay
 journal work; this serialization prevents a delayed native creator from

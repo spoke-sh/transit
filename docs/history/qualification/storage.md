@@ -9,6 +9,67 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Direct-data allocation and content-reuse inventory — 2026-10-26
+
+On merged `ceb109a03` plus the direct-data inventory, the complete local backend
+suite passes **34/34 tests** (39 seconds, reported MaxRSS 54 MiB) after replacing
+the shared definition with
+`eaf59de84b753ede2b5dc94abce538a75c2ba1e69c0cf4f025a47fa99f65735c`.
+The earlier inventory-only run passes 6/6 and the first integrated direct-data
+and paused-I/O run passes 7/7, including each package root test. Reproduce with
+`zig build test --summary all` in `packages/zig/transit-backend-local` inside the
+pinned Nix shell. Logs are `/var/tmp/transit-m2-data-allocations-test.log`,
+`/var/tmp/transit-m2-data-inventory-integration.log` and
+`/var/tmp/transit-m2-data-inventory-native.log` respectively.
+
+Disk cases cover exact retry without another intent/reservation, newer reuse
+after an accepted native storage fence, rejected stale epochs and conflicting
+metadata, old-marker removal refusal, carry/consume/trim and reopen. A 193-key
+inventory completes within a tracked 128 KiB allocator budget, releases all
+allocations and advances empty prefixes at most 64 records per step. Corrupt
+digests, foreign definitions, reserved/key padding and wrong key hashes reject.
+Missing mandatory inventory directories or missing queue history with existing
+markers reject without manufacturing replacement history.
+
+Every observed sync in initial inventory publication, newer-epoch reuse and
+integrated object creation is failed separately, followed by reopen and exact
+retry. An existing object always has matching latest inventory evidence. Newer
+reuse consumes control capacity when ordinary quota is exhausted; exclusive
+reopen's accounting equals an independent recursive sum of file lengths. The
+paused private-sync schedule still completes native reads and quota-reserved
+control publication before the creator resumes. Existing native collection,
+standalone payload, signed Table revocation and storage-fence cases pass with
+the new owner layout. These are finite component and syscall-failure checks,
+not direct-data process-death or filesystem power-loss qualification.
+
+The inventory supplies neither retained-root reachability nor physical Table
+deletion. All-owner cuts, durable marks/work, live pin/history traversal and
+collector recovery remain open. No ingestion performance improvement is claimed
+for the added durable inventory writes.
+
+Diagnostic inventory, semantic mappings and compiler-inferred boundaries pass,
+as do 6,432 documentation links and diff whitespace. Native, host, browser and
+SQL schemas/signing fixtures are regenerated for the new definition. The first
+full workspace `just check` stops at formatting the definition enum identifier;
+the formatter correction changes no definition bytes or behavior. The original
+log is `/var/tmp/transit-m2-data-inventory-check.log`; the corrected rerun is
+`/var/tmp/transit-m2-data-inventory-check-final.log` has no retained final outcome.
+
+The separate pre-inventory clean core run at committed `0e28a8345` (the same
+tree as merge `ceb109a03`) passes its `check-core` phase, including unit tests,
+92 storage and 15 native collection SIGKILL schedules, CLI/console tests and
+6,428 documentation links. Its remaining core-lane tasks have no retained final outcome;
+this is not a complete clean-lane pass. The workspace `just check` at that
+revision was interrupted with exit 130 after the checkout changed during the
+PR merge; remaining checks did not finish. Logs are
+`/var/tmp/transit-m2-pr-final-clean-core.log` and
+`/var/tmp/transit-m2-pr-final-check.log`. Neither run qualifies the new inventory
+revision or closes the milestone's final clean-CI requirement.
+
+The temporary log paths above record the original execution locations. Those
+files are no longer available after the workspace reset; no later completion
+result can be inferred from them.
+
 ## Local standalone payload ownership — 2026-10-26
 
 On `09d24daa8` plus the payload adapter and immutable-publication confirmation,
