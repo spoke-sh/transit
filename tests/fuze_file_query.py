@@ -206,15 +206,17 @@ def main():
                     'SELECT COUNT(x) FROM (SELECT x FROM input LIMIT 0) AS q']:
             invoke(['--format', 'csv', '--sample-records', '1', '-c', sql, '-'], b'x\n1\nbad\n', expected=1, env=env)
         # Independently commit source/schema, aggregate/projection, empty limit
-        # and predicate, then every optional output name in position order.
+        # and predicate, then every optional output name in position order and
+        # the source column collations (both columns use none here).
         source_rows = invoke(['--format', 'csv', '-c', 'SELECT * FROM input', '-'], data, env=env)
         plan_bytes = (b'transit.fuze.file-plan.v1\0' + bytes.fromhex(ordinary[0]['binding'])
                       + hashlib.sha256(descriptor(source_rows[0]['schema']['type'])).digest()
                       + bytes([2, 1, 1, 0]) + struct.pack('<Q', 0) + b'\0')
-        assert hashlib.sha256(plan_bytes).hexdigest() == ordinary[0]['plan']
+        collation_bytes = b'collations\0' + bytes([0, 0])
+        assert hashlib.sha256(plan_bytes + collation_bytes).hexdigest() == ordinary[0]['plan']
         named = invoke(['--format', 'csv', '-c', 'SELECT SUM(n) AS total FROM input', '-'], data, env=env)
-        assert hashlib.sha256(plan_bytes + b'output_names\0\1\5total').hexdigest() == named[0]['plan']
-        assert ordinary[0]['plan'] == 'e8a4ebc7692c3c202f836b34cf1b6db48735c2759154a578222987f0d7704196'
+        assert hashlib.sha256(plan_bytes + b'output_names\0\1\5total' + collation_bytes).hexdigest() == named[0]['plan']
+        assert ordinary[0]['plan'] == '13841b811a28fdd7471a73841f91ae55b54a7bfc6be46cd691daf67f778fea63'
         for aggregate, expected in [('COUNT(*)', {'value': {'atom': {'unsigned': '0'}}}), ('SUM(n)', {'null': {}})]:
             empty = invoke(['--format', 'csv', '-c', f'SELECT {aggregate} AS empty FROM input WHERE n < 0', '-'], data, env=env)
             assert empty[0]['schema']['type']['structure'][0]['name'] == 'empty'
@@ -231,9 +233,9 @@ def main():
                     'SELECT COUNT(*) FROM (SELECT n AS same, id AS same FROM input) AS chosen',
                     'SELECT n AS name_is_too_long_here FROM input'):
             invoke(['--format', 'csv', '-c', sql, '-'], data, 1, env)
-        # A pre-extension atom plan retains its exact identity; new Boolean
-        # instructions do not reinterpret existing file-plan fingerprints.
-        assert ordinary[0]['plan'] == 'e8a4ebc7692c3c202f836b34cf1b6db48735c2759154a578222987f0d7704196'
+        # Pin the current collation-aware atom plan identity separately from
+        # the Boolean instruction cases below.
+        assert ordinary[0]['plan'] == '13841b811a28fdd7471a73841f91ae55b54a7bfc6be46cd691daf67f778fea63'
         for sql, expected in (
             ('SELECT n FROM input WHERE n > 0 AND n < 3', [1, 2]),
             ('SELECT n FROM input WHERE NOT n = 1', [2]),
