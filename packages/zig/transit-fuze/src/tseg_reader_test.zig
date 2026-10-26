@@ -155,3 +155,107 @@ test "TSeg projected decoding enforces actual resident arena bytes" {
     try t.expect(group.allocatedBytes() <= 4096);
     try t.expectEqualStrings("zero", group.columns[0][0].value.atom.bytes);
 }
+
+fn selectedAllocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {
+    var input: Input = .{ .bytes = bytes };
+    var reader = try Reader.open(allocator, input.source(), bytes.len, 8192);
+    defer reader.deinit();
+    var encoded = try reader.encodedGroup(allocator, input.source(), schema, 3, &.{1}, 8192);
+    defer encoded.deinit();
+    var group = try encoded.select(allocator, schema, &.{1}, 8192);
+    defer group.deinit();
+    try t.expectEqualStrings("seven", group.columns[0][0].value.atom.bytes);
+    try t.expectEqual(@as(?usize, 0), group.rowIndex(1));
+    try t.expectEqual(@as(?usize, null), group.rowIndex(0));
+}
+
+test "TSeg selected decoding owns encoded and selected values through allocation failures" {
+    var buffer: [16384]u8 = undefined;
+    const bytes = try fixture(&buffer);
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), selectedAllocationCase, .{bytes});
+}
+
+test "TSeg selected decoding preserves projection budgets and lifetimes across repeated point reads" {
+    var buffer: [16384]u8 = undefined;
+    var input: Input = .{ .bytes = try fixture(&buffer) };
+    var reader = try Reader.open(t.allocator, input.source(), input.bytes.len, 8192);
+    var reader_live = true;
+    defer if (reader_live) reader.deinit();
+    const before = input.calls;
+    try t.expectError(error.SegmentReadBudgetExceeded, reader.encodedGroup(t.allocator, input.source(), schema, 3, &.{1}, 1));
+    try t.expectError(error.InvalidSegmentCoordinate, reader.encodedGroup(t.allocator, input.source(), schema, 3, &.{2}, 8192));
+    try t.expectEqual(before, input.calls);
+    var encoded = try reader.encodedGroup(t.allocator, input.source(), schema, 3, &.{1}, 8192);
+    var encoded_live = true;
+    defer if (encoded_live) encoded.deinit();
+    try t.expectEqual(before + 1, input.calls);
+    try t.expect(encoded.allocatedBytes() < 8192);
+    reader.deinit();
+    reader_live = false;
+    @memset(input.bytes, 0xaa);
+    // Reading the original source would now fail. Both singleton selections
+    // use the cache, and the first output survives the second selection.
+    var first = try encoded.select(t.allocator, schema, &.{0}, 4096);
+    defer first.deinit();
+    var second = try encoded.select(t.allocator, schema, &.{1}, 4096);
+    defer second.deinit();
+    try t.expect(first.peakAllocatedBytes() <= 4096);
+    try t.expectError(error.SegmentReadBudgetExceeded, encoded.select(t.allocator, schema, &.{0}, 1));
+    try t.expectError(error.InvalidColumnSelection, encoded.select(t.allocator, schema, &.{2}, 4096));
+    var other = schema;
+    other.revision += 1;
+    try t.expectError(error.TableSchemaChanged, encoded.select(t.allocator, other, &.{0}, 4096));
+    try t.expectEqual(before + 1, input.calls);
+    encoded.deinit();
+    encoded_live = false;
+    try t.expectEqualStrings("six", first.columns[0][0].value.atom.bytes);
+    try t.expectEqualStrings("seven", second.columns[0][0].value.atom.bytes);
+}
+
+test "TSeg selected decoding rejects corrupt pages and mismatched logical row counts" {
+    var buffer: [16384]u8 = undefined;
+    var input: Input = .{ .bytes = try fixture(&buffer) };
+    var reader = try Reader.open(t.allocator, input.source(), input.bytes.len, 8192);
+    defer reader.deinit();
+    const coordinate = @constCast(&reader.footer.row_groups[0].pages[1]);
+    const bytes = input.bytes[@intCast(coordinate.offset)..][0..coordinate.length];
+    bytes[0] ^= 1;
+    try t.expectError(error.CorruptSegmentPage, reader.encodedGroup(t.allocator, input.source(), schema, 0, &.{1}, 8192));
+    // A checksum-valid page with one row cannot establish the two-row group.
+    const column = schema.columns[1];
+    const page = try @import("PhysicalCodecs.zig").encodeColumnPage(t.allocator, column, &.{.{ .value = .{ .atom = .{ .bytes = "only" } } }}, bytes);
+    coordinate.length = @intCast(page.len);
+    std.crypto.hash.sha2.Sha256.hash(page, &coordinate.digest, .{});
+    var encoded = try reader.encodedGroup(t.allocator, input.source(), schema, 0, &.{1}, 8192);
+    defer encoded.deinit();
+    try t.expectError(error.InvalidSegment, encoded.select(t.allocator, schema, &.{0}, 4096));
+}
+
+test "TSeg selected decoding charges skipped string validation to the shared memory budget" {
+    const compressed_columns = [_]Schema.Column{.{ .id = 1, .name = "v", .type = .utf8, .encoding = .fsst }};
+    const compressed_schema: Schema.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &compressed_columns, .primary_key = &.{} };
+    const large: [16384]u8 = @splat('q');
+    const cells = [_][1]Values.Cell{
+        .{.{ .value = .{ .atom = .{ .bytes = "small" } } }},
+        .{.{ .value = .{ .atom = .{ .bytes = &large } } }},
+    };
+    const rows = [_]Row.Row{
+        .{ .identity = .{ .origin = 1, .operation = 1, .ordinal = 0 }, .cells = &cells[0] },
+        .{ .identity = .{ .origin = 1, .operation = 1, .ordinal = 1 }, .cells = &cells[1] },
+    };
+    var buffer: [65536]u8 = undefined;
+    const bytes = try TSeg.writeSegment(t.allocator, compressed_schema, &rows, .{ .segment_id = 1 }, &buffer);
+    var input: Input = .{ .bytes = buffer[0..bytes.len] };
+    var reader = try Reader.open(t.allocator, input.source(), bytes.len, 8192);
+    defer reader.deinit();
+    var encoded = try reader.encodedGroup(t.allocator, input.source(), compressed_schema, 0, &.{0}, 32768);
+    defer encoded.deinit();
+    try t.expectError(error.SegmentReadBudgetExceeded, encoded.select(t.allocator, compressed_schema, &.{0}, 4096));
+    var selected = try encoded.select(t.allocator, compressed_schema, &.{0}, 32768);
+    defer selected.deinit();
+    try t.expectEqualStrings("small", selected.columns[0][0].value.atom.bytes);
+    try t.expect(selected.allocatedBytes() < 4096);
+    try t.expect(selected.peakAllocatedBytes() >= large.len);
+    try t.expect(selected.peakAllocatedBytes() <= 32768);
+}

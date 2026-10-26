@@ -570,6 +570,15 @@ pub fn decodeRowGroupColumn(
 /// Decode one complete verified column range. Values own their bytes in arena;
 /// the caller can release the encoded range immediately after this returns.
 pub fn decodeColumnRange(arena: std.mem.Allocator, schema: TableSchema.Schema, footer: *const Footer, slice: []const u8, row_group_index: usize, column_index: usize) ![]Values.Cell {
+    try verifyColumnRange(schema, footer, slice, row_group_index, column_index);
+    const cells = try PhysicalCodecs.decodeColumnPage(arena, schema.columns[column_index], slice);
+    if (cells.len != footer.row_groups[row_group_index].row_count) return error.InvalidSegment;
+    return cells;
+}
+
+/// Verify the exact encoded page before retaining it for repeated selections.
+/// Logical decoding must still validate the page and its declared row count.
+pub fn verifyColumnRange(schema: TableSchema.Schema, footer: *const Footer, slice: []const u8, row_group_index: usize, column_index: usize) !void {
     try requireInterpretation(schema, footer);
     if (row_group_index >= footer.row_groups.len or column_index >= schema.columns.len or
         column_index >= footer.row_groups[row_group_index].pages.len) return error.InvalidSegmentCoordinate;
@@ -578,10 +587,6 @@ pub fn decodeColumnRange(arena: std.mem.Allocator, schema: TableSchema.Schema, f
     var actual_digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(slice, &actual_digest, .{});
     if (!std.mem.eql(u8, &actual_digest, &page_meta.digest)) return error.CorruptSegmentPage;
-
-    const cells = try PhysicalCodecs.decodeColumnPage(arena, schema.columns[column_index], slice);
-    if (cells.len != footer.row_groups[row_group_index].row_count) return error.InvalidSegment;
-    return cells;
 }
 
 /// Perform an O(log N) Primary-Key point lookup on a `.tseg` segment, respecting an optional
