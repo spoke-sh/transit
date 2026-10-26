@@ -75,6 +75,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci` inventory without existing workspace outputs |
 | `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout; complete ordinary qualification needs all six lane reports at the same committed revision |
 | `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared caller/ABI/host administration against disk-backed authority |
+| `just test::table-archives` | Verify bounded Table archival, retained reads and pending work, native authority/control reserve and real process death during publication/trim |
 | `just test::local-native-collection` | Verify native retained roots, compaction and allocation/deletion recovery on disk, then kill real collectors at publication boundaries |
 | `just test::authorization-tables` | Exercise restricted Table isolation, schema/default grants, exact recovery and revocation across restart |
 | `just bindings::authorization` | Build all ten SDKs and run installed direct catalog lifecycles with explicit selected roles, current revocation and denied raw resource access |

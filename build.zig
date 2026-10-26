@@ -357,7 +357,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/local_storage_faults.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_storage", .module = storage.module("transit_storage") }},
+        .imports = &.{ .{ .name = "transit_storage", .module = storage.module("transit_storage") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_protocol", .module = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize }).module("transit_protocol") } },
     }) });
     const local_faults_test = b.addSystemCommand(&.{ "python3", "-B" });
     local_faults_test.addFileArg(b.path("tests/local_storage_faults.py"));

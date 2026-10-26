@@ -244,6 +244,51 @@ The [namespace request contract](../../../contracts/DIRECT_TABLE_V1.md#namespace
 defines those separate lifetimes. Catalog, signed native and HTTP evidence is
 recorded in the [proof ledger](../../../tests/README.md#direct-namespace-lifecycle--2026-10-23).
 
+## Complete Table history with bounded archive publication
+
+The local Table maintenance question is whether WAL files can be removed while
+preserving the original accepted changes, retry receipts and retained unflushed
+rows. The implemented archive profile assumes a serialized Table owner, durable
+immutable object publication, an exclusive local WAL, and the current authority
+check at publication/trimming. It preserves unlimited logical history; it does
+not implement opted-in expiry or immutable Table-object collection.
+
+Let `A` be the exclusive archived LSN and `N` the accepted frontier. A nonempty
+archive satisfies `0 < A < N`; its paged directory maps every LSN in `[0,A)` to
+one complete original TWAL frame. Archiving stages a bounded contiguous extension
+and its immutable directory before publishing `A` in a Table acceptance record.
+That transition preserves all logical row, definition, receipt, pin and operation
+roots. Trimming can remove only `[0,A)`, so at least the latest acceptance record
+remains in WAL. An interrupted copy leaves unreachable candidates; an interrupted
+publication is resolved from accepted history; an interrupted trim resumes at
+the same accepted coverage. None of these events grants logical expiry.
+
+Recovery uses the latest accepted WAL record only to locate candidate archive
+coverage, then verifies the complete hash-linked chain from zero before serving.
+It checks archive object hashes and original frame coordinates as well as the
+normal Table transition rules. This avoids treating an independently discovered
+manifest or an object's existence as acceptance. Missing or substituted frames
+fail closed. A retained root keeps its original LSNs and commitments while reads
+resolve physical placement through the latest accepted archive directory.
+Consequently a slow consumer and a snapshot containing unflushed rows require no
+cursor rewrite or synthesized changefeed event.
+
+`TableArchive` holds one input/output frame pair at a time. Archive calls admit at
+most eight frames, explicit encoded-byte work and the owner's index work/cache
+bounds. This bounds resident work independently of retained history. Complete
+replay still costs time proportional to accepted history plus index lookups;
+archival is not a constant-time restart checkpoint or a compression claim. A
+future replay checkpoint must independently preserve transition/retry evidence
+before it can replace that validation. Archive copies also need physical space
+before WAL removal; reserved control capacity supports this ordering without
+using disk pressure as retention authority.
+
+The exact layout and transitions are in the
+[storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#table-history-archives),
+with implementation in `TableArchive`, `TablePartition` and the local `DataStore`.
+The [proof ledger](../../../tests/README.md) separates disk/restart and process-death
+checks from power-loss behavior, automatic scheduling and future collection.
+
 ## Four-tier storage architecture, `.tseg` segments and multi-writer OCC
 
 This section is architectural design analysis anchored against the measured
@@ -257,7 +302,8 @@ local development (`transit server`) and disaggregated cloud/Kubernetes topologi
 The tier diagram and hierarchy below describe proposed profiles. They do not
 establish installed memtable recovery, group commit, remote caching, automatic
 trimming or compaction. The current direct Table owner uses paged indexes and
-retains its complete WAL and immutable objects; it does not recover through the
+retains complete logical history through WAL plus accepted archives and keeps
+immutable objects; it does not recover through the
 standalone memtable/manifest composition. Its
 [partition contract](../../../packages/zig/transit-storage/docs/table-partitions.md)
 owns the implemented acceptance, read-pin and recovery boundaries.

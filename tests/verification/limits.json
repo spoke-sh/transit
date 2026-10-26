@@ -477,6 +477,20 @@
       "expression": "16 * 1024 * 1024",
       "classification": "working-set",
       "meaning": "Canonical cell bytes per owned result disclosure batch; one bounded lookahead row is separate."
+    },
+    {
+      "source": "packages/zig/transit-storage/src/TableArchive.zig",
+      "symbol": "max_frame_bytes",
+      "expression": "Log.header_bytes + Log.max_payload_bytes",
+      "classification": "working-set",
+      "meaning": "One archived original WAL frame; the archive operation retains at most one input/output pair, independently of history cardinality."
+    },
+    {
+      "source": "packages/zig/transit-storage/src/TableArchive.zig",
+      "symbol": "max_frames",
+      "expression": "pages.mutation_batch",
+      "classification": "operation",
+      "meaning": "At most eight contiguous frames per archive publication; explicit byte and index-work budgets can stop the batch earlier."
     }
   ],
   "identities": [

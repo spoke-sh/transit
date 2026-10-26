@@ -49,8 +49,10 @@ data owners inside the same exclusive directory and physical quota. It checks
 native storage and authorization epochs at append, under the physical owner
 mutex. It does not compare the native progress position: an unrelated accepted
 input does not invalidate an otherwise current Table candidate. Direct owners
-still compare their own partition frontier. Data history trim, mutable objects
-and physical collection are unavailable through this adapter.
+still compare their own partition frontier. Table WAL trimming requires coverage
+published in the latest accepted Table archive record; it preserves the last WAL
+record and every archived logical record. Mutable data objects and Table-object
+collection are unavailable through this adapter.
 
 `DataAuthority` authenticates the original signed subject and checks the supplied
 generic native requirements. It separately verifies the catalog resource's

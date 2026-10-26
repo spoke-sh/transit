@@ -1995,6 +1995,32 @@
       ],
       "limits": "Three draft classes, four filter classes, start/end cursors and one borrower. The graph abstracts generation counters, grammar, text algorithms, undo contents, I/O, allocation and terminal rendering. Edge replay uses representative paths, not every Zig history, and is not an unbounded refinement proof. Fairness is an environment assumption, not proof that transport cancellation terminates or a latency guarantee.",
       "model": "tests/verification/models/Console.tla"
+    },
+    {
+      "id": "STORAGE-04",
+      "claim": "Accepted Table archive coverage precedes physical WAL trimming and preserves original receipts, pending operations, snapshots and complete logical history",
+      "owner": "contracts/TRANSIT_STORAGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TableArchive.zig",
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-storage/src/TablePartitionRecord.zig",
+        "packages/zig/transit-backend-local/src/DataStore.zig"
+      ],
+      "profile": "Current native v1; serialized local Table owner with unlimited logical history",
+      "tasks": [
+        "test::unit",
+        "test::table-archives"
+      ],
+      "scenarios": [
+        "Bounded archive publication, exact lost-reply recovery and two-pass archival across disk restart with a one-page cache",
+        "Unflushed snapshots, offline history cursors, exact receipts and admitted work remain readable after physical trim",
+        "Current authority rejects publication after staging and trim after revocation; control reserve allows archival after ordinary admission fills",
+        "Missing/foreign/malformed coverage, regressed frontiers and substituted original coordinates fail closed",
+        "SIGKILL during archive object/index staging, acceptance publication and resumable physical prefix deletion"
+      ],
+      "limits": "Complete logical history and immutable objects remain retained. Full replay still scales with history. Process death preserves the OS/page cache; no power-loss, logical expiry, immutable Table-object collection or automatic installed maintenance claim.",
+      "model": null,
+      "qualification": "Executed component and process-death results are recorded in tests/README.md; full clean qualification is separate."
     }
   ]
 }

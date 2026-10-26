@@ -67,8 +67,23 @@ fn tailImpl(self: *Self, id: u64) !u64 {
     defer self.backend.mutex.unlock(self.backend.io);
     return self.backend.wal.log().tail(id);
 }
-fn trim(_: *anyopaque, _: u64, _: u64) !void {
-    return error.DataHistoryCollectionUnavailable;
+fn trim(context: *anyopaque, id: u64, before: u64) !void {
+    const self = erased(context);
+    try partition(id);
+    try self.backend.mutex.lock(self.backend.io);
+    defer self.backend.mutex.unlock(self.backend.io);
+    const value_log = self.backend.wal.log();
+    const end = try value_log.tail(id);
+    if (end == 0 or before >= end) return error.NoCheckpointIntent;
+    var latest = try value_log.read(self.backend.allocator, id, end - 1, 1);
+    defer latest.deinit();
+    if (latest.frames.len != 1 or latest.frames[0].header.partition_id != id or latest.frames[0].header.lsn != end - 1) return error.IncompleteHistory;
+    const through = try storage.TablePartition.archivedThrough(self.backend.allocator, latest.frames[0]);
+    if (before > through) return error.NoCheckpointIntent;
+    // The serialized Table owner publishes only after durable archive staging.
+    // Physical removal does not expire logical history. Conservative allocation
+    // reservations are reconciled on exclusive reopen, as for native WAL trim.
+    try value_log.trim(id, before);
 }
 fn fence(_: *anyopaque, _: u64, _: u64, _: u64) !void {
     return error.NativeFenceRequired;

@@ -79,7 +79,7 @@ test "direct data acceptance fences native policy and storage epochs without a n
     _ = try submit(&engine, .{ .storage_fence = {} });
     try t.expectError(error.StaleStorageEpoch, data.log().append(17, 1, refreshed.writer_epoch, refreshed.policy_epoch, .row_delta, "stale storage"));
     try t.expectError(error.NativePartitionReserved, data.log().tail(0));
-    try t.expectError(error.DataHistoryCollectionUnavailable, data.log().trim(17, 1));
+    try t.expectError(error.NoCheckpointIntent, data.log().trim(17, 1));
     try t.expect(data.observe.metrics.failures >= 3);
 }
 
@@ -107,6 +107,45 @@ test "direct data candidates share physical quota and reserve control space with
     data.control = true;
     _ = try data.log().append(17, 0, fence.writer_epoch, fence.policy_epoch, .manifest_checkpoint, "explicit owner control");
     try t.expectEqual(@as(u64, 1), try data.log().tail(17));
+}
+
+test "direct Table archive uses control reserve and trims only accepted coverage under current authority" {
+    const f = @import("transit_fuze");
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.bootstrap(&journal, &pages, try genesis());
+    const setup = try provision(&engine);
+    var authority: backend.DataAuthority = .{ .engine = &engine, .request = setup.guard, .audience = 100, .resource = setup.resource };
+    var data: backend.DataStore = .{ .backend = &owner };
+    var control: backend.DataStore = .{ .backend = &owner, .control = true };
+    const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 42, .resource = setup.resource, .catalog = 3 }, .branch = 1, .object = 7 };
+    const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+    var table = try storage.TablePartition.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, data.log(), data.objects(), .{ .resident_pages = 1, .control = .{ .log = control.log(), .objects = control.objects() } });
+    defer table.deinit();
+    try table.recover();
+    const exact: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = object.scope, .principal = 1, .operation = 1 }, .target = object, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(5) };
+    const accepted = try table.apply(exact, &.{}, .point, authority.guard());
+    // An ordinary physical caller cannot substitute the WAL tail for coverage.
+    try t.expectError(error.NoCheckpointIntent, data.log().trim(17, 1));
+    owner.limits.bytes = owner.allocated;
+    try t.expect((try table.archive(accepted.position, .{}, authority.guard())).complete);
+    owner.limits = .{};
+    try t.expectError(error.NoCheckpointIntent, data.log().trim(17, table.root.next_lsn));
+    _ = try submit(&engine, .{ .grant_resource = .{ .resource = setup.resource, .subject = 1, .permissions = 0 } });
+    try t.expectError(error.Forbidden, table.trimArchived(authority.guard()));
+    var untrimmed = try data.log().read(t.allocator, 17, 0, 1);
+    untrimmed.deinit();
+    _ = try submit(&engine, .{ .grant_resource = .{ .resource = setup.resource, .subject = 1, .permissions = p.State.all_permissions } });
+    try t.expectEqual(@as(u64, 1), try table.trimArchived(authority.guard()));
+    try t.expectError(error.WalHistoryTrimmed, data.log().read(t.allocator, 17, 0, 1));
+    try table.recover();
+    try t.expectEqualDeep(accepted, (try table.observe(exact, authority.guard())).?);
 }
 
 test "native policy revocation after Table staging denies the whole batch and exact observation" {

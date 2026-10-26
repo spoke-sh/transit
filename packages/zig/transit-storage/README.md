@@ -11,7 +11,7 @@ The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's
 Table component tests do not establish installed SQL execution, automatic flushing,
-collector races, policy-authorized trimming or multi-process Table commits.
+automatic archive scheduling, immutable Table-object collection or multi-process Table commits.
 
 ## Modules
 
@@ -58,7 +58,8 @@ collector races, policy-authorized trimming or multi-process Table commits.
   page paths; longer keys retain bounded chunk traversal and preserve prefixes.
 - `TablePartition.zig`: A serialized Table storage owner with one WAL acceptance
   record for rows, paged indexes and exact operation receipts. It supports point
-  WAL batches, staged `.tseg` batches, bounded flushing and durable read pins.
+  WAL batches, staged `.tseg` batches, bounded flushing, durable read pins and
+  accepted history archives with resumable physical WAL trimming.
   Frozen row admission, rejection and cancellation share that Table WAL; row
   acceptance atomically clears pending work and records matched/changed counts.
   Bounded logical-history inspection separates accepted statements from physical
@@ -110,8 +111,9 @@ checks their results against a Python oracle. Descriptor deletion unpublishes th
 key; physical content collection still requires retained-reader/pin ownership.
 
 `just test::local-storage-faults` kills real local owner processes at WAL
-append/fence/trim and object-publication boundaries. Fresh processes verify data,
-epochs, trim floors and exact object retries against an independent Python
+append/fence/trim, Table archive acceptance and object-publication boundaries.
+Fresh processes verify data,
+epochs, trim floors, Table receipts/snapshots/history and exact object retries against an independent Python
 oracle. The root unit task includes this proof. Repeating an already-published
 WAL trim boundary finishes interrupted prefix removal. These schedules preserve
 the operating system and its page cache; they do not simulate power loss or

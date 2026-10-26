@@ -83,6 +83,11 @@ test "Table admitted work survives lost replies and disk restart; inspection can
         // Physical relocation and pin acquisition do not stale admitted work.
         _ = try table.flush(access.guard());
         _ = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 50 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        const through: d.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        while (!(try table.archive(through, .{ .frames = 1 }, access.guard())).complete) {}
+        _ = try table.trimArchived(access.guard());
+        try table.recover();
+        try t.expect((try table.operationState(exact, access.guard())) == .admitted);
         table.lose_reply = true;
         try t.expectError(error.LostAcknowledgement, table.perform(exact, access.guard()));
         try t.expectEqual(@as(u64, 1), table.root.live_rows);

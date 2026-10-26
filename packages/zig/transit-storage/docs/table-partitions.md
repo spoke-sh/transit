@@ -145,9 +145,9 @@ reject even when both revisions share one lease. Current rights apply before
 work and after buffering, including empty pages. `releaseSnapshot` closes either
 retention kind and prevents subsequent history disclosure.
 
-The owner still retains its complete WAL and immutable pages. It exposes no
-physical collector or trim operation; a future collector must preserve every
-root and log record covered by a live history lease. Lease acquisition does not
+The owner retains complete logical history and immutable pages. It exposes no
+immutable-object collector; archival preserves complete WAL records, and a future
+collector must preserve every root and log record covered by a live history lease. Lease acquisition does not
 schedule or advance a maintained computation.
 
 ## Typed predicate mutations
@@ -292,10 +292,10 @@ terminal result and from a consistent multi-source snapshot.
 Data snapshots omit receipt, operation, pending and pin directories from their retained read basis, so
 they do not recursively retain earlier pin owners.
 
-This owner retains its entire WAL and all immutable objects. It exposes no trim,
-physical collection or retention expiry. Durable pin ownership is implemented;
+This owner retains complete logical history in WAL or accepted immutable archives,
+and retains all immutable objects. It exposes no logical expiry or immutable-object collection. Durable pin ownership is implemented;
 GC/compaction races that actually remove retained data require a collector and
-separate qualification. Recovery follows contiguous, hash-linked WAL records
+separate qualification. Recovery follows contiguous, hash-linked records through archive plus WAL
 one frame at a time, verifies top-level roots before serving, and verifies
 descendant pages/rows on access. Missing history or objects is an error, never an
 empty table. This profile does not promise distributed writers or catalog-wide
@@ -304,3 +304,30 @@ transaction sessions.
 The [storage contract](../../../../contracts/TRANSIT_STORAGE_V1.md#table-acceptance-records-and-indexes)
 owns byte layouts. The [proof ledger](../../../../tests/README.md) records executed
 component checks and their limits.
+
+
+## Archive complete history and trim WAL files
+
+`archive(through, limits, guard)` copies a bounded prefix into immutable history
+objects and publishes its directory through the same acceptance log. Supply one
+fixed accepted `through` position and repeat until `complete`; each result reports
+the accepted archive frontier, frame count and encoded bytes. The default accepts
+at most eight frames and one maximum-sized frame's encoded-byte budget per call.
+The configured index work/cache bounds still apply. Control adapters can use the
+reserved capacity for staging and acceptance when ordinary admission is full.
+
+`trimArchived(guard)` removes only covered WAL files. Retry it after interruption;
+reopen an uncertain WAL owner and recover the Table before continuing. The latest
+acceptance record always remains in WAL and locates the archive for full chain
+validation on recovery. Physical archival/trimming preserves `changed_lsn`,
+original receipt positions, pending operation bases, pinned rows and history
+cursor commitments. Old unflushed locators resolve through the latest accepted
+archive directory. A slow or offline history consumer retains its original
+position; archival does not require it to advance.
+
+Current authorization gates both archive publication and trimming. Neither quota
+pressure nor pin release authorizes logical expiry. Missing archive objects fail
+recovery/read rather than returning an empty prefix. The archive mechanism keeps
+all original logical records and does not collect Table segments, indexes or
+archive objects. See the [storage contract](../../../../contracts/TRANSIT_STORAGE_V1.md#table-history-archives)
+for the mandatory persisted layout and recovery order.

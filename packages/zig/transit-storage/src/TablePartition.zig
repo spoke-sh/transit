@@ -13,6 +13,7 @@ const pages = TreeStore.pages;
 const r = @import("TablePartitionRecord.zig");
 const Declaration = @import("TableDeclaration.zig");
 const Snapshot = @import("TableSnapshot.zig");
+const Archive = @import("TableArchive.zig");
 const Dml = @import("TableDmlIntent.zig");
 const Self = @This();
 pub const Root = r.Root;
@@ -213,6 +214,7 @@ segment_range_reads: u64 = 0,
 segment_bytes_read: u64 = 0,
 row_groups_decoded: u64 = 0,
 recovery_required: bool = true,
+recovery_archive: ?Archive.Coverage = null,
 /// Failure injection at the durable append/reply boundary.
 lose_reply: bool = false,
 
@@ -228,11 +230,16 @@ pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaratio
 }
 
 fn emptyRoot(stored: Declaration.Stored, partition: u64) Root {
-    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null };
+    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .archive = .empty };
 }
 
 fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !void {
     const after = record.root;
+    if (record.action == .archive) {
+        if (after.archive.through <= before.archive.through or after.archive.through > before.next_lsn or
+            after.archive.through - before.archive.through > Archive.max_frames or
+            std.meta.eql(before.archive.directory, after.archive.directory) or !std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
+    } else if (!std.meta.eql(before.archive, after.archive)) return error.InvalidTableHistory;
     switch (record.action) {
         inline .mutation, .declaration => |value| {
             const binding = value.binding;
@@ -274,7 +281,7 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
             if (record.action == .operation) {
                 if (!std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
             } else if (!std.meta.eql(before.operations, after.operations) or !std.meta.eql(before.pending, after.pending)) return error.InvalidTableHistory;
-            if (before.retired and record.action != .release) return error.InvalidTableHistory;
+            if (before.retired and record.action != .release and record.action != .archive) return error.InvalidTableHistory;
         },
     }
 }
@@ -291,7 +298,8 @@ fn tree(self: *Self) pages.Tree(TreeStore) {
 }
 
 /// Replay uses one bounded frame at a time, retaining only the latest roots.
-/// This profile retains its complete WAL; no trim authority is exposed here.
+/// The latest accepted WAL record locates the archive, then the complete chain
+/// is replayed through archive plus WAL before any state becomes readable.
 pub fn recover(self: *Self) !void {
     self.recovery_required = true;
     self.index.clearCache();
@@ -301,8 +309,20 @@ pub fn recover(self: *Self) !void {
     if (end < self.root.next_lsn) return error.TableHistoryMissing;
     var next = emptyRoot(try self.declaration.stored(), self.root.partition);
     var chain: [32]u8 = @splat(0);
+    self.recovery_archive = .empty;
+    defer self.recovery_archive = null;
+    if (end != 0) {
+        var latest = try self.log.read(self.allocator, next.partition, end - 1, 1);
+        defer latest.deinit();
+        if (latest.frames.len != 1 or latest.frames[0].header.partition_id != next.partition or
+            latest.frames[0].header.lsn != end - 1) return error.TableHistoryMissing;
+        const record = (try r.decode(self.allocator, latest.frames[0].payload, end - 1)).record;
+        if (!std.meta.eql(record.root.interpretation.object, next.interpretation.object) or
+            record.root.partition != next.partition) return error.InvalidTableHistory;
+        self.recovery_archive = record.root.archive;
+    }
     while (next.next_lsn < end) {
-        var batch = try self.log.read(self.allocator, next.partition, next.next_lsn, 1);
+        var batch = try self.readHistoryFrame(next.next_lsn);
         defer batch.deinit();
         if (batch.frames.len != 1) return error.TableHistoryMissing;
         const frame = batch.frames[0];
@@ -321,7 +341,7 @@ pub fn recover(self: *Self) !void {
     }
     // Verify all top-level roots before exposing the recovered state. Descendant
     // pages and row objects remain checked on access, never substituted by empty.
-    for ([_]?pages.Reference{ next.rows, next.scan_rows, next.identities, next.ordered_rows, next.receipts, next.pins, next.operations, next.pending }) |reference| if (reference) |ref| {
+    for ([_]?pages.Reference{ next.rows, next.scan_rows, next.identities, next.ordered_rows, next.receipts, next.pins, next.operations, next.pending, next.archive.directory }) |reference| if (reference) |ref| {
         _ = try self.index.load(ref);
     };
     if (end != 0) {
@@ -332,6 +352,23 @@ pub fn recover(self: *Self) !void {
     self.root = next;
     self.chain = chain;
     self.recovery_required = false;
+}
+
+fn readHistoryFrame(self: *Self, lsn: u64) !Log.Log.OwnedBatch {
+    const coverage = self.recovery_archive orelse self.root.archive;
+    if (lsn < coverage.through) return Archive.read(self.allocator, &self.index, coverage, self.root.partition, lsn);
+    return self.log.read(self.allocator, self.root.partition, lsn, 1);
+}
+
+/// Physical adapters use only coverage published by this partition's accepted
+/// record. This does not permit logical expiry or collection of archive objects.
+pub fn archivedThrough(allocator: std.mem.Allocator, frame: Log.Frame) !u64 {
+    const decoded = try r.decode(allocator, frame.payload, frame.header.lsn);
+    if (frame.header.partition_id != decoded.record.root.partition or
+        (frame.header.kind != .row_delta and frame.header.kind != .manifest_checkpoint) or
+        (decoded.record.action == .mutation) != (frame.header.kind == .row_delta) or
+        (decoded.record.action != .mutation and decoded.rows.len != 0)) return error.InvalidTableHistory;
+    return decoded.record.root.archive.through;
 }
 
 fn ready(self: *Self) !void {
@@ -350,7 +387,7 @@ fn observed(self: *Self, binding: d.Binding) !?r.Record {
     if (value.len != 8) return error.InvalidTableReceipt;
     const at = std.mem.readInt(u64, value.data[0..8], .little);
     if (at >= self.root.next_lsn) return error.InvalidTableReceipt;
-    var batch = try self.log.read(self.allocator, self.root.partition, at, 1);
+    var batch = try self.readHistoryFrame(at);
     defer batch.deinit();
     if (batch.frames.len != 1 or batch.frames[0].header.lsn != at) return error.TableHistoryMissing;
     const record = (try r.decode(self.allocator, batch.frames[0].payload, at)).record;
@@ -377,7 +414,7 @@ pub fn history(self: *Self, from: d.Position, through: d.Position, frames: u8, g
     var result: HistoryPage = .{ .object = self.root.interpretation.object, .through = through, .next = from };
     var previous: ?[32]u8 = null;
     while (result.next.next_lsn < through.next_lsn and result.scanned < frames) {
-        var batch = try self.log.read(self.allocator, from.partition, result.next.next_lsn, 1);
+        var batch = try self.readHistoryFrame(result.next.next_lsn);
         defer batch.deinit();
         if (batch.frames.len != 1) return error.TableHistoryMissing;
         const frame = batch.frames[0];
@@ -395,7 +432,7 @@ pub fn history(self: *Self, from: d.Position, through: d.Position, frames: u8, g
                 result.entries[result.count] = .{ .root = record.root, .receipt = try record.receipt(), .commitment = commitment };
                 result.count += 1;
             },
-            .operation, .checkpoint, .pin, .release => {},
+            .operation, .checkpoint, .archive, .pin, .release => {},
         }
         previous = commitment;
         result.scanned += 1;
@@ -441,7 +478,7 @@ fn openHistoryPoint(self: *Self, allocator: std.mem.Allocator, lease: SnapshotHa
     defer original.deinit();
     const position: d.Position = if (requested) |point| point.position else .{ .partition = original.root.partition, .next_lsn = original.root.next_lsn };
     if (position.partition != original.root.partition or position.next_lsn < original.root.next_lsn or position.next_lsn > self.root.next_lsn or position.next_lsn == 0) return error.InvalidTableBasis;
-    var frame = try self.log.read(self.allocator, position.partition, position.next_lsn - 1, 1);
+    var frame = try self.readHistoryFrame(position.next_lsn - 1);
     defer frame.deinit();
     if (frame.frames.len != 1) return error.TableHistoryMissing;
     const value = frame.frames[0];
@@ -471,7 +508,7 @@ fn operationForKey(self: *Self, basis: Root, key: pages.Key, binding: ?d.Binding
     if (value.len != 8) return error.InvalidTableOperation;
     const at = std.mem.readInt(u64, value.data[0..8], .little);
     if (at >= basis.next_lsn) return error.InvalidTableOperation;
-    var batch = try self.log.read(self.allocator, basis.partition, at, 1);
+    var batch = try self.readHistoryFrame(at);
     defer batch.deinit();
     if (batch.frames.len != 1 or batch.frames[0].header.lsn != at or batch.frames[0].header.partition_id != basis.partition or batch.frames[0].header.kind != .manifest_checkpoint) return error.TableHistoryMissing;
     const record = (try r.decode(self.allocator, batch.frames[0].payload, at)).record;
@@ -1298,7 +1335,7 @@ fn readRowWithSchema(self: *Self, allocator: std.mem.Allocator, basis: Root, sch
     var result: OwnedRow = switch (locator.kind) {
         .wal => blk: {
             if (locator.lsn >= basis.next_lsn or locator.length > f.TableRow.max_bytes) return error.InvalidTableRowReference;
-            var batch = try self.log.read(self.allocator, basis.partition, locator.lsn, 1);
+            var batch = try self.readHistoryFrame(locator.lsn);
             defer batch.deinit();
             if (batch.frames.len != 1 or batch.frames[0].header.lsn != locator.lsn) return error.TableHistoryMissing;
             const decoded = try r.decode(self.allocator, batch.frames[0].payload, locator.lsn);
@@ -1490,10 +1527,79 @@ pub fn flush(self: *Self, guard: Guard) !usize {
     return rows.items.len;
 }
 
+pub const ArchiveProgress = struct {
+    through: d.Position,
+    frames: u8,
+    encoded_bytes: usize,
+    complete: bool,
+};
+
+/// Copy a bounded prefix towards a fixed accepted frontier. Publication changes
+/// physical placement only; receipts, history and row identities remain exact.
+pub fn archive(self: *Self, through: d.Position, limits: Archive.Limits, guard: Guard) !ArchiveProgress {
+    try self.ready();
+    try limits.validate();
+    if (through.partition != self.root.partition or through.next_lsn > self.root.next_lsn) return error.InvalidTableBasis;
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+    }
+    var result: ArchiveProgress = .{ .through = .{ .partition = self.root.partition, .next_lsn = self.root.archive.through }, .frames = 0, .encoded_bytes = 0, .complete = self.root.archive.through >= through.next_lsn };
+    if (result.complete) return result;
+    const ordinary_log = self.log;
+    const ordinary_store = self.index.store;
+    defer {
+        self.log = ordinary_log;
+        self.index.store = ordinary_store;
+    }
+    if (self.options.control) |control| {
+        self.log = control.log;
+        self.index.store = control.objects;
+    }
+    try self.index.begin(self.options.index_work_bytes);
+    defer self.index.end();
+    var next = self.root;
+    while (next.archive.through < through.next_lsn and result.frames < limits.frames) {
+        var batch = try self.log.read(self.allocator, self.root.partition, next.archive.through, 1);
+        defer batch.deinit();
+        if (batch.frames.len != 1 or batch.frames[0].header.partition_id != self.root.partition or
+            batch.frames[0].header.lsn != next.archive.through) return error.TableHistoryMissing;
+        const frame = batch.frames[0];
+        if (frame.payload.len > Log.max_payload_bytes) return error.InvalidTableHistory;
+        const size = Log.alignedFrameSize(frame.payload.len);
+        if (size > limits.encoded_bytes - result.encoded_bytes) break;
+        const value = try Archive.stage(self.allocator, self.index.store, frame);
+        next.archive.directory = try self.tree().put(next.archive.directory, try Archive.key(next.archive.through), value);
+        next.archive.through += 1;
+        result.frames += 1;
+        result.encoded_bytes += size;
+    }
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .archive }, &.{}, guard);
+    try self.reply();
+    result.through.next_lsn = next.archive.through;
+    result.complete = next.archive.through >= through.next_lsn;
+    return result;
+}
+
+/// Resume removal of WAL files covered by the accepted immutable archive. The
+/// last acceptance record always remains in WAL, including after interruption.
+pub fn trimArchived(self: *Self, guard: Guard) !u64 {
+    try self.ready();
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    const through = self.root.archive.through;
+    if (through == 0) return 0;
+    self.log.trim(self.root.partition, through) catch |err| {
+        self.recovery_required = true;
+        return err;
+    };
+    return through;
+}
+
 /// Capture exactly the requested accepted frontier, including unflushed rows.
-/// The complete WAL and immutable object history remain retained by this owner;
-/// this profile has no physical trim/GC operation. Pin ownership and release are
-/// durable, and are a prerequisite for any future retained-root collector.
+/// Complete logical history remains retained in WAL or accepted archives. Pin
+/// ownership and release are durable; releasing a pin does not delete objects.
 pub fn pin(self: *Self, owner: d.Operation, expected: d.Position, guard: Guard) !SnapshotHandle {
     return self.retain(owner, expected, .snapshot, guard);
 }

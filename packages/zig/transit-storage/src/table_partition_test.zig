@@ -9,6 +9,187 @@ const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64
 const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
 const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
 
+test "Table archive preserves receipts, unflushed snapshots and offline history after WAL trim and restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var pin: P.SnapshotHandle = undefined;
+    var history: P.HistoryPoint = undefined;
+    var first_binding: p.DataLifecycle.Binding = undefined;
+    var first_outcome: P.Outcome = undefined;
+    var upper: p.DataLifecycle.Position = undefined;
+    var expected: [32]P.HistoryEntry = undefined;
+    var expected_count: usize = 0;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        const one: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+        first_binding = binding(&table, 1);
+        first_outcome = try table.apply(first_binding, &.{change(&one, 1)}, .point, access.guard());
+        pin = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 1001 }, first_outcome.position, access.guard());
+        const lease = try table.retainHistory(.{ .scope = object.scope, .principal = 4, .operation = 1002 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        var start = try table.historyStart(t.allocator, lease, access.guard());
+        defer start.deinit();
+        history = start.point;
+        for (2..34) |i| {
+            const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = i } } };
+            _ = try table.apply(binding(&table, i), &.{change(&cell, i)}, .point, access.guard());
+        }
+        _ = try table.flush(access.guard());
+        upper = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        var cursor = history.position;
+        while (cursor.next_lsn < upper.next_lsn) {
+            const page = try table.retainedHistory(lease, cursor, upper, 8, access.guard());
+            for (page.entries[0..page.count]) |entry| {
+                expected[expected_count] = entry.?;
+                expected_count += 1;
+            }
+            cursor = page.next;
+        }
+        const changed = table.root.changed_lsn;
+        // Losing the reply does not authorize copying or accepting the same
+        // prefix twice. Reconciliation reads the published archive frontier.
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.archive(upper, .{ .frames = 3 }, access.guard()));
+        table.lose_reply = false;
+        try table.recover();
+        try t.expectEqual(@as(u64, 3), table.root.archive.through);
+        while (!(try table.archive(upper, .{ .frames = 3 }, access.guard())).complete) {}
+        try t.expectEqual(changed, table.root.changed_lsn);
+        try t.expectEqual(@as(u64, 33), table.root.live_rows);
+        try t.expectEqual(@as(u8, 0), (try table.archive(upper, .{}, access.guard())).frames);
+        // Restart before trimming: accepted archive coverage is authoritative
+        // even while the redundant WAL prefix is still present.
+    }
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        try t.expectEqual(upper.next_lsn, try table.trimArchived(access.guard()));
+        try t.expectEqual(upper.next_lsn, try table.trimArchived(access.guard()));
+        try t.expectError(error.WalHistoryTrimmed, wal.log().read(t.allocator, 17, 0, 1));
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    // Exact retry resolves the original accepted outcome without new admission.
+    try t.expectEqualDeep(first_outcome, (try table.operationState(first_binding, access.guard())).committed.outcome);
+    var old = try table.scanSnapshot(t.allocator, pin, null, .{}, access.guard());
+    defer old.deinit();
+    try t.expectEqual(@as(u8, 1), old.count);
+    try t.expectEqual(@as(i128, 1), old.rows[0].?.row().cells[0].value.atom.signed);
+    var offline = try table.scanHistory(t.allocator, history, null, .{}, access.guard());
+    defer offline.deinit();
+    try t.expectEqual(@as(u8, 1), offline.page.count);
+    var cursor = history.position;
+    var count: usize = 0;
+    while (cursor.next_lsn < upper.next_lsn) {
+        const page = try table.retainedHistory(history.lease, cursor, upper, 2, access.guard());
+        for (page.entries[0..page.count]) |entry| {
+            try t.expectEqualDeep(expected[count], entry.?);
+            count += 1;
+        }
+        cursor = page.next;
+    }
+    try t.expectEqual(expected_count, count);
+    var key_bytes: [4096]u8 = undefined;
+    var row = (try table.get(t.allocator, try key(33, &key_bytes), access.guard())).?;
+    defer row.deinit();
+    try t.expectEqual(@as(i128, 33), row.row().cells[0].value.atom.signed);
+    // A second pass archives the previous physical publications themselves.
+    const later: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+    while (!(try table.archive(later, .{}, access.guard())).complete) {}
+    _ = try table.trimArchived(access.guard());
+    try table.recover();
+    try t.expectEqualDeep(first_outcome, (try table.operationState(first_binding, access.guard())).committed.outcome);
+}
+
+test "Table archive refuses denied publication, malformed coverage and missing accepted bytes" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const one: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    _ = try table.apply(binding(&table, 1), &.{change(&one, 1)}, .point, access.guard());
+    const upper: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+    try t.expectError(error.InvalidTableArchiveBudget, table.archive(upper, .{ .frames = 0 }, access.guard()));
+    try t.expectError(error.InvalidTableArchiveBudget, table.archive(upper, .{ .encoded_bytes = 1 }, access.guard()));
+    var invalid = table.root;
+    invalid.archive.through = 1;
+    try t.expectError(error.InvalidTableArchive, invalid.validate());
+    const before = table.root;
+    const serialized = try std.json.Stringify.valueAlloc(t.allocator, before, .{});
+    defer t.allocator.free(serialized);
+    var parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, serialized, .{});
+    defer parsed.deinit();
+    try t.expect(parsed.value.object.swapRemove("archive"));
+    const missing = try std.json.Stringify.valueAlloc(t.allocator, parsed.value, .{});
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, std.json.parseFromSlice(P.Root, t.allocator, missing, .{}));
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.archive(upper, .{}, access.guard()));
+    try t.expectEqualDeep(before, table.root);
+    access.deny_at = std.math.maxInt(usize);
+    try table.recover(); // Orphan copies do not publish coverage.
+    try t.expectEqualDeep(before, table.root);
+    _ = try table.archive(upper, .{}, access.guard());
+    _ = try table.trimArchived(access.guard());
+    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &table.index };
+    const value = (try tree.get(table.root.archive.directory, try s.TableArchive.key(0))).?;
+    var name: [96]u8 = undefined;
+    try objects.objectStore().delete(try s.TableArchive.objectKey(value.data[4..36].*, &name));
+    try t.expectError(error.TableHistoryMissing, table.recover());
+    try t.expectError(error.TableRecoveryRequired, table.operationState(binding(&table, 1), access.guard()));
+}
+
+test "Table recovery rejects archive coverage regression and substituted directory entries" {
+    for ([_]bool{ false, true }) |substitute| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        var access: Access = .{};
+        _ = try table.apply(binding(&table, 1), &.{}, .point, access.guard());
+        _ = try table.archive(.{ .partition = 17, .next_lsn = 1 }, .{}, access.guard());
+        var forged = table.root;
+        forged.next_lsn += 1;
+        if (substitute) {
+            // A valid frame/digest at the wrong LSN must not become history.
+            var batch = try wal.log().read(t.allocator, 17, 1, 1);
+            defer batch.deinit();
+            try table.index.begin(table.options.index_work_bytes);
+            defer table.index.end();
+            const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &table.index };
+            forged.archive.directory = try tree.put(forged.archive.directory, try s.TableArchive.key(0), try s.TableArchive.stage(t.allocator, objects.objectStore(), batch.frames[0]));
+        } else forged.archive = .empty;
+        const buffer = try t.allocator.alloc(u8, s.TransitLog.max_payload_bytes);
+        defer t.allocator.free(buffer);
+        const bytes = try r.encode(.{ .definition = p.Growth.current_definition, .previous = table.chain, .root = forged, .action = .checkpoint }, &.{}, buffer);
+        _ = try wal.log().append(17, table.root.next_lsn, 1, 1, .manifest_checkpoint, bytes);
+        if (substitute) {
+            try t.expectError(error.InvalidTableArchive, table.recover());
+        } else try t.expectError(error.InvalidTableHistory, table.recover());
+        try t.expect(table.recovery_required);
+    }
+}
+
 test "Table history retention refuses required WAL coverage lost below its owner" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

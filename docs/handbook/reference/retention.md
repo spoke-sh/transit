@@ -52,6 +52,13 @@ replay, duplicate rejection and post-retirement inspection can have different
 horizons. After detailed retry evidence is reclaimed, old identities must still
 be rejected through retained floors/retirement facts; they cannot become new work.
 
+The local Table owner can archive complete accepted records and trim their covered
+WAL files while preserving unlimited logical history. Original receipts, retained
+unflushed snapshots and offline history cursors resolve through the accepted
+archive directory. Missing archive data is a recovery/read failure. This
+[physical history maintenance](../../../packages/zig/transit-storage/docs/table-partitions.md#archive-complete-history-and-trim-wal-files)
+does not expire history or collect immutable Table objects.
+
 Logical deletion precedes physical reclamation. Cleanup is fenced, resumable and
 dependency-aware; a delayed delete cannot target a replacement identity. An
 adapter's delete acknowledgement does not prove removal from every backup or

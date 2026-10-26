@@ -2285,10 +2285,12 @@
       "errors": {
         "AuthorizationChanged": 1,
         "DataExpectationRequired": 1,
-        "DataHistoryCollectionUnavailable": 2,
+        "DataHistoryCollectionUnavailable": 1,
+        "IncompleteHistory": 1,
         "MutableDataObjectUnavailable": 1,
         "NativeFenceRequired": 1,
         "NativePartitionReserved": 1,
+        "NoCheckpointIntent": 2,
         "ObjectDigestMismatch": 1,
         "StaleStorageEpoch": 1,
         "WalLsnConflict": 1,
@@ -2317,7 +2319,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 20,
         "catch": 0
       },
       "imports": [
@@ -12843,7 +12845,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"13c5386767ea8eecb8595a23c497f72c5bb77c2df8879c9ef9c26bccac162be9\""
+          "a7a2490fe8542c8110316f643215eb22178e63aec837a3daede4d9afbd8082a1"
         ],
         "Effect.phase": [
           "pending",
@@ -25116,6 +25118,34 @@
         "std"
       ]
     },
+    "packages/zig/transit-storage/src/TableArchive.zig": {
+      "errors": {
+        "InvalidTableArchive": 9,
+        "InvalidTableArchiveBudget": 1,
+        "TableHistoryMissing": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Coverage.validate()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "key()": "<inferred>",
+        "objectKey()": "<inferred>",
+        "read()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 0
+      },
+      "imports": [
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-storage/src/TableChanges.zig": {
       "errors": {},
       "outcomes": {
@@ -25275,9 +25305,9 @@
         "InvalidDataDefinition": 1,
         "InvalidPartitionLease": 1,
         "InvalidSegmentIndex": 1,
-        "InvalidTableBasis": 5,
+        "InvalidTableBasis": 6,
         "InvalidTableDeclaration": 1,
-        "InvalidTableHistory": 34,
+        "InvalidTableHistory": 39,
         "InvalidTableIdentity": 1,
         "InvalidTableKey": 3,
         "InvalidTableOperation": 16,
@@ -25294,7 +25324,7 @@
         "TableDataChanged": 6,
         "TableDefinitionChanged": 4,
         "TableHistoryConflict": 1,
-        "TableHistoryMissing": 7,
+        "TableHistoryMissing": 9,
         "TableHistoryRetentionRequired": 1,
         "TableKeyHashCollision": 4,
         "TableNotCreated": 2,
@@ -25351,6 +25381,8 @@
         "admit()": "<inferred>",
         "apply()": "<inferred>",
         "applyStatement()": "<inferred>",
+        "archive()": "<inferred>",
+        "archivedThrough()": "<inferred>",
         "cancel()": "<inferred>",
         "changeDefinition()": "<inferred>",
         "checkExpectations()": "<inferred>",
@@ -25382,6 +25414,7 @@
         "publish()": "<inferred>",
         "rangeSnapshot()": "<inferred>",
         "readCurrent()": "<inferred>",
+        "readHistoryFrame()": "<inferred>",
         "readRow()": "<inferred>",
         "readRowWithSchema()": "<inferred>",
         "readSnapshot()": "<inferred>",
@@ -25408,15 +25441,17 @@
         "stageSegment()": "<inferred>",
         "statementEncode()": "<inferred>",
         "statementReplacement()": "<inferred>",
+        "trimArchived()": "<inferred>",
         "writeOperation()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 420,
-        "catch": 4
+        "try": 436,
+        "catch": 5
       },
       "imports": [
         "OrderedKeyIndex.zig",
+        "TableArchive.zig",
         "TableChanges.zig",
         "TableDeclaration.zig",
         "TableDmlIntent.zig",
@@ -25466,6 +25501,7 @@
           "declaration",
           "operation",
           "checkpoint",
+          "archive",
           "pin",
           "release"
         ],
@@ -25491,10 +25527,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 17,
         "catch": 0
       },
       "imports": [
+        "TableArchive.zig",
         "TableDeclaration.zig",
         "TreeStore.zig",
         "std",
@@ -25673,6 +25710,7 @@
         "OrderedKeyIndex.zig",
         "PartitionLease.zig",
         "S3ObjectStore.zig",
+        "TableArchive.zig",
         "TableDeclaration.zig",
         "TableDmlIntent.zig",
         "TableManifest.zig",

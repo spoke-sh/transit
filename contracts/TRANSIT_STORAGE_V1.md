@@ -92,7 +92,7 @@ DROP publishes a permanently retired successor; it preserves retained read roots
 and receipts. These transitions and their receipts share the Table acceptance
 record. Catalog name reservation and dependency checks remain the caller's duty.
 
-Row mutation records use `row_delta`; declaration, operation control, checkpoint, pin and release records use
+Row mutation records use `row_delta`; declaration, operation control, checkpoint, archive, pin and release records use
 `manifest_checkpoint`. The action carries the exact neutral binding, complete
 ordered mutation digest, ingestion choice and outcome, or the affected pin owner
 and immutable basis. An accepted mutation publishes its result and all four row
@@ -174,11 +174,55 @@ uses the owner principal/operation pair; its value is one released byte (`0` or
 `1`), little-endian `u64` object length and 32-byte digest. Acquisition and release
 are accepted Table log transitions. Object existence alone is not a pin.
 
-This component retains all WAL and immutable objects and exposes no physical
-trim/GC operation. Pins preserve accepted unflushed rows, exact schema and both
-row indexes across restart. Snapshot retirement does not claim physical deletion.
-Its tests do not qualify catalog name publication, installed SQL, distributed transactions or
-a collector racing with snapshots.
+This component retains complete logical history and immutable objects. It can
+move accepted WAL records to an immutable archive and remove covered WAL files;
+this is physical relocation, not logical expiry. Pins preserve accepted unflushed
+rows, exact schema and row indexes across restart. Snapshot retirement does not
+claim object deletion. Automatic scheduling and immutable Table-object collection
+are separate from the archive mechanism.
+
+### Table history archives
+
+Every accepted Table root and saved snapshot root contains a mandatory `archive`
+object with `through` (exclusive `u64` LSN) and `directory` (nullable immutable
+page reference). Zero coverage requires a null directory; nonzero coverage requires
+a directory and is strictly below the enclosing root's `next_lsn`. Missing fields
+reject; the shared current-v1 definition changes with this stored layout.
+
+An archive directory uses the same bounded `TreeStore` pages. Keys are eight-byte
+big-endian LSNs. Each 36-byte value is the little-endian `u32` complete frame size
+followed by its SHA-256. Its object key is `table-history/<digest>.twal`; its bytes
+are exactly one complete, aligned `TWAL1` frame, including original partition,
+epochs, timestamp, kind, payload and checksums. Reads verify descriptor length,
+whole-object digest, current definition, frame integrity, partition and LSN.
+
+`TablePartition.archive` moves a contiguous prefix towards a caller-specified
+accepted frontier. One call stages at most eight frames, with explicit frame and
+encoded-byte budgets, one input/output frame pair resident, and the existing
+index cache/candidate bounds. Its archive objects and directory are durable before
+one `archive` acceptance record publishes the new coverage. Coverage advances by
+one through eight records and never exceeds the previous accepted frontier.
+The transition preserves definitions, rows, receipts, pins, operation state and
+`changed_lsn`. It may run after Table retirement. An uncertain publication requires
+recovery of the original frontier; unpublished objects cannot establish coverage.
+The optional control adapter supplies reserved staging/append capacity.
+
+`trimArchived` checks current authority and removes only the WAL prefix below
+accepted coverage, preserving the latest acceptance record. Repeating the call
+resumes interrupted physical removal. The local native `DataStore` independently
+checks the requested floor against the latest Table record while holding its
+physical-owner mutex; a caller cannot substitute the WAL tail for coverage.
+Reservations for removed WAL files remain conservative until exclusive reopen.
+
+Recovery obtains archive coordinates from the latest accepted WAL record, then
+replays the complete contiguous hash-linked chain from zero through archive plus
+WAL. It exposes no state before all transition checks succeed. Receipts, admitted
+operations, retained rows and logical history use the latest physical directory,
+including when their saved roots predate archival. Missing archive data fails
+closed; no fallback, implicit reset or skipped cursor prefix is allowed. Archive
+publication creates no logical changefeed event. Unlimited history is retained;
+this format does not introduce a logical retention floor or authorize archive,
+segment or index-object collection.
 
 ## Ordered full-key index component
 

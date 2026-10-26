@@ -19,6 +19,12 @@ storage-segments:
 local-storage-faults:
     zig build test-local-storage-faults -Doptimize=ReleaseSafe
 
+# Accepted Table archives, retained reads, current authority and interrupted trim.
+table-archives:
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="Table archive" -Dtest-filter="Table recovery rejects archive" -Dtest-filter="Table admitted work survives" --summary all
+    cd packages/zig/transit-backend-local && zig build test -Dtest-filter="direct Table archive" -Dtest-filter="direct data acceptance" --summary all
+    just test::local-storage-faults
+
 # Real process death during native object deletion and allocation FIFO progress.
 local-native-collection:
     zig build test-local-native

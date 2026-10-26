@@ -118,6 +118,15 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Table roots now publish a paged archive of complete original WAL records before
+  physical prefix trimming. Bounded archive calls and resumable trimming preserve
+  receipts, admitted operations, unflushed snapshots and offline history cursors;
+  recovery still validates the complete chain through archive plus WAL. The
+  mandatory archive coordinates require a shared current-v1 cutover. This advances
+  #113/#115/#127; logical retention floors, restart checkpoints that reduce replay,
+  Table-object collection, compaction and automatic scheduling remain separate
+  obligations. Executed validation is recorded in the proof ledger.
+
 - Finite Table comparisons now bind binary, ASCII_CI and CP037 semantics through
   scalar/vector/page execution, prepared parameters, captured source descriptors,
   UPDATE/DELETE and range-count qualification. CREATE TABLE and ADD COLUMN accept

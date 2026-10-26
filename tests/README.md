@@ -28462,3 +28462,46 @@ passed `check-core`, properties, simulations, package builds and Zig SDK checks,
 then failed `test::station` with `Station domain work did not complete` during
 replacement recovery. That run is failed, not a clean qualification of later
 payload or collation changes.
+
+
+## Complete Table archives and physical WAL trimming — 2026-10-26
+
+The selected storage checks pass **5/5 tests**, including one-page-cache archival
+of 33 rows across multiple WAL segments, lost publication replies, restart before
+and after trimming, and a second archive pass over earlier physical records.
+Original receipts, retained unflushed rows, offline history commitments and
+admitted operations remain exact. Denial after staging leaves only unpublished
+objects; missing archive bytes, a substituted frame LSN, regressed coverage and
+an omitted mandatory archive field reject. Selected local native checks pass
+**3/3 tests**, including control-reserve archival after ordinary quota fills,
+refused trim beyond accepted coverage and revocation before trim. The focused
+entry point is `nix develop --command just test::table-archives`, which passes.
+The complete storage suite also passes **88/88 tests** (10 minutes, 47 MiB maximum
+RSS in this run); that process measurement is not a matched performance control.
+
+`just test::local-storage-faults` passes **63 SIGKILL schedules** in ReleaseSafe,
+including **21** new Table cases. Thirteen stop during archive object/index
+publication, before acceptance, during partial WAL acceptance or its durability
+barriers, and after acceptance before the reply. Eight stop during trim metadata
+publication, three individual prefix deletions or completion. A new process
+checks original receipt positions, pinned rows and independently expected logical
+operations; retries complete archive coverage before removing WAL files. The
+parent independently checks persisted trim metadata and actual prefix-file absence.
+The first run rejected the harness's below-minimum WAL segment setting before
+Table initialization; the corrected run uses the admitted 256-byte roll target.
+These schedules preserve the operating system/page cache and do not simulate
+power loss or host disk loss.
+
+The shared current-v1 cutover makes archive coordinates mandatory. Native/host
+contract checks pass, with regenerated signed fixtures. The Station ABI suite
+passes 22 tests and the focused reactive signature suite passes two after fixing
+the two omissions found by clean core at `d599e0b8e`: Table ABI test constructors
+lacked collation vectors, and the reactive fixture retained an earlier definition's
+cursor signature. That clean run failed during `check-core` (1,380/1,381 executed
+unit tests passed, plus an ABI compilation failure); it is not qualification of
+this later revision. Documentation links, diagnostic mappings/inventory and the
+verification catalog pass.
+
+Archiving preserves unlimited logical history and retains immutable objects.
+It does not establish logical retention floors, a faster replay checkpoint,
+Table-object collection, automatic installed scheduling or full clean-CI results.
