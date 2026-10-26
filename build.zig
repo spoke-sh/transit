@@ -241,9 +241,9 @@ pub fn build(b: *std.Build) void {
     const storage = b.dependency("transit_storage", .{ .target = target, .optimize = optimize });
     const local_backend = b.dependency("transit_backend_local", .{ .target = target, .optimize = optimize });
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
-    const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
+    const tests = b.addTest(.{ .name = "transit-backend-ursula-tests", .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
-    const counter_tests = b.addTest(.{ .root_module = b.createModule(.{
+    const counter_tests = b.addTest(.{ .name = "transit-serving-counter-tests", .root_module = b.createModule(.{
         .root_source_file = b.path("examples/serving/counter_test.zig"),
         .target = target,
         .optimize = optimize,
@@ -253,9 +253,9 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&counter_test.step);
     b.step("test-serving-counter", "Check direct counter acceptance and original native progress").dependOn(&counter_test.step);
 
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = file_diagnostic_module })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-file-diagnostics-tests", .root_module = file_diagnostic_module })).step);
     const work_items_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/WorkItems.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_app", .module = exampleModule(b, sdk, "transit_station_app", target, optimize) }, .{ .name = "transit_query", .module = exampleModule(b, sdk, "transit_query", target, optimize) } } });
-    const work_items_test = b.addRunArtifact(b.addTest(.{ .root_module = work_items_module }));
+    const work_items_test = b.addRunArtifact(b.addTest(.{ .name = "transit-work-items-tests", .root_module = work_items_module }));
     const work_items = b.addExecutable(.{ .name = "transit-work-items", .root_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "work_items", .module = work_items_module }} }) });
     const install_work_items = b.addInstallArtifact(work_items, .{});
     b.step("example-work-items", "Install the work-item application worker").dependOn(&install_work_items.step);
@@ -303,21 +303,21 @@ pub fn build(b: *std.Build) void {
     application_signing.has_side_effects = true;
     application_signing.stdio = .inherit;
     test_step.dependOn(&application_signing.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = application.module("transit_station_app") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving_http.module("transit_serving_http") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving.module("transit_serving") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = http_server.module("transit_http_server") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = document.module("transit_station_document") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = grpc.module("transit_grpc") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = exchange.module("transit_exchange") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_grpc.module("transit_station_grpc") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_http.module("transit_station_http") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = catalog.module("transit_catalog") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = storage.module("transit_storage") })).step);
-    const local_native_tests = b.addRunArtifact(b.addTest(.{ .root_module = local_backend.module("transit_backend_local") }));
-    const local_catalog_tests = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-station-app-tests", .root_module = application.module("transit_station_app") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-serving-http-tests", .root_module = serving_http.module("transit_serving_http") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-serving-tests", .root_module = serving.module("transit_serving") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-http-server-tests", .root_module = http_server.module("transit_http_server") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-station-document-tests", .root_module = document.module("transit_station_document") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-tls-tests", .root_module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-grpc-tests", .root_module = grpc.module("transit_grpc") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-exchange-tests", .root_module = exchange.module("transit_exchange") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-station-grpc-tests", .root_module = station_grpc.module("transit_station_grpc") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-station-http-tests", .root_module = station_http.module("transit_station_http") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-query-tests", .root_module = query.module("transit_query") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-catalog-tests", .root_module = catalog.module("transit_catalog") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-storage-tests", .root_module = storage.module("transit_storage") })).step);
+    const local_native_tests = b.addRunArtifact(b.addTest(.{ .name = "transit-backend-local-tests", .root_module = local_backend.module("transit_backend_local") }));
+    const local_catalog_tests = b.addRunArtifact(b.addTest(.{ .name = "transit-local-catalog-policy-tests", .root_module = b.createModule(.{
         .root_source_file = b.path("apps/transit-node/LocalCatalogPolicy.zig"),
         .target = target,
         .optimize = optimize,
@@ -421,7 +421,7 @@ pub fn build(b: *std.Build) void {
     grpc_transport_test.has_side_effects = true;
     grpc_transport_test.stdio = .inherit;
     b.step("test-grpc-transport", "Qualify finite RPC shapes against independent peers").dependOn(&grpc_transport_test.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = flight.module("transit_flight") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-flight-tests", .root_module = flight.module("transit_flight") })).step);
     const flight_metadata_proof = b.addExecutable(.{ .name = "transit-flight-metadata-proof", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-flight/src/metadata_fixture.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_flight", .module = flight.module("transit_flight") }} }) });
     build_test_step.dependOn(&flight_metadata_proof.step);
     const flight_metadata_test = b.addSystemCommand(&.{ "python3", "-B" });
@@ -446,11 +446,11 @@ pub fn build(b: *std.Build) void {
     http_transport_test.has_side_effects = true;
     http_transport_test.stdio = .inherit;
     b.step("test-http-transport", "Qualify single-send HTTP/TLS against independent peers").dependOn(&http_transport_test.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_bindings.module("station_abi") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-station-tests", .root_module = station.module("transit_station") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-station-abi-tests", .root_module = station_bindings.module("station_abi") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-fuze-tests", .root_module = fuze.module("transit_fuze") })).step);
     test_step.dependOn(&b.addRunArtifact(tests).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = telemetry.module("telemetry") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-telemetry-tests", .root_module = telemetry.module("telemetry") })).step);
     const telemetry_proof = b.addExecutable(.{ .name = "telemetry-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/telemetry.zig"),
         .target = target,
@@ -463,7 +463,7 @@ pub fn build(b: *std.Build) void {
     telemetry_test.has_side_effects = true;
     telemetry_test.stdio = .inherit;
     b.step("test-telemetry", "Prove bounded telemetry under stalled and closed sinks").dependOn(&telemetry_test.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = observations.module("transit_observability") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-observability-tests", .root_module = observations.module("transit_observability") })).step);
     const core = b.dependency("transit_core", .{ .target = target, .optimize = optimize });
     const page_proof = b.addExecutable(.{ .name = "transit-page-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/pages.zig"),
@@ -586,9 +586,9 @@ pub fn build(b: *std.Build) void {
     const index_export = b.addRunArtifact(exporter);
     index_export.addArg("--index-lifecycle");
     b.step("index-lifecycle-contract", "Export neutral index declaration and coverage schemas").dependOn(&index_export.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = protocol.module("transit_protocol") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-protocol-tests", .root_module = protocol.module("transit_protocol") })).step);
     const transit_board_api = b.dependency("transit_board_api", .{ .target = target, .optimize = optimize });
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = transit_board_api.module("transit_board_api") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-board-api-tests", .root_module = transit_board_api.module("transit_board_api") })).step);
     const board_contract = b.addExecutable(.{ .name = "transit-board-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-board-api/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_board_api", .module = transit_board_api.module("transit_board_api") }} }) });
     b.step("transit-board-contract", "Export Board OpenAPI to stdout").dependOn(&b.addRunArtifact(board_contract).step);
     const client = b.dependency("transit_client", .{ .target = target, .optimize = optimize });
@@ -620,8 +620,8 @@ pub fn build(b: *std.Build) void {
     b.step("application-installation-contract", "Export language-neutral application installation schema").dependOn(&b.addRunArtifact(client.artifact("transit-application-installation-contract")).step);
     b.step("client-contract", "Export reflected client ABI signatures").dependOn(&b.addRunArtifact(client.artifact("transit-client-contract")).step);
     b.step("client-abi", "Build the shared client library").dependOn(&b.addInstallArtifact(client.artifact("transit_client"), .{}).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("client_abi") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-client-tests", .root_module = client.module("transit_client") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-client-abi-tests", .root_module = client.module("client_abi") })).step);
     const asset_source: std.Build.LazyPath = if (b.option([]const u8, "board-assets", "Prebuilt closed Board asset module")) |path| .{ .cwd_relative = path } else assets: {
         const embed = b.addSystemCommand(&.{ "python3", "-B" });
         embed.addFileArg(b.path("tasks/embed_web.py"));
@@ -646,9 +646,9 @@ pub fn build(b: *std.Build) void {
     const install_board = b.addInstallArtifact(board, .{});
     b.step("transit-board", "Build the standalone Board API and embedded UI").dependOn(&install_board.step);
     b.getInstallStep().dependOn(&install_board.step);
-    b.step("test-transit-board-unit", "Test Board ingress and route boundaries").dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = board.root_module })).step);
+    b.step("test-transit-board-unit", "Test Board ingress and route boundaries").dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-board-tests", .root_module = board.root_module })).step);
     const runtime = b.dependency("transit_runtime_substrate", .{ .target = target, .optimize = optimize });
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = runtime.module("transit_runtime_substrate") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-runtime-substrate-tests", .root_module = runtime.module("transit_runtime_substrate") })).step);
     var node_artifact: *std.Build.Step.Compile = undefined;
     var cli_artifact: *std.Build.Step.Compile = undefined;
     var delivery_artifact: *std.Build.Step.Compile = undefined;
@@ -803,7 +803,7 @@ pub fn build(b: *std.Build) void {
     b.step("test-grpc-worker", "Prove durable finite RPC capture and recovery").dependOn(&grpc_worker_test.step);
     const flight_outbound = b.addExecutable(.{ .name = "transit-flight-outbound-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/flight_outbound.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_flight", .module = station_flight.module("transit_station_flight") }} }) });
     build_test_step.dependOn(&flight_outbound.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_flight.module("transit_station_flight") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-station-flight-tests", .root_module = station_flight.module("transit_station_flight") })).step);
     const flight_outbound_test = b.addSystemCommand(&.{ "python3", "-B" });
     flight_outbound_test.addFileArg(b.path("tests/flight_outbound.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, grpc_provision, grpc_worker, flight_outbound }) |artifact| flight_outbound_test.addArtifactArg(artifact);
@@ -866,8 +866,8 @@ pub fn build(b: *std.Build) void {
     // Only this explicit test target copies the helper; it never enters bin/.
     const operation_install = b.addInstallArtifact(operations, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } });
     b.step("test-operation-fixture", "Build private native operation test helpers").dependOn(&operation_install.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = operation_module })).step);
-    const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-cli-operations-tests", .root_module = operation_module })).step);
+    const lifecycle_test = b.addRunArtifact(b.addTest(.{ .name = "transit-cli-lifecycle-tests", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{
         .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") },
         .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") },
         .{ .name = "transit_tls_server", .module = tls_server.module("transit_tls_server") },
@@ -1028,7 +1028,7 @@ pub fn build(b: *std.Build) void {
     b.getInstallStep().dependOn(&install_sql_gateway.step);
     apps_step.dependOn(&install_sql_gateway.step);
     build_test_step.dependOn(&sql_gateway_app.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = sql_gateway_app.root_module })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-sql-gateway-tests", .root_module = sql_gateway_app.root_module })).step);
     const flight_test = b.addSystemCommand(&.{ "python3", "-B" });
     if (b.option([]const u8, "flight-placement", "Run Flight in compose or reference placement")) |profile| {
         flight_test.addFileArg(b.path("examples/flight/run.py"));
@@ -1629,7 +1629,7 @@ pub fn build(b: *std.Build) void {
     services.addArtifactArg(executor);
     build_test_step.dependOn(&executor.step);
     b.step("test-service", "Prove signed ingress and worker recovery over HTTP").dependOn(&services.step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = core.module("transit_core") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .name = "transit-core-tests", .root_module = core.module("transit_core") })).step);
     const integration = b.addSystemCommand(&.{ "python3", "-B" });
     integration.addFileArg(b.path("tests/storage.py"));
     const proofs_step = b.step("proofs", "Install disk conformance proof executables");

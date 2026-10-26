@@ -27046,3 +27046,14 @@ It checks the exact ELF interpreter and deliberate caller overrides. Other
 platforms and the hosted C SDK rerun remain separate qualification gates. The
 intermediate full `just check` failed on the unfinished toolchain derivation;
 that run does not qualify the final correction.
+
+## Root unit crash attribution — 2026-10-26
+
+Hosted core run [40246276730](https://github.com/spoke-sh/transit/actions/runs/40246276730)
+at `0ecd0c00bf4da63040590722b16fae2d465504c8` fails the root unit task with
+SIGSEGV in an unnamed `test` executable. The other 1,345 reported tests pass,
+but the crashed process makes both the unit task and lane fail. The log does
+not identify its owning module and does not establish a cause. Root unit
+artifacts now have distinct component names so any repeated crash identifies
+its owner. Test contents, execution bounds and runtime artifacts are unchanged.
+The complete committed-source rerun remains required.
