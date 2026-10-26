@@ -219,9 +219,12 @@ arrow:
 client-abi:
     zig build test-client-abi
 
-# Exercise the real Station example with a disk-backed authority and courier.
+# Keep Debug Station callers and a ReleaseSafe disk-backed authority, matching
+# the SDK query profile without changing the finite progress deadlines.
 station:
-    zig build test-station
+    zig build transit-admin example-station-ledger transit-delivery transit-station-controller
+    zig build transit-node -Doptimize=ReleaseSafe
+    python3 -B tests/station.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/example-station-ledger zig-out/bin/transit-delivery zig-out/bin/transit-station-controller
 
 # Check each library using its own declared dependencies.
 packages:

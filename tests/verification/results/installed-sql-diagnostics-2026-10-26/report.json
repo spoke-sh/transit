@@ -19,5 +19,28 @@
     "Preserve original SQL failure when cleanup finds a replaced worker.",
     "Outer console fixture allowance300seconds covers existing270second accepted-operation settlement; innerrequest/discovery120seconds unchanged.",
     "Fixed Unicode and NULL read checks join existing finite capacity-refusal observation helper; no writes, denial, partial output or generic errors retried."
-  ]
+  ],
+  "current_rerun": {
+    "revision": "e3dd9e68a5bb777169bbbb4835ee201f7f0a77d8",
+    "command": "nix develop --command just ci-clean --lane experience",
+    "result": "failed after five passing tasks",
+    "installation": "/var/tmp/transit-server-proof-budxzd8h",
+    "task": "test::server-direct-tables",
+    "seconds": 855.99,
+    "failure": "final CREATE after Table deletion and restart returns SqlOutcomeUnknown; SQL was not resubmitted",
+    "supervisor": "native AuthorityUnavailable, then original activation grant sequence82 remains uncertain across restart-budget exhaustion",
+    "limits": "The retained manager log does not identify the original native storage failure. Earlier WAL cancellation regression is not proof of this cause.",
+    "logs": {
+      "current-experience": {
+        "file": "current-experience.log.gz",
+        "sha256": "878947412e80a687d3bd81059cf36cabefe674715bc99d9635d0a659f88d670d",
+        "bytes": 32624
+      },
+      "current-manager-final": {
+        "file": "current-manager-final.log.gz",
+        "sha256": "5d9e31488f02b9c847c6c7e45cac4dfdaf8a474800ad12305b53a28b6ec00069",
+        "bytes": 5348
+      }
+    }
+  }
 }

@@ -57,6 +57,11 @@ retain more objects and rows than those caches without discarding accepted work.
 full scans of the same retained source, including prepared bounds, request
 exhaustion, cancellation and current disclosure rights.
 
+`just test::station` uses a ReleaseSafe local node with Debug administration,
+ledger worker, courier and controller binaries. Its finite query-completion
+deadlines and recovery assertions are unchanged. `zig build test-station`
+continues to use the selected Zig optimization profile for all artifacts.
+
 | Command | What it does today |
 | --- | --- |
 | `just` | Lists available recipes |
