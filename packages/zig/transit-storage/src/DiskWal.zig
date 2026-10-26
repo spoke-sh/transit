@@ -431,13 +431,15 @@ pub fn fence(self: *Self, id: u64, writer: u64, policy: u64) !void {
 pub fn trim(self: *Self, id: u64, before: u64) !void {
     const state = try self.load(id);
     if (before > state.next) return error.InvalidWalTrimBoundary;
-    if (before <= state.floor) return;
+    if (before < state.floor) return;
     var next = state.*;
     next.floor = before;
     next.latest = null;
     next.read_start = null;
     next.read_next = null;
-    try self.save(next);
+    // A crash can leave the floor published with only some prefix segments
+    // removed. Repeating that authorized floor must finish physical cleanup.
+    if (before > state.floor) try self.save(next);
     state.* = next;
     errdefer self.poisoned = true;
     var previous: ?u64 = null;

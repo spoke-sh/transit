@@ -116,6 +116,20 @@ Run focused proofs per slice, retain the current-v1 cutover gate for incompatibl
 formats, and qualify installed performance/recovery with milestone 3. This is an
 implementation sequence, not a transfer or reduction of outstanding criteria.
 
+### Implemented increments after the baseline
+
+- Verified segment range reads and bounded decoding are wired into live Table
+  point/scanned reads; 256-row groups separate decoder residency from result
+  batches. The WAL keeps bounded verified seek coordinates to avoid repeated
+  prefix decoding. Focused disk and signed service evidence is recorded in
+  [the proof ledger](../../tests/README.md); clean qualification remains separate.
+- Local process-death schedules cover WAL append/fence publication, interrupted
+  partial/full trimming and conditional/immutable object publication. Retrying a
+  persisted trim boundary resumes physical prefix removal. The
+  [scoped proof](../../tests/README.md#local-storage-process-death-boundaries--2026-10-26)
+  advances #113/#114; disk-full/I/O schedules, retention-owner integration and
+  retained-root/orphan collection remain open.
+
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,
 effect evidence and supported captured/stream payloads as well as Tables.
