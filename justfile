@@ -24,6 +24,9 @@ mod contract 'tasks/contract.just'
 # Shared client/framework declarations and foreign-language qualification.
 mod bindings 'tasks/bindings.just'
 
+# Scoped local checks and the complete repository check.
+mod check 'tasks/check.just'
+
 # Hosted CI lanes and the complete local suite.
 mod ci 'tasks/ci.just'
 
@@ -54,47 +57,6 @@ doctor:
     kubectl ate --version
     kubectl transit --version
     kubectl plugin list
-
-# Validate tooling, generated contracts, Zig and frontend code (install dependencies first).
-check: check-core transit-board::check transit-docs::check
-
-# Foundation checks shared by local check and the core CI lane.
-check-core:
-    nixfmt --check flake.nix nix/*.nix
-    actionlint .github/workflows/*.yml
-    python3 -B tests/benchmarks/test_runner.py
-    python3 -B tests/fuze_benchmarks/test_runner.py
-    python3 -B tests/storage_benchmark_test.py
-    python3 -B tests/mutation_latency_test.py
-    python3 -B tests/latency_probe_test.py
-    python3 -B tests/fuze_sources.py
-    python3 -B tests/fuze_types.py
-    python3 -B tests/table_schema.py
-    python3 -B tests/column_codecs.py
-    python3 -B tests/relational.py
-    python3 -B tests/table_storage.py
-    python3 -B tests/table_catalog.py
-    python3 -B tests/sdk_layout.py
-    python3 -B tests/ci_runner.py
-    python3 -B tests/reference_launcher_state.py
-    python3 -B tests/verification/check.py
-    just test::diagnostic-inventory
-    just test::diagnostic-mappings
-    just test::diagnostic-errors
-    just test::diagnostic-outcomes
-    just test::diagnostic-grammar
-    nix flake check
-    zig fmt --check build.zig sdks/zig packages/zig apps examples tests/*.zig tests/fuze_benchmarks
-    just contract::check
-    just test::unit
-    just test::cli-diagnostics
-    just test::console-history
-    python3 -B tests/docs.py
-    git diff --check
-
-# Run the committed HEAD's CI suite in a fresh clone, without local build outputs.
-ci-clean *args:
-    python3 -B tests/ci_clean.py {{args}}
 
 # Format Nix, Zig and frontend source/documentation without regenerating contracts.
 fmt:

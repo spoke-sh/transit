@@ -113,7 +113,7 @@ when those components change. A bounded resident array does not establish a boun
 on retained collection size.
 
 `python3 -B tests/verification/check.py` validates owners, links, classifications
-and drift; `just check` includes it. Missing tasks and unreviewed limit changes
+and drift; `just check all` includes it. Missing tasks and unreviewed limit changes
 are negative controls. The [current cutover evidence](../../docs/history/qualification/runtime.md#native-v1-cutover-checkpoint--2026-09-30)
 separates newly executed proofs from historical qualification. An inventory entry
 or preserved historical result is not evidence that its replacement passed.
@@ -448,7 +448,7 @@ safety and replays four removed-guard counterexamples against the real engine.
 `just ci::formal` owns the small Authority, WAL, Delivery and Console model
 checks and the Lean rewrite theorems. It runs independently of the SDK lanes in
 `nix develop .#ci-formal`, with the existing nixpkgs lock and no frontend install.
-`just ci-clean --lane formal` repeats that inventory from committed HEAD without
+`just ci clean --lane formal` repeats that inventory from committed HEAD without
 workspace build outputs. This lane preserves each model's bounds, negative
 controls and distinct correspondence claims; it does not replace disk or caller
 qualification. Clean-run preparation and check timings are separate fields in

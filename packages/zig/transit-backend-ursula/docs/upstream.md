@@ -132,7 +132,7 @@ The reviewed client revision `2d507829429d4199f411df02df9cc937bf624144` declares
 Zig `0.17.0-dev.2251+1175a3e99` as its minimum version. Transit now uses
 `0.17.0-dev.2267+48abf1a34` for M9 Arrow integration; the Ursula server pin is
 unchanged. Compatibility is checked through the consuming package tests.
-`just ci` builds the consuming packages and runs disk-backed integration and
+`just ci all` builds the consuming packages and runs disk-backed integration and
 recovery checks against that server. See the client
 [package metadata](https://github.com/rupurt/ursula-zig/blob/2d507829429d4199f411df02df9cc937bf624144/build.zig.zon)
 and [toolchain pins](https://github.com/rupurt/ursula-zig/blob/2d507829429d4199f411df02df9cc937bf624144/flake.lock).
@@ -145,10 +145,10 @@ journal adapter's existing record-position reads need no API migration.
 
 Updating `ursula-overlay` changes the server tools; update the Zig source
 dependency separately. Check client/compiler/server compatibility and rerun the
-backend integration and recovery checks with `just ci`.
+backend integration and recovery checks with `just ci all`.
 
 During this dependency update, the pinned Zig reused a stale build configuration
 that still selected the old client despite the new manifest and fetched package.
 Clearing the affected build root's ignored `.zig-cache/` forced resolution of
 the new pin. If compilation still references an old package hash after an update,
-clear that local cache and rerun `just ci`.
+clear that local cache and rerun `just ci all`.

@@ -24,7 +24,7 @@ buffers. Its [type contract](../../../contracts/FUZE_TYPES_V1.md) defines the
 separate logical document identifiers and bounds. These operations do not admit
 new native query types, stored Table schemas or file access.
 
-Run `zig build test` here for standalone checks. From the root, use `just check`
+Run `zig build test` here for standalone checks. From the root, use `just check all`
 and `just bindings::native` for generated-contract drift and real C/C++/Python
 ownership/recovery proofs. `just bindings::generate` regenerates declarations
 from the public Zig exports; generated resources remain separate from idiomatic

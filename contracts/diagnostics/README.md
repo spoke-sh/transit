@@ -46,7 +46,7 @@ file participates automatically. Changing the inventory cannot make an unmapped
 cause, changed stable code or untested exception pass this independent gate.
 
 Run `just test::diagnostic-mappings` for mapping drift and mutation checks. Full
-`just check` also executes the owning unit cases. The SQL registry case routes
+`just check all` also executes the owning unit cases. The SQL registry case routes
 every registered cause through the public classifier and validates its resulting
 envelope, outcome and absence of unsafe recovery actions. Finding a test in source
 only establishes ownership; it does not count as executing that test. The mapping

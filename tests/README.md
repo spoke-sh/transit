@@ -17,6 +17,7 @@ handoff log. A listed task establishes no passing result at the current revision
 | Formal models and implementation correspondence | [Model guide](verification/models/README.md), [verification guide](verification/README.md), [SQL rewrite specification](../contracts/sql/FuzeRewrite.lean) |
 | Invariants, bounds and SDK scenarios | [Invariant catalog](verification/invariants.json), [classified limits](verification/limits.json), [SDK scenarios](verification/sdk.json) |
 | CI selection, lanes and cost | [Task inventory](verification/suite.json), [runner](ci.py), [selection](ci_select.py), [cost reporting](ci_cost.py), [budgets](verification/ci-budgets.json) |
+| Local check orchestration | [Tooling index](tooling/README.md), [check inputs](tooling/checks.json), [check commands](../tasks/check.just) |
 | Local storage, WAL, segments and recovery | [Storage package](../packages/zig/transit-storage/README.md), [local backend](../packages/zig/transit-backend-local/README.md), [process-death schedules](local_storage_faults.py), [storage task recipes](../tasks/test.just) |
 | Catalog, Table and named-resource lifecycles | [Catalog package](../packages/zig/transit-catalog/README.md), [direct service schedules](direct_table_service.py), [installed Table checks](server_direct_tables.py) |
 | Query execution and relational computation | [Query package](../packages/zig/transit-query/README.md), [SQL oracle checks](sql/), [query test recipes](../tasks/test.just) |
@@ -51,9 +52,10 @@ iteration; [tasks/README.md](../tasks/README.md) documents commands and dependen
 | Storage or native authority | Focused owner and fault checks | Physical disk, accepted-work recovery, current-policy and growth schedules |
 | Build, fixture or CI infrastructure | Runner/tooling checks and affected real tasks | Committed-source clean qualification of affected lanes |
 
-`just check` remains the broad repository check. The current `test::unit` target
+`just check` lists validation scopes. Use `just check fast` for local static/oracle
+feedback and `just check all` for the broad repository check. The current `test::unit` target
 also contains disk and process-death checks; it is not a pure in-memory unit
-profile. `just ci-clean --lane NAME` runs one lane from committed HEAD without
+profile. `just ci clean --lane NAME` runs one lane from committed HEAD without
 workspace build outputs. A successful lane is not the complete suite. Full
 qualification and explicit deployment requirements remain recorded in the
 [task inventory](verification/suite.json) and owning acceptance criteria.

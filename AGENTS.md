@@ -317,10 +317,10 @@ during iteration and the affected caller/fault checks before submitting. Install
 locked frontend dependencies with `just transit-board::install` when needed.
 Documentation-only changes require link/whitespace checks and affected site checks;
 they do not require a new runtime suite. Before pushing implementation or test
-infrastructure changes, run the affected `just ci-clean --lane NAME` checks against
+infrastructure changes, run the affected `just ci clean --lane NAME` checks against
 committed HEAD to expose dependencies hidden by local outputs. Shared contract,
 authority and cross-domain changes require their dependent lanes; full clean
-qualification remains an integration/release gate. `just check` remains available
+qualification remains an integration/release gate. `just check all` remains available
 for broad repository validation. Report selections, omissions and incomplete
 checks explicitly; do not label selected lanes as a complete pass.
 Toolchain changes also require `just doctor`, deliberate
