@@ -54,6 +54,19 @@ const Node = struct {
 fn validateKey(key: []const u8) !void {
     if (key.len == 0 or key.len > max_key_bytes) return error.InvalidTableKey;
 }
+
+/// Inspect the owned child directory of one canonical key chunk. A retention
+/// walker queues that directory separately rather than retaining a stack for
+/// every combination of key-chunk depth and page-tree height.
+pub fn childIndex(entry: pages.Entry, prefix_bytes: u16) !?pages.Reference {
+    try entry.key.validate();
+    try entry.value.validate();
+    if (prefix_bytes >= max_key_bytes or prefix_bytes % chunk_bytes != 0 or
+        entry.key.len > max_key_bytes - prefix_bytes) return error.InvalidOrderedKeyNode;
+    const node = try Node.decode(entry.value, entry.key);
+    if (prefix_bytes + entry.key.len == max_key_bytes and node.child != null) return error.InvalidOrderedKeyNode;
+    return node.child;
+}
 fn tree(self: Self) Tree {
     return .{ .store = self.store };
 }

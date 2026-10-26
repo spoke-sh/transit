@@ -1,6 +1,7 @@
 //! Immutable copies of complete accepted TWAL frames. Only a Table acceptance
 //! record publishes Coverage; orphan objects never establish recovery authority.
 const std = @import("std");
+const d = @import("transit_protocol").DataLifecycle;
 const Log = @import("TransitLog.zig");
 const Objects = @import("TransitObjectStore.zig");
 const TreeStore = @import("TreeStore.zig");
@@ -46,6 +47,13 @@ pub fn objectKey(digest: [32]u8, output: *[96]u8) ![]const u8 {
     return std.fmt.bufPrint(output, "table-history/{x}.twal", .{&digest});
 }
 
+pub fn decodeReference(value: pages.Value) !d.Content {
+    if (value.len != 36) return error.InvalidTableArchive;
+    const size = std.mem.readInt(u32, value.data[0..4], .little);
+    if (size < Log.header_bytes or size > max_frame_bytes or size % Log.frame_alignment != 0) return error.InvalidTableArchive;
+    return .{ .bytes = size, .sha256 = value.data[4..36].* };
+}
+
 /// The caller bounds resident input and output separately. One frame is encoded
 /// and staged at a time; no retained-history-sized array is built.
 pub fn stage(allocator: std.mem.Allocator, objects: Objects.ObjectStore, frame: Log.Frame) !pages.Value {
@@ -70,10 +78,9 @@ pub fn read(allocator: std.mem.Allocator, index: *TreeStore, coverage: Coverage,
     if (lsn >= coverage.through) return error.InvalidTableArchive;
     const tree: pages.Tree(TreeStore) = .{ .store = index };
     const value = try tree.get(coverage.directory, try key(lsn)) orelse return error.TableHistoryMissing;
-    if (value.len != 36) return error.InvalidTableArchive;
-    const size = std.mem.readInt(u32, value.data[0..4], .little);
-    const digest = value.data[4..36].*;
-    if (size < Log.header_bytes or size > max_frame_bytes or size % Log.frame_alignment != 0) return error.InvalidTableArchive;
+    const content = try decodeReference(value);
+    const size: u32 = @intCast(content.bytes);
+    const digest = content.sha256;
     var name: [96]u8 = undefined;
     const object_key = try objectKey(digest, &name);
     const metadata = try index.store.head(object_key) orelse return error.TableHistoryMissing;

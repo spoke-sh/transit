@@ -447,6 +447,31 @@ objects. Scheduling is explicit. The [checkpoint contract](../../../../contracts
 defines the mandatory stored reference and acceptance checks.
 
 
+## Traverse retained index dependencies
+
+The separate `TableStorageWalk` component traverses one retained index directory
+with a fixed cursor of at most 33 page frames. Each call loads at most 34 pages
+and emits one verified page or typed ownership edge. Failed reads, corrupt pages,
+invalid child heights and malformed leaf records leave its cursor unchanged.
+Call `skip` only immediately after a page was emitted and a retained mark proves
+the complete subtree was already visited under the same Table context,
+directory kind and ordered-key prefix depth.
+
+Directory roles distinguish row locators, scan locators, ordered keys, compact
+receipts/operations, live pins and archive frames. Released pins have no snapshot
+edge. `pages_only` walks just page ownership; it does not interpret arbitrary
+metadata as a pin. A long ordered key emits its child directory as separate work,
+which a collector must put in a bounded durable work queue rather than a growing
+resident list. Segment, snapshot, evidence and archive edges still require
+content and semantic validation by their owning readers.
+
+This cursor neither selects all retained roots nor grants read/deletion rights.
+The caller must retain its selected roots for the entire traversal. History
+anchors, unflushed rows, snapshots, recovery baselines, current roots and other
+owners remain separate retention obligations. Cursor JSON used in component
+tests is not a persisted maintenance format. The component supplies no physical
+Table collector or automatic scheduling.
+
 ## Compact live segments
 
 Capture the current `root.next_segment` and pass it as the fixed exclusive boundary

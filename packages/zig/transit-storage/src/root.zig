@@ -15,6 +15,7 @@ pub const TableDeclaration = @import("TableDeclaration.zig");
 pub const TableArchive = @import("TableArchive.zig");
 pub const TableRecovery = @import("TableRecovery.zig");
 pub const TableEvidence = @import("TableEvidence.zig");
+pub const TableStorageWalk = @import("TableStorageWalk.zig");
 pub const TablePartition = @import("TablePartition.zig");
 pub const TableDmlIntent = @import("TableDmlIntent.zig");
 
@@ -33,6 +34,7 @@ test {
     _ = @import("tree_store_test.zig");
     _ = @import("ordered_key_index_test.zig");
     _ = @import("table_partition_test.zig");
+    _ = @import("table_storage_walk_test.zig");
     _ = @import("table_dml_intent_test.zig");
     _ = @import("table_operation_test.zig");
     _ = @import("table_statement_test.zig");

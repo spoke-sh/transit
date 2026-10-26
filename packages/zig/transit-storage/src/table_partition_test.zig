@@ -157,6 +157,105 @@ test "Table compact evidence rejects missing corrupt foreign and substituted out
     try t.expectError(error.InvalidTableReceipt, table.recover());
 }
 
+test "Table storage walk resolves real disk row pin receipt operation and archive dependencies" {
+    const W = s.TableStorageWalk;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var expected: P.Root = undefined;
+    var live_pin: P.SnapshotHandle = undefined;
+    var history_pin: P.SnapshotHandle = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        const one: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+        const two: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+        _ = try table.apply(binding(&table, 1), &.{change(&one, 1)}, .point, access.guard());
+        live_pin = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 1001 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        _ = try table.apply(binding(&table, 2), &.{change(&two, 2)}, .bulk, access.guard());
+        history_pin = try table.retainHistory(.{ .scope = object.scope, .principal = 4, .operation = 1002 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        const released = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 1003 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        try table.releaseSnapshot(released, access.guard());
+        _ = try table.admit(.{ .binding = binding(&table, 3), .interpretation = table.root.declared(), .changes = &.{}, .ingestion = .point }, access.guard());
+        const through: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+        while (!(try table.archive(through, .{}, access.guard())).complete) {}
+        expected = table.root;
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    try t.expectEqualDeep(expected, table.root);
+    const context = try W.Context.fromRoot(table.root);
+    const roots = [_]W.Root{
+        .{ .reference = table.root.rows.?, .kind = .rows },
+        .{ .reference = table.root.scan_rows.?, .kind = .scan_rows },
+        .{ .reference = table.root.pins.?, .kind = .pins },
+        .{ .reference = table.root.receipts.?, .kind = .receipts },
+        .{ .reference = table.root.operations.?, .kind = .operations },
+        .{ .reference = table.root.archive.directory.?, .kind = .archive },
+    };
+    var rows: usize = 0;
+    var pins: usize = 0;
+    var receipts: usize = 0;
+    var operations: usize = 0;
+    var archived: usize = 0;
+    for (roots) |root| {
+        var walk = try W.init(context, root);
+        while (try walk.next(&table.index)) |edge| switch (edge) {
+            .page => {},
+            .index => return error.UnexpectedStorageEdge,
+            .wal => |position| {
+                var frame = try s.TableArchive.read(t.allocator, &table.index, table.root.archive, position.partition, position.next_lsn - 1);
+                defer frame.deinit();
+                const decoded = try r.decode(t.allocator, frame.frames[0].payload, position.next_lsn - 1);
+                try t.expectEqual(@as(u64, 1), (try decoded.record.receipt()).binding.identity.operation);
+                rows += 1;
+            },
+            .segment => |content| {
+                var name: [96]u8 = undefined;
+                const key_name = try std.fmt.bufPrint(&name, "table-segments/{x}.tseg", .{&content.sha256});
+                const metadata = (try objects.objectStore().head(key_name)).?;
+                try t.expectEqual(content.bytes, metadata.size);
+                try t.expectEqualDeep(content.sha256, metadata.sha256);
+                rows += 1;
+            },
+            .snapshot => |handle| {
+                try t.expect(std.meta.eql(live_pin, handle) or std.meta.eql(history_pin, handle));
+                var snapshot = try @import("TableSnapshot.zig").load(t.allocator, objects.objectStore(), handle);
+                defer snapshot.deinit();
+                try t.expectEqualDeep(object, snapshot.root.interpretation.object);
+                pins += 1;
+            },
+            .evidence => |reference| {
+                const record = try s.TableEvidence.load(t.allocator, objects.objectStore(), try s.TableEvidence.reference(reference.content));
+                try t.expectEqualDeep(reference.owner, record.binding().identity);
+                try t.expectEqualDeep(object, record.binding().target);
+                try t.expectEqual(reference.kind == .receipt, record.evidence == .receipt);
+                if (reference.kind == .receipt) receipts += 1 else operations += 1;
+            },
+            .archive => |reference| {
+                var frame = try s.TableArchive.read(t.allocator, &table.index, table.root.archive, reference.position.partition, reference.position.next_lsn - 1);
+                defer frame.deinit();
+                try t.expectEqual(reference.position.next_lsn - 1, frame.frames[0].header.lsn);
+                archived += 1;
+            },
+        };
+    }
+    try t.expectEqual(@as(usize, 4), rows); // Point and physical-order indexes.
+    try t.expectEqual(@as(usize, 2), pins); // Released pin has no ownership edge.
+    try t.expectEqual(@as(usize, 2), receipts);
+    try t.expectEqual(@as(usize, 1), operations);
+    try t.expectEqual(table.root.archive.through, archived);
+    try t.expectEqualDeep(expected, table.root);
+}
+
 test "Table build memory bounds point bulk rewrite and flush candidates before publication" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

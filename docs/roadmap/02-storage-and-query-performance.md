@@ -118,6 +118,13 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- A fixed-memory Table directory walker verifies page paths and emits typed
+  row, pin, evidence and archive edges. Long ordered-key child directories are
+  separate queued work; released pins do not recursively retain snapshots.
+  This advances the collection foundation for #116/#127. Global retained-root
+  selection, durable work/mark queues, allocation inventory and physical
+  Table-object deletion remain open.
+
 - Table receipts and operation controls reference bounded immutable evidence
   instead of full accepting WAL frames. The original definition, outcome,
   request identity and frozen intent remain retained without holding an old

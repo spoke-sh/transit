@@ -78,6 +78,11 @@ automatic archive scheduling, immutable Table-object collection or multi-process
   recovery do not read the accepting row payload or retain its old row roots.
   Current authorization, original declarations and exact retry identity remain
   required; missing or corrupt evidence rejects.
+- `TableStorageWalk.zig`: A bounded cursor over one typed immutable Table
+  directory. It verifies page paths and emits explicit row, pin, evidence and
+  archive dependencies. Ordered-key child directories are separate work items.
+  Selecting all retained roots, validating referenced objects and authorizing
+  deletion remain the maintenance owner's responsibilities.
 
 The direct owner reads immutable Table data through Fuze's shared `TSegReader`.
 Point lookup selects one segment through its paged hash-key directory; footer

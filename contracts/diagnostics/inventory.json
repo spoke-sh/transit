@@ -25152,7 +25152,7 @@
     "packages/zig/transit-storage/src/OrderedKeyIndex.zig": {
       "errors": {
         "DuplicatePageMutation": 1,
-        "InvalidOrderedKeyNode": 10,
+        "InvalidOrderedKeyNode": 12,
         "InvalidTableKey": 3,
         "PageMutationBudget": 1
       },
@@ -25162,6 +25162,7 @@
         "Node.decode()": "<inferred>",
         "Node.encode()": "<inferred>",
         "change()": "<inferred>",
+        "childIndex()": "<inferred>",
         "get()": "<inferred>",
         "mutate()": "<inferred>",
         "put()": "<inferred>",
@@ -25171,7 +25172,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 26,
         "catch": 1
       },
       "imports": [
@@ -25248,6 +25249,7 @@
       "error_returns": {
         "Coverage.validate()": "<inferred>",
         "Limits.validate()": "<inferred>",
+        "decodeReference()": "<inferred>",
         "key()": "<inferred>",
         "objectKey()": "<inferred>",
         "read()": "<inferred>",
@@ -25255,14 +25257,15 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 13,
         "catch": 0
       },
       "imports": [
         "TransitLog.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
-        "std"
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-storage/src/TableChanges.zig": {
@@ -25809,6 +25812,63 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/TableStorageWalk.zig": {
+      "errors": {
+        "InvalidTableStorageGraph": 20
+      },
+      "outcomes": {
+        "Edge": [
+          "page",
+          "index",
+          "segment",
+          "wal",
+          "snapshot",
+          "evidence",
+          "archive"
+        ],
+        "Edge.evidence.kind": [
+          "receipt",
+          "operation"
+        ],
+        "Kind": [
+          "pages_only",
+          "rows",
+          "scan_rows",
+          "ordered_rows",
+          "receipts",
+          "operations",
+          "pins",
+          "archive"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Context.fromRoot()": "<inferred>",
+        "init()": "<inferred>",
+        "locator()": "<inferred>",
+        "next()": "<inferred>",
+        "owned()": "<inferred>",
+        "owner()": "<inferred>",
+        "skip()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 0
+      },
+      "imports": [
+        "OrderedKeyIndex.zig",
+        "TableArchive.zig",
+        "TableEvidence.zig",
+        "TablePartitionRecord.zig",
+        "TableSnapshot.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/TransitLog.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -25951,6 +26011,7 @@
         "TableManifest.zig",
         "TablePartition.zig",
         "TableRecovery.zig",
+        "TableStorageWalk.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig"

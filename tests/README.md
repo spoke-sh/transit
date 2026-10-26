@@ -29134,3 +29134,47 @@ matrix. The frozen growth proof at `b85a0a076` has verified both Table fixtures,
 including **191,717,253 retained bytes** for 8,192 rows under a **128 MiB** process
 address-space limit; native-owner cases remain pending. Neither complete growth
 qualification nor clean CI qualification for this revision is claimed.
+
+## Bounded Table directory traversal — 2026-10-26
+
+`TableStorageWalk` traverses one selected immutable directory with at most 33
+page frames, a cursor smaller than 4 KiB, and at most 34 page loads per call.
+The focused storage run passes **11/11**, covering the walker, archive ownership
+and ordered-key cases. Reproduce in `packages/zig/transit-storage` after entering
+`nix develop` with `zig build test -Dtest-filter='Table storage walk' -Dtest-filter='Table archive' -Dtest-filter='ordered full key' --summary all`.
+The expanded `just test::table-checkpoints` recipe includes the walker cases.
+
+The component cases walk 257 row locators with a one-page cache, round-trip
+the owned cursor between steps, and inject a failed load before every step.
+They reject corrupt page digests, invalid parent/child heights and malformed
+typed leaves without advancing. A 4,096-byte ordered key emits 64 separately
+queued child directories instead of accumulating nested stacks. The disk case
+reopens accepted point/bulk rows, live and released pins, admitted work, compact
+receipts and archives; every emitted object is read through its owning verifier,
+and the accepted root remains unchanged. The first compile attempt uses a Zig
+reserved word for the page-only role and fails; renaming it precedes these passes.
+
+Diagnostic inventory, semantic mappings, inferred error boundaries, verification
+catalog and 6,409 documentation links pass. This component does not select all
+retained roots, persist a collection queue, inventory allocations or delete
+objects. Test cursor JSON is not a stored maintenance format. Complete Table
+collection and final committed-HEAD clean qualification remain outstanding.
+
+## Process-limited growth attempt and native setup timeout — 2026-10-26
+
+The frozen full growth run started at `b85a0a076` finishes **failed** when the
+first native fixture (512 rows) exceeds its unchanged 1,800-second setup limit.
+`/var/tmp/transit-m2-aligned-growth-full.json` and its sibling `.log` retain the
+failure and completed Table samples; the temporary fixtures are removed by the
+driver. The probe SHA-256 is
+`4d1bddccb9ecf0366dd20d583d1314499e1069abeb44edccbb42cbb1385581a0`.
+
+Both Table cases complete independent value/digest checks, strictly cold reopened
+readback and unchanged file manifests under a **134,217,728-byte** address-space
+limit. The 2,048-row fixture retains 44,586,146 bytes; the 8,192-row fixture retains
+191,717,253 bytes and allocates 501,526,528 filesystem bytes. The latter setup
+takes 1,794.4 seconds and readback 17.5 seconds; its probe-image virtual peaks are
+76,216 KiB and 10,996 KiB respectively. These are process-image observations,
+distinct from `wait4` RSS including inherited pre-exec driver memory. Retained
+bytes exceed the process ceiling, not host RAM. Native growth and the complete
+growth matrix remain unproved; this run also predates compact evidence staging.
