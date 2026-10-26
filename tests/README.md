@@ -26892,3 +26892,27 @@ artifacts. Other configured systems are not executed by this check.
 96 helper and 193 CLI cases. `nix develop --command just doctor`, workflow lint
 and documentation link checks pass. Complete committed-source and hosted lanes
 remain separate qualification gates.
+
+## Cached Kubernetes helper CPU portability — 2026-10-25
+
+The core job in hosted run
+[40246531716](https://github.com/spoke-sh/transit/actions/runs/40246531716/job/121329237584)
+at `7a41dc32b91cf4a4033ad56b500a7bd1bda5a664` fails the offline toolchain
+check: `kubectl transit --version` terminates with an illegal instruction.
+The helper's Nix derivation compiled for the builder's native CPU even though
+its cached output could be restored on a different runner. The runtime packages
+already select a baseline CPU; the helper now also passes `-mcpu=baseline`.
+Compiler, library and flake lockfile versions are unchanged.
+
+The actual previous and rebuilt Nix helper executables are run through QEMU
+10.2.4 from the same locked nixpkgs input, using `qemu-x86_64 -cpu qemu64`.
+Both `--version` and `--help` on the previous executable terminate with signal 4;
+both commands on the baseline executable exit 0 and print their expected output.
+The executable is the package's `bin/.kubectl-transit-wrapped`, avoiding the
+shell wrapper so the emulated CPU applies directly to the Zig program. This
+reproduces and resolves a CPU portability failure without contacting a cluster.
+`nix flake check`, `nix develop --command just doctor`, Nix formatting and
+documentation link checks also pass with the baseline helper and pinned
+loader/library changes.
+It does not establish results for every supported architecture or substitute
+for the separate installed lifecycle qualification.

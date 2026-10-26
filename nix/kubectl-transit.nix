@@ -19,7 +19,7 @@ stdenvNoCC.mkDerivation {
   buildPhase = ''
     runHook preBuild
     export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-cache"
-    zig build-exe main.zig -O ReleaseSafe -femit-bin=kubectl-transit
+    zig build-exe main.zig -O ReleaseSafe -mcpu=baseline -femit-bin=kubectl-transit
     runHook postBuild
   '';
   installPhase = ''
