@@ -27283,3 +27283,43 @@ recovery, then corrupts a later partition and requires opening to reject.
 -Dtest-filter='canceling' --summary all` in `packages/zig/transit-storage`
 passes 4/4 through the pinned development shell. This is a startup integrity
 check, not a claim about recovery after host power loss.
+
+Before the subsequent traversal optimization, the broader disk selection
+(`disk`, `recovery truncates`, `missing acknowledged`, `missing and foreign`,
+and `canceling` filters) passes 33/33, including the 73-partition cache-eviction
+and greater-than-64-MiB recovery cases. Both public local-storage fault tasks
+also pass again: 42 process-death and 37 syscall-error schedules.
+
+## Direct local WAL segment traversal — 2026-10-26
+
+The same three-partition, 384-segment fixture now checks directory work as well
+as literal payloads and complete startup coverage. Its baseline includes the
+startup enumeration correction above: both implementations verify all 384
+frames. Before optimization, recovery records 771 segment-directory scans and
+eight-row sequential pages add 384 scans. After optimization those counters are
+3 and 3 respectively, with all 384 frames read and independently checked. The
+new three-scan recovery assertion fails against the baseline with 771 observed.
+
+Recovery retains only the minimum/maximum segment positions and count from one
+directory pass per loaded partition. Verified contiguous LSNs name subsequent
+files, and the visited count detects overlapping files that this direct walk
+would otherwise skip. Reads track the next physical position separately from
+the requested position: jumping forward from a cached EOF must still enter the
+actual successor segment. Gap, interior overlap, noncanonical filename,
+later-partition corruption and forward/backward/evicted/trimmed hint cases pass.
+
+Through the pinned shell, package `zig build test` with filters `disk WAL`,
+`recovery truncates`, `missing acknowledged` and `canceling` passes 9/9. The
+separate `disk log`, `disk fence`, `disk recovery` and `missing and foreign`
+selection passes 6/6, preserving small-allocator recovery beyond the partition
+cache and former 64 MiB ceiling. Counts include each executable's import test.
+`just test::local-storage-faults` passes all 42 process-death schedules again;
+`just test::storage-io-faults` passes all 37 syscall-error schedules (5/5 tests).
+Diagnostic inventory/mappings, verification catalog, formatting and local
+documentation checks pass.
+
+These counters exclude the outer startup walk and filesystem metadata/device
+I/O. Each cold partition load still enumerates the entire directory; trim still
+uses repeated enumeration. No persistent segment index, throughput, latency or
+whole-process residency result is inferred, and no stored format or acceptance,
+fencing, trim-authority or uncertain-append contract changes.

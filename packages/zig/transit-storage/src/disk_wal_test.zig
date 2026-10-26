@@ -10,7 +10,7 @@ fn open(dir: std.Io.Dir) !Wal {
 test "disk WAL opening validates every partition across directory pages" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
-    const options: Wal.DiskOptions = .{ .segment_bytes = Log.alignedFrameSize(8) };
+    const options: Wal.DiskOptions = .{ .segment_bytes = Log.alignedFrameSize(8), .batch_frames = 8 };
     {
         var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
         defer wal.deinit();
@@ -26,6 +26,7 @@ test "disk WAL opening validates every partition across directory pages" {
         // Opening must verify all retained frames before any caller chooses a
         // partition. On-demand reads cannot substitute for this startup gate.
         try t.expectEqual(@as(u64, 384), wal.disk.?.recovered_frames);
+        try t.expectEqual(@as(u64, 3), wal.disk.?.directory_scans);
         for (1..4) |partition| {
             try t.expectEqual(@as(u64, 128), try wal.log().tail(partition));
             var page = try wal.log().read(t.allocator, partition, 127, 1);
@@ -33,6 +34,23 @@ test "disk WAL opening validates every partition across directory pages" {
             try t.expectEqual(@as(u64, partition * 1000 + 127), std.mem.readInt(u64, page.frames[0].payload[0..8], .little));
         }
         try t.expectEqual(@as(u64, 384), wal.disk.?.recovered_frames);
+        const before_scans = wal.disk.?.directory_scans;
+        const before_frames = wal.disk.?.read_frames;
+        for (1..4) |partition| {
+            var next: u64 = 0;
+            while (next < 128) {
+                var page = try wal.log().read(t.allocator, partition, next, 8);
+                defer page.deinit();
+                try t.expectEqual(@as(usize, 8), page.frames.len);
+                for (page.frames) |frame| {
+                    try t.expectEqual(next, frame.header.lsn);
+                    try t.expectEqual(@as(u64, partition * 1000 + next), std.mem.readInt(u64, frame.payload[0..8], .little));
+                    next += 1;
+                }
+            }
+        }
+        try t.expectEqual(@as(u64, 3), wal.disk.?.directory_scans - before_scans);
+        try t.expectEqual(@as(u64, 384), wal.disk.?.read_frames - before_frames);
     }
     {
         const file = try tmp.dir.openFile(t.io, "wal/part-3-127.twal", .{ .mode = .read_write });
@@ -41,6 +59,32 @@ test "disk WAL opening validates every partition across directory pages" {
         try file.sync(t.io);
     }
     try t.expectError(error.CorruptWalFrame, Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options));
+}
+
+test "disk WAL direct recovery rejects gaps overlaps and noncanonical segment names" {
+    for (0..3) |scenario| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        const options: Wal.DiskOptions = .{ .segment_bytes = 3 * Log.alignedFrameSize(8) };
+        {
+            var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+            defer wal.deinit();
+            for (0..9) |lsn| {
+                var bytes: [8]u8 = undefined;
+                std.mem.writeInt(u64, &bytes, lsn, .little);
+                _ = try wal.log().append(1, lsn, 3, 5, .row_delta, &bytes);
+            }
+        }
+        if (scenario == 0) {
+            try tmp.dir.deleteFile(t.io, "wal/part-1-3.twal");
+        } else {
+            // An interior overlapping name must not be skipped by a traversal
+            // following only decoded successor positions. Aliases also reject.
+            const extra = try tmp.dir.createFile(t.io, if (scenario == 1) "wal/part-1-1.twal" else "wal/part-01-0.twal", .{});
+            extra.close(t.io);
+        }
+        try t.expectError(if (scenario == 2) error.InvalidWalDirectory else error.CorruptWalFrame, Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options));
+    }
 }
 
 test "disk WAL bounded seek hints keep one-frame replay linear and verify cached reads" {
@@ -88,7 +132,9 @@ test "disk WAL seek hints survive rollover backward reads eviction and trim" {
     var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 512 });
     defer wal.deinit();
     for (0..7) |lsn| _ = try wal.log().append(1, lsn, 1, 1, .row_delta, "data");
-    for ([_]u64{ 0, 1, 2, 6, 1, 5, 0 }) |from| {
+    // Reading 0..2 leaves a continuation at the first segment's EOF. Jumping
+    // to 5 must traverse the physical successor at 2, then the segment at 4.
+    for ([_]u64{ 0, 5, 0, 1, 2, 6, 1, 5, 0 }) |from| {
         var batch = try wal.log().read(t.allocator, 1, from, 2);
         defer batch.deinit();
         try t.expectEqual(@min(2, 7 - from), batch.frames.len);

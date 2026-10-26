@@ -79,6 +79,11 @@ order. SQL predicate/projection pushdown remains separate from these source read
 Opening a disk WAL validates every retained partition before returning, even
 when segment names span multiple directory pages. Nested recovery scans use an
 independent startup directory handle; caller reads are not the startup gate.
+Each loaded partition inventories segment bounds/count once, then recovery and
+sequential reads follow verified LSNs directly across segment files. Missing,
+overlapping and noncanonical segment names reject. The inventory retains no
+filename array; cold partition loads still enumerate the directory, and trim
+may enumerate it repeatedly.
 
 `zig build test` includes real temporary-directory WAL tests: cache eviction,
 segmented recovery above 64 MiB, durable empty-log fencing and full trim,

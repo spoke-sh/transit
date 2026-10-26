@@ -285,8 +285,13 @@ can exceed this cache. Defaults roll segments at 64 MiB and bound returned pages
 to 1,024 frames and 8 MiB of encoded frame bytes. A single frame may exceed a
 configured roll target, up to the 4 MiB payload bound. `openDiskWithOptions`
 configures these operation bounds; the result page also owns bounded frame
-descriptors. Ordered directory traversal uses constant resident memory but may
-scan the directory repeatedly. No throughput claim follows from these bounds.
+descriptors. Recovery inventories the first/last segment positions and file
+count in one constant-memory directory pass per loaded partition, then follows
+the contiguous decoded LSNs to each successor filename. It checks the visited
+count against the inventory so overlapping files cannot escape validation.
+This is not a persistent segment index: each uncached partition still scans the
+directory, and physical trimming may scan it repeatedly. No throughput claim
+follows from these bounds.
 
 Within each cached partition, three volatile frame coordinates retain the latest
 accepted frame and the start/continuation of the last read. They contain no
@@ -296,6 +301,9 @@ do not decode the preceding segment again. Without a usable coordinate, one
 directory pass locates the newest segment starting at or before the requested
 LSN, then bounded frames are decoded to that position. This fallback is not a
 persistent random-access index or a constant-I/O guarantee.
+Crossing a segment boundary uses the verified next physical LSN to open its
+successor directly, including when a caller jumps forward from a cached
+end-of-file coordinate. Every traversed frame's partition and LSN are checked.
 
 Recovery still validates the entire required retained history. Every returned
 frame is read and integrity/identity checked again; stale/missing/corrupt bytes

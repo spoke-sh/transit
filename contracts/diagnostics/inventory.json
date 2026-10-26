@@ -24605,11 +24605,11 @@
     "packages/zig/transit-storage/src/DiskWal.zig": {
       "errors": {
         "Canceled": 1,
-        "CorruptWalFrame": 3,
+        "CorruptWalFrame": 6,
         "CorruptWalMetadata": 5,
-        "FileNotFound": 2,
+        "FileNotFound": 4,
         "IncompatibleDefinition": 3,
-        "InvalidWalDirectory": 4,
+        "InvalidWalDirectory": 6,
         "InvalidWalEpoch": 2,
         "InvalidWalHeader": 1,
         "InvalidWalLimits": 1,
@@ -24618,7 +24618,7 @@
         "StaleWriterEpoch": 1,
         "TruncatedWalFrame": 2,
         "WalEpochRegression": 1,
-        "WalHistoryMissing": 7,
+        "WalHistoryMissing": 9,
         "WalHistoryTrimmed": 1,
         "WalInUse": 1,
         "WalLsnConflict": 1,
@@ -24634,6 +24634,7 @@
         "atomic()": "<inferred>",
         "fence()": "<inferred>",
         "frame()": "<inferred>",
+        "inventory()": "<inferred>",
         "load()": "<inferred>",
         "loadCold()": "<inferred>",
         "metadata()": "<inferred>",
@@ -24652,8 +24653,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 78,
-        "catch": 13
+        "try": 77,
+        "catch": 16
       },
       "imports": [
         "TransitLog.zig",
