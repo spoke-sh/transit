@@ -7,6 +7,86 @@ fn open(dir: std.Io.Dir) !Wal {
     return Wal.openDiskWithOptions(t.allocator, t.io, dir, "wal", .{ .segment_bytes = 256, .batch_frames = 2 });
 }
 
+test "disk WAL opening validates every partition across directory pages" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const options: Wal.DiskOptions = .{ .segment_bytes = Log.alignedFrameSize(8), .batch_frames = 8 };
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        for (1..4) |partition| for (0..128) |lsn| {
+            var bytes: [8]u8 = undefined;
+            std.mem.writeInt(u64, &bytes, partition * 1000 + lsn, .little);
+            _ = try wal.log().append(partition, lsn, 3, 5, .row_delta, &bytes);
+        };
+    }
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        // Opening must verify all retained frames before any caller chooses a
+        // partition. On-demand reads cannot substitute for this startup gate.
+        try t.expectEqual(@as(u64, 384), wal.disk.?.recovered_frames);
+        try t.expectEqual(@as(u64, 3), wal.disk.?.directory_scans);
+        for (1..4) |partition| {
+            try t.expectEqual(@as(u64, 128), try wal.log().tail(partition));
+            var page = try wal.log().read(t.allocator, partition, 127, 1);
+            defer page.deinit();
+            try t.expectEqual(@as(u64, partition * 1000 + 127), std.mem.readInt(u64, page.frames[0].payload[0..8], .little));
+        }
+        try t.expectEqual(@as(u64, 384), wal.disk.?.recovered_frames);
+        const before_scans = wal.disk.?.directory_scans;
+        const before_frames = wal.disk.?.read_frames;
+        for (1..4) |partition| {
+            var next: u64 = 0;
+            while (next < 128) {
+                var page = try wal.log().read(t.allocator, partition, next, 8);
+                defer page.deinit();
+                try t.expectEqual(@as(usize, 8), page.frames.len);
+                for (page.frames) |frame| {
+                    try t.expectEqual(next, frame.header.lsn);
+                    try t.expectEqual(@as(u64, partition * 1000 + next), std.mem.readInt(u64, frame.payload[0..8], .little));
+                    next += 1;
+                }
+            }
+        }
+        try t.expectEqual(@as(u64, 3), wal.disk.?.directory_scans - before_scans);
+        try t.expectEqual(@as(u64, 384), wal.disk.?.read_frames - before_frames);
+    }
+    {
+        const file = try tmp.dir.openFile(t.io, "wal/part-3-127.twal", .{ .mode = .read_write });
+        defer file.close(t.io);
+        try file.writePositionalAll(t.io, "x", Log.header_bytes);
+        try file.sync(t.io);
+    }
+    try t.expectError(error.CorruptWalFrame, Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options));
+}
+
+test "disk WAL direct recovery rejects gaps overlaps and noncanonical segment names" {
+    for (0..3) |scenario| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        const options: Wal.DiskOptions = .{ .segment_bytes = 3 * Log.alignedFrameSize(8) };
+        {
+            var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+            defer wal.deinit();
+            for (0..9) |lsn| {
+                var bytes: [8]u8 = undefined;
+                std.mem.writeInt(u64, &bytes, lsn, .little);
+                _ = try wal.log().append(1, lsn, 3, 5, .row_delta, &bytes);
+            }
+        }
+        if (scenario == 0) {
+            try tmp.dir.deleteFile(t.io, "wal/part-1-3.twal");
+        } else {
+            // An interior overlapping name must not be skipped by a traversal
+            // following only decoded successor positions. Aliases also reject.
+            const extra = try tmp.dir.createFile(t.io, if (scenario == 1) "wal/part-1-1.twal" else "wal/part-01-0.twal", .{});
+            extra.close(t.io);
+        }
+        try t.expectError(if (scenario == 2) error.InvalidWalDirectory else error.CorruptWalFrame, Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options));
+    }
+}
+
 test "disk WAL bounded seek hints keep one-frame replay linear and verify cached reads" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -52,7 +132,9 @@ test "disk WAL seek hints survive rollover backward reads eviction and trim" {
     var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 512 });
     defer wal.deinit();
     for (0..7) |lsn| _ = try wal.log().append(1, lsn, 1, 1, .row_delta, "data");
-    for ([_]u64{ 0, 1, 2, 6, 1, 5, 0 }) |from| {
+    // Reading 0..2 leaves a continuation at the first segment's EOF. Jumping
+    // to 5 must traverse the physical successor at 2, then the segment at 4.
+    for ([_]u64{ 0, 5, 0, 1, 2, 6, 1, 5, 0 }) |from| {
         var batch = try wal.log().read(t.allocator, 1, from, 2);
         defer batch.deinit();
         try t.expectEqual(@min(2, 7 - from), batch.frames.len);
@@ -243,40 +325,229 @@ test "canceling a cold read before mutation preserves the local log owner" {
     _ = try wal.log().append(0, 1, 1, 1, .row_delta, "successor");
 }
 
-test "a failed sync poisons the owner and recovery preserves complete uncertain work" {
+test "disk sync errors poison WAL owners and preserve complete uncertain work" {
     const Fault = struct {
         var real: *const std.Io.VTable = undefined;
-        var fail: bool = false;
+        var remaining: usize = 0;
         fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
-            if (fail) {
-                fail = false;
-                return error.InputOutput;
+            if (remaining != 0) {
+                remaining -= 1;
+                if (remaining == 0) return error.InputOutput;
             }
             return real.fileSync(context, file);
         }
     };
-    var tmp = t.tmpDir(.{});
-    defer tmp.cleanup();
     Fault.real = t.io.vtable;
     var vtable = t.io.vtable.*;
     vtable.fileSync = Fault.sync;
     var io = t.io;
     io.vtable = &vtable;
-    {
-        var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", .{});
-        defer wal.deinit();
-        _ = try wal.log().append(1, 0, 1, 1, .row_delta, "known");
-        Fault.fail = true;
-        try t.expectError(error.InputOutput, wal.log().append(1, 1, 1, 1, .row_delta, "uncertain"));
-        try t.expectError(error.WalRecoveryRequired, wal.log().append(1, 1, 1, 1, .row_delta, "wrong-retry"));
-        try t.expectError(error.WalRecoveryRequired, wal.log().tail(1));
+    // Three syncs for append, four when publishing a new segment directory entry.
+    for ([_]usize{ 192, 4096 }) |segment_bytes| {
+        const sync_count: usize = if (segment_bytes == 192) 4 else 3;
+        for (1..sync_count + 1) |failure| {
+            var tmp = t.tmpDir(.{});
+            defer tmp.cleanup();
+            {
+                var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", .{ .segment_bytes = segment_bytes });
+                defer wal.deinit();
+                _ = try wal.log().append(1, 0, 1, 1, .row_delta, "known");
+                Fault.remaining = failure;
+                try t.expectError(error.InputOutput, wal.log().append(1, 1, 1, 1, .row_delta, "uncertain"));
+                try t.expectEqual(@as(usize, 0), Fault.remaining);
+                try t.expectError(error.WalRecoveryRequired, wal.log().append(1, 1, 1, 1, .row_delta, "wrong-retry"));
+                try t.expectError(error.WalRecoveryRequired, wal.log().tail(1));
+            }
+            var wal = try open(tmp.dir);
+            defer wal.deinit();
+            try t.expectEqual(@as(u64, 2), try wal.log().tail(1));
+            var batch = try wal.log().read(t.allocator, 1, 0, 8);
+            defer batch.deinit();
+            try t.expectEqual(@as(usize, 2), batch.frames.len);
+            try t.expectEqualStrings("known", batch.frames[0].payload);
+            try t.expectEqualStrings("uncertain", batch.frames[1].payload);
+            _ = try wal.log().append(1, 2, 1, 1, .row_delta, "successor");
+        }
     }
-    var wal = try open(tmp.dir);
+}
+
+test "disk recovery syncs complete uncertain frames before publishing a usable frontier" {
+    const Fault = struct {
+        var real: std.Io = undefined;
+        var remaining: usize = 0;
+        var seen_frame: bool = false;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (remaining != 0) {
+                var magic: [4]u8 = undefined;
+                const length = file.readPositionalAll(real, &magic, 0) catch 0;
+                if (length == magic.len and std.mem.eql(u8, &magic, "TWAL")) seen_frame = true;
+                if (seen_frame) {
+                    remaining -= 1;
+                    if (remaining == 0) return error.InputOutput;
+                }
+            }
+            return real.vtable.fileSync(context, file);
+        }
+        fn arm(count: usize) void {
+            remaining = count;
+            seen_frame = false;
+        }
+    };
+    Fault.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    for ([_]usize{ 192, 4096 }) |segment_bytes| for (1..3) |failure| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        const options: Wal.DiskOptions = .{ .segment_bytes = segment_bytes };
+        {
+            var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options);
+            defer wal.deinit();
+            _ = try wal.log().append(1, 0, 1, 1, .row_delta, "accepted");
+            Fault.arm(1);
+            try t.expectError(error.InputOutput, wal.log().append(1, 1, 2, 3, .row_delta, "uncertain"));
+        }
+        // The complete second frame is visible but its sync failed. Reopening
+        // must sync its file and directory before a fence or later append can
+        // make metadata depend on it. This checks ordering, not host power loss.
+        Fault.arm(failure);
+        if (Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options)) |value| {
+            var unexpected = value;
+            unexpected.deinit();
+            return error.TestExpectedError;
+        } else |err| try t.expectEqual(error.InputOutput, err);
+        try t.expectEqual(@as(usize, 0), Fault.remaining);
+        var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        try t.expectEqual(@as(u64, 2), try wal.log().tail(1));
+        try wal.log().fence(1, 4, 5);
+        _ = try wal.log().append(1, 2, 4, 5, .row_delta, "successor");
+        var batch = try wal.log().read(t.allocator, 1, 0, 8);
+        defer batch.deinit();
+        try t.expectEqual(@as(usize, 3), batch.frames.len);
+        try t.expectEqualStrings("uncertain", batch.frames[1].payload);
+        try t.expectEqualStrings("successor", batch.frames[2].payload);
+    };
+}
+
+test "disk opening syncs observed metadata before resumed prefix deletion" {
+    const Fault = struct {
+        var real: std.Io = undefined;
+        var directory_inode: std.Io.File.INode = 0;
+        var reject_directory: bool = false;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (reject_directory) {
+                const stat = file.stat(real) catch return error.InputOutput;
+                if (stat.kind == .directory and stat.inode == directory_inode) {
+                    reject_directory = false;
+                    return error.InputOutput;
+                }
+            }
+            return real.vtable.fileSync(context, file);
+        }
+    };
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    Fault.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    const options: Wal.DiskOptions = .{ .segment_bytes = Log.alignedFrameSize(8) };
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        _ = try wal.log().append(1, 0, 1, 1, .row_delta, "first");
+        _ = try wal.log().append(1, 1, 1, 1, .row_delta, "retained");
+        const dir = try tmp.dir.openDir(t.io, "wal", .{ .iterate = true });
+        defer dir.close(t.io);
+        const file: std.Io.File = .{ .handle = dir.handle, .flags = .{ .nonblocking = false } };
+        Fault.directory_inode = (try file.stat(t.io)).inode;
+        Fault.reject_directory = true;
+        // The new floor is visible after rename; its directory sync fails.
+        try t.expectError(error.InputOutput, wal.log().trim(1, 1));
+        try t.expect(!Fault.reject_directory);
+    }
+    Fault.reject_directory = true;
+    if (Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options)) |value| {
+        var unexpected = value;
+        unexpected.deinit();
+        return error.TestExpectedError;
+    } else |err| try t.expectEqual(error.InputOutput, err);
+    try t.expect(!Fault.reject_directory);
+    var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options);
     defer wal.deinit();
-    try t.expectEqual(@as(u64, 2), try wal.log().tail(1));
-    var batch = try wal.log().read(t.allocator, 1, 1, 1);
-    defer batch.deinit();
-    try t.expectEqualStrings("uncertain", batch.frames[0].payload);
+    try wal.log().trim(1, 1);
+    try t.expectError(error.FileNotFound, tmp.dir.openFile(t.io, "wal/part-1-0.twal", .{}));
+    var retained = try wal.log().read(t.allocator, 1, 1, 1);
+    defer retained.deinit();
+    try t.expectEqualStrings("retained", retained.frames[0].payload);
+}
+
+test "disk space errors preserve accepted WAL bytes and uncertain complete frames" {
+    const Fault = struct {
+        var real: std.Io = undefined;
+        var prefix: ?usize = null;
+        fn write(context: ?*anyopaque, file: std.Io.File, header: []const u8, data: []const []const u8, splat: usize, offset: u64) std.Io.File.WritePositionalError!usize {
+            if (prefix) |count| {
+                prefix = null;
+                std.debug.assert(header.len == 0 and data.len == 1 and splat == 1);
+                try file.writePositionalAll(real, data[0][0..@min(count, data[0].len)], offset);
+                return error.NoSpaceLeft;
+            }
+            return real.vtable.fileWritePositional(context, file, header, data, splat, offset);
+        }
+    };
+    Fault.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.fileWritePositional = Fault.write;
+    var io = t.io;
+    io.vtable = &vtable;
+    // Exercise both an existing segment and rollover. The injected syscall
+    // error occurs before any bytes, after a torn header, or after a full frame.
+    // It models ENOSPC propagation; it does not fill the host filesystem.
+    for ([_]usize{ 192, 4096 }) |segment_bytes| {
+        for ([_]usize{ 0, 13, std.math.maxInt(usize) }) |prefix| {
+            var tmp = t.tmpDir(.{});
+            defer tmp.cleanup();
+            {
+                var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", .{ .segment_bytes = segment_bytes });
+                defer wal.deinit();
+                _ = try wal.log().append(1, 0, 3, 5, .row_delta, "accepted");
+                Fault.prefix = prefix;
+                try t.expectError(error.NoSpaceLeft, wal.log().append(1, 1, 7, 9, .row_delta, "uncertain"));
+                try t.expectEqual(null, Fault.prefix);
+                try t.expectError(error.WalRecoveryRequired, wal.log().tail(1));
+                try t.expectError(error.WalRecoveryRequired, wal.log().read(t.allocator, 1, 0, 1));
+                try t.expectError(error.WalRecoveryRequired, wal.log().append(1, 1, 3, 5, .row_delta, "wrong-retry"));
+            }
+            var wal = try open(tmp.dir);
+            defer wal.deinit();
+            const complete = prefix == std.math.maxInt(usize);
+            const tail: u64 = if (complete) 2 else 1;
+            try t.expectEqual(tail, try wal.log().tail(1));
+            var batch = try wal.log().read(t.allocator, 1, 0, 8);
+            defer batch.deinit();
+            try t.expectEqual(tail, batch.frames.len);
+            try t.expectEqualStrings("accepted", batch.frames[0].payload);
+            try t.expectEqual(@as(u64, 0), batch.frames[0].header.lsn);
+            try t.expectEqual(@as(u64, 3), batch.frames[0].header.writer_epoch);
+            if (complete) {
+                try t.expectEqualStrings("uncertain", batch.frames[1].payload);
+                try t.expectEqual(@as(u64, 1), batch.frames[1].header.lsn);
+                try t.expectEqual(@as(u64, 7), batch.frames[1].header.writer_epoch);
+                try t.expectEqual(@as(u64, 9), batch.frames[1].header.policy_epoch);
+                try t.expectError(error.StaleWriterEpoch, wal.log().append(1, tail, 3, 9, .row_delta, "stale"));
+                try t.expectError(error.StalePolicyEpoch, wal.log().append(1, tail, 7, 5, .row_delta, "stale"));
+            }
+            _ = try wal.log().append(1, tail, 7, 9, .row_delta, "successor");
+            var successor = try wal.log().read(t.allocator, 1, tail, 1);
+            defer successor.deinit();
+            try t.expectEqualStrings("successor", successor.frames[0].payload);
+        }
+    }
 }
 
 test "canceling recovery after truncation still requires reopening the log owner" {

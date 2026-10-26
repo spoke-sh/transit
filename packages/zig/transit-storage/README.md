@@ -66,6 +66,15 @@ an explicit allocation budget and returned rows own their values. Physical
 groups default to 256 rows, independently of statement and response bounds.
 This does not add ordered primary-key range execution or SQL projection pushdown.
 
+Opening a disk WAL validates every retained partition before returning, even
+when segment names span multiple directory pages. Nested recovery scans use an
+independent startup directory handle; caller reads are not the startup gate.
+Each loaded partition inventories segment bounds/count once, then recovery and
+sequential reads follow verified LSNs directly across segment files. Missing,
+overlapping and noncanonical segment names reject. The inventory retains no
+filename array; cold partition loads still enumerate the directory, and trim
+may enumerate it repeatedly.
+
 `zig build test` includes real temporary-directory WAL tests: cache eviction,
 segmented recovery above 64 MiB, durable empty-log fencing and full trim,
 incomplete tails, missing/corrupt acknowledged history, incompatible definitions,
@@ -84,6 +93,20 @@ through a 16 KiB owner allocator, incompatible definitions and six sync failures
 The root unit task also launches three races of twelve independent processes and
 checks their results against a Python oracle. Descriptor deletion unpublishes the
 key; physical content collection still requires retained-reader/pin ownership.
+
+`just test::local-storage-faults` kills real local owner processes at WAL
+append/fence/trim and object-publication boundaries. Fresh processes verify data,
+epochs, trim floors and exact object retries against an independent Python
+oracle. The root unit task includes this proof. Repeating an already-published
+WAL trim boundary finishes interrupted prefix removal. These schedules preserve
+the operating system and its page cache; they do not simulate power loss or
+disk exhaustion. See the [proof ledger](../../../tests/README.md#local-storage-process-death-boundaries--2026-10-26).
+
+`just test::storage-io-faults` exercises injected `NoSpaceLeft` and `InputOutput`
+errors around real disk writes and syncs. A WAL owner requires reopening after
+an uncertain write, preserving complete recoverable frames; object publication
+keeps private partial files out of the public descriptor. These error schedules
+do not exhaust the host filesystem or establish hardware failure behavior.
 
 Standalone `TableMemtable` recovery consumes every bounded WAL page through its captured frontier and
 checks contiguous history and schema identity. An incomplete recovery blocks
@@ -104,3 +127,9 @@ and deletion-vector ownership before pruning.
 
 Focused storage checks use `zig build test -Dtest-filter='Table ALTER'` inside
 `nix develop`. Filters select test names; omit them for the complete suite.
+
+The [local WAL model](../../../tests/verification/models/README.md#finite-local-wal-model)
+checks finite crash and publication ordering separately from disk experiments.
+Recovery syncs complete frames beyond the saved frontier, and opening syncs the
+WAL directory before returning. These barriers prevent a later fence, append or
+resumed trim from depending on merely visible file bytes or metadata.

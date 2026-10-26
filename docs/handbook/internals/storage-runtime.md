@@ -28,6 +28,57 @@ The current realm journal remains a serialization point. Separating durable
 cardinality from cache size therefore does not establish horizontal authority
 throughput. It answers a memory-growth question, not every scaling question.
 
+### Local WAL publication and recovery model
+
+When may a recovered local owner acknowledge new work or delete a retained
+prefix? The [local storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#local-wal-persistence)
+and [DiskWal](../../../packages/zig/transit-storage/src/DiskWal.zig) require durable
+support for every published frontier and a durable floor before deletion. A
+complete file or renamed metadata visible to a replacement process can still be
+unsynced. Process replacement alone does not establish either requirement.
+
+The finite [TLA+ model](../../../tests/verification/models/Wal.tla), introduced
+2026-10-26, represents one exclusive owner and partition, two LSNs and two values
+of each epoch. Each segment holds one frame, classified as empty, torn or
+complete. Separate state records visible and durable data, directory names and
+metadata, cached frontiers, operation phases and acknowledgements. Atomic
+metadata replacement and truthful successful file/directory syncs are explicit
+assumptions. Unrequested persistence may occur independently. Process death
+preserves the visible image; power loss discards state that has not persisted.
+These assumptions do not certify a particular filesystem or device.
+
+Append syncs the frame and its new name before replacing metadata; metadata's
+file and directory are synced before acknowledgement. Recovery validates the
+retained sequence and syncs complete frames beyond the observed metadata frontier.
+After validating every partition, opening syncs the WAL directory before exposing
+the owner. The first barrier prevents a later fence or append from publishing a
+frontier over unsynced recovered bytes. The second stabilizes recovered names and
+visible metadata replacements: an equal-floor trim retry must not delete history
+on the strength of a rename that has not become durable. Interrupted cleanup
+still requires repeating the authorized trim; opening does not itself delete
+eligible prefix segments.
+
+TLC checks preservation of acknowledged and published history, epoch admission,
+acknowledged fences, deletion authority, completed cleanup and contiguous usable
+recovery. Removing ordering guards produces counterexamples. The model identified
+recovery barriers that mere frame validation did not provide; independent disk
+I/O regressions require failed barriers to reject opening. The
+[model guide](../../../tests/verification/models/README.md#finite-local-wal-model)
+defines reproduction, exact assumptions and negative controls; the
+[proof ledger](../../../tests/README.md#local-wal-model-and-recovery-barriers--2026-10-26)
+records execution and its limits. No automatically checked Zig refinement or
+hardware power-loss experiment is claimed.
+
+This model targets ordering decisions before group commit or checkpoint-driven
+trimming introduces additional choices. Modeling every byte, directory iterator
+or partition would increase the state space without replacing implementation
+regressions for those mechanisms. Their exclusion is a scope choice, not proof
+that they cannot fail. The caller must separately establish checkpoint, receipt,
+pin and logical-history coverage before trim. No liveness or wall-clock guarantee
+follows under indefinite faults, and distributed ownership remains outside this
+exclusive-owner model. Recovery adds file syncs for uncertain complete segments
+and one directory sync before open returns; these costs need separate measurement.
+
 ### Direct Table acceptance alongside native resources
 
 The local SQL service uses a separate direct Table owner. Its control catalog

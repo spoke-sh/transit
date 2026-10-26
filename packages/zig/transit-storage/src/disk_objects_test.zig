@@ -140,6 +140,68 @@ test "missing and foreign object store definitions do not reinitialize retained 
     try t.expectError(error.IncompatibleDefinition, open(tmp.dir));
 }
 
+test "object write errors leave private partial files unpublished and exact retries usable" {
+    const Fault = struct {
+        var real: std.Io = undefined;
+        var remaining: usize = 0;
+        var prefix: usize = 0;
+        fn operate(context: ?*anyopaque, operation: std.Io.Operation) std.Io.Cancelable!std.Io.Operation.Result {
+            if (operation == .file_write_streaming and remaining != 0) {
+                remaining -= 1;
+                if (remaining == 0) {
+                    const write = operation.file_write_streaming;
+                    std.debug.assert(write.header.len == 0 and write.data.len == 1 and write.splat == 1);
+                    write.file.writeStreamingAll(real, write.data[0][0..@min(prefix, write.data[0].len)]) catch |err| switch (err) {
+                        error.Canceled => return error.Canceled,
+                        else => |write_err| return .{ .file_write_streaming = write_err },
+                    };
+                    return .{ .file_write_streaming = error.NoSpaceLeft };
+                }
+            }
+            return real.vtable.operate(context, operation);
+        }
+    };
+    Fault.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.operate = Fault.operate;
+    var io = t.io;
+    io.vtable = &vtable;
+    for ([_]bool{ false, true }) |immutable| {
+        for (1..4) |failure| {
+            for ([_]usize{ 0, 1, std.math.maxInt(usize) }) |prefix| {
+                var tmp = t.tmpDir(.{});
+                defer tmp.cleanup();
+                var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
+                defer owner.deinit();
+                try t.expect(try owner.objectStore().putConditional("head", .if_none_match, "before"));
+                const key = if (immutable) "new" else "head";
+                Fault.prefix = prefix;
+                Fault.remaining = failure; // raw payload, checksum file, descriptor
+                if (immutable) {
+                    try t.expectError(error.NoSpaceLeft, owner.objectStore().putImmutable(key, "after", hash("after")));
+                } else {
+                    try t.expectError(error.NoSpaceLeft, owner.objectStore().putConditional(key, .{ .if_match = hash("before") }, "after"));
+                }
+                try t.expectEqual(@as(usize, 0), Fault.remaining);
+                var reopened = try open(tmp.dir);
+                defer reopened.deinit();
+                var bytes: [16]u8 = undefined;
+                if (immutable) {
+                    try t.expectEqual(null, try reopened.objectStore().head(key));
+                    _ = try reopened.objectStore().putImmutable(key, "after", hash("after"));
+                    try t.expectError(error.ImmutableObjectConflict, reopened.objectStore().putImmutable(key, "other", hash("other")));
+                } else {
+                    try t.expectEqualStrings("before", try reopened.objectStore().getRange(key, 0, bytes.len, &bytes));
+                    try t.expect(try reopened.objectStore().putConditional(key, .{ .if_match = hash("before") }, "after"));
+                    try t.expect(!try reopened.objectStore().putConditional(key, .{ .if_match = hash("before") }, "other"));
+                }
+                try t.expectEqualStrings("after", try owner.objectStore().getRange(key, 0, bytes.len, &bytes));
+                try t.expectEqualDeep(hash("after"), (try owner.objectStore().head(key)).?.sha256);
+            }
+        }
+    }
+}
+
 test "object publication sync failures leave a complete old or complete new descriptor" {
     const Fault = struct {
         var real: *const std.Io.VTable = undefined;

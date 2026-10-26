@@ -18915,6 +18915,44 @@ missing/foreign definitions and noncanonical numeric strings reject. Logs are
 Physical acquisition, installed SDK extensions and comparative performance
 remain separate qualification gates.
 
+## Local storage process-death boundaries — 2026-10-26
+
+`nix develop --command just test::local-storage-faults` passes 42 SIGKILL
+schedules on Linux x86_64 after rebasing onto `2be8eab3`. The root unit task also
+runs the [Zig owner fixture](local_storage_faults.zig) and
+[independent Python oracle](local_storage_faults.py). A child completes real
+filesystem operations, signals the selected boundary and waits on a private
+pipe. The parent verifies it remains alive, kills it without cleanup and opens a
+fresh owner. EOF, a missing boundary or an unexpected child exit fails the proof.
+
+The 26 WAL schedules cover a 13-byte incomplete append, frame and directory
+syncs, metadata rename/sync, durable fencing, partial and whole-log trim, each
+prefix-file deletion and completed acknowledgement. Every schedule checks
+exclusive ownership while the original owner remains alive. Fresh readers check
+literal accepted payloads and exact LSNs/epochs; Python independently decodes
+and hashes the persisted metadata. Complete unacknowledged frames remain
+uncertain recoverable work, while the incomplete tail never becomes an accepted
+row. Repeated trims remove exactly the eligible files, preserve retained reads
+and the next LSN, and allow a successor append after reopening.
+
+The original trim implementation fails the schedule killed immediately after
+publishing its floor: the repeated boundary returns success while an obsolete
+prefix segment still exists. The correction resumes physical removal when the
+requested boundary equals the persisted floor. It preserves the existing
+authorization precondition and uncertainty/reopen gate; it neither advances that
+floor nor changes persisted bytes or the shared contract definition.
+
+The 16 object schedules cover conditional replacement and immutable creation at
+all six syncs, descriptor publication and completed acknowledgement. Fresh
+public reads must return the complete old or new value as appropriate, with
+independently computed size and SHA-256. Retrying the original condition/content
+preserves the published result, and a conflicting immutable value rejects.
+
+These are process-death tests with the operating system and page cache retained.
+They do not establish power-loss recovery, disk exhaustion, filesystem rollback,
+automatic Table retention, retained-root/orphan collection or performance.
+Full repository and committed-source CI qualification remain separate gates.
+
 ## Captured local file queries
 
 `just test::file-query` passes 83 cases against the real `transit` executable on
@@ -27046,3 +27084,145 @@ It checks the exact ELF interpreter and deliberate caller overrides. Other
 platforms and the hosted C SDK rerun remain separate qualification gates. The
 intermediate full `just check` failed on the unfinished toolchain derivation;
 that run does not qualify the final correction.
+
+## Local storage syscall-error schedules — 2026-10-26
+
+`nix develop --command just test::storage-io-faults` passes five tests, including
+the package import check and four fault tests covering 37 schedules. Six WAL
+write schedules inject `NoSpaceLeft` before bytes, after a 13-byte torn header
+and after a complete frame, on both an existing segment and rollover. Seven
+append schedules inject `InputOutput` at every file/metadata/directory sync.
+The open owner rejects further operations until reopened; recovery preserves
+accepted literal payloads, LSNs and epochs, retains complete uncertain frames,
+rejects stale epochs and permits the exact successor position.
+
+Eighteen conditional/immutable object schedules inject `NoSpaceLeft` before,
+during and after writes to each staged payload, checksum file and descriptor.
+Fresh owners observe the original complete value or absence, then retry the
+original condition/content successfully and reject stale/conflicting writes.
+The existing six sync-error schedules cover old/new descriptor visibility.
+Partial writes reach actual temporary-directory files, but the syscall errors
+are injected; these tests do not exhaust the host filesystem, simulate device
+loss or prove power-failure durability. No production runtime changes accompany
+this expansion. Diagnostic inventory, verification catalog, format and local
+documentation checks pass.
+
+## Complete local WAL startup validation — 2026-10-26
+
+A new disk regression creates three partitions with 128 single-frame segments
+each, then asserts that opening verifies all 384 frames before any caller read.
+The former implementation verifies only 128 and fails that assertion: nested
+recovery enumeration advances the same directory descriptor used by the outer
+startup iterator, skipping entries after its buffered page. Later reads can
+recover omitted partitions, but cannot establish the required startup gate.
+
+An independent directory handle for the startup walk restores full enumeration
+without retaining all filenames or partition descriptors. The regression also
+checks all partition tails and literal last-row values without additional
+recovery, then corrupts a later partition and requires opening to reject.
+`zig build test -Dtest-filter='opening validates every partition'
+-Dtest-filter='canceling' --summary all` in `packages/zig/transit-storage`
+passes 4/4 through the pinned development shell. This is a startup integrity
+check, not a claim about recovery after host power loss.
+
+Before the subsequent traversal optimization, the broader disk selection
+(`disk`, `recovery truncates`, `missing acknowledged`, `missing and foreign`,
+and `canceling` filters) passes 33/33, including the 73-partition cache-eviction
+and greater-than-64-MiB recovery cases. Both public local-storage fault tasks
+also pass again: 42 process-death and 37 syscall-error schedules.
+
+## Direct local WAL segment traversal — 2026-10-26
+
+The same three-partition, 384-segment fixture now checks directory work as well
+as literal payloads and complete startup coverage. Its baseline includes the
+startup enumeration correction above: both implementations verify all 384
+frames. Before optimization, recovery records 771 segment-directory scans and
+eight-row sequential pages add 384 scans. After optimization those counters are
+3 and 3 respectively, with all 384 frames read and independently checked. The
+new three-scan recovery assertion fails against the baseline with 771 observed.
+
+Recovery retains only the minimum/maximum segment positions and count from one
+directory pass per loaded partition. Verified contiguous LSNs name subsequent
+files, and the visited count detects overlapping files that this direct walk
+would otherwise skip. Reads track the next physical position separately from
+the requested position: jumping forward from a cached EOF must still enter the
+actual successor segment. Gap, interior overlap, noncanonical filename,
+later-partition corruption and forward/backward/evicted/trimmed hint cases pass.
+
+Through the pinned shell, package `zig build test` with filters `disk WAL`,
+`recovery truncates`, `missing acknowledged` and `canceling` passes 9/9. The
+separate `disk log`, `disk fence`, `disk recovery` and `missing and foreign`
+selection passes 6/6, preserving small-allocator recovery beyond the partition
+cache and former 64 MiB ceiling. Counts include each executable's import test.
+`just test::local-storage-faults` passes all 42 process-death schedules again;
+`just test::storage-io-faults` passes all 37 syscall-error schedules (5/5 tests).
+Diagnostic inventory/mappings, verification catalog, formatting and local
+documentation checks pass.
+
+These counters exclude the outer startup walk and filesystem metadata/device
+I/O. Each cold partition load still enumerates the entire directory; trim still
+uses repeated enumeration. No persistent segment index, throughput, latency or
+whole-process residency result is inferred, and no stored format or acceptance,
+fencing, trim-authority or uncertain-append contract changes.
+
+## Local WAL model and recovery barriers — 2026-10-26
+
+Source basis: WAL traversal commit `0eea3cc1`, rebased onto main `b65546ff`,
+followed by the recovery barriers and finite model in this change. Run
+`nix develop --command just test::wal-model`. The locked TLC 2.19 exhausts
+**201,771 distinct states**, with an empty queue, at two LSNs and two values of
+each epoch. One worker, fingerprint/seed `0`/`1`, a 512 MiB heap and a 60-second
+per-configuration timeout are used. Six independent removed obligations produce
+their required invariant violation and complete explicit counterexample:
+
+| Removed obligation | Detected invariant |
+| --- | --- |
+| Append file sync | `PublishedHistory` |
+| Writer/policy epoch admission | `AppendFenced` |
+| Floor publication before deletion | `DeletionAuthorized` |
+| Repeated-floor physical cleanup | `TrimComplete` |
+| Recovered complete-frame sync | `PublishedHistory` |
+| Recovered directory sync | `PublishedHistory` |
+
+The [model guide](verification/models/README.md#finite-local-wal-model) defines
+assumptions, state abstraction and exclusions. The runner retains source hashes,
+configurations, logs, counterexamples and completion evidence under
+`.cache/verification/wal-model/`; parser/tool errors, timeout or incomplete
+exploration cannot pass. The ordinary bindings lane owns the task. This is a
+finite safety result, not a Zig refinement proof, liveness theorem or experiment
+on actual host power loss. Counterexamples are not automatically replayed into
+production code.
+
+The initial model reproduced a missing recovery barrier: complete unacknowledged
+bytes survive process death in the OS cache; recovery adopts them; a subsequent
+fence publishes a frontier whose supporting file has never been synced. The
+focused disk regression fails against the preceding implementation because open
+returns successfully without reaching the required segment sync. The fixed
+owner syncs segments containing complete frames beyond the saved frontier before
+adopting them. A related directory barrier stabilizes visible segment names and
+metadata, including a trim-floor rename whose previous directory sync failed.
+It runs once after all partitions have been validated and before open returns.
+
+`nix develop --command just test::storage-io-faults` passes **7/7 tests**:
+the existing 37 write/sync error schedules plus four recovery-barrier schedules
+(same file/rollover, recovered-file/directory sync errors), an observed trim-floor
+rename/directory-error schedule, and the import test. The original recovery
+regression passes **2/2 tests** after the fix. Payloads, next LSNs, successful
+successor publication, removed prefix files and retained frames are checked on
+real disk. These injected errors establish ordering and error propagation;
+they do not suppress the host's background writeback or simulate device loss.
+`nix develop --command just test::local-storage-faults` also passes all **42**
+process-death schedules after both barriers. SIGKILL retains the OS page cache.
+The broader filtered disk WAL/recovery suite passes **14/14 tests**, including
+all-partition startup, direct segment traversal, cancellation, full trim, bounded
+descriptors and recovery beyond 64 MiB. Diagnostic inventory/mappings, the
+verification catalog, documentation links, Zig formatting and whitespace checks
+pass.
+
+The earlier PR qualification still has unresolved failures: the hosted bindings
+lane exceeds a public-query deadline, and hosted and local clean growth runs
+exceed the direct Table lifecycle proof's 180-second subprocess budget. The
+local clean experience run has a separate authority/restart-budget failure.
+These are not passes, not attributed to the model, and not fixed by increasing
+fixture budgets here. Full checks and committed-source clean lanes on the final
+PR revision remain separate gates.

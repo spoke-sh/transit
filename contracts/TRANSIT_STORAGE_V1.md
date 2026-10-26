@@ -227,17 +227,27 @@ Cancellation while loading an uncached partition before a disk mutation publishe
 no cached descriptor and leaves the owner usable. Cancellation after recovery
 starts truncating an incomplete tail still requires reopening the owner.
 
+Opening validates every retained partition before returning an owner, including
+partitions beyond the first directory page or the resident descriptor cache.
 Recovery checks contiguous LSNs, frame integrity and the persisted frontier.
 It reads one bounded frame at a time. Only an incomplete frame in the final
 segment beyond the persisted frontier can be truncated; missing acknowledged
 history, a damaged earlier segment and checksum failures reject. Complete frames
-beyond the metadata frontier remain recoverable uncertain work. Missing metadata
+beyond the metadata frontier remain recoverable uncertain work. Recovery syncs
+each segment containing such frames before adopting their frontier. Opening then
+syncs the WAL directory before returning the owner, stabilizing observed segment
+names and metadata replacements, including a trim floor whose previous owner
+died before its directory sync. A failed barrier prevents a usable open owner.
+Missing metadata
 does not turn existing segments into a new empty partition.
 
 Epoch fences persist even without an append. Trim persists the exclusive floor
 and frontier before removing complete prefix segments; a partially covered
-segment remains until a later trim. Trimming every frame preserves the next LSN
-and epochs. Retention authority must establish checkpoint, receipt, pin and
+segment remains until a later trim. Repeating the persisted floor resumes prefix
+segment removal after interruption, including when the whole log is trimmed.
+It does not advance the floor or grant permission to remove retained frames.
+Trimming every frame preserves the next LSN and epochs.
+Retention authority must establish checkpoint, receipt, pin and
 logical-history coverage before calling trim. Disk pressure grants no permission
 to trim, and this backend does not implement that higher-level retention owner.
 
@@ -246,8 +256,13 @@ can exceed this cache. Defaults roll segments at 64 MiB and bound returned pages
 to 1,024 frames and 8 MiB of encoded frame bytes. A single frame may exceed a
 configured roll target, up to the 4 MiB payload bound. `openDiskWithOptions`
 configures these operation bounds; the result page also owns bounded frame
-descriptors. Ordered directory traversal uses constant resident memory but may
-scan the directory repeatedly. No throughput claim follows from these bounds.
+descriptors. Recovery inventories the first/last segment positions and file
+count in one constant-memory directory pass per loaded partition, then follows
+the contiguous decoded LSNs to each successor filename. It checks the visited
+count against the inventory so overlapping files cannot escape validation.
+This is not a persistent segment index: each uncached partition still scans the
+directory, and physical trimming may scan it repeatedly. No throughput claim
+follows from these bounds.
 
 Within each cached partition, three volatile frame coordinates retain the latest
 accepted frame and the start/continuation of the last read. They contain no
@@ -257,6 +272,9 @@ do not decode the preceding segment again. Without a usable coordinate, one
 directory pass locates the newest segment starting at or before the requested
 LSN, then bounded frames are decoded to that position. This fallback is not a
 persistent random-access index or a constant-I/O guarantee.
+Crossing a segment boundary uses the verified next physical LSN to open its
+successor directly, including when a caller jumps forward from a cached
+end-of-file coordinate. Every traversed frame's partition and LSN are checked.
 
 Recovery still validates the entire required retained history. Every returned
 frame is read and integrity/identity checked again; stale/missing/corrupt bytes

@@ -116,6 +116,38 @@ Run focused proofs per slice, retain the current-v1 cutover gate for incompatibl
 formats, and qualify installed performance/recovery with milestone 3. This is an
 implementation sequence, not a transfer or reduction of outstanding criteria.
 
+### Implemented increments after the baseline
+
+- The exclusive local WAL has a finite TLA+ publication/recovery model with
+  independent durability states and removed-guard controls. Its counterexamples
+  motivated file and directory recovery barriers; disk regressions check their
+  ordering. This does not close physical power-loss, retention-owner or complete
+  clean-CI qualification. See the [proof ledger](../../tests/README.md).
+
+- Verified segment range reads and bounded decoding are wired into live Table
+  point/scanned reads; 256-row groups separate decoder residency from result
+  batches. The WAL keeps bounded verified seek coordinates to avoid repeated
+  prefix decoding. Focused disk and signed service evidence is recorded in
+  [the proof ledger](../../tests/README.md); clean qualification remains separate.
+- Local process-death schedules cover WAL append/fence publication, interrupted
+  partial/full trimming and conditional/immutable object publication. Retrying a
+  persisted trim boundary resumes physical prefix removal. The
+  [scoped proof](../../tests/README.md#local-storage-process-death-boundaries--2026-10-26)
+  advances #113/#114; disk-full/I/O schedules, retention-owner integration and
+  retained-root/orphan collection remain open.
+- Injected `NoSpaceLeft` and sync-error schedules exercise actual partial disk
+  writes for WAL append/rollover and conditional/immutable objects, preserving
+  accepted bytes and exact retry/recovery. The host filesystem is not filled;
+  broader device failures and safe physical collection remain separate work.
+- Startup now uses an independent directory handle while recovering partitions,
+  preserving the full integrity gate when segment names span directory pages.
+  A 384-segment regression exposed skipped partitions in the former nested walk;
+  this fixes validation coverage without changing persisted bytes or authority.
+- Recovery inventories segment bounds/count once per loaded partition and follows
+  verified contiguous LSNs across files. Sequential reads also open successor
+  segments directly. Cold partition loads and trim still enumerate directories;
+  this is a bounded local traversal improvement, not a persistent segment index.
+
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,
 effect evidence and supported captured/stream payloads as well as Tables.

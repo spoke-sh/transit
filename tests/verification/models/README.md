@@ -104,3 +104,65 @@ Logs, the graph, removed-guard traces, source/binary hashes and completion statu
 are retained under `.cache/verification/console-model/`. `--seconds N` changes
 the per-process timeout; exhausting it never counts as a pass. There is no depth
 cutoff: the stated finite abstraction must be exhausted.
+
+## Finite local WAL model
+
+Run `nix develop --command just test::wal-model`; `--lsns 3` expands the LSN bound
+and `--seconds N` changes the per-configuration timeout. The ordinary bindings
+lane owns this check. [Wal.tla](Wal.tla) and [Wal.cfg](Wal.cfg) use the same locked
+TLC as the other models: one worker, fingerprint/seed `0`/`1`, 512 MiB heap and a
+60-second default timeout. Completion requires an exhausted queue; timeout,
+parser/tool errors and missing counterexample states are inconclusive failures.
+
+The model starts with a compatible initialized directory and partition metadata.
+It includes one exclusive serialized owner, one partition, two LSNs, two writer
+epochs and two independent policy epochs. Each segment contains one frame. A
+frame's finite value encodes its epochs; LSN identity is its position. Empty,
+torn and complete frames abstract bytes, payload checksums and codec validation.
+Definitions, payload equality, directory enumeration, caches, OS locks and caller
+expected-LSN conflicts remain implementation tests, not properties of this model.
+
+Visible contents and names differ from their durable images. Metadata replacement
+is atomic and its temporary file must be synced before rename; successful file
+and directory syncs truthfully establish durability. Background persistence can
+retain unsynced data, individual names or metadata independently. Process death
+keeps the visible image; power loss restores only the durable image. This is a
+filesystem assumption, not an experiment on storage hardware. The model includes
+partial writes, uncertain I/O failure, reopening, tail repair and complete
+unacknowledged frames. Recovery barriers precede a usable owner. Crashes can
+repeat without a depth or operation-count cutoff within the finite LSN bound.
+
+Safety invariants require:
+
+- acknowledged frame identities and every published retained frontier to have
+  durable supporting frames and names;
+- append admission to honor both cached epochs, and acknowledged fences to survive;
+- acknowledged floors and successor LSNs to survive, including after full trim;
+- deletion to follow a durable authorized floor, and completed trim to have no
+  removable prefix left;
+- every usable recovered frontier to expose contiguous complete retained frames.
+
+The trim caller supplies authority; checkpoint, receipt, pin and logical-history
+coverage are outside the model. No eventual recovery or trim completion is
+claimed under indefinitely repeated faults. Deadlock checking is disabled at
+intentional finite terminal states; there is no liveness theorem or fairness
+assumption. Fail-closed rejected recovery is not evidence of availability.
+
+[wal_model.py](../wal_model.py) removes six obligations independently: append
+file sync, epoch admission, trim-floor publication, equal-floor cleanup retry,
+recovered-frame sync and recovered-directory sync. Each must violate its named
+invariant and yield a complete explicit action trace. These are model mutations,
+not production Zig mutations. Source hashes, configurations, logs, counterexamples
+and completion evidence live under `.cache/verification/wal-model/`.
+
+The correspondence is reviewed at operation boundaries in
+[DiskWal](../../../packages/zig/transit-storage/src/DiskWal.zig): `append`, `fence`,
+`trim`, `recover` and the final `open` barrier. `MetaWrite`/`MetaSync`/`Rename`/
+`MetaDirSync` describe `atomic`; `Delete`/`DeleteSync` describe prefix removal.
+Independent [disk regressions](../../../packages/zig/transit-storage/src/disk_wal_test.zig)
+check failures at the recovered-frame and observed-directory barriers, and
+[process-death schedules](../../local_storage_faults.py) cover interrupted trim.
+These tests are not automatic replay of every TLC transition or a refinement
+proof. The model does not cover object descriptors, multiple owners, replication,
+retention policy, arbitrary corruption or arbitrary-size executions. Executed
+results belong to the [proof ledger](../../README.md).
