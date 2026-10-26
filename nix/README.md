@@ -167,19 +167,23 @@ The default and CI shells declare OpenSSL as a native library dependency. On
 Linux they also put the pinned glibc in Zig's discovered library and runtime
 search paths. [The Zig launcher](zig.nix) selects the matching Nix ELF interpreter
 for native `zig build`, `build-exe`, `build-lib`, `run`, `test`, `cc` and `c++`
-invocations, including foreign consumers of the shared native libraries.
-Native C drivers also select the GNU libc ABI explicitly: the static compiler
-cannot infer it from host executables absent inside the Nix build sandbox.
-Explicit target or dynamic-linker options retain upstream behavior; macOS uses
-the upstream compiler directly. Zig links directly rather than through the C
-compiler wrapper, so both the loader and library paths must agree. Otherwise a
+link invocations. C/C++ compile-only commands receive no linker arguments.
+The C/C++ drivers select the native GNU ABI and pinned glibc version explicitly,
+including inside a build sandbox where the prebuilt compiler cannot inspect
+`/usr/bin/env`. This keeps libc++ consistent with the glibc headers. The launcher carries the Nix include,
+library and runtime search paths into that explicit target. Explicit targets
+retain upstream behavior, and explicit dynamic-linker options remain authoritative;
+macOS uses the upstream compiler directly. Zig links directly rather than through
+the C compiler wrapper, so both the loader and library paths must agree. Otherwise a
 host distribution's libc or loader can be incompatible with Nix shared libraries.
 The experience shell supplies the C toolchain and `pkg-config` for the CLI and
 SQL gateway's TLS/certificate code. These shell dependencies use the existing
 locked inputs; they do not change compiler or library versions. The offline
-toolchain check compiles and runs an OpenSSL consumer through both the direct
-compiler, build runner and C/C++ drivers, checking the Linux executables'
-interpreter paths and preserving explicit caller loader overrides.
+toolchain check compiles and runs an OpenSSL consumer through the direct Zig
+compiler and build runner and through the C/C++ drivers. The C/C++ consumer also
+creates and joins a native thread. The check verifies Linux interpreter paths,
+explicit loader overrides, an explicit static musl target and compile-only
+C/C++ commands.
 The Linux derivation also applies a [build-runner lifetime correction](zig-dynamic-linker.patch):
 the explicit loader argument must own its bytes after the temporary target query
 leaves scope. Without that copy, this compiler revision emits empty or corrupted

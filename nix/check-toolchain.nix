@@ -96,23 +96,8 @@ runCommand "transit-toolchain-check"
     ZIG
     zig build-exe linkage.zig -lc -lcrypto -femit-bin=linkage
     ./linkage
-    cat > linkage.c <<'C'
-    #include <openssl/crypto.h>
-    int main(void) { return OpenSSL_version_num() == 0; }
-    C
-    cp linkage.c linkage.cpp
-    zig cc linkage.c $(pkg-config --cflags --libs libcrypto) -o linkage-c
-    zig c++ linkage.cpp $(pkg-config --cflags --libs libcrypto) -o linkage-cpp
-    ./linkage-c
-    ./linkage-cpp
     ${lib.optionalString stdenv.hostPlatform.isLinux ''
       test "$(patchelf --print-interpreter linkage)" = "${stdenv.cc.bintools.dynamicLinker}"
-      test "$(patchelf --print-interpreter linkage-c)" = "${stdenv.cc.bintools.dynamicLinker}"
-      test "$(patchelf --print-interpreter linkage-cpp)" = "${stdenv.cc.bintools.dynamicLinker}"
-      zig cc linkage.c $(pkg-config --cflags --libs libcrypto) -Wl,--dynamic-linker=/transit-toolchain-c-loader -o explicit-c
-      test "$(patchelf --print-interpreter explicit-c)" = /transit-toolchain-c-loader
-      zig c++ -target native-native-gnu.${lib.versions.majorMinor stdenv.cc.libc.version} linkage.cpp $(pkg-config --cflags --libs libcrypto) -Xlinker --dynamic-linker -Xlinker /transit-toolchain-cpp-loader -o explicit-cpp
-      test "$(patchelf --print-interpreter explicit-cpp)" = /transit-toolchain-cpp-loader
     ''}
     cat > build.zig <<'ZIG'
     const std = @import("std");
@@ -128,14 +113,56 @@ runCommand "transit-toolchain-check"
     ZIG
     zig build
     ./zig-out/bin/linkage
+    cat > linkage.c <<'C'
+    #include <openssl/crypto.h>
+    #include <pthread.h>
+    static void *probe(void *result) {
+        *(int *)result = OpenSSL_version_num() == 0;
+        return 0;
+    }
+    int main(void) {
+        pthread_t thread;
+        int result = 1;
+        if (pthread_create(&thread, 0, probe, &result)) return 2;
+        if (pthread_join(thread, 0)) return 3;
+        return result;
+    }
+    C
+    zig cc linkage.c -lcrypto -lpthread -o c-linkage
+    ./c-linkage
+    zig c++ -x c++ linkage.c -lcrypto -lpthread -o cpp-linkage
+    ./cpp-linkage
+    # Compile-only callers must not receive unused linker arguments.
+    zig cc -Werror -c linkage.c -o c-linkage.o
+    zig c++ -Werror -x c++ -c linkage.c -o cpp-linkage.o
     ${lib.optionalString stdenv.hostPlatform.isLinux ''
       test "$(patchelf --print-interpreter zig-out/bin/linkage)" = "${stdenv.cc.bintools.dynamicLinker}"
+      test "$(patchelf --print-interpreter c-linkage)" = "${stdenv.cc.bintools.dynamicLinker}"
+      test "$(patchelf --print-interpreter cpp-linkage)" = "${stdenv.cc.bintools.dynamicLinker}"
       # Explicit target settings belong to the caller. Inspect this deliberately
       # non-runnable loader path without attempting to execute the result.
       zig build -Ddynamic-linker=/transit-toolchain-explicit-loader
       test "$(patchelf --print-interpreter zig-out/bin/linkage)" = /transit-toolchain-explicit-loader
       zig build-exe linkage.zig -lc -lcrypto --dynamic-linker /transit-toolchain-explicit-loader -femit-bin=explicit-linkage
       test "$(patchelf --print-interpreter explicit-linkage)" = /transit-toolchain-explicit-loader
+      zig cc linkage.c -lcrypto -lpthread -Wl,--dynamic-linker,/transit-toolchain-explicit-loader -o explicit-c-linkage
+      test "$(patchelf --print-interpreter explicit-c-linkage)" = /transit-toolchain-explicit-loader
+      zig c++ -x c++ linkage.c -lcrypto -lpthread -Xlinker --dynamic-linker -Xlinker /transit-toolchain-explicit-loader -o explicit-cpp-linkage
+      test "$(patchelf --print-interpreter explicit-cpp-linkage)" = /transit-toolchain-explicit-loader
+      # An explicit musl target must not acquire the native GNU headers/loader.
+      cat > explicit-target.c <<'C'
+      #include <features.h>
+      #ifdef __GLIBC__
+      #error Explicit musl target received glibc headers
+      #endif
+      int main(void) { return 0; }
+      C
+      zig cc --target=${stdenv.hostPlatform.parsed.cpu.name}-linux-musl -static explicit-target.c -o explicit-target
+      ./explicit-target
+      if patchelf --print-interpreter explicit-target > /dev/null 2>&1; then
+        echo "Explicit static target unexpectedly has an ELF interpreter" >&2
+        exit 1
+      fi
     ''}
 
     cat > web/package.json <<'JSON'
