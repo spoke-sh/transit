@@ -22,6 +22,107 @@ fn clock(_: *anyopaque) anyerror!core.Time.Sample {
     return .{ .unix_ms = 100 };
 }
 
+fn waitFor(event: *std.Io.Event) !void {
+    const Result = union(enum) { ready: anyerror!void, timeout: anyerror!void };
+    var results: [2]Result = undefined;
+    var select: std.Io.Select(Result) = .init(t.io, &results);
+    defer select.cancelDiscard();
+    try select.concurrent(.timeout, std.Io.sleep, .{ t.io, .fromSeconds(10), .awake });
+    try select.concurrent(.ready, std.Io.Event.wait, .{ event, t.io });
+    switch (try select.await()) {
+        .ready => |result| try result,
+        .timeout => |result| {
+            try result;
+            return error.ProgressTimeout;
+        },
+    }
+}
+
+test "paused private object sync permits native reads and quota-reserved control publication" {
+    const Gate = struct {
+        var real: *const std.Io.VTable = undefined;
+        var armed: std.atomic.Value(bool) = .init(false);
+        var entered: std.Io.Event = .unset;
+        var release: std.Io.Event = .unset;
+
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (armed.swap(false, .acq_rel)) {
+                entered.set(t.io);
+                try release.wait(t.io);
+            }
+            return real.fileSync(context, file);
+        }
+
+        fn control(owner: *backend.Backend, done: *std.Io.Event) !void {
+            defer done.set(t.io);
+            var bytes: [32]u8 = undefined;
+            try t.expectEqualStrings("already durable", try owner.read("ready", &bytes));
+            var data: backend.DataStore = .{ .backend = owner };
+            try t.expect(try data.objects().head("ready") != null);
+            try t.expectEqualStrings("already durable", try data.objects().getRange("ready", 0, bytes.len, &bytes));
+            try t.expect(try data.objects().head("private") == null);
+            var pages = try backend.PageStore.init(owner, 1);
+            defer pages.deinit();
+            var journal: backend.Store = .{ .backend = owner };
+            var engine = try Engine.open(&journal, &pages, try genesis());
+            try t.expectEqual(@as(u64, 0), (try engine.principal(0)).sequence);
+            // The paused write has already reserved its bytes. Other staging
+            // still obeys the data quota; control publication uses its reserve.
+            try owner.mutex.lock(owner.io);
+            const limits = owner.limits;
+            owner.limits.bytes = owner.allocated;
+            owner.mutex.unlock(owner.io);
+            defer {
+                owner.mutex.lockUncancelable(owner.io);
+                owner.limits = limits;
+                owner.mutex.unlock(owner.io);
+            }
+            try t.expectError(error.StorageQuota, owner.put("over-quota", "data", false));
+            _ = try submit(&engine, .{ .checkpoint = {} });
+            try t.expectEqual(@as(u64, 2), try journal.tail());
+        }
+    };
+    Gate.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Gate.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    {
+        var owner = try backend.Backend.open(t.allocator, io, tmp.dir, "native", .{});
+        defer owner.deinit();
+        var pages = try backend.PageStore.init(&owner, 1);
+        defer pages.deinit();
+        var journal: backend.Store = .{ .backend = &owner };
+        _ = try Engine.bootstrap(&journal, &pages, try genesis());
+        try owner.put("ready", "already durable", false);
+        Gate.armed.store(true, .release);
+        var writer = try t.io.concurrent(backend.Backend.put, .{ &owner, "private", "staged bytes", false });
+        defer _ = writer.cancel(t.io) catch {};
+        defer Gate.release.set(t.io);
+        try waitFor(&Gate.entered);
+        var done: std.Io.Event = .unset;
+        var control = try t.io.concurrent(Gate.control, .{ &owner, &done });
+        defer _ = control.cancel(t.io) catch {};
+        try waitFor(&done);
+        try control.await(t.io);
+        try t.expect(!Gate.release.isSet());
+        Gate.release.set(t.io);
+        try writer.await(t.io);
+    }
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.open(&journal, &pages, try genesis());
+    try t.expectEqual(@as(u64, 1), (try engine.principal(0)).sequence);
+    var bytes: [32]u8 = undefined;
+    try t.expectEqualStrings("staged bytes", try owner.read("private", &bytes));
+    try t.expect(try owner.objects.objectStore().head("over-quota") == null);
+}
+
 test "native publication survives a lost reply and restart without repeating accepted work" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

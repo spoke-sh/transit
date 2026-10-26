@@ -55,6 +55,50 @@ test "concurrent local publishers have exactly one winner for each precondition"
     try t.expectEqualStrings(if (left) "first" else "second", try a.objectStore().getRange("manifest/race", 0, out.len, &out));
 }
 
+test "one disk facade supports concurrent publishers and counts completed reads" {
+    const Worker = struct {
+        fn run(store: *Store, start: *std.Io.Event, id: usize) anyerror!bool {
+            try start.wait(t.io);
+            var key: [32]u8 = undefined;
+            const path = try std.fmt.bufPrint(&key, "independent/{d}", .{id});
+            _ = try store.objectStore().putImmutable(path, "bytes", hash("bytes"));
+            // Same-key immutable retries retain one value; conditional writers
+            // still have one winner even when they share a facade and counters.
+            _ = try store.objectStore().putImmutable("shared", "bytes", hash("bytes"));
+            const won = try store.objectStore().putConditional("head", .if_none_match, "bytes");
+            var out: [5]u8 = undefined;
+            try t.expectEqualStrings("bytes", try store.objectStore().getRange(path, 0, out.len, &out));
+            try t.expectEqualStrings("bytes", try store.objectStore().getRange("shared", 0, out.len, &out));
+            return won;
+        }
+    };
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var store = try open(tmp.dir);
+    defer store.deinit();
+    var start: std.Io.Event = .unset;
+    var workers: [8]std.Io.Future(anyerror!bool) = undefined;
+    var count: usize = 0;
+    defer for (workers[0..count]) |*worker| {
+        _ = worker.cancel(t.io) catch {};
+    };
+    defer start.set(t.io);
+    for (&workers, 0..) |*worker, id| {
+        worker.* = try t.io.concurrent(Worker.run, .{ &store, &start, id });
+        count += 1;
+    }
+    start.set(t.io);
+    var winners: usize = 0;
+    for (&workers) |*worker| winners += @intFromBool(try worker.await(t.io));
+    try t.expectEqual(@as(usize, 1), winners);
+    try t.expectEqual(@as(u64, 16), store.puts);
+    try t.expectEqual(@as(u64, 1), store.conditional_puts);
+    try t.expectEqual(@as(u64, 7), store.conditional_conflicts);
+    try t.expectEqual(@as(u64, 16), store.range_reads);
+    try t.expectEqual(@as(u64, 85), store.bytes_written);
+    try t.expectEqual(@as(u64, 80), store.bytes_read);
+}
+
 test "immutable identity and conditional kind survive restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

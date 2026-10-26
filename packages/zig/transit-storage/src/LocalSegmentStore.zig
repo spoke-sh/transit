@@ -22,6 +22,11 @@ pub const LocalSegmentStore = struct {
     allocator: std.mem.Allocator,
     disk: ?*Disk = null,
     objects: std.ArrayList(StoredObject) = .empty,
+    /// Disk operations serialize by key in DiskObjects. Only their completed
+    /// attempt counters share this mutex; no object I/O runs under it. Inspect
+    /// counters and deinitialize after joining callers. Memory mode remains
+    /// caller-serialized.
+    counters_mutex: std.Io.Mutex = .init,
     puts: u64 = 0,
     conditional_puts: u64 = 0,
     conditional_conflicts: u64 = 0,
@@ -82,6 +87,8 @@ pub const LocalSegmentStore = struct {
     ) !TransitObjectStore.ObjectMeta {
         if (self.disk) |disk| {
             const meta = try disk.putImmutable(key, bytes, expected_sha256);
+            self.counters_mutex.lockUncancelable(disk.io);
+            defer self.counters_mutex.unlock(disk.io);
             self.puts += 1;
             self.bytes_written += bytes.len;
             return meta;
@@ -123,6 +130,8 @@ pub const LocalSegmentStore = struct {
     ) !bool {
         if (self.disk) |disk| {
             const accepted = try disk.putConditional(key, condition, bytes);
+            self.counters_mutex.lockUncancelable(disk.io);
+            defer self.counters_mutex.unlock(disk.io);
             if (accepted) {
                 self.conditional_puts += 1;
                 self.bytes_written += bytes.len;
@@ -186,6 +195,8 @@ pub const LocalSegmentStore = struct {
     ) ![]const u8 {
         if (self.disk) |disk| {
             const bytes = try disk.read(key, offset, length, out);
+            self.counters_mutex.lockUncancelable(disk.io);
+            defer self.counters_mutex.unlock(disk.io);
             self.range_reads += 1;
             self.bytes_read += bytes.len;
             return bytes;

@@ -101,24 +101,24 @@ pub fn reserve(self: *Self, bytes: usize, control: bool) !void {
 }
 
 pub fn put(self: *Self, key: []const u8, bytes: []const u8, control: bool) !void {
-    try self.mutex.lock(self.io);
-    defer self.mutex.unlock(self.io);
     const store = self.objects.objectStore();
     if (try store.head(key) == null) {
         // Payload, checksum chunks, descriptor and bounded publication overhead.
+        // Concurrent missing-key observations can reserve twice. Keep both
+        // reservations until reopen rather than undercount uncertain staging.
         const checks = std.math.divCeil(usize, bytes.len, 64 * 1024) catch unreachable;
+        try self.mutex.lock(self.io);
+        defer self.mutex.unlock(self.io);
         try self.reserve(bytes.len + checks * 32 + 1024, control);
     }
+    // Private immutable publication is per-key. Disk syncs must not hold the
+    // quota/journal mutex or delay unrelated native reads and control work.
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     _ = try store.putImmutable(key, bytes, digest);
 }
 
 pub fn read(self: *Self, key: []const u8, output: []u8) ![]const u8 {
-    // Immutable contents are safe to read outside the log/allocator mutex.
-    // LocalSegmentStore counters are mutable, so serialize its facade as well.
-    try self.mutex.lock(self.io);
-    defer self.mutex.unlock(self.io);
     const store = self.objects.objectStore();
     const metadata = try store.head(key) orelse return error.MissingStorageObject;
     if (metadata.size > output.len) return error.StorageObjectTooLarge;

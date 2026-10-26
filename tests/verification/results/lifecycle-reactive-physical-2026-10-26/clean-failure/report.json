@@ -1,0 +1,32 @@
+{
+  "revision": "717f5579362a1135d0623668faa6a58f3788c6b9",
+  "complete": false,
+  "passed_tasks": 4,
+  "failed_task": "test::reactive-browser",
+  "failed_seconds": 285.32,
+  "total_seconds": 2854.08,
+  "failure": "Original serving operation1 remains service_admitted at the10-second completion deadline; capacity rejections and slow native calls. No replacement submitted. Original serving fixture deleted its temporary directory after failure, so full native state is unavailable.",
+  "not_run": [
+    "test::reactive-views",
+    "test::reactive-views-lifecycle"
+  ],
+  "retained_clone": "/var/tmp/transit-ci-hequxq0w/src",
+  "files": {
+    "browser.json": {
+      "bytes": 580,
+      "sha256": "664b5f3f18796fb8263d965df1fbe54669a8273728db14b3ee1d666df7d91981"
+    },
+    "browser.meta.json": {
+      "bytes": 1173,
+      "sha256": "6956ca056a133f84268f47d8b805c8b41d01768a7dca6d15e10f2dec4e37394e"
+    },
+    "clean.json": {
+      "bytes": 551,
+      "sha256": "f77de2062bcedf69d15a42e3925590b6047718d601bdfb598dde9bfaba6817c3"
+    },
+    "clean.log.gz": {
+      "bytes": 11352,
+      "sha256": "7ec167649fab477be5a652be8e80395434d85adf4ef867e85358fb00a5c93ebd"
+    }
+  }
+}
