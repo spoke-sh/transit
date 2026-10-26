@@ -56,23 +56,11 @@ let
       ''
     ) dependencies}
   '';
-  src = lib.fileset.toSource {
+  sources = import ./build-sources.nix {
+    inherit lib;
     root = ../.;
-    fileset = lib.fileset.unions [
-      ../build.zig
-      ../build.zig.zon
-      ../apps
-      ../packages
-      ../third_party
-      ../tests
-      (lib.fileset.difference ../examples ../examples/station-sdk)
-      ../tasks
-      ../contracts
-      ../package.json
-      ../pnpm-lock.yaml
-      ../pnpm-workspace.yaml
-    ];
   };
+  src = sources.runtime;
   # Match package.json exactly so Vite+ never bootstraps a package manager in
   # the network-isolated asset build. This does not change the developer shell.
   frontendPnpm = pnpm.override {
@@ -84,14 +72,14 @@ let
     pnpm = frontendPnpm;
     pname = "transit-board";
     version = "0.1.0";
-    inherit src;
+    src = sources.frontendDependencies;
     fetcherVersion = 3;
     hash = "sha256-4BLKRRPbJSCXwxrBCHlJ380XpiPmT7gg9MerGRAt3g4=";
   };
   boardAssets = stdenvNoCC.mkDerivation {
     pname = "transit-board-assets";
     version = "0.1.0";
-    inherit src;
+    src = sources.boardAssets;
     nativeBuildInputs = [
       python3
       zstd
