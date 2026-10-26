@@ -15,6 +15,10 @@ storage-segments:
     cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg --summary all
     cd packages/zig/transit-storage && zig build test -Dtest-filter="Table segment ranges" --summary all
 
+# Real process death at WAL append/fence/trim and object publication boundaries.
+local-storage-faults:
+    zig build test-local-storage-faults -Doptimize=ReleaseSafe
+
 # Full-key pages, retained intervals, collation order, signing and owned decoding.
 storage-key-ranges:
     cd packages/zig/transit-storage && zig build test -Dtest-filter="ordered full key" -Dtest-filter="Table index batches" -Dtest-filter="retained Table key ranges" -Dtest-filter="Table recovery" -Dtest-filter="Table segment ranges" --summary all

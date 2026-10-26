@@ -95,6 +95,14 @@ The root unit task also launches three races of twelve independent processes and
 checks their results against a Python oracle. Descriptor deletion unpublishes the
 key; physical content collection still requires retained-reader/pin ownership.
 
+`just test::local-storage-faults` kills real local owner processes at WAL
+append/fence/trim and object-publication boundaries. Fresh processes verify data,
+epochs, trim floors and exact object retries against an independent Python
+oracle. The root unit task includes this proof. Repeating an already-published
+WAL trim boundary finishes interrupted prefix removal. These schedules preserve
+the operating system and its page cache; they do not simulate power loss or
+disk exhaustion. See the [proof ledger](../../../tests/README.md#local-storage-process-death-boundaries--2026-10-26).
+
 Standalone `TableMemtable` recovery consumes every bounded WAL page through its captured frontier and
 checks contiguous history and schema identity. An incomplete recovery blocks
 reads and mutations until successful recovery. The component owns its schema

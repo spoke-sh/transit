@@ -136,6 +136,12 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 - SQL inequality pushdown, encoded/pruned execution, cross-segment performance
   controls, retained checkpoint/maintenance and native-owner obligations remain
   open. A passing Table range test does not close #113–#118 or #123–#128.
+- Local process-death schedules cover WAL append/fence publication, interrupted
+  partial/full trimming and conditional/immutable object publication. Retrying a
+  persisted trim boundary resumes physical prefix removal. The
+  [scoped proof](../../tests/README.md#local-storage-process-death-boundaries--2026-10-26)
+  advances #113/#114; disk-full/I/O schedules, retention-owner integration and
+  retained-root/orphan collection remain open.
 
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,

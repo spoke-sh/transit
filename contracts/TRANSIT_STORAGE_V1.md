@@ -270,8 +270,11 @@ does not turn existing segments into a new empty partition.
 
 Epoch fences persist even without an append. Trim persists the exclusive floor
 and frontier before removing complete prefix segments; a partially covered
-segment remains until a later trim. Trimming every frame preserves the next LSN
-and epochs. Retention authority must establish checkpoint, receipt, pin and
+segment remains until a later trim. Repeating the persisted floor resumes prefix
+segment removal after interruption, including when the whole log is trimmed.
+It does not advance the floor or grant permission to remove retained frames.
+Trimming every frame preserves the next LSN and epochs.
+Retention authority must establish checkpoint, receipt, pin and
 logical-history coverage before calling trim. Disk pressure grants no permission
 to trim, and this backend does not implement that higher-level retention owner.
 

@@ -1885,6 +1885,29 @@
       "qualification": "Executed disk/core scopes are recorded in tests/README.md; broader service and clean-CI gates are separate."
     },
     {
+      "id": "STORAGE-02",
+      "claim": "Process death at local publication boundaries preserves accepted WAL history and fences, resumable authorized trim and complete object descriptors",
+      "owner": "contracts/TRANSIT_STORAGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/DiskWal.zig",
+        "packages/zig/transit-storage/src/DiskObjects.zig"
+      ],
+      "profile": "Current native v1; local POSIX WAL and object store",
+      "tasks": [
+        "test::unit",
+        "test::local-storage-faults"
+      ],
+      "scenarios": [
+        "SIGKILL after partial WAL write, file/directory sync, metadata publication and completed acknowledgement",
+        "Fresh owners preserve fences, retained payloads and successor LSNs; competing WAL owners reject",
+        "Partial and whole-log trim resumes after floor publication and interrupted segment deletion",
+        "Conditional and immutable object publication at each sync/descriptor boundary with independently hashed values and exact retries"
+      ],
+      "limits": "Process death preserves the operating system and page cache. No host power loss, disk-full, filesystem rollback, automatic retention authority or orphan collection guarantee.",
+      "model": null,
+      "qualification": "Focused execution and the original failing trim schedule are recorded in tests/README.md; complete clean lanes remain separate gates."
+    },
+    {
       "id": "SQL-SESSION-01",
       "claim": "Authenticated native and database-wire sessions share account ownership while durable operations outlive session/transport loss and every protected disclosure rechecks current rights",
       "owner": "contracts/SQL_SESSION_V1.md",

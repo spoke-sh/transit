@@ -19037,6 +19037,44 @@ missing/foreign definitions and noncanonical numeric strings reject. Logs are
 Physical acquisition, installed SDK extensions and comparative performance
 remain separate qualification gates.
 
+## Local storage process-death boundaries — 2026-10-26
+
+`nix develop --command just test::local-storage-faults` passes 42 SIGKILL
+schedules on Linux x86_64 after rebasing onto `2be8eab3`. The root unit task also
+runs the [Zig owner fixture](local_storage_faults.zig) and
+[independent Python oracle](local_storage_faults.py). A child completes real
+filesystem operations, signals the selected boundary and waits on a private
+pipe. The parent verifies it remains alive, kills it without cleanup and opens a
+fresh owner. EOF, a missing boundary or an unexpected child exit fails the proof.
+
+The 26 WAL schedules cover a 13-byte incomplete append, frame and directory
+syncs, metadata rename/sync, durable fencing, partial and whole-log trim, each
+prefix-file deletion and completed acknowledgement. Every schedule checks
+exclusive ownership while the original owner remains alive. Fresh readers check
+literal accepted payloads and exact LSNs/epochs; Python independently decodes
+and hashes the persisted metadata. Complete unacknowledged frames remain
+uncertain recoverable work, while the incomplete tail never becomes an accepted
+row. Repeated trims remove exactly the eligible files, preserve retained reads
+and the next LSN, and allow a successor append after reopening.
+
+The original trim implementation fails the schedule killed immediately after
+publishing its floor: the repeated boundary returns success while an obsolete
+prefix segment still exists. The correction resumes physical removal when the
+requested boundary equals the persisted floor. It preserves the existing
+authorization precondition and uncertainty/reopen gate; it neither advances that
+floor nor changes persisted bytes or the shared contract definition.
+
+The 16 object schedules cover conditional replacement and immutable creation at
+all six syncs, descriptor publication and completed acknowledgement. Fresh
+public reads must return the complete old or new value as appropriate, with
+independently computed size and SHA-256. Retrying the original condition/content
+preserves the published result, and a conflicting immutable value rejects.
+
+These are process-death tests with the operating system and page cache retained.
+They do not establish power-loss recovery, disk exhaustion, filesystem rollback,
+automatic Table retention, retained-root/orphan collection or performance.
+Full repository and committed-source CI qualification remain separate gates.
+
 ## Captured local file queries
 
 `just test::file-query` passes 83 cases against the real `transit` executable on

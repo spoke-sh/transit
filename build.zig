@@ -340,6 +340,19 @@ pub fn build(b: *std.Build) void {
     local_objects_test.stdio = .inherit;
     test_step.dependOn(&local_objects_test.step);
     b.step("test-local-objects", "Qualify local object CAS and immutable publication across processes").dependOn(&local_objects_test.step);
+    const local_faults = b.addExecutable(.{ .name = "transit-local-storage-faults", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/local_storage_faults.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_storage", .module = storage.module("transit_storage") }},
+    }) });
+    const local_faults_test = b.addSystemCommand(&.{ "python3", "-B" });
+    local_faults_test.addFileArg(b.path("tests/local_storage_faults.py"));
+    local_faults_test.addArtifactArg(local_faults);
+    local_faults_test.has_side_effects = true;
+    local_faults_test.stdio = .inherit;
+    test_step.dependOn(&local_faults_test.step);
+    b.step("test-local-storage-faults", "Verify process death at local WAL and object publication boundaries").dependOn(&local_faults_test.step);
     const unified_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     unified_contract_test.addFileArg(b.path("tests/unified_contract.py"));
     unified_contract_test.has_side_effects = true;
