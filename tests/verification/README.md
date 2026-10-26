@@ -448,6 +448,12 @@ safety and replays four removed-guard counterexamples against the real engine.
 `just test::model` is part of the bindings lane so ordinary core/frontend checks
 do not acquire a Java dependency. Its tools use the existing nixpkgs lock.
 
+`just test::wal-model` checks the exclusive local WAL publication/recovery model
+in the bindings lane. It requires exhaustive finite safety exploration and six
+named negative controls. Disk regressions separately check recovery sync ordering;
+there is no automatic model-to-Zig trace replay or power-loss experiment. See the
+[model guide](models/README.md#finite-local-wal-model).
+
 `just test::console-model` checks the finite editor interaction/request model in
 the same bindings lane. Every exported edge is replayed against the production
 Zig reducer from a shortest representative path, with state and effect comparison.

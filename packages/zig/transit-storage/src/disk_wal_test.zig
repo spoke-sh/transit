@@ -371,6 +371,121 @@ test "disk sync errors poison WAL owners and preserve complete uncertain work" {
     }
 }
 
+test "disk recovery syncs complete uncertain frames before publishing a usable frontier" {
+    const Fault = struct {
+        var real: std.Io = undefined;
+        var remaining: usize = 0;
+        var seen_frame: bool = false;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (remaining != 0) {
+                var magic: [4]u8 = undefined;
+                const length = file.readPositionalAll(real, &magic, 0) catch 0;
+                if (length == magic.len and std.mem.eql(u8, &magic, "TWAL")) seen_frame = true;
+                if (seen_frame) {
+                    remaining -= 1;
+                    if (remaining == 0) return error.InputOutput;
+                }
+            }
+            return real.vtable.fileSync(context, file);
+        }
+        fn arm(count: usize) void {
+            remaining = count;
+            seen_frame = false;
+        }
+    };
+    Fault.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    for ([_]usize{ 192, 4096 }) |segment_bytes| for (1..3) |failure| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        const options: Wal.DiskOptions = .{ .segment_bytes = segment_bytes };
+        {
+            var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options);
+            defer wal.deinit();
+            _ = try wal.log().append(1, 0, 1, 1, .row_delta, "accepted");
+            Fault.arm(1);
+            try t.expectError(error.InputOutput, wal.log().append(1, 1, 2, 3, .row_delta, "uncertain"));
+        }
+        // The complete second frame is visible but its sync failed. Reopening
+        // must sync its file and directory before a fence or later append can
+        // make metadata depend on it. This checks ordering, not host power loss.
+        Fault.arm(failure);
+        if (Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options)) |value| {
+            var unexpected = value;
+            unexpected.deinit();
+            return error.TestExpectedError;
+        } else |err| try t.expectEqual(error.InputOutput, err);
+        try t.expectEqual(@as(usize, 0), Fault.remaining);
+        var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        try t.expectEqual(@as(u64, 2), try wal.log().tail(1));
+        try wal.log().fence(1, 4, 5);
+        _ = try wal.log().append(1, 2, 4, 5, .row_delta, "successor");
+        var batch = try wal.log().read(t.allocator, 1, 0, 8);
+        defer batch.deinit();
+        try t.expectEqual(@as(usize, 3), batch.frames.len);
+        try t.expectEqualStrings("uncertain", batch.frames[1].payload);
+        try t.expectEqualStrings("successor", batch.frames[2].payload);
+    };
+}
+
+test "disk opening syncs observed metadata before resumed prefix deletion" {
+    const Fault = struct {
+        var real: std.Io = undefined;
+        var directory_inode: std.Io.File.INode = 0;
+        var reject_directory: bool = false;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (reject_directory) {
+                const stat = file.stat(real) catch return error.InputOutput;
+                if (stat.kind == .directory and stat.inode == directory_inode) {
+                    reject_directory = false;
+                    return error.InputOutput;
+                }
+            }
+            return real.vtable.fileSync(context, file);
+        }
+    };
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    Fault.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    const options: Wal.DiskOptions = .{ .segment_bytes = Log.alignedFrameSize(8) };
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        _ = try wal.log().append(1, 0, 1, 1, .row_delta, "first");
+        _ = try wal.log().append(1, 1, 1, 1, .row_delta, "retained");
+        const dir = try tmp.dir.openDir(t.io, "wal", .{ .iterate = true });
+        defer dir.close(t.io);
+        const file: std.Io.File = .{ .handle = dir.handle, .flags = .{ .nonblocking = false } };
+        Fault.directory_inode = (try file.stat(t.io)).inode;
+        Fault.reject_directory = true;
+        // The new floor is visible after rename; its directory sync fails.
+        try t.expectError(error.InputOutput, wal.log().trim(1, 1));
+        try t.expect(!Fault.reject_directory);
+    }
+    Fault.reject_directory = true;
+    if (Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options)) |value| {
+        var unexpected = value;
+        unexpected.deinit();
+        return error.TestExpectedError;
+    } else |err| try t.expectEqual(error.InputOutput, err);
+    try t.expect(!Fault.reject_directory);
+    var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options);
+    defer wal.deinit();
+    try wal.log().trim(1, 1);
+    try t.expectError(error.FileNotFound, tmp.dir.openFile(t.io, "wal/part-1-0.twal", .{}));
+    var retained = try wal.log().read(t.allocator, 1, 1, 1);
+    defer retained.deinit();
+    try t.expectEqualStrings("retained", retained.frames[0].payload);
+}
+
 test "disk space errors preserve accepted WAL bytes and uncertain complete frames" {
     const Fault = struct {
         var real: std.Io = undefined;

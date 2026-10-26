@@ -21,7 +21,7 @@ local-storage-faults:
 
 # Disk owner error propagation with real partial writes and injected syscall failures.
 storage-io-faults:
-    cd packages/zig/transit-storage && zig build test -Dtest-filter="disk space errors" -Dtest-filter="disk sync errors" -Dtest-filter="object write errors" -Dtest-filter="object publication sync failures" --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="disk space errors" -Dtest-filter="disk sync errors" -Dtest-filter="disk recovery syncs complete" -Dtest-filter="disk opening syncs observed metadata" -Dtest-filter="object write errors" -Dtest-filter="object publication sync failures" --summary all
 
 # Full-key pages, retained intervals, collation order, signing and owned decoding.
 storage-key-ranges:
@@ -185,6 +185,10 @@ scale *args:
 # Bounded formal exploration and negative controls; tools use the locked nixpkgs.
 model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-model -- {{args}}
+
+# Local WAL durability ordering, bounded exhaustive safety and six negative controls.
+wal-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/verification/wal_model.py {{args}}
 
 # Finite editor model, every exported edge replayed against production Zig,
 # removed-guard controls and borrower release under explicit fairness.
