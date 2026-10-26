@@ -1,4 +1,4 @@
-# 20. Versioned proposals and reviewed publication
+# 21. Versioned proposals and reviewed publication
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,8 +10,8 @@ sharing do not require merging.
 ## Prerequisites and scope
 
 Use [branch and merge primitives](12-branches-merges-and-restore.md),
-[actor/delegation policy](18-control-and-policy-plane.md) and
-[published resources/investigation bases](19-published-resources-and-investigations.md).
+[actor/delegation policy](19-control-and-policy-plane.md) and
+[published resources/investigation bases](20-published-resources-and-investigations.md).
 Branching is the underlying data primitive. A higher-level project/application
 fork relationship, independent export and cross-realm collaboration require
 separate contracts and are excluded from this milestone.
@@ -52,10 +52,20 @@ separate contracts and are excluded from this milestone.
 6. **Provide shared comparison and review operations.** Build bounded diff,
    evidence and impact operations usable without a browser. Qualify the proposal,
    approval and publication journeys through public callers here.
-   [Board reimplementation](21-board-reimplementation.md) owns the complete
+   [Board reimplementation](22-board-reimplementation.md) owns the complete
    browser comparison and review experience over these same operations. UI
    reviews belong in the registered Design sequence; Board inspection stays
    read-only and application review actions use separate authorized capabilities.
+
+## Formal model follow-through
+
+Own the [T6/A4/A6 reviewed-publication extensions](14-formal-semantics-and-correspondence.md#later-ownership-and-extensions)
+after the proposal and approval contract settles. Model frozen candidate/target,
+withdrawal, target movement, reviewer revocation and uncertain publication.
+Connect selected checks to the real policy and publication owners, including
+agent attempts to borrow human approval and equivalent direct-write bypasses.
+Record explicit assumptions and deferrals. Local merge algebra alone proves
+neither current approval authority nor external-effect eligibility.
 
 ## Completion evidence
 

@@ -1,4 +1,4 @@
-# 23. Reactive context, subscriptions and agent activation
+# 24. Reactive context, subscriptions and agent activation
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,9 +10,9 @@ the same versioned event without an open MCP connection owning the application.
 ## Prerequisites and scope
 
 Extend [managed computation scheduling](09-sql-and-dataflows.md),
-[published resources](19-published-resources-and-investigations.md),
-[proposal lifecycle](20-reviewed-data-collaboration.md) and the
-[MCP service](22-mcp-service-and-apps.md). Durable source/change semantics stay
+[published resources](20-published-resources-and-investigations.md),
+[proposal lifecycle](21-reviewed-data-collaboration.md) and the
+[MCP service](23-mcp-service-and-apps.md). Durable source/change semantics stay
 with their current owners; this milestone supplies consumer-specific conditions,
 context delivery and protocol projections. Reasoning loops remain applications.
 
@@ -46,6 +46,16 @@ context delivery and protocol projections. Reasoning loops remain applications.
    unless an explicit supported policy permits expiry. Preserve control capacity
    when consumers stall and prevent feedback loops from consuming unbounded work.
 
+## Formal model follow-through
+
+Extend the [T5 handoff and checkpoint candidate](14-formal-semantics-and-correspondence.md#t5-snapshot-to-history-handoff-and-consumer-checkpoints)
+when the durable-interest and activation contracts settle. Preserve the declared
+meaning of every-change capture, net changes or latest-result notification;
+check resume, duplicate application, explicit gaps and current disclosure.
+Connect selected models to production activation/recovery schedules and record
+assumptions and deferrals. A transport notification does not prove complete
+business-condition coverage or authorize an agent's subsequent action.
+
 ## Completion evidence
 
 A delivery assessment changes while the agent host is disconnected. Reattach
@@ -63,7 +73,7 @@ Extend that journey through an authorized action and a later business observatio
 Bind the initial assessment, original action identity and subsequent observation
 without replacing the original prediction. Exercise delayed, missing and
 contradictory feedback as well as known success and failure. Use the
-[observation measures](26-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+[observation measures](27-qualification-and-benchmarks.md#observation-and-consequence-evidence)
 to qualify both sides of the loop; a notification or completed tool call alone
 does not establish the application's business consequence.
 

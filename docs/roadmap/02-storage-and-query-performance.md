@@ -6,7 +6,7 @@ Replace the current B-tree-over-HTTP-stream-pages storage bottleneck with a
 four-tier storage hierarchy over two pluggable primitives (**`TransitLog`** and
 **`TransitObjectStore`**), a pure-Zig hybrid OLTP/OLAP segment format (**`.tseg`**)
 with composable physical codecs and collations, bounded native persistence and
-correct local conditional publication. [Provider/concurrent-writer qualification](14-storage-providers-and-concurrency.md)
+correct local conditional publication. [Provider/concurrent-writer qualification](15-storage-providers-and-concurrency.md)
 receives distributed-provider and partitioned-writer integration explicitly;
 its contracts are still designed with this foundation before dependent formats.
 The [performance reference](../handbook/reference/performance.md) records current
@@ -71,7 +71,7 @@ open.
 Resolve commit authority before wiring storage, establish the correct bounded
 local slice, then complete the [installed cutover](03-live-storage-and-sql-cutover.md).
 The sequencing review transfers #117/#121 implementation and distributed runtime
-qualification to [milestone 14](14-storage-providers-and-concurrency.md).
+qualification to [milestone 15](15-storage-providers-and-concurrency.md).
 #109 remains the umbrella for its original outstanding local and provider scope;
 this milestone remains In Progress. Local cross-process CAS, fencing at its
 supported authority boundary and all local recovery obligations remain here.
@@ -175,7 +175,7 @@ reopening review:
 The architecture below includes future backend choices to keep the shared
 interfaces coherent. This milestone qualifies the native local profile and
 codec/query foundation; the named distributed backends, disk range cache and
-partitioned concurrent-writer delivery belong to milestone 14. Existing helper
+partitioned concurrent-writer delivery belong to milestone 15. Existing helper
 implementations retain only their recorded component evidence.
 
 ### Two pluggable storage primitives
@@ -296,7 +296,7 @@ Vortex and Apache Arrow), paired with multi-format foreign/exchange support:
 Design control/policy, independent data/process partitions, writer epochs and
 conditional publication with #117/#125/#111 before freezing local log formats.
 Do not require every unrelated write to advance one global catalog CAS.
-[Milestone 14](14-storage-providers-and-concurrency.md) delivers enforceable
+[Milestone 15](15-storage-providers-and-concurrency.md) delivers enforceable
 provider leases, scoped credentials and integrated multi-writer OCC, including
 read/predicate validation required by the selected isolation contract. Local
 atomic publication must already be safe across independent processes; it cannot
@@ -314,7 +314,7 @@ authorized public reads; Board receives no raw provider access.
 
 Provider acknowledgement, durable-copy locations, disk/host loss and network
 partition profiles remain in [#121](https://github.com/spoke-sh/transit/issues/121)
-and [milestone 14](14-storage-providers-and-concurrency.md). This owner proves
+and [milestone 15](15-storage-providers-and-concurrency.md). This owner proves
 the declared local sync/restart profile and explicitly excludes losing the only
 durable disk. Distributed providers, cache qualification and concurrent writer
 integration have moved; local safety, native recovery, codecs and bounded
@@ -325,7 +325,7 @@ automatic placement each retain their later acceptance owners.
 
 Resolve #125/#111, #126/#127 and #128/#118 contracts before their dependent
 formats and code. Qualify the local component foundation here and the actual
-installed caller paths in milestone 3 before milestone 14 extends distributed
+installed caller paths in milestone 3 before milestone 15 extends distributed
 providers and concurrent writers. Contract collaboration can proceed early;
 each milestone closes only against its own explicit evidence.
 
@@ -353,7 +353,7 @@ each milestone closes only against its own explicit evidence.
    Measure disk-backed owner paths, attributing ingestion, WAL commit,
    Memtable/segment scans, vector execution and manifest publication separately.
    Preserve the end-to-end SQL, PostgreSQL/MySQL, Flight and SDK matched controls
-   as installed acceptance in milestone 3 and provider acceptance in milestone 14;
+   as installed acceptance in milestone 3 and provider acceptance in milestone 15;
    their observations must not be replaced by library-only measurements.
 
 ## Completion evidence

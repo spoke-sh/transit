@@ -28,7 +28,7 @@ Qualify database and existing native runtime paths together: Table/KV/Document
 operations, queries, committed change consumption, native message delivery,
 Station turns and accepted-work recovery. Use already qualified installed
 callers; broader [SDK coverage](13-service-and-sdk-coverage.md) and
-[mixed composition](25-programming-model.md) repeat the measures as they land.
+[mixed composition](26-programming-model.md) repeat the measures as they land.
 Do not make their future APIs prerequisites of this local milestone. Full
 distributed and complete TPC qualification stay with their later owners.
 
@@ -160,11 +160,11 @@ scores.
 
 [Foreign models](11-multi-model-and-foreign-relations.md),
 [branches](12-branches-merges-and-restore.md),
-[providers through clustered execution](14-storage-providers-and-concurrency.md),
-and [language composition](25-programming-model.md) extend this scorecard for their
+[providers through clustered execution](15-storage-providers-and-concurrency.md),
+and [language composition](26-programming-model.md) extend this scorecard for their
 new semantics and placements. Include index build/rebuild, historical-read and
 recovery interference rather than measuring only a steady-state hot lookup.
-The [combined qualification](26-qualification-and-benchmarks.md) owner repeats
+The [combined qualification](27-qualification-and-benchmarks.md) owner repeats
 database and runtime comparisons with the complete supported system and full
 benchmark drivers. It does not defer earlier measurement or regression gates.
 Publish supported limits and reproduced findings in the existing performance,

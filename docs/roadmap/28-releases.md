@@ -1,4 +1,4 @@
-# 27. Release distribution
+# 28. Release distribution
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -6,7 +6,7 @@ Publish a qualified tagged revision with one artifact/compatibility manifest.
 Existing [Nix packages](../../nix/README.md) and
 [source onboarding](../handbook/guides/quickstart.md) are the baseline, not a release pipeline.
 
-Consume the qualified [operations and upgrade procedures](16-operations-and-recovery.md).
+Consume the qualified [operations and upgrade procedures](17-operations-and-recovery.md).
 This milestone packages and verifies their installation experience; operational
 recovery, compatibility and conversion semantics remain with that owner.
 
@@ -22,7 +22,7 @@ recovery, compatibility and conversion semantics remain with that owner.
    ownership and failure/rollback policy.
 4. Package SDKs/libraries with generated resources and native dependency closure.
    Test consumers outside the checkout, including the qualified
-   [direct-client, Station and mixed programming models](25-programming-model.md).
+   [direct-client, Station and mixed programming models](26-programming-model.md).
    An ordinary data-client installation must not require the optional Station
    runner artifact; each release advertises its actual operation/language matrix.
 5. Publish matching handbook/specifications and test installed startup, SQL access,
@@ -30,7 +30,7 @@ recovery, compatibility and conversion semantics remain with that owner.
    application installation and compatible worker replacement. State the released
    object kinds and lifecycle capabilities explicitly; an installed server alone
    does not complete onboarding.
-   Include the qualified [Board workbench](21-board-reimplementation.md) and
+   Include the qualified [Board workbench](22-board-reimplementation.md) and
    its embedded assets: exercise catalog discovery, bounded preview, a saved
    workbook and configured review capabilities from the installed package
    without checkout assets, a frontend development server or CDN dependencies.
@@ -47,7 +47,7 @@ retryable without replacing immutable artifacts. Installed commands work at the
 documented prefixes without development-shell state.
 
 Require matching artifacts, platform smoke tests, notices and the selected
-[qualification evidence](26-qualification-and-benchmarks.md). Explain fresh
+[qualification evidence](27-qualification-and-benchmarks.md). Explain fresh
 installation versus incompatible upgrade, preserve revocations and reject
 mismatches before execution. Application revisions remain separate from runtime
 upgrades.

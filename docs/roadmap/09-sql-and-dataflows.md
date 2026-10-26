@@ -106,7 +106,7 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
 
 ## Prerequisites and completion
 
-The later [reactive context milestone](23-reactive-context-and-agent-activation.md)
+The later [reactive context milestone](24-reactive-context-and-agent-activation.md)
 uses this scheduling and completed-result evidence for business conditions,
 durable application interests and MCP subscriptions/tasks. This owner supplies
 computation progress; a changed source or delivered notification alone cannot

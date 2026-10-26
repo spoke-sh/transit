@@ -1,4 +1,4 @@
-# 21. Board reimplementation and data-first workbench
+# 22. Board reimplementation and data-first workbench
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -34,8 +34,8 @@ interaction questions remain in the [design sequence](../design/board-data/READM
 ## Prerequisites and delivery position
 
 Place this milestone after
-[versioned proposals and reviewed publication](20-reviewed-data-collaboration.md)
-and before [MCP service and interactive Apps](22-mcp-service-and-apps.md).
+[versioned proposals and reviewed publication](21-reviewed-data-collaboration.md)
+and before [MCP service and interactive Apps](23-mcp-service-and-apps.md).
 The full workbench needs the same investigation, proposal and publication
 contracts that agent hosts will consume. Delivering the human interface first
 provides a concrete caller for those workflows and their failure states.
@@ -47,8 +47,8 @@ frontend or API as an intermediary.
 | Stable objects, definitions and installed data lifecycles | [Identities](01-declarative-data-lifecycle.md), [live cutover](03-live-storage-and-sql-cutover.md) | Authorized catalog discovery and bounded metadata with distinct definitions, data revisions and observed progress |
 | Typed results, transactions and caller recovery | [Statement results](04-statement-results-and-consumption.md), [transactions](05-transactions-and-atomic-composition.md), [client foundation](06-client-foundation-and-language-apis.md), [interface coverage](13-service-and-sdk-coverage.md) | Shared readers, explicit transaction attribution and original-operation settlement; no browser-only result or recovery protocol |
 | Historical interpretation, derived computation and multi-model data | [Historical catalogs](07-standards-and-catalogs.md), [managed dataflows](09-sql-and-dataflows.md), [foreign relations](11-multi-model-and-foreign-relations.md) | Exact result bases, accepted projections/decoders, five-state values and registered lineage; no raw storage inspection or arbitrary application-value decoding |
-| Branches, policy and comparable investigations | [Branches](12-branches-merges-and-restore.md), [Control & Policy Plane](18-control-and-policy-plane.md), [published resources](19-published-resources-and-investigations.md) | Exact comparison inputs, authorized disclosure and retained investigation lifetimes; a screen label grants no access or retention |
-| Review and conditional publication | [Reviewed publication](20-reviewed-data-collaboration.md) | Candidate-bound evidence, configured approval policy, conditional publication and uncertain-outcome recovery |
+| Branches, policy and comparable investigations | [Branches](12-branches-merges-and-restore.md), [Control & Policy Plane](19-control-and-policy-plane.md), [published resources](20-published-resources-and-investigations.md) | Exact comparison inputs, authorized disclosure and retained investigation lifetimes; a screen label grants no access or retention |
+| Review and conditional publication | [Reviewed publication](21-reviewed-data-collaboration.md) | Candidate-bound evidence, configured approval policy, conditional publication and uncertain-outcome recovery |
 | Indexes, plans and measured costs | [Indexing](08-indexing-and-access-paths.md), [performance](10-data-structures-and-performance.md) | Shared definitions, build/coverage state, access paths and attributable metrics; statistics and estimates never establish result truth or administrative authority |
 
 The linear position is the full-product completion gate, not a reason to defer
@@ -62,7 +62,7 @@ backend operations by transferring its required workflows to a later milestone.
 Preserve the private shared-scope inspection profile. Enterprise identity and
 review capabilities are separately enabled profiles, not prerequisites for
 opening a local catalog or querying a supported dataset. Later
-[reactive context](23-reactive-context-and-agent-activation.md), outbound MCP and
+[reactive context](24-reactive-context-and-agent-activation.md), outbound MCP and
 complete mixed-language composition are not prerequisites for this cutover.
 Existing qualified finite Live behavior remains supported; broader subscriptions
 or agent activation require their own contracts.
@@ -180,7 +180,7 @@ Record executed component/service/browser evidence in [the proof ledger](../../t
 with independently reproducible fixtures and actual source revisions. Updated
 screenshots must come from the installed implementation and match its qualified
 states. Focused Board proofs close here; later
-[combined qualification](26-qualification-and-benchmarks.md) repeats the cross-caller
+[combined qualification](27-qualification-and-benchmarks.md) repeats the cross-caller
 journeys at one release revision and does not postpone these acceptance gates.
 
 ## Ownership boundaries

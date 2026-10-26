@@ -1,4 +1,4 @@
-# 14. Storage providers and concurrent-writer qualification
+# 15. Storage providers and concurrent-writer qualification
 
 [Roadmap](README.md) · [Storage tracker #109](https://github.com/spoke-sh/transit/issues/109) · **Status:** Planned
 
@@ -69,6 +69,16 @@ milestone 2 obligations; this split cannot excuse an unsafe local implementation
    using #76/#124 without confusing a provider's replication with complete
    Transit failover.
 
+## Formal model follow-through
+
+Extend the [formalization milestone's T1/T7 candidates](14-formal-semantics-and-correspondence.md#later-ownership-and-extensions)
+after selecting each provider's durability and fencing contract. Model actual
+log/object publication and current-policy enforcement, delayed stale-writer
+requests and recovery with missing objects. Establish the provider assumptions
+required by reused local proofs and connect selected models to production
+fault schedules. Record explicit scope decisions for deferred candidates;
+finite model success does not qualify a provider's physical durability.
+
 ## Completion evidence and later owners
 
 Qualify [index maintenance and coverage](08-indexing-and-access-paths.md) through
@@ -89,10 +99,10 @@ branch/snapshot reachability and native input/state/output/effect evidence.
 Retained datasets, manifests, caches and consumer history must exceed resident
 budgets; report memory, I/O, amplification, rebase work and latency separately.
 
-[Replication](15-replication-and-failover.md) follows this owner and qualifies
+[Replication](16-replication-and-failover.md) follows this owner and qualifies
 complete Transit history/object coverage and safe promotion.
-[Operations](16-operations-and-recovery.md) qualifies backups and upgrades;
-[clustered execution](17-clustered-execution.md) qualifies automatic placement
+[Operations](17-operations-and-recovery.md) qualifies backups and upgrades;
+[clustered execution](18-clustered-execution.md) qualifies automatic placement
 and distributed queries. None substitutes for provider correctness here.
 Record exact provider revisions, topology, supported combinations and executed
 faults in the [proof ledger](../../tests/README.md) and public storage/deployment
