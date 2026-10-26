@@ -60,7 +60,10 @@ fn pow10(exponent: u8) i256 {
     for (0..exponent) |_| result *= 10;
     return result;
 }
-pub fn rescale(value: i256, from: u8, to: u8, rounding: Rounding) !i256 {
+// The pinned x86_64 Debug backend can load this i256 stack argument with
+// vmovdqa despite only 16-byte alignment at the call site. Keep the coefficient
+// in the caller to avoid that load while retaining checked arithmetic.
+pub inline fn rescale(value: i256, from: u8, to: u8, rounding: Rounding) !i256 {
     if (from > 76 or to > 76) return error.Overflow;
     if (to >= from) {
         const result = @mulWithOverflow(value, pow10(to - from));
