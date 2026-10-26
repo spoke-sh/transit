@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import re
 
+from task_coverage import read_recipes, validate_ownership, validate_required_tiers
+
 ROOT = Path(__file__).resolve().parents[2]
 DIRECTORY = Path(__file__).resolve().parent
 
@@ -14,27 +16,17 @@ def read(name):
     return value
 
 
-def validate(suite, invariants, limits, sdk):
+def validate(suite, invariants, limits, sdk, recipes):
     assert suite["environments"].keys() == suite["lanes"].keys(), "unowned lane environment"
     for environment in suite["environments"].values():
         assert environment["shell"] and isinstance(environment["prepare"], list)
         assert all(command and all(isinstance(arg, str) for arg in command)
                    for command in environment["prepare"]), environment
-    tasks = [task for lane in suite["lanes"].values() for task in lane]
-    assert len(tasks) == len(set(tasks)), "duplicate CI task ownership"
     for tier, lanes in suite["tiers"].items():
         assert lanes and len(lanes) == len(set(lanes)), tier
         assert set(lanes) <= suite["lanes"].keys(), tier
-    tasks += [task for group in suite["external_tasks"].values() for task in group]
-    for parent, children in suite["nested_tasks"].items():
-        assert parent in tasks and children, parent
-        tasks += children
-    for task in tasks:
-        parts = task.split("::")
-        path = ROOT / ("justfile" if len(parts) == 1 else "tasks/" + "/".join(parts[:-1]) + ".just")
-        # Nested launcher recipes live under tasks/launchers/.
-        assert path.is_file(), f"missing task owner: {task}: {path}"
-        assert re.search(r"^" + re.escape(parts[-1]) + r"(?:\s[^\n]*)?:", path.read_text(), re.M), task
+    tasks, nesting = validate_ownership(suite, recipes)
+    validate_required_tiers(suite, invariants, nesting)
     identifiers = set()
     for item in invariants["invariants"]:
         assert item["id"] not in identifiers, f"duplicate invariant: {item['id']}"
@@ -100,13 +92,14 @@ def validate(suite, invariants, limits, sdk):
 
 def main():
     suite, invariants, limits, sdk = [read(name) for name in ("suite.json", "invariants.json", "limits.json", "sdk.json")]
-    validate(suite, invariants, limits, sdk)
+    recipes = read_recipes(ROOT)
+    validate(suite, invariants, limits, sdk, recipes)
     # Fail closed on lost ownership or silently changed implementation ceilings.
     import copy
     broken = copy.deepcopy(suite)
     broken["lanes"]["core"].append("test::missing-proof")
     try:
-        validate(broken, invariants, limits, sdk)
+        validate(broken, invariants, limits, sdk, recipes)
     except AssertionError:
         pass
     else:
@@ -114,7 +107,7 @@ def main():
     broken = copy.deepcopy(limits)
     broken["limits"][0]["expression"] = "unreviewed change"
     try:
-        validate(suite, invariants, broken, sdk)
+        validate(suite, invariants, broken, sdk, recipes)
     except AssertionError:
         pass
     else:
@@ -122,7 +115,7 @@ def main():
     broken = copy.deepcopy(limits)
     broken['collections'].pop()
     try:
-        validate(suite, invariants, broken, sdk)
+        validate(suite, invariants, broken, sdk, recipes)
     except AssertionError:
         pass
     else:
@@ -130,7 +123,7 @@ def main():
     broken = copy.deepcopy(sdk)
     broken["scenarios"][0]["proofs"][0]["anchor"] = "missing SDK scenario implementation"
     try:
-        validate(suite, invariants, limits, broken)
+        validate(suite, invariants, limits, broken, recipes)
     except AssertionError:
         pass
     else:

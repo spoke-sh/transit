@@ -103,6 +103,23 @@ owners, exercised schedules and qualification limits. A null model means no
 formal model currently covers that claim. Tasks name executable checks, not an
 assertion that every possible violation is detected.
 
+`nested_tasks` records reviewed indirect execution through a build or check
+runner. `recipe_nested_tasks` records direct Just dependencies or literal task
+calls; the checker compares these with the pinned `just --dump` recipe tree.
+Both are execution ownership, not extra CI invocations. An invariant can require
+one execution of each owning task in a named `required_tier`; an available
+focused command alone does not meet that requirement. These checks validate
+the declared schedule, not arbitrary shell control flow or runtime success.
+
+The direct Table invariant requires all eight catalog task families in ordinary
+CI. Each installed SDK suite invokes its own `bindings::direct-catalog-LANGUAGE`
+task; C covers C/C++, and BEAM covers Erlang/Elixir. The focused
+`just bindings::authorization` aggregate runs the same eight tasks on demand.
+Ordinary CI omits that additional aggregate execution. Raw Go checks retain their
+own coverage and do not claim the direct catalog profile. Missing language calls,
+duplicate scheduling and stale ownership are negative controls in
+[test_task_coverage.py](test_task_coverage.py).
+
 [limits.json](limits.json) classifies the current operation, encoding, resident
 working-set and deployment quota bounds. Its `removed_bounds` entries retain the
 names of eliminated total-cardinality ceilings; `collections` names each current

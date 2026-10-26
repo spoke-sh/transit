@@ -14,6 +14,11 @@ profiles independently runnable; expanded exploration has explicit budgets and
 ownership. Preserve deterministic replay and saved counterexamples. Share harness
 mechanics without deriving expected semantics from the implementation under test.
 
+Record direct Just nesting in `suite.json`'s `recipe_nested_tasks`; keep indirect
+build/runner nesting in `nested_tasks`. Required tier coverage must retain the
+actual invocations and cannot be satisfied by a focused-only command. Run
+`python3 -B tests/verification/test_task_coverage.py` when changing this inventory.
+
 Run the affected driver, its negative controls and the catalog checker:
 `python3 -B tests/verification/check.py` inside `nix develop`. Timeouts, compiler
 errors, missing completion and malformed traces are inconclusive failures. A

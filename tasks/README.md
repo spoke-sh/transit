@@ -96,7 +96,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::table-archives` | Verify bounded Table archival, retained reads and pending work, native authority/control reserve and real process death during publication/trim |
 | `just test::local-native-collection` | Verify native retained roots, compaction and allocation/deletion recovery on disk, then kill real collectors at publication boundaries |
 | `just test::authorization-tables` | Exercise restricted Table isolation, schema/default grants, exact recovery and revocation across restart |
-| `just bindings::authorization` | Build all ten SDKs and run installed direct catalog lifecycles with explicit selected roles, current revocation and denied raw resource access |
+| `just bindings::authorization` | Focused aggregate for the eight direct catalog task families (ten SDK languages): explicit roles, current revocation and denied raw resource access; ordinary CI runs each through its language suite |
 | `just bindings::query-failures` | Verify installed typed query-failure callbacks, lost receipts and duplicate suppression after replacement; build language artifacts first; select an adapter family with `--family` |
 | `just bindings::node-check` | Builds the raw Node client declarations/runtime exports, then checks Station types and host scope/runner units; no pre-existing SDK build is required |
 | `just fmt` | Formats Nix, Zig and frontend source/Markdown; contract regeneration stays explicit |
