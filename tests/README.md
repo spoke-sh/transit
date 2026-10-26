@@ -27556,3 +27556,59 @@ Python Station runner, not the later connector/catalog/relational schedules or
 other languages. Installed Station SDK tasks now explicitly use a ReleaseSafe
 node with Debug bindings, ports and workers. Their complete current-source clean
 lanes remain separate acceptance gates.
+
+## Paged Table owner and standalone-profile retirement — 2026-10-26
+
+The standalone `TableMemtable`, catalog `TableStorageEngine` and query
+`TableSegmentScan` are removed with their public exports and profile-only tests.
+They retained complete active row sets and manifests and had no installed
+consumers. `TablePartition` remains the installed acceptance and retained-read
+owner. The earlier helper results above remain historical evidence; they do not
+qualify the current owner or imply installed pruning.
+
+The shared current-v1 definition changes from `cd12a1e2…` to `797a232f…`
+because the stored `TRDL` interpretation is removed. Native, ABI, browser and
+fixture resources follow the owning generators. Earlier artifacts, including
+those from the earlier paged owner, require their matching build; this cutover
+supplies no converter or automatic reset. The generic WAL frame kinds and the
+separately owned segment, deletion-vector, manifest, cache and OCC components
+remain.
+
+Executed through the pinned `nix develop` shell:
+
+- In `packages/zig/transit-storage`, `zig build test
+  -Dtest-filter="retired Table definition" --summary all` passes **2/2 tests**.
+  Three disk schedules independently substitute the previous definition in the
+  directory marker, partition metadata with a recomputed digest, or a copied
+  frame whose payload checksums remain valid. Each refuses two reopen attempts;
+  complete marker, metadata and frame bytes compare unchanged afterward.
+- The focused owner command with filters `keyless Table identities`, `Table rows
+  and exact receipts`, `Table acceptance has no fallible`, `Table recovery`,
+  `uncertain storage append` and `durable Table pins` passes **9/9 tests**.
+  The keyless case is carried from the removed helper onto real disk with a
+  one-page index cache and one-frame WAL batches. Three equal-valued rows retain
+  distinct identities. A pinned unflushed cut survives flush, deletion and disk
+  reopen; the current view has two rows, the pin still has all three, and exact
+  retry returns the original receipt without resurrecting the deletion. Releasing
+  the pin prevents subsequent reads. The strengthened full-identity assertion
+  separately passes **2/2 tests** with `-Dtest-filter="keyless Table identities"`.
+- The broader `-Dtest-filter=Table` storage run passes **41/41 tests**, including
+  acceptance/receipts, pinned reads, schema changes, segmented reads, ordered
+  ranges, declaration recovery and the new keyless case. Its range/scan byte
+  counts agree with the preceding controls. The subsequently added
+  `-Dtest-filter="Table recovery cannot expose"` regression passes **2/2 tests**:
+  a memory log with two valid acceptance records before an interior missing frame
+  fails repeated recovery; reads, receipt observation, flush and mutation stay
+  blocked, and the acknowledged frontier does not advance. This exercises the
+  Table gate independently of disk-WAL validation.
+- Documentation links, the verification catalog, diagnostic inventory and
+  semantic mappings pass. The inventory records **579** production owners,
+  **4,614** owner/error pairs, **693** qualified outcome surfaces and **4,795**
+  error-return boundaries. This source inventory is separate from runtime proof.
+
+`just test::local-catalog` and `just test::direct-table-service prepared` pass
+with the new definition. The prepared service schedule covers metadata-only
+binding, typed values, fresh snapshots, current denial and definition replacement.
+Full repository checks and committed-HEAD clean qualification are pending.
+These component results do not establish encoded
+SQL execution, safe collection, provider support or an installed latency gain.

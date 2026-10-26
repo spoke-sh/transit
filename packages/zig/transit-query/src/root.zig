@@ -7,7 +7,6 @@ pub const wire = station.client;
 pub const document = @import("transit_station_document");
 pub const catalog = @import("transit_catalog");
 pub const storage = catalog.storage;
-pub const TableSegmentScan = @import("TableSegmentScan.zig");
 pub const DirectTableQuery = @import("DirectTableQuery.zig");
 pub const DirectTablePrepared = @import("DirectTablePrepared.zig");
 pub const ComputePool = @import("ComputePool.zig");

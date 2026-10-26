@@ -66,10 +66,6 @@ identity even if final disclosure was denied. It never supplies permission to
 replace work. [Metadata and recovery](docs/table-metadata.md) connects these
 operations to their contracts.
 
-`TableStorageEngine` remains an independently tested storage composition helper.
-The installed owner uses `TablePartition` directly; helper tests do not establish
-installed behavior or independent-writer safety.
-
 ## Checks
 
 From the pinned development shell:

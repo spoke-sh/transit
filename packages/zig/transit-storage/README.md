@@ -3,7 +3,7 @@
 `transit-storage` supplies the log and object primitives (`TransitLog` and
 `TransitObjectStore`) used by the local native backend and direct Table owner.
 `TablePartition` owns atomic Table statements, retained reads and paged data
-indexes. Separate components include the MVCC `TableMemtable`, content-verified
+indexes. Separate components include the content-verified
 `NvmeCache`, immutable `TableManifest` (`"TMAN"` v1) artifacts and optimistic
 manifest rebasing (`PartitionLease.OccCoordinator`).
 
@@ -41,8 +41,6 @@ collector races, policy-authorized trimming or multi-process Table commits.
   separation, epoch-fenced `PartitionLease` records and optimistic manifest
   rebasing. This component does not implement the installed Table writer profile;
   conditional provider operations can use locks and blocking I/O.
-- `TableMemtable.zig`: Tier 0 MVCC Memtable with direct data-plane WAL ingestion,
-  read-your-writes snapshot queries, `.tseg`/`.tdel` segment flushing, and crash recovery.
 - `TreeStore.zig`: Immutable data-index pages backed by `TransitObjectStore`,
   reusing the generic ordered tree in `transit-core`. Each page binds the current
   definition, its logical digest and its content address. Its configurable cache
@@ -121,22 +119,20 @@ an uncertain write, preserving complete recoverable frames; object publication
 keeps private partial files out of the public descriptor. These error schedules
 do not exhaust the host filesystem or establish hardware failure behavior.
 
-Standalone `TableMemtable` recovery consumes every bounded WAL page through its captured frontier and
-checks contiguous history and schema identity. An incomplete recovery blocks
-reads and mutations until successful recovery. The component owns its schema
-and reserves row-visibility allocations before attempting a durable append.
-Its active memtable and manifest still require separate growth and snapshot
-work; paging WAL reads does not bound its full resident row set. The installed
-`TablePartition` owner instead uses the paged indexes and durable read pins
-described above.
+`TablePartition` checks contiguous acceptance history and exact declarations
+before exposing recovered rows. Its paged indexes preserve stable row identities;
+equal values in keyless rows do not collapse distinct rows. Durable read pins
+retain their original WAL and segment basis across flushes, changes and restart.
+See the [partition contract](docs/table-partitions.md) for recovery gates and
+allocation budgets.
 
-Keyless rows use stable `TableRow.Identity` storage keys and support identity
-point reads/deletes. Equal cell values do not collapse distinct rows. Reads before
-the active flush frontier return `SnapshotNotRetained`; this component does not
-retain a historical basis implicitly. WAL frames, segment footers, deletion
-vectors and manifests require the shared binary definition even when copied
-outside their original directory. Segment lookups check schema interpretation
-and deletion-vector ownership before pruning.
+WAL frames, segment footers, deletion vectors and manifests require the shared
+binary definition even when copied outside their original directory. Segment
+lookups check schema interpretation and deletion-vector ownership before pruning.
+The current definition supports Table acceptance records, with no standalone
+row-delta memtable format. Earlier definitions reject without conversion or reset;
+preserve those artifacts with their matching build as described in the
+[versioning policy](../../../docs/handbook/reference/versioning.md).
 
 Focused storage checks use `zig build test -Dtest-filter='Table ALTER'` inside
 `nix develop`. Filters select test names; omit them for the complete suite.

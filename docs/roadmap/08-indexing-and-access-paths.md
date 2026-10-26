@@ -37,7 +37,7 @@ secondary access paths, online lifecycle and basic planner integration. Later
 qualified implementations; a safe usable baseline is required here.
 
 At source `8309a0dc`, the storage component's
-[memtable lookup](../../packages/zig/transit-storage/src/TableMemtable.zig)
+[memtable lookup](https://github.com/spoke-sh/transit/blob/8309a0dc/packages/zig/transit-storage/src/TableMemtable.zig)
 scans recent entries backwards and reads whole candidate segments; the
 [segment footer](../../packages/zig/transit-fuze/src/TSeg.zig) contains a sorted
 primary-key array searched by binary search despite its B-tree comments.

@@ -156,12 +156,12 @@ The architecture distinguishes active working state, accepted history, local
 read caches and immutable objects. The installed local owner uses
 `LocalWal` and `LocalSegmentStore`; its direct Table path uses `TablePartition`.
 The [storage package](../../../packages/zig/transit-storage/README.md) also
-contains separate memtable, cache, provider and manifest-coordination components.
+contains separate cache, provider and manifest-coordination components.
 Their presence does not enable an installed four-tier deployment automatically.
 
 | Layer | Components and current integration |
 | --- | --- |
-| Active working state | Native page/block caches and the direct Table's bounded operation work and data-index cache. `TableMemtable` is a separate component; it does not replace the installed Table owner. |
+| Active working state | Native page/block caches and the direct Table's bounded operation work, paged data indexes and verified segment caches. Retained Table cardinality is independent of cache capacity. |
 | Accepted history | `TransitLog` supplies framed, fenced history. The local native backend and each direct Table preserve their own acceptance boundaries. Explicit history readers expose accepted changes; automatic activation of computations is separate. |
 | Local read cache | `NvmeCache` supplies verified range chunks as a component. The installed local owner does not configure a remote-object cache hierarchy. |
 | Immutable objects | `TransitObjectStore` supplies immutable and conditional object operations. Local bulk Table ingestion creates `.tseg` objects. The S3-compatible adapter is a separate provider component; the configured local Table service does not select it. |

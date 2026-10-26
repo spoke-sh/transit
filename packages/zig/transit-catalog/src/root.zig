@@ -38,7 +38,6 @@ pub const TableMetadata = @import("TableMetadata.zig");
 pub const TableAuthority = @import("TableAuthority.zig");
 pub const SchemaCommand = @import("SchemaCommand.zig");
 pub const AuthorizationLowering = @import("AuthorizationLowering.zig");
-pub const TableStorageEngine = @import("TableStorageEngine.zig");
 pub const TableValues = @import("TableValues.zig");
 pub const TableLowering = @import("TableLowering.zig");
 test {
@@ -62,7 +61,6 @@ test {
     _ = @import("direct_catalog_test.zig");
     _ = AuthorizationLowering;
     _ = TableAuthority;
-    _ = TableStorageEngine;
 }
 
 pub const testing = if (@import("builtin").is_test) struct {

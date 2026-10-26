@@ -766,34 +766,27 @@ The [tiered storage package](../../../packages/zig/transit-storage/README.md) an
 data-plane table ingestion and analytical/point reads from the actor-turn block
 staging pipeline:
 
-- **Direct WAL ingestion (`TransitLog` / `"TWAL"` v1):** Each `TableMemtable`
-  mutation appends one 64-byte-aligned `"TWAL"` v1 frame (`"TRDL"` v1 row delta)
-  directly to the partition log (`LocalWal` or long-lived `UrsulaWal` partition
-  stream) and updates the Tier 0 MVCC Memtable in memory without creating
-  ephemeral per-turn Ursula streams.
-- **Hybrid OLTP/OLAP `.tseg` segments and `.tdel` deletion vectors:** Flushing a
-  `TableMemtable` writes one immutable 64-byte-aligned `.tseg` segment sorted by
-  collation-aware primary-key sort key (`Collation.encodePrimaryKeySortKey`) and
-  publishes `manifest/<object_id>/v<N>.tman` via `If-None-Match` conditional CAS.
-  Point lookups (`TSeg.lookupPrimaryKey`) binary-search the embedded `"TSF1"`
-  footer PK index in $O(\log N)$ and decode only the target row group's column
-  pages; analytical predicates prune row groups via collation-preserving
-  `ZoneMap` bounds and 64-bit Wyhash Bloom masks. Row updates and deletes emit
-  compact `.tdel` (`"TDEL"` v1) bitmaps rather than rewriting existing `.tseg`
-  files.
-- **Scan-resistant Tier 2 `NvmeCache` and Multi-Writer OCC:** `NvmeCache` caches
-  `64 KiB` SHA-256-verified object ranges and protects `.metadata_or_index`
-  chunks (footers, zone maps, PK directories, `.tdel`, `.tman`) from eviction
-  during sequential `.column_data` scans. Concurrent writers committing disjoint
-  primary-key ranges automatically rebase onto `v{N+1}.tman` via
-  `PartitionLease.OccCoordinator` without rewriting `.tseg` objects, while
-  overlapping primary keys fail closed with `WriteWriteConflict`.
-- **Installed direct Table acceptance:**
-  The local runtime uses `DirectCatalog` and `TablePartition`, with direct retained
-  readers in Fuze consumers. Point acceptance can remain WAL-backed; bulk writes
-  and explicit bounded flushes publish `.tseg` objects. `TableStorageEngine` and
-  `TableSegmentScan` remain separately tested helpers and do not establish the
-  installed path's pruning, provider or concurrent-writer performance.
+- **Direct Table acceptance:** `DirectCatalog` and `TablePartition` publish one
+  WAL acceptance record for a statement's rows, paged indexes and original
+  receipt. Point data can remain in the WAL. Bulk writes and explicit bounded
+  flushes publish immutable `.tseg` objects through the same acceptance owner.
+  Recovery follows contiguous hash-linked records and restores paged roots;
+  retained reads include accepted unflushed data.
+- **Bounded segment reads:** The paged row directory locates the containing
+  segment. `TSegReader` verifies footer and column ranges, retains encoded pages
+  for selected point reads and decoded groups for scans, and enforces separate
+  byte budgets. Full-key ranges use the paged ordered index with declared
+  collations. SQL predicate/projection pushdown and encoded operators remain
+  separate work; segment Zone Map and Bloom-filter primitives alone do not
+  establish those execution paths.
+- **Cache and manifest components:** `NvmeCache` caches `64 KiB`
+  SHA-256-verified ranges and protects `.metadata_or_index` chunks from
+  sequential `.column_data` scans. `PartitionLease.OccCoordinator` can rebase
+  disjoint manifest candidates and reject overlapping primary keys with
+  `WriteWriteConflict`. These separately tested components, `.tdel` deletion
+  vectors and `.tman` manifests do not establish installed concurrent writers,
+  provider performance or automatic Table compaction.
+- **Measurement scope:**
   The earlier 33-operation, 217-turn gateway run measured 122.759 seconds before
   and 55.770 seconds after cache/wakeup changes on its recorded actor/native path
   ([executed evidence](../../../tests/README.md#live-storage-engine-and-sql-execution-cutover)).

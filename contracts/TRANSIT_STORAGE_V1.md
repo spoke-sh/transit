@@ -12,10 +12,16 @@ architectural model.
 | Artifact | Magic / Version | Alignment | Maximum Size | Integrity Check |
 | --- | --- | --- | --- | --- |
 | `TransitLog` frame | `"TWAL"` + `0x01` | 64 bytes | 4 MiB payload | CRC-32C (`CRC-32/ISCSI`) + 8-byte SHA-256 payload prefix |
-| Row delta payload | `"TRDL"` + `0x01` | 1 byte | 4 MiB | Enclosed in `TWAL` frame + `FTR1` row layout fingerprint |
 | `.tseg` segment | `"TSEG"` + `1` (`u32`) | 64 bytes | 16 MiB | Per-page SHA-256 + `"TSF1"` footer SHA-256 |
 | `.tdel` deletion vector | `"TDEL"` + `0x01` | 1 byte | 512 KiB | Trailing 32-byte SHA-256 |
 | `.tman` table manifest | `"TMAN"` + `0x01` | 1 byte | 512 KiB | Trailing 32-byte SHA-256 + `If-None-Match` conditional CAS |
+
+Table payloads use the acceptance records defined below. The current shared
+definition has no standalone `TRDL` row-delta interpretation. The generic
+`row_delta` frame kind remains available to log owners; it does not select a
+Table payload decoder. Earlier shared definitions reject at the directory and
+frame gates without conversion or reset, including artifacts from the earlier
+paged Table owner. See the [cutover policy](../docs/handbook/reference/versioning.md).
 
 ## `TransitLog` (`TWAL` v1) frame layout
 
@@ -490,7 +496,6 @@ point reads/deletes require that identity, not an empty primary key.
 
 Segment point lookups validate the supplied object, schema revision and layout
 before index pruning, including a key miss. Deletion vectors must match the
-segment identity and row count. `TableMemtable` point reads use an inclusive WAL
-position and reject `SnapshotNotRetained` when that position predates the active
-manifest's flush frontier. This guard prevents substituting current data for an
-older snapshot; it does not provide durable retained snapshot ownership.
+segment identity and row count. Retained Table reads use the accepted roots and
+durable pins owned by `TablePartition`; segment artifacts alone do not establish
+a retained snapshot.
