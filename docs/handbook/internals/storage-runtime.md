@@ -101,6 +101,50 @@ reproduction commands. Those runs do not establish arbitrary power-loss safety,
 cloud storage placement or physical Table collection. Automatic point flushing,
 cache tiering and distributed OCC remain design work in the model below.
 
+### Reusing validated catalog history within a live owner
+
+How can repeated catalog requests avoid replaying all earlier declarations
+while preserving their accepted state and current authorization? The local
+owner assumes exclusive backend ownership, immutable accepted log frames and
+collision-resistant record commitments. Its startup still performs complete
+catalog recovery. Within that lifetime, a validated prefix is represented by
+one fixed-size directory root and the hash of its final record. It contains no
+borrowed allocations, grants, native execution lane or caller response.
+
+[`LocalTableHost`](../../../apps/transit-node/LocalTableHost.zig) copies that
+value under a short mutex into each request. The existing directory lock
+excludes catalog writers from other requests; Table operations retain their
+separate lock stripes. [`DirectCatalogStore.recoverSince`](../../../packages/zig/transit-catalog/src/DirectCatalogStore.zig)
+checks the configuration, nondecreasing log tail, exact boundary record/hash
+and current directory roots. Every suffix record still passes the ordinary
+chain, successor and operation-transition checks. Successful publication or
+recovery can advance the shared prefix; a failed uncertain append cannot export
+newer state. The next request resolves that suffix from the last validated
+prefix. Final native authorization remains independent of catalog recovery.
+
+For an unchanged nonempty catalog, this path reads one log boundary instead of
+the complete prefix and its referenced operations. Directory-root checks and
+the requested operation still require storage work. Constant retained cache
+size does not establish constant operation cost, Table recovery cost or restart
+time. A replacement owner always replays the full retained catalog. Reuse trusts
+previously validated interior frames during the live owner's lifetime; it is
+not continuous historical-corruption detection, a persisted checkpoint or
+permission to trim history.
+
+Replaying the entire catalog per request avoids retaining this process-local
+evidence, but its repeated validation work grows with accepted history. Raising
+page-cache capacity would retain more pages without removing that replay.
+Persisted checkpoints would also reduce replacement cost, but require separate
+coverage and recovery contracts. The selected cache addresses request reuse
+within the existing exclusive owner. The
+[catalog tests](../../../packages/zig/transit-catalog/src/direct_catalog_test.zig)
+compare full and cached log reads, destroy the original request allocator,
+recover an accepted append with a lost reply, and reject altered boundaries,
+missing roots and invalid successors. The
+[proof ledger](../../../tests/README.md#catalog-prefix-reuse--2026-10-26)
+records execution and the separate resource-growth schedule; these checks do
+not establish distributed ownership or a latency guarantee.
+
 ### Optimistic current reads and retained cuts
 
 Can a caller read one row or traverse a stable Table without creating durable

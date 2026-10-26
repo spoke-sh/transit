@@ -103,7 +103,9 @@ shared schema, cell, predicate and assignment admission. INSERT supports up to
 1024 rows within the 4 MiB encoded mutation budget and point/bulk ingestion.
 Saved work owns its values independently of the request arena. `preview` returns
 the owning DDL, row or conditional-name observation without staging or admission.
-General SDK/ABI dispatch still requires integration.
+The general catalog ABI, native port and language SDKs dispatch these shared
+actions; the [catalog caller guide](../../transit-station-bindings/docs/catalog.md)
+defines result ownership and uncertain-outcome recovery.
 
 The `observe` action reads an exact current interpretation and optionally its
 first bounded row page. It returns definition, data position, row count and
@@ -438,6 +440,22 @@ records to 16 KiB. These limits bound one operation and resident work, not the
 number of durable Tables or operations. All accepted history and objects remain
 retained; this owner supplies no collector.
 
+`recover` validates the complete retained catalog history before a new owner
+serves requests. Within that same live owner, `recoveryState` returns an owned,
+fixed-size root and chain commitment. A fresh request-local catalog can use
+`recoverSince` with that state to recheck its accepted boundary and current index
+roots, then validate every newer record. Only reuse state obtained from the same
+exclusive owner and immutable log; do not persist it, accept it from a caller,
+or use it to skip recovery after replacement. An uncertain append prevents
+exporting newer state until recovery resolves the original history.
+
+The local host retains one such value across request arenas. It retains no
+permissions or response data: native rights and final disclosure checks still
+run for every request. This avoids replaying an unchanged catalog prefix for
+each operation. Table-history recovery and initial catalog recovery retain
+their own costs; the cache neither authorizes log trimming nor detects every
+change to an already-validated historical byte during the live owner's lifetime.
+
 `admitRows`, `performRows`, `rowStatus` and `cancelRows` use the Table's durable
 operation records under current native rights. `applyRows` composes admission
 and execution for callers that want both. The request includes the original
@@ -446,10 +464,14 @@ Row admission blocks while DDL is pending; DDL admission rejects while the Table
 has pending row work. Neither row admission nor its outcome changes the catalog
 directory root. Terminal row controls use the configured control quota handles.
 
-Automatic service scheduling and named consumer dependency integration are not
-exposed. Generic foreign-language Table CRUD adapters
-do not expose this direct protocol; use SQL or typed Zig clients. The single-source
-query SDKs use their own captured-query interface and original-caller read grants.
+Automatic service scheduling is not exposed. Named resource and relational
+publication use explicit dependency registration and separate native publication;
+see [named resources](../../transit-station-app/docs/named-resources.md) and
+[named relational definitions](../../transit-station-app/docs/named-relational.md).
+The [catalog SDKs](../../../../docs/handbook/reference/sdks.md#catalog-callers)
+expose direct declaration and mutation operations through the shared boundary.
+The single-source query SDKs use their own captured-query interface and
+original-caller read grants.
 The [Table storage owner](../../transit-storage/docs/table-partitions.md) defines
 row/DDL acceptance, rewrite and pin behavior. The
 [data lifecycle contract](../../../../contracts/DATA_LIFECYCLE_V1.md#direct-catalog-publication-contract)

@@ -1,0 +1,122 @@
+[
+  {
+    "lane": "growth",
+    "task": "test::arrow",
+    "seconds": 118.23,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::fuze-types",
+    "seconds": 4.88,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::fuze-sources",
+    "seconds": 1.07,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::file-query",
+    "seconds": 55.17,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::logical-arrow",
+    "seconds": 14.85,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::logical-codec",
+    "seconds": 20.24,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::pages",
+    "seconds": 16.99,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::growing",
+    "seconds": 279.9,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::growing-service",
+    "seconds": 639.71,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::local-catalog",
+    "seconds": 208.7,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::direct-table-service",
+    "seconds": 687.65,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::direct-catalog-abi",
+    "seconds": 256.81,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::node-concurrency",
+    "seconds": 21.23,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::block-storage",
+    "seconds": 80.97,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::native-blocks",
+    "seconds": 5.26,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::storage-collection",
+    "seconds": 161.44,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::public-query",
+    "seconds": 299.47,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::publication",
+    "seconds": 327.63,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::table-query-writer",
+    "seconds": 156.1,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::catalog",
+    "seconds": 5620.67,
+    "exit_code": 1
+  }
+]

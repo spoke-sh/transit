@@ -89,6 +89,14 @@ the same signed direct operations. The [catalog caller guide](../../packages/zig
 describes the typed operations and host boundary; the [SDK reference](../../docs/handbook/reference/sdks.md)
 owns language coverage.
 
+`LocalTableHost` validates the complete catalog history before readiness and
+retains one owned root/chain value across its request lanes. Each request checks
+that accepted boundary, current directory roots and any newer records before
+using the catalog. The value holds no grants or response buffers; signed native
+authorization and final disclosure checks remain current. Replacement repeats
+full recovery. See the [catalog recovery guide](../../packages/zig/transit-catalog/docs/direct-catalog.md#bounds-and-remaining-integration)
+for the immutable-history assumption and failure boundaries.
+
 Command signatures do not encrypt traffic or authenticate response transport.
 Use an authenticated TLS boundary outside a trusted private network, and keep
 raw storage/provider APIs inaccessible to workloads. [Security](../../docs/handbook/reference/security.md)

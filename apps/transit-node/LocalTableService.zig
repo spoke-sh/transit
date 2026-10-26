@@ -14,6 +14,9 @@ engine: *backend.DataAuthority.Engine,
 configuration: D.Configuration,
 registrar: struct { principal: u64, key: c.protocol.Ed25519.KeyPair, role: ?u64 = null },
 options: D.Options = .{},
+/// Request-owned copy of the live host's validated catalog prefix. It contains
+/// no policy, native owner, result buffer, or borrowed request allocation.
+recovery_state: ?*D.RecoveryState = null,
 /// Inject a real authority change after response serialization in fault proofs.
 before_reply: ?struct { context: *anyopaque, run: *const fn (*anyopaque, *backend.DataAuthority.Engine) anyerror!void } = null,
 
@@ -34,7 +37,12 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request,
     var data: backend.DataStore = .{ .backend = owner };
     var catalog = try D.init(allocator, self.configuration, control.log(), control.objects(), data.log(), data.objects(), self.options);
     defer catalog.deinit();
-    try catalog.recover();
+    if (self.recovery_state) |prior| try catalog.recoverSince(prior.*) else try catalog.recover();
+    // Preserve fully accepted progress even when final disclosure is denied.
+    // An uncertain append leaves recovery required and cannot advance this hint.
+    defer if (self.recovery_state) |prior| {
+        if (catalog.recoveryState()) |known| prior.* = known else |_| {}
+    };
     const result = try c.DirectTableDispatch.apply(allocator, &catalog, policy.policy(), request.action, request.delegation, .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource });
     const observed = try policy.observation();
     var writer: std.Io.Writer = .fixed(output[0..@min(output.len, w.max_response_bytes)]);

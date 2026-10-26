@@ -9,6 +9,11 @@ const pages = s.TreeStore.pages;
 const Self = @This();
 const header_bytes = 40;
 
+/// Process-local evidence from this owner's validated immutable log prefix.
+/// This value owns all its fields. It is not a persisted checkpoint, a caller
+/// snapshot, or authorization to skip initial recovery after owner replacement.
+pub const RecoveryState = struct { root: r.Root, chain: [32]u8 };
+
 allocator: std.mem.Allocator,
 log: s.TransitLog.Log,
 objects: s.TransitObjectStore.ObjectStore,
@@ -37,12 +42,41 @@ pub fn ready(self: *Self) !void {
 }
 
 pub fn recover(self: *Self) !void {
+    try self.recoverSince(null);
+}
+
+pub fn recoveryState(self: *Self) !RecoveryState {
+    try self.ready();
+    return .{ .root = self.root, .chain = self.chain };
+}
+
+pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
     self.recovery_required = true;
     self.index.clearCache();
     const end = try self.log.tail(self.root.configuration.partition);
     if (end < self.root.next_lsn) return error.CatalogHistoryMissing;
     var next = try r.Root.empty(self.root.configuration);
     var chain: [32]u8 = @splat(0);
+    if (prior) |known| {
+        try known.root.validate();
+        if (!std.meta.eql(known.root.configuration, self.root.configuration)) return error.InvalidDirectCatalogHistory;
+        if (known.root.next_lsn > end) return error.CatalogHistoryMissing;
+        if (known.root.next_lsn == 0) {
+            if (!std.meta.eql(known.root, next) or !std.mem.eql(u8, &known.chain, &chain)) return error.InvalidDirectCatalogHistory;
+        } else {
+            // Recheck the accepted boundary before trusting this same-owner
+            // prefix. A shortened log or a substituted boundary must fail.
+            var anchor = try self.log.read(self.allocator, known.root.configuration.partition, known.root.next_lsn - 1, 1);
+            defer anchor.deinit();
+            if (anchor.frames.len != 1) return error.CatalogHistoryMissing;
+            const frame = anchor.frames[0];
+            if (frame.header.partition_id != known.root.configuration.partition or frame.header.lsn != known.root.next_lsn - 1 or frame.header.kind != .catalog_ddl) return error.InvalidDirectCatalogHistory;
+            const record = try decode(self.allocator, frame.payload, frame.header.lsn);
+            if (!std.meta.eql(record.root, known.root) or !std.mem.eql(u8, &r.hash(frame.payload), &known.chain)) return error.InvalidDirectCatalogHistory;
+        }
+        next = known.root;
+        chain = known.chain;
+    }
     while (next.next_lsn < end) {
         var batch = try self.log.read(self.allocator, next.configuration.partition, next.next_lsn, 1);
         defer batch.deinit();

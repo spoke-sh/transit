@@ -230,6 +230,24 @@ retains these passes alongside a separate failed clean SQL run: original UPDATE
 194 remains incomplete publication after inspection, with no SQL resubmission.
 Combined qualification and acceptance reconciliation remain open.
 
+The earlier hosted growth lane then fails its unchanged 139-resource writer's
+90-minute deadline after nineteen passing tasks. Replaying the complete catalog
+history for every direct request produces growing validation work. The follow-up
+retains one validated root/chain value within the live local owner; initial
+recovery, new-history validation and current authorization remain required.
+The [catalog recovery record](../../tests/README.md#catalog-prefix-reuse--2026-10-26)
+records 75 passing component tests, signed native/concurrency checks and the
+complete unchanged 139-resource growth/restart schedule. This fixes an
+implementation gap, not another CI dependency.
+
+The corrected CI shell completes all thirteen hosted experience tasks, including
+SQL and Station recovery. Its subsequent browser proof rejects a query asset
+above the existing size limit. The
+[current qualification record](../../tests/README.md#installed-lifecycle-qualification-after-ci-prerequisites--2026-10-26)
+also retains completed core and both SDK lanes at their exact earlier sources,
+and the separate failed local lifetime run. Final candidate qualification and
+acceptance reconciliation remain open.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to

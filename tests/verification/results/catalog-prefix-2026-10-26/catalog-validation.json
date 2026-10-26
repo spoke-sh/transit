@@ -1,0 +1,135 @@
+{
+  "source_base": "14c7175e3161e6ffec1c8a17c0b29b45cf64e4ee",
+  "change": "DirectCatalog prefix reuse (uncommitted source patch retained separately by growth controller)",
+  "commands": [
+    {
+      "command": "nix develop --command zig build test -Dtest-filter='direct catalog recovery'",
+      "cwd": "packages/zig/transit-catalog",
+      "exit_code": 0,
+      "tests": 6,
+      "log": "catalog-focused.log.gz",
+      "note": "Later --summary all confirmation uses the successful cached result."
+    },
+    {
+      "command": "nix develop --command zig build test --summary all",
+      "cwd": "packages/zig/transit-catalog",
+      "exit_code": 0,
+      "tests": 75,
+      "log": "catalog-package.log.gz"
+    },
+    {
+      "command": "nix develop --command just test::local-catalog",
+      "exit_code": 0,
+      "log": "catalog-native.log.gz"
+    },
+    {
+      "command": "nix develop --command just test::node-concurrency",
+      "exit_code": 0,
+      "log": "node-concurrency.log.gz"
+    }
+  ],
+  "hosted_growth": {
+    "run": 40278906228,
+    "job": 121427812911,
+    "artifact": 12637608589,
+    "archive_sha256": "6989b2290c481f0adbfbd5f14df448c3553e6133dc7bce1e27744480cbfc27df",
+    "result": "failed",
+    "passed_tasks": 19,
+    "failure": "resource-growth-write reaches unchanged 5400-second deadline",
+    "source_revision": "e4b4955cbc24dc6a0c86b66f31ae66ebb9e2ae5c"
+  },
+  "source_patch": "catalog-source.patch",
+  "source_patch_sha256": "a466fe49f98db80dda6a302b09b2f435f2e939510926cc81671e0efa4b781a8b",
+  "inventory": {
+    "initial_check_exit_code": 1,
+    "reason": "Added internal recovery methods and existing-error references require regenerated source inventory",
+    "review": "No new error names or changed public failure mappings; existing unknown-outcome propagation and readiness refusal remain in place",
+    "record_command": "nix develop --command python3 -B tests/diagnostic_inventory.py --record",
+    "record_exit_code": 0,
+    "rerun": "pending"
+  },
+  "growth": {
+    "command": [
+      "nix",
+      "develop",
+      "--command",
+      "just",
+      "test::direct-table-service",
+      "resource-growth"
+    ],
+    "cwd": "/home/alex/workspace/rupurt/rey",
+    "base": "14c7175e3161e6ffec1c8a17c0b29b45cf64e4ee",
+    "patch_sha256": "a466fe49f98db80dda6a302b09b2f435f2e939510926cc81671e0efa4b781a8b",
+    "started": "2026-10-26T09:14:45.019054+00:00",
+    "status": "passed",
+    "exit_code": 0,
+    "seconds": 926.14,
+    "finished": "2026-10-26T09:30:11.160106+00:00"
+  },
+  "hosted_experience": {
+    "run": 40293594898,
+    "job": 121474466116,
+    "artifact": 12639750899,
+    "archive_sha256": "087c221d0627e1235a36527a4682c4c1b3928683cbccfa6a291aae9db64e4170",
+    "revision": "b22d9a03bbfadc4aa96291eadc5980f45a324974",
+    "experience_tasks": 13,
+    "experience_completed": true,
+    "experience_seconds": 2327.25,
+    "browser": "4/5 pass; query JavaScript chunk913584 bytes exceeds unchanged900000 limit",
+    "combined_job": "failure"
+  },
+  "local_machine": {
+    "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+    "logical_cpus": 48,
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47
+    ]
+  }
+}

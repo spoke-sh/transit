@@ -3145,6 +3145,80 @@ inventories and metadata are retained. These completed SDK lanes and focused
 Station pass do not complete the failed experience lanes or the remaining
 combined qualification.
 
+## Catalog prefix reuse — 2026-10-26
+
+The [retained records](verification/results/catalog-prefix-2026-10-26/report.json)
+include source-patch attribution, task logs and the failed hosted baseline.
+Hosted run `40278906228` passes nineteen growth tasks at `e4b4955cb`, then
+`test::catalog` fails when its 139-resource writer reaches the unchanged
+5,400-second deadline. Progress reaches resource 129; later resource operations
+take about nine to ten seconds and load thousands of pages. The request owner
+constructs a new catalog and replays its entire history for every request.
+The failed lane does not qualify the remaining tasks.
+
+At `14c7175e3` plus the catalog-prefix change, the pinned compiler's catalog
+command `zig build test -Dtest-filter='direct catalog recovery'` passes six
+tests. A disk-backed schedule uses one resident index page and nineteen catalog
+records. Full recovery makes 28 log reads including referenced operations;
+reuse makes one boundary read after destroying the original request allocator.
+An accepted append with a lost acknowledgement forbids exporting newer state;
+recovery from the old prefix reads the boundary and new record, preserves the
+original admission and makes its exact retry append nothing. A replacement
+performs full recovery and observes the same state.
+
+Negative cases reject a changed root/hash/configuration, shortened history,
+missing current index root and a terminal operation reopened by an invalid
+successor. `just test::local-catalog` also passes the signed disk-backed native
+composition with prefix reuse, including credential changes and revocation after
+response buffering. The complete catalog package passes **75/75** Debug tests
+(five minutes, reported MaxRSS 53 MiB). `just test::node-concurrency` passes
+overlapping provider reads and signed commits, current revocation and concurrent
+exact retries with one receipt. The unchanged `just test::direct-table-service
+resource-growth` completes in **926.14 seconds**, including local compilation.
+It provisions and initializes 139 native KV/Document objects, reads every typed
+value before and after SIGKILL/restart, traverses eight-entry directory pages and
+recovers the original first receipt through 1,437 typed catalog calls. Native
+and catalog cache budgets, workload and phase deadlines are unchanged.
+
+These checks establish selected recovery and authorization cases and a count of
+catalog log API reads. The local and hosted runs have different machines and
+build/cache conditions; their elapsed times are not a matched speedup measurement.
+They do not measure physical I/O, qualify initial recovery performance, or make
+the failed hosted lane a pass.
+The mechanism assumes immutable accepted history within one exclusive live
+owner; it adds no persisted format, checkpoint, grant cache or collection right.
+The first repository check rejects stale diagnostic inventory after adding the
+internal recovery methods. The regenerated inventory retains the existing error
+names and public mappings; the complete check and clean qualification remain
+pending at this checkpoint.
+
+## Installed lifecycle qualification after CI prerequisites — 2026-10-26
+
+The same [evidence bundle](verification/results/catalog-prefix-2026-10-26/report.json)
+retains completed hosted core at `c19beb45e`: all 28 tasks in 3,537.72 seconds
+under the revised outer cap. Bindings-1 at `e4b4955cb` completes all seventeen
+tasks in 6,951.89 seconds with the current shared definition. Together with the
+separately recorded bindings-2 pass at that revision, all SDK tasks complete.
+These source-attributed passes predate the catalog-prefix implementation.
+
+At committed `14c7175e3`, full `just check` passes in 249.15 seconds. Clean
+experience passes seven tasks, then its lifetime fixture's initial INSERT
+reports `SqlOutcomeUnknown`. Public signed status after restarting that same
+installation finds original operation 98 `uploading`, dispatch-ineligible and
+without a terminal outcome. SQL is not resubmitted. A same-binary diagnostic
+with explicit exec wrappers passes all lifetime phases in 168.26 seconds; the
+normal owning task then passes in the corrected CI shell without wrappers.
+Neither establishes the failed clean run's cause or turns it into a pass.
+
+Hosted run `40293594898`, merge revision `b22d9a03b`, completes all thirteen
+experience tasks in 2,327.25 seconds, including installed SQL authentication,
+lifetime/recovery, Board queries and the Station launcher. The subsequent
+Chromium schedule passes four of five tests, then rejects the query JavaScript
+asset at **913,584 bytes** against the unchanged **900,000-byte** bound. Its
+trace and page context remain in artifact `12639750899`; task metadata and the
+job log are retained here. The combined experience/browser job has failed and
+does not establish final qualification.
+
 ## Hosted core execution cap — 2026-10-26
 
 Hosted run `40278906228` reaches the former 60-minute core job cap at revision

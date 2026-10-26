@@ -1,0 +1,38 @@
+{
+  "revision": "14c7175e3161e6ffec1c8a17c0b29b45cf64e4ee",
+  "started": 1793002150.7441044,
+  "complete": false,
+  "checks": [
+    {
+      "name": "check",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "just",
+        "check"
+      ],
+      "started": 1793002150.7441564,
+      "log": "/var/tmp/transit-lifecycle-pyarrow-final-check.log",
+      "exit_code": 0,
+      "finished": 1793002399.8987365
+    },
+    {
+      "name": "clean-experience",
+      "command": [
+        "nix",
+        "develop",
+        "--command",
+        "just",
+        "ci-clean",
+        "--lane",
+        "experience"
+      ],
+      "started": 1793002399.8990085,
+      "log": "/var/tmp/transit-lifecycle-pyarrow-final-clean-experience.log",
+      "exit_code": 1,
+      "finished": 1793003308.7389219
+    }
+  ],
+  "finished": 1793003308.7391915
+}
