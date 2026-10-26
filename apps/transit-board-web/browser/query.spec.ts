@@ -39,9 +39,29 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
       name: `Authorized associations to resource ${process.env.BOARD_QUERY_RESOURCE}`,
     }),
   ).toBeVisible({ timeout: 15000 });
-  await expect(page.getByRole("button", { name: /^Next associations for PID/ })).toBeVisible();
-  await page.getByRole("button", { name: /^Next associations for PID/ }).click();
-  await expect(page.getByLabel("Resource participation")).toContainText("One selected PID.");
+  const participation = page.getByLabel("Resource participation");
+  const participationDeadline = Date.now() + 15000;
+  for (;;) {
+    expect(Date.now()).toBeLessThan(participationDeadline);
+    const next = page.getByRole("button", { name: /^Next associations for PID/ });
+    await expect(next).toBeVisible();
+    const pending = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith("/participation") && url.searchParams.has("pid");
+    });
+    await next.click();
+    const response = await pending;
+    if (response.status() === 200) break;
+    expect(response.status()).toBe(409);
+    expect((await response.json()).err).toBe("QueryExpired");
+    // Worker progress can invalidate this read-only observation between pages.
+    // Discard its rows and explicitly restart; never combine different cuts.
+    await expect(participation.getByRole("table")).toHaveCount(0);
+    await expect(participation).toContainText("inspection.observation_changed");
+    console.log("Board participation: stale continuation cleared; refreshing its observation");
+    await participation.getByRole("button", { name: "Refresh participation", exact: true }).click();
+  }
+  await expect(participation).toContainText("One selected PID.");
   execFileSync(process.env.BOARD_QUERY_PROOF!, [
     process.env.BOARD_QUERY_AUTHORITY!,
     "revoke-inspector-resource",

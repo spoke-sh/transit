@@ -28136,7 +28136,17 @@ cause. Runtime authority, session limits and deadlines are unchanged.
 
 Full `just check` passes at `6ee9e0583`; Board formatting/lint checks pass after
 the test-only correction. Committed-HEAD clean launchers at `61a3a5e79` passes
-in 567.84 seconds. A clean browser lane is running at `ed5491ada`; earlier
+in 567.84 seconds. Clean browser at `ed5491ada` passes embedded Board in
+392.66 seconds, then fails query-browser in 190.01 seconds after its protocol and
+injected-recovery checks. The UI correctly clears an association continuation
+on `QueryExpired`; the test assumed the observation cut stayed current while
+workers advanced it. The corrective browser schedule verifies that exact conflict,
+uses the existing explicit **Refresh participation** action, and still requires
+a successful single-PID page before continuing. Other errors remain failures.
+The corrected full task passes in 291.33 seconds and executes the stale-cut
+recovery branch before the original query, exact-submission, revocation and
+source-retirement assertions. Runtime inspection and the overall proof deadlines
+are unchanged. A new complete clean browser lane remains required. Earlier
 queued browser controllers did not execute after focused failures. One isolated
 attempt stopped before testing on a missing cached Nix derivation. Subsequent
 local commands inherit `eval-cache = false` through nested shells without

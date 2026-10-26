@@ -1,0 +1,14 @@
+[
+  {
+    "lane": "browser",
+    "task": "transit-board::browser",
+    "seconds": 392.66,
+    "exit_code": 0
+  },
+  {
+    "lane": "browser",
+    "task": "transit-board::query-browser",
+    "seconds": 190.01,
+    "exit_code": 1
+  }
+]

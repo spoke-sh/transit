@@ -55,7 +55,7 @@
   "clean_launchers": "clean-launchers.json",
   "limits": [
     "Hosted combined experience/browser job failed despite completed experience inventory.",
-    "Focused browser tasks pass separately; committed clean browser and hosted growth remain in progress. Earlier queued clean controllers did not execute after focused failures.",
+    "Focused browser tasks pass separately, including the corrected association pagination after an executed stale continuation. New committed clean browser qualification and hosted growth remain required.",
     "Earlier local SQL failures remain separately recorded; later passes do not identify their historical causes."
   ],
   "files": {
@@ -297,6 +297,65 @@
     "hosted-bindings-1.json": {
       "bytes": 1906,
       "sha256": "8a305362363683240e7b1751aa67181f9499ab139c5307b18be5505be643ed2a"
+    },
+    "clean-browser-ed5491ada.json": {
+      "bytes": 465,
+      "sha256": "3aab16b40224a30e7f14361a2a85078795441883d04cc44a7eaa2a620093d72c"
+    },
+    "clean-browser-ed5491ada.log.gz": {
+      "bytes": 8155,
+      "sha256": "69893d3e2a8d9df32beb53f6759955909107e2106588271e5696bc2d9162ff56",
+      "uncompressed_sha256": "43d8d306eb51b44d5b8dc6f054dba3244aeb980e360755c326d13b9162da0cc7"
+    },
+    "clean-browser.json": {
+      "bytes": 233,
+      "sha256": "a370f4b698d41fee0bf64b6567d2648aaa2f08d8af9e825c0a79d91a145091e2"
+    },
+    "clean-browser.meta.json": {
+      "bytes": 1171,
+      "sha256": "62a81ed03edf75b9297b3a881ff0837dd8c7505d71b00164dd2e737ea4dccd40"
+    },
+    "clean-query-trace.zip": {
+      "bytes": 572663,
+      "sha256": "143911871b8ea3714e1b4587648cda7b46da83653bec5de49547697343a7f453"
+    },
+    "post-hosted-source-review.json": {
+      "bytes": 8450,
+      "sha256": "30338334f9698b9a295ad57ef5439f7730a5b73630b3be07be0db1e12e5e236a"
+    },
+    "board-participation-recovery.json": {
+      "bytes": 568,
+      "sha256": "fbc83536baf17839dec078c681e943ee23e68641e17530e9e20290b6dad7f68a"
+    },
+    "board-participation-recovery.patch.gz": {
+      "bytes": 1318,
+      "sha256": "aa2eaaf1de3ef0582b5b1839c89ff51346f71f27604452d3bb9fc75391105bef",
+      "uncompressed_sha256": "2579c9b5584e02f2334898b4a2a7e37dfc932fb2a03e7e64ee9249bd95e22cd0"
+    },
+    "board-participation-recovery-0.log.gz": {
+      "bytes": 1781,
+      "sha256": "2f499cc7e9ff6388bd070b2ecec1da0e6e6208675978608951e7326116ca1f80",
+      "uncompressed_sha256": "18cfc1b7edf9ebe5d170dbb3ffed9fafd8bb878b21e312e40321066d74a09aec"
+    },
+    "clean-query-error-context.md.gz": {
+      "bytes": 3093,
+      "sha256": "fbbb3ab9a292c807c7319df55df0ab41641865b0c89dfb2a4150a99987447dbb",
+      "uncompressed_sha256": "f3347976b680790149d5320acc7c935b4af95c211dc5034132a2383850f0aa18"
+    },
+    "participation-frontend.log.gz": {
+      "bytes": 202,
+      "sha256": "e3b935eff8b4c7aed608a8fac01ad3a9549da235242d8ad73a4dc9f9edc56520",
+      "uncompressed_sha256": "56fa15031d2dafde3d46311ee1b8d3788ead0e3517316f9aea7c5f339264dc16"
+    },
+    "participation-docs.log.gz": {
+      "bytes": 128,
+      "sha256": "2d209eadf359bd15c9047b0e8699e232cc6c05b01d332d12c269efdf76fb80a5",
+      "uncompressed_sha256": "34d20af5b482e364cf58862fab68a45a901ba2d3fc27a58da78211966343b34f"
+    },
+    "participation-docs-final.log.gz": {
+      "bytes": 76,
+      "sha256": "c165c9cab3de10533cd2e10ab5d875d1d6a085bd85d9fab7761a2cd22b4e4eb2",
+      "uncompressed_sha256": "2b642c5b6ba1dfd7bbb016e3c074b6b44189842c0c809d2292b1ae51fe36a804"
     }
   },
   "repository_check": {
@@ -343,8 +402,24 @@
   },
   "clean_browser_current": {
     "revision": "ed5491ada1e31080a4e93108a4a207ec11d1be84",
-    "status": "running",
-    "record_pending": "/var/tmp/transit-lifecycle-clean-browser-current.json",
-    "checkout": "/var/tmp/transit-ci-2mqka5rf/src"
+    "status": "failed",
+    "seconds": 606.3,
+    "record": "clean-browser-ed5491ada.json",
+    "passed_tasks": 1,
+    "failed_task": "transit-board::query-browser",
+    "task_seconds": 190.01,
+    "cause": "After protocol and injected recovery assertions pass, browser association continuation returns QueryExpired because worker progress changes its observation cut. UI discards old rows and reports inspection.observation_changed; test assumed unchanged cut. Current test correction uses explicit existing Refresh participation after verifying exactly this conflict, then still requires successful single-PID pagination."
+  },
+  "participation_correction": {
+    "record": "board-participation-recovery.json",
+    "result": "passed",
+    "seconds": 291.33,
+    "stale_continuation_branch_executed": true,
+    "runtime_changes": false,
+    "overall_proof_deadlines_changed": false,
+    "checks": {
+      "frontend": "pass:78formatted69linted",
+      "docs": "passed after archiving raw Playwright error-context Markdown as gzip; original raw bytes retained unchanged. First documentation check rejects missing newline in generated evidence Markdown."
+    }
   }
 }
