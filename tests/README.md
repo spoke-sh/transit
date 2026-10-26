@@ -26916,3 +26916,28 @@ documentation link checks also pass with the baseline helper and pinned
 loader/library changes.
 It does not establish results for every supported architecture or substitute
 for the separate installed lifecycle qualification.
+
+## Blocked direct caller observation budget — 2026-10-25
+
+The clean experience lane at `2daa4615b54758c0c6e6d85efcaa627cefd5a293`
+passes its first six tasks, including the previously failing installed Table
+and namespace lifecycle schedule. The subsequent direct-fault task fails after
+247.42 seconds with `No direct execution attempt`. Its caller output was
+discarded, so that assertion alone does not identify the underlying failure.
+Adding failure-output capture and repeating the same schedule with the same
+committed binaries records `SqlOutcomeUnknown` from the second INSERT caller.
+The original request remains uncertain; the test does not resubmit its SQL.
+
+The fault fixture waits up to 60 seconds to observe a direct execution binding,
+then deliberately kills the waiting caller. It now selects a 120-second client
+request budget so the CLI's default 30-second admission-discovery budget cannot
+end the caller before that observation window. The 60-second observation bound,
+90-second terminal wait, server deadlines, operation identity, recovery and
+cancellation assertions are unchanged. Failed caller output is retained.
+
+The focused Python fault schedule passes with the committed runtime binaries
+and this fixture change: blocked Table and namespace execution preserve control
+and reads; killed callers and abrupt restart retain the original binding;
+resumption applies exactly once and cancellation remains terminal after restart.
+This focused result does not replace the complete clean experience rerun or
+establish that default request budgets meet an interactive latency target.
