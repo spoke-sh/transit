@@ -105,7 +105,7 @@ Original lifecycle acceptance, retained from milestone 1:
   These are review questions; the implementation must define exact status types.
 
 Distributed-provider and concurrent-writer integration transfers explicitly to
-[milestone 14](14-storage-providers-and-concurrency.md), retaining #117/#121 and
+[milestone 15](15-storage-providers-and-concurrency.md), retaining #117/#121 and
 their #124 proof gates. This milestone remains In Progress; the split establishes
 no newly completed lifecycle or deployment. #108/#110 retain their delivered
 evidence and track these installed outcomes together.
@@ -179,7 +179,7 @@ bottlenecks keeping interactive SQL and server workflows slow:
    flush condition, observe segments/manifests and verify the same accepted
    outcomes after restart. No external storage daemon may remain necessary for
    a less-visible native owner. Later provider/concurrent-writer promises remain
-   explicit milestone 14 obligations; this checkpoint does not complete them.
+   explicit milestone 15 obligations; this checkpoint does not complete them.
 5. **Complete named resources and computation lifecycles.** Qualify #119/#120
    through the installed paths above, including interrupted provisioning, exact
    accepted-result binding, data-source freshness, dependencies and current

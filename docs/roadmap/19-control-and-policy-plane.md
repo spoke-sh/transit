@@ -1,4 +1,4 @@
-# 18. Enterprise identity and the Control & Policy Plane
+# 19. Enterprise identity and the Control & Policy Plane
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -62,6 +62,16 @@ the shared plane validates the resulting authorization delegation.
    policy provenance, effective permitted actions and attributable denials under
    current inspection rights. Reuse existing policy publication/recovery and
    migrate all adapters together when a current-v1 contract changes.
+
+## Formal model follow-through
+
+Own the [A6 authorization/delegation candidate](14-formal-semantics-and-correspondence.md#a6-authorization-delegation-and-protected-publication)
+after actor/subject, membership freshness and restriction composition settle.
+Establish attenuation and human-only approval boundaries under the actual policy
+rules; use temporal checks for revocation and stale membership. Connect selected
+proofs or graph models to independent access-decision fixtures across adapters.
+State permitted monotonicity assumptions and deferred claims explicitly; no
+abstract lattice may introduce deny semantics or a second grant authority.
 
 ## Completion evidence
 

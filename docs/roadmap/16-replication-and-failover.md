@@ -1,4 +1,4 @@
-# 15. Replication and durable failover
+# 16. Replication and durable failover
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -12,7 +12,7 @@ placement and distributed queries.
 ## Prerequisites and scope
 
 Consume [local storage](02-storage-and-query-performance.md),
-[provider/concurrent-writer qualification](14-storage-providers-and-concurrency.md),
+[provider/concurrent-writer qualification](15-storage-providers-and-concurrency.md),
 the [installed runtime cutover](03-live-storage-and-sql-cutover.md), catalog roots
 and the complete native durable-owner inventory. The prerequisites include
 [#117](https://github.com/spoke-sh/transit/issues/117) for enforceable writer and
@@ -80,10 +80,20 @@ does not make independent snapshots atomic or establish real-time ordering.
    provider credentials and metrics cannot authorize a promotion.
 6. **Qualify the selected real deployment profiles.** Use disk-backed providers
    and real network/storage faults in Compose and Kubernetes/Substrate as
-   applicable. Carry the exact contract into [operations](16-operations-and-recovery.md)
-   and [clustered execution](17-clustered-execution.md). Automatic worker/query
+   applicable. Carry the exact contract into [operations](17-operations-and-recovery.md)
+   and [clustered execution](18-clustered-execution.md). Automatic worker/query
    placement, disaster restore to an older cut and cross-region live failover are
    separate profiles; asynchronous copying alone qualifies none of them.
+
+## Formal model follow-through
+
+Own the [T4/T7 replication extensions](14-formal-semantics-and-correspondence.md#later-ownership-and-extensions)
+once topology, acknowledgement and promotion rules settle. Check common
+transaction decisions, complete object coverage, catch-up and stale-writer
+fencing under the declared failures; connect selected models to real recovery
+histories. State quorum, storage and progress assumptions explicitly and retain
+scope decisions for deferred work. The local formalization milestone does not
+claim replicated safety or replace this milestone's physical failure evidence.
 
 ## Completion evidence
 

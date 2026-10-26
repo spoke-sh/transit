@@ -156,12 +156,12 @@ success as winning a map microbenchmark. Record scoped results in the
 - [Branches](12-branches-merges-and-restore.md) qualify sharing, divergence,
   constraint validation and GC reachability. Immutable reuse alone supplies no
   constant-time preparation, merge or historical-correctness guarantee.
-- [Providers](14-storage-providers-and-concurrency.md),
-  [replication](15-replication-and-failover.md),
-  [operations](16-operations-and-recovery.md) and
-  [clustered execution](17-clustered-execution.md) extend writer scope, copy/rebuild
+- [Providers](15-storage-providers-and-concurrency.md),
+  [replication](16-replication-and-failover.md),
+  [operations](17-operations-and-recovery.md) and
+  [clustered execution](18-clustered-execution.md) extend writer scope, copy/rebuild
   decisions, recovery readiness and distributed uniqueness explicitly.
-- [Board](21-board-reimplementation.md) presents shared definitions, progress,
+- [Board](22-board-reimplementation.md) presents shared definitions, progress,
   coverage and plans. Inspection remains read-only; administrative actions use
   separately authorized public operations.
 

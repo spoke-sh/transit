@@ -159,14 +159,14 @@ automatically transactional participants, and exporting bytes cannot be undone
 by local rollback.
 
 [Branches](12-branches-merges-and-restore.md) own multi-commit histories, merge
-validation and forward restore. [Investigations](19-published-resources-and-investigations.md)
+validation and forward restore. [Investigations](20-published-resources-and-investigations.md)
 own retained multi-call bases, including honestly independent source vectors.
 Neither requires keeping an interactive transaction open for hours or days.
 
 The first qualified deployment is an explicitly bounded atomic domain over the
-local foundations. [Provider/concurrent-writer qualification](14-storage-providers-and-concurrency.md),
-[replication](15-replication-and-failover.md), [operations](16-operations-and-recovery.md)
-and [clustered execution](17-clustered-execution.md) extend and requalify decision
+local foundations. [Provider/concurrent-writer qualification](15-storage-providers-and-concurrency.md),
+[replication](16-replication-and-failover.md), [operations](17-operations-and-recovery.md)
+and [clustered execution](18-clustered-execution.md) extend and requalify decision
 durability, fencing and placement. Design all experiences together without
 claiming arbitrary distributed atomicity before those profiles execute.
 

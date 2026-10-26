@@ -22,7 +22,7 @@ gives this work a product target: improve what humans and agents can observe
 before acting and what they can learn from the consequences afterward. Track
 observation coverage, latency and cost while preserving meaning, source versions,
 current authorization and uncertainty. The
-[qualification plan](26-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+[qualification plan](27-qualification-and-benchmarks.md#observation-and-consequence-evidence)
 defines the proposed measures and comparison method; individual milestones
 qualify their contribution as they land. These are evaluation goals, not current
 measurements, and they do not assume that modeling or reasoning is solved.
@@ -42,7 +42,7 @@ access paths. The [data structures and performance milestone](10-data-structures
 delivers the local workload scorecard, selected optimizations and regression
 budgets. Earlier owners establish baselines and meet their existing gates; later
 providers, distributed execution and language surfaces extend the same measures.
-[Final qualification](26-qualification-and-benchmarks.md) combines the evidence
+[Final qualification](27-qualification-and-benchmarks.md) combines the evidence
 at one revision. Publish wins, regressions and unresolved competitive gaps with
 reproducible results; correctness, current authorization and accepted-work
 recovery remain part of every performance profile.
@@ -57,11 +57,11 @@ Read the [delivery checkpoints](#delivery-checkpoints) for the execution plan.
 | Phase | Milestones | Exit outcome |
 | --- | --- | --- |
 | [I: Local data and application foundations](#phase-i-local-data-and-application-foundations) | 1–8 | Applications declare and query local data, consume complete statement outcomes, compose supported transactions and use shared clients with exact historical interpretation and maintained indexes |
-| [II: Data composition, performance and interface coverage](#phase-ii-data-composition-performance-and-interface-coverage) | 9–13 | Applications maintain derived data, meet measured local database/runtime performance targets, compose native and foreign models, work across branches and use the qualified service/SDK matrix |
-| [III: Distributed durability and operations](#phase-iii-distributed-durability-and-operations) | 14–17 | Operators use qualified providers, replicate and recover complete history, perform verified backup/restore/upgrades and move execution safely |
-| [IV: Governed collaboration and Board](#phase-iv-governed-collaboration-and-board) | 18–21 | People and applications inspect published resources, propose and review changes under shared policy and use the installed Board workbench |
-| [V: Agents and mixed application composition](#phase-v-agents-and-mixed-application-composition) | 22–25 | Agents and applications use governed MCP access, reactive activation and recorded effects through complete direct, Station and mixed language experiences |
-| [VI: Qualification and release](#phase-vi-qualification-and-release) | 26–27 | One committed revision has combined workload/fault evidence, verified distribution artifacts and runnable installed onboarding |
+| [II: Data composition, performance and interface coverage](#phase-ii-data-composition-performance-and-interface-coverage) | 9–14 | Applications maintain derived data, meet measured local database/runtime performance targets, compose native and foreign models, work across branches and use the qualified service/SDK matrix with selected formal models and implementation correspondence |
+| [III: Distributed durability and operations](#phase-iii-distributed-durability-and-operations) | 15–18 | Operators use qualified providers, replicate and recover complete history, perform verified backup/restore/upgrades and move execution safely |
+| [IV: Governed collaboration and Board](#phase-iv-governed-collaboration-and-board) | 19–22 | People and applications inspect published resources, propose and review changes under shared policy and use the installed Board workbench |
+| [V: Agents and mixed application composition](#phase-v-agents-and-mixed-application-composition) | 23–26 | Agents and applications use governed MCP access, reactive activation and recorded effects through complete direct, Station and mixed language experiences |
+| [VI: Qualification and release](#phase-vi-qualification-and-release) | 27–28 | One committed revision has combined workload/fault evidence, verified distribution artifacts and runnable installed onboarding |
 
 Phases are delivery groupings, not additional runtime dependencies or release
 dates. Contract work and implementation may overlap when the owning prerequisites
@@ -94,40 +94,41 @@ combines that evidence at one revision.
 | 11 | [Multi-model and multi-format foreign relations](11-multi-model-and-foreign-relations.md) | Planned | Document/graph projections, foreign formats and typed COPY/import/export through shared ingestion and result contracts |
 | 12 | [Branches, merges and restore](12-branches-merges-and-restore.md) | Planned | Durable multi-commit branches, logical three-way merge and forward restore under current authority |
 | 13 | [Service and SDK coverage](13-service-and-sdk-coverage.md) | In Progress | Preserved Go raw/console slices and broader service, language, type and platform coverage over the shared API foundation |
+| 14 | [Formal semantics and implementation correspondence](14-formal-semantics-and-correspondence.md) | Planned | Selected temporal models and algebraic proofs over delivered local contracts, connected to production behavior before distributed extensions |
 
 ### Phase III: Distributed durability and operations
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 14 | [Storage providers and concurrent-writer qualification](14-storage-providers-and-concurrency.md) | Planned | Real provider/cache profiles, enforceable partitioned authority and concurrent-writer qualification |
-| 15 | [Replication and durable failover](15-replication-and-failover.md) | Planned | Complete replicated history, transaction decisions and objects, bounded catch-up and fenced failover |
-| 16 | [Operations, backup, restore and upgrades](16-operations-and-recovery.md) | Planned | Verified transaction-consistent backups/PITR, authority-safe disaster recovery, upgrades and operational workflows |
-| 17 | [Clustered execution and storage-disaggregated placement](17-clustered-execution.md) | Planned | Fenced placement changes and distributed queries preserving qualified transaction, replication and operational contracts |
+| 15 | [Storage providers and concurrent-writer qualification](15-storage-providers-and-concurrency.md) | Planned | Real provider/cache profiles, enforceable partitioned authority and concurrent-writer qualification |
+| 16 | [Replication and durable failover](16-replication-and-failover.md) | Planned | Complete replicated history, transaction decisions and objects, bounded catch-up and fenced failover |
+| 17 | [Operations, backup, restore and upgrades](17-operations-and-recovery.md) | Planned | Verified transaction-consistent backups/PITR, authority-safe disaster recovery, upgrades and operational workflows |
+| 18 | [Clustered execution and storage-disaggregated placement](18-clustered-execution.md) | Planned | Fenced placement changes and distributed queries preserving qualified transaction, replication and operational contracts |
 
 ### Phase IV: Governed collaboration and Board
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 18 | [Enterprise identity and the Control & Policy Plane](18-control-and-policy-plane.md) | Planned | Trusted enterprise identity, membership freshness, bounded delegation and shared branch/publication policy |
-| 19 | [Published business resources and consistent investigations](19-published-resources-and-investigations.md) | Planned | Deliberate resource exposure, disclosure policy and retained multi-call investigation bases |
-| 20 | [Versioned proposals and reviewed publication](20-reviewed-data-collaboration.md) | Planned | Comparable branch proposals, branching-only policy and exact reviewed publication |
-| 21 | [Board reimplementation and data-first workbench](21-board-reimplementation.md) | Planned | Installed catalog, previews, workbooks, lineage and governed change workflows over shared contracts, with bounded accessible UI and preserved operational inspection |
+| 19 | [Enterprise identity and the Control & Policy Plane](19-control-and-policy-plane.md) | Planned | Trusted enterprise identity, membership freshness, bounded delegation and shared branch/publication policy |
+| 20 | [Published business resources and consistent investigations](20-published-resources-and-investigations.md) | Planned | Deliberate resource exposure, disclosure policy and retained multi-call investigation bases |
+| 21 | [Versioned proposals and reviewed publication](21-reviewed-data-collaboration.md) | Planned | Comparable branch proposals, branching-only policy and exact reviewed publication |
+| 22 | [Board reimplementation and data-first workbench](22-board-reimplementation.md) | Planned | Installed catalog, previews, workbooks, lineage and governed change workflows over shared contracts, with bounded accessible UI and preserved operational inspection |
 
 ### Phase V: Agents and mixed application composition
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 22 | [MCP service and interactive Apps](22-mcp-service-and-apps.md) | Planned | Authenticated agent access and optional Apps over shared published capabilities |
-| 23 | [Reactive context, subscriptions and agent activation](23-reactive-context-and-agent-activation.md) | Planned | Meaningful change conditions, durable interests and version-bound context through subscriptions/tasks |
-| 24 | [Recorded outbound MCP and application guidance](24-recorded-mcp-integrations.md) | Planned | Governed outbound MCP, captured observations, network-free replay and reviewed application guidance |
-| 25 | [Language-native programming model and mixed application composition](25-programming-model.md) | Planned | Complete language-native direct, Station and mixed composition over the earlier client/transaction foundation |
+| 23 | [MCP service and interactive Apps](23-mcp-service-and-apps.md) | Planned | Authenticated agent access and optional Apps over shared published capabilities |
+| 24 | [Reactive context, subscriptions and agent activation](24-reactive-context-and-agent-activation.md) | Planned | Meaningful change conditions, durable interests and version-bound context through subscriptions/tasks |
+| 25 | [Recorded outbound MCP and application guidance](25-recorded-mcp-integrations.md) | Planned | Governed outbound MCP, captured observations, network-free replay and reviewed application guidance |
+| 26 | [Language-native programming model and mixed application composition](26-programming-model.md) | Planned | Complete language-native direct, Station and mixed composition over the earlier client/transaction foundation |
 
 ### Phase VI: Qualification and release
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 26 | [Qualification and complete benchmarks](26-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
-| 27 | [Release distribution](27-releases.md) | Planned | Versioned verified artifacts, matching documentation and runnable installed onboarding |
+| 27 | [Qualification and complete benchmarks](27-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
+| 28 | [Release distribution](28-releases.md) | Planned | Versioned verified artifacts, matching documentation and runnable installed onboarding |
 
 Performance measurement and amplification work remains tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76), alongside the reopened
@@ -155,18 +156,46 @@ evidence rather than assuming every preceding number is a technical dependency.
 | II | Optimize database and runtime work | 10 | Establish workload/competitor baselines and numeric budgets, compare structures, deliver statistics/planning and runtime improvements, and pass installed correctness/resource/performance gates |
 | II | Compose data models and history | 11–12 | Qualify foreign COPY/projections, multi-commit branches and conditional forward publication with index coverage/constraint evidence and measured costs |
 | II | Expand qualified interfaces | 13 | Extend the language/service/platform matrix over the existing foundation; preserve delivered Go raw and console evidence and reject unsupported transaction/feed profiles |
-| III | Qualify distributed infrastructure | 14–17 | Real providers and writer fencing/OCC, then replication, backup/PITR/upgrade procedures and automatic placement/distributed queries; repeat transaction and native-owner recovery across each failure profile |
-| IV | Establish governed collaboration contracts | 18–20 | Enterprise identity, published resources/investigations and exact reviewed publication through independently usable public owners |
-| IV | Reimplement the Board workbench | 21 | Deliver the installed data-first interface, bounded profiles/workbooks/lineage and separately authorized change review; preserve operational inspection and prove real browser/recovery journeys |
-| V | Extend agent-host interfaces and activation | 22–24 | MCP/Apps, reactive context and recorded outbound MCP over shared owners; no dependency on Board's frontend or configured credential |
-| V | Prove complete application composition | 25 | Installed direct, Station and all mixed capabilities in every claimed language; transaction/turn/checkpoint/effect boundaries and recovery remain explicit |
-| VI | Qualify and distribute one revision | 26–27 | Compose workload/fault/performance evidence at one committed revision, then immutable artifacts, matching docs and installed onboarding. Focused correctness gates remain mandatory earlier |
+| II | Establish formal semantics and correspondence | 14 | Select settled local contracts, execute temporal/algebraic checks with implementation replay or independent fixtures, challenge them with negative controls and assign later extensions |
+| III | Qualify distributed infrastructure | 15–18 | Real providers and writer fencing/OCC, then replication, backup/PITR/upgrade procedures and automatic placement/distributed queries; repeat transaction and native-owner recovery across each failure profile |
+| IV | Establish governed collaboration contracts | 19–21 | Enterprise identity, published resources/investigations and exact reviewed publication through independently usable public owners |
+| IV | Reimplement the Board workbench | 22 | Deliver the installed data-first interface, bounded profiles/workbooks/lineage and separately authorized change review; preserve operational inspection and prove real browser/recovery journeys |
+| V | Extend agent-host interfaces and activation | 23–25 | MCP/Apps, reactive context and recorded outbound MCP over shared owners; no dependency on Board's frontend or configured credential |
+| V | Prove complete application composition | 26 | Installed direct, Station and all mixed capabilities in every claimed language; transaction/turn/checkpoint/effect boundaries and recovery remain explicit |
+| VI | Qualify and distribute one revision | 27–28 | Compose workload/fault/performance evidence at one committed revision, then immutable artifacts, matching docs and installed onboarding. Focused correctness gates remain mandatory earlier |
 
 Track first-three-milestone acceptance and explicitly transferred scope through
 #108/#109/#110 and the component issues. Update tracker ownership and links with
 this sequence; retain original diagnoses, delivered evidence and incomplete
 checks. #123 corrects current documentation as implementation changes, and #124
 owns traceable installed acceptance. No planning edit changes their runtime status.
+
+## Formal semantics and correspondence review — 2026-10-25
+
+Add [formal semantics and implementation correspondence](14-formal-semantics-and-correspondence.md)
+as milestone 14, closing phase II after service/SDK coverage and before provider
+qualification. The local system's storage, statement/transaction, index, dataflow,
+selected-structure and branch contracts must settle before this work selects its
+models. Earlier correctness and recovery gates remain with their owners; in
+particular, this insertion adds no formal-model prerequisite to the upcoming
+statement-result work.
+
+The milestone preserves seven temporal and six algebraic candidate families from
+the reviewed Argon discussion, including motivating schedules, proposed laws,
+implementation connections and corrections to premature algorithm/guarantee
+assumptions. Its provenance and self-contained candidate descriptions live in the
+milestone. Scope selection requires actual executable models/proofs and production
+correspondence; neither an inventory alone nor thirteen predetermined filenames
+is the completion criterion. Distributed fencing/replication and enterprise
+policy/approval extensions retain later owners once their contracts settle.
+
+The sequence now has 28 milestones in six contiguous phases. Former milestones
+14–27 move to 15–28 with statuses, delivered scope and evidence preserved.
+Phase II expands to 9–14; subsequent phase ranges, checkpoints and inbound links
+move together. Final qualification combines the selected formal suites with
+installed workload and physical-fault evidence at one revision. This planning
+change implements no model, selects no runtime algorithm and establishes no new
+proof result.
 
 ## Indexing, performance and phase review — 2026-10-25
 
@@ -189,8 +218,8 @@ proof and measurement. Immutable sharing does not make branch preparation,
 constraint validation or historical correctness free. The runtime scope includes
 native messages, Station turns, state, wakeups and recovery as well as SQL.
 
-The sequence now has 27 milestones in six contiguous phases. Former milestone 8
-moves to 9 and former 9–25 move to 11–27. Every previous status, delivered slice
+At that review, the sequence had 27 milestones in six contiguous phases. Former
+milestone 8 moves to 9 and former 9–25 move to 11–27. Every previous status, delivered slice
 and acceptance obligation is preserved. Provider qualification, replication,
 operations and clustered execution remain before enterprise/agent adapters;
 Board remains after reviewed publication, and complete mixed composition remains
@@ -204,7 +233,7 @@ and [delivery checkpoints](#delivery-checkpoints) give the current delivery orde
 ## Board reimplementation review — 2026-10-24
 
 The review at `f699e6ad` adds
-[Board reimplementation](21-board-reimplementation.md) as milestone 19, after
+[Board reimplementation](22-board-reimplementation.md) as milestone 19, after
 reviewed publication and before MCP/Apps. [Board data D2](../design/board-data/D2.md)
 defines a focused data-first direction, but its prototype and screenshots do not
 deliver the installed interface. The new milestone owns that cutover, including
@@ -231,8 +260,8 @@ details accepted.
 The review at `7f9343cc` adds [transactions](05-transactions-and-atomic-composition.md)
 immediately after statement results, separates the
 [client foundation](06-client-foundation-and-language-apis.md) from later
-[complete mixed composition](25-programming-model.md), and gives
-[provider/concurrent-writer qualification](14-storage-providers-and-concurrency.md)
+[complete mixed composition](26-programming-model.md), and gives
+[provider/concurrent-writer qualification](15-storage-providers-and-concurrency.md)
 an explicit delivery owner. That review produced 24 milestones; the Board review
 above adds the 25th. All four existing In Progress statuses and all delivered
 evidence are preserved; moving
@@ -274,7 +303,7 @@ above give the current delivery order.
 
 ## Programming model review — 2026-10-24
 
-[Language-native programming and mixed composition](25-programming-model.md)
+[Language-native programming and mixed composition](26-programming-model.md)
 follows recorded outbound MCP and application guidance. Direct data applications,
 Station behaviors and applications combining both need a coherent public model:
 shared types, operation identities, results and recovery with explicit execution
@@ -315,9 +344,9 @@ reads and runtime wiring. Their existing promises are not deferred by this split
 Contract work can proceed together. Published resources now consume the earlier
 result contract and own disclosure plus retained investigations across calls.
 
-[Replication](15-replication-and-failover.md) and
-[operations](16-operations-and-recovery.md) precede
-[clustered execution](17-clustered-execution.md). Replication qualifies complete
+[Replication](16-replication-and-failover.md) and
+[operations](17-operations-and-recovery.md) precede
+[clustered execution](18-clustered-execution.md). Replication qualifies complete
 durable history, object coverage and safe failover for explicit failure profiles.
 Operations owns backup/restore, upgrades and maintenance, including the
 backup/restore/migration work previously grouped under clustered execution.
@@ -352,24 +381,28 @@ and acceptance gates, not executed runtime evidence.
 The sequence is linear, with explicit prerequisites per milestone. Contract work
 and a read-only MCP spike can start before all earlier implementations finish;
 an adapter may expose only the capabilities whose owning contracts and evidence
-are complete. Native branch operations use current realm authority; milestone 16
-adds enterprise identity/delegation integration and milestone 18 adds the shared
+are complete. Native branch operations use current realm authority; milestone 19
+adds enterprise identity/delegation integration and milestone 21 adds the shared
 proposal/approval experience. A protocol spike does not qualify those additions.
+
+The ownership table below uses the current sequence. Dated insertion records
+retain their historical numbers.
 
 | Shared contract | Delivery owner | Required boundary |
 | --- | --- | --- |
 | Statement outcomes and result consumption | 4 | One typed result lifecycle, bounded readers and verified completion; statement completion is distinct from transaction commit |
 | Transactions, snapshots and outbox | 1 contract gates; 5 implementation | Qualified atomic domains/isolation, original decision recovery and atomic local intent publication; external outcomes remain separate |
-| Client packages and language APIs | 6, then coverage at 11 | Reusable shared implementation, bounded runtime ownership and idiomatic direct/recovery APIs before adapter expansion |
-| Complete application composition | 23 | Direct, Station and all mixed capabilities preserve transaction, turn, checkpoint and effect boundaries across languages |
-| Provider, replication and operational contracts | 12–15 | Enforceable durability/fencing, complete decisions/objects, recoverable backups/upgrades and qualified moving placements |
-| Identity, membership, delegation and access decisions | 16 | Trusted actor/subject bindings, current authority and explicit approval powers through every adapter |
-| Published resources and retained investigations | 17 | Deliberate exposure, approved disclosure and retained source bases independent of connections/open transactions |
-| Branch histories and reviewed proposals | 10, 18 | Frozen base/source/target and candidate; no copied grants/effect rights or protected-destination bypass |
-| Board presentation and workflow integration | 19 | Installed catalog/workbook/lineage/change interfaces over public owners; bounded disclosure, read-only inspection and exact recovery |
-| MCP and presentation bindings | 20 | Generated descriptors/views over shared owners; exact host/revision matrix and useful fallback |
-| Meaningful activation and durable interests | 8, 21 | Complete source commits, completed results and business conditions remain distinct |
-| External capabilities and application guidance | 22 | Authorized recorded attempts, capture, uncertainty and network-free replay; instructions confer no authority |
+| Client packages and language APIs | 6, then coverage at 13 | Reusable shared implementation, bounded runtime ownership and idiomatic direct/recovery APIs before adapter expansion |
+| Complete application composition | 26 | Direct, Station and all mixed capabilities preserve transaction, turn, checkpoint and effect boundaries across languages |
+| Formal semantics and implementation correspondence | 14 | Selected settled local obligations, executable models/theorems, negative controls and production correspondence; later owners extend the qualified assumptions |
+| Provider, replication and operational contracts | 15–18 | Enforceable durability/fencing, complete decisions/objects, recoverable backups/upgrades and qualified moving placements |
+| Identity, membership, delegation and access decisions | 19 | Trusted actor/subject bindings, current authority and explicit approval powers through every adapter |
+| Published resources and retained investigations | 20 | Deliberate exposure, approved disclosure and retained source bases independent of connections/open transactions |
+| Branch histories and reviewed proposals | 12, 21 | Frozen base/source/target and candidate; no copied grants/effect rights or protected-destination bypass |
+| Board presentation and workflow integration | 22 | Installed catalog/workbook/lineage/change interfaces over public owners; bounded disclosure, read-only inspection and exact recovery |
+| MCP and presentation bindings | 23 | Generated descriptors/views over shared owners; exact host/revision matrix and useful fallback |
+| Meaningful activation and durable interests | 9, 24 | Complete source commits, completed results and business conditions remain distinct |
+| External capabilities and application guidance | 25 | Authorized recorded attempts, capture, uncertainty and network-free replay; instructions confer no authority |
 
 The Control & Policy Plane owns identity bindings, catalog definitions, access and
 publication policy. Data owners enforce reads and conditional writes; process
@@ -452,10 +485,10 @@ must update the owner, linked issues and acceptance criteria together.
 The native local profile is the first delivery checkpoint, with no Ursula or
 MinIO dependency for either application or control state. The distributed
 reference remains disk-backed Ursula plus S3 on Compose and Kubernetes/Substrate.
-Kafka/Pulsar and GCS/R2/Azure remain explicit target coverage in milestone 14;
+Kafka/Pulsar and GCS/R2/Azure remain explicit target coverage in milestone 15;
 each needs its own provider contract and evidence, or an explicit recorded move
 in scope. They are not assumed interchangeable implementations. Provider and
-concurrent-writer implementation is explicitly transferred to milestone 14.
+concurrent-writer implementation is explicitly transferred to milestone 15.
 Native codec correctness and local publication safety remain milestone 2
 requirements; no original tracker closes merely because its work was split.
 
@@ -482,10 +515,10 @@ requirements; no original tracker closes merely because its work was split.
    `COMP-3`, `ZONED`, `COMP`, `IBM_HFP` and `EBCDIC`) and first-class Collation
    (`COLLATE`) support. Progress concurrency from a single global realm sequencer
    to **Partitioned Policy/Data Logs**, **Fenced Partition Leases**, and
-   **Multi-Writer OCC** in [provider/writer qualification](14-storage-providers-and-concurrency.md),
+   **Multi-Writer OCC** in [provider/writer qualification](15-storage-providers-and-concurrency.md),
    over authorized conditional publication. The native local foundation remains
    milestone 2; distributed-provider and writer integration belongs to milestone
-   14. Formal progress and metadata-complexity claims require scoped evidence.
+   15. Formal progress and metadata-complexity claims require scoped evidence.
 3. **Declare safe access paths ([Milestone 8](08-indexing-and-access-paths.md)).**
    Bind index definitions, key/collation semantics, transaction maintenance and
    historical coverage to public owners. Deliver recoverable online builds,
@@ -496,7 +529,7 @@ requirements; no original tracker closes merely because its work was split.
    bitmaps, hash tables and vector/runtime strategies. Deliver statistics and
    cost-based plans, measure complete durable operations under mixed load, and
    enforce latency, throughput, memory and recovery budgets throughout later work.
-5. **Cut over live executables and activate derived views, multi-format foreign sources, branches and clustered compute ([Milestones 3](03-live-storage-and-sql-cutover.md)–[17](17-clustered-execution.md)).**
+5. **Cut over live executables and activate derived views, multi-format foreign sources, branches and clustered compute ([Milestones 3](03-live-storage-and-sql-cutover.md)–[18](18-clustered-execution.md)).**
    Wire the storage hierarchy, `.tseg` segments, write-through caches and immediate
    wakeups into the live node, SQL gateway and server executables; formalize shared
    statement outcomes, bounded result consumption, transactions and early client
@@ -510,7 +543,7 @@ requirements; no original tracker closes merely because its work was split.
    `Fuze` workers over shared object storage with fenced lease handoff.
 
 Handbook publication is implemented. Remaining live-site navigation and recovery
-qualification belongs to [qualification](26-qualification-and-benchmarks.md#documentation-publication),
+qualification belongs to [qualification](27-qualification-and-benchmarks.md#documentation-publication),
 with completed observations in the proof ledger.
 
 ## Shared implementation gates
@@ -540,7 +573,7 @@ computation; one universal readiness flag is insufficient.
 
 ## Maintaining the sequence
 
-Keep one numbered, descriptively named file per milestone (`01-` through `27-`).
+Keep one numbered, descriptively named file per milestone (`01-` through `28-`).
 Insert or reorder work by updating this index, filenames and links together.
 Split work only when it has independently reviewable outcomes and prerequisites.
 Keep phase membership contiguous and exhaustive: each milestone appears exactly
