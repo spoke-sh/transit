@@ -2,9 +2,38 @@
 """Reject incomplete or misleading owner measurements before reporting success."""
 import copy
 import unittest
+from unittest.mock import patch
+from pathlib import Path
+import tempfile
 import storage_benchmark as driver
 import storage_ingest_benchmark as ingestion
 import storage_growth as growth
+
+
+class CacheConditions(unittest.TestCase):
+    def test_transient_conditioning_is_recorded_before_exact_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'input').write_bytes(b'fixture')
+            with patch.object(driver, 'residency', side_effect=[(1, 1), (1, 0)]), \
+                    patch.object(driver.os, 'fsync'), patch.object(driver.os, 'posix_fadvise') as advise:
+                result = driver.condition(root, [dict(path='input')], 'cold')
+            self.assertEqual(2, advise.call_count)
+            self.assertEqual(0, result['resident_pages'])
+            self.assertEqual([1, 0], [step['resident_pages'] for step in result['conditioning_attempts']])
+            self.assertEqual('input', result['conditioning_attempts'][0]['first_mismatches'][0]['path'])
+
+    def test_unachieved_cache_condition_fails_with_bounded_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'input').write_bytes(b'fixture')
+            for cache, observed in [('cold', (1, 1)), ('warm', (1, 0))]:
+                with patch.object(driver, 'residency', return_value=observed), \
+                        patch.object(driver.os, 'fsync'), patch.object(driver.os, 'posix_fadvise'):
+                    with self.assertRaises(driver.CacheConditionError) as failed:
+                        driver.condition(root, [dict(path='input')], cache)
+                self.assertEqual(3, len(failed.exception.observations))
+                self.assertTrue(all(step['mismatched_files'] == 1 for step in failed.exception.observations))
 
 
 class Reports(unittest.TestCase):

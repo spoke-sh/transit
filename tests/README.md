@@ -29003,3 +29003,27 @@ The [storage contract](../contracts/TRANSIT_STORAGE_V1.md#qualified-plain-value-
 defines exact layouts and bounded fallback. The local Arrow view is a borrowed
 nullable value child; complete Transit state/error/conflict evidence stays with
 the column. It supplies no C data release callback or external import profile.
+
+## Cache-conditioning retries and incomplete clean lane — 2026-10-26
+
+The ingestion matrix at `1330787a3` stops after **231 of 384 samples** because
+the cold-cache observation finds resident fixture pages. That run is failed and
+has no complete percentile result. The revised driver records whole-fixture
+observations after each conditioning sweep and retries mismatching files at
+most three times. Every timed sample still requires the exact requested
+residency state; exhaustion reports the mismatches and fails. The ingestion
+driver also freezes and verifies its executable before running the matrix.
+
+Nine harness tests pass, including transient conditioning and bounded permanent
+failure. With the aligned-buffer probe built at `040959617`, the revised driver
+passes the **12-sample ingestion smoke** and **24-sample read/checkpoint smoke**.
+All values, accepted positions, original receipts, retained cuts, allocation
+accounting and fresh-process readback checks pass. These small runs validate the
+driver, not the pending full ingestion percentiles or beyond-memory growth.
+
+The committed-HEAD clean core lane at `d80f5c1ed` finishes `check-core`, including
+the full unit suite, and the subsequent simulations, package builds, Zig SDK,
+Nix packages, compute and client ABI checks. It then fails in `test::station`:
+the query-upload capture proof times out waiting for Station domain work.
+The complete clean lane therefore fails. This older revision does not establish
+clean-lane qualification for the later aligned-buffer implementation.

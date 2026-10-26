@@ -72,7 +72,12 @@ Every arm runs in a fresh process on one CPU, with one discarded warmup and 31
 recorded repetitions under each of two page-cache conditions. Before a cold
 sample the runner syncs each fixture file, applies `POSIX_FADV_DONTNEED` and
 requires `mincore` to observe no resident file pages. Warm samples read all
-fixture files and verify residency. This conditions fixture file pages at process
+fixture files and verify residency. A complete-fixture observation follows each
+conditioning sweep. Up to three attempts recondition only mismatching files;
+the report retains every attempt's page counts and the first eight mismatching
+paths. A timed sample starts only after the entire observation satisfies the
+requested condition. Exhaustion fails the run with those observations. This
+conditions fixture file pages at process
 entry, not device/controller caches, directory metadata, the executable or the
 entire host. Physical startup can warm pages used by the later measured phases.
 Alternating arm order and recording host load do not isolate CPU frequency,
@@ -103,8 +108,9 @@ nix develop --command just test::storage-ingest-benchmark --output .cache/storag
 ```
 
 The ingestion driver uses the same disk probe, value oracle, cache conditioning
-and allocation accounting. Each sample starts from a fresh copy of its exact
-baseline. Table arms append the same sixteen 1,024-byte payloads through either
+and allocation accounting. It freezes and verifies the executable so later
+developer builds cannot replace it during the matrix. Each sample starts from a
+fresh copy of its exact baseline. Table arms append the same sixteen 1,024-byte payloads through either
 point/WAL or direct bulk-segment ingestion. Schema, keys, identities, starting
 rows, cache configuration and input values match; the owner checks which
 physical path advanced the segment counter. Baselines contain 128 and 1,024

@@ -110,6 +110,10 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix='transit-ingest-benchmark-', dir='/var/tmp') as temporary:
             root = Path(temporary)
+            frozen = root / 'probe'
+            shutil.copy2(binary, frozen)
+            require(common.digest(frozen) == report['binary_sha256'], 'Executable changed while freezing it')
+            binary = frozen
             report['filesystem'] = subprocess.check_output(['stat', '-f', '-c', '%T', str(root)], text=True).strip()
             for owner, counts in [('table', args.table_rows), ('native', args.native_rows)]:
                 for rows in counts:

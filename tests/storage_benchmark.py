@@ -76,22 +76,46 @@ def residency(path):
         return pages, sum(flag & 1 for flag in flags)
 
 
+class CacheConditionError(ValueError):
+    def __init__(self, cache, observations):
+        self.observations = observations
+        super().__init__(f'Fixture {cache} page-cache conditioning failed: {json.dumps(observations, sort_keys=True)}')
+
+
 def condition(directory, files, cache):
-    pages = resident = 0
-    for item in files:
-        path = directory / item['path']
-        with path.open('rb') as stream:
-            if cache == 'cold':
-                os.fsync(stream.fileno())
-                os.posix_fadvise(stream.fileno(), 0, 0, os.POSIX_FADV_DONTNEED)
-            else:
-                while stream.read(65536):
-                    pass
-        count, present = residency(path)
-        pages += count
-        resident += present
-    require(resident == (0 if cache == 'cold' else pages), 'Fixture page-cache conditioning failed')
-    return dict(files=len(files), pages=pages, resident_pages=resident)
+    require(cache in ('warm', 'cold'), 'Unknown cache condition')
+    observations = []
+    pending = files
+    started = time.monotonic()
+    for _ in range(3):
+        for item in pending:
+            path = directory / item['path']
+            with path.open('rb') as stream:
+                if cache == 'cold':
+                    os.fsync(stream.fileno())
+                    os.posix_fadvise(stream.fileno(), 0, 0, os.POSIX_FADV_DONTNEED)
+                else:
+                    while stream.read(65536):
+                        pass
+        # Observe the entire fixture after conditioning, rather than declaring
+        # success from individual files observed during the conditioning sweep.
+        pages = resident = 0
+        pending = []
+        mismatches = []
+        for item in files:
+            count, present = residency(directory / item['path'])
+            pages += count
+            resident += present
+            if present != (0 if cache == 'cold' else count):
+                pending.append(item)
+                if len(mismatches) < 8:
+                    mismatches.append(dict(path=item['path'], pages=count, resident_pages=present))
+        observations.append(dict(pages=pages, resident_pages=resident, mismatched_files=len(pending),
+                                 first_mismatches=mismatches))
+        if not pending:
+            return dict(files=len(files), pages=pages, resident_pages=resident,
+                        conditioning_attempts=observations, conditioning_seconds=time.monotonic() - started)
+    raise CacheConditionError(cache, observations)
 
 
 def execute(binary, owner, operation, directory, rows, mode, cpu, timeout):
