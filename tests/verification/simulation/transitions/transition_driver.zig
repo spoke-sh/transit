@@ -56,6 +56,7 @@ const Action = struct {
     time: core.Time.Sample = .{ .unix_ms = 10 },
     deadline_ms: u64 = 50,
     resource_permissions: u8 = p.State.all_permissions,
+    permissions: u8 = core.all_permissions,
 };
 const Trace = struct { version: u32, seed: u64 = 0, profile: enum { effects, resource } = .effects, actions: []const Action };
 const Saved = struct { signed: core.SignedRequest, prepared: Engine.Prepared };
@@ -69,8 +70,9 @@ fn key(principal: u8) !core.Ed25519.KeyPair {
 fn request(engine: *Engine, principal: u8, command: core.Command) !core.SignedRequest {
     return core.sign(.{ .realm = 42, .principal = principal, .sequence = (try engine.principal(principal)).sequence + 1, .command = command }, try key(principal));
 }
-fn grant() !core.Command {
-    return .{ .grant = .{ .subject = 1, .public_key = (try key(1)).public_key.toBytes(), .permissions = core.all_permissions } };
+fn grant(permissions: u8) !core.Command {
+    if (permissions != 0 and permissions != core.all_permissions) return error.UnsupportedTrace;
+    return .{ .grant = .{ .subject = 1, .public_key = (try key(1)).public_key.toBytes(), .permissions = permissions } };
 }
 fn nextInput(engine: *Engine) !?g.Input {
     const process = try engine.process(2);
@@ -102,7 +104,7 @@ fn act(engine: *Engine, saved: *[4]?Saved, now: *core.Time.Sample, action: Actio
         .send => return try engine.submit(try request(engine, 0, .{ .send = .{ .pid = 2, .value = core.Value.integer(action.value) } })),
         .own => return try engine.submit(try request(engine, 0, .{ .own = .{ .pid = 2, .worker = action.owner, .expected_generation = (try engine.process(2)).generation } })),
         .revoke => return try engine.submit(try request(engine, 0, .{ .revoke = 1 })),
-        .grant => return try engine.submit(try request(engine, 0, try grant())),
+        .grant => return try engine.submit(try request(engine, 0, try grant(action.permissions))),
         .resource_grant => return try engine.submit(try request(engine, 0, .{ .grant_resource = .{ .resource = 3, .subject = 1, .permissions = action.resource_permissions } })),
         .open_view => {
             const process = try engine.process(2);
@@ -187,7 +189,7 @@ pub fn main(init: std.process.Init) !void {
         const genesis: core.Genesis = .{ .realm = 42, .root_key = (try key(0)).public_key.toBytes(), .max_clock_error_ms = 2 };
         var engine = try Engine.bootstrap(&store, &store, genesis);
         var now: core.Time.Sample = .{ .unix_ms = 10 };
-        _ = try engine.submit(try request(&engine, 0, try grant()));
+        _ = try engine.submit(try request(&engine, 0, try grant(core.all_permissions)));
         _ = try engine.submit(try request(&engine, 0, .{ .spawn = .{} }));
         if (trace.value.profile == .resource) {
             _ = try engine.submit(try request(&engine, 0, .{ .create_resource = .{ .writer = 2, .owned = false } }));

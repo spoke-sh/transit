@@ -39,7 +39,9 @@ class Model:
                 receipt = s["position"]
                 s["position"] += 1
         elif kind in {"revoke", "grant"}:
-            s["permissions"] = 0 if kind == "revoke" else 255
+            permissions = action.get("permissions", 255)
+            assert permissions in (0, 255), "partial permission sets are outside this trace profile"
+            s["permissions"] = 0 if kind == "revoke" else permissions
             receipt = s["position"]
             s["position"] += 1
         elif kind == "own":

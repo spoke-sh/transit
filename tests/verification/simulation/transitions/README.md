@@ -1,5 +1,10 @@
 # Generated transitions
 
+The [active credential denial control](corpus/denied-active-principal.json)
+keeps the principal enabled while replacing its grant with zero permissions.
+It challenges operation authorization separately from credential revocation;
+the grant trace profile admits only zero or all permissions.
+
 ```sh
 just test::properties
 just test::properties --seeds 128 --steps 128
@@ -35,4 +40,3 @@ The generator does not model finite process settlement, checkpoint pages or
 concurrent native handles. Existing focused tests still own those obligations.
 The in-memory fault store assumes conditional
 append atomicity and is not a substitute for Ursula disk qualification.
-
