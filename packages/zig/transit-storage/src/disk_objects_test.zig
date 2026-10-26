@@ -66,6 +66,8 @@ test "one disk facade supports concurrent publishers and counts completed reads"
             // still have one winner even when they share a facade and counters.
             _ = try store.objectStore().putImmutable("shared", "bytes", hash("bytes"));
             const won = try store.objectStore().putConditional("head", .if_none_match, "bytes");
+            try store.confirmImmutableObject(path, .{ .size = 5, .sha256 = hash("bytes") });
+            try store.confirmImmutableObject("shared", .{ .size = 5, .sha256 = hash("bytes") });
             var out: [5]u8 = undefined;
             try t.expectEqualStrings("bytes", try store.objectStore().getRange(path, 0, out.len, &out));
             try t.expectEqualStrings("bytes", try store.objectStore().getRange("shared", 0, out.len, &out));
@@ -94,9 +96,9 @@ test "one disk facade supports concurrent publishers and counts completed reads"
     try t.expectEqual(@as(u64, 16), store.puts);
     try t.expectEqual(@as(u64, 1), store.conditional_puts);
     try t.expectEqual(@as(u64, 7), store.conditional_conflicts);
-    try t.expectEqual(@as(u64, 16), store.range_reads);
+    try t.expectEqual(@as(u64, 32), store.range_reads);
     try t.expectEqual(@as(u64, 85), store.bytes_written);
-    try t.expectEqual(@as(u64, 80), store.bytes_read);
+    try t.expectEqual(@as(u64, 160), store.bytes_read);
 }
 
 test "immutable identity and conditional kind survive restart" {

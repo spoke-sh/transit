@@ -248,6 +248,8 @@ pub const LocalSegmentStore = struct {
         try TransitObjectStore.validateKey(key);
         if (self.disk) |disk| {
             try disk.confirmImmutable(key, expected);
+            self.counters_mutex.lockUncancelable(disk.io);
+            defer self.counters_mutex.unlock(disk.io);
             self.bytes_read += expected.size;
             self.range_reads += @max(1, std.math.divCeil(u64, expected.size, Disk.chunk_bytes) catch unreachable);
             return;

@@ -29202,6 +29202,22 @@ Board/site checks and full check do not complete. Its log remains
 `/var/tmp/transit-m2-retained-roots-check.log`. Focused post-rebase passes do not
 replace a completed full check or final committed-HEAD clean CI.
 
+## Concurrent immutable confirmation counters — 2026-10-26
+
+Post-rebase review finds that `confirmImmutableObject` still updates disk read
+counters without the short counter mutex introduced for ordinary object reads.
+It now takes that mutex only after verification and sync finish. The existing
+eight-caller disk-facade proof also confirms each private and shared immutable
+object, then checks exact completed put/read/byte counts after joining all
+callers. Publication and acceptance semantics are unchanged.
+
+The focused disk-facade, confirmation and publication-sync run passes **4/4**:
+`zig build test -Dtest-filter='disk facade' -Dtest-filter='confirmation' -Dtest-filter='object publication sync failures' --summary all`
+in `packages/zig/transit-storage` inside the pinned Nix shell. The log is
+`/var/tmp/transit-m2-pr-confirmation-test.log`. Full workspace and clean core
+checks started at `9ae8b801f` are interrupted with exit 130 during toolchain
+qualification to include this correction; neither is a passed full check.
+
 ## Process-limited growth attempt and native setup timeout — 2026-10-26
 
 The frozen full growth run started at `b85a0a076` finishes **failed** when the
