@@ -7,7 +7,7 @@ import subprocess
 import time
 import platform
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 SUITE = json.loads((ROOT / "tests/verification/suite.json").read_text())
 if SUITE["version"] != 1:
     raise ValueError("Unsupported verification suite version")

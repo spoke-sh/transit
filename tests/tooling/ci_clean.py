@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import time
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def run(*args, cwd=ROOT, **kwargs):
@@ -107,7 +107,7 @@ def main():
         # putting those builds in a shared tmpfs can exhaust unrelated fixtures.
         # This is the same inventory runner used by every ci::* recipe, entered
         # once with the pinned lane tools and this checkout's owned scratch.
-        command = ["just", selected] if args.check else ["python3", "-B", "tests/ci.py", selected]
+        command = ["just", selected] if args.check else ["python3", "-B", "tests/tooling/ci.py", selected]
         phase("checks", *shell, "env", f"TMPDIR={scratch}", *command, cwd=checkout, env=env)
         metadata["completed"] = True
         checkpoint()

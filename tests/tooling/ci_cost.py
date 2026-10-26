@@ -7,7 +7,7 @@ import os
 import re
 import subprocess
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 ORDINARY_LANES = json.loads((ROOT / 'tests/verification/suite.json').read_text())['tiers']['ordinary']
 
 
