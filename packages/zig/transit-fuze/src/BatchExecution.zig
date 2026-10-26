@@ -35,6 +35,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         pending_provenance: batch.Provenance = .{ .row = 1, .boundary = 1 },
         oversized: bool = false,
         read_error: ?anyerror = null,
+        read_failure: ?logical.Failure = null,
         read_rejection: if (@hasField(Scan, "rejection")) @FieldType(Scan, "rejection") else void = if (@hasField(Scan, "rejection")) null else {},
 
         /// Takes ownership of scan only on success. Decoder/source and returned
@@ -78,6 +79,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     break :held row;
                 } else self.acquire() catch |err| {
                     self.read_error = err;
+                    if (@hasDecl(Scan, "batchFailure")) self.read_failure = self.scan.batchFailure();
                     if (@hasField(Scan, "rejection")) {
                         self.read_rejection = self.scan.rejection;
                         self.scan.rejection = null;
@@ -90,7 +92,14 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     self.read_error = err;
                     break;
                 };
-                const provenance: batch.Provenance = if (had_pending) self.pending_provenance else .{ .row = ordinal, .boundary = ordinal, .identity = if (@hasDecl(Scan, "batchIdentity")) self.scan.batchIdentity() else null, .location = if (@hasDecl(Scan, "batchPosition")) self.scan.batchPosition() else null };
+                const source_row = if (@hasDecl(Scan, "batchOrdinal")) self.scan.batchOrdinal() else ordinal;
+                const provenance: batch.Provenance = if (had_pending) self.pending_provenance else .{ .row = source_row, .boundary = source_row, .identity = if (@hasDecl(Scan, "batchIdentity")) self.scan.batchIdentity() else null, .location = if (@hasDecl(Scan, "batchPosition")) self.scan.batchPosition() else null };
+                const previous = if (self.physical.len == 0) self.scanned else self.physical.provenance[self.physical.len - 1].row;
+                if (provenance.row <= previous) {
+                    row.deinit();
+                    self.read_error = error.SourceChanged;
+                    break;
+                }
                 self.physical.appendValidated(row.cells, provenance) catch |err| {
                     if (err == error.BatchFull) {
                         self.pending = row;
@@ -122,7 +131,9 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                         while (try self.acquire()) |input| {
                             var row = input;
                             defer row.deinit();
-                            self.scanned = try std.math.add(u64, self.scanned, 1);
+                            const ordinal = if (@hasDecl(Scan, "batchOrdinal")) self.scan.batchOrdinal() else try std.math.add(u64, self.scanned, 1);
+                            if (ordinal <= self.scanned) return error.SourceChanged;
+                            self.scanned = ordinal;
                         }
                         break;
                     }
@@ -134,6 +145,14 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                     if (self.physical.len == 0) {
                         if (self.read_error) |err| {
                             if (@hasField(Scan, "rejection")) self.scan.rejection = self.read_rejection;
+                            if (self.read_failure) |failure| {
+                                if ((err != error.QueryTypeError and err != error.QueryConflict) or failure.operation != .predicate or failure.row <= self.scanned or
+                                    failure.state != (if (err == error.QueryTypeError) types.State.type_error else types.State.conflict) or
+                                    !std.mem.eql(u8, &failure.binding, &self.physical.plan.source_basis) or
+                                    !std.mem.eql(u8, &failure.plan, &(self.diagnostic_plan orelse self.physical.fingerprint))) return error.SourceChanged;
+                                self.failure = failure;
+                                self.scanned = failure.row;
+                            }
                             return err;
                         }
                         break;
@@ -141,7 +160,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 }
                 const i = self.index;
                 self.index += 1;
-                self.scanned = try std.math.add(u64, self.scanned, 1);
+                self.scanned = self.physical.provenance[i].row;
                 if (self.atLimit()) continue;
                 switch (self.physical.outcomes[i]) {
                     .type_error, .conflict => |_, tag| {
@@ -183,6 +202,11 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 }
             }
             if (!self.scan.complete and !(verification == .selected_prefix and self.atLimit())) return error.IncompleteSource;
+            if (@hasDecl(Scan, "batchCoverage")) if (self.scan.complete and !(verification == .selected_prefix and self.atLimit())) {
+                const covered = self.scan.batchCoverage();
+                if (covered < self.scanned) return error.SourceChanged;
+                self.scanned = covered;
+            };
             if (plan.aggregate != .rows) {
                 var arena: std.heap.ArenaAllocator = .init(self.scan.allocator);
                 errdefer arena.deinit();
@@ -210,7 +234,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
             var returned = false;
             defer if (!returned) row.deinit();
             const plan = self.physical.plan;
-            var counters: logical.Counters = .{ .scanned = self.scanned, .selected = self.selected, .value_count = self.value_count, .sum = self.sum };
+            var counters: logical.Counters = .{ .scanned = self.pending_provenance.row - 1, .selected = self.selected, .value_count = self.value_count, .sum = self.sum };
             defer {
                 self.scanned = counters.scanned;
                 self.selected = counters.selected;

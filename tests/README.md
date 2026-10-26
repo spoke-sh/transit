@@ -28755,3 +28755,22 @@ Diagnostic mapping/error/outcome checks pass **3,411** projections across **24**
 declared surfaces. This storage operation supplies no wire protocol, SQL
 aggregate/LIMIT owner or authority for the plan's external source basis. Filtered
 service integration and final clean qualification remain separate work.
+
+## Filtered source ordinals in batch execution — 2026-10-26
+
+The focused physical batch/oversized/LIMIT suite passes **51/51** tests. A sparse
+source supplies rows at original positions 4 and 19, with terminal coverage 23.
+Ordered SUM overflow reports row 19 across compute capacities 1, 2, 8 and 256,
+ahead of a deferred predicate failure at row 25. Without that earlier overflow,
+the original predicate failure wins after the acquired prefix. Empty filtered
+results retain complete source coverage; LIMIT one retains only position 4.
+Regressing/zero ordinals, insufficient terminal coverage and a foreign failure
+plan reject. A held 8 KiB row executes under the unchanged 4 KiB compute budget
+and preserves the next row's original failure attribution.
+
+Diagnostic mapping/error/outcome, verification-catalog, formatting and
+documentation checks pass. Source hooks do not establish wire continuation or
+SQL filtering support; their source owner must validate exact coverage and
+current authority. The instrumented broad service retry still times out during
+history replay after one complete eight-transaction pass; remaining replay and
+later service phases are unproved by that run.

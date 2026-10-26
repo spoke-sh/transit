@@ -73,6 +73,23 @@ acquisition by the remaining selected-row count. File LIMIT still decodes and
 verifies every field and the captured EOF. Stored checkpoints, source page limits,
 Arrow segments and publication chunks are unchanged and are not batch sizes.
 
+A source that filters rows before supplying a batch can expose `batchOrdinal`
+for the last acquired row and `batchCoverage` for its verified completed source.
+Ordinals are one-based, strictly increasing and independent of returned-row
+counts. Completed coverage includes skipped tails and empty filtered results;
+selected-prefix LIMIT does not adopt later coverage. Buffered and oversized rows
+retain their original ordinals, so ordered aggregate errors name the original
+source row. A regressing ordinal or terminal count rejects with `SourceChanged`.
+These hooks report source evidence; they cannot create retention or authorization.
+
+Such a source can also expose `batchFailure` when acquisition returns a semantic
+predicate error. The executor holds that copied failure behind already acquired
+rows, allowing their earlier aggregate failures to win. At disclosure it checks
+the error state, source binding, original diagnostic plan and increasing row
+position. A selected-prefix LIMIT can finish before that later failure. Physical
+read failures retain their existing behavior. These execution hooks do not
+establish a filtered service protocol or automatically lower a SQL predicate.
+
 `FileQuery.execute` checks the frozen binding and preserves its borrowed immutable
 plan contract; changed names or literals reject before the next disclosure.
 `executeWith` additionally accepts physical limits and a host runner. Buffered

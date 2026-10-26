@@ -7096,9 +7096,9 @@
         "BatchFull": 1,
         "FailedQuery": 1,
         "IncompleteSource": 1,
-        "QueryConflict": 1,
-        "QueryTypeError": 1,
-        "SourceChanged": 1
+        "QueryConflict": 2,
+        "QueryTypeError": 3,
+        "SourceChanged": 5
       },
       "outcomes": {},
       "error_sets": {},
@@ -7114,7 +7114,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 27,
+        "try": 26,
         "catch": 6
       },
       "imports": [
