@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-from layout import validate, validate_migration
+from layout import validate, validate_migration, verify_archives
 
 ENTRY = Path(__file__).with_name("layout.py")
 
@@ -104,7 +104,7 @@ class Layout(unittest.TestCase):
     def migration(self):
         first = self.write("old/one.log", "original failed observation\n")
         second = self.write("old/two.py", "independent oracle\n")
-        baseline = dict(revision="basis", files=[dict(path=str(p.relative_to(self.root)),
+        baseline = dict(revision="basis", files=[dict(path=str(p.relative_to(self.root)), bytes=p.stat().st_size,
             sha256=hashlib.sha256(p.read_bytes()).hexdigest()) for p in (first, second)])
         self.write("runner/baseline.json", json.dumps(baseline))
         mapping = dict(version=1, baseline="tests/runner/baseline.json", baseline_revision="basis", files=[
@@ -146,6 +146,33 @@ class Layout(unittest.TestCase):
         for entry in mapping["files"]:
             (self.root / entry["source"]).unlink()
         self.check_migration(mapping, complete=True)
+
+    def test_archived_bytes_are_available_at_original_revision(self):
+        mapping = self.migration()
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                        "commit", "--no-gpg-sign", "-qm", "test: capture original observation"], cwd=self.root, check=True)
+        revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.root, text=True).strip()
+        baseline_path = self.root / mapping["baseline"]
+        baseline = json.loads(baseline_path.read_text())
+        baseline["revision"] = revision
+        baseline_path.write_text(json.dumps(baseline))
+        mapping["baseline_revision"] = revision
+        entry = mapping["files"][0]
+        entry.update(disposition="archive", destination=None, owner="evidence", archive=dict(
+            revision=revision, path=entry["source"], sha256=baseline["files"][0]["sha256"]))
+        (self.root / entry["source"]).unlink()
+        self.check_migration(mapping)
+        self.assertEqual(verify_archives(self.root, "tests/runner/migration.json"), 1)
+        entry["archive"]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(AssertionError, "Changed archive identity"):
+            self.check_migration(mapping)
+        with self.assertRaisesRegex(AssertionError, "Changed archive bytes"):
+            verify_archives(self.root, "tests/runner/migration.json")
+        entry["archive"]["revision"] = "0" * 40
+        self.write("runner/migration.json", json.dumps(mapping))
+        with self.assertRaisesRegex(AssertionError, "Unavailable archive object"):
+            verify_archives(self.root, "tests/runner/migration.json")
 
 
 if __name__ == "__main__":

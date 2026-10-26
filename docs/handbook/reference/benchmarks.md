@@ -95,7 +95,7 @@ and mutation profile. Current general Table candidates perform different work;
 
 A local run on 2026-09-30 at clean source `bc9476ba`, including
 `main` at `4c22b426`, passes all 28 components.
-The [complete raw report](../../../tests/benchmarks/results/2026-09-30-main.json) retains
+The [complete raw report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-09-30-main.json) retains
 all 52 timed phases, five samples, output cells and segment digests, provenance
 and full-workload blockers. It uses the default 8192 rows, seed 42, eight-row
 pages, ten executions and 2000 compilations/proposals per sample. The executable
@@ -129,7 +129,7 @@ on this shared host can affect timings. This is an unpaired observation, not a
 speedup claim. Fuze uses a 4 MiB Arrow workspace, a 64 KiB output buffer and at
 most eight generated rows; those budgets are not measured process RSS.
 
-The [earlier report](../../../tests/benchmarks/results/2026-09-30.json) retains its
+The [earlier report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-09-30.json) retains its
 original `8446688a` source identity. The two runs have identical binary and
 fixture hashes and verified query outputs. Their timing differences are
 shared-host observations, not evidence of a code performance change.

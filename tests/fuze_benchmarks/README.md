@@ -247,6 +247,6 @@ control. Then assess the complete wider matrix with `pipeline_gates.py`, using
  tests/fuze_benchmarks/results/2026-10-13-pipelines/budgets.json --output RESULT`.
 This checks the selected portable default against the frozen wider thresholds;
 optional dispatch/worker ratios remain visible. Dirty, missing, duplicate or
-incorrect samples cannot satisfy the gate. The [executed account](results/2026-10-13-pipelines/README.md)
+incorrect samples cannot satisfy the gate. The [executed account](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-10-13-pipelines/README.md)
 retains successful measurements, failed trials, source hashes and attribution
 limits. CPU dispatch and real recovery qualification are separate evidence.

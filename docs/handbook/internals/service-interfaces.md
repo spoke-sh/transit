@@ -97,7 +97,7 @@ recovery file per connection would be simpler but would not provide discovery
 after the connection disappears or fenced sequence ownership. Replaying SQL on
 reconnect would hide ambiguity by creating new work.
 
-The [retained experiment](../../../tests/verification/results/sql-wire-2026-10-14.json)
+The [retained experiment](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/sql-wire-2026-10-14.json)
 measures that cost with eight resident pages, 8 MiB hot storage and an 8 MiB cold
 cache. It separates framed-row encoding from verified connection startup,
 preparation, read/write completion and native/provider request windows. Native
@@ -418,7 +418,7 @@ including background recovery. Two simultaneous sessions finish in
 and cannot be added as independent request counts. The service high-water mark
 at this observation is 116,236 KiB. The
 [measurement implementation](../../../tests/sql_sessions/measurements.py) records
-body bytes, timings and process memory. The [evidence record](../../../tests/verification/results/sql-sessions-2026-10-21.json)
+body bytes, timings and process memory. The [evidence record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/sql-sessions-2026-10-21.json)
 preserves exact source/binary hashes, structured observations and failed runs.
 
 The full wire fixture uses eight resident pages and 8 MiB hot/cache budgets.

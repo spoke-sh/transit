@@ -1,7 +1,0 @@
-{
-  "state": "interrupted_incomplete",
-  "reason": "Focused Zig task lacked its installed Node package prerequisite; rerun the owning just bindings::relational-node task.",
-  "pid": 4025779,
-  "process_group": 3952420,
-  "time": 1792992204.113964
-}

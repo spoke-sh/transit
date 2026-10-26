@@ -60,7 +60,7 @@ The exact definition is also published in the generated
 build's definition is rejected. Table declarations include their catalog scope,
 branch, exact stored interpretation and full row type; Document declarations include an explicit
 reference, optional expansion path and scalar projections. Those shapes follow
-`Values.Source` in the [Query package](../../../zig/transit-query/README.md).
+`Values.Source` in the [Query package](../../transit-query/README.md).
 
 For a Table, `connection.resource` holds native query progress and
 `workspace.source.resource` identifies the direct catalog's independent data

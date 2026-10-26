@@ -70,7 +70,7 @@ test driver does not invalidate the Board asset build; editing browser source
 does not invalidate the dependency fetch. Package-manager inputs remain shared.
 
 These build-only snapshots omit `README.md`, `AGENTS.md` and retained records in
-`tests/verification/results/`. The repository keeps those documents and evidence;
+`tests/evidence/`. The repository keeps those documents and evidence;
 documentation checks continue to validate them. Executable test inputs, formal
 models, suite catalogs and live benchmark budgets remain included. New inputs
 must be added to their owning source set when the build starts consuming them.
@@ -440,7 +440,7 @@ CI runs for PRs, main pushes, version tags, merge queues and manual dispatch.
 Feature branch pushes no longer duplicate the PR run. A cheap planning job checks
 documentation and selects full qualification unless a PR changes only navigation
 README/AGENTS files, handbook sources/tooling, Markdown under `docs/`, the historical
-qualification migration map, or inert records under `tests/verification/results/`.
+qualification migration map, or inert records under `tests/evidence/`.
 Contracts (including their README files), live fixtures/budgets, models, unknown
 paths, renames from code, and shared infrastructure select every lane. Other
 `results/` directories can contain executable budgets and remain full. Missing Git

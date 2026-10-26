@@ -1,9 +1,0 @@
-{
-  "revision": "d554130142201644b45b0ddfb4c6d25b11dca126",
-  "production_changes": false,
-  "driver_sha256": "1f91b650077bdb15ba38884352c443f384b4bc8972fed27bf7739f6d234906b5",
-  "binary_sha256": "5ba8f349a9f9061ab3586a4ac4d11ddf2183b610c3ce24e7939bb3298fbf2b46",
-  "build_command": "zig build sql-benchmark -Doptimize=ReleaseSafe",
-  "driver_substitution": "tests/fuze_benchmarks/six.zig -> tests/sql_bench.zig",
-  "compiler": "0.17.0-dev.2267+48abf1a34"
-}

@@ -158,7 +158,7 @@ executed limits. These additions do not expand the ordinary five CI lanes;
 physical ENOSPC and reference placements remain explicit environment-dependent
 proofs. The proof ledger records each selected source and placement separately.
 
-M23/M24's [final clean report](results/m23-m24-clean-2026-09-28.json) records all
+M23/M24's [final clean report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m23-m24-clean-2026-09-28.json) records all
 59 ordinary tasks at `21089bb654f0`, using one fresh checkout per lane. The five
 completed reports share a revision and cover the committed inventory exactly.
 These local timings do not requalify the earlier hosted 33-task budget samples.
@@ -506,7 +506,7 @@ focuses the finite public-service offered-load case. The
 defines timing boundaries, generator queueing and storage measurements. A matrix
 entry or an incomplete manifest is not passing evidence. The larger analytical
 dimensions remain distinct from this executable sample matrix. The
-[recorded fourteen-sample result](results/m10-scale-2026-09-25.json) preserves
+[recorded fourteen-sample result](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m10-scale-2026-09-25.json) preserves
 measurement fields and original artifact hashes; the [test guide](../../docs/history/qualification/verification.md#m10-verification-and-scale-foundations)
 summarizes observed ranges and qualification limits.
 

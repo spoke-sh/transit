@@ -69,6 +69,8 @@ selected real source trees. Neither check requalifies unrelated SDK languages.
 
 The [migration map](../../docs/roadmap/development-workflow-migration.json)
 accounts for the original test inventory. Layout checks reject missing or
-duplicate dispositions and changes to retained observation bytes. Use
+duplicate dispositions and changes to retained observation identities.
+`python3 -B tests/runner/layout.py --archive-integrity` verifies the raw archived
+bytes against the original Git revision; ordinary output stays in runner artifacts. Use
 `python3 -B tests/runner/layout.py --complete` for the final destination audit;
 it fails while old paths or migration exceptions remain.

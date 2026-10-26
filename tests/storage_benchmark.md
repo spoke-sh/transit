@@ -97,7 +97,7 @@ changed result digests, unexpected writes, false replay counts and missing raw
 repetitions reject. The ordinary core checks execute this report validator;
 the disk measurement matrix is an explicit task with an output destination.
 
-The [recorded owner matrix](storage_benchmarks/2026-10-26-owners/README.md)
+The [recorded owner matrix](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-owners/README.md)
 retains all 768 samples, exact build identities and the observed limits of the
 checkpoint comparison.
 

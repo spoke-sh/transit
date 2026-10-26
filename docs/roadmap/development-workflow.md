@@ -104,7 +104,7 @@ tests/
 | `verification/` | Semantic invariants and limits, formal models, deterministic schedules and mutation campaigns; task execution metadata belongs to `runner/` |
 | `fixtures/` | Shared independent test inputs; canonical contract fixtures keep their existing contract/package owner |
 | `performance/` | Workloads, benchmark drivers, comparisons and active budgets from the existing benchmark families |
-| `evidence/` | Retained immutable observations, provenance and integrity records; narratives remain in qualification history |
+| `evidence/` | Navigation and specifically justified reproducibility records; ordinary run output belongs in ignored runner output and CI artifacts |
 
 Classify by assertion and boundary, not a filename prefix. For example,
 `storage.py` exercises Ursula, `fixtures.py` verifies canonical signing vectors,
@@ -134,8 +134,10 @@ Station actors merely because they share process helpers.
   Separate the build graphs explicitly and fail missing inputs in their owner.
 - Retained observations and live benchmark budgets have different owners. Never
   move active inputs into evidence-only CI selection or Nix exclusions.
-- Preserve existing evidence bytes, hashes, failures and original attribution.
-  Rewrite current links, not embedded historical commands or source identities.
+- Preserve existing evidence hashes, failures and original attribution. When
+  removing routine generated output from the current tree, link its immutable
+  archived source revision. Keep original commands and identities intact. Do not
+  treat manually authored pass records as a substitute for runner results.
 - Do not mark models planned in later milestones as implemented or proved.
   Keep finite exploration, implementation correspondence, disk recovery,
   process death and power-loss claims distinct.
@@ -211,18 +213,27 @@ this plan is not another chronological test transcript.
 - [ ] P3.5 Execute affected models, replay/determinism controls and mutation
   campaigns at their existing bounds. Compiler failures do not detect mutations.
 
-### P4 — Performance inputs and immutable evidence
+### P4 — Performance inputs, automatic results and archival references
 
 - [ ] P4.1 Consolidate benchmark families under `performance/`, separating
   drivers, workloads, active budgets and tests from recorded observations.
-- [ ] P4.2 Move all currently retained qualification records to `evidence/`,
-  preserving bytes and hashes; record old/new paths. Do not prune by extension.
+- [x] P4.2 Audit existing records by purpose. Remove routine generated run output
+  from the current tree after preserving immutable source-revision links and
+  hashes. Keep active inputs and specifically justified reproducibility data with
+  their owners; moving every historical log into a new folder is insufficient.
 - [ ] P4.3 Update consumers of active budget/reference data, source selectors,
   CI routing, artifact publication paths and current documentation links.
 - [ ] P4.4 Verify that executable inputs still invalidate owning builds/checks
   while inert evidence does not. Exercise renamed-file and unknown-input controls.
 - [ ] P4.5 Run benchmark runner/oracle checks and affected real workloads. Keep
   old driver hashes intact and establish current baseline identities explicitly.
+- [ ] P4.6 Standardize automatic per-task result, log and artifact capture across
+  local, clean and hosted runs. Preserve failure and interruption status, source,
+  command, toolchain and completion metadata. Test missing/incomplete artifacts;
+  ordinary results must not require manually authored evidence files or commits.
+- [ ] P4.7 Publish runner-generated summaries and artifacts with an explicit
+  retention policy. Long-lived scientific or regression references need a stable
+  archived identity; a temporary CI URL alone does not replace a required input.
 
 ### P5 — Installed SDK ownership
 
@@ -370,7 +381,9 @@ they are not automatically deferred to a later milestone or follow-up PR.
 | Delivered foundation | Completed | PRs #175–#181 above; each records its scoped qualification |
 | P0 | In Progress | Repairs: `945101ead`, `251f15195`. File-query oracle: 190 cases; native/port codec: 143 cases; ten installed consumers: four collation vectors each; TypeScript: 39 adapter tests; Python types pass. Clean fast checks: 26, 20.614 seconds in the check phase. [Full baseline run](https://github.com/spoke-sh/transit/actions/runs/40404745910) at `251f15195` is pending. |
 | P1 | In Progress | Runner, lane inventory, task coverage, CI cost policy and external-profile orchestration moved together; 26 fast checks pass, including real runner failure/interruption and clean-clone controls. The layout guard passes eight actual-file regression controls and the expanded 28-check fast profile; 775 enumerated migration exceptions remain. The 1,405-file disposition map is recorded; eleven layout controls cover duplicate destinations, missing dispositions and retained-evidence integrity. Dynamic task/artifact dependency auditing remains pending. Committed-source checks pass after the runner move. |
-| P2–P12 | Planned | Checklists above; no execution claimed |
+| P2 | In Progress | Linux child discovery/joining extracted in `e61ef1891`; real child-death and adopted-grandchild controls pass. All 29 fast checks pass from clean committed source. Installation/provider qualification remains pending. |
+| P4 | In Progress | 734 historical/generated records leave the current tree with immutable Git links and original hashes; archive integrity checks verify all original blobs. Twelve layout controls and 29 fast checks pass. Active budgets remain executable inputs; 22 Nix invalidation controls pass. Automatic per-task local capture and final packaged-runtime qualification remain pending. |
+| P3, P5–P12 | Planned | Checklists above; no execution claimed |
 
 The final PR closes the work only when the proposed structure exists, every
 required scenario has an executable owner, source-clean checks pass, retained

@@ -227,7 +227,7 @@ synthetic gains do not establish storage-bound or universal query speedup.
 
 ### Measured alternatives and limits
 
-At `5b3d1ba6`, the [paired measurements](../../../tests/fuze_benchmarks/results/2026-10-13-pipelines/README.md)
+At `5b3d1ba6`, the [paired measurements](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-10-13-pipelines/README.md)
 compare the frozen scalar semantic path, portable columns, guarded AVX2 and
 one/two/four host workers. Owned-row workloads improve substantially, but
 capture/decode and native controls change much less. Before temporary row-cache

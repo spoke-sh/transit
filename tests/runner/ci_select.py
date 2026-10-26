@@ -26,7 +26,7 @@ def select(paths, event="pull_request"):
             return True
         # These are retained observations, never fixtures or input budgets.
         # Do not extend this to other results/ directories: some own live gates.
-        return (p.parts[:3] == ("tests", "verification", "results") and
+        return (p.parts[:2] == ("tests", "evidence") and
                 p.suffix in {".md", ".json", ".log", ".gz", ".patch", ".txt"})
 
     full = event != "pull_request" or not paths or not all(map(documentation, paths))

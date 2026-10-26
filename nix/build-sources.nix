@@ -50,6 +50,6 @@ in
       (lib.fileset.difference (root + /examples) (root + /examples/station-sdk))
       (root + /tasks)
       (root + /contracts)
-    ]) (root + /tests/verification/results)
+    ]) (root + /tests/evidence)
   );
 }

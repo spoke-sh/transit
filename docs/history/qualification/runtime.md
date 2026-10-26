@@ -253,7 +253,7 @@ Hosted run `40278906228` reaches the former 60-minute core job cap at revision
 core check (1,466.82 seconds), Station (312.77 seconds), storage, service and
 native authorization. Their task sum is 3,275.81 seconds (54.60 minutes), before
 job setup and the interrupted Table authorization build. The retained
-[task and completion records](../../../tests/verification/results/lifecycle-qualification-2026-10-26/report.json)
+[task and completion records](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/lifecycle-qualification-2026-10-26/report.json)
 identify `test::authorization-tables` as active when GitHub cancels the job.
 No failure assertion precedes that cancellation; the containing lane is incomplete.
 
@@ -363,7 +363,7 @@ does not stand in for the complete clean-checkout suite.
 
 ## Declarative authorization evaluator
 
-The [admission-bound recovery report](../../../tests/verification/results/authorization-admission-recovery-2026-10-15.json)
+The [admission-bound recovery report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-admission-recovery-2026-10-15.json)
 records a signer-substitution defect in saved changesets and its correction.
 Against `3af13da3`, a new regression receives a signed continuation where it
 expects rejection: a substituted seal and begin key borrow a real completed
@@ -381,7 +381,7 @@ focused preflight results; final committed-source root checks, all 86 ordinary
 tasks and focused adapter proofs remain separate gates. Earlier results below
 retain their actual source and definition and do not certify this cutover.
 
-The [repository check report](../../../tests/verification/results/authorization-check-2026-10-15.json)
+The [repository check report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-check-2026-10-15.json)
 records `just check` passing with definition `67f02f8b…2a15e`: native unit and
 contract checks, 3,380 diagnostic projections across 29 surfaces, 590 CLI cases,
 5,705 local documentation links and frontend checks/builds. Some native tasks
@@ -390,7 +390,7 @@ separate. An earlier invocation was stopped after a compute-pool test stole the
 admission lock it was waiting to observe. Its synchronization now observes the
 lock without acquiring it, with bounded waiting and joined failure cleanup.
 
-The [SQL wire attempt report](../../../tests/verification/results/authorization-sql-wire-attempt-2026-10-15.json)
+The [SQL wire attempt report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-sql-wire-attempt-2026-10-15.json)
 retains a **failed** complete-suite attempt under the same definition. Pinned
 libpq and libmysqlclient workloads pass in **187.654 s** and **181.892 s**;
 selected-role revocation, prepared write denial, retained read availability,
@@ -449,7 +449,7 @@ remain unchanged. Product code and the shared contract definition are unchanged.
 Full clean qualification at the new committed source remains required; the
 original failed attempts and diagnostic limits remain explicit.
 
-The [complete SQL wire preflight](../../../tests/verification/results/authorization-sql-wire-complete-2026-10-15.json)
+The [complete SQL wire preflight](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-sql-wire-complete-2026-10-15.json)
 passes at committed `3d07caaf` with the same definition. The main suite takes
 **6,063.8 s** and the separate fresh-fixture `psql`/MySQL CLI workflow takes
 **297.559 s**. The original 40 KiB write completes after **3,396.781 s** with one
@@ -480,7 +480,7 @@ counts. Only one uncertain ingress request remains resident. Existing deadlines,
 part sizes, turn bounds and stored/wire definitions are unchanged. This focused
 proof does not by itself qualify the complete wire task.
 
-The subsequent [complete pipeline wire report](../../../tests/verification/results/authorization-sql-wire-pipeline-2026-10-15.json)
+The subsequent [complete pipeline wire report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-sql-wire-pipeline-2026-10-15.json)
 passes the entire clean-source SQL wire task at committed `d7298d22` in
 **6,353.31 s**, with definition `67f02f8b…2a15e`. The main schedule takes
 **5,954.455 s** and the separate fresh `psql`/MySQL CLI fixture takes
@@ -495,7 +495,7 @@ These local concurrent timings are not latency guarantees. The containing growth
 lane and other ordinary lanes remain separately qualified; this is one complete
 task, not a complete-lane claim.
 
-The [C/C++ native lifetime report](../../../tests/verification/results/authorization-c-native-lifetime-2026-10-15.json)
+The [C/C++ native lifetime report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-c-native-lifetime-2026-10-15.json)
 records a clean installed C client **SIGSEGV** during asynchronous close at
 `d9ead5cd`, followed by ordinary-close reproductions. A captured C++ crash has
 an unmapped instruction pointer after `libtransit_client.so` was unloaded while
@@ -551,7 +551,7 @@ revision across disk replacement. No production collection gate or storage
 budget changes. The focused Board query proof also passes exact saved preparation
 and submission recovery, typed results and current grant/cut enforcement.
 
-The [Station recovery report](../../../tests/verification/results/authorization-station-recovery-2026-10-15.json)
+The [Station recovery report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-station-recovery-2026-10-15.json)
 records a focused pass using final-definition ReleaseSafe binaries from the
 clean growth checkout. On one CPU, the one-page-cache recovery takes **85.483 s**,
 exceeding the previous 60-second whole-phase observation budget. Recovery and
@@ -560,7 +560,7 @@ cache, original work identities and all assertions remain unchanged. Exact lost
 reply recovery, fencing, retained continuation and two disk restarts pass.
 This focused result does not complete the clean growth lane.
 
-The [cold catalog report](../../../tests/verification/results/authorization-catalog-cold-2026-10-15.json)
+The [cold catalog report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-catalog-cold-2026-10-15.json)
 records the full catalog proof passing in **661.754 s**, including the 28-type
 lifecycle, native authorization, retained queries, lost receipts and node/store
 restart. The earlier clean invocation exhausted its unconfigured hot-only
@@ -583,7 +583,7 @@ exit status was not retained; the complete proof output and error-free process
 exit were observed separately. This focused result does not replace the required
 committed-source catalog, Table and installed SDK tasks.
 
-The [interactive Table authorization report](../../../tests/verification/results/authorization-interactive-tables-2026-10-15.json)
+The [interactive Table authorization report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-interactive-tables-2026-10-15.json)
 passes the combined Table/query/console proof in **168.618 s** with eight resident
 pages. Authorized retained readers preserve old rows across an interleaved write;
 page reads carry the newly validated current metadata observation. Revoking native
@@ -594,7 +594,7 @@ policy-raced input rejection and original cancellation also pass. The report
 retains four failed development attempts and their causes; it does not replace
 the complete committed-source growth lane.
 
-The [interactive authorization cost report](../../../tests/verification/results/authorization-interactive-cost-2026-10-15.json)
+The [interactive authorization cost report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-interactive-cost-2026-10-15.json)
 passes the full Table, KV and Document console proof after preserving batch
 prefetch through authority decoration and coalescing duplicate checks within
 one bounded read. Every acquisition finishes with a fresh native check; final
@@ -611,7 +611,7 @@ computation, denied empty results, restored access, concurrent writes and exact
 recovery. No result or permission cache bypasses those checks. These focused
 passes do not replace the complete committed-source clean lanes.
 
-The [installed relational caller report](../../../tests/verification/results/authorization-relational-sdks-2026-10-15.json)
+The [installed relational caller report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-relational-sdks-2026-10-15.json)
 passes the native host and installed Python sync/async and Node callers after
 native SELECT revocation. SDKs preserve `AccessDenied` as the native code and
 `CatalogDenied` as the diagnostic cause, with owned native-cause evidence.
@@ -685,7 +685,7 @@ that additional case. The SQL parser's **324-test** Fuze run covers admitted
 forms, explicit unsupported syntax and allocator failures; it does not establish
 SQL execution or gateway support.
 
-The [administration disk report](../../../tests/verification/results/authorization-administration-2026-10-14.json)
+The [administration disk report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-administration-2026-10-14.json)
 records a passing **9.340 s** run on dirty `b57a5a69`, with five node/store restart
 cycles and 16 resident Ursula pages. In addition to the earlier native checks,
 it verifies preview without publication, repeated grants retaining their edge ID,
@@ -703,12 +703,12 @@ qualification above, used an internal Table/file selector. Production callers at
 that revision retained their existing executor.
 Runtime **`244c83f6`** passes full `just check`, the **22-task clean core lane**,
 190 real file CLI cases and the extended signed native Table proof. The
-[qualification record](../../../tests/verification/results/vector-intake-2026-10-12.json) identifies
+[qualification record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/vector-intake-2026-10-12.json) identifies
 exact revisions and task coverage; earlier type/source/SQL/Arrow proofs retain
 their own revision. The later benchmark artifact-name change passes the complete
 scalar/batch measurement driver as a reproducibility smoke check.
 
-The [measurement record](../../../tests/fuze_benchmarks/results/2026-10-12-vector/README.md)
+The [measurement record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-10-12-vector/README.md)
 retains independent expected answers, 80 operator/pipeline samples, 324 file
 samples, all 115 precommitted experimental checks and eight unchanged six-scalar
 control ceilings. It includes failed attempts. The 4096-row owned-row CPU
@@ -719,7 +719,7 @@ additive allowance. These measurements are not universal or tail-latency claims.
 Unit fixtures cover five states, conflict ownership, immutable plan copies,
 comparison extremes/constants, payload exhaustion, allocation failure,
 rebatching, competing first failures and file LIMIT/EOF rules. Buffered file
-rows recheck access and cancellation. The [native proof](../../../tests/fuze_benchmarks/results/2026-10-12-vector/native-tables.json)
+rows recheck access and cancellation. The [native proof](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-10-12-vector/native-tables.json)
 compares projection/count/empty/LIMIT output independently and revokes access
 after two disclosed rows leave a private batch remainder. Existing lost-receipt,
 node/store restart, catalog/CLI/bridge and captured relational schedules pass in
@@ -742,7 +742,7 @@ qualification above records their completion and the measured default selection.
 
 ## Ongoing maintenance and failed successors
 
-The [expanded native cold-store schedule](../../../tests/verification/results/relational-maintenance-faults-2026-10-12.json) passes **26 complete
+The [expanded native cold-store schedule](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/relational-maintenance-faults-2026-10-12.json) passes **26 complete
 revisions**: the initial result, 8 changing successors
 and 17 no-op successors. Every published basis agrees
 with the independent finite interpreter; applying each complete predecessor delta
@@ -832,7 +832,7 @@ interrupted and disk-pressure runs below retain their actual outcomes.
 
 This closes [issue #53](https://github.com/spoke-sh/transit/issues/53)'s ordinary and
 physical-disk qualification gates for the delivered profile. The historical
-[file comparison and native controls](../../../tests/fuze_benchmarks/results/2026-09-30/README.md)
+[file comparison and native controls](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-09-30/README.md)
 retain their measured revisions, raw samples, withdrawn experiments and frozen
 budgets; this campaign adds no file benchmark or DuckDB-parity claim. Local file
 captures remain ephemeral, and native Table/Flight and other language logical
@@ -1123,7 +1123,7 @@ The complete `just ci` inventory and committed-HEAD clean suite are not rerun.
 
 After the complete clean browser lane passes at `88fc1d0d`, a ReleaseSafe
 HTTP/browser comparison fails its original five-second records-heading assertion.
-The [trace and controls](../../../tests/verification/results/m37-inspection-throttle-2026-10-01.json)
+The [trace and controls](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m37-inspection-throttle-2026-10-01.json)
 show two records reads starting 97 ms and 90 ms after successful atlas reads,
 inside Board's unchanged 100 ms read interval. Both receive HTTP 429. Retrying
 only on the next five-second poll allows the same collision to recur.
@@ -1148,7 +1148,7 @@ change. Combined-source clean and hosted completion remain separate gates.
 Clean core at `5c76d03e` passes 19 tasks, then the caller probe expects
 `AccessDenied` but receives `AuthorityUnavailable` after a node page-stage read
 failure. A transient transport outcome does not establish the required denial.
-The [rejection record](../../../tests/verification/results/m37-caller-rejections-2026-10-01.json)
+The [rejection record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m37-caller-rejections-2026-10-01.json)
 preserves that failure and a controlled reproduction: the proxy replaces one
 actual denial with a classified 503, and the original probe fails.
 
@@ -1169,7 +1169,7 @@ request reference. The shared `PublicationUpload.marker` encoder now supplies
 the expected domain, namespace and frozen-request digest. Its independent byte
 vector checks the existing 48-byte layout; no stored format or definition changes.
 
-The [example record](../../../tests/verification/results/m37-exchange-marker-2026-10-01.json)
+The [example record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m37-exchange-marker-2026-10-01.json)
 retains both original failures and four passing local schedules: HTTP/RPC with
 ordinary credentials and with fresh bootstrap keys. Each rejects a changed
 reconciliation deadline under a fresh activation, resumes the original peer and
@@ -3450,7 +3450,7 @@ independent type fixtures, all 20 type tests and all 190 file-query cases. The
 file proof retains its inexact rejection, cancellation/cleanup assertions and
 192 MiB input under a 96 MiB address-space limit.
 
-The [source-specific record and compressed logs](../../../tests/verification/results/decimal-rescale-2026-10-26/report.json)
+The [source-specific record and compressed logs](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/decimal-rescale-2026-10-26/report.json)
 retain the failing run, debugger observation, isolated control and committed
 checks with hashes. These focused passes do not complete the repository/clean
 lanes or attribute the earlier anonymous hosted unit SIGSEGV to this stack.
@@ -3515,7 +3515,7 @@ attempt stopped before testing on a missing cached Nix derivation. Subsequent
 local commands inherit `eval-cache = false` through nested shells without
 changing source or pins.
 
-The [source-attributed records, failed controls and hashed raw logs](../../../tests/verification/results/lifecycle-browser-closeout-2026-10-26/report.json)
+The [source-attributed records, failed controls and hashed raw logs](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/lifecycle-browser-closeout-2026-10-26/report.json)
 retain task exit codes, source patches and downloaded hosted artifacts. Earlier
 [installed SQL failures](catalog.md#installed-table-qualification-and-original-outcomes--2026-10-26)
 remain separate failures; subsequent diagnostics and hosted passes do not

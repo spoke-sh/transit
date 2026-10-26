@@ -12,7 +12,7 @@ sources = json.loads(subprocess.check_output([
 source, board_source, dependency_source = (Path(sources[key]) for key in ('runtime', 'board', 'dependencies'))
 assert not (source / 'sdks').exists(), 'runtime derivation includes SDK sources'
 assert not (source / 'examples/station-sdk').exists(), 'runtime derivation includes SDK consumers'
-assert not (source / 'tests/verification/results').exists(), 'runtime includes retained proof records'
+assert not (source / 'tests/evidence').exists(), 'runtime includes retained proof records'
 assert (source / 'tests/runner/suite.json').is_file(), 'executable verification inventory was removed'
 for name in ('packages/zig', 'third_party', 'tests', 'sdks'):
     assert not (board_source / name).exists(), f'Board asset source includes {name}'

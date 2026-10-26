@@ -823,7 +823,7 @@ separate obligations.
 
 ## Station node build profile — 2026-10-26
 
-The [retained control](../../../tests/verification/results/station-node-profile-2026-10-26/report.json)
+The [retained control](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/station-node-profile-2026-10-26/report.json)
 uses source `9ab5fb64a`. The clean core invocation with a Debug node fails the
 unchanged 60-second captured-query completion phase after replacing both host
 generations. The first 18 core tasks have passed; later tasks do not run.
@@ -1052,7 +1052,7 @@ the installed cross-language ring also passes with the corrected loader.
 Reproduce with `nix develop .#bindings --command just bindings::dotnet-sdk-test`.
 Failed and interrupted earlier attempts remain in the record.
 
-The [measurement account](../../../tests/fuze_benchmarks/results/2026-10-13-pipelines/README.md)
+The [measurement account](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-10-13-pipelines/README.md)
 retains 960 wider pipeline, 120 kernel/pipeline, 324 real file and 180 file-worker
 samples, plus 20 paired native-control processes. All independent results,
 24 wider/default checks and 115 original int64/file checks pass. Failed SUM
@@ -1149,7 +1149,7 @@ handoff faults and source lifetime expiry. Captured/exchange refusal takes
 24/49 ms; health reads take 14/8 ms; reserve-release/restart/first-advance takes
 0.634/1.175 seconds. Those are finite shared-host observations during other
 qualification, not latency or sustained-throughput claims. The [record and
-retained failed fixture attempt](../../../tests/verification/results/relational-capacity-2026-10-12.json)
+retained failed fixture attempt](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/relational-capacity-2026-10-12.json)
 include binary and raw-log hashes. The physical task remains an explicit Linux/
 Docker reference task, separate from ordinary clean tasks. The historical result
 does not qualify the current direct owner or expand its provider support.
@@ -1170,7 +1170,7 @@ not acknowledge corrupted data; receiver source denial preserves its head.
 Terminating the foreign source owner expires its native resource and blocks a
 separate fenced restoration; own-resource query retirement still succeeds. This
 is lifetime expiry, not a TTL or physical deletion claim. The [exact record,
-logs and failed attempts](../../../tests/verification/results/relational-exchange-faults-2026-10-12.json)
+logs and failed attempts](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/relational-exchange-faults-2026-10-12.json)
 retain the narrower earlier schedules separately. Physical ENOSPC, provider-bound
 workers and distributed write authority are separate qualifications.
 
@@ -1186,14 +1186,14 @@ rows in memory. Execution uses **21,092 logical steps**.
 
 The complete query package unit task passes, including this case. Exact source,
 raw log hashes and the initial wrong measurement-field compile attempt are in
-the [growth record](../../../tests/verification/results/relational-resident-growth-2026-10-12.json).
+the [growth record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/relational-resident-growth-2026-10-12.json).
 This proves component resident accounting and disk-spill growth. Generated input
 is not native Table ingestion; the bound excludes transport/process runtime, so
 it is not a measured RSS or provider-amplification claim.
 
 ## Named relational definitions
 
-[Exact implementation revision, binary/log hashes and retained attempts](../../../tests/verification/results/named-relational-2026-10-12.json)
+[Exact implementation revision, binary/log hashes and retained attempts](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/named-relational-2026-10-12.json)
 record the naming slice separately from broader query qualification.
 
 `just test::named-relational` runs the application-owned naming layer above the
@@ -1234,7 +1234,7 @@ dispatched by the definition, result or delta operations.
 
 ## Neutral relational caller pages
 
-[Exact revision, budgets, logs and retained attempts](../../../tests/verification/results/relational-callers-2026-10-12.json)
+[Exact revision, budgets, logs and retained attempts](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/relational-callers-2026-10-12.json)
 record the caller boundary separately from durable owners and SDK consumers.
 
 `just test::relational-callers` runs the real Station query port and C ABI over
@@ -1342,7 +1342,7 @@ cold-store fixture (`--maintained --cold`), retaining its 8 MiB hot/cache limits
 it does not raise the hot-only bound or expire history. The general Table and SDK
 schedules remain separate from this longer growing-history proof.
 
-The [cold-store record](../../../tests/verification/results/relational-maintained-2026-10-12.json)
+The [cold-store record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/relational-maintained-2026-10-12.json)
 passes with the implementation committed as `79a8246d`:
 15 complete revisions (five changing successors, nine no-op successors and the
 initial result), 929 maintenance turns, 524.093 seconds and 104,216 retained
@@ -1438,7 +1438,7 @@ preserves uncertain-send semantics.
 
 `just test::relational-exchanges` passes the native disk/cold-store host schedule
 in `exchange-native-view-lifecycle.log`.
-[Exact source, binaries, measurements and failed attempts](../../../tests/verification/results/relational-exchanges-2026-10-12.json)
+[Exact source, binaries, measurements and failed attempts](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/relational-exchanges-2026-10-12.json)
 are retained separately. One partition/one producer/one-row
 batches completes in **71.453 s / 192 turn responses**, retaining **11,436**
 logical receiver bytes. Seven partitions/three producers/four-row batches
@@ -1481,7 +1481,7 @@ remains execution authority. No distributed manager or provider binding is used.
 
 `just test::relational-exchanges` passes the extended schedule in
 `exchange-native-handoff-final.log`.
-[Source, binaries, raw measurements and earlier runs](../../../tests/verification/results/worker-handoff-2026-10-12.json)
+[Source, binaries, raw measurements and earlier runs](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/worker-handoff-2026-10-12.json)
 record **197.044 s** overall, **74.608 s / 195 turn
 responses** for one producer and **117.366 s / 250 turn responses** for three.
 Each layout transfers one producer after an acknowledged segment and an eligible
@@ -1838,7 +1838,7 @@ All **75 ordinary CI tasks** pass in one uninterrupted `just ci-clean --work-roo
 /var/tmp` run at `be0e03d1547bfa5aadc38c199068f49594e2906c`: core 22, growth 26,
 experience 7, launchers 2 and bindings 18. The isolated checkout installs locked
 frontend dependencies and inherits no workspace build outputs. The
-[qualification record](../../../tests/verification/results/m45-completion-2026-10-05.json)
+[qualification record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m45-completion-2026-10-05.json)
 embeds every result and completion record, exact revision, toolchain identity,
 commands and log hashes. Its audit matches all ordered ordinary inventory entries
 without gaps or failures. An earlier clean preflight rejects the user's untracked
@@ -1849,9 +1849,9 @@ remains incomplete; the complete run above replaces no failure with a skipped pa
 The final real console recovery proof also passes. The selected exhaustive
 resource campaign runs four seeds, 1,170 traces, 22,652 events and 2,342 executions,
 replaying every trace identically across the observed page/journal/trim fault
-boundaries. Its [raw report](../../../tests/mutation_latency/results/2026-10-05/resource-exhaustive.json.gz)
+boundaries. Its [raw report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-05/resource-exhaustive.json.gz)
 retains the finite selection; it does not prove arbitrary-fault correctness.
-The [measurement archive](../../../tests/mutation_latency/results/2026-10-05/README.md) retains
+The [measurement archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-05/README.md) retains
 before/after controls and failed experiments. Browser and external-placement tiers
 and sustained multi-writer SQL throughput are outside this qualification. Runtime
 qualification remains tied to the revision above; later closeout commits change
@@ -1929,7 +1929,7 @@ semantic inventory gate or committed-HEAD clean qualification.
 Hosted run `36809340716` passes the five atlas browser tests, then exposes a
 workspace defect: revocation clears rows, but refreshing restored access reads
 the retained completed namespace and displays those rows again under a reset
-draft. The [selection record](../../../tests/verification/results/m37-query-selection-2026-10-01.json)
+draft. The [selection record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m37-query-selection-2026-10-01.json)
 retains the hosted failure and source hashes.
 
 The workspace now retains accepted upload/signature recovery independently of
@@ -1944,7 +1944,7 @@ Three earlier attempts receive unavailable API responses before browser launch;
 they do not detect the UI defect or qualify completion. Full combined-source
 clean and hosted qualification remain open.
 
-The [unavailable-reply controls](../../../tests/verification/results/m37-query-recovery-2026-10-01.json)
+The [unavailable-reply controls](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m37-query-recovery-2026-10-01.json)
 subsequently reach the original UI failure locally: one result remains where zero
 is required after access refresh. The corrected UI passes the same real proof.
 The API fixture now recovers unavailable preparation and frozen-submission replies
@@ -2152,7 +2152,7 @@ second install fails. The corrected fixture explicitly updates only this
 disposable consumer lock. It preserves the absence check, then installs Arrow
 and passes an independent IPC round trip for `9007199254740993n`.
 
-The [installation record](../../../tests/verification/results/m37-node-arrow-install-2026-10-01.json)
+The [installation record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m37-node-arrow-install-2026-10-01.json)
 retains source hashes and both outcomes. Full repository checks pass on the
 corrected development source. These installation controls do not by themselves
 qualify the real Station, query, connector or remaining language schedules.
@@ -2333,7 +2333,7 @@ record count does not size an array or whole-record buffer in the implementation
 
 Local Linux x86_64 qualification passed: `just check`, standalone Station
 package tests, `just test::publication` and the existing `just test::query`
-regression. The [retained report](../../../tests/verification/results/m14-publication-2026-09-26.json)
+regression. The [retained report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m14-publication-2026-09-26.json)
 records source hashes, sizes, workload and phase timings: staging 34.566s,
 one-page sealing 4.781s, publication 18.878s, one-page cleanup/recovery 21.203s,
 and completion 91.551s (170.979s total phase time, excluding build/provider startup).
@@ -2526,7 +2526,7 @@ fixtures with these boundary checks.
 
 ## File comparison baselines and metadata execution
 
-The [2026-09-30 evidence](../../../tests/fuze_benchmarks/results/2026-09-30/README.md) freezes
+The [2026-09-30 evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-09-30/README.md) freezes
 numeric budgets in commit `5052c59e`, before the metadata optimizations. The
 optional benchmark shell pins DuckDB 1.5.2/build `8a5851971f` and PyArrow 23.0.0
 from the unchanged lockfile. `just doctor` and the optional-shell version/build
@@ -2573,7 +2573,7 @@ are not a passed performance gate or final committed-HEAD clean qualification.
 A complete unchanged repeat also fails seven capture/discovery timing limits in
 different cases. Both optional metadata changes are withdrawn at `cffa7b56`;
 none of these failures is waived and no budget is raised. The
-[experiment archive](../../../tests/fuze_benchmarks/results/2026-09-30/README.md#withdrawn-metadata-experiments)
+[experiment archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-09-30/README.md#withdrawn-metadata-experiments)
 retains every raw run and both failed gate reports. A source comparison verifies
 that all implementation/generated-contract/build/toolchain paths again match
 accepted baseline `5052c59e`. The delivered feature uses that measured baseline;
@@ -2622,7 +2622,7 @@ aliases in this narrower profile; native SQL retains its output-name support.
 
 Its specialized six-type control still fails the frozen 1.15 ratio budget in
 seven predicate/aggregate cases. The
-[post-merge evidence](../../../tests/fuze_benchmarks/results/2026-09-30/README.md#post-merge-specialized-path-regression)
+[post-merge evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-09-30/README.md#post-merge-specialized-path-regression)
 retains the complete raw repetitions and scoped failed gate. This is a detected
 regression, not final performance qualification. Final clean lanes and the
 installed-owner rerun remain outstanding under issue #53.
@@ -3172,7 +3172,7 @@ The failed and passing logs are `/tmp/transit-sql-boolean-file-cli.log` and
 pass, exit 0, in `/tmp/transit-sql-boolean-file-check.log`. These working-tree
 results do not substitute for committed-HEAD clean validation.
 
-The [paired file report](../../../tests/benchmarks/results/2026-10-01-boolean-file-comparison.json.gz)
+The [paired file report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-boolean-file-comparison.json.gz)
 retains 162 successful samples: three alternating baseline/candidate pairs over
 nine shapes and explicit/sampled/full discovery, 4096 rows each, one CPU, warm
 input pages and unchanged budgets. The frozen baseline is `0bdaaf15`, SHA-256
@@ -3188,7 +3188,7 @@ cases; one wide sample shows wall preemption, but neither cause nor a general
 speedup is established. These per-source single-compilation phases and three
 pairs do not resolve the earlier native SELECT compiler regressions.
 
-The [compound-work report](../../../tests/benchmarks/results/2026-10-01-boolean-file-compound-cost.json.gz)
+The [compound-work report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-boolean-file-compound-cost.json.gz)
 adds another 162 successful samples, comparing the same selected rows with a
 six-instruction candidate and single-atom baseline. Across configurations,
 median compile and pipeline ratios are 1.1533 and 1.0644 respectively;
@@ -3217,7 +3217,7 @@ fails one completion test by consuming the cursor before offering a parenthesis;
 keeping cursors on the existing completion path fixes it. The failed log remains
 `/tmp/transit-sql-boolean-compiler-initial-unit.log`.
 
-The [native compiler archive](../../../tests/benchmarks/results/2026-10-01-boolean-compiler-paths.json.gz)
+The [native compiler archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-boolean-compiler-paths.json.gz)
 retains six exploratory comparisons and four final nine-pair comparisons, including
 slower AST initialization/return experiments that were reverted. Final source
 hashes match `4b1dc42e`; original dirty-source metadata is unchanged. The final
@@ -3231,7 +3231,7 @@ The intervening utilization sample overlapped our file benchmark on CPU 0, so it
 does not establish the cause of previous noise or exclusive CPU availability.
 No native compiler or end-to-end latency gate is declared passed.
 
-The [final file comparison](../../../tests/benchmarks/results/2026-10-01-boolean-file-compiler-paths.json.gz)
+The [final file comparison](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-boolean-file-compiler-paths.json.gz)
 retains **486 correct-result samples**: nine alternating pairs, nine shapes,
 three discovery modes, 4096 rows, CPU 0 and warm input, with unchanged budgets.
 All 27 compiler median ratios are below one (0.6652–0.9812, median 0.8630);
@@ -3256,7 +3256,7 @@ Commit `06700b69` removes a private value-returning compiler wrapper. Each publi
 entry point lowers into its own result storage and retains the same allocation,
 cleanup and validation path. The pinned ReleaseSafe assembly loses one 3,400-byte
 plan copy; the public `plan` stack frame shrinks from 22,664 to 19,272 bytes.
-One full-plan return copy remains. The [native return archive](../../../tests/benchmarks/results/2026-10-01-boolean-compiler-return.json.gz)
+One full-plan return copy remains. The [native return archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-boolean-compiler-return.json.gz)
 retains source patches, assembly, binary/source hashes and three nine-pair CPU-1
 comparisons. An earlier active-payload reconstruction experiment gives mixed
 results (−1.7% to +6.7%) and is reverted. The accepted change gives 0.5–11.9%
@@ -3273,7 +3273,7 @@ labeled separately from filter/compound comparisons with equal results but
 different operator work. Its seven negative/oracle tests pass; different query
 pairs with different results reject before execution.
 
-The [equivalent compound report](../../../tests/benchmarks/results/2026-10-01-boolean-file-compound-equivalent.json.gz)
+The [equivalent compound report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-boolean-file-compound-equivalent.json.gz)
 passes **486 result-checked samples**: nine alternating pairs across all nine
 shapes and three discovery modes, 4096 rows, CPU 1 and warm input. Both binaries
 execute the same six-instruction program. The frozen baseline is `2330d6ed`;
@@ -3315,7 +3315,7 @@ cases pass**, exit 0. The SQL proof retains 151 SELECT ASTs, 122 canonical
 plan/Arrow cases and 56 result cases across three sources/eight page widths.
 Log: `/tmp/transit-sql-parser-owned-check.log`.
 
-The [parser storage archive](../../../tests/benchmarks/results/2026-10-01-boolean-parser-storage.json.gz)
+The [parser storage archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-boolean-parser-storage.json.gz)
 retains three nine-pair CPU-1 comparisons, both source variants and assembly.
 The projection-only intermediate has mixed SELECT deltas (−2.4% to +8.5%); it is
 not accepted alone. Filling the AST selection in place gives 1.3–3.4% lower
@@ -3388,7 +3388,7 @@ conversion failure after an aliased LIMIT still omits successful JSON/Arrow
 completion. Existing cell and Arrow fixture families retain their own wider
 value/state coverage; the alias cases alone do not prove every logical type.
 
-The [file-alias measurement archive](../../../tests/benchmarks/results/2026-10-01-file-output-aliases.json.gz)
+The [file-alias measurement archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-file-output-aliases.json.gz)
 contains four paired reports, all raw samples/configurations, production source
 hashes verified against the two runtime commits, frozen binary/tool/lock hashes,
 source patches, assembly and the exact measurement drivers. All **1080 measured
@@ -3434,7 +3434,7 @@ Generated `SqlLowering.project` code removes a 432-byte projection copy and
 reduces its stack frame from 792 to 184 bytes; the temporary 128-entry name
 array used for aggregate resolution is also removed.
 
-The [lowering measurement archive](../../../tests/benchmarks/results/2026-10-01-file-alias-lowering.json.gz)
+The [lowering measurement archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-file-alias-lowering.json.gz)
 retains six reports and all **1836 correct results**, exact drivers, binary
 hashes, source patches and assembly. Production hashes are checked against
 `818758a0` or `2cbd1a00`; the earlier intermediate borrowing experiment retains
@@ -3620,7 +3620,7 @@ tasks unrun, in 1106.60 seconds. `test::callers` expects `AccessDenied` for an
 unauthorized effect but receives `AuthorityUnavailable`; the node records a
 `page.stage ReadFailed` and HTTP 503 after about two seconds of request work.
 That observation does not establish the cause of the provider failure.
-[Exact metadata, task results and unrun inventory](../../../tests/verification/results/count-values-clean-core-2026-10-01.json)
+[Exact metadata, task results and unrun inventory](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/count-values-clean-core-2026-10-01.json)
 retain the failed outcome. Checkout: `/var/tmp/transit-ci-skzrxzcq/src`; log:
 `/var/tmp/transit-count-column-clean-core.log`. An unchanged focused
 `just test::callers` rerun in that same checkout passes, exit 0, log
@@ -3632,7 +3632,7 @@ changes also passes, exit 0, in `/var/tmp/transit-count-proof-check.log`.
 Fresh core at `40ad89aa` **passes all 22 tasks in 1155.90 s**, exit 0. Completed
 metadata, exact task order and all zero exits are verified at
 `.cache/ci/clean/40ad89aa1b7c-transit-ci-jty9suii`; the
-[file-control archive](../../../tests/benchmarks/results/2026-10-01-count-values-file-controls.json.gz)
+[file-control archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-count-values-file-controls.json.gz)
 retains the metadata/results. Log:
 `/var/tmp/transit-count-column-recovery-clean-core.log`. This later pass does
 not establish the cause of the earlier failure. Production code is unchanged
@@ -3651,7 +3651,7 @@ row recovery and native/port partial-count recovery, denial, cancellation and
 zero LIMIT, then fails in shell completion polling with `KeyError: status`.
 That expression discards the actual response body; worker tails include
 `AuthorityTimeout`, but they do not establish the shell error or its cause.
-Document is unrun. [Bounded failure evidence](../../../tests/verification/results/count-values-shell-recovery-2026-10-01.json)
+Document is unrun. [Bounded failure evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/count-values-shell-recovery-2026-10-01.json)
 retains the completed scope and exact proof hashes. A diagnostic assertion now
 preserves the status response without accepting errors, repeating failed reads
 or increasing the existing 300-second deadline.
@@ -3661,14 +3661,14 @@ The diagnostic-only Table rerun **passes in 223.92 s**, exit 0; log
 partial-count recovery and the actual shell's exact restart/retry, named uint64
 result, manifest counters, current denial and retirement/collection. The existing
 eight resident pages and 8 MiB hot store retain 166 cold objects / 18,368,277 bytes.
-[Source-qualified Table evidence](../../../tests/verification/results/count-values-shell-table-recovery-2026-10-01.json)
+[Source-qualified Table evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/count-values-shell-table-recovery-2026-10-01.json)
 does not explain the earlier status failure. Document shell recovery separately
 **passes at `cdb1bc49` in 1328.60 s**, exit 0, including provisioning in 1023.26 s.
 The native/port/actual-shell schedule preserves partial 8/10 through replacement,
 checks denial/cancellation and missing values (ten selected/count zero), and
 completes original-bundle/request recovery, named output and retirement/collection.
 Its existing 64 resident pages and 8 MiB hot store retain 1094 cold objects /
-124,201,701 bytes. [Document shell evidence](../../../tests/verification/results/count-values-shell-document-recovery-2026-10-01.json)
+124,201,701 bytes. [Document shell evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/count-values-shell-document-recovery-2026-10-01.json)
 and `/var/tmp/transit-count-column-shell-document-recovery.log` retain this
 separate pass; installed SDK consumers were not enabled in that run.
 
@@ -3690,7 +3690,7 @@ Clean experience at committed `2130f367` **fails after five passing tasks in
 retrying the exact prepared upload after its original receipt; the final Station
 task is unrun. The response does not establish a rejected or duplicated mutation,
 and the retained process tails do not identify its upstream cause.
-[Exact metadata and task inventory](../../../tests/verification/results/count-values-clean-experience-2026-10-01.json)
+[Exact metadata and task inventory](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/count-values-clean-experience-2026-10-01.json)
 are verified against the committed suite. Checkout:
 `/var/tmp/transit-ci-en_y0mfh/src`; log:
 `/var/tmp/transit-count-column-clean-experience.log`.
@@ -3705,14 +3705,14 @@ in 514.46 s**, including a passing Board query task. The final Station launcher
 task fails its unchanged 60-second Arrow-reply deadline after courier readiness
 replacement. Its later lifecycle checks are unrun. Worker logs record HTTP 503
 `HttpCapacity` and `AuthorityUnavailable`; the cause is not established.
-[Completed task inventory and bounded observations](../../../tests/verification/results/count-values-experience-station-2026-10-01.json)
+[Completed task inventory and bounded observations](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/count-values-experience-station-2026-10-01.json)
 retain this failure separately from the earlier Board failure. Checkout:
 `/var/tmp/transit-ci-mc2kg8kf/src`; fixture:
 `.cache/launchers/local/station-886ef1`; log:
 `/var/tmp/transit-count-diagnostics-clean-experience-retry.log`.
 
 Clean launchers at `cdb1bc49` **passes both tasks in 322.54 s**.
-[Completed metadata and task results](../../../tests/verification/results/count-values-clean-launchers-2026-10-01.json)
+[Completed metadata and task results](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/count-values-clean-launchers-2026-10-01.json)
 match the committed suite. The proof includes local persistence, exact retries,
 same-PID replacement, fencing, missing-store refusal and foreground shutdown.
 Log: `/var/tmp/transit-count-diagnostics-clean-launchers.log`; retained results:
@@ -3726,7 +3726,7 @@ Remaining CLI qualification, compiler timing failures and clean lanes stay in th
 
 ### Native COUNT costs
 
-The [native count archive](../../../tests/benchmarks/results/2026-10-01-count-values-native.json.gz)
+The [native count archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-count-values-native.json.gz)
 retains nine alternating candidate/control pairs for the unchanged thirteen-case
 pure benchmark. Frozen runtime `029b21a0` is compared with its parent
 `a3e15a9f`; the original Zig benchmark source is identical at both revisions.
@@ -3756,7 +3756,7 @@ remaining clean lanes retain their separate gates.
 
 ### File COUNT costs and rejected compiler experiments
 
-The [file-control archive](../../../tests/benchmarks/results/2026-10-01-count-values-file-controls.json.gz)
+The [file-control archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-count-values-file-controls.json.gz)
 retains **3888 correct results** across projection, filter, COUNT(*) and SUM;
 nine file shapes; explicit/sampled/full discovery; both input-cache conditions;
 and nine alternating pairs. Both frozen probes use the same benchmark source,
@@ -3797,7 +3797,7 @@ that cannot be inlined. Fuze units and all **540 paired process results** pass,
 but ten of thirty compiler gates fail: maxima **3.7779** against pre-COUNT and
 **3.8324** against unmodified COUNT. All thirty pipeline gates pass. The smaller
 caller body does not justify the compiler costs; this patch is **rejected and
-restored**. The [boundary experiment archive](../../../tests/benchmarks/results/2026-10-01-rejected-count-compile-boundary.json.gz)
+restored**. The [boundary experiment archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-rejected-count-compile-boundary.json.gz)
 retains the exact patch, source/binary identities, driver bytes, assembly and
 six completed comparisons. They use CPU 1, nine alternating pairs, verified
 input-cache conditioning and unchanged limits on the shared host. Changing a
@@ -3817,7 +3817,7 @@ pinned compiler requires an array; the corrected full unit suite passes in
 cases** also pass, including the 192 MiB/96 MiB memory proof, in
 `/var/tmp/transit-count-descriptor-copy-file-query.log`.
 
-The [owned-descriptor archive](../../../tests/benchmarks/results/2026-10-01-count-values-descriptor-copy.json.gz)
+The [owned-descriptor archive](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-count-values-descriptor-copy.json.gz)
 retains **540 correct paired results** against pre-COUNT and unmodified COUNT,
 with all **30 compiler and 30 pipeline gates passing**. Compiler ratios span
 **0.7880–1.0321** for the targeted narrow/wide projections and sparse SUM cases.
@@ -3831,7 +3831,7 @@ Log `/var/tmp/transit-count-descriptor-copy-comparison.log`. The broader run is
 Full integrated `just check` passes, exit 0, in
 `/var/tmp/transit-count-descriptor-copy-integrated-check.log`.
 
-The completed [full owned-descriptor comparison](../../../tests/benchmarks/results/2026-10-01-count-values-descriptor-copy-full.json.gz)
+The completed [full owned-descriptor comparison](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-count-values-descriptor-copy-full.json.gz)
 retains **3888 correct process results**: four unchanged queries, nine shapes,
 three discovery modes, two input-cache conditions and nine alternating pairs.
 All **216 pipeline gates pass**; **214 of 216 compiler gates pass**. Warm
@@ -3848,7 +3848,7 @@ Committed-HEAD `just ci-clean --lane growth --work-root /var/tmp` at `40718b3f`
 write, seal, recover and publish phases, then its deliver subprocess exceeds the
 unchanged **180-second** deadline. The task takes **487.29 s** and the incomplete
 lane takes **685.38 s**; **17 of 26 tasks are unrun**. The
-[failure record](../../../tests/verification/results/count-values-growth-delivery-2026-10-01.json)
+[failure record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/count-values-growth-delivery-2026-10-01.json)
 retains exact metadata, task order and the log digest. The node-log tail shows
 successful deliver/open-view/turn receipts; a proxy disconnect during cleanup
 does not establish a cause. The clean checkout remains at
@@ -3856,7 +3856,7 @@ does not establish a cause. The clean checkout remains at
 its cleanup. Log `/var/tmp/transit-count-descriptor-copy-clean-growth.log`.
 No deadline, residency or operation limit changes were made.
 
-A [discovery-copy experiment](../../../tests/benchmarks/results/2026-10-01-rejected-discovery-descriptor-copy.json.gz)
+A [discovery-copy experiment](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-rejected-discovery-descriptor-copy.json.gz)
 extends `Type.clone` to explicit/raw discovery and neutral JSON descriptor
 decoding. Full `just check`, allocation-failure/ownership checks, 162 real file
 CLI cases and 91 independent native/port logical-codec cases pass. The initial
@@ -3873,7 +3873,7 @@ independently. Logs `/var/tmp/transit-count-discovery-copy-comparison.log`,
 `/var/tmp/transit-count-discovery-copy-ownership-checks.log` and
 `/var/tmp/transit-count-discovery-copy-integrated-check.log`.
 
-The [direct-parser-arena variant](../../../tests/benchmarks/results/2026-10-01-rejected-discovery-parser-arena.json.gz)
+The [direct-parser-arena variant](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-rejected-discovery-parser-arena.json.gz)
 keeps the parsed JSON descriptor arena after definition, descriptor and encoded-byte
 checks, alongside direct copies in explicit/raw discovery. Fuze package units,
 including ownership after overwriting the JSON input and every allocation failure,
@@ -3897,7 +3897,7 @@ changed. Fuze package tests and all **162 real file CLI cases** pass. The frozen
 probe rebuilt after adding these tests is byte-identical. Full integrated
 `just check` passes in `/var/tmp/transit-count-plan-validation-integrated-check.log`.
 
-The [compiler-validation comparison](../../../tests/benchmarks/results/2026-10-01-count-values-plan-validation.json.gz)
+The [compiler-validation comparison](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-count-values-plan-validation.json.gz)
 retains **594 correct paired results**, all **33 compiler gates** and all
 **33 pipeline gates** passing against pre-COUNT and the current descriptor-copy
 control. Compiler ratios span **0.5834–1.1146** and pipeline ratios
@@ -3907,7 +3907,7 @@ all recorded Fuze source hashes match prototype `605e46ed` and implementation
 `53945c67`. The exact patch and comparison driver are retained. Native/FZP1
 definitions, canonical plan bytes, fingerprints and bounds do not change.
 
-The [completed full matrix](../../../tests/benchmarks/results/2026-10-01-count-values-plan-validation-full.json.gz)
+The [completed full matrix](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-count-values-plan-validation-full.json.gz)
 retains **3888 correct results** and all **216 pipeline gates passing**.
 **213 of 216 compiler gates pass**. Remaining failures are warm narrow/explicit
 projection **1.1592**, cold nested/explicit COUNT(_) **1.3123**, and cold
@@ -3919,7 +3919,7 @@ establish a causal explanation for the timing differences. Log
 `/var/tmp/transit-count-plan-validation-full-comparison.log`.
 
 Clean core at `8b9d1d5b` passes **22/22 tasks in 1123.21 s**. The
-[record](../../../tests/verification/results/count-values-core-descriptor-copy-2026-10-01.json)
+[record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/count-values-core-descriptor-copy-2026-10-01.json)
 retains the completed metadata, exact task inventory, source revision and log
 digest. It includes the owned descriptor copy but precedes `53945c67` and cannot
 qualify the later compiler optimization by inheritance. Current-source clean
@@ -3931,19 +3931,19 @@ Arrow-reply failure. A signed read at **13:01:20 UTC** observes `last-query` at
 authority position 169. This establishes later completion, not its arrival time
 or satisfaction of the original 60-second deadline. The owning launcher's
 `down` operation stops it at **13:02:15 UTC**, with its WAL and logs preserved
-and no reset. The [original failure record](../../../tests/verification/results/count-values-experience-station-2026-10-01.json)
+and no reset. The [original failure record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/count-values-experience-station-2026-10-01.json)
 retains this follow-up separately; the experience lane remains failed.
 
 Current-runtime clean growth at `3f5cfdd8` also **fails** after eight passing
 tasks, including the new file compiler and logical-source checks. Query write,
 seal, recover and publish finish, then deliver exceeds the unchanged 180-second
 subprocess deadline. The failed task takes **501.54 s**, the lane **730.01 s**,
-and **17 of 26 tasks remain unrun**. The [separate record](../../../tests/verification/results/count-values-growth-validation-2026-10-01.json)
+and **17 of 26 tasks remain unrun**. The [separate record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/count-values-growth-validation-2026-10-01.json)
 retains exact metadata and task order. This repeats the earlier failure stage;
 its cause remains unestablished. Checkout `/var/tmp/transit-ci-r6_tbid3/src` and
 log `/var/tmp/transit-count-plan-validation-clean-growth.log` are retained.
 
-The [frozen compiler diagnostics](../../../tests/benchmarks/results/2026-10-01-count-values-compiler-diagnostics.json.gz)
+The [frozen compiler diagnostics](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-count-values-compiler-diagnostics.json.gz)
 retain **108 correct process results** for the three failing full-matrix cases.
 Each case first compares the current binary with itself, then with the frozen
 pre-COUNT binary, using nine alternating pairs, CPU 1, explicit discovery and
@@ -4162,7 +4162,7 @@ SQL execution, safe collection, provider support or an installed latency gain.
 ## Relational setup outcome recovery — 2026-10-26
 
 `nix develop .#bindings --command just bindings::relational-node` passes the
-[installed control](../../../tests/verification/results/relational-setup-recovery-2026-10-26/report.json).
+[installed control](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/relational-setup-recovery-2026-10-26/report.json).
 It builds matching packages and checks Node sources before exercising native,
 port and installed Node relational callers. The direct proxy corrupts the
 accepted DDL reply for setup operation 1002; the fixture must inspect that same
@@ -4204,7 +4204,7 @@ the existing 120-second window; the whole browser test remains bounded to
 compilation, stale participation refresh, query verification, navigation, current
 revocation and source retirement. Production runtime code is unchanged.
 
-The [failure trace, HTTP timeline, source patch and focused result](../../../tests/verification/results/lifecycle-browser-closeout-2026-10-26/report.json)
+The [failure trace, HTTP timeline, source patch and focused result](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/lifecycle-browser-closeout-2026-10-26/report.json)
 retain exact attribution to `adad2b189` plus patch SHA-256
 `1efaf42711164d55369c187dfb48b555d48ddc23b40d963d2f9a6d489b2b23c1`.
 Frontend checks and all 6,354 documentation links pass. Hosted growth is now

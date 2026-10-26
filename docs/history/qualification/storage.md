@@ -537,7 +537,7 @@ Table segment execution or completion of declarative data lifecycles.
 
 ## Integrated storage foundation
 
-The [matched campaign](../../../tests/mutation_latency/results/2026-10-19/README.md) compares
+The [matched campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-19/README.md) compares
 `ee88a131` with runtime `29765ef0`, using ReleaseSafe and sequential disk fixtures
 after builds finish. Its record (archived)
 preserves commands, source/binary hashes, raw reports, intermediate controls and
@@ -575,7 +575,7 @@ control admission at write saturation or a throughput SLO.
 
 The current-definition 1,024-key cold-storage proof passes with two decoded pages
 (34,064 resident cache bytes), 758 created pages and 195 segments. The
-[retained record](../../../tests/mutation_latency/results/2026-10-19/pages-packed-s3-1024-2-batch8.json.gz)
+[retained record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-19/pages-packed-s3-1024-2-batch8.json.gz)
 includes checkpoint/trim, provider/process restart, 16 MinIO objects, adapter
 write-peak RSS of 18,436 KiB and separate recovery/provider observations. Pending
 source changes are recorded in its provenance. This is primitive storage/recovery
@@ -786,7 +786,7 @@ or asynchronous cold-object deletion. The integrated measurements and native
 consumer proof above have separate scopes; committed-source clean CI remains
 the final integration gate.
 
-The [physical capacity record](../../../tests/verification/results/storage-foundation-capacity-2026-10-19.json)
+The [physical capacity record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/storage-foundation-capacity-2026-10-19.json)
 passes with 72 retained 256-byte values and one decoded page (17,032 resident
 bytes). Actual ext4 ENOSPC denies writes without advancing position 96. Releasing
 only the preallocated 1 GiB reserve permits revocation, expiry, effect closure,
@@ -2535,7 +2535,7 @@ pushdown, encoded predicates, maintenance or complete clean-CI qualification.
 
 ## WAL append inspection cancellation — 2026-10-26
 
-The [disk-backed regression](../../../tests/verification/results/wal-append-inspection-2026-10-26/report.json)
+The [disk-backed regression](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/wal-append-inspection-2026-10-26/report.json)
 fails against `9ab5fb64a`: cancelling the open of an existing segment causes the
 next tail read to return `WalRecoveryRequired`, although no write occurred.
 The corrected owner remains usable after cancellation at both open and length
@@ -2591,7 +2591,7 @@ the diagnostic stops there and does not execute the remaining browser trace.
 No replacement operation is submitted. This is serving application coordination
 over a direct Table owner, not a measurement of isolated Table acceptance.
 
-The [source-attributed bundle](../../../tests/verification/results/lifecycle-private-object-io-2026-10-26/report.json)
+The [source-attributed bundle](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/lifecycle-private-object-io-2026-10-26/report.json)
 preserves component logs, the negative control, node hashes, diagnostic patch and
 complete telemetry. Private configurations and durable fixture state remain
 outside Git. The committed reactive fixture and runtime deadlines are unchanged;

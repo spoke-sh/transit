@@ -118,11 +118,11 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
-- The [ingestion/commit matrix](../../tests/storage_benchmarks/2026-10-26-ingestion/README.md)
+- The [ingestion/commit matrix](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-ingestion/README.md)
   completes 384 independently verified write/readback samples with median/p95
   owner and WAL timings, allocation/RSS and retained-file attribution. Bulk
   ingestion reduces WAL bytes without a consistent total latency/storage gain.
-  The [full growth attempt](../../tests/storage_benchmarks/2026-10-26-growth/README.md)
+  The [full growth attempt](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-growth/README.md)
   remains failed at native setup timeout, despite both Table fixtures completing
   under the fixed process memory ceiling. These source-attributed accounts
   advance #124/#76; native growth, final-revision qualification and the local
@@ -172,7 +172,7 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 - A paired ReleaseSafe disk-owner matrix completes 768 verified samples across
   native/Table sizes, checkpoint variants, scan/range access and cold/warm file
-  pages. The [measurement account](../../tests/storage_benchmarks/2026-10-26-owners/README.md)
+  pages. The [measurement account](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-owners/README.md)
   retains raw values, build/fixture identities and phase/allocation/RSS/I/O
   evidence. Narrow ranges reduce requested data; Table checkpointing reduces
   logical replay and warm recovery. Cold recovery gains are inconsistent, and

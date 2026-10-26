@@ -219,7 +219,7 @@ measurement record (archived)
 preserves all qualifying samples and the excluded failures/regression.
 
 M11 adds installed public SDK schedules and the ten-edge language ring to the
-bindings lane. Its [local cost record](../../tests/verification/results/m11-sdk-2026-09-26.json)
+bindings lane. Its [local cost record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m11-sdk-2026-09-26.json)
 covers consumer installation and public interoperability only. The M10 samples
 above do not establish a budget pass for this larger inventory; new hosted cost
 measurement and further runner optimization remain deferred.

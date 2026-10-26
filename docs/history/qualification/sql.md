@@ -364,7 +364,7 @@ explicit remote clients use the HTTPS session API and SCRAM. The
 [Internals account](../../handbook/internals/service-interfaces.md#shared-sql-sessions-ownership-and-recovery)
 own behavior and reasoning. [SQL sessions](../../../apps/transit-cli/docs/console.md) records delivery scope.
 
-The [evidence record](../../../tests/verification/results/sql-sessions-2026-10-21.json) preserves
+The [evidence record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/sql-sessions-2026-10-21.json) preserves
 exact source/binary hashes, commands, raw structured
 reports and selected earlier failed or aborted attempts. The pinned Zig 0.17 development
 shell supplies ordinary checks; the `sql-wire` shell supplies real database
@@ -436,7 +436,7 @@ the full language, growth, browser or Arrow/Flight inventories.
 
 ## Database wire gateway
 
-The [retained report](../../../tests/verification/results/sql-wire-2026-10-14.json) records the
+The [retained report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/sql-wire-2026-10-14.json) records the
 2026-10-14 UTC full gateway run at `858732ad`, its raw observations, local log
 digests and failed attempts. `just test::sql-wire-gateway` passes in **1412.941
 seconds**, with no tracked changes at measurement. It runs the actual TLS gateway,
@@ -878,7 +878,7 @@ After the Document revision/path cases are extended, package tests and all 4944
 documentation links pass; log
 `/var/tmp/transit-sql-parameters-source-binding-final.log`. At clean committed
 `9412e439`, the ReleaseSafe
-[parameter measurements](../../../tests/benchmarks/results/2026-10-01-sql-parameters.json.gz)
+[parameter measurements](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-sql-parameters.json.gz)
 retain nine CPU-1 samples, exact binaries/drivers/source patch and canonical
 plan checks. Across six scalar types, literal compilation medians are
 1032–1186 ns, preparation 1295–1367 ns, and subsequent binding 386–417 ns.
@@ -1182,7 +1182,7 @@ scopes supply this coverage; the earlier failed/interrupted enclosing runs remai
 incomplete. This is not one uninterrupted all-lanes invocation or a hosted timing
 qualification. The record retains per-task revisions/results, six-lane coverage,
 toolchain and log digests, continuation drivers, failure history and scope limits.
-The [public SDK interoperability record](../../../tests/verification/results/configuration-clean-2026-10-17/sdk-interop.json)
+The [public SDK interoperability record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/configuration-clean-2026-10-17/sdk-interop.json)
 retains the ten installed counter/query pairs, exact recovery, queued Tables and
 owned IPC observations separately from artifact builds and other failure suites.
 
@@ -1493,7 +1493,7 @@ PostgreSQL/MySQL settings slice pass. The slice is reproducible with
 `nix develop .#sql-wire --command zig build test-sql-wire-gateway
 -Doptimize=ReleaseSafe -- settings`. The recorded successful invocation uses
 the same binaries installed by `test-sql-wire-build`, with hashes in the
-[control report](../../../tests/verification/results/sql-settings-recovery-2026-10-26/report.json).
+[control report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/sql-settings-recovery-2026-10-26/report.json).
 The local documentation check and full handbook check/build also pass.
 
 A settings-only `HttpCapacity` refusal during preparation reproduces the
@@ -1525,7 +1525,7 @@ SQL, the SDK matrix or combined clean-checkout qualification.
 ## SQL observation budgets — 2026-10-26
 
 The shared SQL unit suite and real-console protocol fixture pass the
-[focused controls](../../../tests/verification/results/sql-observation-budgets-2026-10-26/report.json).
+[focused controls](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/sql-observation-budgets-2026-10-26/report.json).
 The baseline control-preparation test fails after 64 unavailable observations,
 before its five-second deadline; the corrected owner survives 80 refusals and
 publishes one exact signed control. Current denial remains terminal, moving
@@ -1539,7 +1539,7 @@ Continued timeouts during admission discovery still exhaust the original budget.
 Existing denial, changed-instance, session-expiry, lost-execute, incomplete-result
 and cancellation schedules pass. No SQL text is replayed by recovery.
 
-The [retained installation observations](../../../tests/verification/results/sql-outcome-observations-2026-10-26/report.json)
+The [retained installation observations](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/sql-outcome-observations-2026-10-26/report.json)
 recover original INSERT 216 as applied with one matched/changed row and original
 RENAME 348 as applied. They restart the same installations and inspect public
 status without resubmitting either mutation. These later observations do not
@@ -1561,7 +1561,7 @@ tests head `717f55793` at merge `2ed8ead0f`. Launchers completes 2/2 tasks in
 `SELECT value FROM items` yields no stdout row within 30 seconds after the
 console reports an applied INSERT. The fixture did not capture psql stderr in
 the failure or upload the retained installation, so the reason is unknown.
-The [artifact and job log](../../../tests/verification/results/lifecycle-browser-closeout-2026-10-26/hosted-717/report.json)
+The [artifact and job log](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/lifecycle-browser-closeout-2026-10-26/hosted-717/report.json)
 retain the failure; subsequent tasks did not execute.
 
 The fixture now starts psql with `ON_ERROR_STOP=1` and verbose SQLSTATE reporting,

@@ -11,7 +11,7 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## Complete-history mutation cost
 
-The [complete-history campaign](../../../tests/mutation_latency/results/2026-10-12/README.md)
+The [complete-history campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-12/README.md)
 completes 140 ordinary console mutations and seven instrumented cases with no
 errors or unknown outcomes. It retains comparisons with both the earlier
 fixed-profile and accepted general Table baselines. One-row INSERT and changing
@@ -50,7 +50,7 @@ At clean committed source `8446688afda8d0662bea1503ec8151fd3a6ac942`,
 `just test::declarative-benchmark` passes all 28 components and nine blocker probes
 with five samples, 8192 synthetic rows, eight-row pages, seed 42, ten query
 executions and 2000 compilations/proposals. The
-[retained report](../../../tests/benchmarks/results/2026-09-30.json) has `dirty: false`, all 52
+[retained report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-09-30.json) has `dirty: false`, all 52
 timed phases, independently verified query outputs and mutation proposals,
 fixture/build/source hashes and host metadata. Binary SHA-256 is
 `4b8457964e12931d1058c2149d6483676e54618890863bb45959d600e2023e19`.
@@ -70,7 +70,7 @@ those runs; they do not expand the benchmark's execution boundary.
 After rebasing onto `main` at `4c22b426058c7299af62a8cba03ab5925336ba44`,
 the default measurement repeats at clean source
 `bc9476ba7c9613df625a28e9277bf10e568e0f6c`. The
-[second raw report](../../../tests/benchmarks/results/2026-09-30-main.json) retains five samples,
+[second raw report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-09-30-main.json) retains five samples,
 all 52 timed phases and the same 28 passing components/nine rejection probes.
 The executable, fixture, manifest, harness, driver and lock hashes match the
 earlier report, as do independently decoded query outputs. The new SDK catalog
@@ -155,7 +155,7 @@ plans and 44 paged result cases. Logs are
 `/tmp/transit-sql-output-aliases-compile-optimization-unit.log` and
 `/tmp/transit-sql-output-aliases-compile-optimization-check.log`.
 
-The [paired raw report](../../../tests/benchmarks/results/2026-10-01-output-aliases.json)
+The [paired raw report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-output-aliases.json)
 records control/candidate order **A B B A A B**, five samples per run, one warm-up,
 8192 rows in eight-row pages, ten executions and 2000 compilations per sample.
 Both frozen binaries pass all 33 components and nine rejection probes in each
@@ -1789,7 +1789,7 @@ installed SDK matrices were not run for this cutover.
 
 ## Durable Table mutation latency
 
-The [2026-10-04 campaign](../../../tests/mutation_latency/results/2026-10-04/README.md) preserves
+The [2026-10-04 campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/README.md) preserves
 all intermediate and corrected-provider reports, fixed diagnostic categories,
 executable hashes, temporary probe patches and failed recovery fixtures. The
 matched-provider comparison completes 140 cases per implementation: one-row
@@ -1827,17 +1827,17 @@ snapshot and empty-directory metadata do not count. Spill requirements, provider
 limits and proof deadlines remain unchanged.
 
 On 2026-10-05 UTC, committed-source `just ci-clean` at `3a52d102` completes all
-**75 ordinary tasks** in 6,789.17 seconds. The [task results](../../../tests/mutation_latency/results/2026-10-04/clean-3a-complete.json)
-and [completion metadata](../../../tests/mutation_latency/results/2026-10-04/clean-3a-complete.meta.json)
+**75 ordinary tasks** in 6,789.17 seconds. The [task results](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/clean-3a-complete.json)
+and [completion metadata](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/clean-3a-complete.meta.json)
 retain exact task order, source and exit codes. The physical query-delivery phase
 passes in 18.065 seconds under its existing 600-second deadline. Native/port/CLI
 Table mutation recovery checks 23 lost receipts; the
-[structured records](../../../tests/mutation_latency/results/2026-10-04/clean-3a-runtime-evidence.json)
+[structured records](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/clean-3a-runtime-evidence.json)
 preserve the phase and binary evidence. The gRPC worker observes 135 cold objects;
 the HTTP worker observes 193, with unchanged 8 MiB hot limits. All installed SDK
-tasks pass, and the [ten-language ring](../../../tests/mutation_latency/results/2026-10-04/clean-3a-public-interop.json)
+tasks pass, and the [ten-language ring](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/clean-3a-public-interop.json)
 checks restarted replies, lost receipts, typed Tables/queries and original IPC.
-The [local Station readiness proof](../../../tests/mutation_latency/results/2026-10-04/clean-3a-station-readiness.json)
+The [local Station readiness proof](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/clean-3a-station-readiness.json)
 retains its injected outage, replacement and cleanup results.
 
 A separate clean experience lane at `cd9fde43` completes all seven tasks after
@@ -1928,7 +1928,7 @@ open-loop throughput or cold operating-system cache tests.
 
 ### Transport and observation follow-up
 
-[Archived diagnostic reports](../../../tests/mutation_latency/results/2026-10-01/README.md)
+[Archived diagnostic reports](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-01/README.md)
 retain the original JSON, binary hashes, failed samples and controls. The early
 adaptive-worker control completes 21 cases; the direct-caller control completes
 14 cases with 12 rows, six additional retained updates and one reader. Neither
@@ -1984,7 +1984,7 @@ each measured statement. They vary two controls and are not a cache-only compari
 
 These are empirical nearest-rank percentiles from 20 samples per case on a shared
 host. They are neither an SLO nor a paired speedup against the earlier failed
-baseline. The [raw reports](../../../tests/mutation_latency/results/2026-10-01/README.md) retain
+baseline. The [raw reports](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-01/README.md) retain
 all samples, controls and executable hashes. No p99 is established.
 
 The same build's fixed-20-ms/idle/cache-64 control fails after 34 cases. Its next
@@ -2031,7 +2031,7 @@ An ext4 control at merged `3d6ba315`, including the other intervening changes bu
 without fragment batching, completes delivery in 112.82 s. These are single
 shared-host observations, not a percentile comparison or a guaranteed speedup.
 The entire difference from the earlier `3d0d7819` timeout cannot be attributed to
-fragment batching. [Raw query logs](../../../tests/mutation_latency/results/2026-10-01/README.md#focused-query-storage-controls)
+fragment batching. [Raw query logs](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-01/README.md#focused-query-storage-controls)
 retain the phases and failures. Focused results alone do not establish complete
 clean qualification.
 
@@ -2084,7 +2084,7 @@ measurement, not a conclusion inferred from this smoke run.
 
 The subsequent full matrix completes **768/768** samples with **24** arms,
 one discarded warmup and **31** recorded repetitions per arm. The
-[archived report and account](../../../tests/storage_benchmarks/2026-10-26-owners/README.md)
+[archived report and account](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-owners/README.md)
 record the frozen production revision, then-uncommitted harness hashes and
 matching committed harness, shared-host contention, cache conditioning and
 complete phase/I/O/allocation/RSS evidence. All returned and visited values,
@@ -2146,13 +2146,13 @@ is inferred from these partial runs.
 
 ## Archived ingestion and growth observations — 2026-10-26
 
-The [ingestion account](../../../tests/storage_benchmarks/2026-10-26-ingestion/README.md) preserves
+The [ingestion account](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-ingestion/README.md) preserves
 the exact successful 384-sample report and all twelve recomputed summaries.
 Every sample's independent value/count/digest, accepted position, retained
 snapshot and original receipt checks are revalidated before archiving. Recorded
 source hashes match clean revision `e7334f03e6c645f26de8186fc00e4aa8b7994f14`;
 later rebases do not change that attribution. The earlier conditioning failure
-remains a separate failed run. The [growth account](../../../tests/storage_benchmarks/2026-10-26-growth/README.md)
+remains a separate failed run. The [growth account](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-growth/README.md)
 similarly preserves the exact failed attempt from `b85a0a076`: its completed
 Table fixtures pass the independent validators and cold-entry checks, while
 native setup exceeds the unchanged 1,800-second deadline. There is no complete

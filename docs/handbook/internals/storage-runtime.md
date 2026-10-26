@@ -789,7 +789,7 @@ record envelopes, retained schemas and current read failures. Run
 authority/storage schedules are recorded separately in the
 [proof ledger](../../history/qualification/README.md). These checks do not establish scan pruning,
 columnar storage, horizontal write scaling or a latency improvement. The
-[matched service campaign](../../../tests/mutation_latency/results/2026-10-19/README.md)
+[matched service campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-19/README.md)
 measures the combined implementation separately: narrow INSERT/UPDATE and
 range/full scans improve, while empty and LIMIT 0 console reads regress. Its
 single instrumented INSERT uses one accepted turn instead of two, with fewer
@@ -1000,7 +1000,7 @@ base64 framing. These are separate from compute vector widths, Arrow batches
 and application publication segments; the native mutation quota is unchanged.
 A current-definition cutover prevents old stored pages from being reinterpreted.
 
-The [layout experiment](../../../tests/mutation_latency/results/2026-10-04/page-layout.json)
+The [layout experiment](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/page-layout.json)
 counts actual operations in the production tree with an in-memory measurement
 store, 50 synthetic turns, retained roots, 64/1,024 rows and matching receipt
 populations. At 1,024 rows, compact 8/32 monolithic roots used 782 reads and 468
@@ -1021,13 +1021,13 @@ is 39.43/34.29/70.54 ms. Median lock wait rounds to zero in that idle control.
 These are overlapping phase measurements under proxies, not isolated disk-fsync
 costs or sums that predict the ordinary console latency. They favor reducing
 provider work before introducing concurrent authority execution. The
-[raw campaign](../../../tests/mutation_latency/results/2026-10-04/README.md)
+[raw campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/README.md)
 records the matched controls and failed attempts.
 
 An unproxied 280-case control with 120 retained rows samples slow requests
 separately. One request spends 1,891 of 1,900 ms in provider I/O across 86 attempts;
 another read waits 1,879 ms before doing 4 ms of work. The
-[bounded slow samples](../../../tests/mutation_latency/results/2026-10-04/slow-diagnostic-events.json)
+[bounded slow samples](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/slow-diagnostic-events.json)
 retain 64 of 77 events meeting a 500 ms wait/work threshold or reporting failure.
 They establish that long provider work can occupy serialized access and delay
 other requests. The threshold sample is not an all-request distribution, and
@@ -1058,7 +1058,7 @@ separation between planning and publication. This corrects avoidable starvation;
 it does not promise admission when incoming bytes exceed durable drain capacity.
 
 The local Nix package owns this correction. Official pinned container images
-remain a separate provider profile. The [campaign evidence](../../../tests/mutation_latency/results/2026-10-04/README.md)
+remain a separate provider profile. The [campaign evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/README.md)
 records diagnostic-only build patches and failed runs; a provider category never
 authorizes a fresh retry of an uncertain Transit command.
 
@@ -1100,7 +1100,7 @@ must distinguish offered load, admission, queue residence, individual receipts
 and uncertain batch outcomes. The current evidence does not establish a safe
 single-write improvement from group commit or horizontal authority execution.
 
-The [completion campaign](../../../tests/mutation_latency/results/2026-10-05/README.md)
+The [completion campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-05/README.md)
 separates these costs empirically. Bounded caller waits and leaf-frontier batches
 reduce console INSERT/UPDATE/DELETE medians from 142/153/138 ms to 113/130/112 ms
 in fresh 140-case controls. Separate instrumented controls reduce median provider

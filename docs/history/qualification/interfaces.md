@@ -238,7 +238,7 @@ do not identify the earlier delay's cause or establish a latency guarantee.
 
 ## Installed SQL client selection — 2026-10-26
 
-The [retained controls and task records](../../../tests/verification/results/lifecycle-ci-clients-2026-10-26/report.json)
+The [retained controls and task records](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/lifecycle-ci-clients-2026-10-26/report.json)
 identify an environment dependency in hosted run `40278906228`, at merge revision
 `e4b4955cb`. Nine experience tasks pass, including installed direct Table SQL,
 fault recovery, session lifetimes and the complete standalone SQL authentication
@@ -299,7 +299,7 @@ checks; they do not establish new service or authorization behavior.
 
 ## Console completion and editing — 2026-10-24
 
-The [qualification record](../../../tests/verification/results/console-completion-2026-10-24.json)
+The [qualification record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/console-completion-2026-10-24.json)
 retains commands, log hashes and real-service observations for the accepted
 [interaction](https://github.com/spoke-sh/transit/blob/c5b1ab67def9ece225dbff25936cf1bd9155363a/docs/design/transit-cli/D3.md). In the pinned Nix shells,
 `just check`, `just test::unit` and `just test::console-history` pass.
@@ -542,7 +542,7 @@ joins its children; it never starts or modifies the operator's installation.
 
 ## Explicit relational Board sessions
 
-[Implementation revision, logs, outcomes and limits](../../../tests/verification/results/relational-board-2026-10-12.json)
+[Implementation revision, logs, outcomes and limits](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/relational-board-2026-10-12.json)
 record the real Board service and browser against one native node and disk Ursula.
 `just test::relational-callers` now includes the optional Board route schedule in
 the ordinary growth lane. `just transit-board::relational-browser` adds the actual
@@ -760,7 +760,7 @@ standards-conformance execution is claimed.
 
 ## Current Board browser qualification — 2026-10-01
 
-The [browser investigation record](../../../tests/verification/results/m37-board-browser-2026-10-01.json)
+The [browser investigation record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m37-board-browser-2026-10-01.json)
 reproduces all five hosted browser failures at `31e3c97f`. Retained page context
 shows a successfully rendered native v1 Relief atlas and current process/resource
 evidence. The fixture instead expects the removed Departure board, inline process
@@ -803,7 +803,7 @@ that scoped outbox/history projections do not disclose hidden endpoints.
 Hosted run `40293594898` completes all thirteen experience tasks, then its
 embedded browser test rejects a query chunk of 913,584 bytes against the
 existing 900,000-byte limit. The failed baseline is retained in the
-[lifecycle evidence](../../../tests/verification/results/catalog-prefix-2026-10-26/report.json).
+[lifecycle evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/catalog-prefix-2026-10-26/report.json).
 All five standalone-validator generators now omit AJV error-message prose.
 Their declared API returns boolean validity; client failure codes and Transit
 diagnostic payloads remain separately owned. Public schemas, generated type
@@ -813,7 +813,7 @@ At `d41217807` plus that generator change, the pinned build reports query
 831.65 kB, inspection 820.55 kB, application 736.91 kB, entry 416.91 kB and
 bundler runtime 0.58 kB. These are rounded uncompressed build sizes, not a
 transfer-latency measurement. Vite's separate 500 kB advisory remains enabled.
-The [retained record](../../../tests/verification/results/board-validator-output-2026-10-26/report.json)
+The [retained record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/board-validator-output-2026-10-26/report.json)
 includes source-patch attribution and the unmodified browser workload.
 
 Six schema-equivalence tests compare the generated configuration against
@@ -2330,7 +2330,7 @@ Those runs do not qualify later program changes, other lanes or installed
 all-source recovery. SQL Boolean parsing, typed SDK constructors and current
 installed recovery remain outstanding.
 
-The [owned-plan cost report](../../../tests/benchmarks/results/2026-10-01-boolean-plan-costs.json)
+The [owned-plan cost report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-boolean-plan-costs.json)
 retains source patches, frozen binary hashes and every paired sample. The first
 inline plan doubled paged-aggregate time. Pointer-based plan methods and
 `Bound.validate` remove redundant plan copies while retaining complete per-page
@@ -2375,7 +2375,7 @@ of literals. Initial test-only serializer error-set, cell-constructor and EOF
 coordinate failures are corrected; their logs remain in
 `/tmp/transit-sql-boolean-parser-{sql,tests,tests-fixed}.log`.
 
-The [Boolean SQL cost report](../../../tests/benchmarks/results/2026-10-01-boolean-sql-costs.json)
+The [Boolean SQL cost report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/benchmarks/results/2026-10-01-boolean-sql-costs.json)
 retains five paired experiments, frozen hashes, raw samples and cumulative source
 patches on `051c766a`. Initial SELECT compilation regresses 64–91% versus that
 saved-program control. Borrowing the AST inside compilation improves those
@@ -2550,7 +2550,7 @@ reproduces the failure. Filtering only the ambient value in `5bcbdd9b7` passes
 all 193 diagnostics cases against the same binary and directory. Explicit
 HOME/XDG/`TRANSIT_CONFIG` precedence cases retain their individual overrides.
 
-The [before/after record and compressed logs](../../../tests/verification/results/cli-xdg-2026-10-26/report.json)
+The [before/after record and compressed logs](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/cli-xdg-2026-10-26/report.json)
 identify the executable and fixture sources, hashes and commands. This changes
 test isolation only; it does not change CLI discovery rules or complete the
 current-source clean core lane.

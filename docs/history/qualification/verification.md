@@ -20,7 +20,7 @@ is not `just ci-clean` or installed-placement qualification.
 
 ## Installed lifecycle qualification checkpoint — 2026-10-26
 
-[Retained task records](../../../tests/verification/results/lifecycle-qualification-2026-10-26/report.json)
+[Retained task records](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/lifecycle-qualification-2026-10-26/report.json)
 distinguish completed checks from partial lanes. Local clean `check-core` passes
 at `9ab5fb64a` in 1,877.37 seconds. Full `just check` subsequently passes in the
 same committed checkout. Eighteen core tasks pass before `test::station` fails
@@ -43,7 +43,7 @@ queries. No mutation, denial, partial result or generic error uses this path.
 The four unfinished core/growth/SDK lanes were cancelled when superseded by
 run `40278906228`; they are not complete passes.
 
-The [local diagnostic record](../../../tests/verification/results/installed-sql-diagnostics-2026-10-26/report.json)
+The [local diagnostic record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/installed-sql-diagnostics-2026-10-26/report.json)
 retains the separate cancelled-append/restart failure. Its console was killed
 by the fixture after 180 seconds, before the client's existing 270-second
 accepted-operation settlement budget. The fixture now allows 300 seconds and
@@ -63,7 +63,7 @@ of the experience lane.
 The later public observation of that retained installation finds original
 CREATE 751 still `uploading`, with no outcome or visible Table. No SQL is
 resubmitted. This is incomplete intent publication, not accepted execution or a
-recovered successful CREATE. The [retained observation](../../../tests/verification/results/installed-sql-diagnostics-2026-10-26/final-create-observation.json)
+recovered successful CREATE. The [retained observation](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/installed-sql-diagnostics-2026-10-26/final-create-observation.json)
 and controller identify the exact binary hashes and operations inspected.
 
 A fresh diagnostic installation using the same `e3dd9e68a` binaries passes the
@@ -81,13 +81,13 @@ Its controller starts at `31b48b73e` with the task patch; the task/documentation
 commit `2f5018ad2` lands during the unit stage without changing runtime sources.
 The subsequent committed-HEAD clean launcher lane at `2f5018ad2` passes both
 tasks: build smoke in 48.54 seconds and local launchers in 442.23 seconds.
-The [validation record](../../../tests/verification/results/lifecycle-qualification-2026-10-26/post-168-validation.json)
+The [validation record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/lifecycle-qualification-2026-10-26/post-168-validation.json)
 and separate launcher metadata retain those source boundaries. These are
 completed checks; the remaining combined lanes are still separate gates.
 
 ## Installed lifecycle follow-up and Station CI dependency — 2026-10-26
 
-The [retained records](../../../tests/verification/results/lifecycle-post168-2026-10-26/report.json)
+The [retained records](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/lifecycle-post168-2026-10-26/report.json)
 include a further full `just check` pass after the database-client correction.
 Committed-checkout experience at `0582556e3` passes nine tasks, then fails an
 UPDATE in local SQL authentication. Public signed inspection after restarting
@@ -125,7 +125,7 @@ combined qualification.
 
 ## Installed lifecycle qualification after CI prerequisites — 2026-10-26
 
-The same [evidence bundle](../../../tests/verification/results/catalog-prefix-2026-10-26/report.json)
+The same [evidence bundle](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/catalog-prefix-2026-10-26/report.json)
 retains completed hosted core at `c19beb45e`: all 28 tasks in 3,537.72 seconds
 under the revised outer cap. Bindings-1 at `e4b4955cb` completes all seventeen
 tasks in 6,951.89 seconds with the current shared definition. Together with the
@@ -243,7 +243,7 @@ Hosted launcher job `110201098691` reaches its 30-minute execution cap after
 `test::build` passes in 592.32 seconds, while `launchers::local::test` is active.
 The original runner writes results only in `finally`; cancellation leaves no
 CI JSON for artifact upload. Shell preparation alone takes 623 seconds.
-The [interruption record](../../../tests/verification/results/m37-ci-interruption-2026-10-01.json)
+The [interruption record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m37-ci-interruption-2026-10-01.json)
 retains the job phases, timeout annotation and log hash.
 
 The corrected runner atomically checkpoints each completed task and the current
@@ -287,7 +287,7 @@ at `88fc1d0d` are refused before any job executes. GitHub reports an account
 payment/spending restriction. Both runs contain zero test results; neither
 supplies passing or failing proof evidence.
 
-The [cost-inventory control](../../../tests/verification/results/m37-ci-cost-inventory-2026-10-01.json)
+The [cost-inventory control](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m37-ci-cost-inventory-2026-10-01.json)
 exposes a reporting error: a synthetic successful core-only run with known warm
 caches meets the old collector's full-suite budget check. The corrected collector
 requires exactly one job for each ordinary inventory lane and reports missing or
@@ -310,7 +310,7 @@ All job logs are available. Its cache profile is neither warm nor explicit cold;
 it does not qualify a budget. The numeric budgets retain their earlier 33-task
 calibration and do not certify the expanded inventory.
 
-The [local checkpoint](../../../tests/verification/results/m37-local-progress-2026-10-01.json)
+The [local checkpoint](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m37-local-progress-2026-10-01.json)
 keeps clean experience's seven passes at `5c76d03e` separate from its later core
 failure after nineteen passes. Clean experience at `31f071d0` passes six tasks,
 then misses the original 60-second Station Arrow-reply window following the
@@ -832,7 +832,7 @@ resolution, portable native distributions and foreign Substrate workers are
 not qualified. Package guides document current low-level escape hatches and
 migration. These tests do not qualify arbitrary callback honesty or I/O isolation.
 
-The [2026-09-26 local record](../../../tests/verification/results/m11-sdk-2026-09-26.json) measured
+The [2026-09-26 local record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m11-sdk-2026-09-26.json) measured
 **3m58.7s** for clean consumer installation and the complete ring,
 including 56.8s of installation/consumer compilation.
 The authority ran on one CPU; provisioning used the same five-second deadline
@@ -969,7 +969,7 @@ A failed proof requires revising the owning design, not weakening its label.
 
 ## M10 verification and scale foundations
 
-The [2026-09-25 growth evidence](../../../tests/verification/results/m10-scale-2026-09-25.json)
+The [2026-09-25 growth evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m10-scale-2026-09-25.json)
 records **14 passing samples**: two each at 64/256/1,024 rows with one resident
 page, 256 rows with 16 pages, eight retained views, and two public-service offered
 loads. All use real Ursula WAL plus pinned MinIO on the checkout's ext4 filesystem,
@@ -1302,7 +1302,7 @@ The final implementation and proof harnesses at **`21089bb654f0`** pass all
 checkout per lane. Every completion report names that same full revision;
 expected task lists, task order, unique coverage and zero exit codes were checked
 against its committed `suite.json`. All five invocations exited successfully.
-The [retained report](../../../tests/verification/results/m23-m24-clean-2026-09-28.json) includes
+The [retained report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m23-m24-clean-2026-09-28.json) includes
 task timings, machine information and the original local evidence directories.
 
 | Lane       | Tasks | Local lane task time |
@@ -1659,7 +1659,7 @@ must not be treated as physical-storage qualification.
 Reusing one frozen signed status request removes repeated credential preparation
 while preserving the gateway's current authorization checks, but the physical
 control still fails the same completion assertion. That experimental source
-change is removed. The [source-attributed evidence](../../../tests/verification/results/lifecycle-reactive-physical-2026-10-26/report.json)
+change is removed. The [source-attributed evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/lifecycle-reactive-physical-2026-10-26/report.json)
 retains all controls, binary hashes, patches and full telemetry logs. Private
 fixture state stays outside Git. The original clean fixture deleted its own
 temporary state on failure; later diagnostic fixtures retain theirs. Runtime
@@ -1780,7 +1780,7 @@ pass, isolated Table latency improvement or complete combined-suite pass is
 inferred from the successful installed tasks. Those broader browser failures remain
 with #124; startup logging and bootstrap recovery remain with #171 and #173.
 
-The [evidence bundle](../../../tests/verification/results/lifecycle-final-qualification-2026-10-26/report.json)
+The [evidence bundle](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/lifecycle-final-qualification-2026-10-26/report.json)
 retains exact commands, sources, task outcomes, compressed logs and hashes,
 including the failed clean lane and hosted artifacts. Private configurations,
 credentials and durable uncertain-outcome fixtures remain outside Git. Earlier

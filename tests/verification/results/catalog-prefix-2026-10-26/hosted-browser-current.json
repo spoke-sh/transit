@@ -1,8 +1,0 @@
-[
-  {
-    "lane": "browser",
-    "task": "transit-board::browser",
-    "seconds": 29.48,
-    "exit_code": 1
-  }
-]
