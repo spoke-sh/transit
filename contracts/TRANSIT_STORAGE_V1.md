@@ -227,6 +227,8 @@ Cancellation while loading an uncached partition before a disk mutation publishe
 no cached descriptor and leaves the owner usable. Cancellation after recovery
 starts truncating an incomplete tail still requires reopening the owner.
 
+Opening validates every retained partition before returning an owner, including
+partitions beyond the first directory page or the resident descriptor cache.
 Recovery checks contiguous LSNs, frame integrity and the persisted frontier.
 It reads one bounded frame at a time. Only an incomplete frame in the final
 segment beyond the persisted frontier can be truncated; missing acknowledged

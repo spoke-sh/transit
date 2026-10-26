@@ -133,6 +133,10 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   writes for WAL append/rollover and conditional/immutable objects, preserving
   accepted bytes and exact retry/recovery. The host filesystem is not filled;
   broader device failures and safe physical collection remain separate work.
+- Startup now uses an independent directory handle while recovering partitions,
+  preserving the full integrity gate when segment names span directory pages.
+  A 384-segment regression exposed skipped partitions in the former nested walk;
+  this fixes validation coverage without changing persisted bytes or authority.
 
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,

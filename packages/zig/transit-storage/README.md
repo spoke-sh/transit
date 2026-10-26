@@ -66,6 +66,10 @@ an explicit allocation budget and returned rows own their values. Physical
 groups default to 256 rows, independently of statement and response bounds.
 This does not add ordered primary-key range execution or SQL projection pushdown.
 
+Opening a disk WAL validates every retained partition before returning, even
+when segment names span multiple directory pages. Nested recovery scans use an
+independent startup directory handle; caller reads are not the startup gate.
+
 `zig build test` includes real temporary-directory WAL tests: cache eviction,
 segmented recovery above 64 MiB, durable empty-log fencing and full trim,
 incomplete tails, missing/corrupt acknowledged history, incompatible definitions,

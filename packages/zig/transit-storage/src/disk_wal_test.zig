@@ -7,6 +7,42 @@ fn open(dir: std.Io.Dir) !Wal {
     return Wal.openDiskWithOptions(t.allocator, t.io, dir, "wal", .{ .segment_bytes = 256, .batch_frames = 2 });
 }
 
+test "disk WAL opening validates every partition across directory pages" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const options: Wal.DiskOptions = .{ .segment_bytes = Log.alignedFrameSize(8) };
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        for (1..4) |partition| for (0..128) |lsn| {
+            var bytes: [8]u8 = undefined;
+            std.mem.writeInt(u64, &bytes, partition * 1000 + lsn, .little);
+            _ = try wal.log().append(partition, lsn, 3, 5, .row_delta, &bytes);
+        };
+    }
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        // Opening must verify all retained frames before any caller chooses a
+        // partition. On-demand reads cannot substitute for this startup gate.
+        try t.expectEqual(@as(u64, 384), wal.disk.?.recovered_frames);
+        for (1..4) |partition| {
+            try t.expectEqual(@as(u64, 128), try wal.log().tail(partition));
+            var page = try wal.log().read(t.allocator, partition, 127, 1);
+            defer page.deinit();
+            try t.expectEqual(@as(u64, partition * 1000 + 127), std.mem.readInt(u64, page.frames[0].payload[0..8], .little));
+        }
+        try t.expectEqual(@as(u64, 384), wal.disk.?.recovered_frames);
+    }
+    {
+        const file = try tmp.dir.openFile(t.io, "wal/part-3-127.twal", .{ .mode = .read_write });
+        defer file.close(t.io);
+        try file.writePositionalAll(t.io, "x", Log.header_bytes);
+        try file.sync(t.io);
+    }
+    try t.expectError(error.CorruptWalFrame, Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options));
+}
+
 test "disk WAL bounded seek hints keep one-frame replay linear and verify cached reads" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
