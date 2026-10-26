@@ -79,6 +79,45 @@ repository check, committed-HEAD `just ci-clean`, and a linked
 issue review. #123/#124 retain their broader storage/provider/performance scope;
 this lifecycle review does not close those obligations wholesale.
 
+## Close-out checkpoint — 2026-10-26
+
+The lifecycle implementations and subsequent fixes through
+[PR #159](https://github.com/spoke-sh/transit/pull/159) and
+[PR #161](https://github.com/spoke-sh/transit/pull/161) are merged. The latter
+removes the reproduced Debug decimal-rescaling crash; the
+[focused regression evidence](../../tests/README.md#debug-decimal-argument-alignment--2026-10-26)
+preserves the failing case and unchanged arithmetic/result assertions.
+The clean growth run at `a756f2cf4` has passed file queries, logical Arrow,
+logical codecs, immutable pages and growing-authority recovery; the containing
+lane is incomplete.
+
+The active qualification follow-up addresses three observed fixture/profile
+problems without expanding lifecycle scope:
+
+- [CLI configuration discovery](../../tests/README.md#cli-discovery-fixture-environment--2026-10-26)
+  filters ambient XDG state while preserving explicit precedence tests.
+- [Installed Station SDK queries](../../tests/README.md#sdk-query-node-build-profile--2026-10-26)
+  use a ReleaseSafe node with Debug bindings/hosts. The Python control passes
+  the unchanged workload and deadline; complete clean SDK lanes remain pending.
+- Installed SQL observes account discovery within the existing readiness
+  deadline and permits both database clients to repeat only the fixed finite
+  COUNT observations after an explicit capacity refusal with no disclosed rows.
+  Writes, reloads, partial results and generic failures are not retried by that
+  helper. The installed rerun and the separate hosted generic SHOW failure
+  remain open qualification work.
+
+Stale owned checkout cleanup is complete: six inactive worktrees and 26
+superseded branches were removed after archiving their history and 442 proof/
+package artifacts. The current worktree, original unpublished implementation
+branch, user notes and separate storage checkout remain intact. Recovery paths
+and archive hashes are recorded in [#124](https://github.com/spoke-sh/transit/issues/124).
+
+Completion still requires the combined repository check, complete committed
+clean-checkout qualification, and the acceptance/linked-issue review. Component
+issues #111/#112/#119/#120 are closed; #108 stays open until those final gates
+are met. #123/#124 retain their broader obligations, and later transaction,
+index, scheduling and provider work keeps its existing delivery owner.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to
