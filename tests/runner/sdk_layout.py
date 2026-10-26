@@ -4,7 +4,7 @@ import json
 import re
 import subprocess
 
-ROOT = Path(__file__).resolve().parents[1]
+from paths import ROOT
 
 
 def violations(root, paths):

@@ -53,7 +53,7 @@ update indexes and inbound links, preserve useful anchors and retain attributabl
 historical evidence. Generated descriptions and schemas keep their owning source;
 do not maintain another copy in prose.
 
-Run `python3 -B tests/docs.py` from the repository root inside `nix develop` for
+Run `python3 -B tests/runner/docs.py` from the repository root inside `nix develop` for
 local links and fences, and check diff whitespace. For published content or site
 changes, use the [handbook validation workflow](handbook/README.md#validation-and-hosting).
 Follow the repository workflow for any accompanying implementation changes.

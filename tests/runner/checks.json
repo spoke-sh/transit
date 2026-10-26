@@ -168,7 +168,7 @@
         "command": [
           "python3",
           "-B",
-          "tests/sdk_layout.py"
+          "tests/runner/sdk_layout.py"
         ]
       },
       {
@@ -282,7 +282,7 @@
         "command": [
           "python3",
           "-B",
-          "tests/docs.py"
+          "tests/runner/docs.py"
         ]
       },
       {

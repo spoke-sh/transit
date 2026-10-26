@@ -45,7 +45,7 @@ iteration; [tasks/README.md](../tasks/README.md) documents commands and dependen
 
 | Change | First checks | Additional qualification |
 | --- | --- | --- |
-| Documentation and archive links | `python3 -B tests/docs.py`, `git diff --check` | Site checks for published content; archive integrity for moved evidence |
+| Documentation and archive links | `python3 -B tests/runner/docs.py`, `git diff --check` | Site checks for published content; archive integrity for moved evidence |
 | Formal model or correspondence | Its task from the [model guide](verification/models/README.md) | Named negative controls and affected concrete implementation schedules |
 | Package implementation | Package tests and affected public contract fixtures | Domain caller, failure and recovery checks |
 | Shared protocol, ABI or definition | Owning generators/checks and independent fixtures | All affected consumers and incompatible-definition rejection |

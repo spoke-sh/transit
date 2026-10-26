@@ -4,7 +4,7 @@ import { defineConfig } from "vite-plus";
 export default defineConfig({
   test: { include: ["lib/**/*.test.ts"] },
   lint: { ignorePatterns: [".docusaurus/**", ".generated/**", "dist/**"] },
-  // Handbook prose follows repository Markdown conventions, checked by tests/docs.py.
+  // Handbook prose follows repository Markdown conventions, checked by tests/runner/docs.py.
   fmt: {
     ignorePatterns: [
       ".docusaurus/**",

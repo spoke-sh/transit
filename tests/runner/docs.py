@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 import re
 
-root = Path(__file__).resolve().parent.parent
+from paths import ROOT as root
 files = [root / "README.md", root / "AGENTS.md"]
 for source in ("docs", "contracts", "examples", "packages", "sdks", "apps", "deploy", "charts", "launchers", "nix", "tasks", "tests", "bindings"):
     for directory, children, names in os.walk(root / source):

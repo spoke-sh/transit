@@ -130,7 +130,7 @@ errors. `just check all` includes it. The experience CI lane owns it on ordinary
 documentation-only PRs run it through the dedicated documentation job. This
 includes site code and assets under `docs/handbook`; shared dependency, contract
 and runtime changes still select the full CI path. Markdown links across the
-repository are checked separately by `python3 -B tests/docs.py`.
+repository are checked separately by `python3 -B tests/runner/docs.py`.
 
 ```sh
 just transit-docs::browser-install
