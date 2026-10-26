@@ -95,6 +95,10 @@ def busy_observation(fixture, log):
     events = [json.loads(line)['event'] for line in log.read_text().splitlines()]
     busy = [e for e in events if e.get('operation') == 'busy']
     assert busy and all(e['level'] == 'warn' and e['error_type'] == 'HttpCapacity' for e in busy), busy
+    attempts = [e for e in events if e['name'] == 'transit.client.request'
+                and e.get('error_type') == 'HttpCapacity']
+    assert attempts and all(e['level'] == 'warn' and e['status'] == 503
+                            and e['route'] in ('/v1/query', '/v1/command') for e in attempts), attempts
     assert log.read_text().count('"name":"sql.connect.postgres"') == notices, 'Repeated hint without listener replacement'
 
 
