@@ -28651,6 +28651,19 @@ value controls; it has too few samples for latency percentiles, and its fixtures
 do not exceed host RAM. The 31-repetition matrix remains a separate executed
 measurement, not a conclusion inferred from this smoke run.
 
+The subsequent full matrix completes **768/768** samples with **24** arms,
+one discarded warmup and **31** recorded repetitions per arm. The
+[archived report and account](storage_benchmarks/2026-10-26-owners/README.md)
+record the frozen production revision, then-uncommitted harness hashes and
+matching committed harness, shared-host contention, cache conditioning and
+complete phase/I/O/allocation/RSS evidence. All returned and visited values,
+payload digests, non-publication checks, checkpoint coordinates and repetition
+sets pass. Independent validation and summary recomputation pass again when
+archiving the report. Native trim advances its read floor but retains the
+straddling segment; this run does not demonstrate physical reclamation or a
+native read improvement. Ingestion/commit percentiles, growth beyond host RAM,
+installed latency and clean qualification of later changes remain unproved.
+
 ## Projected retained Table scans — 2026-10-26
 
 Focused checks pass **21/21** Fuze projection/import tests, **2/2** storage

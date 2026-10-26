@@ -118,6 +118,16 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- A paired ReleaseSafe disk-owner matrix completes 768 verified samples across
+  native/Table sizes, checkpoint variants, scan/range access and cold/warm file
+  pages. The [measurement account](../../tests/storage_benchmarks/2026-10-26-owners/README.md)
+  retains raw values, build/fixture identities and phase/allocation/RSS/I/O
+  evidence. Narrow ranges reduce requested data; Table checkpointing reduces
+  logical replay and warm recovery. Cold recovery gains are inconsistent, and
+  native straddling-segment startup/read work remains. This advances #124/#76;
+  ingestion/commit percentiles, larger-than-RAM growth and final common-revision
+  qualification remain open.
+
 - Concrete Table writes, retained statement execution, ALTER rewrites and flushes
   now share an explicit private allocation ceiling, independent of encoded-row
   and index-work limits. This advances the remaining builder audit in #116/#128.

@@ -53,6 +53,29 @@ claimed. Medians are not tail percentiles or service latency guarantees.
 
 ## Retained Table key-range measurements
 
+A paired ReleaseSafe disk-owner matrix measures 1,024-row Table scans and a
+four-row interval at the same retained snapshot. With warm fixture pages, the
+baseline median / p95 read times are **621.72 / 645.94 ms** for a complete scan
+and **11.89 / 16.33 ms** for the interval. With verified cold fixture pages at
+process entry, they are **1,675.38 / 3,059.07 ms** and **68.00 / 122.30 ms**.
+Each arm has 31 observations on a shared Linux Threadripper host, one resident
+index page and separate 128 KiB encoded/decode limits. The interval opens two
+of 64 segments and requests 40,950 segment bytes versus 1,310,400 for the scan.
+Both verify the same selected values; the scan also verifies all visited rows.
+
+In that matrix, a Table recovery checkpoint reduces logical replay from 65
+records to one and warm logical recovery median from 8.21 to 0.92 ms. Physical
+startup still validates the WAL. Cold logical recovery shows no consistent
+latency improvement. A separate native 64-turn fixture preserves KV values,
+blocks and process progress after checkpoint, with essentially unchanged read
+costs: its history floor falls inside one retained WAL segment. No physical
+space reclamation is demonstrated. Maximum observed executable RSS is 8,968 KiB
+for Table and 6,868 KiB for native samples. These are observations, not limits.
+The [complete measurement account and raw samples](../../../tests/storage_benchmarks/2026-10-26-owners/README.md)
+identify source hashes, all phases, memory/I/O boundaries and contention. These
+fixtures exceed owner caches, not host RAM; they do not measure installed SQL or
+ingestion/commit percentiles.
+
 The disk-backed Table owner can traverse complete primary keys within an
 inclusive or exclusive interval on a retained snapshot. In a 512-row fixture
 with eight immutable segments, a four-row interval crossing a segment boundary

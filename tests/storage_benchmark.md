@@ -29,7 +29,9 @@ one immutable 1,024-byte block, input progress and one recorded output to a seco
 process. Reopen checks consumed inputs/output counts and reads every KV value and
 block through signed queries with block verification. Both arms use one resident
 page. The fixture explicitly permits history trimming; the checkpoint arm
-accepts a native checkpoint and trims only its authorized prefix. Its current
+accepts a native checkpoint and advances the physical log's authorized read
+floor. Whole segments below that floor can be removed; a segment straddling the
+floor retains its bytes and startup validation. Its current
 values match the untrimmed arm, while historical availability intentionally
 differs. Blocks exercise the native storage boundary, not Document CRDT operators
 or external effect dispatch.
@@ -89,3 +91,7 @@ universal memory/throughput target follows from these owner measurements.
 changed result digests, unexpected writes, false replay counts and missing raw
 repetitions reject. The ordinary core checks execute this report validator;
 the disk measurement matrix is an explicit task with an output destination.
+
+The [recorded owner matrix](storage_benchmarks/2026-10-26-owners/README.md)
+retains all 768 samples, exact build identities and the observed limits of the
+checkpoint comparison.
