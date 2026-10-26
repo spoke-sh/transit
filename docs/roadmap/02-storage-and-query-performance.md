@@ -240,6 +240,14 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   general encoded predicate execution, compatible borrowed batches and relational
   text comparison/hash/order remain outstanding.
 
+- Encoded filtering accepts bounded visible-candidate pages in logical traversal
+  order, with an explicit selected-prefix boundary. It preserves failure order
+  when segment positions differ from identities and excludes semantic failures
+  in omitted rows. Whole-page integrity checks still run. This supplies a
+  prerequisite for Table SQL predicate lowering; owner visibility, continuation
+  coverage and final authorization must still be integrated before that path is
+  claimed complete.
+
 - The shared codec walker now supports encoded single-column predicates with
   one-byte row outcomes, dictionary/run evaluation reuse and detached selected
   output. `TSegReader.filteredGroup` combines collation-aware zone-map pruning

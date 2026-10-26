@@ -9959,7 +9959,7 @@
     },
     "packages/zig/transit-fuze/src/TSegReader.zig": {
       "errors": {
-        "InvalidColumnSelection": 1,
+        "InvalidColumnSelection": 4,
         "InvalidPredicateProgram": 1,
         "InvalidSegment": 4,
         "InvalidSegmentCoordinate": 7,
@@ -9969,6 +9969,7 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Candidates.validate()": "<inferred>",
         "EncodedGroup.select()": "<inferred>",
         "OutcomeAtom.truth()": "<inferred>",
         "OutcomeAtom.validateShape()": "<inferred>",
@@ -9978,6 +9979,8 @@
         "column()": "<inferred>",
         "columnOutcomes()": "<inferred>",
         "encodedGroup()": "<inferred>",
+        "filterProgram()": "<inferred>",
+        "filteredCandidates()": "<inferred>",
         "filteredGroup()": "<inferred>",
         "filteredProgram()": "<inferred>",
         "group()": "<inferred>",
@@ -9987,7 +9990,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 35,
+        "try": 37,
         "catch": 10
       },
       "imports": [

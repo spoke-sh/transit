@@ -28679,3 +28679,30 @@ does not filter source rows, expire retained data or establish general encoded
 predicate pushdown. WAL rows retain bounded full-record decoding; point and
 count-range paths keep complete-row representations. The broader current-tree
 check and committed clean lanes remain separate qualifications.
+
+The broader `test::direct-table-service` run passes initial writes, disk restart,
+retained delegation/history, pin-journal recovery, original receipts and
+conditional names. Its later `lifecycle` caller exceeds the existing 180-second
+phase deadline while the server continues returning successful name-assertion
+responses. This run is failed; later phases did not execute. It overlapped the
+owner benchmark and full checks, so a retry without that disk workload is needed
+before attributing the timeout to either contention or a regression.
+
+## Encoded visible-candidate prefixes — 2026-10-26
+
+The focused TSEG suite passes **39/39** tests with `filteredCandidates`. An
+owner-supplied page admits at most 1,024 unique physical ordinals and retains its
+logical traversal order. Tests reverse physical order to change the first
+semantic failure, omit a failing row, stop after one matching row before a later
+error, preserve conflict/type-error details in ordinary projection, and reject
+duplicate/out-of-range candidates before I/O. A zero-match limit reads no payload;
+a zone-map-pruned page reports its complete candidate count without claiming
+complete-source coverage.
+
+Selected-prefix reads still reject corrupt encoded pages. Allocation-failure
+sweeps cover both full-group and candidate-prefix outputs; copied payloads and
+sorted physical result indices retain their owned lifetimes. Diagnostic
+inventory/mapping, verification-catalog, formatting and documentation checks
+pass. These component checks do not establish live Table visibility selection,
+filtered wire continuations, SQL lowering or final authorization for an encoded
+predicate path; those remain with the integration owner.

@@ -81,6 +81,8 @@ test "TSeg filtered groups retain schema budget integrity and projection validat
     try t.expectEqual(before, input.calls);
     input.bytes[@intCast(reader.footer.row_groups[0].pages[0].offset)] ^= 1;
     try t.expectError(error.CorruptSegmentPage, reader.filteredGroup(t.allocator, input.source(), schema, 0, &.{1}, matching, .{}, &failure));
+    const code = [_]ColumnPredicate.Program.Instruction{.{ .atom = .{ .column = 0, .predicate = matching.predicate } }};
+    try t.expectError(error.CorruptSegmentPage, reader.filteredCandidates(t.allocator, input.source(), schema, 0, &.{1}, .{ .instructions = &code }, .{ .rows = &.{ 1, 0 }, .matches = 1 }, .{}, &failure));
     try t.expect(failure == null);
 }
 
@@ -165,6 +167,11 @@ fn filteredAllocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {
     var group = try reader.filteredProgram(allocator, input.source(), schema, 3, &.{ 0, 1 }, .{ .instructions = &instructions }, .{}, &failure);
     defer group.deinit();
     try t.expectEqualStrings("seven", group.columns[1][1].value.atom.bytes);
+    var prefix = try reader.filteredCandidates(allocator, input.source(), schema, 3, &.{1}, .{ .instructions = &instructions }, .{ .rows = &.{ 1, 0 }, .matches = 1 }, .{}, &failure);
+    defer prefix.deinit();
+    try t.expectEqual(@as(usize, 1), prefix.examined);
+    try t.expectEqualSlices(u32, &.{1}, prefix.group.rows.?);
+    try t.expectEqualStrings("seven", prefix.group.columns[0][0].value.atom.bytes);
 }
 
 test "TSeg filtered groups allocation failures release every partial owner" {
@@ -294,6 +301,41 @@ test "TSeg encoded programs arbitrate eager failures by row then instruction" {
     code[1].atom = .{ .column = 0, .predicate = predicate };
     try t.expectError(error.QueryConflict, reader.filteredProgram(t.allocator, input.source(), definition, 0, &.{0}, program, .{}, &failure));
     try t.expectEqual(@as(u8, 0), failure.?.instruction);
+
+    // Logical identity order need not equal physical segment order. Only the
+    // owner's visible candidate prefix participates in semantic failure order.
+    code[0].atom = .{ .column = 0, .predicate = predicate };
+    code[1].atom = .{ .column = 1, .predicate = predicate };
+    try t.expectError(error.QueryTypeError, reader.filteredCandidates(t.allocator, input.source(), definition, 0, &.{0}, program, .{ .rows = &.{ 1, 0 } }, .{}, &failure));
+    try t.expectEqual(@as(u32, 1), failure.?.row);
+    try t.expectEqual(@as(u8, 0), failure.?.instruction);
+    const single_code = [_]Instruction{.{ .atom = .{ .column = 0, .predicate = .{ .compare = .{ .op = .eq, .value = .{ .signed = 0 } } } } }};
+    const single: ColumnPredicate.Program = .{ .instructions = &single_code };
+    var visible = try reader.filteredCandidates(t.allocator, input.source(), definition, 0, &.{0}, single, .{ .rows = &.{0} }, .{}, &failure);
+    defer visible.deinit();
+    try t.expect(failure == null);
+    try t.expectEqual(@as(usize, 1), visible.examined);
+    try t.expectEqual(@as(i128, 0), visible.group.columns[0][0].value.atom.signed);
+    var prefix = try reader.filteredCandidates(t.allocator, input.source(), definition, 0, &.{0}, single, .{ .rows = &.{ 0, 1 }, .matches = 1 }, .{}, &failure);
+    defer prefix.deinit();
+    try t.expectEqual(@as(usize, 1), prefix.examined);
+    try t.expectEqualSlices(u32, &.{0}, prefix.group.rows.?);
+    try t.expect(prefix.group.rowIndex(1) == null);
+    try t.expectError(error.QueryTypeError, reader.filteredCandidates(t.allocator, input.source(), definition, 0, &.{0}, single, .{ .rows = &.{ 0, 1 } }, .{}, &failure));
+    try t.expectEqual(@as(u32, 1), failure.?.row);
+    const no_read = input.calls;
+    var empty = try reader.filteredCandidates(t.allocator, input.source(), definition, 0, &.{0}, single, .{ .rows = &.{ 0, 1 }, .matches = 0 }, .{}, &failure);
+    defer empty.deinit();
+    try t.expect(failure == null and empty.examined == 0 and empty.group.rows.?.len == 0);
+    try t.expectError(error.InvalidColumnSelection, reader.filteredCandidates(t.allocator, input.source(), definition, 0, &.{0}, single, .{ .rows = &.{ 0, 0 } }, .{}, &failure));
+    try t.expectError(error.InvalidColumnSelection, reader.filteredCandidates(t.allocator, input.source(), definition, 0, &.{0}, single, .{ .rows = &.{2}, .matches = 0 }, .{}, &failure));
+    try t.expectEqual(no_read, input.calls);
+    const all_code = [_]Instruction{.{ .atom = .{ .column = 0, .predicate = .all } }};
+    var reversed = try reader.filteredCandidates(t.allocator, input.source(), definition, 0, &.{0}, .{ .instructions = &all_code }, .{ .rows = &.{ 1, 0 } }, .{}, &failure);
+    defer reversed.deinit();
+    try t.expectEqual(@as(usize, 2), reversed.examined);
+    try t.expectEqualSlices(u32, &.{ 0, 1 }, reversed.group.rows.?);
+    try t.expectEqual(.utf8, reversed.group.columns[0][reversed.group.rowIndex(1).?].type_error);
 }
 
 test "TSeg encoded programs preserve NULL negation and reject malformed programs before I O" {
@@ -312,6 +354,11 @@ test "TSeg encoded programs preserve NULL negation and reject malformed programs
     try t.expectEqual(@as(usize, 0), empty.rows.?.len);
     try t.expectEqual(before, input.calls);
     try t.expectError(error.InvalidPredicateProgram, reader.filteredProgram(t.allocator, input.source(), schema, 0, &.{1}, .{ .instructions = code[1..] }, .{}, &failure));
+    try t.expectEqual(before, input.calls);
+    var pruned = try reader.filteredCandidates(t.allocator, input.source(), schema, 0, &.{1}, .{ .instructions = &code }, .{ .rows = &.{ 1, 0 }, .matches = 1 }, .{}, &failure);
+    defer pruned.deinit();
+    try t.expectEqual(@as(usize, 2), pruned.examined);
+    try t.expectEqual(@as(usize, 0), pruned.group.rows.?.len);
     try t.expectEqual(before, input.calls);
 }
 

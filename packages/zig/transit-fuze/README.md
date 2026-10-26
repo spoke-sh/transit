@@ -87,6 +87,17 @@ footer's statistics and does not verify omitted payloads. Hosts own deletion
 visibility, query limits, snapshot retention and final disclosure; direct SQL
 does not yet lower general predicates into this component API.
 
+`filteredCandidates` applies the same program to at most 1,024 unique physical
+row ordinals supplied in the owner's logical traversal order. The owner supplies
+only rows visible in its retained directory. An optional match limit stops
+semantic evaluation at that prefix; omitted or later rows cannot win an operator
+failure. Encoded pages still undergo complete integrity and value validation.
+The result reports how many supplied candidates were examined, including misses,
+and owns matching cells indexed by sorted physical ordinal. `Group.rowIndex`
+lets the owner restore its original traversal order. Examined candidates do not
+establish complete-source coverage. This component supplies no snapshot,
+visibility, authorization or SQL execution authority.
+
 `filteredProgram` accepts a `ColumnPredicate.Program` with at most 64 postfix
 instructions across the declared columns. It evaluates all atoms, then uses the
 shared Boolean machine to preserve eager row/instruction failure order.

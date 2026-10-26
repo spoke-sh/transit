@@ -26,6 +26,31 @@ pub const Limits = struct {
 pub const Filter = struct { column: usize, predicate: ColumnPredicate.Predicate };
 pub const FilterFailure = struct { row: u32, column: usize, instruction: u8 = 0, outcome: ColumnPredicate.Outcome };
 
+/// A bounded owner-selected page, in logical traversal order. Physical segment
+/// ordinals may differ from that order; visibility remains the owner's decision.
+pub const Candidates = struct {
+    pub const max_rows = 1024;
+    rows: []const u32,
+    matches: ?usize = null,
+    fn validate(self: Candidates, source_rows: u32) !void {
+        if (self.rows.len > max_rows) return error.InvalidColumnSelection;
+        for (self.rows, 0..) |row, i| {
+            if (row >= source_rows) return error.InvalidColumnSelection;
+            for (self.rows[0..i]) |previous| if (previous == row) return error.InvalidColumnSelection;
+        }
+    }
+};
+pub const CandidateGroup = struct {
+    group: Group,
+    /// Positions consumed from the supplied candidate page, including misses.
+    /// A match limit may leave a suffix unexamined. This is not source coverage.
+    examined: usize,
+    pub fn deinit(self: *CandidateGroup) void {
+        self.group.deinit();
+        self.* = undefined;
+    }
+};
+
 pub const Group = struct {
     workspace: *Workspace,
     index: usize,
@@ -177,6 +202,19 @@ pub fn filteredGroup(self: *const Self, allocator: std.mem.Allocator, source: So
 /// Group pruning is conservative under NOT/AND/OR and unknown values. All atoms
 /// remain eager; failures arbitrate by source row then original instruction.
 pub fn filteredProgram(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, program: ColumnPredicate.Program, limits: Limits, failure: *?FilterFailure) !Group {
+    return (try self.filterProgram(allocator, source, schema, index, projection, program, null, limits, failure)).group;
+}
+
+/// Evaluate only the owner's visible candidates, in their logical order, and
+/// stop operator evaluation after the requested number of matches. Encoded page
+/// validation remains complete. Omitted rows cannot introduce semantic failures;
+/// invalid page bytes still reject. Returned cells are indexed by sorted physical
+/// ordinal; use Group.rowIndex while traversing the original candidate prefix.
+pub fn filteredCandidates(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, program: ColumnPredicate.Program, candidates: Candidates, limits: Limits, failure: *?FilterFailure) !CandidateGroup {
+    return self.filterProgram(allocator, source, schema, index, projection, program, candidates, limits, failure);
+}
+
+fn filterProgram(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, program: ColumnPredicate.Program, candidates: ?Candidates, limits: Limits, failure: *?FilterFailure) !CandidateGroup {
     failure.* = null;
     if (schema.object != self.footer.object_id or schema.revision != self.footer.schema_revision or
         !std.mem.eql(u8, &try schema.layoutFingerprint(), &self.footer.layout_fingerprint)) return error.TableSchemaChanged;
@@ -187,18 +225,23 @@ pub fn filteredProgram(self: *const Self, allocator: std.mem.Allocator, source: 
     for (projection) |column_index| if (column_index >= schema.columns.len) return error.InvalidSegmentCoordinate;
     try program.validate(schema);
     const metadata = self.footer.row_groups[index];
+    if (candidates) |selected| try selected.validate(metadata.row_count);
     const workspace = try Workspace.init(allocator, limits.decoded_bytes);
     errdefer workspace.deinit();
     const a = workspace.arena.allocator();
-    const rows: []const u32 = if (try program.mayMatch(schema, metadata.zone_maps))
-        self.programRows(allocator, workspace, source, schema, index, program, limits.page_bytes, failure) catch |err| return workspace.failure(err)
+    const requested = if (candidates) |selected| selected.rows.len else metadata.row_count;
+    const selection: ProgramSelection = if (requested == 0 or (candidates != null and candidates.?.matches == 0))
+        .{ .rows = &.{}, .examined = 0 }
+    else if (try program.mayMatch(schema, metadata.zone_maps))
+        self.programRows(allocator, workspace, source, schema, index, program, candidates, limits.page_bytes, failure) catch |err| return workspace.failure(err)
     else
-        &.{};
+        .{ .rows = &.{}, .examined = requested };
+    const rows = selection.rows;
     const columns = a.alloc([]Values.Cell, projection.len) catch |err| return workspace.failure(err);
     for (projection, columns) |column_index, *cells| {
         cells.* = if (rows.len == 0) &.{} else self.selectedColumn(allocator, workspace, source, schema, index, column_index, rows, limits.page_bytes) catch |err| return workspace.failure(err);
     }
-    return .{ .workspace = workspace, .index = index, .source_rows = metadata.row_count, .columns = columns, .rows = rows };
+    return .{ .group = .{ .workspace = workspace, .index = index, .source_rows = metadata.row_count, .columns = columns, .rows = rows }, .examined = selection.examined };
 }
 
 const OutcomeAtom = struct {
@@ -212,7 +255,8 @@ const OutcomeAtom = struct {
 };
 const OutcomeRow = struct { columns: []const ?[]ColumnPredicate.Outcome, row: usize };
 
-fn programRows(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, page_budget: usize, failure: *?FilterFailure) ![]const u32 {
+const ProgramSelection = struct { rows: []const u32, examined: usize };
+fn programRows(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, program: ColumnPredicate.Program, candidates: ?Candidates, page_budget: usize, failure: *?FilterFailure) !ProgramSelection {
     const row_count = self.footer.row_groups[index].row_count;
     const bounded = workspace.bounded();
     var columns: [ColumnPredicate.Program.max_instructions]?[]ColumnPredicate.Outcome = @splat(null);
@@ -236,21 +280,30 @@ fn programRows(self: *const Self, allocator: std.mem.Allocator, workspace: *Work
     }
     const code = instructions[0..program.instructions.len];
     var count: usize = 0;
-    for (0..row_count) |row| {
+    var examined: usize = 0;
+    const requested = if (candidates) |selected| selected.rows.len else row_count;
+    for (0..requested) |position| {
+        if (candidates) |selected| if (selected.matches) |limit| if (count == limit) break;
+        const row = if (candidates) |selected| selected.rows[position] else position;
         var failed_instruction: ?u8 = null;
         const truth = PredicateMachine.truthDiagnostic(code, OutcomeRow{ .columns = &columns, .row = row }, &failed_instruction) catch |err| {
             if (failed_instruction) |at| failure.* = .{ .row = @intCast(row), .column = program.instructions[at].atom.column, .instruction = at, .outcome = columns[at].?[row] };
             return err;
         };
+        examined += 1;
         if (truth.selects()) count += 1;
     }
     const rows = try workspace.arena.allocator().alloc(u32, count);
     var selected: usize = 0;
-    for (0..row_count) |row| if ((try PredicateMachine.truth(code, OutcomeRow{ .columns = &columns, .row = row })).selects()) {
-        rows[selected] = @intCast(row);
-        selected += 1;
-    };
-    return rows;
+    for (0..examined) |at| {
+        const row = if (candidates) |page| page.rows[at] else at;
+        if ((try PredicateMachine.truth(code, OutcomeRow{ .columns = &columns, .row = row })).selects()) {
+            rows[selected] = @intCast(row);
+            selected += 1;
+        }
+    }
+    if (candidates != null) std.mem.sort(u32, rows, {}, std.sort.asc(u32));
+    return .{ .rows = rows, .examined = examined };
 }
 
 fn columnOutcomes(self: *const Self, allocator: std.mem.Allocator, workspace: *Workspace, source: Source, schema: TableSchema.Schema, index: usize, atom: ColumnPredicate.Atom, page_budget: usize) ![]ColumnPredicate.Outcome {
