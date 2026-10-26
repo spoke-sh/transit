@@ -660,7 +660,7 @@ pub fn build(b: *std.Build) void {
     // Compile schema exporters in one graph; the independent validators receive
     // immutable artifact paths, without overwriting any shared install prefix.
     const contract_checks = b.addSystemCommand(&.{ "python3", "-B" });
-    contract_checks.addFileArg(b.path("tests/tooling/checks.py"));
+    contract_checks.addFileArg(b.path("tests/runner/checks.py"));
     contract_checks.addArg("contracts");
     const sql_protocol = b.dependency("transit_sql_protocol", .{ .target = target, .optimize = optimize });
     inline for (.{

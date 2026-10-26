@@ -1,8 +1,14 @@
-# Working on repository checks
+# Working on the test runner
 
-Follow [test instructions](../AGENTS.md) and the [tooling index](README.md).
+Follow [test instructions](../AGENTS.md) and the [runner index](README.md).
 Keep task selection, executable inputs, failure reporting and timing here. Storage,
 query, SDK and application semantics belong to their own fixtures and validators.
+
+Keep the execution authority in [suite.json](suite.json), the focused check
+inventory in [checks.json](checks.json), and measured cost policy in
+[ci-budgets.json](ci-budgets.json). Record direct Just nesting separately from
+indirect build/runner nesting. Run `test_task_coverage.py` and `ci_runner.py`
+after changing task ownership; registration does not establish a passing result.
 
 Keep the fast profile free of runtime compilation, package installation, physical
 fault schedules and Transit service setup. Report its limited scope explicitly.

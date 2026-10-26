@@ -174,7 +174,7 @@ atomic correspondence, not a linearizability proof for arbitrary concurrent read
 SIGKILL establishes process-crash recovery under the provider contract, not power
 loss, corrupt media or rollback restoration.
 
-The [profile runner](../../../tests/verification/external_profiles.py) keeps installed
+The [profile runner](../../../tests/runner/external_profiles.py) keeps installed
 SDK, application, query and browser/reactive experiments separate. Existing rigs
 own their public operations, assertions and cleanup; the runner records exact
 commands, deadlines, logs and stage completion. Python and Node drivers additionally

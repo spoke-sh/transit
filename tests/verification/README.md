@@ -97,7 +97,7 @@ these tasks or by one local passing sample.
 
 ## Inventory
 
-[suite.json](suite.json) is the task inventory used by local and hosted CI.
+[suite.json](../runner/suite.json) is the task inventory used by local and hosted CI.
 [invariants.json](invariants.json) maps stable claims to design/implementation
 owners, exercised schedules and qualification limits. A null model means no
 formal model currently covers that claim. Tasks name executable checks, not an
@@ -118,7 +118,7 @@ task; C covers C/C++, and BEAM covers Erlang/Elixir. The focused
 Ordinary CI omits that additional aggregate execution. Raw Go checks retain their
 own coverage and do not claim the direct catalog profile. Missing language calls,
 duplicate scheduling and stale ownership are negative controls in
-[test_task_coverage.py](test_task_coverage.py).
+[test_task_coverage.py](../runner/test_task_coverage.py).
 
 [limits.json](limits.json) classifies the current operation, encoding, resident
 working-set and deployment quota bounds. Its `removed_bounds` entries retain the
@@ -182,7 +182,7 @@ completed failed hosted record (archived)
 retains its actual task outcomes, partial-cache profile and costs. Larger job
 execution caps do not revise the numeric budgets or make an incomplete run pass.
 
-The [CI budgets](ci-budgets.json) allow under fifteen minutes of warm feedback
+The [CI budgets](../runner/ci-budgets.json) allow under fifteen minutes of warm feedback
 and sixty aggregate runner minutes, following the accepted five-lane sample.
 Under ten minutes remains an improvement target and five a stretch. `just ci::cost RUN_ID` retains hosted phase timing and restored
 bytes separately from local task measurements. The completed warm-dependency run

@@ -207,7 +207,7 @@ The M10 warm feedback budget is **under 15 minutes**, with **60 runner minutes**
 and **12 GiB** restored per full run. These budgets follow the accepted 12m37s /
 53m27s five-lane measurement. Under ten minutes remains an improvement target,
 with under five as a stretch; further runner optimization is deferred. These are CI budgets, not service
-SLOs; [ci-budgets.json](../../tests/verification/ci-budgets.json) records their
+SLOs; [ci-budgets.json](../../tests/runner/ci-budgets.json) records their
 measurement rules. Require three complete warm samples for ordinary feedback
 and one explicit cache-miss baseline for exceptional rebuild cost. The latter
 is a calibration, not a cold-run variance claim. Failed, cancelled or incomplete

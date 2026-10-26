@@ -1412,7 +1412,7 @@
       "owner": "docs/handbook/reference/verification.md",
       "implementation": [
         "tests/verification/vortex.py",
-        "tests/verification/external_profiles.py",
+        "tests/runner/external_profiles.py",
         "tests/sdk_raw_client.py"
       ],
       "profile": "Owned native Linux binaries with disk Ursula, plus independently selected installed-host and local service rigs",

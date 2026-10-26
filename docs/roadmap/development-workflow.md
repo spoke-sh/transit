@@ -167,7 +167,7 @@ this plan is not another chronological test transcript.
 - [ ] P1.1 Map every tracked test file to destination, owner and role: executable,
   helper, oracle, input, model, active budget or retained observation. Identify
   its scenario/task, consumers, required artifacts and qualification boundary.
-- [ ] P1.2 Move `tooling/` to `runner/`; move execution inventory, task ownership
+- [x] P1.2 Move `tooling/` to `runner/`; move execution inventory, task ownership
   checks and CI budget/report machinery there. Keep semantic invariants and
   classified limits with verification; keep one current authority per catalog.
 - [ ] P1.3 Add a layout check to the existing fast inventory. Initially permit
@@ -366,8 +366,9 @@ they are not automatically deferred to a later milestone or follow-up PR.
 | Stage | Status | Implementation and validation reference |
 | --- | --- | --- |
 | Delivered foundation | Completed | PRs #175–#181 above; each records its scoped qualification |
-| P0 | In Progress | Baseline inventory committed; file-query oracle passes 190 cases; native/port codec passes 143 cases; all ten installed SDK codec consumers pass the four collation vectors; 39 TypeScript adapter tests, Python types and 26 fast checks pass. Full baseline qualification remains pending. |
-| P1–P12 | Planned | Checklists above; no execution claimed |
+| P0 | In Progress | Repairs: `945101ead`, `251f15195`. File-query oracle: 190 cases; native/port codec: 143 cases; ten installed consumers: four collation vectors each; TypeScript: 39 adapter tests; Python types pass. Clean fast checks: 26, 20.614 seconds in the check phase. [Full baseline run](https://github.com/spoke-sh/transit/actions/runs/40404745910) at `251f15195` is pending. |
+| P1 | In Progress | Runner, lane inventory, task coverage, CI cost policy and external-profile orchestration moved together; 26 fast checks pass, including real runner failure/interruption and clean-clone controls. File disposition map and layout enforcement remain pending. |
+| P2–P12 | Planned | Checklists above; no execution claimed |
 
 The final PR closes the work only when the proposed structure exists, every
 required scenario has an executable owner, source-clean checks pass, retained

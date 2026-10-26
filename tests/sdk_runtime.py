@@ -13,7 +13,7 @@ source, board_source, dependency_source = (Path(sources[key]) for key in ('runti
 assert not (source / 'sdks').exists(), 'runtime derivation includes SDK sources'
 assert not (source / 'examples/station-sdk').exists(), 'runtime derivation includes SDK consumers'
 assert not (source / 'tests/verification/results').exists(), 'runtime includes retained proof records'
-assert (source / 'tests/verification/suite.json').is_file(), 'executable verification inventory was removed'
+assert (source / 'tests/runner/suite.json').is_file(), 'executable verification inventory was removed'
 for name in ('packages/zig', 'third_party', 'tests', 'sdks'):
     assert not (board_source / name).exists(), f'Board asset source includes {name}'
 assert (board_source / 'tasks/embed_web.py').is_file()

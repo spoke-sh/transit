@@ -3,11 +3,12 @@ import hashlib
 import json
 from pathlib import Path
 import re
-
-from task_coverage import read_recipes, validate_ownership, validate_required_tiers
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 DIRECTORY = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "tests"))
+from runner.task_coverage import read_recipes, validate_ownership, validate_required_tiers
 
 
 def read(name):
@@ -91,7 +92,9 @@ def validate(suite, invariants, limits, sdk, recipes):
 
 
 def main():
-    suite, invariants, limits, sdk = [read(name) for name in ("suite.json", "invariants.json", "limits.json", "sdk.json")]
+    suite = json.loads((ROOT / "tests/runner/suite.json").read_text())
+    assert suite["version"] == 1, "unsupported suite.json"
+    invariants, limits, sdk = [read(name) for name in ("invariants.json", "limits.json", "sdk.json")]
     recipes = read_recipes(ROOT)
     validate(suite, invariants, limits, sdk, recipes)
     # Fail closed on lost ownership or silently changed implementation ceilings.

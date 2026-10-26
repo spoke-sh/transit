@@ -866,7 +866,7 @@ vortex *args:
 
 # Installed Python/Node, local application, query or browser/reactive faults.
 vortex-profile profile:
-    python3 -B tests/verification/external_profiles.py --profile {{quote(profile)}}
+    python3 -B tests/runner/external_profiles.py --profile {{quote(profile)}}
 
 # Independent logical type fixtures, allocation failures and exact codecs.
 fuze-types:

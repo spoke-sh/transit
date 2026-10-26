@@ -494,5 +494,5 @@ zig-test:
 
 # Build the runtime in an isolated source tree that contains no SDKs.
 runtime-boundary:
-    python3 -B tests/tooling/test_nix_inputs.py
+    python3 -B tests/runner/test_nix_inputs.py
     python3 -B tests/sdk_runtime.py

@@ -20,7 +20,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN: ${{ github.event.workflow_run.id }}
           REPO: ${{ github.repository }}
-        run: python3 -B tests/tooling/ci_cost.py --run "$RUN" --repo "$REPO"
+        run: python3 -B tests/runner/ci_cost.py --run "$RUN" --repo "$REPO"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ci-cost-${{ github.event.workflow_run.id }}

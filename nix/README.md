@@ -76,7 +76,7 @@ models, suite catalogs and live benchmark budgets remain included. New inputs
 must be added to their owning source set when the build starts consuming them.
 `just bindings::runtime-boundary` runs source-invalidation controls before the
 actual offline package builds, so cached results cannot substitute for changed
-source. See the [tooling index](../tests/tooling/README.md) for the controls.
+source. See the [tooling index](../tests/runner/README.md) for the controls.
 
 On Linux x86_64, `nix build .#transit-local` adds the matching SQL gateway to
 the Transit closure. Native local storage runs inside the node. The bundle
@@ -383,7 +383,7 @@ and `just ci::bindings-1` / `just ci::bindings-2` (native boundary and languages
 experience in hosted CI as `just ci::browser`; local `just ci::complete` includes
 that additional inventory explicitly. `just ci all` runs the seven ordinary inventories
 sequentially in the pinned bindings shell; `just check all` uses the ordinary
-developer tools. [The task inventory](../tests/verification/suite.json) owns the
+developer tools. [The task inventory](../tests/runner/suite.json) owns the
 exact checks in each lane.
 
 The formal lane uses `nix develop .#ci-formal`, with only the pinned Zig, Python,
@@ -463,7 +463,7 @@ and smaller closures alone do not establish the final speedup.
 
 The accepted warm feedback budget is under fifteen minutes, based on the
 12m37s five-lane run; under ten remains an improvement target, five a stretch.
-[CI budgets](../tests/verification/ci-budgets.json) also track provisional runner
+[CI budgets](../tests/runner/ci-budgets.json) also track provisional runner
 and restore costs; `just ci::cost RUN_ID` collects completed hosted evidence.
 Manual `cache_mode=cold` runs disable GitHub dependency restores/saves while
 retaining upstream Nix substitutes. The recorded fourteen-minute source build
