@@ -15,7 +15,7 @@ from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
 from growing_maintenance import run as maintenance
 from growing_station import run as station
-from growing_query import run as query_capture
+from query.execution.growing_query import run as query_capture
 from growing_quota import run as quota
 
 

@@ -22,7 +22,7 @@ generate:
     mv "$generated/diagnostic-v1.schema.json" contracts/diagnostic-v1.schema.json
     mv "$generated/data-lifecycle-v1.schema.json" contracts/data-lifecycle-v1.schema.json
     mv "$generated/index-lifecycle-v1.schema.json" contracts/index-lifecycle-v1.schema.json
-    python3 -B tests/index_lifecycle_contract.py --write < contracts/index-lifecycle-v1.schema.json
+    python3 -B tests/runner/launch.py tests/catalog/tables/index_lifecycle_contract.py --write < contracts/index-lifecycle-v1.schema.json
     python3 -B tests/work_items_contract.py --write
     zig build application-installation-fixture > contracts/application-installation-v1.fixture.json
 
@@ -48,10 +48,10 @@ logical-check:
     zig build logical-contract | python3 -B packages/zig/transit-fuze/generate.py
 
 direct-table-generate:
-    zig build direct-table-contract | python3 -B tests/direct_table_contract.py --write
+    zig build direct-table-contract | python3 -B tests/runner/launch.py tests/catalog/tables/direct_table_contract.py --write
 
 direct-table-check:
-    zig build direct-table-contract | python3 -B tests/direct_table_contract.py
+    zig build direct-table-contract | python3 -B tests/runner/launch.py tests/catalog/tables/direct_table_contract.py
 
 configuration-generate:
     zig build configuration-contract | python3 -B tests/runner/launch.py tests/interfaces/installation/configuration_contract.py --write

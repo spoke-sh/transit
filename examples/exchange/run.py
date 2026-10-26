@@ -89,7 +89,7 @@ def run(profile="local", bootstrap=False, protocol="http"):
         store_url = f"http://127.0.0.1:{store_port}"
         if profile != "local":
             if profile == "reference":
-                from interfaces.deployment.reference import Reference
+                from reference import Reference
                 placement = Reference(work, protocol)
                 bootstrap = True
             else:

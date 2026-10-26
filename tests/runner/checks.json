@@ -98,7 +98,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/fuze_sources.py"
+          "tests/runner/launch.py",
+          "tests/query/logical/fuze_sources.py"
         ]
       },
       {
@@ -107,7 +108,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/fuze_types.py"
+          "tests/runner/launch.py",
+          "tests/query/logical/fuze_types.py"
         ]
       },
       {
@@ -116,7 +118,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/table_schema.py"
+          "tests/runner/launch.py",
+          "tests/catalog/tables/table_schema.py"
         ]
       },
       {
@@ -134,7 +137,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/relational.py"
+          "tests/runner/launch.py",
+          "tests/query/execution/relational.py"
         ]
       },
       {
@@ -152,7 +156,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/table_catalog.py"
+          "tests/runner/launch.py",
+          "tests/catalog/tables/table_catalog.py"
         ]
       },
       {
@@ -392,7 +397,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/index_lifecycle_contract.py"
+          "tests/runner/launch.py",
+          "tests/catalog/tables/index_lifecycle_contract.py"
         ],
         "generator": {
           "name": "protocol",
@@ -446,7 +452,8 @@
         "command": [
           "python3",
           "-B",
-          "tests/direct_table_contract.py"
+          "tests/runner/launch.py",
+          "tests/catalog/tables/direct_table_contract.py"
         ],
         "generator": {
           "name": "direct-table",

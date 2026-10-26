@@ -232,7 +232,7 @@ def run(system, executable, apply, query, owner_key, reader_role, database, sche
 
 def main():
     from interfaces.inspection.inspection import System
-    from catalog_abi import Port
+    from catalog.tables.catalog_abi import Port
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('node', 'admin', 'host', 'serving'):
         parser.add_argument(name, type=lambda value: Path(value).resolve(strict=True))

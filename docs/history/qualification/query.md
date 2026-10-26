@@ -1766,7 +1766,7 @@ Same-revision native integration and committed-HEAD `just ci-clean` have not run
 for this working-tree slice; no complete native or clean intake is claimed.
 
 Fixtures live in [the relational corpus](../../../packages/zig/transit-fuze/src/fixtures/relational.json),
-generated independently by [the oracle](../../../tests/relational.py). The
+generated independently by [the oracle](../../../tests/query/execution/relational.py). The
 [local contract](../../../contracts/RELATIONAL_V1.md) and
 [plan tests](../../../packages/zig/transit-fuze/src/relational_test.zig) define the
 implemented boundary.
@@ -2910,7 +2910,7 @@ execution; host code only constructs neutral values and checks response shape.
 C, C++, Java, .NET, Erlang and Elixir program constructors/inspection are still
 unimplemented; native/port support does not qualify those public adapters.
 
-`boolean_bundle_fixtures()` in [unified_codec.py](../../../tests/unified_codec.py) shares nine
+`boolean_bundle_fixtures()` in [unified_codec.py](../../../tests/query/unified/unified_codec.py) shares nine
 independent canonical bundles with the native/port and installed SDK consumers.
 Seven literal programs cover six scalar types, full-width values, negative zero,
 Unicode/binary and multi-chunk literals. The additional fixtures independently

@@ -379,7 +379,7 @@ The local [relational contract](../../../contracts/RELATIONAL_V1.md) now impleme
 plan/basis validation, shared SQL lowering and bounded execution for a finite int64
 profile. It uses stable Table row IDs rather than assuming primary keys identify
 every row: general Tables also allow duplicate rows without a declared key.
-Its [independent oracle](../../../tests/relational.py) materializes small relations
+Its [independent oracle](../../../tests/query/execution/relational.py) materializes small relations
 and compares the overlapping subset with SQLite; separate prefix arithmetic
 fixes the ordered-overflow counterexample below. The
 [intake evidence](../../history/qualification/query.md#relational-contract-and-oracle-intake)
@@ -602,7 +602,7 @@ earlier failure whose arithmetic would fit at a later basis.
 
 The [proof ledger](../../history/qualification/README.md) records executed schedules and their
 source definitions and reproduction commands. The
-[direct query runner](../../../tests/direct_captured_query.py) starts private
+[direct query runner](../../../tests/query/execution/direct_captured_query.py) starts private
 local nodes and drives the signed direct service with native computation progress; its
 maintained cases cover aliases and independent Tables. Pure source/vector record
 checks cover interpretation, full-width coordinates and malformed bytes.

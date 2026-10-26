@@ -162,7 +162,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     const arrow_test = b.addSystemCommand(&.{ "python3", "-B" });
-    arrow_test.addFileArg(b.path("tests/arrow.py"));
+    arrow_test.addFileArg(b.path("tests/runner/launch.py"));
+    arrow_test.addFileArg(b.path("tests/query/arrow/arrow.py"));
     arrow_test.addArtifactArg(arrow_proof);
     arrow_test.has_side_effects = true;
     arrow_test.stdio = .inherit;
@@ -174,7 +175,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
     }) });
     const sql_test = b.addSystemCommand(&.{ "python3", "-B" });
-    sql_test.addFileArg(b.path("tests/sql/compiler.py"));
+    sql_test.addFileArg(b.path("tests/runner/launch.py"));
+    sql_test.addFileArg(b.path("tests/query/sql/compiler.py"));
     sql_test.addArtifactArg(sql_driver);
     const unified_sql = b.addExecutable(.{ .name = "transit-unified-sql-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/unified_sql.zig"),
@@ -191,7 +193,8 @@ pub fn build(b: *std.Build) void {
     }) });
     sql_test.addArtifactArg(mutation_sql);
     const table_dml_sql = b.addSystemCommand(&.{ "python3", "-B" });
-    table_dml_sql.addFileArg(b.path("tests/sql/mutations.py"));
+    table_dml_sql.addFileArg(b.path("tests/runner/launch.py"));
+    table_dml_sql.addFileArg(b.path("tests/query/sql/mutations.py"));
     table_dml_sql.addArtifactArg(mutation_sql);
     table_dml_sql.has_side_effects = true;
     table_dml_sql.stdio = .inherit;
@@ -204,7 +207,8 @@ pub fn build(b: *std.Build) void {
     }) });
     sql_test.addArtifactArg(declaration_sql);
     const table_ddl_sql = b.addSystemCommand(&.{ "python3", "-B" });
-    table_ddl_sql.addFileArg(b.path("tests/sql/declarations.py"));
+    table_ddl_sql.addFileArg(b.path("tests/runner/launch.py"));
+    table_ddl_sql.addFileArg(b.path("tests/query/sql/declarations.py"));
     table_ddl_sql.addArtifactArg(declaration_sql);
     table_ddl_sql.has_side_effects = true;
     table_ddl_sql.stdio = .inherit;
@@ -219,7 +223,8 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     const relational_sql_test = b.addSystemCommand(&.{ "python3", "-B" });
-    relational_sql_test.addFileArg(b.path("tests/sql/relational.py"));
+    relational_sql_test.addFileArg(b.path("tests/runner/launch.py"));
+    relational_sql_test.addFileArg(b.path("tests/query/sql/relational.py"));
     relational_sql_test.addArtifactArg(relational_sql);
     relational_sql_test.has_side_effects = true;
     relational_sql_test.stdio = .inherit;
@@ -392,27 +397,32 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&local_faults_test.step);
     b.step("test-local-storage-faults", "Verify process death at local WAL and object publication boundaries").dependOn(&local_faults_test.step);
     const unified_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
-    unified_contract_test.addFileArg(b.path("tests/unified_contract.py"));
+    unified_contract_test.addFileArg(b.path("tests/runner/launch.py"));
+    unified_contract_test.addFileArg(b.path("tests/query/unified/unified_contract.py"));
     unified_contract_test.has_side_effects = true;
     unified_contract_test.stdio = .inherit;
     test_step.dependOn(&unified_contract_test.step);
     const relational_records_test = b.addSystemCommand(&.{ "python3", "-B" });
-    relational_records_test.addFileArg(b.path("tests/relational_records.py"));
+    relational_records_test.addFileArg(b.path("tests/runner/launch.py"));
+    relational_records_test.addFileArg(b.path("tests/query/execution/relational_records.py"));
     relational_records_test.has_side_effects = true;
     relational_records_test.stdio = .inherit;
     test_step.dependOn(&relational_records_test.step);
     const named_relational_records_test = b.addSystemCommand(&.{ "python3", "-B" });
-    named_relational_records_test.addFileArg(b.path("tests/named_relational_records.py"));
+    named_relational_records_test.addFileArg(b.path("tests/runner/launch.py"));
+    named_relational_records_test.addFileArg(b.path("tests/query/execution/named_relational_records.py"));
     named_relational_records_test.has_side_effects = true;
     named_relational_records_test.stdio = .inherit;
     test_step.dependOn(&named_relational_records_test.step);
     const relational_exchange_test = b.addSystemCommand(&.{ "python3", "-B" });
-    relational_exchange_test.addFileArg(b.path("tests/relational_exchange.py"));
+    relational_exchange_test.addFileArg(b.path("tests/runner/launch.py"));
+    relational_exchange_test.addFileArg(b.path("tests/query/execution/relational_exchange.py"));
     relational_exchange_test.has_side_effects = true;
     relational_exchange_test.stdio = .inherit;
     test_step.dependOn(&relational_exchange_test.step);
     const worker_handoff_test = b.addSystemCommand(&.{ "python3", "-B" });
-    worker_handoff_test.addFileArg(b.path("tests/worker_handoff.py"));
+    worker_handoff_test.addFileArg(b.path("tests/runner/launch.py"));
+    worker_handoff_test.addFileArg(b.path("tests/query/execution/worker_handoff.py"));
     worker_handoff_test.has_side_effects = true;
     worker_handoff_test.stdio = .inherit;
     test_step.dependOn(&worker_handoff_test.step);
@@ -428,7 +438,8 @@ pub fn build(b: *std.Build) void {
     grpc_contract_test.stdio = .inherit;
     test_step.dependOn(&grpc_contract_test.step);
     const exchange_failure_test = b.addSystemCommand(&.{ "python3", "-B" });
-    exchange_failure_test.addFileArg(b.path("tests/exchange_failure.py"));
+    exchange_failure_test.addFileArg(b.path("tests/runner/launch.py"));
+    exchange_failure_test.addFileArg(b.path("tests/query/execution/exchange_failure.py"));
     exchange_failure_test.has_side_effects = true;
     exchange_failure_test.stdio = .inherit;
     test_step.dependOn(&exchange_failure_test.step);
@@ -835,7 +846,8 @@ pub fn build(b: *std.Build) void {
         build_test_step.dependOn(&app.step);
     }
     const unified_codec_test = b.addSystemCommand(&.{ "python3", "-B" });
-    unified_codec_test.addFileArg(b.path("tests/unified_codec.py"));
+    unified_codec_test.addFileArg(b.path("tests/runner/launch.py"));
+    unified_codec_test.addFileArg(b.path("tests/query/unified/unified_codec.py"));
     unified_codec_test.addArtifactArg(station_host);
     unified_codec_test.addArtifactArg(station_bindings.artifact("transit_station"));
     unified_codec_test.has_side_effects = true;
@@ -1031,7 +1043,8 @@ pub fn build(b: *std.Build) void {
     console_model.addPassthruArgs();
     b.step("test-console-model", "Check the console model and replay transitions against its Zig owner").dependOn(&console_model.step);
     const file_query_test = b.addSystemCommand(&.{ "python3", "-B" });
-    file_query_test.addFileArg(b.path("tests/fuze_file_query.py"));
+    file_query_test.addFileArg(b.path("tests/runner/launch.py"));
+    file_query_test.addFileArg(b.path("tests/query/files/fuze_file_query.py"));
     file_query_test.addArtifactArg(operations);
     file_query_test.has_side_effects = true;
     file_query_test.stdio = .inherit;
@@ -1045,7 +1058,8 @@ pub fn build(b: *std.Build) void {
     b.step("logical-arrow-proof", "Install the canonical logical Arrow fixture producer").dependOn(&b.addInstallArtifact(logical_arrow_proof, .{}).step);
     unified_codec_test.addArtifactArg(logical_arrow_proof);
     const logical_arrow_test = b.addSystemCommand(&.{ "python3", "-B" });
-    logical_arrow_test.addFileArg(b.path("tests/fuze_logical_arrow.py"));
+    logical_arrow_test.addFileArg(b.path("tests/runner/launch.py"));
+    logical_arrow_test.addFileArg(b.path("tests/query/arrow/fuze_logical_arrow.py"));
     logical_arrow_test.addArtifactArg(operations);
     logical_arrow_test.addArtifactArg(logical_arrow_proof);
     logical_arrow_test.has_side_effects = true;
@@ -1161,7 +1175,8 @@ pub fn build(b: *std.Build) void {
     flight_test.stdio = .inherit;
     b.step("test-flight", "Qualify real finite queries with independent Flight and ADBC clients").dependOn(&flight_test.step);
     const public_query_test = b.addSystemCommand(&.{ "python3", "-B" });
-    public_query_test.addFileArg(b.path("tests/public_query.py"));
+    public_query_test.addFileArg(b.path("tests/runner/launch.py"));
+    public_query_test.addFileArg(b.path("tests/query/execution/public_query.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, operations, public_query }) |artifact| public_query_test.addArtifactArg(artifact);
     public_query_test.has_side_effects = true;
     public_query_test.stdio = .inherit;
@@ -1184,7 +1199,8 @@ pub fn build(b: *std.Build) void {
     b.step("unified-query-proof", "Install the unified query provisioning proof").dependOn(&b.addInstallArtifact(unified_query, .{}).step);
     build_test_step.dependOn(&unified_query.step);
     const unified_query_test = b.addSystemCommand(&.{ "python3", "-B" });
-    unified_query_test.addFileArg(b.path("tests/unified_query.py"));
+    unified_query_test.addFileArg(b.path("tests/runner/launch.py"));
+    unified_query_test.addFileArg(b.path("tests/query/unified/unified_query.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, unified_query, station_host, station_bindings.artifact("transit_station") }) |artifact| unified_query_test.addArtifactArg(artifact);
     if (b.option(bool, "unified-example", "Run the finite SQL example and recover its original intent") orelse false) {
         unified_query_test.addArg("--example");
@@ -1415,7 +1431,7 @@ pub fn build(b: *std.Build) void {
     named_resources.has_side_effects = true;
     named_resources.stdio = .inherit;
     b.step("test-direct-named-resources", "Prove named KV and Document initialization and original receipt recovery across node loss").dependOn(&named_resources.step);
-    const direct_captured_query = b.addSystemCommand(&.{ "python3", "-B", "./tests/direct_captured_query.py" });
+    const direct_captured_query = b.addSystemCommand(&.{ "python3", "-B", "./tests/query/execution/direct_captured_query.py" });
     direct_captured_query.addArtifactArg(node_artifact);
     direct_captured_query.addArtifactArg(direct_table_client);
     if (b.option(bool, "direct-query-example", "Run the finite SQL example through direct capture and restart recovery") orelse false) {
@@ -1468,7 +1484,8 @@ pub fn build(b: *std.Build) void {
     growing_behavior.stdio = .inherit;
     b.step("test-growing-station", "Focus the growing Station behavior and recovery proof").dependOn(&growing_behavior.step);
     const query_capture = b.addSystemCommand(&.{ "python3", "-B" });
-    query_capture.addFileArg(b.path("tests/growing_query.py"));
+    query_capture.addFileArg(b.path("tests/runner/launch.py"));
+    query_capture.addFileArg(b.path("tests/query/execution/growing_query.py"));
     query_capture.addArtifactArg(node_artifact);
     query_capture.addArtifactArg(growing_query);
     query_capture.addPassthruArgs();
@@ -1627,7 +1644,8 @@ pub fn build(b: *std.Build) void {
     var previous_exchange: ?*std.Build.Step = null;
     for ([_][]const u8{ "--exchanges-only", "--exchange-workers-only" }) |mode| {
         const exchange_proof = b.addSystemCommand(&.{ "python3", "-B" });
-        exchange_proof.addFileArg(b.path("tests/direct_captured_query.py"));
+        exchange_proof.addFileArg(b.path("tests/runner/launch.py"));
+        exchange_proof.addFileArg(b.path("tests/query/execution/direct_captured_query.py"));
         exchange_proof.addArtifactArg(node_artifact);
         exchange_proof.addArtifactArg(direct_table_client);
         exchange_proof.addArg(mode);
@@ -1638,7 +1656,8 @@ pub fn build(b: *std.Build) void {
     }
     relational_exchanges.dependOn(previous_exchange.?);
     const named_relational_native = b.addSystemCommand(&.{ "python3", "-B" });
-    named_relational_native.addFileArg(b.path("tests/direct_captured_query.py"));
+    named_relational_native.addFileArg(b.path("tests/runner/launch.py"));
+    named_relational_native.addFileArg(b.path("tests/query/execution/direct_captured_query.py"));
     named_relational_native.addArtifactArg(node_artifact);
     named_relational_native.addArtifactArg(direct_table_client);
     named_relational_native.addArg("--named-only");
@@ -1646,7 +1665,8 @@ pub fn build(b: *std.Build) void {
     named_relational_native.stdio = .inherit;
     b.step("test-named-relational", "Prove separate named publication, activation and complete revision recovery on disk").dependOn(&named_relational_native.step);
     const combined_table_test = b.addSystemCommand(&.{ "python3", "-B" });
-    combined_table_test.addFileArg(b.path("tests/direct_captured_query.py"));
+    combined_table_test.addFileArg(b.path("tests/runner/launch.py"));
+    combined_table_test.addFileArg(b.path("tests/query/execution/direct_captured_query.py"));
     combined_table_test.addArtifactArg(node_artifact);
     combined_table_test.addArtifactArg(direct_table_client);
     combined_table_test.addArg("--unified-boundaries-only");

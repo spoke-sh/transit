@@ -11,8 +11,8 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from fuze_logical_arrow import recursive_cases
-from fuze_types import fixtures
+from query.arrow.fuze_logical_arrow import recursive_cases
+from query.logical.fuze_types import fixtures
 
 
 def oracle(binary, target, environment):

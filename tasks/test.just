@@ -385,7 +385,7 @@ service:
 # Signed policy staging, current checks and restart against disk-backed Ursula.
 authorization:
     zig build transit-node transit-admin
-    python3 -B tests/authorization_native.py zig-out/bin/transit-node zig-out/bin/transit-admin --report .cache/verification/authorization-native.json
+    python3 -B tests/runner/launch.py tests/catalog/authorization/authorization_native.py zig-out/bin/transit-node zig-out/bin/transit-admin --report .cache/verification/authorization-native.json
 
 # Public administration CLI and neutral C/host lifecycle, with disk restart.
 authorization-cli:
@@ -507,7 +507,7 @@ runtime-upgrade:
 
 # Generate/check the reference grammar and compare its covered AST with Postgres.
 sql-grammar:
-    nix shell .#sql-tools --command python3 -B tests/sql/grammar.py
+    nix shell .#sql-tools --command python3 -B tests/runner/launch.py tests/query/sql/grammar.py
 
 # Independent application grammar/model and actual compiler round-trip.
 application-grammar:
@@ -516,7 +516,7 @@ application-grammar:
 
 # Type-check the named rewrite theorems and reject incomplete proofs.
 sql-rewrites:
-    nix shell --inputs-from . nixpkgs#lean4 --command python3 -B tests/sql/rewrites.py
+    nix shell --inputs-from . nixpkgs#lean4 --command python3 -B tests/runner/launch.py tests/query/sql/rewrites.py
 
 # Full reference/production AST, real plan and paged Arrow execution proof.
 sql:
@@ -536,7 +536,7 @@ table-dml-sql:
 
 # Private fixture retention and direct dependency/resource lifecycle recovery.
 catalog:
-    python3 -B tests/catalog_fixture.py
+    python3 -B tests/runner/launch.py tests/catalog/tables/catalog_fixture.py
     just test::direct-dependencies
     just test::direct-named-resources
 
@@ -559,11 +559,11 @@ relational-exchanges:
 # Real ext4 ENOSPC during captured checkpoints and accepted exchange work.
 relational-capacity:
     zig build relational-capacity-proof -Doptimize=ReleaseSafe
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash nixpkgs#patchelf --command python3 -B tests/relational_capacity.py zig-out/bin/transit-node zig-out/bin/transit-direct-table-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash nixpkgs#patchelf --command python3 -B tests/runner/launch.py tests/query/execution/relational_capacity.py zig-out/bin/transit-node zig-out/bin/transit-direct-table-proof
 
 # Immutable named definitions, explicit activation and revision recovery on disk.
 named-relational:
-    python3 -B tests/named_relational_records.py
+    python3 -B tests/runner/launch.py tests/query/execution/named_relational_records.py
     zig build test-named-relational -Doptimize=ReleaseSafe
 
 # Direct Table capture and separately authorized native query progress.
@@ -870,28 +870,28 @@ vortex-profile profile:
 
 # Independent logical type fixtures, allocation failures and exact codecs.
 fuze-types:
-    python3 -B tests/fuze_types.py
+    python3 -B tests/runner/launch.py tests/query/logical/fuze_types.py
     zig test packages/zig/transit-fuze/src/Types.zig
 
 # General Table schema identities, row constraints and independent byte oracle.
 table-schema:
     python3 -B tests/column_codecs.py
-    python3 -B tests/table_schema.py
+    python3 -B tests/runner/launch.py tests/catalog/tables/table_schema.py
     python3 -B tests/table_storage.py
-    python3 -B tests/table_catalog.py
+    python3 -B tests/runner/launch.py tests/catalog/tables/table_catalog.py
     zig test packages/zig/transit-fuze/src/TableRow.zig
     zig test packages/zig/transit-fuze/src/TableEvolution.zig
     zig test packages/zig/transit-fuze/src/SqlTypes.zig
 
 # Relational contracts, bounded executor and independent finite semantics.
 relational:
-    python3 -B tests/relational.py
+    python3 -B tests/runner/launch.py tests/query/execution/relational.py
     zig test packages/zig/transit-fuze/src/Relational.zig
     cd packages/zig/transit-fuze && zig build test-relational -Doptimize=ReleaseSafe
 
 # Independent CSV/JSONL records, schema binding, denial and allocation schedules.
 fuze-sources:
-    python3 -B tests/fuze_sources.py
+    python3 -B tests/runner/launch.py tests/query/logical/fuze_sources.py
     zig test packages/zig/transit-fuze/src/FileSource.zig
 
 # Real file/stdin/gzip query host, independent codecs and constrained process memory.
@@ -905,7 +905,7 @@ logical-arrow:
 # Exact logical values across owned C buffers and bounded local host messages.
 logical-codec:
     zig build station-abi transit-station-host
-    python3 -B tests/fuze_logical_codec.py zig-out/lib/libtransit_station.so zig-out/bin/transit-station-host
+    python3 -B tests/runner/launch.py tests/query/logical/fuze_logical_codec.py zig-out/lib/libtransit_station.so zig-out/bin/transit-station-host
 
 # Run in nix develop .#benchmarks; reports require an explicit output path.
 [positional-arguments]

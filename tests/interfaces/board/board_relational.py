@@ -9,7 +9,7 @@ import time
 import urllib.error
 import urllib.request
 
-from catalog_abi import CONTRACT, Native
+from catalog.tables.catalog_abi import CONTRACT, Native
 from harness.services import free_port, wait_ready
 
 SQL = 'SELECT l.k, COUNT(*) AS rows, COUNT(r.v) AS present, SUM(r.v) AS total FROM rel_left l LEFT JOIN rel_right r ON l.k = r.k GROUP BY l.k'

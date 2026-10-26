@@ -11,8 +11,8 @@ from pathlib import Path
 import struct
 import time
 from urllib.request import Request, build_opener, ProxyHandler
-from catalog_abi import Port
-from unified_abi import Failure
+from catalog.tables.catalog_abi import Port
+from query.unified.unified_abi import Failure
 
 
 def current_definition():

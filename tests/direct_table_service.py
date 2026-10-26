@@ -291,7 +291,7 @@ def run(node, caller, mode="tables", *artifacts):
             if mode in ("abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
                 subprocess.run([caller, endpoint, "initialize", str(profile)], check=True, timeout=180)
                 if mode in ("relational", "relational-python", "relational-node"):
-                    from relational_callers_native import exercise
+                    from query.execution.relational_callers_native import exercise
                     def relational_restart():
                         nonlocal authority
                         authority.kill()
@@ -327,7 +327,7 @@ def run(node, caller, mode="tables", *artifacts):
                     return
                 subprocess.run([caller, endpoint, "installed-authorization", str(profile)], check=True, timeout=180)
                 if mode == "abi":
-                    from direct_catalog_abi import exercise
+                    from catalog.tables.direct_catalog_abi import exercise
                 elif mode == "sdk-python":
                     from sdk.direct_sdk_catalog import exercise
                 elif mode == "sdk-node":

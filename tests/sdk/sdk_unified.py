@@ -15,8 +15,8 @@ import tempfile
 import tomllib
 
 import pyarrow
-from unified_abi import Failure
-from unified_codec import arrow_fixture, boolean_bundle_fixtures, nested_arrow_fixture, table_collation_fixtures
+from query.unified.unified_abi import Failure
+from query.unified.unified_codec import arrow_fixture, boolean_bundle_fixtures, nested_arrow_fixture, table_collation_fixtures
 
 
 

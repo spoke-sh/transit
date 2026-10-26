@@ -115,7 +115,7 @@ The result must equal `interpretation.digest`. The digest field itself is not
 hashed. Authoring computes it after fixing all fields; reading validates the
 stored value and never repairs it. The independent
 [fixture](../packages/zig/transit-protocol/src/fixtures/index-lifecycle-v1.json)
-and [Python commitment implementation](../tests/index_lifecycle_contract.py)
+and [Python commitment implementation](../tests/catalog/tables/index_lifecycle_contract.py)
 cover ordinary and constraint-owned definitions.
 
 ## Build progress and exact coverage

@@ -542,8 +542,8 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
             # Independent consumer after all foreign handles have been destroyed.
             import pyarrow as pa
             segments = [Path(query_cfg['output'], f'{i}.arrow').read_bytes() for i in range(6)]
-            from fuze_logical_arrow import arrow_cell, read_stream
-            from fuze_file_query import descriptor
+            from query.arrow.fuze_logical_arrow import arrow_cell, read_stream
+            from query.files.fuze_file_query import descriptor
             types = [{'int64': {}}, {'int64': {}}, {'utf8': {}},
                      {'list': {'type': {'int64': {}}, 'nullable': False}}]
             fields = [dict(name=name, type=typ, nullable=index == 1, optional=False)

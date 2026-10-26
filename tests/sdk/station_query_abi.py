@@ -272,8 +272,8 @@ def _run(node, cli, library, raw_library, host, cold):
             requester.close()
             requester = None
             # IPC is an owned copy and remains valid after the native handle dies.
-            from fuze_logical_arrow import arrow_cell, read_stream
-            from fuze_file_query import descriptor, cell_bytes
+            from query.arrow.fuze_logical_arrow import arrow_cell, read_stream
+            from query.files.fuze_file_query import descriptor, cell_bytes
             types = [{'int64': {}}, {'int64': {}}, {'utf8': {}}]
             fields = [dict(name=name, type=typ, nullable=index == 1, optional=False)
                       for index, (name, typ) in enumerate(zip(('id', 'value', 'label'), types))]

@@ -5,7 +5,7 @@ import signal
 import stat
 import subprocess
 import time
-from unified_shell import Shell
+from query.unified.unified_shell import Shell
 from interfaces.cli.console_settings import parse_show
 
 

@@ -24,7 +24,7 @@
         },
         {
           "task": "test::unified-codec",
-          "source": "tests/unified_codec.py",
+          "source": "tests/query/unified/unified_codec.py",
           "anchor": "for fixture in table_collation_fixtures():"
         },
         {

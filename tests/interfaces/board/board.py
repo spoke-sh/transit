@@ -142,7 +142,7 @@ def run(node, cli, board, browser=False):
             "expected_revision": 0, "resource": resource, "revision": resource_revision, "deadline_ms": int(time.time()*1000)+30000}})
         # A valid typed head is metadata evidence. This fixture does not claim
         # to materialize its schema publication or application rows.
-        from unified_contract import current_definition
+        from query.unified.unified_contract import current_definition
         head_key = b'\0P' + struct.pack('>IQ', 8, 1) + b'h' + bytes(12)
         head = (b'STH1' + current_definition() + struct.pack('<QQQ', resource, 1, 1)
                 + struct.pack('<QII', 1, 0x54534301, 500) + bytes([9]) * 32

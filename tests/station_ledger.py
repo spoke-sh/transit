@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pyarrow as pa
 
-from fuze_file_query import cell_bytes, descriptor
-from fuze_logical_arrow import arrow_cell
+from query.files.fuze_file_query import cell_bytes, descriptor
+from query.arrow.fuze_logical_arrow import arrow_cell
 
 AUDIT = b'\0ledger.audit/'
 

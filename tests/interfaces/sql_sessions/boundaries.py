@@ -3,7 +3,7 @@ import json
 import os
 import struct
 
-from fuze_types import descriptor
+from query.logical.fuze_types import descriptor
 
 
 def run(first, second, operation):

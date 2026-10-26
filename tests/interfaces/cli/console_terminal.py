@@ -11,7 +11,7 @@ import subprocess
 import termios
 import time
 import tempfile
-from unified_shell import Shell
+from query.unified.unified_shell import Shell
 from interfaces.cli.console_settings import read_show
 
 ANSI = re.compile(rb'\x1b\[[0-?]*[ -/]*[@-~]')

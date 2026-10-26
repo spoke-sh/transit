@@ -760,8 +760,8 @@
         "packages/zig/transit-fuze/src/Sql.zig",
         "packages/zig/transit-fuze/src/UnifiedSql.zig",
         "tests/sql_driver.zig",
-        "tests/sql/reference.py",
-        "tests/sql/compiler.py"
+        "tests/query/sql/reference.py",
+        "tests/query/sql/compiler.py"
       ],
       "profile": "current SELECT / unified-query-v1",
       "tasks": [
@@ -784,7 +784,7 @@
       "owner": "contracts/sql/README.md",
       "implementation": [
         "contracts/sql/FuzeRewrite.lean",
-        "tests/sql/rewrites.py"
+        "tests/query/sql/rewrites.py"
       ],
       "profile": "M12 Lean specification, not Zig refinement",
       "tasks": [
@@ -1481,7 +1481,7 @@
         "packages/zig/transit-query/src/DirectTableQuery.zig",
         "packages/zig/transit-catalog/src/DirectReadDelegation.zig",
         "tests/direct_captured_query.zig",
-        "tests/direct_captured_query.py"
+        "tests/query/execution/direct_captured_query.py"
       ],
       "profile": "direct-table-v1/unified-query/native-local",
       "tasks": [
@@ -1507,7 +1507,7 @@
         "packages/zig/transit-fuze/src/Declaration.zig",
         "packages/zig/transit-fuze/src/Sql.zig",
         "tests/sql_declaration.zig",
-        "tests/sql/declarations.py",
+        "tests/query/sql/declarations.py",
         "packages/zig/transit-fuze/src/TableDdl.zig",
         "packages/zig/transit-fuze/src/declaration_test.zig"
       ],
@@ -1538,7 +1538,7 @@
         "apps/transit-query-host/main.zig",
         "packages/zig/transit-station-bindings/src/CatalogAbi.zig",
         "apps/transit-station-host/main.zig",
-        "tests/catalog_abi.py",
+        "tests/catalog/tables/catalog_abi.py",
         "tests/operations/CatalogOptions.zig",
         "tests/operations/RecoveryFiles.zig",
         "tests/interfaces/cli/cli_diagnostics.py",
@@ -1565,7 +1565,7 @@
         "sdks/java/transit-station-sdk/src/io/transit/sdk/station/Bridge.java",
         "tests/sdk/consumers/java/JavaCatalogSdk.java",
         "tests/sdk/consumers/java/JavaCatalogValues.java",
-        "tests/catalog_port_host.py",
+        "tests/catalog/tables/catalog_port_host.py",
         "sdks/dotnet/transit-station-sdk/Catalog.cs",
         "sdks/dotnet/transit-station-sdk/Internal/Bridge.cs",
         "tests/sdk/consumers/dotnet/DotnetCatalogSdk.cs",
@@ -1583,7 +1583,7 @@
         "packages/zig/transit-catalog/src/DirectTableBridge.zig",
         "packages/zig/transit-catalog/src/DirectTableIntent.zig",
         "packages/zig/transit-catalog/src/direct_catalog_test.zig",
-        "tests/direct_catalog_abi.py",
+        "tests/catalog/tables/direct_catalog_abi.py",
         "tests/sdk/direct_sdk_catalog.py",
         "tests/direct_table_service.py",
         "tests/direct_table_growth.zig"
@@ -1702,7 +1702,7 @@
         "packages/zig/transit-query/src/RelationalMaintenance.zig",
         "packages/zig/transit-query/src/RelationalRevision.zig",
         "packages/zig/transit-fuze/src/RelationalDelta.zig",
-        "tests/relational_maintenance_native.py"
+        "tests/query/execution/relational_maintenance_native.py"
       ],
       "profile": "typed Zig maintained Tables over one native authority with bounded disk/cold storage",
       "tasks": [
@@ -1729,8 +1729,8 @@
         "packages/zig/transit-query/src/RelationalExchange.zig",
         "packages/zig/transit-query/src/RelationalExchangeProducer.zig",
         "packages/zig/transit-query/src/RelationalMaintenance.zig",
-        "tests/direct_captured_query.py",
-        "tests/relational_capacity.py"
+        "tests/query/execution/direct_captured_query.py",
+        "tests/query/execution/relational_capacity.py"
       ],
       "profile": "Manual producer placement over independent direct Tables and native local progress storage",
       "tasks": [
@@ -1756,8 +1756,8 @@
       "implementation": [
         "packages/zig/transit-client/src/WorkerHandoff.zig",
         "tests/direct_worker_handoff.zig",
-        "tests/worker_handoff.py",
-        "tests/direct_captured_query.py"
+        "tests/query/execution/worker_handoff.py",
+        "tests/query/execution/direct_captured_query.py"
       ],
       "profile": "One trusted manager with durable private records, one unbound PID and writer-owned resource, one native authority",
       "tasks": [
@@ -1785,7 +1785,7 @@
         "packages/zig/transit-query/src/RelationalBridge.zig",
         "packages/zig/transit-query/src/RelationalCaller.zig",
         "packages/zig/transit-station-bindings/src/QueryAbi.zig",
-        "tests/relational_callers_native.py",
+        "tests/query/execution/relational_callers_native.py",
         "tests/sdk/sdk_relational.py",
         "tests/interfaces/board/board_relational.py"
       ],
@@ -1819,7 +1819,7 @@
       "implementation": [
         "packages/zig/transit-station-app/src/NamedRelational.zig",
         "packages/zig/transit-station-app/src/NamedRelationalRecords.zig",
-        "tests/direct_captured_query.py"
+        "tests/query/execution/direct_captured_query.py"
       ],
       "profile": "Application-owned names, immutable definitions and native Station controls with direct Table input and native local progress",
       "tasks": [

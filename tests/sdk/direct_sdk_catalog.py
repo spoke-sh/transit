@@ -185,7 +185,7 @@ def exercise_java(packages, root, authority, service, profile, restart, policy):
     with zipfile.ZipFile(library / 'transit-native-station-0.2.0.jar') as archive:
         (faults / 'native-host').write_bytes(archive.read('io/transit/nativestation/transit-station-host'))
     (faults / 'native-host').chmod(0o700)
-    shutil.copy2(ROOT / 'tests/direct_catalog_port_host.py', faults / 'host')
+    shutil.copy2(ROOT / 'tests/catalog/tables/direct_catalog_port_host.py', faults / 'host')
     (faults / 'host').chmod(0o700)
     subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', classpath, 'io.transit.sdk.station.JavaCatalogValues', str(faults)], cwd=target, env=env, check=True, timeout=90)
     seed = target / 'caller.seed'
@@ -327,7 +327,7 @@ def exercise_beam(packages, root, authority, service, profile, restart, policy):
     faults = target / 'faults'
     faults.mkdir()
     shutil.copy2(library / 'transit_native_station-0.2.0/priv/transit-station-host',faults / 'native-host')
-    shutil.copy2(ROOT / 'tests/direct_catalog_port_host.py',faults / 'host'); (faults / 'host').chmod(0o700)
+    shutil.copy2(ROOT / 'tests/catalog/tables/direct_catalog_port_host.py',faults / 'host'); (faults / 'host').chmod(0o700)
     for mode in ('erlang','elixir'):
         subprocess.run([*command(mode,'beam_catalog_values'),str(faults)],cwd=target,env=env,check=True,timeout=150)
     shutil.rmtree(faults)

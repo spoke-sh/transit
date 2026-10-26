@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from fuze_logical_codec import check
+from query.logical.fuze_logical_codec import check
 
 
 

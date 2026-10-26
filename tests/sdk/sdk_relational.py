@@ -11,7 +11,7 @@ import tarfile
 import zipfile
 
 from sdk.sdk_unified import Consumer
-from relational_callers_native import SQL, EXPECTED, SELF_SQL, SELF_EXPECTED
+from query.execution.relational_callers_native import SQL, EXPECTED, SELF_SQL, SELF_EXPECTED
 
 
 
