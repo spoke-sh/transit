@@ -29,6 +29,12 @@ requires LIMIT at most 256; reads use eight-row pages and a 10,000-page work
 budget. A changed generation/revision rejects continuation; discard partial
 output and retry. Joins, aggregates and arbitrary scalar expressions reject.
 
+SQL sessions retry temporary transport failures during settings authorization
+and page reads within the configured request and statement deadlines. A page
+retry retains its exact continuation and already collected rows; it cannot
+switch to a newer configuration generation. Permission denial and changed
+snapshots stop the read. These observation retries do not resubmit reloads.
+
 ## Reload and retained outcomes
 
 ```sql

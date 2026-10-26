@@ -21,6 +21,7 @@ native_profile: bool = false,
 source: ?*g.SourceSession = null,
 wire: g.station.client.Client,
 settings_wire: ?g.station.client.Client = null,
+diagnostic_source: ObservationSource = .native,
 settings_session: q.SettingsSession = .{},
 table: c.DirectTableClient,
 namespace: u64,
@@ -36,6 +37,7 @@ diagnostics: ?*telemetry.Runtime = null,
 sql_diagnostic: ?f.SqlDiagnostic = null,
 execution_diagnostic: ?q.protocol.Diagnostic = null,
 compile_binding: f.Sql.Binding = .{},
+const ObservationSource = enum { native, settings };
 pub const read_options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 pub const Prepared = union(enum) {
     native: g.Statement,
@@ -180,7 +182,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configura
         self.settings_wire = g.station.client.Client.init(allocator, io, configured.url);
         self.settings_wire.?.timeout_ms = config.request_timeout_ms;
         errdefer self.settings_wire.?.deinit();
-        self.settings_session = try self.fresh(q.SettingsSession.capture, .{try Settings.client(self)});
+        self.settings_session = try self.freshOn(.settings, q.SettingsSession.capture, .{try Settings.client(self)});
     }
     return self;
 }
@@ -216,13 +218,27 @@ fn currentOnce(self: *Self) !void {
 /// Retry only pure preparation/validation, retaining the original statement on
 /// validation. Never replay a query iterator, write, or signed native request.
 pub fn fresh(self: *Self, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
+    return self.freshOn(.native, function, args);
+}
+fn observationRejection(self: *const Self, source: ObservationSource) ?p.ErrorCode {
+    return switch (source) {
+        .native => self.wire.last_rejection,
+        .settings => if (self.settings_wire) |wire| wire.last_rejection else null,
+    };
+}
+/// The settings reader can also resume a failed page request at its retained
+/// cursor. This does not authorize restarting other iterators or mutations.
+pub fn freshOn(self: *Self, source: ObservationSource, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
+    self.diagnostic_source = source;
     var attempts: u8 = 0;
     const started = std.Io.Clock.awake.now(self.io);
     while (true) {
         try self.deadline.check(self.io);
         return @call(.auto, function, args) catch |err| {
-            const stale = ((err == error.Rejected or err == error.Conflict) and self.wire.last_rejection == .StaleStateResource) or err == error.CatalogDefinitionChanged;
-            const unavailable = g.station.client.Client.unavailable(err) or self.wire.contended(err) or err == error.GatewayOwnerUnavailable;
+            self.diagnostic_source = source;
+            const rejected = self.observationRejection(source);
+            const stale = ((err == error.Rejected or err == error.Conflict) and rejected == .StaleStateResource) or err == error.CatalogDefinitionChanged;
+            const unavailable = g.station.client.Client.unavailable(err) or (err == error.Conflict and rejected == .Conflict) or err == error.GatewayOwnerUnavailable;
             // Recovery and native admission may need more than 64 short polls.
             // Bound those waits by both configured time budgets; retain the
             // conflict-attempt limit for repeatedly changing metadata.
@@ -294,7 +310,7 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
             return result;
         }
     }
-    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try Settings.prepare(self, sql)) |settings| result.* = .{ .settings = settings } else if (self.source) |source| result.* = .{ .source = try self.fresh(g.SourceSession.prepare, .{ source, sql }) } else result.* = .{ .native = try self.fresh(g.Statement.prepareDiagnostic, .{ self.allocator, &self.table, self.namespace, sql, self.dialect, if (self.native_profile) g.Statement.Profile.native else g.Statement.Profile.wire, read_options, &self.compile_binding }) };
+    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try self.freshOn(.settings, Settings.prepare, .{ self, sql })) |settings| result.* = .{ .settings = settings } else if (self.source) |source| result.* = .{ .source = try self.fresh(g.SourceSession.prepare, .{ source, sql }) } else result.* = .{ .native = try self.fresh(g.Statement.prepareDiagnostic, .{ self.allocator, &self.table, self.namespace, sql, self.dialect, if (self.native_profile) g.Statement.Profile.native else g.Statement.Profile.wire, read_options, &self.compile_binding }) };
     return result;
 }
 pub fn destroy(self: *Self, prepared: *Prepared) void {
@@ -316,7 +332,7 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
         .source => |*statement| try self.fresh(g.SourceSession.validate, .{ self.source orelse return error.UnknownSqlSource, statement }),
         .captured => |*captured| try g.CapturedOperations.validateResult(self, captured),
         .inspection => |*inspection| try self.fresh(Inspection.validate, .{ inspection, self }),
-        .settings => |*settings| try self.fresh(Settings.authorize, .{ self, &settings.plan }),
+        .settings => |*settings| try self.freshOn(.settings, Settings.authorize, .{ self, &settings.plan }),
         .probe => {}, // current() already validates the login and database.
     }
 }
@@ -442,11 +458,13 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
     }, .count = terminal.matched, .changed = terminal.changed };
 }
 pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {
-    if (self.diagnostics) |diagnostics| diagnostics.event(.{ .name = "sql.request.failed", .level = .warn, .outcome = .failed, .error_type = if (self.wire.last_rejection) |rejection| @tagName(rejection) else @errorName(err) });
+    const rejected = self.observationRejection(self.diagnostic_source);
+    const remote = err == error.Conflict or err == error.Rejected or err == error.AuthorityUnavailable;
+    if (self.diagnostics) |diagnostics| diagnostics.event(.{ .name = "sql.request.failed", .level = .warn, .outcome = .failed, .error_type = if (remote and rejected != null) @tagName(rejected.?) else @errorName(err) });
     // Direct HTTP failures retain the verified owner cause separately from
     // their status-class error. Do not apply that cause to unrelated failures.
-    const cause = if ((err == error.Conflict or err == error.Rejected) and self.wire.last_rejection == .TableDefinitionChanged) error.TableDefinitionChanged else err;
-    const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and self.wire.last_rejection == .HttpCapacity) .{ "53000".*, "Native request capacity exhausted; inspect admitted writes before retrying SQL" } else if (self.wire.contended(err)) .{ "55000".*, "Current state changed; inspect admitted work before retrying SQL" } else switch (cause) {
+    const cause = if ((err == error.Conflict or err == error.Rejected) and rejected == .TableDefinitionChanged) error.TableDefinitionChanged else err;
+    const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and rejected == .HttpCapacity) .{ "53000".*, "Native request capacity exhausted; inspect admitted writes before retrying SQL" } else if (err == error.Conflict and rejected == .Conflict) .{ "55000".*, "Current state changed; inspect admitted work before retrying SQL" } else switch (cause) {
         error.CatalogDenied, error.AccessDenied, error.GatewayDatabaseDenied => .{ "42501".*, "Current permission denied" },
         error.GatewayCredentialChanged, error.InvalidAuthentication => .{ "28000".*, "Credential changed or disabled" },
         error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled, error.StatementTimedOut => .{ "57014".*, "Request wait ended; admitted work requires outcome inspection" },
@@ -508,6 +526,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
 test "capacity diagnostics retain operation uncertainty and do not override denial" {
     var host: Self = undefined;
     host.diagnostics = null;
+    host.diagnostic_source = .native;
     host.operation = 17;
     host.wire.last_rejection = .HttpCapacity;
     const capacity = host.diagnostic(error.AuthorityUnavailable);
@@ -587,6 +606,50 @@ test "pure preparation retries transport loss within its budget but never retrie
     read = .{};
     try t.expectError(error.GatewayDeadline, host.fresh(Observation.run, .{&read}));
     try t.expectEqual(@as(u32, 0), read.attempts);
+}
+
+test "settings observations use their own rejection and retain terminal decisions" {
+    const t = std.testing;
+    const Observation = struct {
+        transport: *g.station.client.Client,
+        attempts: u32 = 0,
+        code: p.ErrorCode = .StaleStateResource,
+        failure: anyerror = error.Conflict,
+        fn run(self: *@This()) !void {
+            self.attempts += 1;
+            self.transport.last_rejection = if (self.attempts <= 2) self.code else null;
+            if (self.attempts <= 2) return self.failure;
+        }
+    };
+    var config: g.Configuration = undefined;
+    config.request_timeout_ms = 5000;
+    var host: Self = undefined;
+    host.io = t.io;
+    host.config = &config;
+    host.diagnostics = null;
+    host.operation = null;
+    host.wire.last_rejection = .TableDefinitionChanged;
+    host.settings_wire = g.station.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer host.settings_wire.?.deinit();
+    host.deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 5000 };
+    var read: Observation = .{ .transport = &host.settings_wire.? };
+    try host.freshOn(.settings, Observation.run, .{&read});
+    try t.expectEqual(@as(u32, 3), read.attempts);
+    read = .{ .transport = &host.settings_wire.?, .code = .AccessDenied, .failure = error.AccessDenied };
+    try t.expectError(error.AccessDenied, host.freshOn(.settings, Observation.run, .{&read}));
+    try t.expectEqual(@as(u32, 1), read.attempts);
+    try t.expectEqualStrings("42501", &host.diagnostic(error.AccessDenied).state);
+    read = .{ .transport = &host.settings_wire.?, .code = .ConfigurationSnapshotChanged, .failure = error.ConfigurationSnapshotChanged };
+    try t.expectError(error.ConfigurationSnapshotChanged, host.freshOn(.settings, Observation.run, .{&read}));
+    try t.expectEqual(@as(u32, 1), read.attempts);
+    try t.expectEqualStrings("40001", &host.diagnostic(error.ConfigurationSnapshotChanged).state);
+    host.settings_wire.?.last_rejection = .HttpCapacity;
+    try t.expectEqualStrings("53000", &host.diagnostic(error.AuthorityUnavailable).state);
+    try t.expectEqualStrings("42501", &host.diagnostic(error.AccessDenied).state);
+    host.settings_wire.?.last_rejection = null;
+    try t.expectEqualStrings("XX000", &host.diagnostic(error.Conflict).state);
+    host.diagnostic_source = .native;
+    try t.expectEqualStrings("55000", &host.diagnostic(error.Conflict).state);
 }
 
 pub fn commandMilliseconds(self: *const Self) u32 {

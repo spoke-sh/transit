@@ -20,6 +20,8 @@ class Faults:
         self.requests = 0
         self.response_bytes = 0
         self.rejections = []
+        self.settings_fault = None
+        self.settings_records = []
         self.lock = threading.Lock()
         owner = self
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -32,6 +34,23 @@ class Faults:
                 envelope = request.get('query', {})
                 query = envelope.get('kind', {})
                 table = request.get('action', {}) if self.path == '/table/v1' else {}
+                configuration = request.get('configuration', {}) if self.path == '/configuration/v1' else {}
+                action = configuration.get('action', {})
+                stage = ('authorize' if self.path == '/v1/query' else
+                         'continuation' if action.get('settings', {}).get('cursor') is not None else
+                         'page' if 'settings' in action else 'reload' if 'reload' in action else None)
+                settings_failure = None
+                with owner.lock:
+                    if owner.settings_fault is not None and stage == owner.settings_fault['stage']:
+                        fault = owner.settings_fault
+                        failed = fault['remaining'] > 0
+                        if failed:
+                            fault['remaining'] -= 1
+                            settings_failure = fault.copy()
+                        # Retain only metadata action/cursor and public reload
+                        # identity, never signed authorization or credentials.
+                        owner.settings_records.append(dict(action=action, operation=configuration.get('operation') if stage == 'reload' else None, failed=failed))
+                        del owner.settings_records[:-64]
                 source_failure = owner.fail_source_once is not None and envelope.get('principal') == owner.fail_source_once
                 # Retained Query publications use authorized read_entries
                 # batches. 00 50 + big-endian domain 3 is Publication's
@@ -44,7 +63,7 @@ class Faults:
                 metadata_failure = owner.fail_once and 'lookup' in table
                 acquisition_failure = owner.fail_open and 'pin' in table
                 snapshot_failure = owner.fail_snapshot_once and 'snapshot' in table
-                if source_failure or result_failure or metadata_failure or acquisition_failure or snapshot_failure or (owner.fail_coordinator is not None and envelope.get('principal') == owner.fail_coordinator and 'process' in query):
+                if (settings_failure is not None and not settings_failure['after']) or source_failure or result_failure or metadata_failure or acquisition_failure or snapshot_failure or (owner.fail_coordinator is not None and envelope.get('principal') == owner.fail_coordinator and 'process' in query):
                     if source_failure:
                         owner.fail_source_once = None
                     if result_failure:
@@ -66,6 +85,11 @@ class Faults:
                         content_type = response.getheader('Content-Type', 'application/json')
                     finally:
                         upstream.close()
+                if settings_failure is not None:
+                    code = settings_failure['code']
+                    status = {'HttpCapacity': 503, 'AccessDenied': 403, 'ConfigurationSnapshotChanged': 409}[code]
+                    body = json.dumps(dict(err=code)).encode()
+                    content_type = 'application/json'
                 self.send_response(status)
                 self.send_header('Content-Type', content_type)
                 self.send_header('Content-Length', str(len(body)))
@@ -92,6 +116,17 @@ class Faults:
         self.url = f'http://127.0.0.1:{self.server.server_port}'
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
+
+    def arm_settings(self, stage, code='HttpCapacity', *, count=1, after=False):
+        with self.lock:
+            self.settings_fault = dict(stage=stage, code=code, remaining=count, after=after)
+            self.settings_records = []
+
+    def disarm_settings(self):
+        with self.lock:
+            records = self.settings_records.copy()
+            self.settings_fault = None
+            return records
 
     def check(self, client):
         before = self.failures

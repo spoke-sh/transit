@@ -95,6 +95,10 @@ fn project(self: *Self, cells: []const Cell) ![]const Cell {
     }
     return cells;
 }
+/// A transient transport failure leaves the failed page's exact cursor intact.
+/// The caller may resume within its original deadline; previously consumed
+/// pages and private ordered rows remain retained. Snapshot changes and other
+/// semantic failures are terminal and must not restart at a different basis.
 pub fn next(self: *Self) !?[]const Cell {
     const limit = if (self.plan.query) |query| query.plan.limit orelse std.math.maxInt(u64) else std.math.maxInt(u64);
     if (self.emitted >= limit) return null;

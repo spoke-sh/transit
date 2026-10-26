@@ -70,7 +70,7 @@ pub const Read = struct {
     }
     pub fn next(self: *Read) !?[]const f.Types.Values.Cell {
         try self.host.deadline.check(self.host.io);
-        if (self.settings) |*settings| return settings.next();
+        if (self.settings) |*settings| return self.host.freshOn(.settings, q.SettingsReader.next, .{settings});
         _ = self.arena.reset(.retain_capacity);
         const a = self.arena.allocator();
         if (self.operation) |id| {
@@ -132,6 +132,7 @@ pub const Read = struct {
     }
 };
 fn reload(host: *Host) ![16]u8 {
+    host.diagnostic_source = .settings;
     const selected = try client(host);
     // This lane is separate from accepted Table mutations; a timeout never
     // rewrites or cancels those operations. The retained request survives loss

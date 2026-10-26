@@ -27612,3 +27612,39 @@ binding, typed values, fresh snapshots, current denial and definition replacemen
 Full repository checks and committed-HEAD clean qualification are pending.
 These component results do not establish encoded
 SQL execution, safe collection, provider support or an installed latency gain.
+
+## SQL settings observation recovery — 2026-10-26
+
+At `6ee045205`, the shared SQL package's `zig build test` and the real TLS
+PostgreSQL/MySQL settings slice pass. The slice is reproducible with
+`nix develop .#sql-wire --command zig build test-sql-wire-gateway
+-Doptimize=ReleaseSafe -- settings`. The recorded successful invocation uses
+the same binaries installed by `test-sql-wire-build`, with hashes in the
+[control report](verification/results/sql-settings-recovery-2026-10-26/report.json).
+The local documentation check and full handbook check/build also pass.
+
+A settings-only `HttpCapacity` refusal during preparation reproduces the
+generic PostgreSQL `Request failed` response on the baseline gateway from
+`6f24c2d15`. Its diagnostic-only instrumentation identifies preparation and the
+settings transport's refusal; the ordinary session diagnostic reports only
+`AuthorityUnavailable`. All other executables are byte-identical in the
+before/after control. The earlier installed SHOW failure lacked phase
+attribution, so this establishes a reproducible cause rather than proving the
+exact phase of every prior failure.
+
+Both drivers pass two refused preparation observations, first-page recovery,
+and continuation recovery for unordered and ordered metadata. Failed and
+repeated page actions retain the same cursor; exact result comparison detects
+lost or duplicated rows. Permission denial and changed configuration snapshots
+remain terminal. A reload accepted before a lost reply escapes the first SQL
+statement; a subsequent explicit request reconciles the same original identity
+and adds exactly one history entry. Existing SET/RESET, captured defaults,
+administrator ceilings, the one-millisecond deadline and reload revocation
+checks pass. Request/statement budgets, page bounds and current authorization
+are unchanged.
+
+Two intermediate runs failed test expectations that used PostgreSQL SQLSTATEs
+for MySQL. Their logs are retained beside the successful control; the correction
+asserts MySQL's existing error numbers, SQLSTATEs and snapshot-change message.
+No MySQL error mapping changed. This focused slice does not complete installed
+SQL, the SDK matrix or combined clean-checkout qualification.

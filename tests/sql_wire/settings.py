@@ -27,7 +27,77 @@ def start_configuration(root, binary, port, upstream, binding, start):
             time.sleep(.05)
 
 
-def run(root, postgres, mysql_options, source, policy):
+def recovery(pg, cursor, faults):
+    def mysql_query(sql):
+        cursor.execute(sql)
+        return cursor.fetchall()
+    for language, execute, exception in (
+            ('PostgreSQL', lambda sql: pg.execute(sql, prepare=True).fetchall(), psycopg.Error),
+            ('MySQL', mysql_query, mysql.connector.Error)):
+        query = 'SELECT name, value FROM transit_settings()'
+        baseline = execute(query)
+        assert len(baseline) > 8, 'Continuation fault requires more than one settings page'
+        for stage, sql, expected, count in (
+                ('authorize', 'SHOW realm', [('46',)], 2),
+                ('page', 'SHOW realm', [('46',)], 1),
+                ('continuation', query, baseline, 1),
+                ('continuation', query+' ORDER BY name', sorted(baseline), 1)):
+            faults.arm_settings(stage, count=count)
+            try:
+                assert execute(sql) == expected, (language, stage)
+            finally:
+                records = faults.disarm_settings()
+            assert sum(record['failed'] for record in records) == count, records
+            assert len(records) > count, records
+            if stage != 'authorize':
+                assert records[0]['action'] == records[1]['action'], records
+        # Permission decisions and changed snapshots are terminal. In
+        # particular, a failed continuation cannot restart from a newer basis.
+        for stage, code, sql, state in (
+                ('authorize', 'AccessDenied', 'SHOW realm', '42501' if language == 'PostgreSQL' else '42000'),
+                ('continuation', 'ConfigurationSnapshotChanged', query, '40001' if language == 'PostgreSQL' else 'HY000')):
+            faults.arm_settings(stage, code)
+            try:
+                try:
+                    execute(sql)
+                except exception as failure:
+                    assert failure.sqlstate == state, (language, failure)
+                    if language == 'MySQL':
+                        assert failure.errno == (1142 if code == 'AccessDenied' else 1105), failure
+                    if code == 'ConfigurationSnapshotChanged':
+                        assert 'Configuration changed; discard partial results' in str(failure), failure
+                else:
+                    raise AssertionError((language, 'Settings rejection was hidden', code))
+            finally:
+                records = faults.disarm_settings()
+            assert len(records) == 1 and records[0]['failed'], records
+            assert execute(query) == baseline
+        # A lost reload reply must escape this statement. Only a subsequent
+        # explicit reload reconciles the same retained operation; observation
+        # retry must never dispatch reload behind the caller's back.
+        before = len(execute('SELECT ordinal FROM transit_config_reloads()'))
+        faults.arm_settings('reload', after=True)
+        try:
+            try:
+                execute('SELECT transit_reload_conf()')
+            except exception as failure:
+                assert failure.sqlstate == ('53000' if language == 'PostgreSQL' else 'HY000'), (language, failure)
+                if language == 'MySQL':
+                    assert failure.errno == 1041, failure
+            else:
+                raise AssertionError((language, 'Reload was automatically repeated'))
+            assert len(faults.settings_records) == 1, faults.settings_records
+            operation = execute('SELECT transit_reload_conf()')[0][0]
+        finally:
+            records = faults.disarm_settings()
+        assert len(records) == 2 and records[0]['operation'] == records[1]['operation'], records
+        original = records[0]['operation']
+        assert operation == (original if isinstance(original, str) else bytes(original).hex()), records
+        assert len(execute('SELECT ordinal FROM transit_config_reloads()')) == before+1
+        print(f'SQL settings {language}: preparation/page recovery, exact continuation, denial, changed basis and original reload identity passed.', flush=True)
+
+
+def run(root, postgres, mysql_options, source, policy, faults=None):
     with psycopg.connect(**postgres) as pg, mysql.connector.connect(**mysql_options) as my:
         cursor = my.cursor()
         assert pg.execute('SHOW DATABASES').fetchall() == [('data',)]
@@ -36,6 +106,8 @@ def run(root, postgres, mysql_options, source, policy):
         cursor.execute('SHOW SCHEMAS'); assert cursor.fetchall()
         assert pg.execute('SHOW query.statement_timeout',prepare=True).fetchone() == ('0',)
         cursor.execute('SHOW query.statement_timeout'); assert cursor.fetchone() == ('0',)
+        if faults is not None:
+            recovery(pg, cursor, faults)
         for execute in (pg.execute,cursor.execute):
             execute("SET query.statement_timeout = '30s'")
         assert pg.execute('SHOW query.statement_timeout').fetchone() == ('30000',)
