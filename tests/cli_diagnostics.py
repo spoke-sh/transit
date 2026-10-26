@@ -16,7 +16,10 @@ import tempfile
 from console_settings import parse_show, read_show
 
 CLI = str(Path(sys.argv[1]).resolve())
-ENV = {key: value for key, value in os.environ.items() if not key.startswith('TRANSIT_')}
+# Configuration discovery is controlled by the fixture's HOME and explicit
+# overrides below, including XDG precedence. Ambient XDG must not bypass HOME.
+ENV = {key: value for key, value in os.environ.items()
+       if not key.startswith('TRANSIT_') and key != 'XDG_CONFIG_HOME'}
 CASES = 0
 SESSION_PEER = session_peer(structured=True)
 SQL_ENDPOINT, SESSION_ACTIONS = SESSION_PEER.__enter__()

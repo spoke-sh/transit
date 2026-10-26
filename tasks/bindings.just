@@ -23,6 +23,8 @@ native:
     zig build test-bindings
 
 # Qualify every implemented language; enter nix develop .#bindings first.
+# Station SDK schedules retain Debug bindings/hosts and use a ReleaseSafe node
+# for the bounded disk-backed query workload. Deadlines and assertions are fixed.
 test: native python-test node-sdk-test rust-sdk-test go-sdk-test ruby-sdk-test c-sdk-test java-sdk-test dotnet-sdk-test beam-sdk-test sdk-interop
 
 # Build the Go module and its matching explicit native installation.
@@ -69,7 +71,8 @@ python-test: python-build
     PYTHONPATH=sdks/python/transit-client python3 -B tests/python_diagnostic_errors.py zig-out/lib/libtransit_client.so
     mypy --strict sdks/python/transit-native-client/transit_native_client sdks/python/transit-native-station/transit_native_station sdks/python/transit-client/transit_client
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
-    zig build transit-node transit-admin transit-station-http-worker
+    zig build transit-admin transit-station-http-worker
+    zig build transit-node -Doptimize=ReleaseSafe
     python3 -B tests/python_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/wheels
     zig build transit-station-grpc-worker
     python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
@@ -99,7 +102,8 @@ node-sdk-test: node-build
     vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/relational.test.ts src/table.test.ts
     cd examples/station-sdk/typescript && vp check
     vp exec --filter @transit/sdk-examples tsc --noEmit
-    zig build transit-node transit-admin transit-station-http-worker
+    zig build transit-admin transit-station-http-worker
+    zig build transit-node -Doptimize=ReleaseSafe
     python3 -B tests/node_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/node
     zig build transit-station-grpc-worker
     python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
@@ -130,7 +134,8 @@ rust-sdk-test: rust-build
     cargo fmt --manifest-path sdks/rust/transit-native-station/Cargo.toml --check
     cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
     cargo fmt --manifest-path examples/station-sdk/rust/Cargo.toml --check
-    zig build transit-node transit-admin transit-station-http-worker
+    zig build transit-admin transit-station-http-worker
+    zig build transit-node -Doptimize=ReleaseSafe
     python3 -B tests/rust_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/rust
     zig build transit-station-grpc-worker
     python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
@@ -162,7 +167,8 @@ ruby-sdk-test: ruby-build
     ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples.rb
     ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples/codecs.rb
     ruby -c examples/station-sdk/ruby/bin/transit-ruby-counter
-    zig build transit-node transit-admin
+    zig build transit-admin
+    zig build transit-node -Doptimize=ReleaseSafe
     python3 -B tests/ruby_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/ruby
     zig build transit-station-http-worker
     zig build transit-station-grpc-worker
@@ -183,7 +189,8 @@ c-build: build
 # Compile installed public C and C++ consumers and run the shared raw schedule.
 c-sdk-test: c-build
     zig fmt --check sdks/c sdks/cpp/transit-client sdks/cpp/transit-station-sdk examples/station-sdk/c examples/station-sdk/cpp
-    zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
+    zig build transit-admin transit-station-http-worker transit-station-grpc-worker
+    zig build transit-node -Doptimize=ReleaseSafe
     python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/c
     python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
@@ -200,7 +207,8 @@ java-build: build
 
 # Compile installed public Java consumers outside the checkout.
 java-sdk-test: java-build
-    zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
+    zig build transit-admin transit-station-http-worker transit-station-grpc-worker
+    zig build transit-node -Doptimize=ReleaseSafe
     python3 -B tests/java_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/java
     python3 -B tests/java_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/java zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language java
@@ -217,7 +225,8 @@ logical-dotnet: dotnet-build
 # Restore public raw/Station/example NuGet artifacts into clean consumers.
 dotnet-sdk-test: dotnet-build
     python3 -B tests/dotnet_logical_values.py .cache/bindings/dotnet
-    zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
+    zig build transit-admin transit-station-http-worker transit-station-grpc-worker
+    zig build transit-node -Doptimize=ReleaseSafe
     python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/dotnet
     python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language dotnet
@@ -235,7 +244,8 @@ logical-beam: beam-build
 beam-sdk-test: beam-build
     python3 -B tests/beam_logical_values.py .cache/bindings/beam
     ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-client-elixir/lib/client.ex sdks/beam/transit-client-elixir/mix.exs sdks/beam/transit-station-elixir/lib/*.ex sdks/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/elixir_client_sdk.exs tests/elixir_station_adapter.ex tests/elixir_http_adapter.ex tests/elixir_grpc_adapter.ex tests/elixir_logical_values.exs
-    zig build transit-node transit-admin transit-station-http-worker transit-station-grpc-worker
+    zig build transit-admin transit-station-http-worker transit-station-grpc-worker
+    zig build transit-node -Doptimize=ReleaseSafe
     python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/beam
     python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language beam

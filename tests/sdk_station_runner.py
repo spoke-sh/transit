@@ -506,14 +506,35 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
             # The previous 150-round fixture covered only two scalar columns.
             fragments = (65535 + 220) // 221
             query_round_limit = 6 * (fragments + (fragments + 2) // 3 + 8) + 16
-            query_deadline = time.monotonic() + 600
+            query_started = time.monotonic()
+            query_budget_seconds = 600
+            query_times = dict(delivery=0.0, service=0.0, caller=0.0)
             for query_round in range(query_round_limit):
-                assert time.monotonic() < query_deadline, 'Public query exceeded fixture deadline'
+                elapsed = time.monotonic() - query_started
+                if query_round % 25 == 0 or elapsed >= query_budget_seconds:
+                    print(json.dumps(dict(profile='sdk_public_query', language=label,
+                        phase='receiving', seconds=round(elapsed, 3), rounds=query_round,
+                        budget_seconds=query_budget_seconds,
+                        stage_seconds={key: round(value, 3) for key, value in query_times.items()})), flush=True)
+                assert elapsed < query_budget_seconds, (
+                    label, 'Public query exceeded fixture deadline',
+                    dict(seconds=elapsed, rounds=query_round, stage_seconds=query_times))
+                stage_start = time.monotonic()
                 deliver()
+                delivered = time.monotonic()
                 expect_one(service, 'Committed', 'Idle')
+                serviced = time.monotonic()
                 expect_one(caller, 'Committed', 'Idle')
+                received = time.monotonic()
+                query_times['delivery'] += delivered - stage_start
+                query_times['service'] += serviced - delivered
+                query_times['caller'] += received - serviced
                 if manifest_file.exists(): break
             else: raise AssertionError('Public query did not complete')
+            print(json.dumps(dict(profile='sdk_public_query', language=label,
+                phase='received', seconds=round(time.monotonic()-query_started, 3),
+                rounds=query_round+1, budget_seconds=query_budget_seconds,
+                stage_seconds={key: round(value, 3) for key, value in query_times.items()})), flush=True)
             close(service); close(caller)
             manifest = json.loads(manifest_file.read_bytes())
             assert (manifest['rows'], manifest['segments'], manifest['source'], manifest['destination'], manifest['resource']) == (41, 6, table['pid'], query_cfg['pid'], table['resource'])

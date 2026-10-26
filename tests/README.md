@@ -27514,3 +27514,45 @@ The [source-specific record and compressed logs](verification/results/decimal-re
 retain the failing run, debugger observation, isolated control and committed
 checks with hashes. These focused passes do not complete the repository/clean
 lanes or attribute the earlier anonymous hosted unit SIGSEGV to this stack.
+
+## CLI discovery fixture environment — 2026-10-26
+
+The [hosted core run](https://github.com/spoke-sh/transit/actions/runs/40262338677/job/121377263598)
+passes its unit stage, then fails the CLI fixture's HOME-based configuration
+discovery. The fixture inherits `XDG_CONFIG_HOME`, allowing the runner's ambient
+directory to bypass its controlled HOME. With the retained ReleaseSafe CLI from
+`6139782ba`, explicitly setting that variable to an empty owned directory
+reproduces the failure. Filtering only the ambient value in `5bcbdd9b7` passes
+all 193 diagnostics cases against the same binary and directory. Explicit
+HOME/XDG/`TRANSIT_CONFIG` precedence cases retain their individual overrides.
+
+The [before/after record and compressed logs](verification/results/cli-xdg-2026-10-26/report.json)
+identify the executable and fixture sources, hashes and commands. This changes
+test isolation only; it does not change CLI discovery rules or complete the
+current-source clean core lane.
+
+## SDK query node build profile — 2026-10-26
+
+Clean `bindings-1` at `6957584c4` passes the native binding proof and Python
+client schedule, then reaches the common Station query's 600-second deadline.
+The [hosted C schedule](https://github.com/spoke-sh/transit/actions/runs/40262338677/job/121377263556)
+also reaches that deadline. These runs fail; neither is counted as a complete
+SDK qualification.
+
+A local control retains those Debug Python packages, admin and native client,
+substituting the ReleaseSafe node from `6139782ba`. The two source revisions
+differ only in this proof ledger. The existing common Python Station schedule
+passes in 314.27 seconds total, including the query's 275 publication/receipt
+rounds, 41 rows, six streams and 41,992 IPC bytes. The query is still receiving
+at 147.165 seconds and round 250, then completes before the unchanged 600-second
+limit. The 8 MiB hot cache, 64 authority pages, fault/recovery checks and exact
+result assertions remain unchanged. Stage timings record progress without
+additional authority requests or payload logging.
+
+The [source/artifact record and compressed logs](verification/results/sdk-query-profile-2026-10-26/report.json)
+retain the failure and passing control. This is a sequential profile comparison,
+not a latency benchmark or a fix to Debug-node throughput. It covers the common
+Python Station runner, not the later connector/catalog/relational schedules or
+other languages. Installed Station SDK tasks now explicitly use a ReleaseSafe
+node with Debug bindings, ports and workers. Their complete current-source clean
+lanes remain separate acceptance gates.
