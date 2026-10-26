@@ -953,6 +953,135 @@ test "direct catalog missing admitted intent fails closed and a listing rechecks
     view.deinit();
 }
 
+const ObservedCatalogLog = struct {
+    inner: s.TransitLog.Log,
+    reads: usize = 0,
+    lose_append: bool = false,
+    fn get(raw: *anyopaque) *@This() {
+        return @ptrCast(@alignCast(raw));
+    }
+    fn log(self: *@This()) s.TransitLog.Log {
+        return .{ .context = self, .vtable = &.{ .append = append, .read = read, .tail = tail, .trim = trim, .fence = fence } };
+    }
+    fn append(raw: *anyopaque, id: u64, expected: ?u64, writer: u64, policy: u64, kind: s.TransitLog.FrameKind, payload: []const u8) !s.TransitLog.AppendReceipt {
+        const self = get(raw);
+        const receipt = try self.inner.append(id, expected, writer, policy, kind, payload);
+        if (self.lose_append) return error.LostAcknowledgement;
+        return receipt;
+    }
+    fn read(raw: *anyopaque, allocator: std.mem.Allocator, id: u64, from: u64, count: usize) !s.TransitLog.Log.OwnedBatch {
+        const self = get(raw);
+        self.reads += 1;
+        return self.inner.read(allocator, id, from, count);
+    }
+    fn tail(raw: *anyopaque, id: u64) !u64 {
+        return get(raw).inner.tail(id);
+    }
+    fn trim(raw: *anyopaque, id: u64, before: u64) !void {
+        try get(raw).inner.trim(id, before);
+    }
+    fn fence(raw: *anyopaque, id: u64, writer: u64, policy: u64) !void {
+        try get(raw).inner.fence(id, writer, policy);
+    }
+};
+
+test "direct catalog recovery reuses a validated prefix and recovers an uncertain successor" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var observed: ObservedCatalogLog = .{ .inner = wal.log() };
+    var access: Access = .{};
+    const known = blk: {
+        // Destroy the original request owner and allocator before reuse.
+        var arena = std.heap.ArenaAllocator.init(t.allocator);
+        defer arena.deinit();
+        var catalog = try D.init(arena.allocator(), try configuration(), observed.log(), objects.objectStore(), wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+        defer catalog.deinit();
+        try catalog.recover();
+        try catalog.initialize(access.policy());
+        for (1..10) |id| {
+            const request = try creation(id, id, "released");
+            _ = try catalog.admit(request, access.policy());
+            _ = try catalog.cancel(request.binding, access.policy());
+        }
+        break :blk try catalog.recoveryState();
+    };
+    try t.expectEqual(@as(u64, 19), known.root.next_lsn);
+    var catalog = try D.init(t.allocator, try configuration(), observed.log(), objects.objectStore(), wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer catalog.deinit();
+    observed.reads = 0;
+    try catalog.recover();
+    const full_reads = observed.reads;
+    // Transition validation may also read an earlier referenced operation.
+    try t.expect(full_reads >= known.root.next_lsn);
+    observed.reads = 0;
+    try catalog.recoverSince(known);
+    try t.expectEqual(@as(usize, 1), observed.reads);
+    try t.expectEqualDeep(known, try catalog.recoveryState());
+    const request = try creation(20, 20, "uncertain");
+    observed.lose_append = true;
+    try t.expectError(error.LostAcknowledgement, catalog.admit(request, access.policy()));
+    try t.expectError(error.CatalogRecoveryRequired, catalog.recoveryState());
+    observed.lose_append = false;
+    observed.reads = 0;
+    try catalog.recoverSince(known);
+    try t.expectEqual(@as(usize, 2), observed.reads);
+    std.debug.print("Catalog recovery: {d} full log reads, one cached-boundary read, two reads after an uncertain append.\n", .{full_reads});
+    try t.expectEqual(@as(u64, 20), catalog.store.root.next_lsn);
+    try t.expect((try catalog.status(request.binding, access.policy())) == .admitted);
+    const appends = wal.appends;
+    _ = try catalog.admit(request, access.policy());
+    try t.expectEqual(appends, wal.appends);
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, catalog.status(request.binding, access.policy()));
+    access.deny_at = std.math.maxInt(usize);
+    // A replacement owner still validates the whole history from its beginning.
+    var replacement = try owner(&wal, &objects);
+    defer replacement.deinit();
+    try t.expectEqualDeep(try catalog.recoveryState(), try replacement.recoveryState());
+    try t.expect((try replacement.status(request.binding, access.policy())) == .admitted);
+}
+
+test "direct catalog recovery rejects substituted cached boundaries and missing current roots" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const known = try catalog.recoveryState();
+    var changed = known;
+    changed.chain[0] ^= 1;
+    try t.expectError(error.InvalidDirectCatalogHistory, catalog.recoverSince(changed));
+    try t.expectError(error.CatalogRecoveryRequired, catalog.recoveryState());
+    changed = known;
+    changed.root.next_partition += 1;
+    try t.expectError(error.InvalidDirectCatalogHistory, catalog.recoverSince(changed));
+    changed = known;
+    changed.root.configuration.scope.catalog += 1;
+    try t.expectError(error.InvalidDirectCatalogHistory, catalog.recoverSince(changed));
+    var absent = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer absent.deinit();
+    var shortened = try owner(&absent, &objects);
+    defer shortened.deinit();
+    try t.expectError(error.CatalogHistoryMissing, shortened.recoverSince(known));
+    try catalog.recoverSince(known);
+    const reference = known.root.schemas.?;
+    for (objects.objects.items) |item| if (std.mem.eql(u8, &item.sha256, &reference.location)) {
+        const key_copy = try t.allocator.dupe(u8, item.key);
+        defer t.allocator.free(key_copy);
+        try objects.deleteObject(key_copy);
+        break;
+    };
+    try t.expectError(error.MissingDataIndexObject, catalog.recoverSince(known));
+    try t.expectError(error.CatalogRecoveryRequired, catalog.recoveryState());
+}
+
 test "direct catalog recovery rejects a terminal operation reopened in accepted history" {
     const r = @import("DirectCatalogRecords.zig");
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
@@ -966,6 +1095,7 @@ test "direct catalog recovery rejects a terminal operation reopened in accepted 
     const create = try creation(7, 1, "events");
     const admitted = try catalog.admit(create, access.policy());
     _ = try catalog.cancel(create.binding, access.policy());
+    const known = try catalog.recoveryState();
     var next = catalog.store.root;
     next.next_lsn += 1;
     const record: r.Record = .{ .definition = p.Growth.current_definition, .previous = catalog.store.chain, .root = next, .action = .{ .operation = admitted } };
@@ -975,6 +1105,8 @@ test "direct catalog recovery rejects a terminal operation reopened in accepted 
     var writer: std.Io.Writer = .fixed(encoded[40..]);
     try std.json.Stringify.value(record, .{}, &writer);
     _ = try wal.log().append(next.configuration.partition, catalog.store.root.next_lsn, 1, 1, .catalog_ddl, encoded[0 .. 40 + writer.end]);
+    try t.expectError(error.InvalidDirectCatalogTransition, catalog.recoverSince(known));
+    try t.expectError(error.CatalogRecoveryRequired, catalog.recoveryState());
     try t.expectError(error.InvalidDirectCatalogTransition, catalog.recover());
     try t.expectError(error.CatalogRecoveryRequired, catalog.status(create.binding, access.policy()));
     try t.expectEqual(next.next_lsn, try wal.log().tail(next.configuration.partition));

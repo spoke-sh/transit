@@ -30,6 +30,12 @@ extend history retention or survive known permission denial. Framework lenses
 interpret allowlisted Station/connector metadata and do not decode arbitrary
 private application values.
 
+Resource participation pages carry their own association observation cut. Worker
+progress can invalidate a continuation between pages. Board clears that page and
+reports the changed observation; use **Refresh participation** to start from a
+fresh cut. This action reads current associations and does not resume or replace
+a query. Pages from the two cuts cannot be combined.
+
 ## Private viewer boundary
 
 Everyone who can reach the deployment can inspect its configured shared scope.
@@ -52,6 +58,11 @@ precedes presenting a complete answer. **Follow changes** separately refreshes a
 eligible submitted query under its own budget. The [Live Table guide](../../../apps/transit-board/docs/reactive.md)
 describes scheduling, pause and recovery. Continuous SQL and speculative partial
 draft execution are unsupported.
+
+A finite query upload can contain several signed steps. If any step loses its
+reply, **Retry exact submission** recovers that step's saved request. A later step
+can require the same explicit action again. Status polling alone does not confirm
+an uncertain submission or authorize a replacement query.
 
 The optional application editor uses the shared compiler and neutral definition.
 Review the whole valid proposal and publish conditionally with the operator's

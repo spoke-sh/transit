@@ -1,0 +1,38 @@
+[
+  {
+    "lane": "experience",
+    "task": "transit-board::check",
+    "seconds": 84.22,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "transit-docs::check",
+    "seconds": 66.9,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "bindings::node-check",
+    "seconds": 13.92,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "test::observability",
+    "seconds": 19.15,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-logging",
+    "seconds": 282.92,
+    "exit_code": 0
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-direct-tables",
+    "seconds": 601.13,
+    "exit_code": 1
+  }
+]

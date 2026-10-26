@@ -1,0 +1,104 @@
+[
+  {
+    "lane": "bindings-1",
+    "task": "bindings::check",
+    "seconds": 124.11,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::native",
+    "seconds": 466.47,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::python-test",
+    "seconds": 1399.72,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::node-sdk-test",
+    "seconds": 852.21,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::logical-test",
+    "seconds": 50.91,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::rust-sdk-test",
+    "seconds": 618.62,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::ruby-sdk-test",
+    "seconds": 392.88,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::sdk-interop",
+    "seconds": 2052.06,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::authorization",
+    "seconds": 590.26,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "test::model",
+    "seconds": 13.31,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "test::wal-model",
+    "seconds": 12.66,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "test::model-delivery",
+    "seconds": 0.92,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "test::console-model",
+    "seconds": 26.43,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "test::sql-rewrites",
+    "seconds": 5.07,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "test::sql",
+    "seconds": 39.89,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::grpc-faults",
+    "seconds": 238.22,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::connector-preparation",
+    "seconds": 68.1,
+    "exit_code": 0
+  }
+]

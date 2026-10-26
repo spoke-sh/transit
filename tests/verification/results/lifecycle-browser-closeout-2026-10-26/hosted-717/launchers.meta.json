@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "revision": "2ed8ead0f51fb428bc48b306790a8dd2245c255e",
+  "tier": "launchers",
+  "expected_tasks": [
+    "test::build",
+    "launchers::local::test"
+  ],
+  "run_id": "40337023008",
+  "run_attempt": "1",
+  "machine": {
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+    "logical_cpus": 4,
+    "affinity": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "runner": "GitHub Actions 1000005891",
+    "runner_arch": "X64"
+  },
+  "completed": true,
+  "active_task": null,
+  "seconds": 699.8,
+  "checkpoint_unix": 1793024768.581684,
+  "result_count": 2
+}

@@ -1,0 +1,35 @@
+{
+  "revision": "adad2b189ac123e112c80bfa17c5e148f1b17f2d",
+  "result": "failed",
+  "cause": "First synthetic dropped reply was pre-dispatch429, not acceptance. Explicit recovery succeeds; later different upload step returns503 query.send_unknown/AuthorityTimeout. UI preserves exact pending token, requires another explicit recovery and keeps reporting uploading. Test waits for automatic completion and times out.",
+  "files": {
+    "network-summary.json": {
+      "bytes": 69313,
+      "sha256": "0c8326754becf6d6821b9834fd014fc49e8b3f3f0495f604b841baf4fe55adf7"
+    },
+    "trace.zip": {
+      "bytes": 13870651,
+      "sha256": "cbce2fc8b30caec02ddbe959f8128869ef19a82389a3764761c7903e52111d19"
+    },
+    "browser.json": {
+      "bytes": 233,
+      "sha256": "4e859d48a8801526aff8573890351574191eed60c838bb6e85c641f4b89e1ec3"
+    },
+    "browser.meta.json": {
+      "bytes": 1172,
+      "sha256": "5e8fd32053cd6c3422d5e1bd9bcc7890f2469bec290efe5b62ea061336fe3436"
+    },
+    "record.json": {
+      "bytes": 549,
+      "sha256": "51879729b7a692748c63bdb2a895f9967307959d8d0c9acd4a5eea426952f772"
+    },
+    "error-context.md.gz": {
+      "bytes": 4457,
+      "sha256": "46ecc93e105504471ed6c163de64dcc238e1cf63b35bb6bb36e081ca5b2ed475"
+    },
+    "clean.log.gz": {
+      "bytes": 7331,
+      "sha256": "4af42ab5b59e6c8683278ad20a04f5fb874900f0ba04180b0f9d45d289893922"
+    }
+  }
+}

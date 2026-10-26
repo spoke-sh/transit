@@ -74,6 +74,8 @@ Run `just test::reactive` for independent non-UI TLS peers,
 `just test::reactive-browser` for Chromium/WebCrypto and fetch SSE,
 `just test::reactive-limits` for held-stream capacity/cursor/expiry schedules,
 and `just test::reactive-descriptions` for pinned offline validators and drift.
+Native runs use an owned local-node directory; node replacement reopens its WAL
+and objects alongside replacement gateways and Station workers.
 `just test::reactive-placement compose` and `just test::reactive-placement reference`
 exercise physical recovery with the same independent peers. The
 [proof ledger](../../../tests/README.md#m20-qualification) records observed costs.

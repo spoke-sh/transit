@@ -1,0 +1,14 @@
+{
+  "mysql": {
+    "path": "/nix/store/07njh2nl70jwycn792fspfz29fw5c7gk-mysql-8.4.11/bin/mysql",
+    "version": "/nix/store/07njh2nl70jwycn792fspfz29fw5c7gk-mysql-8.4.11/bin/mysql  Ver 8.4.11 for Linux on x86_64 (Source distribution)"
+  },
+  "psql": {
+    "path": "/nix/store/flrwlz8saddhrcqy03csrxi28a3aa4bj-postgresql-18.6/bin/psql",
+    "version": "psql (PostgreSQL) 18.6"
+  },
+  "mysql_isolation_options": {
+    "exit_code": 0,
+    "help_advertises_no_login_paths": true
+  }
+}

@@ -5,6 +5,8 @@ import standalone from "ajv/dist/standalone/index.js";
 const schema = JSON.parse(readFileSync(new URL("./src/schema.json", import.meta.url), "utf8"));
 const ajv = new Ajv2020({
   allErrors: false,
+  // Callers consume booleans and their owned diagnostics, not AJV error prose.
+  messages: false,
   // Reuse referenced validators instead of duplicating them in every response.
   inlineRefs: false,
   code: { source: true, esm: true, lines: true },

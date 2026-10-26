@@ -56,9 +56,12 @@ can hold shared fences together. Short data commits can delay native publication
 this is a local serialization profile, not a distributed fencing protocol.
 
 The component tests compose this guard and quota adapter with `TablePartition`,
-including actual native revocation after segment staging. The node's public
-Table route and SQL integration remain separate work; exporting these components
-does not change installed Table callers.
+including actual native revocation after segment staging. The
+[node's public Table route](../../../apps/transit-node/README.md) uses this
+adapter for direct catalog and Table operations, and the
+[local SQL service](../../../docs/handbook/reference/sql.md) uses that same
+acceptance owner. Native resource turns and direct Table mutations retain
+separate commit boundaries.
 
 `Store.maintain` trims only an already accepted native history floor and keeps
 the latest entry. It does not collect immutable objects. Superseded and staged

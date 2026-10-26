@@ -131,10 +131,11 @@
             };
           ci-bindings = import ./nix/ci-bindings.nix {
             inherit pkgs;
-            inherit (toolchains.${system}) sql-tools minio;
+            inherit (toolchains.${system}) sql-tools;
             base = ci-experience;
           };
           ci-experience = import ./nix/ci-experience.nix {
+            inherit (toolchains.${system}) minio;
             inherit
               pkgs
               zig

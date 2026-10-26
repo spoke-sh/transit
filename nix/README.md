@@ -97,7 +97,7 @@ in place to change a running installation's selected artifacts. Continue with
 MinIO is built from the source of release `2025-09-07T16-13-09Z`, matching the
 existing fixture's release because the historical binary/image distribution is
 unavailable. [minio.nix](minio.nix) owns this shared source/hash definition. On Linux
-x86_64, the default and bindings CI shells include that same executable for owned
+x86_64, the default, experience and bindings CI shells include that same executable for owned
 disk/S3 fixtures; they no longer extract or start the unavailable historical image.
 `nix build .#minio` exposes the provider independently of the local bundle. The
 existing source, vendor hash and lockfile inputs are unchanged.
@@ -176,6 +176,12 @@ retain upstream behavior, and explicit dynamic-linker options remain authoritati
 macOS uses the upstream compiler directly. Zig links directly rather than through
 the C compiler wrapper, so both the loader and library paths must agree. Otherwise a
 host distribution's libc or loader can be incompatible with Nix shared libraries.
+
+The experience shell supplies the pinned PostgreSQL and MySQL CLIs used by its
+installed SQL authentication and recovery proofs. Both come from the existing
+locked nixpkgs input, matching the default shell; no lockfile revision changes.
+The lane does not depend on database clients preinstalled on the runner.
+
 The experience shell supplies the C toolchain and `pkg-config` for the CLI and
 SQL gateway's TLS/certificate code. These shell dependencies use the existing
 locked inputs; they do not change compiler or library versions. The offline
@@ -362,13 +368,18 @@ sequentially in the pinned bindings shell; `just check` uses the ordinary
 developer tools. [The task inventory](../tests/verification/suite.json) owns the
 exact checks in each lane.
 
-The experience lane uses `nix develop .#ci-experience`, a shell without provider
-or Kubernetes tools and without PyArrow. Its Python environment includes PyYAML
-and `jsonschema` for the Board query contract checks. The bindings shell's Python
-environment includes those same validators. Both use the existing locked nixpkgs
-input; no compiler, provider or lockfile revision changes are required.
-Its previously measured environment closure is
-1.2 GiB. Experience/launchers share one Nix cache, core/growth share another,
+The experience lane uses `nix develop .#ci-experience`, a shell with the native
+Ursula and MinIO fixtures but no Kubernetes/provider management tools. Its Python
+environment includes PyYAML and `jsonschema` for
+the Board query contract checks, and PyArrow for the Station launcher's independent
+typed-result inspection. The gRPC browser's independent peer uses `grpcio` and
+`protobuf`. On Linux x86_64, the HTTP and gRPC browser proofs use the shared
+source-pinned MinIO executable. The bindings shell inherits MinIO from this base
+and includes those same Python packages.
+Both use the existing locked nixpkgs input; no compiler, provider or lockfile
+revision changes are required. The previously measured 1.2 GiB environment
+closure predates the database clients, PyArrow, gRPC peer and MinIO; the current closure has not
+been measured. Experience/launchers share one Nix cache, core/growth share another,
 and bindings owns the third; each group has one writer. Successful preparation is rooted
 before collection, and a miss saves only the live closure. Small changes to the
 packaged inspection plugin or environment helper can rebuild without uploading
@@ -384,8 +395,8 @@ Those SDKs are cached only in the bindings cache group; these lanes install the 
 binding's workspace dependencies. This keeps new language qualification from
 expanding the other lanes or serializing their checks.
 
-The [hosted workflow](../.github/workflows/ci.yml) gives core and experience
-(including browser proofs) 60 minutes each, growth 300 minutes, and each bindings
+The [hosted workflow](../.github/workflows/ci.yml) gives core 90 minutes,
+experience (including browser proofs) 120 minutes, growth 300 minutes, and each bindings
 lane 360 minutes. Launchers have 30 minutes, or 45 for explicit cold calibration. These are
 finite failure limits, not measured feedback budgets. The earlier warm/cold
 budget records remain historical; a larger cap does not qualify a slower run or

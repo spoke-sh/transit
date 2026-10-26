@@ -18,6 +18,8 @@ pub const Config = struct {
 configuration: c.DirectCatalog.Configuration,
 registrar: @FieldType(Service, "registrar"),
 options: c.DirectCatalog.Options,
+recovery: c.DirectCatalog.RecoveryState,
+recovery_mutex: std.Io.Mutex = .init,
 directory: std.Io.RwLock = .init,
 tables: [64]std.Io.Mutex = @splat(.init),
 
@@ -36,7 +38,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
     // Validate retained configuration/history before listener readiness. This
     // does not initialize or execute an application's catalog declaration.
     try catalog.recover();
-    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options };
+    return .{ .configuration = config.catalog, .registrar = .{ .principal = config.registrar.principal, .key = key, .role = config.registrar.role }, .options = options, .recovery = try catalog.recoveryState() };
 }
 fn exclusive(action: w.Action) bool {
     return switch (action) {
@@ -79,6 +81,14 @@ pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, a
     const mutex = if (!write) if (target(request.action)) |object| &self.tables[@intCast(object % self.tables.len)] else null else null;
     if (mutex) |lock| try lock.lock(io);
     defer if (mutex) |lock| lock.unlock(io);
-    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = self.options };
+    try self.recovery_mutex.lock(io);
+    var recovered = self.recovery;
+    self.recovery_mutex.unlock(io);
+    defer {
+        self.recovery_mutex.lockUncancelable(io);
+        defer self.recovery_mutex.unlock(io);
+        if (recovered.root.next_lsn > self.recovery.root.next_lsn) self.recovery = recovered;
+    }
+    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = self.options, .recovery_state = &recovered };
     return service.execute(arena, request, output);
 }

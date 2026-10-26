@@ -39,9 +39,29 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
       name: `Authorized associations to resource ${process.env.BOARD_QUERY_RESOURCE}`,
     }),
   ).toBeVisible({ timeout: 15000 });
-  await expect(page.getByRole("button", { name: /^Next associations for PID/ })).toBeVisible();
-  await page.getByRole("button", { name: /^Next associations for PID/ }).click();
-  await expect(page.getByLabel("Resource participation")).toContainText("One selected PID.");
+  const participation = page.getByLabel("Resource participation");
+  const participationDeadline = Date.now() + 15000;
+  for (;;) {
+    expect(Date.now()).toBeLessThan(participationDeadline);
+    const next = page.getByRole("button", { name: /^Next associations for PID/ });
+    await expect(next).toBeVisible();
+    const pending = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith("/participation") && url.searchParams.has("pid");
+    });
+    await next.click();
+    const response = await pending;
+    if (response.status() === 200) break;
+    expect(response.status()).toBe(409);
+    expect((await response.json()).err).toBe("QueryExpired");
+    // Worker progress can invalidate this read-only observation between pages.
+    // Discard its rows and explicitly restart; never combine different cuts.
+    await expect(participation.getByRole("table")).toHaveCount(0);
+    await expect(participation).toContainText("inspection.observation_changed");
+    console.log("Board participation: stale continuation cleared; refreshing its observation");
+    await participation.getByRole("button", { name: "Refresh participation", exact: true }).click();
+  }
+  await expect(participation).toContainText("One selected PID.");
   execFileSync(process.env.BOARD_QUERY_PROOF!, [
     process.env.BOARD_QUERY_AUTHORITY!,
     "revoke-inspector-resource",
@@ -78,22 +98,81 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   await expect(draft).toHaveValue(sql);
   await page.getByRole("button", { name: "Canvas", exact: true }).click();
   expect(submissions).toBe(0);
-  let dropped = false;
-  const frozen: string[] = [];
+  const dropped = new Map<string, unknown>();
+  const recovered = new Set<string>();
+  let uncertain: string | null = null;
   await page.route("**/api/v1/query", async (route) => {
     const body = route.request().postDataJSON();
     if (body.submit) {
-      frozen.push(JSON.stringify(body));
-      if (!dropped) {
-        dropped = true;
-        await route.fetch();
+      const frozen = JSON.stringify(body);
+      if (uncertain !== null) expect(frozen).toBe(uncertain);
+      const response = await route.fetch();
+      if (response.status() === 429) {
+        // Preserve real pre-dispatch throttling; it is not an accepted reply.
+        await route.fulfill({ response });
+        return;
+      }
+      if (response.status() === 503) {
+        expect(await response.json()).toMatchObject({
+          err: "Unavailable",
+          diagnostic: { code: "query.send_unknown", outcome: "unknown", evidence: "saved_intent" },
+        });
+        uncertain = frozen;
+        await route.fulfill({ response });
+        return;
+      }
+      expect(response.status()).toBe(200);
+      const receipt: unknown = await response.json();
+      if (dropped.has(frozen)) {
+        expect(receipt).toEqual(dropped.get(frozen));
+        recovered.add(frozen);
+      } else if (dropped.size < 2) {
+        // Lose two distinct accepted upload steps, including one after the
+        // first explicit recovery. Each must retain its own exact request.
+        dropped.set(frozen, receipt);
+        uncertain = frozen;
         await route.abort("failed");
         return;
       }
+      uncertain = null;
+      await route.fulfill({ response });
+      return;
     }
     await route.continue();
   });
+  const retry = page.getByRole("button", { name: "Retry exact submission", exact: true });
+  const submissionDeadline = Date.now() + 120000;
+  const recoverUntil = async (complete: () => Promise<boolean>) => {
+    while (!(await complete())) {
+      const remaining = () => {
+        const value = submissionDeadline - Date.now();
+        expect(value).toBeGreaterThan(0);
+        return value;
+      };
+      await expect
+        .poll(
+          async () =>
+            (await complete()) ||
+            (uncertain !== null && (await retry.isVisible()) && (await retry.isEnabled())),
+          { timeout: remaining() },
+        )
+        .toBe(true);
+      if (await complete()) return;
+      const original = uncertain;
+      expect(original).not.toBeNull();
+      const sent = page.waitForRequest(
+        (request) =>
+          request.url().endsWith("/api/v1/query") &&
+          request.method() === "POST" &&
+          "submit" in request.postDataJSON(),
+        { timeout: remaining() },
+      );
+      await retry.click({ timeout: remaining() });
+      expect(JSON.stringify((await sent).postDataJSON())).toBe(original);
+    }
+  };
   await page.getByRole("button", { name: "Run query", exact: true }).click();
+  await recoverUntil(async () => dropped.size > 0);
   await expect(
     page.getByRole("button", { name: "Retry exact submission", exact: true }),
   ).toBeVisible();
@@ -110,9 +189,9 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   await expect(
     page.getByRole("button", { name: "Retry exact submission", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Retry exact submission", exact: true }).click();
-  expect(frozen[0]).toEqual(frozen[1]);
-  await expect(page.getByLabel("Verified query result")).toBeVisible({ timeout: 120000 });
+  await recoverUntil(() => page.getByLabel("Verified query result").isVisible());
+  expect(dropped.size).toBe(2);
+  expect(recovered.size).toBe(2);
   await expect(
     page.getByLabel("Verified query result").getByText("9007199254740994", { exact: true }),
   ).toBeVisible();

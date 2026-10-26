@@ -3057,6 +3057,184 @@ three-restart budget while reconciling an original activation grant. This is a
 failed 855.99-second task, not successful original-CREATE recovery or completion
 of the experience lane.
 
+The later public observation of that retained installation finds original
+CREATE 751 still `uploading`, with no outcome or visible Table. No SQL is
+resubmitted. This is incomplete intent publication, not accepted execution or a
+recovered successful CREATE. The [retained observation](verification/results/installed-sql-diagnostics-2026-10-26/final-create-observation.json)
+and controller identify the exact binary hashes and operations inspected.
+
+A fresh diagnostic installation using the same `e3dd9e68a` binaries passes the
+complete unchanged direct Table schedule in 205.84 seconds, including final
+name reuse. A native exec wrapper captures stderr; it changes the configured
+artifact path/hash for that fixture, but executes the same binary and PID.
+The heavy repository unit stage has finished before this run; this is not a
+matched load comparison or an explanation of the earlier failure. Successful
+fixture cleanup removes its native stderr file. The retained controller,
+binary hashes and final task log establish the observed pass. The normal hosted
+direct Table task also passes at the same Git tree, without that wrapper.
+
+After the Station task correction, full `just check` passes in 1,573.24 seconds.
+Its controller starts at `31b48b73e` with the task patch; the task/documentation
+commit `2f5018ad2` lands during the unit stage without changing runtime sources.
+The subsequent committed-HEAD clean launcher lane at `2f5018ad2` passes both
+tasks: build smoke in 48.54 seconds and local launchers in 442.23 seconds.
+The [validation record](verification/results/lifecycle-qualification-2026-10-26/post-168-validation.json)
+and separate launcher metadata retain those source boundaries. These are
+completed checks; the remaining combined lanes are still separate gates.
+
+## Installed SQL client selection — 2026-10-26
+
+The [retained controls and task records](verification/results/lifecycle-ci-clients-2026-10-26/report.json)
+identify an environment dependency in hosted run `40278906228`, at merge revision
+`e4b4955cb`. Nine experience tasks pass, including installed direct Table SQL,
+fault recovery, session lifetimes and the complete standalone SQL authentication
+schedule. The source-bundle local SQL task then fails before its first MySQL
+connection: the runner-selected executable rejects `--no-login-paths`.
+The experience shell had supplied neither database CLI; locally, that original
+shell reports `mysql: command not found`.
+
+The corrected shell supplies PostgreSQL 18.6 and MySQL 8.4.11 from the existing
+locked nixpkgs input, matching the default developer shell. Both selected paths
+are in the Nix store, and MySQL accepts the existing `--no-defaults
+--no-login-paths` isolation options. No compiler/library pin or lockfile changes.
+`just doctor` passes. At `2f5018ad2` plus the shell change,
+`nix develop .#ci-experience --command just test::server-sql-local` passes the
+complete installed source-bundle schedule in 293.93 seconds: initial owner
+bootstrap, shared data through both real CLIs, optional and required TLS,
+plaintext refusal, revoked-login persistence, and exact recovery after an
+accepted owner binding loses its reply and the process is killed.
+
+The workload, deadlines and assertions are unchanged. This focused pass does
+not complete the failed hosted lane or qualify its unexecuted later tasks.
+
+## Installed lifecycle follow-up and Station CI dependency — 2026-10-26
+
+The [retained records](verification/results/lifecycle-post168-2026-10-26/report.json)
+include a further full `just check` pass after the database-client correction.
+Committed-checkout experience at `0582556e3` passes nine tasks, then fails an
+UPDATE in local SQL authentication. Public signed inspection after restarting
+that same installation finds original operation 194 still `uploading` and
+dispatch-ineligible, with no terminal outcome. SQL is not resubmitted. This is
+incomplete publication, not accepted execution or successful UPDATE recovery.
+
+A fresh diagnostic using the same binaries and explicit exec wrappers loses a
+CREATE connection after `native.append` reports `Canceled` and the WAL requires
+recovery. The retained native/gateway stderr identifies that sequence, but not
+the cancelled I/O stage or its environmental cause. A subsequent full diagnostic
+passes local authentication and accepted-owner bootstrap recovery with a node
+rebuilt to label WAL I/O failures; none occurs. Its patch and changed binary
+hash are retained. Neither diagnostic is an installed-adjacency qualification;
+no diagnostic instrumentation or recovery-gate change ships in the runtime.
+
+Hosted run `40285606874`, at merge revision `c19beb45e`, passes the first twelve
+experience tasks, including the complete source-bundle SQL schedule (636.39
+seconds) and Board query recovery. Its final Station launcher task fails at
+import because the experience shell lacks PyArrow. The shell now supplies
+PyArrow 23.0.0 from the existing locked nixpkgs input. At `0a0f46ec5` plus that
+shell/documentation patch, `nix develop .#ci-experience --command just
+launchers::local::test-station` passes registry/call/Arrow exchange, worker
+recovery and upgrades, Board provenance, and persistent stop/start. Injected
+read refusals cause one courier replacement in 30.381 seconds and query completion
+in 16.581 seconds, within the unchanged separate 60-second deadlines. Doctor,
+Nix formatting and imports pass; compiler/package pins and lockfiles are unchanged.
+
+Hosted bindings-2 also completes all five Go/C/C++/Java/.NET/BEAM tasks at
+`e4b4955cb` (4,226.22 seconds) and `289e42b40` (2,726.58 seconds). Both use the
+current shared definition; BEAM includes Erlang and Elixir. Their exact task
+inventories and metadata are retained. These completed SDK lanes and focused
+Station pass do not complete the failed experience lanes or the remaining
+combined qualification.
+
+## Catalog prefix reuse — 2026-10-26
+
+The [retained records](verification/results/catalog-prefix-2026-10-26/report.json)
+include source-patch attribution, task logs and the failed hosted baseline.
+Hosted run `40278906228` passes nineteen growth tasks at `e4b4955cb`, then
+`test::catalog` fails when its 139-resource writer reaches the unchanged
+5,400-second deadline. Progress reaches resource 129; later resource operations
+take about nine to ten seconds and load thousands of pages. The request owner
+constructs a new catalog and replays its entire history for every request.
+The failed lane does not qualify the remaining tasks.
+
+At `14c7175e3` plus the catalog-prefix change, the pinned compiler's catalog
+command `zig build test -Dtest-filter='direct catalog recovery'` passes six
+tests. A disk-backed schedule uses one resident index page and nineteen catalog
+records. Full recovery makes 28 log reads including referenced operations;
+reuse makes one boundary read after destroying the original request allocator.
+An accepted append with a lost acknowledgement forbids exporting newer state;
+recovery from the old prefix reads the boundary and new record, preserves the
+original admission and makes its exact retry append nothing. A replacement
+performs full recovery and observes the same state.
+
+Negative cases reject a changed root/hash/configuration, shortened history,
+missing current index root and a terminal operation reopened by an invalid
+successor. `just test::local-catalog` also passes the signed disk-backed native
+composition with prefix reuse, including credential changes and revocation after
+response buffering. The complete catalog package passes **75/75** Debug tests
+(five minutes, reported MaxRSS 53 MiB). `just test::node-concurrency` passes
+overlapping provider reads and signed commits, current revocation and concurrent
+exact retries with one receipt. The unchanged `just test::direct-table-service
+resource-growth` completes in **926.14 seconds**, including local compilation.
+It provisions and initializes 139 native KV/Document objects, reads every typed
+value before and after SIGKILL/restart, traverses eight-entry directory pages and
+recovers the original first receipt through 1,437 typed catalog calls. Native
+and catalog cache budgets, workload and phase deadlines are unchanged.
+
+These checks establish selected recovery and authorization cases and a count of
+catalog log API reads. The local and hosted runs have different machines and
+build/cache conditions; their elapsed times are not a matched speedup measurement.
+They do not measure physical I/O, qualify initial recovery performance, or make
+the failed hosted lane a pass.
+The mechanism assumes immutable accepted history within one exclusive live
+owner; it adds no persisted format, checkpoint, grant cache or collection right.
+The first repository check rejects stale diagnostic inventory after adding the
+internal recovery methods. The regenerated inventory retains the existing error
+names and public mappings; the complete check and clean qualification remain
+pending at this checkpoint.
+
+## Installed lifecycle qualification after CI prerequisites — 2026-10-26
+
+The same [evidence bundle](verification/results/catalog-prefix-2026-10-26/report.json)
+retains completed hosted core at `c19beb45e`: all 28 tasks in 3,537.72 seconds
+under the revised outer cap. Bindings-1 at `e4b4955cb` completes all seventeen
+tasks in 6,951.89 seconds with the current shared definition. Together with the
+separately recorded bindings-2 pass at that revision, all SDK tasks complete.
+These source-attributed passes predate the catalog-prefix implementation.
+
+At committed `14c7175e3`, full `just check` passes in 249.15 seconds. Clean
+experience passes seven tasks, then its lifetime fixture's initial INSERT
+reports `SqlOutcomeUnknown`. Public signed status after restarting that same
+installation finds original operation 98 `uploading`, dispatch-ineligible and
+without a terminal outcome. SQL is not resubmitted. A same-binary diagnostic
+with explicit exec wrappers passes all lifetime phases in 168.26 seconds; the
+normal owning task then passes in the corrected CI shell without wrappers.
+Neither establishes the failed clean run's cause or turns it into a pass.
+
+Hosted run `40293594898`, merge revision `b22d9a03b`, completes all thirteen
+experience tasks in 2,327.25 seconds, including installed SQL authentication,
+lifetime/recovery, Board queries and the Station launcher. The subsequent
+Chromium schedule passes four of five tests, then rejects the query JavaScript
+asset at **913,584 bytes** against the unchanged **900,000-byte** bound. Its
+trace and page context remain in artifact `12639750899`; task metadata and the
+job log are retained here. The combined experience/browser job has failed and
+does not establish final qualification.
+
+## Hosted core execution cap — 2026-10-26
+
+Hosted run `40278906228` reaches the former 60-minute core job cap at revision
+`e4b4955cb`. Its first 23 of 28 owning tasks pass, including the full repository
+core check (1,466.82 seconds), Station (312.77 seconds), storage, service and
+native authorization. Their task sum is 3,275.81 seconds (54.60 minutes), before
+job setup and the interrupted Table authorization build. The retained
+[task and completion records](verification/results/lifecycle-qualification-2026-10-26/report.json)
+identify `test::authorization-tables` as active when GitHub cancels the job.
+No failure assertion precedes that cancellation; the containing lane is incomplete.
+
+The core job cap is now 90 minutes so the remaining inventory can run. This
+changes the outer workflow budget only; task-local deadlines, workloads,
+assertions and feedback-budget measurements are unchanged. The interrupted
+run provides a lower bound, not a completed duration or a pass under the new cap.
+
 ## Station node build profile — 2026-10-26
 
 The [retained control](verification/results/station-node-profile-2026-10-26/report.json)
@@ -4358,7 +4536,11 @@ installations:
   With idle expiry disabled, incomplete wire frames, partial TLS records and
   application bytes already buffered by TLS close under a one-second frame bound.
   The fixture verifies unchanged child PIDs during each scenario and joins them
-  during teardown.
+  during teardown. Its piped psql client stops on SQL errors and includes SQLSTATE
+  in stderr; an error cannot silently become a wait for a nonexistent row.
+  Failures retain the current phase, query, exit status and bounded stderr tails
+  in `.cache/verification/server-sql-lifetimes-failure.json`, included in CI
+  artifacts. Configuration and native session credentials are excluded.
 - `just test::server-logging`: four held native request bodies exhaust data
   admission. SQL status reports `busy` and `HttpCapacity` at warning level,
   withholds confirmed readiness, preserves child PIDs and emits no repeated
@@ -12973,6 +13155,39 @@ unit tests inject final-tail and trim races, test bounded sparse scans, and veri
 that scoped outbox/history projections do not disclose hidden endpoints.
 
 ## Board qualification
+
+### Compact standalone validator output — 2026-10-26
+
+Hosted run `40293594898` completes all thirteen experience tasks, then its
+embedded browser test rejects a query chunk of 913,584 bytes against the
+existing 900,000-byte limit. The failed baseline is retained in the
+[lifecycle evidence](verification/results/catalog-prefix-2026-10-26/report.json).
+All five standalone-validator generators now omit AJV error-message prose.
+Their declared API returns boolean validity; client failure codes and Transit
+diagnostic payloads remain separately owned. Public schemas, generated type
+declarations, validation rules, asset groups and proof bounds are unchanged.
+
+At `d41217807` plus that generator change, the pinned build reports query
+831.65 kB, inspection 820.55 kB, application 736.91 kB, entry 416.91 kB and
+bundler runtime 0.58 kB. These are rounded uncompressed build sizes, not a
+transfer-latency measurement. Vite's separate 500 kB advisory remains enabled.
+The [retained record](verification/results/board-validator-output-2026-10-26/report.json)
+includes source-patch attribution and the unmodified browser workload.
+
+Six schema-equivalence tests compare the generated configuration against
+ordinary AJV validation on positive/negative values, Unicode, unions, required
+fields and reference scopes. `just transit-board::browser` passes both the
+five-test inspection suite and the direct relational worksheet test in 291.02
+seconds including builds. The former checks actual HTTP module responses and
+the unchanged five-script/900,000-byte bounds. The latter completes 504 public
+requests covering original-pin cleanup, node/Board replacement, cached and
+terminal current denial, private origins and explicit cleanup. Real Zig
+responses pass generated validation; malformed identities, values and lossy
+integers reject. Full `just check` also passes with the catalog-prefix and
+generated-validator changes, including regenerated contracts, diagnostic
+mappings, Zig tests, frontend checks and the documentation build. The final
+evidence links pass the documentation checker. Committed-HEAD clean-checkout
+qualification remains a separate gate.
 
 ### Embedded asset splitting — 2026-10-04
 
@@ -27852,3 +28067,152 @@ A separate installed trace records a cancelled native append followed by
 cancelled syscall, so it does not establish that this particular cancellation
 preceded mutation. Installed SQL and complete clean-lane qualification remain
 separate obligations.
+
+## Installed Table qualification and original outcomes — 2026-10-26
+
+Committed-HEAD `nix develop --command just ci-clean --lane experience` at
+`e550f4ed54ec4cd9a1c40cb4c568a64752861a16` passes five tasks, then fails
+`test::server-direct-tables`: its post-restart DELETE/DROP batch exceeds the
+unchanged 300-second console deadline during native authority unavailability
+and node replacement. The [retained evidence](verification/results/installed-table-closeout-2026-10-26/report.json)
+includes the failed lane, manager logs and signed public inspection after
+restarting the original installation with unchanged binaries. DELETE operation
+647 is terminal and applied with one matched/changed row. Subsequent operation
+695 remains uploading, dispatch-ineligible and without a terminal outcome.
+The observation submits no replacement SQL, execution or cancellation.
+
+Two fresh diagnostic installations pass the complete unchanged Table workload,
+including CRUD/DDL, namespace lifecycle, stale preparation, RESTRICT, abrupt
+restart and name reuse. The first uses the original binary bytes and completes
+in 656.65 seconds. The second uses a node rebuilt with temporary WAL I/O failure
+labels and completes in 508.48 seconds. Both retain node/gateway stderr through
+explicit exec wrappers; their changed artifact paths make them diagnostics,
+not installed-adjacency qualification. The source patch, binary hashes, scripts
+and complete captures are retained. The branch's WAL source is unchanged.
+
+Both captures contain deadline interruptions followed by continued native
+progress, without `WalRecoveryRequired`. The tracing run produces no WAL I/O
+failure label. These observations do not establish the original failure's exact
+stage or cause, nor turn the failed clean lane into a pass. Timings are single
+observations on a shared host, not latency measurements under matched conditions.
+Final-candidate combined qualification remains open.
+
+## Browser prerequisites and native reactive cutover — 2026-10-26
+
+The runtime candidate at PR head `e550f4ed5`, tested as merge `d423d50fe` in
+[hosted run 40304759291](https://github.com/spoke-sh/transit/actions/runs/40304759291),
+completes core (28 tasks, 3,454.32 seconds), launchers (2, 696.03), experience
+(13, 1,791.31), bindings-1 (17, 7,077.89), and bindings-2 (5, 4,544.12).
+The SDK lanes include Python, Node, Rust, Ruby, Go, C/C++, Java, .NET, Erlang/Elixir,
+shared native/port, interoperability, authorization and recovery checks. The first two browser tasks also pass. The combined
+experience/browser job fails when the HTTP task cannot find MinIO, before its
+workload executes. Growth subsequently completes all 39 tasks in 11,119.35
+seconds; its downloaded artifact and raw job log are retained in the same bundle.
+
+Commit `0496e0411` supplies the already pinned MinIO derivation and the Python
+gRPC/protobuf peer dependencies to the shared CI experience shell. There is no
+lockfile or upstream-version change. Doctor, experience/bindings shell selection
+and the complete HTTP and gRPC browser/worker tasks pass; the latter tasks take
+1,050.41 and 634.38 seconds, including compilation. These are separate local
+observations, not a combined hosted job duration. The experience/browser outer
+cap is 120 minutes in `6ee9e0583`; individual proof budgets remain unchanged.
+
+The independent reactive fixture still called an external store's stop/start
+methods after switching to native local persistence. Commit `db7d50165` reopens
+the same node-owned WAL/object directory. Reprovisioning native process rights
+retires the original private role, so the fixture first proves source denial,
+then explicitly restores database CONNECT, schema USAGE and Table SELECT to
+the new role. Chromium independently signs the current subject-proof envelope
+with its observed credential epoch and explicit command role. The complete
+protocol/browser task passes in 33.56 seconds and live views in 300.91 seconds.
+Intermediate fixture failures remain in the bundle, including an incorrectly
+scoped diagnostic read and the superseded browser envelope.
+
+The first shared-tab lifecycle attempt fails during offline recovery with
+capacity refusals and expiry while the full repository check also runs. An
+isolated control passes recovery, reload/closure, rotation and reset, then fails
+the retirement diagnostic assertion: protected rows clear, but current denial
+after native admission preserves the original pending receipt. That result is
+not a rejected control. Commit `ed5491ada` checks both admission orderings and
+requires pending-receipt recovery to remain available with replacement Follow
+disabled. The complete focused lifecycle schedule passes in 226.97 seconds,
+including compilation. Neither pass establishes the earlier capacity failure's
+cause. Runtime authority, session limits and deadlines are unchanged.
+
+Full `just check` passes at `6ee9e0583`; Board formatting/lint checks pass after
+the test-only correction. Committed-HEAD clean launchers at `61a3a5e79` passes
+in 567.84 seconds. Clean browser at `ed5491ada` passes embedded Board in
+392.66 seconds, then fails query-browser in 190.01 seconds after its protocol and
+injected-recovery checks. The UI correctly clears an association continuation
+on `QueryExpired`; the test assumed the observation cut stayed current while
+workers advanced it. The corrective browser schedule verifies that exact conflict,
+uses the existing explicit **Refresh participation** action, and still requires
+a successful single-PID page before continuing. Other errors remain failures.
+The corrected full task passes in 291.33 seconds and executes the stale-cut
+recovery branch before the original query, exact-submission, revocation and
+source-retirement assertions. Runtime inspection and the overall proof deadlines
+are unchanged. A new complete clean browser lane remains required. Earlier
+queued browser controllers did not execute after focused failures. One isolated
+attempt stopped before testing on a missing cached Nix derivation. Subsequent
+local commands inherit `eval-cache = false` through nested shells without
+changing source or pins.
+
+The [source-attributed records, failed controls and hashed raw logs](verification/results/lifecycle-browser-closeout-2026-10-26/report.json)
+retain task exit codes, source patches and downloaded hosted artifacts. Earlier
+[installed SQL failures](#installed-table-qualification-and-original-outcomes--2026-10-26)
+remain separate failures; subsequent diagnostics and hosted passes do not
+identify their historical causes. Final combined qualification and acceptance
+reconciliation remain open.
+
+
+## Explicit recovery of each query upload step — 2026-10-26
+
+The clean browser run at `adad2b189` passes both Board tasks, then fails HTTP
+when MinIO refuses cold puts with `XMinioStorageFull`. Ursula reaches its unchanged
+8 MiB hot-data bound, and the worker retains `AuthorityOutcomeUnknown`. Five
+inactive compiler caches are archived losslessly and verified before their
+unpacked copies are removed. Source, proof records and original uncertain SQL
+installations remain intact; no MinIO guard or runtime recovery rule changes.
+
+The next clean run begins with 44,964,306,944 free bytes. Embedded Board passes
+in 422.06 seconds; query-browser fails in 415.61 seconds. Its trace shows the
+first synthetic dropped response was pre-dispatch HTTP 429. Explicit retry then
+accepts that step, but a later upload step returns HTTP 503 with
+`query.send_unknown` and `AuthorityTimeout`. Board retains that exact signed
+request, requires another explicit recovery action and reports incomplete upload.
+The test instead waits for automatic completion and exceeds its result deadline.
+
+The corrected schedule drops two distinct successful upload replies, checks
+identical saved request bytes and receipts on recovery, and uses the visible
+explicit recovery action for each classified unknown step. It preserves real
+throttling responses and fails on other submission errors. Both recoveries share
+the existing 120-second window; the whole browser test remains bounded to
+180 seconds. The complete focused task passes in 300.31 seconds, including
+compilation, stale participation refresh, query verification, navigation, current
+revocation and source retirement. Production runtime code is unchanged.
+
+The [failure trace, HTTP timeline, source patch and focused result](verification/results/lifecycle-browser-closeout-2026-10-26/report.json)
+retain exact attribution to `adad2b189` plus patch SHA-256
+`1efaf42711164d55369c187dfb48b555d48ddc23b40d963d2f9a6d489b2b23c1`.
+Frontend checks and all 6,354 documentation links pass. Hosted growth is now
+complete, but another full committed clean browser lane and the final acceptance
+review still gate lifecycle closure.
+
+## SQL lifetime failure reporting — 2026-10-26
+
+Follow-up hosted run [40337023008](https://github.com/spoke-sh/transit/actions/runs/40337023008)
+tests head `717f55793` at merge `2ed8ead0f`. Launchers completes 2/2 tasks in
+699.80 seconds. Experience completes its first seven tasks, then fails
+`test::server-sql-lifetimes` after 46.10 seconds. The first psql
+`SELECT value FROM items` yields no stdout row within 30 seconds after the
+console reports an applied INSERT. The fixture did not capture psql stderr in
+the failure or upload the retained installation, so the reason is unknown.
+The [artifact and job log](verification/results/lifecycle-browser-closeout-2026-10-26/hosted-717/report.json)
+retain the failure; subsequent tasks did not execute.
+
+The fixture now starts psql with `ON_ERROR_STOP=1` and verbose SQLSTATE reporting,
+includes bounded stderr in EOF/deadline failures, and publishes a bounded JSON
+failure report with the active phase and manager stderr. This makes a SQL error
+observable without mislabelling it as an unanswered query. It adds no retry and
+keeps the original 30-second response deadline. This diagnostic correction does
+not identify the historical cause or establish a runtime fix.

@@ -119,6 +119,8 @@ class Local(Client):
 
 
 def run(cli, node, host, board, gateway):
+    report = Path('.cache/verification/server-sql-lifetimes-failure.json')
+    report.unlink(missing_ok=True)
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(board)
     os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(gateway)
@@ -131,6 +133,21 @@ def run(cli, node, host, board, gateway):
         accounts=[dict(name='owner', role='local_owner', authentication='trust', bootstrap_owner=True)])
     peers, native, console, psql = [], None, None, None
     success = False
+    phase = 'default idle and native lease'
+    query_in_flight = None
+
+    def tail(path, limit=65536):
+        try:
+            with path.open('rb') as source:
+                size = source.seek(0, os.SEEK_END)
+                source.seek(max(0, size - limit))
+                return dict(bytes=size, truncated=size > limit, text=source.read(limit).decode(errors='replace'))
+        except FileNotFoundError:
+            return None
+
+    def psql_evidence():
+        return dict(query=query_in_flight, returncode=psql.poll() if psql else None,
+                    stderr=tail(fixture.root / 'psql.stderr'))
 
     def start():
         fixture.path.write_text(json.dumps(fixture.config))
@@ -148,10 +165,13 @@ def run(cli, node, host, board, gateway):
             peers.pop().close()
 
     def pg_query(query):
+        nonlocal query_in_flight
+        query_in_flight = query
         psql.stdin.write((query + ';\n').encode()); psql.stdin.flush()
-        assert select.select([psql.stdout], [], [], 30)[0], 'psql response deadline'
+        assert select.select([psql.stdout], [], [], 30)[0], ('psql response deadline', psql_evidence())
         row = psql.stdout.readline()
-        assert row, (psql.poll(), (fixture.root/'psql.stderr').read_text())
+        assert row, ('psql exited before a result', psql_evidence())
+        query_in_flight = None
         return row.strip()
 
     print(f'SQL lifetime proof: {fixture.root}', flush=True)
@@ -163,7 +183,10 @@ def run(cli, node, host, board, gateway):
         assert result['completion']['outcome'] == 'applied', result
         pg_port = str(fixture.config['sql']['postgres']['port'])
         with (fixture.root/'psql.stderr').open('wb') as log:
-            psql = subprocess.Popen(['psql', '-XqAt', '-h', '127.0.0.1', '-p', pg_port, '-U', 'owner', '-d', 'transit'],
+            # An SQL error must close the noninteractive client and expose its
+            # stderr, rather than leave us waiting for a row that cannot arrive.
+            psql = subprocess.Popen(['psql', '-XqAt', '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=verbose',
+                '-h', '127.0.0.1', '-p', pg_port, '-U', 'owner', '-d', 'transit'],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, env=os.environ | {'PGSSLMODE': 'disable'})
             assert pg_query('SELECT value FROM items') == b'100'
             assert pg_query('SHOW sql.idle_ms') == b'0'
@@ -182,6 +205,7 @@ def run(cli, node, host, board, gateway):
         fixture.stop()
         print('Default idle psql, PG/MySQL plaintext/TLS sockets survive 32 seconds; native lease expires independently.', flush=True)
 
+        phase = 'configured wire idle expiry'
         fixture.config['sql'].update(idle_ms=1000, native={'session_lease_ms': 30000})
         pids = start(); connect()
         native = Local(fixture).open()
@@ -199,6 +223,7 @@ def run(cli, node, host, board, gateway):
         close(); fixture.stop()
         print('Configured idle expiry returns explicit protocol errors and does not expire a native HTTP session.', flush=True)
 
+        phase = 'partial wire and TLS frames'
         fixture.config['sql'].update(idle_ms=0, command_ms=1000)
         pids = start(); connect()
         for i, peer in enumerate(peers):
@@ -228,6 +253,18 @@ def run(cli, node, host, board, gateway):
         close(); fixture.stop()
         success = True
         print('Partial PostgreSQL/MySQL frames and TLS records retain finite deadlines with idle expiry disabled.', flush=True)
+    except Exception as failure:
+        # CI uploads verification JSON, while temporary installations disappear
+        # with the runner. Keep bounded diagnostics, never configuration files
+        # containing signing keys or native session credentials.
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text(json.dumps(dict(
+            phase=phase, failure=repr(failure), fixture=str(fixture.root),
+            psql=psql_evidence(),
+            manager_logs={Path(log.name).name: tail(Path(log.name)) for log in fixture.logs},
+        ), indent=2) + '\n')
+        print(f'Lifetime failure diagnostics: {report.resolve()}', file=sys.stderr, flush=True)
+        raise
     finally:
         close()
         if native:

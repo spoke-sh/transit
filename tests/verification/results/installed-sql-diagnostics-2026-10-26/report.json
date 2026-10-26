@@ -42,5 +42,32 @@
         "bytes": 5348
       }
     }
+  },
+  "final_create_observation": {
+    "record": "final-create-observation.json",
+    "result": "original operation 751 remains uploading, not blocked, no outcome and no visible Table after restart; no SQL resubmission",
+    "limitations": "Incomplete publication is not accepted execution. This observation does not establish the cause of the earlier supervisor failure."
+  },
+  "full_diagnostic": {
+    "record": "full-diagnostic.json",
+    "result": "complete unchanged installed direct Table schedule passes in 205.84 seconds",
+    "source": "e3dd9e68a5bb777169bbbb4835ee201f7f0a77d8",
+    "method": "An exec wrapper captures native stderr and executes the same native binary/PID in a fresh installation after the heavy unit stage finishes. No workload, deadlines, authority or recovery assertions changed.",
+    "limits": [
+      "The configured artifact path/hash is the wrapper for this fresh fixture; this diagnostic is not an unmodified packaging proof or a controlled load benchmark. The normal hosted task also passes at the same Git tree.",
+      "Successful fixture cleanup removed native.stderr and the temporary installation. Only the final task log, binary hashes, controller and outcome record are retained."
+    ]
+  },
+  "post_168_logs": {
+    "final-create-observation": {
+      "file": "final-create-observation.log.gz",
+      "sha256": "c26ab279c3366b8eaab449566d049a6113fd8e65d32d68d797e9858911b99763",
+      "gzip_sha256": "fd1e0f746654d7d710ff81ce9d5025150d2d9fce189d327d450fb44159961510"
+    },
+    "full-diagnostic": {
+      "file": "full-diagnostic.log.gz",
+      "sha256": "4d78a7412f2bc5cc96032a899c8557e62b68473e5fbf8a8c503e7443883a0962",
+      "gzip_sha256": "78c35f4c0b1acd225d5bebaff62a7cca2577ccd4dbddc274df07387e15c4c67b"
+    }
   }
 }

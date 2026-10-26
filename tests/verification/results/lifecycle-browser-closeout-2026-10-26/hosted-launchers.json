@@ -1,0 +1,14 @@
+[
+  {
+    "lane": "launchers",
+    "task": "test::build",
+    "seconds": 298.27,
+    "exit_code": 0
+  },
+  {
+    "lane": "launchers",
+    "task": "launchers::local::test",
+    "seconds": 397.76,
+    "exit_code": 0
+  }
+]

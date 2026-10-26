@@ -1,0 +1,19 @@
+{
+  "revision": "6ee9e058365e74c9f1121d5c8cd74e7e7be98d25",
+  "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "started": "2026-10-26T11:53:10.505079+00:00",
+  "complete": false,
+  "tasks": [
+    {
+      "task": "test::reactive-views-lifecycle",
+      "seconds": 223.16,
+      "exit_code": 1,
+      "log": "/var/tmp/transit-lifecycle-view-lifecycle-isolated-eval-0.log"
+    }
+  ],
+  "environment_override": {
+    "NIX_CONFIG_append": "eval-cache = false"
+  },
+  "active_task": null,
+  "finished": "2026-10-26T11:56:53.668956+00:00"
+}

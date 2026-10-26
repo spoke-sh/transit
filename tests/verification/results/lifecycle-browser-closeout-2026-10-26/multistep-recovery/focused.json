@@ -1,0 +1,22 @@
+{
+  "revision": "adad2b189ac123e112c80bfa17c5e148f1b17f2d",
+  "patch_sha256": "1efaf42711164d55369c187dfb48b555d48ddc23b40d963d2f9a6d489b2b23c1",
+  "started": "2026-10-26T14:01:15.335707+00:00",
+  "command": [
+    "nix",
+    "develop",
+    "--option",
+    "eval-cache",
+    "false",
+    "--command",
+    "just",
+    "transit-board::query-browser"
+  ],
+  "environment_override": {
+    "NIX_CONFIG_append": "eval-cache = false"
+  },
+  "status": "passed",
+  "exit_code": 0,
+  "seconds": 300.31,
+  "finished": "2026-10-26T14:06:15.645615+00:00"
+}

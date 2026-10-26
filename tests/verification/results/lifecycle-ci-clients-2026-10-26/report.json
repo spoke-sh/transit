@@ -1,0 +1,63 @@
+{
+  "change": "Supply PostgreSQL 18 and MySQL 8.4 from the existing locked nixpkgs input in ci-experience; no pin or lockfile change.",
+  "source_base": "2f5018ad2db7d8f4c156670e0bbdf03069a02ac6",
+  "source_patch": [
+    "nix/ci-experience.nix",
+    "nix/README.md"
+  ],
+  "merged_base": "310a3f25e948d3e2bf1192aabcd932312b269b7d",
+  "base_tree_equivalence": "c9f71c3d094d9ce9100f44585ac1f636f6e37374",
+  "hosted_failure": {
+    "run_url": "https://github.com/spoke-sh/transit/actions/runs/40278906228",
+    "job_id": 121427812941,
+    "revision": "e4b4955cbc24dc6a0c86b66f31ae66ebb9e2ae5c",
+    "artifact_id": 12633147358,
+    "artifact_sha256": "da632a174d43d3d4ff595ef6486f593809b52fe7aa70fc305cbe98e60ded8e3a",
+    "passed_tasks": 9,
+    "failure": "runner-selected mysql rejects --no-login-paths before its first connection in test::server-sql-local",
+    "lane_complete": false
+  },
+  "controls": {
+    "unmodified_ci_shell": "mysql not found locally; the hosted shell had selected an ambient executable",
+    "corrected_ci_shell": "Both executables resolve under /nix/store; pinned mysql 8.4.11 accepts --no-defaults --no-login-paths --help",
+    "doctor": "passed",
+    "installed_local_sql": "complete owning task passes, exit 0; see installed-local-sql.json"
+  },
+  "logs": {
+    "doctor": {
+      "file": "doctor.log.gz",
+      "bytes": 2888,
+      "sha256": "01877d834524f8ca53b2e99c1eff127ed4cd17d425298a88e491498d2f10b04c",
+      "gzip_sha256": "df49fc75c29e8cc58ff54fd8f14aa68767aca3dff3f6b28ba057356b57a1f71d"
+    },
+    "installed-local-sql": {
+      "file": "installed-local-sql.log.gz",
+      "bytes": 3499,
+      "sha256": "3a67e2f49456abf580b826454429afde458962c09a91850a13da1bb80e36e7df",
+      "gzip_sha256": "dae17fc7429f292e3bcee7e9a3115a5e0d2c8822e1c14f32b6e5455e1059601b"
+    },
+    "hosted-experience": {
+      "file": "hosted-experience.log.gz",
+      "bytes": 130435,
+      "sha256": "2cf3921db0db201b3a1a1f14c3edb035cf6b44bbe7d62ab1fb12008513f8a706",
+      "gzip_sha256": "48fc9a35066e9250c8ce8016ccee71e4fe21ac205e11fc0d8e48469bf5e03ccf"
+    },
+    "missing-ci-client": {
+      "file": "missing-ci-client.log.gz",
+      "bytes": 39,
+      "sha256": "e7875c7271c02724dad49cfc3c585042c0b02fc92afbb14521ce7c83b98da7a3",
+      "gzip_sha256": "89a23fc6cbea01ed369ceff1bb4c29f1c17e2f4d2e142d20d29677883a866655"
+    },
+    "pinned-mysql-options": {
+      "file": "pinned-mysql-options.log.gz",
+      "bytes": 17865,
+      "sha256": "5a765b0d08377c6353875db1faf26d25fd82a5d5c5260cca049c116718a04dc6",
+      "gzip_sha256": "2ecc9824f2481854b07fe892862b914cee2f796a0090f7c9d061e11a63b022a7"
+    }
+  },
+  "limits": [
+    "The hosted experience lane failed after nine passing tasks; its remaining tasks and browser did not run.",
+    "The focused local task does not replace full clean lane qualification.",
+    "No workload, authority assertion, deadline, or credential isolation option changed."
+  ]
+}

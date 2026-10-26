@@ -204,6 +204,84 @@ launcher lane passes at `e4b4955cb`, whose Git tree is identical to merged
 combined qualification and acceptance reconciliation remain open. #108 and
 this milestone remain In Progress.
 
+PR #168 is merged as `310a3f25e`. The full repository check and committed-HEAD
+clean launcher lane now pass; the [qualification record](../../tests/README.md#installed-lifecycle-qualification-checkpoint--2026-10-26)
+retains their exact sources. Original CREATE 751 remains incomplete publication
+after public inspection; it is not resubmitted or reported as applied. A fresh
+full direct Table diagnostic passes with the same binaries. The normal hosted
+task also passes at the identical source tree.
+
+Hosted experience then passes all nine tasks through standalone SQL authentication,
+but its installed source-bundle SQL task fails because the runner-selected MySQL
+client rejects an isolation option before connection. The
+[pinned-client correction](../../tests/README.md#installed-sql-client-selection--2026-10-26)
+adds the existing locked PostgreSQL/MySQL packages to that CI shell. Doctor,
+client selection and the complete installed authentication/recovery task pass;
+versions, assertions and deadlines are unchanged. Remaining combined lanes and
+final acceptance reconciliation still gate closure.
+
+PR #169's hosted run passes twelve experience tasks, including installed SQL
+authentication/recovery and Board query recovery, before the final Station
+launcher import exposes a second missing CI dependency, PyArrow. Supplying the
+existing pinned package makes the complete Station launcher task pass in that
+shell. Two hosted bindings-2 runs also pass with the current shared definition.
+The [follow-up record](../../tests/README.md#installed-lifecycle-follow-up-and-station-ci-dependency--2026-10-26)
+retains these passes alongside a separate failed clean SQL run: original UPDATE
+194 remains incomplete publication after inspection, with no SQL resubmission.
+Combined qualification and acceptance reconciliation remain open.
+
+The earlier hosted growth lane then fails its unchanged 139-resource writer's
+90-minute deadline after nineteen passing tasks. Replaying the complete catalog
+history for every direct request produces growing validation work. The follow-up
+retains one validated root/chain value within the live local owner; initial
+recovery, new-history validation and current authorization remain required.
+The [catalog recovery record](../../tests/README.md#catalog-prefix-reuse--2026-10-26)
+records 75 passing component tests, signed native/concurrency checks and the
+complete unchanged 139-resource growth/restart schedule. This fixes an
+implementation gap, not another CI dependency.
+
+The corrected CI shell completes all thirteen hosted experience tasks, including
+SQL and Station recovery. Its subsequent browser proof rejects a query asset
+above the existing size limit. The
+[current qualification record](../../tests/README.md#installed-lifecycle-qualification-after-ci-prerequisites--2026-10-26)
+also retains completed core and both SDK lanes at their exact earlier sources,
+and the separate failed local lifetime run. Final candidate qualification and
+acceptance reconciliation remain open.
+
+Removing unused generated-validator error prose brings that query asset below
+the unchanged bound. The complete
+[embedded browser schedule](../../tests/README.md#compact-standalone-validator-output--2026-10-26)
+passes inspection and the direct worksheet, including replacement, original-pin
+recovery and current denial. Public validation and Transit diagnostics retain
+their existing semantics.
+
+Committed-HEAD clean experience at `e550f4ed5` then passes five tasks and times
+out on the installed Table proof's post-restart DELETE/DROP batch. Signed
+inspection of the original installation confirms DELETE 647 applied one change;
+subsequent operation 695 remains incomplete publication and is not resubmitted.
+Two fresh full-workload diagnostics pass with unchanged assertions and deadlines,
+including one with temporary WAL error labels. Neither reproduces the poisoned
+WAL owner or establishes the historical failure's exact cause. The
+[original outcomes and diagnostic evidence](../../tests/README.md#installed-table-qualification-and-original-outcomes--2026-10-26)
+preserve that distinction. Final combined qualification and acceptance remain
+open; no WAL recovery gate is relaxed to obtain a pass.
+
+The current hosted candidate completes core, launchers, all thirteen experience
+tasks and both SDK groups. Its browser inventory stops before HTTP execution
+on a missing CI dependency. Supplying the existing pinned MinIO and gRPC peer
+packages qualifies HTTP and gRPC locally. The independent reactive fixture now
+reopens native local persistence, explicitly restores source rights after private
+role replacement, and signs current subject proofs. Protocol/browser, live views
+and shared-tab lifecycle tasks pass, including current denial with preserved
+accepted-control uncertainty. The [qualification record](../../tests/README.md#browser-prerequisites-and-native-reactive-cutover--2026-10-26)
+retains the preceding failures, exact sources and unchanged authority/deadline
+limits. Full repository checks and hosted growth now pass. A clean browser run
+then exposes a test assumption that only one upload step can require explicit
+unknown-outcome recovery. The [corrected complete focused schedule](../../tests/README.md#explicit-recovery-of-each-query-upload-step--2026-10-26)
+passes two distinct accepted-reply losses with exact recovery, unchanged runtime
+semantics and existing deadlines. Committed-HEAD clean browser qualification and
+final acceptance reconciliation remain open.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to

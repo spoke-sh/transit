@@ -1,0 +1,16 @@
+{
+  "revision": "0496e0411b4f13632c2b044cf598eb6e6c200bf7",
+  "patch_sha256": "99b11d640b41ed0b753c8427f641e0c2f876fd56801b58b2db785463a45d8282",
+  "started": "2026-10-26T11:34:38.532298+00:00",
+  "complete": false,
+  "tasks": [
+    {
+      "task": "test::reactive-browser",
+      "seconds": 29.32,
+      "exit_code": 1,
+      "log": "/var/tmp/transit-lifecycle-reactive-source-recovery-0.log"
+    }
+  ],
+  "active_task": null,
+  "finished": "2026-10-26T11:35:07.851850+00:00"
+}

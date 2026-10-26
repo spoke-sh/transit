@@ -132,7 +132,21 @@ try {
   // merely a lost transport like the disconnected tab above.
   await stage("retire");
   await expect(counter.locator("#status")).toHaveAttribute("data-phase", "denied");
-  await expect(counter.locator("#status")).toContainText("serving.access_denied");
+  const denial = await counter.locator("#status").textContent();
+  if (denial.includes("serving.ingress_accepted")) {
+    // Retirement can race the final authorization check after native admission.
+    // The current denial clears rows but cannot turn that receipt into a
+    // rejected control or permit a replacement command.
+    assert(denial.includes("Outcome: pending; evidence: native receipt."));
+    assert(denial.includes('native cause: "AccessDenied"'));
+    assert.match(denial, /native input: [1-9][0-9]*/);
+    await expect(recovery).toBeVisible();
+    await expect(
+      counter.getByRole("button", { name: "Follow counter", exact: true }),
+    ).toBeDisabled();
+  } else {
+    await expect(counter.locator("#status")).toContainText("serving.access_denied");
+  }
   await expect(counter.locator("#rows tr")).toHaveCount(0);
   await expect(counter.locator("#basis")).toHaveText("No authorized snapshot.");
   assert.deepEqual(errors, []);

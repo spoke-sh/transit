@@ -1,0 +1,41 @@
+{
+  "revision": "0582556e31766f91050ca6796942ccced9ae52cf",
+  "started": 1793000470.4042337,
+  "complete": false,
+  "method": "Run the full local-authentication schedule with the same installed binary bytes; explicit native/gateway exec wrappers retain stderr outside the successful-fixture cleanup. This changes configured artifact paths and is a diagnostic, not installed-adjacency qualification. No SQL replay or deadline change.",
+  "artifacts": {
+    "transit": {
+      "path": "/var/tmp/transit-ci-uoql38ci/src/.cache/transit-sql-local/bin/transit",
+      "sha256": "3c9209b794d37ef2f160ae413539eba66f2ca023e78cc9bde604c2ba11a33925"
+    },
+    "transit-node": {
+      "path": "/var/tmp/transit-ci-uoql38ci/src/.cache/transit-sql-local/bin/transit-node",
+      "sha256": "3a464d9e0f84330886a9dd818fab099ba3a94b4ecc846d5af557b4e37a4a4160"
+    },
+    "transit-query-host": {
+      "path": "/var/tmp/transit-ci-uoql38ci/src/.cache/transit-sql-local/bin/transit-query-host",
+      "sha256": "b828337c28c4c97b6a6f48f1dd668c58dddb248f1a1f5062f5b8d745b529d349"
+    },
+    "transit-board": {
+      "path": "/var/tmp/transit-ci-uoql38ci/src/.cache/transit-sql-local/bin/transit-board",
+      "sha256": "f4bff42702418b0142dc81b8af3e8d2de407bc1613d952ac585b7f87fbc4ba4b"
+    },
+    "transit-sql-gateway": {
+      "path": "/var/tmp/transit-ci-uoql38ci/src/.cache/transit-sql-local/bin/transit-sql-gateway",
+      "sha256": "dc3141f396bc538b9e5cbf2f60e019a6438eb9812813bc3f19b27bc35d784ec2"
+    }
+  },
+  "captures": [
+    "/var/tmp/transit-lifecycle-local-sql-diagnostic-stderr/transit-server-proof-eg2f17i3-node.stderr",
+    "/var/tmp/transit-lifecycle-local-sql-diagnostic-stderr/transit-server-proof-eg2f17i3-sql_gateway.stderr"
+  ],
+  "installations": [
+    "/var/tmp/transit-server-proof-eg2f17i3"
+  ],
+  "failure": "AssertionError((['psql', '-XAtw', '-v'], '', 'ERROR:  Request wait ended; admitted work requires outcome inspection\\nDETAIL:  Gateway operation 98; sending SQL again creates new work\\n'))",
+  "finished": 1793000580.9811046,
+  "capture_hashes": {
+    "/var/tmp/transit-lifecycle-local-sql-diagnostic-stderr/transit-server-proof-eg2f17i3-sql_gateway.stderr": "47ad83f923767fadfbfa4d98999ef9609275372b8501b4742036f57bbccb173f",
+    "/var/tmp/transit-lifecycle-local-sql-diagnostic-stderr/transit-server-proof-eg2f17i3-node.stderr": "7de4ace574cfb51f058e23a0d8289e4d3442998f22001bce3f6fa698a71272f9"
+  }
+}

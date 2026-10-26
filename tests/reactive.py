@@ -8,7 +8,7 @@ from pathlib import Path
 import socket
 import struct
 import time
-from serving_table import watch as table_watch
+from serving_table import authorize, watch as table_watch
 
 import serving
 from serving import compact, frame, native_command, native_query, post, submit
@@ -308,14 +308,23 @@ def adversarial(env, tls, scope, bootstrap, attachment, cursor, command, origina
     assert peer.until('terminal')['reason'] == 'denied'
     peer.close()
     env['grant'](principal, 20, ingress)
+    # Native re-provisioning retires the old private role. Restoring process
+    # permissions does not restore that role's database/schema/Table grants.
+    post(alternate, '/reactive/v1/read', signed_read(key, scope, 'snapshot', attachment, challenge['nonce']), host, 403)
+    role = env['query'](principal, {'authorization': dict(role=None, kind={'identity': {}})})['body']['authorization']['body']['identity']['login_role']
+    catalog_authority = env['catalog_authority']['catalog']['authority']
+    for target in (catalog_authority['database'], catalog_authority['initial_schema_authority'], int(env['counter_definition']['authorization'])):
+        authorize(send, env['query'], {'grant': dict(object=dict(kind='domain', id=target), grantee=role, privileges=1, grant_options=0)})
     renew()
 
-    # Full worker/gateway/node/disk loss preserves the logical session and source
-    # position. Existing application result and exact command receipt survive.
+    # Losing every worker/gateway/node process preserves the logical session and
+    # source position. The native node owns the local WAL and objects; its
+    # replacement reopens the same directory and original command receipt.
+    node_config = json.loads(env['configuration'].read_text())
+    assert Path(node_config['local_directory']).is_dir()
     for process in (*env['gateways'], env['ingress_worker'], env['app_worker'], env['courier_worker'], env['authority']):
         process.kill(); process.wait(timeout=10)
-    env['store'].stop(); env['store'].start()
-    authority = env['start']('reactive-node-recovered', env['node'], json.loads(env['configuration'].read_text()))
+    authority = env['start']('reactive-node-recovered', env['node'], node_config)
     serving.wait_ready(env['store'].http, authority, env['url'] + '/health')
     for config in (env['ingress_config'], env['application_config']):
         send({'own': dict(pid=config['pid'], expected_generation=2, worker=config['principal'])})
@@ -345,7 +354,7 @@ def adversarial(env, tls, scope, bootstrap, attachment, cursor, command, origina
     # and foreign subscriptions never become authority after gateway restart.
     forged = json.loads(json.dumps(cursor)); forged['position']['data_revision'] = str(int(forged['position']['data_revision']) + 1)
     post(alternate, '/reactive/v1/read', signed_read(key, scope, 'events', attachment, challenge['nonce'], forged), host, 403)
-    print('Reactive adversarial trace: upgrade rejection, bounded unauthenticated bootstrap, fragmented authentication with ping, declined compression, idle native/service revocation and gateway/worker/node/store recovery passed', flush=True)
+    print('Reactive adversarial trace: upgrade rejection, bounded unauthenticated bootstrap, fragmented authentication with ping, declined compression, idle native/service revocation and gateway/worker/native-local-node recovery passed', flush=True)
 
 
 def browser(env, tls, old_scope):
@@ -366,7 +375,8 @@ def browser(env, tls, old_scope):
     spki = base64.b64encode(hashlib.sha256(public_der).digest()).decode()
     config = env['store'].root / 'browser.json'
     definition = native_query(key, scope['principal'], {'identity': {}})['query']['definition']
-    config.write_text(json.dumps(dict(origin='https://' + env['public_host'], definition=definition, scope=scope, sequence=env['sequences'][65536], private_key=str(key.path), deadline=env['deadline_ms'], spki=spki)))
+    credential = env['query'](scope['principal'], {'authorization': dict(role=None, kind={'identity': {}})})['body']['authorization']['body']['identity']
+    config.write_text(json.dumps(dict(origin='https://' + env['public_host'], definition=definition, scope=scope, credential_epoch=credential['credential_epoch'], sequence=env['sequences'][65536], private_key=str(key.path), deadline=env['deadline_ms'], spki=spki)))
     config.chmod(0o600)
     completed = subprocess.run(['vp', 'exec', '--filter', '@transit/board-web', 'node', 'browser/reactive.mjs', str(config)], capture_output=True, text=True, timeout=45)
     assert completed.returncode == 0, (completed.stdout, completed.stderr)

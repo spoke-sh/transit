@@ -53,17 +53,22 @@ try {
       ];
       const scope = config.scope;
       let sequence = config.sequence;
-      const identity = async () => {
-        const query = {
-          version: 1,
+      const proof = async (domain, value) => {
+        const claim = {
           definition: config.definition,
           realm: scope.realm,
           principal: scope.principal,
-          kind: { identity: {} },
+          credential_epoch: config.credential_epoch,
+          role: null,
+          audience: scope.ingress,
+          context: [...(await hash(bytes(utf8.encode(domain + "\0"), value)))],
         };
         return {
-          query,
-          signature: await sign("transit.query.v1", utf8.encode(JSON.stringify(query))),
+          claim,
+          signature: await sign(
+            "transit.authorization.subject.v1",
+            utf8.encode(JSON.stringify(claim)),
+          ),
         };
       };
       const cursorBytes = (cursor) => {
@@ -96,8 +101,7 @@ try {
         );
         return {
           read: request,
-          signature: await sign("transit.reactive.read.v1", encoded),
-          identity: await identity(),
+          proof: await proof("transit.reactive.read.v1", encoded),
         };
       };
       const command = async (payload) => {
@@ -111,6 +115,7 @@ try {
             send: {
               pid: scope.ingress,
               value: hex(bytes(utf8.encode("STN1"), [1], le(0), payload)),
+              role: null,
             },
           },
         };
@@ -168,8 +173,7 @@ try {
         );
         return {
           read: request,
-          signature: await sign("transit.serving.read.v1", encoded),
-          identity: await identity(),
+          proof: await proof("transit.serving.read.v1", encoded),
         };
       };
       const discovery = await post("/reactive/v1/discovery", await servingRead("discovery"));

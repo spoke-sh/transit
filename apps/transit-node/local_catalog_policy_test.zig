@@ -99,6 +99,17 @@ fn dispatchWithSeed(service: *@import("LocalTableService.zig"), action: c.Direct
 fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !void {
     const w = c.DirectTableProtocol;
     var service: @import("LocalTableService.zig") = .{ .engine = engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
+    var recovered = blk: {
+        var control: backend.DataStore = .{ .backend = engine.journal.backend, .control = true };
+        var data: backend.DataStore = .{ .backend = engine.journal.backend };
+        var catalog = try D.init(t.allocator, config, control.log(), control.objects(), data.log(), data.objects(), service.options);
+        defer catalog.deinit();
+        try catalog.recover();
+        break :blk try catalog.recoveryState();
+    };
+    // The signed dispatcher schedule below includes current revocation after
+    // response buffering; a retained catalog prefix must not cache permission.
+    service.recovery_state = &recovered;
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();

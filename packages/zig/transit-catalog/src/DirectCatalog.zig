@@ -18,6 +18,7 @@ const P = s.TablePartition;
 const pages = s.TreeStore.pages;
 const Self = @This();
 pub const Configuration = r.Configuration;
+pub const RecoveryState = Store.RecoveryState;
 pub const Request = r.Request;
 pub const Intent = r.Intent;
 pub const Properties = r.Properties;
@@ -116,6 +117,16 @@ pub fn deinit(self: *Self) void {
 }
 pub fn recover(self: *Self) !void {
     try self.store.recover();
+}
+
+/// Reuse only a prefix validated by this same live owner and immutable log.
+/// A new owner starts with recover(); current policy is always checked separately.
+pub fn recoverSince(self: *Self, prior: RecoveryState) !void {
+    try self.store.recoverSince(prior);
+}
+
+pub fn recoveryState(self: *Self) !RecoveryState {
+    return self.store.recoveryState();
 }
 
 fn namedRecord(self: *Self, object: u64) !?Resource.Operation {

@@ -1,0 +1,23 @@
+{
+  "scope": "Catalog-prefix regression qualification and prior installed lifecycle CI evidence",
+  "catalog": "catalog-validation.json",
+  "source_patch": "catalog-source.patch",
+  "source_patch_sha256": "a466fe49f98db80dda6a302b09b2f435f2e939510926cc81671e0efa4b781a8b",
+  "growth": "catalog-growth.json",
+  "prior_local_qualification": "validation.json",
+  "original_lifetime_insert": "lifetime-insert-observation.json",
+  "same_binary_lifetime_diagnostic": "lifetimes-diagnostic.json",
+  "normal_focused_lifetimes": "focused-lifetimes.json",
+  "hosted_core": "hosted-core.meta.json",
+  "hosted_bindings1": "hosted-bindings1.meta.json",
+  "failed_hosted_growth": "hosted-growth.meta.json",
+  "completed_hosted_experience": "hosted-experience-current.meta.json",
+  "failed_hosted_browser": "hosted-browser-current.meta.json",
+  "files": "files.json",
+  "limits": [
+    "Current catalog candidate full check and clean checkout qualification remain pending.",
+    "Earlier hosted passes have separate source attribution and predate the catalog-prefix change.",
+    "Failed clean SQL remains incomplete publication and was not resubmitted.",
+    "Local growth duration includes compilation; it is not a matched comparison with the hosted failure."
+  ]
+}

@@ -3127,6 +3127,8 @@
         "recordNamespace()": "<inferred>",
         "recordResource()": "<inferred>",
         "recover()": "<inferred>",
+        "recoverSince()": "<inferred>",
+        "recoveryState()": "<inferred>",
         "registration()": "<inferred>",
         "releaseRows()": "<inferred>",
         "requestGuard()": "<inferred>",
@@ -3156,7 +3158,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 672,
+        "try": 673,
         "catch": 8
       },
       "imports": [
@@ -3520,12 +3522,12 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalogStore.zig": {
       "errors": {
-        "CatalogHistoryMissing": 7,
+        "CatalogHistoryMissing": 9,
         "CatalogRecordTooLarge": 1,
         "CatalogRecoveryRequired": 1,
         "DataIdentityConflict": 10,
         "IncompatibleDefinition": 1,
-        "InvalidDirectCatalogHistory": 4,
+        "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 15,
         "InvalidDirectCatalogTransition": 72,
         "InvalidPartitionLease": 1,
@@ -3553,6 +3555,8 @@
         "receipt()": "<inferred>",
         "receiptIdentity()": "<inferred>",
         "recover()": "<inferred>",
+        "recoverSince()": "<inferred>",
+        "recoveryState()": "<inferred>",
         "refresh()": "<inferred>",
         "resourceAt()": "<inferred>",
         "resourceOperation()": "<inferred>",
@@ -3563,7 +3567,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 125,
+        "try": 130,
         "catch": 1
       },
       "imports": [

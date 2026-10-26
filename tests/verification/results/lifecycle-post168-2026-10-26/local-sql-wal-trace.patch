@@ -1,0 +1,55 @@
+diff --git a/packages/zig/transit-storage/src/DiskWal.zig b/packages/zig/transit-storage/src/DiskWal.zig
+index 40d76c0ca..e8ddd9415 100644
+--- a/packages/zig/transit-storage/src/DiskWal.zig
++++ b/packages/zig/transit-storage/src/DiskWal.zig
+@@ -143,13 +143,28 @@ fn syncDir(io: std.Io, dir: std.Io.Dir) !void {
+ 
+ fn atomic(self: *Self, name: []const u8, bytes: []const u8) !void {
+     errdefer self.poisoned = true;
+-    var pending = try self.dir.createFileAtomic(self.io, name, .{ .replace = true, .permissions = .fromMode(0o600) });
++    var pending = self.dir.createFileAtomic(self.io, name, .{ .replace = true, .permissions = .fromMode(0o600) }) catch |err| {
++        std.debug.print("DIAGNOSTIC wal metadata create: {s}\n", .{@errorName(err)});
++        return err;
++    };
+     defer pending.deinit(self.io);
+-    try pending.file.writeStreamingAll(self.io, bytes);
+-    try pending.file.sync(self.io);
++    pending.file.writeStreamingAll(self.io, bytes) catch |err| {
++        std.debug.print("DIAGNOSTIC wal metadata write: {s}\n", .{@errorName(err)});
++        return err;
++    };
++    pending.file.sync(self.io) catch |err| {
++        std.debug.print("DIAGNOSTIC wal metadata sync: {s}\n", .{@errorName(err)});
++        return err;
++    };
+     self.syncs += 1;
+-    try pending.replace(self.io);
+-    try self.syncDirectory();
++    pending.replace(self.io) catch |err| {
++        std.debug.print("DIAGNOSTIC wal metadata replace: {s}\n", .{@errorName(err)});
++        return err;
++    };
++    self.syncDirectory() catch |err| {
++        std.debug.print("DIAGNOSTIC wal metadata directory sync: {s}\n", .{@errorName(err)});
++        return err;
++    };
+ }
+ 
+ fn metaName(id: u64, bytes: *[64]u8) []const u8 {
+@@ -408,8 +423,14 @@ pub fn append(self: *Self, id: u64, expected_lsn: ?u64, writer: u64, policy: u64
+         return err;
+     };
+     if (length != next.offset) return error.WalRecoveryRequired;
+-    try file.writePositionalAll(self.io, bytes, next.offset);
+-    try file.sync(self.io);
++    file.writePositionalAll(self.io, bytes, next.offset) catch |err| {
++        std.debug.print("DIAGNOSTIC wal frame write: {s}\n", .{@errorName(err)});
++        return err;
++    };
++    file.sync(self.io) catch |err| {
++        std.debug.print("DIAGNOSTIC wal frame sync: {s}\n", .{@errorName(err)});
++        return err;
++    };
+     self.syncs += 1;
+     if (next.offset == 0) try self.syncDirectory();
+     next.offset += bytes.len;

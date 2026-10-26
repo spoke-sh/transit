@@ -156,8 +156,12 @@ and dependent definition, and `dependencies` to inspect either graph direction.
 Registration requires current source privileges and dependent metadata write
 access; it does not publish or activate the dependent or retain a read cut.
 The dependent owner registers before publication and removes after retirement
-or abandoned-publication recovery. These steps are separate operations. Named
-resource and computation publication does not yet register those edges itself.
+or abandoned-publication recovery. These steps are separate operations.
+[Named resource owners](state.md#state-and-higher-level-resources) explicitly
+register each declared source using the allocated dependent interpretation.
+The [named-query publication plan](queries.md) saves one registration per
+distinct source and checks current membership before returning its native
+publication command. Neither path infers dependencies from values or read pins.
 ALTER and RENAME retain the original edge and may make its definition stale.
 
 Graph pages filter metadata the caller cannot inspect. A blocked DROP reports

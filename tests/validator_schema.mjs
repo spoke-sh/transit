@@ -11,7 +11,7 @@ const Ajv2020 = require("ajv/dist/2020.js").default;
 function compare(schemas, cases) {
   const original = JSON.stringify(schemas);
   const before = new Ajv2020({ strict: true });
-  const after = new Ajv2020({ strict: true, inlineRefs: false });
+  const after = new Ajv2020({ strict: true, inlineRefs: false, messages: false });
   const shared = shareValidatorSchemas(after, schemas);
   for (const [name, schema] of Object.entries(schemas)) before.addSchema(schema, name);
   for (const [name, schema] of Object.entries(shared)) after.addSchema(schema, name);

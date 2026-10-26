@@ -21,6 +21,10 @@ generation through [the build helper](../../tasks/validator_schema.mjs). Public
 schemas and runtime validation rules remain unchanged, and browsers still need
 no runtime schema compilation or `eval`. The contract check compares shared and
 original validation on positive and negative fixtures and checks generated drift.
+Generated validators omit AJV's unused error-message text. Their public result
+is boolean; callers retain their typed failure codes and Transit diagnostic
+payloads. This reduces embedded script bytes without removing validation checks
+or changing the five-asset and 900 kB browser bounds.
 
 Board provides a v1 workspace for explicitly configured KV/Table/Document sources.
 It reuses the shared Zig SQL/finite-upload/page boundary, with runtime-validated

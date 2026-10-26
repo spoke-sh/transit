@@ -73,7 +73,9 @@ jobs:
             shell: default
             cache: core
             cache_writer: true
-            timeout: 60
+            # Hosted builds used 54.6 minutes for the first 23 of 28 tasks.
+            # Keep task-local deadlines; allow the remaining inventory to run.
+            timeout: 90
           - lane: growth
             shell: default
             cache: core
@@ -84,7 +86,9 @@ jobs:
             shell: ci-experience
             cache: experience
             cache_writer: true
-            timeout: 60
+            # Includes all seven browser tasks, with real connector and view recovery.
+            # Separate completed task observations already exceed one hour.
+            timeout: 120
           - lane: launchers
             shell: ci-experience
             cache: experience

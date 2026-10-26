@@ -1,0 +1,28 @@
+{
+  "revision": "61a3a5e791baf22bffb2e756b9c593cb340083bf",
+  "patch_sha256": "cc616e03903bdb74b936bbdaae5316c9194f11d454e188bbf094f3634c9dd02e",
+  "started": "2026-10-26T10:55:01.092055+00:00",
+  "complete": false,
+  "tasks": [
+    {
+      "task": "transit-board::http-browser",
+      "seconds": 1050.41,
+      "exit_code": 0,
+      "log": "/var/tmp/transit-lifecycle-browser-prerequisites-0.log"
+    },
+    {
+      "task": "transit-board::grpc-browser",
+      "seconds": 634.38,
+      "exit_code": 0,
+      "log": "/var/tmp/transit-lifecycle-browser-prerequisites-1.log"
+    },
+    {
+      "task": "test::reactive-browser",
+      "seconds": 223.65,
+      "exit_code": 1,
+      "log": "/var/tmp/transit-lifecycle-browser-prerequisites-2.log"
+    }
+  ],
+  "active_task": null,
+  "finished": "2026-10-26T11:26:49.537880+00:00"
+}
