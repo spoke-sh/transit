@@ -1885,6 +1885,14 @@ pub fn releaseRows(self: *Self, object: d.Object, handle: P.SnapshotHandle, poli
     return access.view.table.releaseSnapshot(handle, access.current);
 }
 
+pub fn rangeRows(self: *Self, allocator: std.mem.Allocator, object: d.Object, handle: P.SnapshotHandle, interval: P.KeyRange, after: ?P.KeyRange.Cursor, limits: P.ReadLimits, policy: Policy) !P.KeyRangePage {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, false);
+    defer access.view.deinit();
+    return access.view.table.rangeSnapshot(allocator, handle, interval, after, limits, access.current);
+}
+
 fn terminal(self: *Self, previous: r.Operation, phase: r.Phase, reason: r.Reason, current: P.Guard) !void {
     try self.store.index.begin(self.options.index_work_bytes);
     defer self.store.index.end();

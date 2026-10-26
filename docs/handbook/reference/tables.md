@@ -220,12 +220,27 @@ and [computation lifetimes](queries.md). Coalesced reactive watches are separate
 
 ## Query and observe
 
+The direct `key_range` operation reads an explicitly retained Table using optional
+inclusive/exclusive bounds on complete storage keys. Keys follow the original
+primary-key columns and collations; keyless Tables use stable row identities.
+Each page contains at most eight owned rows under a byte budget. Its continuation
+binds that snapshot and interval, and current rights apply again after buffering,
+including empty results. `DirectTableReader.readRange` validates row order and
+bounds without changing its independent sequential scan coverage. It reads
+ordinary snapshots; historical-lease range reads are not exposed. Range completion
+covers the requested interval, while `total_rows` describes the whole source.
+
+
 Finite Table queries bind the full logical row schema and return typed values.
-A complete primary-key equality or conjunction can use the collision-safe
-index. Partial keys, inequalities and additional predicates use the qualified
+A conjunction containing exactly one equality per declared primary-key column
+uses the collision-safe index in captured and finite retained SELECTs, including
+prepared execution. Partial keys, inequalities and additional predicates use the qualified
 finite scan; the complete Fuze predicate still runs. The retained identity/key
 indexes resolve rows in WAL-backed records or immutable segments. Arrow is an
 interchange format and does not itself establish segment pruning.
+Finite SELECTs retain the scan when a valid comparison literal cannot fit the
+stored key's character or encoded-byte limit; lookup qualification does not
+narrow the query's valid comparison values.
 
 Direct source pages return at most eight owned rows under an explicit byte
 budget, preserving their original schema, digest and identity checks. Interactive

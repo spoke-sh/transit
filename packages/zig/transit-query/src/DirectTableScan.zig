@@ -5,6 +5,7 @@ const q = @import("root.zig");
 const c = q.catalog;
 const f = q.fuze;
 const Self = @This();
+const Key = q.storage.TablePartition.KeyRange.Key;
 allocator: std.mem.Allocator,
 client: c.DirectTableClient,
 reader: c.DirectTableReader,
@@ -17,6 +18,7 @@ after: ?f.TableRow.Identity = null,
 complete: bool = false,
 closed: bool = false,
 rejection: ?q.protocol.ErrorCode = null,
+point_key: ?Key = null,
 
 pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
     if (request_limit < 2) return error.InvalidQueryBudget;
@@ -52,9 +54,41 @@ pub fn validateCurrent(self: *Self) !void {
 pub fn fingerprint(self: *const Self) ![32]u8 {
     return self.reader.basis.fingerprint();
 }
+/// Finite SELECT may select one complete primary key. Extra conditions keep
+/// the original scan and evaluation order; the engine still tests the predicate.
+/// Own the encoded key so moving the scan or releasing literals cannot alter it.
+pub fn selectPoint(self: *Self, plan: f.LogicalQuery.Plan) void {
+    var single: [1]f.LogicalPredicate.Program.Instruction = undefined;
+    const program: f.LogicalPredicate.Program = switch (plan.predicate) {
+        .program => |value| value,
+        .compare => |value| blk: {
+            single[0] = .{ .atom = .{ .compare = value } };
+            break :blk .{ .instructions = &single };
+        },
+        else => return,
+    };
+    var cells: [f.TableSchema.max_columns]f.Types.Values.Cell = undefined;
+    const schema = self.reader.schema.schema;
+    // A valid comparison literal need not fit the stored physical key profile
+    // or its byte limit. Failed qualification leaves the valid scan unchanged.
+    const values = ((f.TableDml.Plan{ .name = "retained", .schema = schema, .action = .delete, .predicate = program }).primaryKeyEquality(&cells) catch return) orelse return;
+    var encoded: [f.Collation.max_sort_key_bytes]u8 = undefined;
+    const key = f.Collation.encodePrimaryKeySortKey(schema, values, false, &encoded) catch return;
+    self.point_key = Key.init(key) catch unreachable; // bounded by encoded above
+}
 pub fn next(self: *Self) !?f.LogicalQuery.Row {
     try self.checkCancellation();
     if (self.complete) return null;
+    if (self.point_key) |*key| {
+        try self.charge();
+        const row = self.reader.readKey(self.client, key.slice()) catch |err| return self.rejected(err);
+        // This completes the qualified selection, not the reader's full-Table
+        // coverage. A missing key has the same post-compute authorization gate.
+        self.complete = true;
+        const found = row orelse return null;
+        self.after = found.identity;
+        return .{ .arena = found.value.descriptor.arena, .cells = found.row().cells };
+    }
     if (self.page == null or self.index == self.page.?.count) {
         if (self.page) |*page| page.deinit();
         self.page = null;

@@ -1,5 +1,127 @@
 # Validation and evidence
 
+## Finite retained SQL point reads — 2026-10-25
+
+On `765b287b` plus finite point selection, the pinned-shell command
+`just test::direct-table-service prepared` passes. A 17-row source needs three
+ordinary scan pages; complete-key queries finish within eight charged native/
+Table exchanges, or ten for prepared execution. Independent checks cover a
+late key, absence, empty COUNT/SUM, LIMIT 0, inequality/OR/full-count controls,
+and an additional non-key predicate that exhausts the same tight scan budget.
+Prepared reads retain typed values, fresh snapshots, current denial and rejection
+after ALTER or DROP/recreation. Composite Unicode/text/negative-integer equality
+follows declared key order despite a different predicate order. Valid comparison
+values beyond VARCHAR or encoded-key bounds remain successful empty queries.
+
+The final focused run passes after correcting an intermediate Zig type-inference
+compile error in the new key owner. Documentation checks and diagnostic inventory,
+mapping, error-boundary and outcome checks pass. Full repository and clean-lane
+qualification for this SQL change remain pending; this evidence does not qualify
+inequality pushdown, encoded execution or a latency improvement.
+
+## Bounded row-index mutation batches — 2026-10-25
+
+On `72c77bcb` plus bounded index batching, storage-package tests run with the
+pinned compiler establish the following component results:
+
+- `zig build test -Dtest-filter='ordered full key batches' --summary all`:
+  2/2 pass. Sixty-four short-key inserts stage 22 pages / 16,527 encoded bytes,
+  compared with 134 pages / 90,160 bytes using individual index updates. Mixed
+  64-byte terminals and 65-/4,096-byte extensions retain exact earlier roots;
+  duplicate requests and candidate-budget exhaustion reject.
+- `zig build test -Dtest-filter='Table index batches' --summary all`: 2/2 pass.
+  One 64-row accepted Table batch stages 111 pages / 69,628 bytes including its
+  receipt, versus a scalar four-index control's 533 pages / 336,381 bytes for the
+  same accepted key/locator set. Independent values and identities are checked.
+  A lost acknowledgement recovers the original result without further staging;
+  duplicates inside and beyond the first private batch preserve all accepted
+  roots, the original receipt and the unchanged WAL boundary through recovery.
+- `zig build test -Dtest-filter='Table acceptance recovers'
+  -Dtest-filter='admitted point and bulk UPDATE' -Dtest-filter='keyless'
+  --summary all`: 4/4 pass, including key exchanges and exact retry/reopen.
+
+Staging counters describe acknowledged index payloads, including immutable
+content deduplication. They do not establish provider writes, disk amplification,
+latency or RSS improvements. After batching physical relocation,
+`zig build test -Dtest-filter='retained Table key ranges'
+-Dtest-filter='Table acceptance recovers' --summary all` passes 4/4 (12 seconds).
+The public `just test::storage-key-ranges` then passes 11/11 storage tests (two
+minutes, reported MaxRSS 43 MiB) and 5/5 catalog tests. On `765b287b`, the storage
+command `zig build test -Dtest-filter='frozen SQL' --summary all` passes 3/3
+(14 minutes, reported MaxRSS 39 MiB). `just test::direct-table-service` also
+passes 1,418 typed calls covering CRUD/DDL, retained sources, three restarts,
+lost replies, history/pins and current revocation. Final repository/clean
+qualification remains pending.
+
+
+## Retained ordered Table ranges — 2026-10-25
+
+On `0c3ca45e` plus the Table range integration and shared-definition cutover,
+these pinned-shell executions pass:
+
+- Storage package `zig build test -Dtest-filter='retained Table key ranges'
+  --summary all`: 3/3 tests, 37 seconds, reported MaxRSS 37 MiB. Real-disk tests
+  compare independently specified values/order across mixed WAL/segment rows,
+  flush, deletion, schema rewrite, DROP, one-page/no-page caches and restart.
+  Composite negative-integer/text keys follow separately authored UTF8_BINARY,
+  ASCII_CI and CP037 orders. Interval changes, foreign-source cursors, a first
+  row above its byte budget and current denial after buffering reject; empty
+  intervals also require current rights.
+- Catalog package `zig build test -Dtest-filter='retained reader binds'
+  --summary all`: 4/4 tests. Owned decoded pages preserve original schema and
+  source metadata; interval/order/cursor substitutions reject without changing
+  sequential coverage. Allocation-failure enumeration checks cleanup.
+- Catalog package `zig build test -Dtest-filter='retained key range'
+  --summary all`: 4/4 tests. Python/OpenSSL supplies independent signed request
+  bytes and the interval fingerprint; changed cursor source/bounds reject.
+- Root `zig build test-local-catalog --summary all`: 2/2 tests, four minutes.
+  The signed owner path includes matching/empty ranges, delegated and borrowed
+  reads, substituted borrowed sources and current permission revocation before
+  returning buffered rows or empty results.
+- Protocol package `zig build test --summary all`: 59/59 tests, including
+  rejection of the predecessor shared definition. `just contract::check`,
+  `just transit-board::check`, `just transit-docs::check` and the diagnostic
+  mappings/error-boundary/outcome tasks pass after coordinated regeneration.
+
+The storage root requires `ordered_rows`; the shared definition is
+`cd12a1e21afce782c2926a900dfe473fe96bcee962a98cb8670d06dfbed3aa89`.
+This rejects predecessor stored semantics rather than defaulting an empty index.
+The focused range run first encountered a fixture compile error (the test used
+an owned-row union as a struct); the signing test first expected cursor validation
+before request-context validation. Both fixture mistakes were corrected before
+the passing runs above. These are component/signed-owner results, not whole-suite,
+SQL inequality-pushdown, many-segment or host-loss qualification. On the completed `72c77bcb` range source, the storage command
+`zig build test -Dtest-filter='Table recovery' -Dtest-filter='Table segment ranges'
+--summary all` passes 5/5 (seven minutes, reported MaxRSS 37 MiB). It rejects a
+missing mandatory ordered-root field and a missing accepted ordered-root object
+before exposing state. A four-row interval from a retained 512-row source reads
+563,420 segment bytes and incurs 58 index-cache misses; its same-source scan
+reads 1,093,934 bytes and incurs 393 misses with one resident index page. Every
+row/value is independently checked. With subsequent index batching, the same
+fixture reports 48/320 index misses and unchanged segment-byte counts. The
+counters exclude provider chunk checks and device/cache effects; no latency
+comparison is inferred from these concurrent development runs. Final
+repository/clean checks for this definition cutover remain pending.
+
+
+## Ordered full-key index component — 2026-10-25
+
+On `c4c5e753` plus the ordered-index changes, the pinned-shell command
+`cd packages/zig/transit-storage && zig build test
+-Dtest-filter='ordered full keys' --summary all` passes 3/3 tests (5 seconds;
+12 seconds after adding rejection of children beyond the full-key bound).
+A separately sorted array is the oracle for 96 keys, including zero bytes,
+strict prefixes and lengths around 64-byte boundaries through 4 KiB. The tests
+compare point values, inclusive/exclusive bounds and missing-bound seeks, then
+overwrite/delete entries, revisit the original root and remove the final entry.
+
+A real-disk case reopens 33 keys sharing a 128-byte prefix with no resident
+page cache, verifies the earlier root, rejects a corrupt reference and preserves
+the accepted root after a one-byte candidate budget fails. This establishes the
+index component; Table acceptance, collation encoding, public range traversal,
+recovery and whole-process memory measurements require separate integration
+evidence.
+
 ## Bounded local WAL seek reuse — 2026-10-25
 
 `nix develop --command sh -c 'cd packages/zig/transit-storage && zig build test
@@ -27256,3 +27378,28 @@ with older glibc 2.40 and pinned 2.42 loaders. C and C++ both abort in
 `allocate_stack` with the older loader and pass with the pinned loader. This
 demonstrates the invalid pairing, without establishing that the local abort
 and the previously recorded hosted segmentation fault have the same path.
+
+## Retained Table cross-segment range control — 2026-10-26
+
+The `retained Table key ranges skip unrelated disk segments against a complete
+same-cut scan` test adds a disk-backed control to the ordered-range implementation
+at `20442897`, rebased onto merged WAL recovery at `18010d95`. It writes eight
+64-row bulk segments with signed integer keys and 2,048-byte text values. Row
+identity order deliberately differs from key order. The range and complete scan
+open separate disk owners against the same durable snapshot, clear the one-page
+index cache and begin without a cached segment. The scan checks every row's key
+and payload independently; both paths find the same four selected values.
+
+The interval crosses two segments and uses two two-row result pages. It requests
+280,488 segment bytes in ten ranges, versus 1,121,952 bytes in forty ranges for
+the complete 512-row scan. Immutable index misses are 70 versus 2,109. Two versus
+eight row groups are decoded; each cached group uses less than 1 MiB in arena
+backing allocations. Segment counters exclude index and snapshot objects,
+filesystem checksum reads and device amplification. OS caches remain available;
+this is not a cold-device, installed-query, RSS or latency measurement.
+
+Reproduce through `nix develop --command just test::storage-key-ranges`, or select
+that test in `packages/zig/transit-storage` with `zig build test
+-Dtest-filter="retained Table key ranges skip unrelated" --summary all` inside
+the pinned shell. The focused case and import check pass. Full-repository and
+committed-source clean checks remain separate qualification.

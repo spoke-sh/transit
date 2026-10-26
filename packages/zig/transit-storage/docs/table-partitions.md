@@ -47,7 +47,7 @@ the enclosing catalog's responsibilities.
 The owner validates constraints against the accepted root. It stages immutable
 index pages and, for bulk ingestion, one bounded `.tseg`. It then acquires the
 current policy/retirement fence and appends one conditional WAL record. That
-record publishes both row indexes and the operation receipt. Private objects
+record publishes all four row indexes and the operation receipt. Private objects
 cannot make a partial batch visible. Point rows are in the accepted WAL record;
 bulk row locators reference the verified segment. No allocation remains after
 the durable append. An uncertain append blocks reads and mutations until replay.
@@ -172,14 +172,36 @@ admit only `none`/`utf8_binary` collations; other declared collations reject.
 
 ## Retained reads and physical flushing
 
-Three immutable ordered indexes share each accepted root. Point lookup hashes the
+Four immutable indexes share each accepted root. Point lookup hashes the
 collation-aware storage key, then checks the full decoded key; a hash collision
 fails instead of substituting or overwriting a row. Keyless Tables use durable
 row identities. The physical scan index follows WAL/segment coordinates, grouping
 maintenance traversal by segment. A separate identity index maps each canonical
 20-byte row identity to its storage-key hash. Public retained pages follow that
 stable order, including mixed WAL/segment sources. Duplicate row identities
-reject before publication. SQL ordering still comes from its query plan.
+reject before publication. Logical writes and schema rewrites stage up to eight
+row-index changes together, sharing affected page paths without enlarging their
+resident write set. Validation includes both queued keys/identities and earlier
+private batch roots. All old keys are removed before replacement insertion, so
+an UPDATE may exchange keys. Flushes similarly batch physical locator changes.
+These private batches create no separate acceptance, receipt or logical change;
+the complete operation still publishes once under its original work budget. The full-key index maps complete collation-aware keys
+to the same row hashes. Mutations, predicate writes and schema rewrites publish
+all four roots atomically; physical flushes preserve full-key and identity roots.
+SQL ordering still comes from its query plan.
+
+`rangeSnapshot` accepts optional inclusive/exclusive lower and upper storage-key
+bounds. It seeks through the paged full-key index, resolves only selected row
+locators and verifies each decoded key. Keyless Tables order by their stable
+identity bytes. Results own at most eight rows under a separate encoded-byte
+budget; one additional index candidate establishes continuation. A byte boundary
+may decode one additional row. A row too large for an empty page fails explicitly.
+Each cursor binds the exact retained content, interval fingerprint and last key.
+Resuming with another interval or snapshot rejects. Reversed intervals are empty.
+The owner rechecks current authorization after buffering, including empty results.
+Pins preserve accepted WAL rows and the original schema through flush, ALTER and
+DROP. A range's completion covers only that interval; its `total_rows` describes
+the entire retained source and is not a match count.
 
 `TreeStore` defaults to sixteen resident index pages and a separate 64 MiB
 encoded staging-work budget. `TablePartition` caches at most one segment footer

@@ -51,6 +51,31 @@ does not isolate frequency, caches or memory bandwidth. Hardware performance
 counters are unavailable, so no cycle, instruction or bandwidth attribution is
 claimed. Medians are not tail percentiles or service latency guarantees.
 
+## Retained Table key-range measurements
+
+The disk-backed Table owner can traverse complete primary keys within an
+inclusive or exclusive interval on a retained snapshot. In a 512-row fixture
+with eight immutable segments, a four-row interval crossing a segment boundary
+reads two segments. A complete identity-ordered scan of the same snapshot
+checks every row against its original key and 2,048-byte text payload.
+
+| Observation | Four-row interval | Complete scan |
+| --- | ---: | ---: |
+| Segment bytes requested | 280,488 | 1,121,952 |
+| Segment range requests | 10 | 40 |
+| Immutable index-page cache misses | 70 | 2,109 |
+| Decoded row groups | 2 | 8 |
+
+Both paths start with newly opened disk owners, an empty segment cache and one
+resident index page. Each cached decoded group uses less than 1 MiB of arena
+backing allocations. Segment byte/request counts exclude index objects, retained
+snapshot metadata and filesystem checksum reads. These are component I/O counts,
+not physical device traffic, process RSS or installed SQL latency. The operating
+system page cache is not cleared. SQL inequality predicates still use their
+existing scan path; this measurement exercises the retained range operation.
+The [proof ledger](../../../tests/README.md#retained-table-cross-segment-range-control--2026-10-26)
+records the fixture and reproduction command.
+
 ## Interactive execution measurements
 
 In the recorded client-side execution fixture, the local server returns the

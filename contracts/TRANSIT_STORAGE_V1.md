@@ -64,7 +64,10 @@ fingerprint, retirement, partition, exclusive accepted and logical-change
 frontiers, next segment identity, live row count, point/scan index roots, receipt
 index, pin index, operation index and pending-operation index. Declaration
 content, schema fingerprint, retirement, next segment identity and both operation
-roots are mandatory; an earlier root cannot default these fields.
+roots are mandatory; an earlier root cannot default these fields. The mandatory
+`ordered_rows` reference names the full-key directory and is null exactly when
+`live_rows` is zero. A root missing this field is incompatible, including an empty
+Table root; it cannot acquire an empty directory by default.
 
 A declaration object contains `TDECL001` at `0..8`, mandatory shared definition
 bytes at `8..40`, then six little-endian `u64` identities (realm, resource,
@@ -86,8 +89,8 @@ record. Catalog name reservation and dependency checks remain the caller's duty.
 Row mutation records use `row_delta`; declaration, operation control, checkpoint, pin and release records use
 `manifest_checkpoint`. The action carries the exact neutral binding, complete
 ordered mutation digest, ingestion choice and outcome, or the affected pin owner
-and immutable basis. An accepted mutation publishes its result and both row
-indexes atomically. Outcomes carry mandatory `matched`, `affected` and `live_rows`
+and immutable basis. An accepted mutation publishes its result and all four row
+indexes (hash, physical, identity and full-key order) atomically. Outcomes carry mandatory `matched`, `affected` and `live_rows`
 counts with the accepted position; `affected` cannot exceed `matched`. Identical
 canonical row replacements retain their locators and logical-change frontier.
 Root `next_lsn` equals frame LSN plus one. Control/physical
@@ -116,7 +119,7 @@ row ordinal; length/digest identify the immutable `.tseg` object. Segment keys a
 
 The scan index key is kind followed by big-endian `u64` LSN/segment ID and `u32`
 offset. Its value is the 32-byte point key followed by the 49-byte locator.
-Acceptance publishes both indexes together; physical-order traversal does not
+Acceptance publishes all row indexes together; physical-order traversal does not
 claim SQL sort order. Receipt keys are big-endian principal/operation `u64` pairs
 within the owning Table. Their values are the little-endian accepted frame LSN.
 
@@ -170,6 +173,37 @@ trim/GC operation. Pins preserve accepted unflushed rows, exact schema and both
 row indexes across restart. Snapshot retirement does not claim physical deletion.
 Its tests do not qualify catalog name publication, installed SQL, distributed transactions or
 a collector racing with snapshots.
+
+## Ordered full-key index component
+
+`OrderedKeyIndex` maps nonempty byte keys of at most 4,096 bytes to 32-byte row
+hashes. Key order is unsigned lexicographic byte order; callers supply the full
+collation-aware storage key. The component does not infer a collation, accept a
+mutation, retain a source or grant access. `TablePartitionRecord.Root.ordered_rows`
+binds this directory to the accepted Table. Recovery verifies its top-level page
+before exposing the root and verifies descendants on access. Flushes preserve
+this mapping because its values identify keys independently of row placement.
+
+Each level uses the existing immutable `TreeStore` pages with keys of up to 64
+bytes. A full 64-byte chunk may have a child index for the remaining suffix;
+a shorter chunk is terminal. A terminal sorts before every extension of that
+key. Paths contain at most 64 levels and mutations use the caller's existing
+`TreeStore.begin` encoded staging allowance. Earlier immutable roots retain their
+own contents. Removing the last terminal also removes empty prefix nodes.
+
+Each page entry's value is exactly 97 bytes: one flag byte, a 32-byte terminal
+row hash, a 32-byte child logical digest and a 32-byte child content location.
+Flag bit 0 denotes a terminal and bit 1 denotes a child; at least one is present
+and every other bit is zero. Absent fields are zero-filled. A child on a partial
+chunk or beyond the full-key length limit is invalid. The enclosing data page
+retains its mandatory shared definition, logical digest and content address.
+
+`seek` returns the first complete key satisfying optional inclusive/exclusive
+lower and upper bounds. Empty intervals return no entry. Continuing uses the
+returned key as an exclusive lower bound against the same root. Point reads and
+seeks verify each traversed page; missing or corrupt pages are errors. These
+operations do not collect all retained keys, promise a two-read lookup, or supply
+an independently authoritative checkpoint.
 
 ## Segment range reader
 

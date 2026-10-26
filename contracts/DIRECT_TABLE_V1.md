@@ -391,7 +391,7 @@ revoking either credential prevents use of the affected proof. Accepted work
 retains the original delegation; recovery cannot replace its caller signature
 or credential epoch implicitly.
 
-Snapshot delegation permits `pin`, `pin_status`, `snapshot`, `scan`, `read_key`,
+Snapshot delegation permits `pin`, `pin_status`, `snapshot`, `scan`, `read_key`, `key_range`,
 `release` and snapshot-only `check_set` for the bound object and pin owner.
 History delegation uses `retain_history` instead of `pin` and additionally
 permits `history_start`, `history`, `history_source` and `history_scan` at or
@@ -440,7 +440,7 @@ proof after the caller's epoch changes rejects instead of renewing accepted work
 The request carries both the original delegation and `borrow`. The transport
 proof belongs to the borrower's current credential. The owner authenticates the
 borrowed caller proof and current executor together and fences disclosure after
-serialization. A snapshot target permits only `snapshot`, `scan` and `read_key`
+serialization. A snapshot target permits only `snapshot`, `scan`, `read_key` and `key_range`
 for that exact handle. A historical target permits only `history_source` and
 `history_scan` for that exact lease, position and record commitment. Acquisition,
 release, history traversal, discovery and mutation reject. Borrow and closure
@@ -773,6 +773,31 @@ hash collision. Keyless Tables use canonical row identities as storage keys.
 The reader verifies attribution and key equality under the retained schema;
 a hit or absence does not advance sequential scan coverage. Current rights and
 the live pin are required even when no row matches.
+`key_range` accepts `snapshot`, `interval`, nullable `after` and `limits`.
+`interval.lower` and `interval.upper` are nullable bounds; each present bound
+requires a nonempty base64 `key` of at most 4,096 decoded bytes and an `inclusive`
+boolean. Keys are complete storage keys under the retained schema, not raw column
+values. Reversed or excluded equal bounds return an empty interval. The owner
+uses its paged full-key directory and validates decoded row keys before disclosure.
+
+The `key_range` result carries the same source metadata as `point`, up to eight
+FTR1 rows in strictly increasing storage-key order, `encoded_bytes` and nullable
+`next`. Limits and the 8 MiB wire page maximum match `scan`; a first row exceeding
+the budget fails. `total_rows` is the whole-source count, not interval cardinality.
+Null `next` establishes interval exhaustion, including a nonempty final page.
+Current authorization and pin validity apply to empty and nonempty intervals.
+
+A key cursor contains `source` (exact retained content), `interval` (32-byte
+fingerprint) and `after` (base64 complete last-returned key). The fingerprint is
+SHA-256 over `transit.table.key-range.v1` followed by a zero byte, mandatory
+32-byte shared definition, then lower and upper in that order. Each bound has a
+one-byte tag: 0 absent, 1 inclusive or 2 exclusive. A present tag is followed by
+a big-endian `u16` length and exact key bytes. Continuation rejects a different
+source or interval, a key outside the interval or a key absent from its retained
+directory. `DirectTableReader.readRange` owns decoded rows and the cursor, checks
+order, bounds, original schema and metadata, and leaves sequential coverage
+unchanged. It does not release the pin and rejects historical-lease range reads.
+
 `release` records terminal pin release through reserved control capacity.
 Current CONNECT/USAGE/SELECT rights apply to every operation, including release.
 

@@ -639,6 +639,7 @@ test "Table segment ranges bound cold point IO and preserve owned rows across ev
     // is checked against the independent ordinal and payload, not just a count.
     var after: ?s.TreeStore.pages.Key = null;
     var count: usize = 0;
+    const scan_index_before = table.index.misses;
     const ranges_before = table.segment_range_reads;
     const bytes_before = table.segment_bytes_read;
     while (true) {
@@ -657,6 +658,28 @@ test "Table segment ranges bound cold point IO and preserve owned rows across ev
     const scan_bytes = table.segment_bytes_read - bytes_before;
     try t.expect(scan_bytes <= full_bytes);
     std.debug.print("Table segment ranges: segment={d} cold_point={d} warm_point=0 same_cut_scan={d} bytes; point_ranges=5 scan_ranges=7 rows={d}\n", .{ full_bytes, cold_bytes, scan_bytes, count });
+    const scan_index_misses = table.index.misses - scan_index_before;
+    const snapshot = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 90 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+    try table.recover();
+    const key_bytes_before = table.segment_bytes_read;
+    const key_index_before = table.index.misses;
+    var upper_key: [4096]u8 = undefined;
+    var selected = try table.rangeSnapshot(t.allocator, snapshot, .{
+        .lower = .{ .key = try key(3, &key_buffer) },
+        .upper = .{ .key = try key(7, &upper_key), .inclusive = false },
+    }, null, .{}, access.guard());
+    defer selected.deinit();
+    try t.expectEqual(@as(u8, 4), selected.count);
+    try t.expect(selected.next == null);
+    for (selected.rows[0..selected.count], 3..) |slot, expected| {
+        try t.expectEqual(@as(i128, @intCast(expected)), slot.?.row().cells[0].value.atom.signed);
+        try t.expectEqualStrings(&body, slot.?.row().cells[1].value.atom.bytes);
+    }
+    const key_bytes = table.segment_bytes_read - key_bytes_before;
+    const key_index_misses = table.index.misses - key_index_before;
+    try t.expectEqual(cold_bytes, key_bytes);
+    try t.expect(key_index_misses < scan_index_misses);
+    std.debug.print("Table ordered interval: 4/512 rows, segment_bytes={d}/{d}, index_misses={d}/{d} versus same-cut scan; one resident index page\n", .{ key_bytes, scan_bytes, key_index_misses, scan_index_misses });
     // Budget exhaustion preserves the accepted state and original receipt.
     const accepted = table.root;
     table.options.segment_decode_bytes = 1;
@@ -1174,6 +1197,14 @@ test "Table recovery never substitutes its opening template for missing or incom
     const missing_fields = try std.json.Stringify.valueAlloc(t.allocator, .{ .interpretation = table.root.interpretation, .partition = table.root.partition }, .{});
     defer t.allocator.free(missing_fields);
     try t.expectError(error.MissingField, std.json.parseFromSlice(P.Root, t.allocator, missing_fields, .{}));
+    const complete_root = try std.json.Stringify.valueAlloc(t.allocator, table.root, .{});
+    defer t.allocator.free(complete_root);
+    var fields = try std.json.parseFromSlice(std.json.Value, t.allocator, complete_root, .{});
+    defer fields.deinit();
+    try t.expect(fields.value.object.swapRemove("ordered_rows"));
+    const without_ordered = try std.json.Stringify.valueAlloc(t.allocator, fields.value, .{});
+    defer t.allocator.free(without_ordered);
+    try t.expectError(error.MissingField, std.json.parseFromSlice(P.Root, t.allocator, without_ordered, .{}));
     try objects.objectStore().delete(try s.TableDeclaration.key(stored.content, &name));
     const before = table.root;
     try t.expectError(error.TableDeclarationMissing, table.recover());
@@ -1235,4 +1266,97 @@ test "Table identity index rejects aliases without publishing partial rows" {
     _ = try table.apply(binding(&table, 2), &.{unique}, .bulk, access.guard());
     try table.recover();
     try t.expectEqual(@as(u64, 2), table.root.live_rows);
+}
+
+test "Table recovery refuses a missing ordered root before exposing accepted rows" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    _ = try table.apply(binding(&table, 1), &.{change(&cell, 1)}, .point, access.guard());
+    const before = table.root;
+    var name: [96]u8 = undefined;
+    const address = try std.fmt.bufPrint(&name, "data-index/{x}.data", .{&before.ordered_rows.?.location});
+    try objects.objectStore().delete(address);
+    try t.expectError(error.MissingDataIndexObject, table.recover());
+    try t.expectEqualDeep(before, table.root);
+    var key_bytes: [4096]u8 = undefined;
+    try t.expectError(error.TableRecoveryRequired, table.get(t.allocator, try key(1, &key_bytes), access.guard()));
+    try t.expectEqual(@as(u64, 1), try wal.log().tail(17));
+}
+
+test "Table index batches share paths and reject duplicate identities across private flushes" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    var values: [64]f.Types.Values.Cell = undefined;
+    var changes: [64]P.Change = undefined;
+    for (&values, &changes, 0..) |*cell, *mutation, i| {
+        cell.* = .{ .value = .{ .atom = .{ .signed = @intCast(i) } } };
+        mutation.* = change(cell, i + 1);
+    }
+    const create = binding(&table, 1);
+    table.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, table.apply(create, &changes, .point, access.guard()));
+    const accepted = table.root;
+    const batch_pages = table.index.staged_pages;
+    const batch_bytes = table.index.staged_bytes;
+    const receipt = (try table.observe(create, access.guard())).?;
+    try t.expectEqual(@as(u64, 64), receipt.affected);
+    try t.expectEqualDeep(receipt, try table.apply(create, &changes, .point, access.guard()));
+    try t.expectEqual(batch_pages, table.index.staged_pages);
+    try t.expectEqual(@as(u64, 1), try wal.log().tail(17));
+    // Independent scalar staging control for the same accepted key/locator set.
+    // Counters describe logical acknowledged index payloads, not physical writes.
+    var control = try s.TreeStore.init(t.allocator, objects.objectStore(), 1);
+    defer control.deinit();
+    try control.begin(16 * 1024 * 1024);
+    defer control.end();
+    const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &control };
+    const ordered: s.OrderedKeyIndex = .{ .store = &control };
+    var rows: ?s.TreeStore.pages.Reference = null;
+    var identities: ?s.TreeStore.pages.Reference = null;
+    var physical: ?s.TreeStore.pages.Reference = null;
+    var keys: ?s.TreeStore.pages.Reference = null;
+    var bytes: [4096]u8 = undefined;
+    for (0..64) |i| {
+        const storage_key = try key(@intCast(i), &bytes);
+        var row = (try table.get(t.allocator, storage_key, access.guard())).?;
+        defer row.deinit();
+        try t.expectEqual(@as(i128, @intCast(i)), row.row().cells[0].value.atom.signed);
+        try t.expectEqual(@as(u64, i + 1), row.row().identity.operation);
+        const hash = try r.rowKey(storage_key);
+        const locator_bytes = (try tree.get(accepted.rows, hash)).?;
+        const locator = try r.Locator.decode(locator_bytes);
+        rows = try tree.put(rows, hash, locator_bytes);
+        identities = try tree.put(identities, try .init(&try row.row().identity.encode()), try .init(hash.data[0..32]));
+        physical = try tree.put(physical, try locator.scanKey(), try locator.scanValue(hash));
+        keys = try ordered.put(keys, storage_key, hash.data[0..32].*);
+    }
+    try t.expect(batch_pages * 2 < control.staged_pages);
+    try t.expect(batch_bytes * 2 < control.staged_bytes);
+    std.debug.print("Table index staging: {d}/{d} pages, {d}/{d} encoded bytes for one 64-row batch versus scalar index control (batch includes receipt)\n", .{ batch_pages, control.staged_pages, batch_bytes, control.staged_bytes });
+    // Both a duplicate inside a buffer and one after its first flush must leave
+    // all accepted roots, the WAL boundary and the original receipt unchanged.
+    for ([_]usize{ 1, 9 }) |duplicate| {
+        for (&values, &changes, 0..) |*cell, *mutation, i| {
+            cell.* = .{ .value = .{ .atom = .{ .signed = @intCast(i + 1000) } } };
+            mutation.* = change(cell, 1000 + if (i == duplicate) @as(usize, 0) else i);
+        }
+        try t.expectError(error.DuplicateTableRowIdentity, table.apply(binding(&table, 2), &changes, .point, access.guard()));
+        try t.expectEqualDeep(accepted, table.root);
+        try t.expectEqual(@as(u64, 1), try wal.log().tail(17));
+        try table.recover();
+        try t.expectEqualDeep(accepted, table.root);
+        try t.expectEqualDeep(receipt, (try table.observe(create, access.guard())).?);
+        try t.expect((try table.get(t.allocator, try key(1000, &bytes), access.guard())) == null);
+    }
 }

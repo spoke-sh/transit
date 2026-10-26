@@ -224,7 +224,7 @@ pub fn allow(self: Self, action: w.Action) !void {
         .history_scan => |value| try self.requireHistoryPoint(value.source),
         .pin_status => |value| try self.requirePin(value.object, value.owner),
         inline .snapshot, .release => |value| try self.requirePin(value.object, value.handle.owner),
-        inline .scan, .read_key => |value| try self.requirePin(value.snapshot.object, value.snapshot.handle.owner),
+        inline .scan, .read_key, .key_range => |value| try self.requirePin(value.snapshot.object, value.snapshot.handle.owner),
         .check_set => |values| for (values) |value| switch (value) {
             .snapshot => |snapshot| try self.requirePin(snapshot.object, snapshot.handle.owner),
             .access => return error.TableDelegationDenied,

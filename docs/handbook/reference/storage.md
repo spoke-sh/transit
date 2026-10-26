@@ -30,7 +30,10 @@ immutable segment. Segment reads fetch verified footer and row-group column
 ranges; the owner retains at most one footer and one bounded decoded group.
 New segments use 256-row groups by default. Output rows own their values across
 cache eviction, and current authorization still applies before disclosure.
-This physical access does not add ordered key ranges or SQL projection pushdown.
+Retained key-range reads seek through a separate paged full-key directory and
+return bounded pages in the declaration's collation order. Their continuations
+preserve the exact snapshot and interval. SQL projection and predicate pushdown
+remain separate query capabilities.
 
 The installed owner does not automatically flush point writes or expose physical
 Table garbage collection. Absence of a new `.tseg` after a point write does not

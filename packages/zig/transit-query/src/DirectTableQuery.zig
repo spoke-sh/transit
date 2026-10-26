@@ -92,6 +92,7 @@ fn start(scan: *Scan, compiled: *f.TableSelect.Owned, limits: Limits, compute: C
     const encoded = try (try compiled.plan.outputSchema(&fields)).encode(&scratch);
     if (encoded.len > limits.result_bytes) return error.QueryResultBudget;
     try scan.validateCurrent();
+    scan.selectPoint(compiled.plan);
     var execution = try Engine.initBudget(scan.*, compiled.plan, compute.limits);
     execution.runner = compute.runner;
     return .{ .compiled = compiled.*, .execution = execution, .limits = limits, .result_bytes = encoded.len };

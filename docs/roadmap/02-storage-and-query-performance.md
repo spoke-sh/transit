@@ -148,6 +148,25 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   segments directly. Cold partition loads and trim still enumerate directories;
   this is a bounded local traversal improvement, not a persistent segment index.
 
+- Full collation-aware primary keys now have a paged immutable directory in each
+  accepted Table root. Retained intervals use source/interval-bound cursors and
+  bounded owned pages through the signed direct API and shared reader. Mutation,
+  schema rewrite, flush, DROP and current disclosure checks preserve that root's
+  meaning. This stored-root and wire cutover replaces the shared v1 definition
+  and regenerates native, host and browser resources together.
+- Accepted row updates and physical flushes stage index mutations in bounded
+  batches under the original single acceptance boundary. Finite retained SQL
+  SELECTs, including prepared execution, also use the existing complete-key
+  equality qualification rather than scanning every source page.
+- A disk-backed, same-snapshot control now compares a narrow ordered interval
+  with a complete scan across eight segments, using fresh owners and one cached
+  index page. The [measurement](../handbook/reference/performance.md#retained-table-key-range-measurements)
+  attributes segment ranges/bytes and index misses; installed latency and broader
+  mixed-workload controls remain unqualified.
+- SQL inequality pushdown, encoded/pruned execution,
+  retained checkpoint/maintenance and native-owner obligations remain
+  open. A passing Table range test does not close #113–#118 or #123–#128.
+
 The storage foundation covers control/policy and catalog state, native process
 mailboxes/turns, KV roots, Document causal state, accepted-operation receipts,
 effect evidence and supported captured/stream payloads as well as Tables.

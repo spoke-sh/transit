@@ -613,3 +613,28 @@ fn signedCurrentRead(allocator: std.mem.Allocator, connection: w.Connection, rea
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = try w.Request.context(input, allocator) }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
     return .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .delegation = null, .proof = proof };
 }
+
+test "retained key range consumes independent signed bounds and interval fingerprint" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-table-key-range-v1.json"));
+    defer parsed.deinit();
+    const request = parsed.value.request;
+    try request.validate(t.allocator);
+    try request.proof.verify(parsed.value.public_key);
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const interval = try request.action.key_range.interval.native(arena.allocator());
+    try t.expectEqualDeep(request.action.key_range.after.?.interval, try interval.fingerprint());
+    var changed = request;
+    changed.action.key_range.interval.lower.?.inclusive = false;
+    changed.proof.claim.context = try w.Request.context(changed.input(), t.allocator);
+    try t.expectError(error.InvalidTableCursor, changed.validate(t.allocator));
+    changed = request;
+    changed.action.key_range.after.?.source.bytes += 1;
+    changed.proof.claim.context = try w.Request.context(changed.input(), t.allocator);
+    try t.expectError(error.InvalidTableCursor, changed.validate(t.allocator));
+    changed = request;
+    changed.action.key_range.after.?.after.base64 = "";
+    changed.proof.claim.context = try w.Request.context(changed.input(), t.allocator);
+    try t.expectError(error.InvalidTableCursor, changed.validate(t.allocator));
+}
