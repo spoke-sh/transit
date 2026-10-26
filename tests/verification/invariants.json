@@ -355,7 +355,7 @@
       "profile": "transit-v1/station-frame-v1",
       "tasks": [
         "test::codecs",
-        "contract::check"
+        "check::contracts"
       ],
       "scenarios": [
         "Malformed/truncated signed JSON under fixed workspace",
@@ -400,7 +400,7 @@
       "profile": "transit-v1 development control slice; not running service",
       "tasks": [
         "test::unit",
-        "contract::check"
+        "check::contracts"
       ],
       "scenarios": [
         "Twenty wide principals and seventy processes",
@@ -423,7 +423,7 @@
       "profile": "transit-v1 development state slice; not running service",
       "tasks": [
         "test::unit",
-        "contract::check"
+        "check::contracts"
       ],
       "scenarios": [
         "More than four resources, thirty-two rows and four retained views",
@@ -445,7 +445,7 @@
       "profile": "transit-v1 development read slice; not running service",
       "tasks": [
         "test::unit",
-        "contract::check"
+        "check::contracts"
       ],
       "scenarios": [
         "Captured old resource version versus later writer commit",
@@ -469,7 +469,7 @@
       "profile": "transit-v1 development work slice; not running service",
       "tasks": [
         "test::unit",
-        "contract::check",
+        "check::contracts",
         "test::simulation"
       ],
       "scenarios": [
@@ -495,7 +495,7 @@
       "tasks": [
         "test::growing",
         "test::unit",
-        "contract::check"
+        "check::contracts"
       ],
       "scenarios": [
         "Twenty wide principals, seventy processes, six resources and sixty-four rows with one resident page",
@@ -526,7 +526,7 @@
       "tasks": [
         "test::growing-service",
         "test::unit",
-        "contract::check"
+        "check::contracts"
       ],
       "scenarios": [
         "Wide caller principal and sixty-four rows with bounded point/paged reads",
@@ -630,7 +630,7 @@
       "tasks": [
         "test::unit",
         "test::growing-service",
-        "contract::check"
+        "check::contracts"
       ],
       "scenarios": [
         "Blocked metadata has no executable head input",
@@ -663,7 +663,7 @@
       "tasks": [
         "test::unit",
         "test::growing-service",
-        "contract::check",
+        "check::contracts",
         "test::growing"
       ],
       "scenarios": [
@@ -1195,7 +1195,7 @@
       ],
       "profile": "Native SQL session console with Table catalogs and explicit KV/Table/Document bindings",
       "tasks": [
-        "check-core",
+        "check::core",
         "test::sql-sessions",
         "test::server",
         "test::unified-ingress"
@@ -1254,7 +1254,7 @@
       ],
       "profile": "M25 trusted local Linux, neutral v1 installation/bootstrap and separately compiled Zig work-item consumer",
       "tasks": [
-        "contract::check",
+        "check::contracts",
         "test::unit",
         "test::server-applications",
         "test::server-application-faults",
@@ -1285,7 +1285,7 @@
       "profile": "M27 version-3 trusted local Linux neighborhood with default embedded Board and explicit application inspection",
       "tasks": [
         "test::unit",
-        "contract::check",
+        "check::contracts",
         "test::server-board",
         "test::server-board-package"
       ],

@@ -36,8 +36,8 @@ from pathlib import Path
 assert not any(key.startswith("TRANSIT_") for key in os.environ)
 with open(os.environ["CI_CLEAN_RECORD"], "a") as log:
     log.write(json.dumps(sys.argv[1:]) + "\\n")
-if "tests/ci.py" in sys.argv:
-    path = Path(".cache/ci")
+if "tests/ci.py" in sys.argv or any(arg.startswith("check::") for arg in sys.argv):
+    path = Path(".cache/checks" if any(arg.startswith("check::") for arg in sys.argv) else ".cache/ci")
     path.mkdir(parents=True)
     (path / "result.json").write_text('{"fixture": true}\\n')
     Path(".cache/verification").mkdir()
@@ -48,30 +48,39 @@ if "tests/ci.py" in sys.argv:
         record = root / "commands.jsonl"
         env = os.environ | {"PATH": str(root) + os.pathsep + os.environ["PATH"],
                             "CI_CLEAN_RECORD": str(record), "TRANSIT_FIXTURE_LEAK": "denied"}
-        for lane, exit_code in (("formal", 0), ("experience", 0), ("bindings-1", 0), ("formal", 23)):
+        for lane, exit_code in (("formal", 0), ("experience", 0), ("bindings-1", 0), ("formal", 23),
+                                ("check::fast", 0), ("check::contracts", 0), ("check::contracts", 24)):
             record.unlink(missing_ok=True)
             work = root / f"{lane}-{exit_code}"
             work.mkdir()
+            check_scope = lane.removeprefix("check::") if lane.startswith("check::") else None
+            selection = ["--check", check_scope] if check_scope else ["--lane", lane]
             result = subprocess.run([sys.executable, "-B", source / "tests/ci_clean.py",
-                                     "--lane", lane, "--work-root", work], cwd=source,
+                                     *selection, "--work-root", work], cwd=source,
                                     env=env | {"CI_CLEAN_EXIT": str(exit_code)}, capture_output=True)
             assert (result.returncode == 0) == (exit_code == 0), result.stderr.decode()
             commands = [json.loads(line) for line in record.read_text().splitlines()]
-            expected = SUITE["environments"][lane]
+            expected = ({"shell": "default", "prepare": [] if check_scope == "fast" else
+                        [["vp", "install", "--frozen-lockfile", "--filter", "transit", "--filter", "@transit/client"]]}
+                        if check_scope else SUITE["environments"][lane])
             assert len(commands) == 2 + len(expected["prepare"]), commands
             assert all(command[:3] == ["develop", ".#" + expected["shell"], "--command"]
                        for command in commands), commands
             assert [command[5:] for command in commands[1:-1]] == expected["prepare"]
-            assert commands[-1][5:] == ["python3", "-B", "tests/ci.py", lane]
+            expected_command = ["just", lane] if check_scope else ["python3", "-B", "tests/ci.py", lane]
+            assert commands[-1][5:] == expected_command
             if exit_code:
                 reports = list(work.glob("transit-ci-*/preparation.json"))
-                assert len(reports) == 1 and (reports[0].parent / "src/.cache/ci/result.json").is_file()
+                result_directory = "checks" if check_scope else "ci"
+                assert len(reports) == 1 and (reports[0].parent / f"src/.cache/{result_directory}/result.json").is_file()
             else:
                 assert not list(work.iterdir()), "successful clone was not removed"
                 reports = list((source / ".cache/ci/clean").glob("*/preparation.json"))
                 reports = [p for p in reports if json.loads(p.read_text())["selection"] == lane]
                 assert len(reports) == 1
                 assert (reports[0].parent / "verification/proof.json").is_file()
+                if check_scope:
+                    assert (reports[0].parent / "checks/result.json").is_file()
             metadata = json.loads(reports[0].read_text())
             assert metadata["completed"] == (exit_code == 0)
             assert metadata["phases"][-1]["exit_code"] == exit_code
@@ -99,6 +108,7 @@ def main():
     assert names.index("Save Nix store") < names.index("Run ${{ matrix.lane }} checks")
     artifacts = next(step for step in steps if step.get("name") == "Preserve task timings and completion evidence")
     assert ".cache/m9/station-local-readiness.json" in artifacts["with"]["path"].splitlines()
+    assert ".cache/checks/*.json" in artifacts["with"]["path"].splitlines()
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"

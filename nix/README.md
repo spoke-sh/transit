@@ -130,7 +130,7 @@ root:
 nix develop
 just doctor
 just transit-board::install
-just check
+just check all
 ```
 
 Or run a command without an interactive shell:
@@ -138,7 +138,7 @@ Or run a command without an interactive shell:
 ```sh
 nix develop --command just doctor
 nix develop --command just transit-board::install
-nix develop --command just check
+nix develop --command just check all
 ```
 
 The repository's [.envrc](../.envrc) runs `use flake`, then `dotenv_if_exists .env`
@@ -364,15 +364,15 @@ Board and native Station), `just ci::launchers` (build smoke and native counter)
 and `just ci::bindings-1` / `just ci::bindings-2` (native boundary and languages).
 `just ci::bindings` runs both bindings inventories sequentially. Chromium follows
 experience in hosted CI as `just ci::browser`; local `just ci::complete` includes
-that additional inventory explicitly. `just ci` runs the seven ordinary inventories
-sequentially in the pinned bindings shell; `just check` uses the ordinary
+that additional inventory explicitly. `just ci all` runs the seven ordinary inventories
+sequentially in the pinned bindings shell; `just check all` uses the ordinary
 developer tools. [The task inventory](../tests/verification/suite.json) owns the
 exact checks in each lane.
 
 The formal lane uses `nix develop .#ci-formal`, with only the pinned Zig, Python,
 TLC, Lean, Git and task runner. It installs no frontend dependencies and does not
 wait for SDK tests. Its 15-minute job limit includes cold preparation and concrete
-Zig replay; unchanged task-local limits still apply. `just ci-clean --lane formal`
+Zig replay; unchanged task-local limits still apply. `just ci clean --lane formal`
 uses this same shell and records clone, shell, dependency and check phases
 separately. Other single-lane clean runs likewise use the environments declared
 in `suite.json`. Multi-lane clean qualification still prepares the full bindings
@@ -437,10 +437,10 @@ Completion metadata records the revision and required task inventory separately;
 an interrupted result list cannot stand in for a complete proof. The aggregate
 requires successful planning and every selected lane; only explicit docs-only
 exclusion permits skipped runtime jobs. `just ci::complete` adds Chromium to the
-ordinary suite, and `just ci-clean --complete` runs it on a clean committed clone.
+ordinary suite, and `just ci clean --complete` runs it on a clean committed clone.
 Install the pinned browser first. Clean runs preserve timing/completion evidence
 outside successful temporary clones in `.cache/ci/clean/`.
-`just check` runs Actionlint so workflow syntax is checked before CI. Hosted
+`just check all` runs Actionlint so workflow syntax is checked before CI. Hosted
 wall time and total runner time must be measured after deployment; local timings
 and smaller closures alone do not establish the final speedup.
 
@@ -474,7 +474,7 @@ nix flake update nixpkgs
 
 # Enter the new shell and verify it.
 nix develop --command just doctor
-nix develop --command just check
+nix develop --command just check all
 ```
 
 The overlay's `master` attribute moves; the committed `flake.lock` freezes its
@@ -488,7 +488,7 @@ Update the version/dependency in `nix/vite-plus/package.json`, regenerate its
 internal lockfile using `npm install --package-lock-only --ignore-scripts
 --prefix nix/vite-plus`, and refresh `npmDepsHash` in the Nix derivation. npm is
 used here solely for Nix's `buildNpmPackage`; use `vp` for frontend dependencies.
-Run `just check` to exercise first-use setup and compilation. Evaluate all target
+Run `just check all` to exercise first-use setup and compilation. Evaluate all target
 systems and build/smoke-test on native runners as they become available.
 
 Nix flakes in Git repositories only include tracked files. When adding flake
@@ -505,7 +505,7 @@ package uses the `@voidzero-dev/vite-plus-core` alias and upstream Vitest 4.1.11
 its alias version triggers a pnpm peer-version warning, qualified by actual
 frontend build/check/test and browser proofs. No Nix toolchain pins were changed.
 The [Board frontend guide](../apps/transit-board-web/README.md) owns application workflows.
-CI installs the frozen lock before `just ci` and runs the pinned Chromium proof.
+CI installs the frozen lock before `just ci all` and runs the pinned Chromium proof.
 
 ## Formal verification tools
 

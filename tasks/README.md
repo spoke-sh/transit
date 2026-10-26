@@ -27,26 +27,28 @@ module and native library, `just bindings::go-check` runs formatting, vetting,
 race and cgo pointer checks, and `just bindings::go-sdk-test` runs the installed
 raw-client and example recovery proof. The latter belongs to `bindings-2`.
 
-The root [justfile](../justfile) keeps common commands: `check`, `ci-clean`,
+The root [justfile](../justfile) keeps common commands and modules: `check`, `ci`,
 `fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
-[build](build.just), [launchers](launchers.just), [test](test.just),
+[check](check.just), [build](build.just), [launchers](launchers.just), [test](test.just),
 [examples](examples.just), [contract](contract.just), [ci](ci.just),
 [bindings](bindings.just), [transit-board](transit-board.just), and
 [transit-docs](transit-docs.just).
-Use double colons, for example `just launchers::reference::up` or `just examples::run counter`.
-Space-separated module paths also work: `just build debug` is equivalent to
-`just build::debug`.
+Use module paths, for example `just check fast`, `just ci clean --lane formal`
+or `just launchers reference up`. Double colons also work: `just build debug`
+is equivalent to `just build::debug`. Follow [task instructions](AGENTS.md) when
+adding or changing this interface.
 
 `just` lists common commands and namespaces. `just launchers` lists environment
 groups; `just launchers::local` or `just --list launchers local` lists one
-environment's recipes. Most bare module commands list tasks; `just ci` is the
-exception and runs the complete local suite. `just test` lists the test recipes; use
-`just test::unit` to run unit tests. `just --list --list-submodules` shows the full
+environment's recipes. Bare module commands list tasks, including `just check`
+and `just ci`; select `just ci all` explicitly to run ordinary local qualification.
+`just test` lists the test recipes; use `just test::unit` to run the root Zig test
+graph, including its disk and process-death checks. `just --list --list-submodules` shows the full
 tree.
 
 Each module explicitly sets the strict Bash shell and repository-root working
 directory. Recipes work from repository subdirectories after entering the dev
-shell. `just ci` uses the same timed task inventory as the hosted lanes;
+shell. `just ci all` uses the same timed task inventory as the hosted lanes;
 reference deployment and physical-capacity tests remain explicit commands.
 
 `just test::catalog` qualifies direct dependencies and named native resources;
@@ -69,15 +71,21 @@ continues to use the selected Zig optimization profile for all artifacts.
 | --- | --- |
 | `just` | Lists available recipes |
 | `just doctor` | Prints tool versions, including Ursula and Kubernetes tooling, without contacting a cluster |
-| `just check` | Checks Nix/Zig formatting, tooling, Zig unit tests, Transit/Board contract drift, frontend formatting/lint/types/tests, local Markdown links, and diff whitespace; install locked frontend dependencies first |
-| `just ci` | Loads the pinned bindings shell and runs foundation, package, recovery, Board/frontend, local launcher and language checks |
+| `just check` | Lists the scopes in the [check module](check.just); this command executes no validation |
+| `just check fast` | Runs formatting, tooling, independent Python oracles, diagnostic inventory/mappings and documentation links without compiling the runtime or starting Transit services |
+| `just check contracts` | Compiles schema exporters once and runs the 18 existing drift, signing-fixture and binding checks with immutable artifact paths |
+| `just check core` | Adds compiled diagnostics/contracts, the root Zig test graph, Nix package checks and CLI/terminal proofs; the core CI lane runs this scope |
+| `just check all` | Runs core, Board and documentation-site validation; install locked frontend dependencies first |
+| `just ci` | Lists CI commands; this command executes no qualification |
+| `just ci all` | Loads the pinned bindings shell and runs foundation, package, recovery, Board/frontend, local launcher and language checks |
 | `just ci::core`, `just ci::experience`, `just ci::bindings-1`, `just ci::bindings-2`, `just ci::browser` | Run individual hosted lanes with task timings; select the matching shell, and install the browser before its proof |
-| `just ci::bindings`, `just ci-clean --lane bindings` | Run both bindings lanes sequentially, preserving the full language inventory |
+| `just ci::bindings`, `just ci clean --lane bindings` | Run both bindings lanes sequentially, preserving the full language inventory |
 | `just ci::growth`, `just ci::launchers` | Run the growing-state and launcher/build-smoke lanes from the same inventory |
 | `nix develop .#ci-formal --command just ci::formal` | Run finite Authority, WAL, Delivery and Console checks, concrete replay where defined, and Lean rewrite theorems with their own pinned tools |
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
-| `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci` inventory without existing workspace outputs |
-| `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout with its declared shell/preparation; complete ordinary qualification needs all seven lane reports at the same committed revision |
+| `just ci clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci all` inventory without existing workspace outputs |
+| `just ci clean --lane NAME` | Runs one inventory lane in its own clean checkout with its declared shell/preparation; complete ordinary qualification needs all seven lane reports at the same committed revision |
+| `just ci clean --check fast`, `just ci clean --check contracts` | Run a check-module scope from committed HEAD and retain preparation and validation reports; `--check core` and `--check all` select the broader repository scopes |
 | `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared caller/ABI/host administration against disk-backed authority |
 | `just test::table-build-memory` | Verify candidate allocation ceilings, admitted work-limit outcomes and parent-allocation failure distinctions |
 | `just test::storage-benchmark --output PATH` | Paired native/Table disk startup, recovery and read measurements with independent values, warm/cold input pages and raw samples |
@@ -128,11 +136,11 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::server-sql-local` | Exercise the default build's installed executables and adjacent discovery under `.cache/transit-sql-local`, with real trust/password clients, TLS modes, revocation and interrupted owner setup |
 | `just test::server-sql-lifetimes` | Verify idle psql and PostgreSQL/MySQL sockets, native session expiry, explicit timeout errors and bounded partial frames over plaintext/TLS |
 | `just test::server-sql-package` | Run the public SQL workflow against the installed local Nix bundle outside the checkout |
-| `just test::cli-diagnostics` | Check real CLI errors, argument/file/field/listener coordinates, next steps, privacy and stdout/stderr separation without starting services; included in `just check` |
+| `just test::cli-diagnostics` | Check real CLI errors, argument/file/field/listener coordinates, next steps, privacy and stdout/stderr separation without starting services; included in `just check all` |
 | `just test::diagnostic-inventory` | Detect changes to qualified outcome types, error declarations/returns, literal causes, propagation, imports and grammar; excludes dependency caches |
 | `just test::diagnostic-mappings` | Require reviewed stable compiler codes and explicit boundary exceptions independently of inventory recording; owning executable cases run through `test::unit` |
 | `just test::diagnostic-outcomes` | Execute retained outcome mappings, fact provenance and exact recovery actions against reviewed expectations. |
-| `just test::console-history` | Check real PTY reverse search, SQL/dot-command persistence, concurrent consoles, malformed records and file-failure fallback; included in `just check` |
+| `just test::console-history` | Check real PTY reverse search, SQL/dot-command persistence, concurrent consoles, malformed records and file-failure fallback; included in `just check all` |
 | `just test::console-latency [--single --resident-pages N --worker-interval-ms N]` | Measure idle CPU and empty-Table SQL with frozen ReleaseSafe executables and isolated disk providers; optional cache/polling controls, no latency threshold |
 | `just test::server-board`, `just test::server-board-package` | Qualify default embedded Board, explicit headless operation, retained inspection grants, recovery and the Nix downstream manifest |
 | `just test::server-faults` | Add interrupted provisioning, native gateway denial/capacity and negative provider-rollback checks |
@@ -199,7 +207,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::query [--finish-pages N]` | Focuses query capture, sealing, publication and partial-consumption recovery using ReleaseSafe binaries; included in the growing service proof |
 | `just test::growing-station` | Focuses growing Station calls, retained Table sources and recovery; also included in the full growing service proof |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |
-| `just ci::complete`, `just ci-clean --complete` | Includes installed Chromium in ordinary local or clean-checkout qualification |
+| `just ci::complete`, `just ci clean --complete` | Includes installed Chromium in ordinary local or clean-checkout qualification |
 | `nix develop .#bindings -c just bindings::sdk-interop` | Builds public SDK/example artifacts, installs external consumers and qualifies ten different-language counter/query pairs; writes a local timing record |
 | `just test::packages` | Runs each library’s standalone test suite for focused package work |
 | `just test::serving-counter` | Typed counter queue, frozen deltas, lost turns, overflow and output-budget rollback |
@@ -222,7 +230,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::storage-segments` | Verifies segment range/selection budgets, all-codec cell ownership and direct Table cold/warm reads against a complete same-cut disk scan |
 | `just test::service` | Proves signed HTTP ingress, scoped/revoked reads, worker replacement and authority/storage restart on loopback |
 | `just test::callers` | Runs the actual counter and byte-log example binaries through the public client against the same node, including dropped commit responses, stale owners and restart recovery |
-| `just contract::generate`, `just contract::check` | Regenerates or checks the language-neutral JSON Schema derived from public Zig types and the definition-bound work-item command fixture |
+| `just contract::generate`, `just check contracts` | Regenerates or checks the language-neutral JSON Schema derived from public Zig types and the definition-bound work-item command fixture |
 | `just test::capacity` | Linux/Docker proof of real disk pressure, reserved control progress, checkpoint/trim and restart on an owned ext4 image |
 | `just launchers::reference::up`, `status`, `inspect`, `update`, `restart`, `down` | Runs and updates a persistent Kubernetes/Substrate Transit application; down preserves its data |
 | `just launchers::reference::infra-up`, `images`, `test`, `infra-down` | Sets up, builds, tests and destroys the separately owned reference infrastructure |
@@ -298,7 +306,7 @@ Clean checkouts and their owned `TMPDIR` default to `/var/tmp`, outside Nix's
 temporary shell directory and the often memory-backed `/tmp`. SDK consumer
 builds and storage fixtures share that run's disk-backed scratch directory.
 They can consume over 10 GiB before cleanup.
-`just ci-clean --work-root /short/path` selects a persistent parent; keep it short
+`just ci clean --work-root /short/path` selects a persistent parent; keep it short
 for the native launchers' Unix sockets. Failed-run timing/log evidence is retained;
 a failed or space-exhausted run does not satisfy the clean gate.
 
@@ -330,7 +338,7 @@ Board install recipe also includes the site. `just transit-docs::dev` starts the
 Docusaurus development server on loopback. `build` produces static output and
 `serve` previews it. `just transit-docs::check` runs strict types, Vite+ checks,
 source/reference tests and a production build that rejects broken links and
-anchors; it is included in `just check` and the experience lane.
+anchors; it is included in `just check all` and the experience lane.
 
 `just transit-docs::browser-install` installs Chromium. Then run
 `just transit-docs::browser` to exercise desktop/mobile navigation, generated

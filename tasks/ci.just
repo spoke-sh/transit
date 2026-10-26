@@ -1,10 +1,19 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set working-directory := ".."
 
-# Run every hosted lane sequentially with the pinned language qualification tools.
+# List CI commands; running this default does not qualify any checks.
 [default]
 _default:
+    @just --list ci
+
+# Run every hosted lane sequentially with the pinned language qualification tools.
+all:
     nix develop .#bindings --command python3 -B tests/ci.py all
+
+# Run committed HEAD in a clean clone; optionally select one lane or complete CI.
+[positional-arguments]
+clean *args:
+    python3 -B tests/ci_clean.py "$@"
 
 # Ordinary hosted qualification including Chromium (install it first).
 complete:

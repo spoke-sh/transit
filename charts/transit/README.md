@@ -165,7 +165,7 @@ just launchers::reference::infra-down
 
 The first command renders and lints representative values, checks credential,
 bootstrap, storage and network boundaries, and rejects unsupported configuration.
-It runs in `just ci`. The reference uses the checked-in chart for real resources;
+It runs in `just ci all`. The reference uses the checked-in chart for real resources;
 its Python fixture supplies values, credentials, protocol operations and faults.
 
 ## Persistent reference controller

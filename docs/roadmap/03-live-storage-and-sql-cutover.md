@@ -205,7 +205,7 @@ bottlenecks keeping interactive SQL and server workflows slow:
    shorter readiness paths where their owners remain applicable. Complete or
    explicitly resolve keep-armed long polling; measure idle CPU, provider
    attempts and bootstrap latency. Run the affected safety/recovery proofs,
-   `just test::sql-gateway`, `just test::server-sql-local`, `just check` and the
+   `just test::sql-gateway`, `just test::server-sql-local`, `just check all` and the
    committed-source clean check, recording matched controls through #76/#124.
 
 ## Completion evidence

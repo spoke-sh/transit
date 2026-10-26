@@ -9,7 +9,7 @@
       "test::sql-rewrites"
     ],
     "core": [
-      "check-core",
+      "check::core",
       "test::properties",
       "test::simulation",
       "test::resource-simulation-smoke",
@@ -281,16 +281,19 @@
     "test::sql-wire-gateway": [
       "test::sql-wire-encoding"
     ],
-    "check-core": [
-      "test::diagnostic-inventory",
-      "test::diagnostic-mappings",
+    "check::core": [
+      "check::fast",
       "test::diagnostic-errors",
       "test::diagnostic-outcomes",
       "test::diagnostic-grammar",
       "test::unit",
       "test::cli-diagnostics",
-      "contract::check",
+      "check::contracts",
       "test::console-history"
+    ],
+    "check::fast": [
+      "test::diagnostic-inventory",
+      "test::diagnostic-mappings"
     ]
   },
   "environments": {
@@ -300,7 +303,17 @@
     },
     "core": {
       "shell": "default",
-      "prepare": []
+      "prepare": [
+        [
+          "vp",
+          "install",
+          "--frozen-lockfile",
+          "--filter",
+          "transit",
+          "--filter",
+          "@transit/client"
+        ]
+      ]
     },
     "growth": {
       "shell": "default",

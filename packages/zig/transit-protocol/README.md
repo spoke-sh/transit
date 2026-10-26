@@ -33,7 +33,7 @@ The [native contract](../../../contracts/TRANSIT_V1.md),
 [`transit-v1.schema.json`](../../../contracts/transit-v1.schema.json) is generated
 from the exact public types. It includes defaults, field order, integer ranges,
 routes, signing metadata and the current contract definition identifier.
-Run `just contract::generate` after public changes; `just contract::check` detects
+Run `just contract::generate` after public changes; `just check contracts` detects
 drift. Incompatible changes replace that identifier and update all consumers
 under the [hard-cutover policy](../../../docs/handbook/reference/versioning.md).
 

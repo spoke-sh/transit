@@ -657,6 +657,32 @@ pub fn build(b: *std.Build) void {
     b.step("application-installation-fixture", "Export a shared application signing fixture").dependOn(&installation_fixture.step);
     b.step("application-installation-contract", "Export language-neutral application installation schema").dependOn(&b.addRunArtifact(client.artifact("transit-application-installation-contract")).step);
     b.step("client-contract", "Export reflected client ABI signatures").dependOn(&b.addRunArtifact(client.artifact("transit-client-contract")).step);
+    // Compile schema exporters in one graph; the independent validators receive
+    // immutable artifact paths, without overwriting any shared install prefix.
+    const contract_checks = b.addSystemCommand(&.{ "python3", "-B" });
+    contract_checks.addFileArg(b.path("tests/tooling/checks.py"));
+    contract_checks.addArg("contracts");
+    const sql_protocol = b.dependency("transit_sql_protocol", .{ .target = target, .optimize = optimize });
+    inline for (.{
+        .{ "protocol", exporter },
+        .{ "installation", client.artifact("transit-application-installation-contract") },
+        .{ "client", client.artifact("transit-client-contract") },
+        .{ "station", station_bindings.artifact("transit-station-contract") },
+        .{ "logical", fuze.artifact("transit-logical-contract") },
+        .{ "direct-table", catalog.artifact("transit-direct-table-contract") },
+        .{ "configuration", query.artifact("transit-configuration-contract") },
+        .{ "settings-reference", settings_reference },
+        .{ "sql-session", sql_protocol.artifact("transit-sql-contract") },
+    }) |entry| {
+        contract_checks.addArgs(&.{ "--generator", entry[0] });
+        contract_checks.addArtifactArg(entry[1]);
+    }
+    // Validators read checked-in schemas and fixtures; always rerun them even
+    // when compilation was cached. A generator failure cannot become an empty
+    // successful pipe or hide behind a later validator's exit status.
+    contract_checks.has_side_effects = true;
+    contract_checks.stdio = .inherit;
+    b.step("check-contracts", "Check generated contracts through one build graph").dependOn(&contract_checks.step);
     b.step("client-abi", "Build the shared client library").dependOn(&b.addInstallArtifact(client.artifact("transit_client"), .{}).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("client_abi") })).step);

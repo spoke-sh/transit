@@ -24,6 +24,18 @@ def profile(suite, selection):
     return {"shell": "bindings", "prepare": [["just", "transit-board::install"]]}
 
 
+def check_profile(scope):
+    if scope == "all":
+        prepare = [["just", "transit-board::install"]]
+    elif scope in ("contracts", "core"):
+        # The last contract validator type-checks generated recursive types with
+        # the client package's pinned compiler. Do not rely on prior Board builds.
+        prepare = [["vp", "install", "--frozen-lockfile", "--filter", "transit", "--filter", "@transit/client"]]
+    else:
+        prepare = []
+    return {"shell": "default", "prepare": prepare}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     selection = parser.add_mutually_exclusive_group()
@@ -31,13 +43,15 @@ def main():
     suite = json.loads((ROOT / "tests/verification/suite.json").read_text())
     selection.add_argument("--lane", choices=[*suite["lanes"], "bindings"],
                            help="qualify one lane or both bindings lanes in a clean checkout; not the full suite")
+    selection.add_argument("--check", choices=("fast", "contracts", "core", "all"),
+                           help="run one check module scope in a clean checkout; not the CI suite")
     parser.add_argument("--work-root", type=Path, default=Path('/var/tmp'),
                         help="persistent short-path checkout parent (default: /var/tmp)")
     args = parser.parse_args()
-    selected = args.lane or ("complete" if args.complete else "all")
-    environment = profile(suite, selected)
+    selected = f"check::{args.check}" if args.check else args.lane or ("complete" if args.complete else "all")
+    environment = check_profile(args.check) if args.check else profile(suite, selected)
     if run("git", "status", "--porcelain", capture_output=True, text=True).stdout:
-        raise SystemExit("ci-clean checks committed HEAD; commit or stash source changes first.")
+        raise SystemExit("ci clean checks committed HEAD; commit or stash source changes first.")
     revision = run("git", "rev-parse", "HEAD", capture_output=True, text=True).stdout.strip()
     # A separate clone leaves the user's working tree, worktree registrations,
     # launchers and build outputs alone. Keep paths short for Unix sockets.
@@ -93,8 +107,8 @@ def main():
         # putting those builds in a shared tmpfs can exhaust unrelated fixtures.
         # This is the same inventory runner used by every ci::* recipe, entered
         # once with the pinned lane tools and this checkout's owned scratch.
-        phase("checks", *shell, "env", f"TMPDIR={scratch}",
-              "python3", "-B", "tests/ci.py", selected, cwd=checkout, env=env)
+        command = ["just", selected] if args.check else ["python3", "-B", "tests/ci.py", selected]
+        phase("checks", *shell, "env", f"TMPDIR={scratch}", *command, cwd=checkout, env=env)
         metadata["completed"] = True
         checkpoint()
     except (subprocess.CalledProcessError, KeyboardInterrupt):
@@ -107,9 +121,11 @@ def main():
         shutil.copyfile(preparation, evidence / "preparation.json")
         if (checkout / ".cache/verification").exists():
             shutil.copytree(checkout / ".cache/verification", evidence / "verification")
+        if (checkout / ".cache/checks").exists():
+            shutil.copytree(checkout / ".cache/checks", evidence / "checks")
         print(f"Clean CI timing and completion evidence: {evidence}", flush=True)
         shutil.rmtree(directory)
-    label = f"Clean CI lane {args.lane}" if args.lane else "Clean CI"
+    label = f"Clean check {args.check}" if args.check else f"Clean CI lane {args.lane}" if args.lane else "Clean CI"
     print(f"{label} passed without inherited workspace build outputs.", flush=True)
 
 

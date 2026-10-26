@@ -26,25 +26,6 @@ generate:
     python3 -B tests/work_items_contract.py --write
     zig build application-installation-fixture > contracts/application-installation-v1.fixture.json
 
-# Detect public schema/default/signing changes that were not reviewed together.
-check:
-    zig build contract | python3 -B tests/contract.py
-    python3 -B tests/native_fixtures.py
-    python3 -B tests/work_items_contract.py
-    zig build application-installation-contract | python3 -B tests/contract.py --installation
-    zig build application-installation-fixture | python3 -B tests/installation_contract.py
-    zig build diagnostic-contract | python3 -B tests/diagnostic_contract.py
-    zig build data-lifecycle-contract | python3 -B tests/contract.py --data-lifecycle
-    zig build index-lifecycle-contract | python3 -B tests/index_lifecycle_contract.py
-    just contract::client-check
-    just contract::station-check
-    just contract::logical-check
-    just contract::direct-table-check
-    just contract::configuration-check
-    just contract::sql-session-check
-    python3 -B bindings/generate.py
-    python3 -B tests/binding_schema_types.py
-
 # Regenerate the C ABI resource and header from exported Zig function types.
 client-generate:
     zig build client-contract | python3 -B packages/zig/transit-client/generate.py --write
