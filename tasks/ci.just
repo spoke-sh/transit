@@ -18,6 +18,10 @@ select base head="HEAD":
 core:
     python3 -B tests/ci.py core
 
+# Finite models, concrete trace replay and Lean rewrite theorems.
+formal:
+    python3 -B tests/ci.py formal
+
 # Growing state, Station and independent Arrow qualification.
 growth:
     python3 -B tests/ci.py growth

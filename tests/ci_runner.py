@@ -11,11 +11,76 @@ import time
 import yaml
 from ci import LANES, ROOT, SUITE
 from ci_select import select
+from ci_clean import profile
 from ci_cost import summarize
 from verification.external_profiles import DISCOVERY
 
 
+def clean_runner():
+    # Exercise clone isolation, lane preparation and retained failures with a
+    # fake Nix executable. This checks orchestration, not the selected proofs.
+    with tempfile.TemporaryDirectory(prefix="transit-clean-runner-") as directory:
+        root = Path(directory)
+        source = root / "source"
+        (source / "tests/verification").mkdir(parents=True)
+        (source / "tests/ci_clean.py").write_bytes((ROOT / "tests/ci_clean.py").read_bytes())
+        (source / "tests/verification/suite.json").write_bytes((ROOT / "tests/verification/suite.json").read_bytes())
+        (source / ".gitignore").write_text(".cache/\n")
+        for command in (["init", "-q"], ["add", "."],
+                        ["-c", "user.name=CI fixture", "-c", "user.email=fixture@example.invalid",
+                         "commit", "-qm", "test(ci): seed clean fixture"]):
+            subprocess.run(["git", *command], cwd=source, check=True)
+        executable = root / "nix"
+        executable.write_text(f"#!{sys.executable}\n" + '''import json, os, sys
+from pathlib import Path
+assert not any(key.startswith("TRANSIT_") for key in os.environ)
+with open(os.environ["CI_CLEAN_RECORD"], "a") as log:
+    log.write(json.dumps(sys.argv[1:]) + "\\n")
+if "tests/ci.py" in sys.argv:
+    path = Path(".cache/ci")
+    path.mkdir(parents=True)
+    (path / "result.json").write_text('{"fixture": true}\\n')
+    Path(".cache/verification").mkdir()
+    Path(".cache/verification/proof.json").write_text('{"fixture": true}\\n')
+    sys.exit(int(os.environ.get("CI_CLEAN_EXIT", "0")))
+''')
+        executable.chmod(0o755)
+        record = root / "commands.jsonl"
+        env = os.environ | {"PATH": str(root) + os.pathsep + os.environ["PATH"],
+                            "CI_CLEAN_RECORD": str(record), "TRANSIT_FIXTURE_LEAK": "denied"}
+        for lane, exit_code in (("formal", 0), ("experience", 0), ("bindings-1", 0), ("formal", 23)):
+            record.unlink(missing_ok=True)
+            work = root / f"{lane}-{exit_code}"
+            work.mkdir()
+            result = subprocess.run([sys.executable, "-B", source / "tests/ci_clean.py",
+                                     "--lane", lane, "--work-root", work], cwd=source,
+                                    env=env | {"CI_CLEAN_EXIT": str(exit_code)}, capture_output=True)
+            assert (result.returncode == 0) == (exit_code == 0), result.stderr.decode()
+            commands = [json.loads(line) for line in record.read_text().splitlines()]
+            expected = SUITE["environments"][lane]
+            assert len(commands) == 2 + len(expected["prepare"]), commands
+            assert all(command[:3] == ["develop", ".#" + expected["shell"], "--command"]
+                       for command in commands), commands
+            assert [command[5:] for command in commands[1:-1]] == expected["prepare"]
+            assert commands[-1][5:] == ["python3", "-B", "tests/ci.py", lane]
+            if exit_code:
+                reports = list(work.glob("transit-ci-*/preparation.json"))
+                assert len(reports) == 1 and (reports[0].parent / "src/.cache/ci/result.json").is_file()
+            else:
+                assert not list(work.iterdir()), "successful clone was not removed"
+                reports = list((source / ".cache/ci/clean").glob("*/preparation.json"))
+                reports = [p for p in reports if json.loads(p.read_text())["selection"] == lane]
+                assert len(reports) == 1
+                assert (reports[0].parent / "verification/proof.json").is_file()
+            metadata = json.loads(reports[0].read_text())
+            assert metadata["completed"] == (exit_code == 0)
+            assert metadata["phases"][-1]["exit_code"] == exit_code
+            assert metadata["shell"] == expected["shell"]
+            assert all(row["seconds"] >= 0 for row in metadata["phases"])
+
+
 def main():
+    clean_runner()
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     selected = [row["lane"] for row in workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]]
     assert selected == SUITE["tiers"]["ordinary"]
@@ -39,6 +104,13 @@ def main():
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"
     assert "transit-docs::check" in LANES["experience"]
     matrix = workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]
+    for row in matrix:
+        assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
+    assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": []}
+    assert LANES["formal"] == ["test::model", "test::wal-model", "test::model-delivery",
+                               "test::console-model", "test::sql-rewrites"]
+    assert ".cache/verification/wal-model/" in artifacts["with"]["path"].splitlines()
+    assert ".cache/verification/console-model/" in artifacts["with"]["path"].splitlines()
     for cache in {row["cache"] for row in matrix}:
         assert sum(row["cache_writer"] for row in matrix if row["cache"] == cache) == 1
     events = workflow.get("on", workflow.get(True))
@@ -54,7 +126,7 @@ def main():
     reclaim = next(step for step in fault_steps if step.get('name') == 'Reclaim unused hosted SDKs')
     assert reclaim['if'] == "runner.environment == 'github-hosted'"
     assert fault_steps.index(reclaim) < next(i for i, step in enumerate(fault_steps) if step.get('name') == 'Restore Nix store')
-    budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 2000}
+    budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 300 * len(selected) + 1}
     sample = dict(id=1, head_sha='fixture', html_url='https://example.invalid', conclusion='success', created_at='2026-01-01T00:00:00Z')
     job = dict(name='core', conclusion='success', started_at='2026-01-01T00:00:01Z', completed_at='2026-01-01T00:00:10Z', steps=[])
     log = 'core\tCache hit for: nix-key\ncore\tCache Size: ~0 MB (100 B)\ncore\tCache hit for: zig-key\ncore\tCache Size: ~0 MB (200 B)\n'
@@ -70,7 +142,7 @@ def main():
     assert not summarize(sample, full_jobs, full_log, dict(budgets, feedback_seconds=10))['budget_met']
     cold_log = ''.join(name + '\tCI dependency cache mode: cold\n' for name in selected)
     assert not summarize(sample, full_jobs, cold_log, budgets)['budget_met']
-    cold_budget = dict(feedback_seconds=20, aggregate_runner_seconds=60, restored_cache_bytes=0)
+    cold_budget = dict(feedback_seconds=20, aggregate_runner_seconds=10 * len(selected), restored_cache_bytes=0)
     cold = summarize(sample, full_jobs, cold_log, dict(budgets, cold=cold_budget))
     assert cold['budget_met'] and cold['budget'] == cold_budget and cold['cache_profile'] == 'cold'
     assert measured['budget'] == budgets and measured['cache_profile'] == 'warm'
@@ -81,7 +153,7 @@ def main():
     # Match an actual full hosted selection: the alternative docs-only job is
     # skipped, but every required matrix lane must still execute successfully.
     docs_skipped = dict(job, name='Documentation site', conclusion='skipped')
-    full_budgets = dict(budgets, restored_cache_bytes=2000)
+    full_budgets = dict(budgets)
     full = summarize(sample, [*full_jobs, docs_skipped], full_log, full_budgets)
     assert full['budget_met'] and len(full['lanes']) == len(selected)
     assert full['restored_cache_bytes'] == 300 * len(selected)
@@ -103,11 +175,22 @@ def main():
     assert not select(["docs/handbook/reference/state.md", "docs/roadmap/11-releases.md", "README.md"])["full"]
     assert not select(["docs/handbook/catalog.ts", "docs/handbook/src/css/custom.css",
                        "docs/handbook/package.json"])["full"]
+    assert not select(["tests/README.md", "tests/verification/models/AGENTS.md",
+                       "packages/zig/transit-core/README.md",
+                       "docs/history/qualification/migration.json",
+                       "tests/verification/results/record/report.json",
+                       "tests/verification/results/record/failed.log.gz"])["full"]
     for paths in ([], ["docs/schema.json"], ["contracts/STATE_V1.md"],
-                  ["build.zig"], ["unknown"], ["docs/../../build.zig"],
+                  ["build.zig"], ["unknown"], ["docs/../../build.zig"], ["/README.md"],
                   ["docs/handbook/../../build.zig"], ["docs/handbook-old/site.ts"],
                   ["docs/handbook/catalog.ts", "pnpm-lock.yaml"],
-                  ["docs/history/STATE.md", "packages/zig/transit-core/README.md"]):
+                  ["contracts/sql/README.md"], ["tests/fixtures/record.json"],
+                  ["tests/verification/results/record/test.py"],
+                  ["tests/verification/results/../suite.json"],
+                  ["tests/fuze_benchmarks/results/record/budgets.json"],
+                  ["tests/verification/invariants.json"], ["tests/verification/suite.json"],
+                  ["tests/verification/models/Wal.tla"],
+                  ["tests/README.md", "packages/zig/transit-core/src/lib.zig"]):
         assert select(paths)["full"], paths
     for event in ("push", "merge_group", "workflow_dispatch", "unknown"):
         assert select(["README.md"], event)["full"]
@@ -195,7 +278,7 @@ def main():
                           "with Path('executed').open('a') as log: log.write(sys.argv[1]+'\\n')\n")
         script.chmod(0o755)
         env = os.environ | {"PATH": str(path) + os.pathsep + os.environ["PATH"]}
-        for selection in ("bindings", *SUITE["tiers"]["bindings"]):
+        for selection in ("formal", "bindings", *SUITE["tiers"]["bindings"]):
             (path / "executed").unlink(missing_ok=True)
             subprocess.run([sys.executable, "-B", runner, selection], env=env,
                            capture_output=True, check=True)

@@ -1,6 +1,13 @@
 {
   "version": 1,
   "lanes": {
+    "formal": [
+      "test::model",
+      "test::wal-model",
+      "test::model-delivery",
+      "test::console-model",
+      "test::sql-rewrites"
+    ],
     "core": [
       "check-core",
       "test::properties",
@@ -101,11 +108,6 @@
       "bindings::ruby-sdk-test",
       "bindings::sdk-interop",
       "bindings::authorization",
-      "test::model",
-      "test::wal-model",
-      "test::model-delivery",
-      "test::console-model",
-      "test::sql-rewrites",
       "test::sql",
       "bindings::grpc-faults",
       "bindings::connector-preparation"
@@ -129,6 +131,7 @@
   },
   "tiers": {
     "ordinary": [
+      "formal",
       "core",
       "growth",
       "experience",
@@ -137,6 +140,7 @@
       "bindings-2"
     ],
     "complete": [
+      "formal",
       "core",
       "growth",
       "experience",
@@ -288,5 +292,74 @@
       "contract::check",
       "test::console-history"
     ]
+  },
+  "environments": {
+    "formal": {
+      "shell": "ci-formal",
+      "prepare": []
+    },
+    "core": {
+      "shell": "default",
+      "prepare": []
+    },
+    "growth": {
+      "shell": "default",
+      "prepare": []
+    },
+    "experience": {
+      "shell": "ci-experience",
+      "prepare": [
+        [
+          "just",
+          "transit-board::install"
+        ]
+      ]
+    },
+    "launchers": {
+      "shell": "ci-experience",
+      "prepare": [
+        [
+          "just",
+          "transit-board::install"
+        ]
+      ]
+    },
+    "bindings-1": {
+      "shell": "ci-bindings",
+      "prepare": [
+        [
+          "vp",
+          "install",
+          "--frozen-lockfile",
+          "--filter",
+          "@transit/station",
+          "--filter",
+          "@transit/*"
+        ]
+      ]
+    },
+    "bindings-2": {
+      "shell": "ci-bindings",
+      "prepare": [
+        [
+          "vp",
+          "install",
+          "--frozen-lockfile",
+          "--filter",
+          "@transit/station",
+          "--filter",
+          "@transit/*"
+        ]
+      ]
+    },
+    "browser": {
+      "shell": "ci-experience",
+      "prepare": [
+        [
+          "just",
+          "transit-board::install"
+        ]
+      ]
+    }
   }
 }

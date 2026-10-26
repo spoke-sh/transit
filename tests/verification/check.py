@@ -15,6 +15,11 @@ def read(name):
 
 
 def validate(suite, invariants, limits, sdk):
+    assert suite["environments"].keys() == suite["lanes"].keys(), "unowned lane environment"
+    for environment in suite["environments"].values():
+        assert environment["shell"] and isinstance(environment["prepare"], list)
+        assert all(command and all(isinstance(arg, str) for arg in command)
+                   for command in environment["prepare"]), environment
     tasks = [task for lane in suite["lanes"].values() for task in lane]
     assert len(tasks) == len(set(tasks)), "duplicate CI task ownership"
     for tier, lanes in suite["tiers"].items():

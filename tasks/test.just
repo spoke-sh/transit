@@ -516,7 +516,7 @@ application-grammar:
 
 # Type-check the named rewrite theorems and reject incomplete proofs.
 sql-rewrites:
-    nix shell .#sql-tools --command python3 -B tests/sql/rewrites.py
+    nix shell --inputs-from . nixpkgs#lean4 --command python3 -B tests/sql/rewrites.py
 
 # Full reference/production AST, real plan and paged Arrow execution proof.
 sql:

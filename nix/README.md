@@ -356,17 +356,27 @@ The [pre-split run](https://github.com/spoke-sh/transit/actions/runs/36073815381
 took 18m29s: restore/save used 2m28s, the checks used 14m22s, and native launcher
 qualification accounted for 5m39s of those checks. The later three-lane
 [baseline](https://github.com/spoke-sh/transit/actions/runs/36181871580) took 17m42s
-and 40m11s of aggregate job time. Six ordinary lanes now separate
+and 40m11s of aggregate job time. Seven ordinary lanes now separate
+`just ci::formal` (finite models, concrete replay and Lean theorems),
 `just ci::core` (foundation/library/protocol), `just ci::growth` (Arrow, pages
 and growing authority/service), `just ci::experience` (frontend, observability,
 Board and native Station), `just ci::launchers` (build smoke and native counter),
 and `just ci::bindings-1` / `just ci::bindings-2` (native boundary and languages).
 `just ci::bindings` runs both bindings inventories sequentially. Chromium follows
 experience in hosted CI as `just ci::browser`; local `just ci::complete` includes
-that additional inventory explicitly. `just ci` runs the six ordinary inventories
+that additional inventory explicitly. `just ci` runs the seven ordinary inventories
 sequentially in the pinned bindings shell; `just check` uses the ordinary
 developer tools. [The task inventory](../tests/verification/suite.json) owns the
 exact checks in each lane.
+
+The formal lane uses `nix develop .#ci-formal`, with only the pinned Zig, Python,
+TLC, Lean, Git and task runner. It installs no frontend dependencies and does not
+wait for SDK tests. Its 15-minute job limit includes cold preparation and concrete
+Zig replay; unchanged task-local limits still apply. `just ci-clean --lane formal`
+uses this same shell and records clone, shell, dependency and check phases
+separately. Other single-lane clean runs likewise use the environments declared
+in `suite.json`. Multi-lane clean qualification still prepares the full bindings
+and frontend environment. No compiler, model bounds or lockfile pins change.
 
 The experience lane uses `nix develop .#ci-experience`, a shell with the native
 Ursula and MinIO fixtures but no Kubernetes/provider management tools. Its Python
@@ -380,7 +390,7 @@ Both use the existing locked nixpkgs input; no compiler, provider or lockfile
 revision changes are required. The previously measured 1.2 GiB environment
 closure predates the database clients, PyArrow, gRPC peer and MinIO; the current closure has not
 been measured. Experience/launchers share one Nix cache, core/growth share another,
-and bindings owns the third; each group has one writer. Successful preparation is rooted
+bindings owns the third, and formal owns a fourth; each group has one writer. Successful preparation is rooted
 before collection, and a miss saves only the live closure. Small changes to the
 packaged inspection plugin or environment helper can rebuild without uploading
 the store. Exact cache hits do not upload again. Cache keys deliberately change
@@ -411,9 +421,12 @@ Debug/ReleaseSafe builds. No application tests are skipped on a cache hit.
 
 CI runs for PRs, main pushes, version tags, merge queues and manual dispatch.
 Feature branch pushes no longer duplicate the PR run. A cheap planning job checks
-documentation and selects full qualification unless a PR changes only root
-README/AGENTS or Markdown under `docs/`. Contract/component docs, unknown paths,
-renames from code, and shared infrastructure select every lane. Missing Git
+documentation and selects full qualification unless a PR changes only navigation
+README/AGENTS files, handbook sources/tooling, Markdown under `docs/`, the historical
+qualification migration map, or inert records under `tests/verification/results/`.
+Contracts (including their README files), live fixtures/budgets, models, unknown
+paths, renames from code, and shared infrastructure select every lane. Other
+`results/` directories can contain executable budgets and remain full. Missing Git
 revisions fail planning; main/tags/merge queues/manual runs are always full.
 Use `just ci::select BASE [HEAD]` to inspect the same selection locally.
 
@@ -497,8 +510,8 @@ CI installs the frozen lock before `just ci` and runs the pinned Chromium proof.
 ## Formal verification tools
 
 `just test::model` uses TLA+/TLC from the existing nixpkgs lock (1.7.4); it
-is rooted in the bindings CI shell alongside Java, without expanding the core
-or frontend shell. The small model runs in ordinary bindings qualification.
+is rooted in the formal CI shell alongside Lean, without expanding the core
+or frontend shell. The small model runs in ordinary formal qualification.
 The separate weekly/manual fault workflow expands model/property exploration and
 runs actual guard mutations through `just test::vortex-profile discovery`. It
 restores the ordinary core Nix cache without adding another cache writer. Its
@@ -509,7 +522,8 @@ The separate dedicated reference workflow runs weekly and on demand; absent
 runner capacity is outstanding evidence, not a passing deployment proof.
 
 M12 adds optional `sql-tools`, exported from `flake.nix` and selected by
-`just test::sql-grammar` / `just test::sql-rewrites`. ANTLR 4.13.2, Lean 4.29.1
+`just test::sql-grammar`. The independent `just test::sql-rewrites` task loads
+only the pinned Lean package from the same input. ANTLR 4.13.2, Lean 4.29.1
 and pglast 7.13 (`libpg_query`, PostgreSQL 17.7) use the existing nixpkgs lock;
 no unrelated lock entries or Zig pins change. Version assertions make upgrades
 explicit. The bindings CI shell roots these tools; the ordinary shell and Fuze
