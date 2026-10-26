@@ -118,6 +118,12 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- The exclusive local WAL has a finite TLA+ publication/recovery model with
+  independent durability states and removed-guard controls. Its counterexamples
+  motivated file and directory recovery barriers; disk regressions check their
+  ordering. This does not close physical power-loss, retention-owner or complete
+  clean-CI qualification. See the [proof ledger](../../tests/README.md).
+
 - Verified segment range reads and bounded decoding are wired into live Table
   point/scanned reads; 256-row groups separate decoder residency from result
   batches. The WAL keeps bounded verified seek coordinates to avoid repeated

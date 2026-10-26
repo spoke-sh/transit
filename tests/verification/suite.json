@@ -102,6 +102,7 @@
       "bindings::sdk-interop",
       "bindings::authorization",
       "test::model",
+      "test::wal-model",
       "test::model-delivery",
       "test::console-model",
       "test::sql-rewrites",

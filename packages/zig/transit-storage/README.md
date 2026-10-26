@@ -127,3 +127,9 @@ and deletion-vector ownership before pruning.
 
 Focused storage checks use `zig build test -Dtest-filter='Table ALTER'` inside
 `nix develop`. Filters select test names; omit them for the complete suite.
+
+The [local WAL model](../../../tests/verification/models/README.md#finite-local-wal-model)
+checks finite crash and publication ordering separately from disk experiments.
+Recovery syncs complete frames beyond the saved frontier, and opening syncs the
+WAL directory before returning. These barriers prevent a later fence, append or
+resumed trim from depending on merely visible file bytes or metadata.

@@ -109,6 +109,11 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: 
         // Atomic-file temporaries are unreachable. Keep them on uncertain
         // recovery; they cannot supply metadata or accepted log entries.
     }
+    // A previous owner can die after rename but before its directory sync.
+    // Stabilize the observed metadata (especially a trim floor) before callers
+    // can rely on it to delete history or publish a successor. Recovery above
+    // first syncs any complete frames beyond that metadata's frontier.
+    try self.syncDirectory();
     return self;
 }
 
@@ -311,6 +316,14 @@ fn recover(self: *Self, state: *State) !void {
             state.policy = @max(state.policy, decoded.frame.header.policy_epoch);
             offset += bytes.len;
             self.recovered_frames += 1;
+        }
+        if (expected.? > durable_next and expected.? > segment.first) {
+            // Complete unacknowledged frames may only be in the OS page cache.
+            // A later fence or append must not persist a frontier depending on
+            // those bytes until their file sync has succeeded.
+            errdefer self.poisoned = true;
+            try file.sync(self.io);
+            self.syncs += 1;
         }
         state.segment = segment.first;
         state.offset = offset;

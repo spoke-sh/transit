@@ -233,7 +233,12 @@ Recovery checks contiguous LSNs, frame integrity and the persisted frontier.
 It reads one bounded frame at a time. Only an incomplete frame in the final
 segment beyond the persisted frontier can be truncated; missing acknowledged
 history, a damaged earlier segment and checksum failures reject. Complete frames
-beyond the metadata frontier remain recoverable uncertain work. Missing metadata
+beyond the metadata frontier remain recoverable uncertain work. Recovery syncs
+each segment containing such frames before adopting their frontier. Opening then
+syncs the WAL directory before returning the owner, stabilizing observed segment
+names and metadata replacements, including a trim floor whose previous owner
+died before its directory sync. A failed barrier prevents a usable open owner.
+Missing metadata
 does not turn existing segments into a new empty partition.
 
 Epoch fences persist even without an append. Trim persists the exclusive floor

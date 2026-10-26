@@ -1910,6 +1910,31 @@
       "qualification": "Focused execution and the original failing trim schedule are recorded in tests/README.md; complete clean lanes remain separate gates."
     },
     {
+      "id": "STORAGE-03",
+      "claim": "The finite exclusive-owner WAL model preserves acknowledged and published history, epoch fences, authorized deletion, completed trim and contiguous usable recovery across modeled crashes",
+      "owner": "contracts/TRANSIT_STORAGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/DiskWal.zig",
+        "packages/zig/transit-storage/src/disk_wal_test.zig"
+      ],
+      "profile": "One local owner and partition; two LSNs, two writer epochs and two policy epochs; one frame per segment",
+      "tasks": [
+        "test::wal-model",
+        "test::unit",
+        "test::storage-io-faults",
+        "test::local-storage-faults"
+      ],
+      "scenarios": [
+        "Exhaustive TLC safety exploration with independent visible and durable file contents, directory names and metadata",
+        "Process death retaining visible state; power loss retaining only modeled durable state; I/O failure requires reopening",
+        "Six independent removed guards must produce named invariant counterexamples",
+        "Disk sync failures reject recovery before adopting complete uncertain frames or allowing a repeated observed trim floor"
+      ],
+      "limits": "Finite model under atomic metadata replacement and truthful successful fsync. Epoch identities and complete/torn frames abstract payloads, codecs, filesystem internals and multi-frame segments. No Zig refinement, arbitrary cardinality, actual power-loss experiment, distributed ownership or retention-policy proof. Counterexamples are not automatically replayed against Zig; independent disk regressions check selected ordering obligations.",
+      "model": "tests/verification/models/Wal.tla",
+      "qualification": "Executed bounds, negative controls, disk regressions and remaining CI gates are recorded in tests/README.md."
+    },
+    {
       "id": "SQL-SESSION-01",
       "claim": "Authenticated native and database-wire sessions share account ownership while durable operations outlive session/transport loss and every protected disclosure rechecks current rights",
       "owner": "contracts/SQL_SESSION_V1.md",

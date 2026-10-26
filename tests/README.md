@@ -27164,3 +27164,65 @@ I/O. Each cold partition load still enumerates the entire directory; trim still
 uses repeated enumeration. No persistent segment index, throughput, latency or
 whole-process residency result is inferred, and no stored format or acceptance,
 fencing, trim-authority or uncertain-append contract changes.
+
+## Local WAL model and recovery barriers — 2026-10-26
+
+Source basis: WAL traversal commit `0eea3cc1`, rebased onto main `b65546ff`,
+followed by the recovery barriers and finite model in this change. Run
+`nix develop --command just test::wal-model`. The locked TLC 2.19 exhausts
+**201,771 distinct states**, with an empty queue, at two LSNs and two values of
+each epoch. One worker, fingerprint/seed `0`/`1`, a 512 MiB heap and a 60-second
+per-configuration timeout are used. Six independent removed obligations produce
+their required invariant violation and complete explicit counterexample:
+
+| Removed obligation | Detected invariant |
+| --- | --- |
+| Append file sync | `PublishedHistory` |
+| Writer/policy epoch admission | `AppendFenced` |
+| Floor publication before deletion | `DeletionAuthorized` |
+| Repeated-floor physical cleanup | `TrimComplete` |
+| Recovered complete-frame sync | `PublishedHistory` |
+| Recovered directory sync | `PublishedHistory` |
+
+The [model guide](verification/models/README.md#finite-local-wal-model) defines
+assumptions, state abstraction and exclusions. The runner retains source hashes,
+configurations, logs, counterexamples and completion evidence under
+`.cache/verification/wal-model/`; parser/tool errors, timeout or incomplete
+exploration cannot pass. The ordinary bindings lane owns the task. This is a
+finite safety result, not a Zig refinement proof, liveness theorem or experiment
+on actual host power loss. Counterexamples are not automatically replayed into
+production code.
+
+The initial model reproduced a missing recovery barrier: complete unacknowledged
+bytes survive process death in the OS cache; recovery adopts them; a subsequent
+fence publishes a frontier whose supporting file has never been synced. The
+focused disk regression fails against the preceding implementation because open
+returns successfully without reaching the required segment sync. The fixed
+owner syncs segments containing complete frames beyond the saved frontier before
+adopting them. A related directory barrier stabilizes visible segment names and
+metadata, including a trim-floor rename whose previous directory sync failed.
+It runs once after all partitions have been validated and before open returns.
+
+`nix develop --command just test::storage-io-faults` passes **7/7 tests**:
+the existing 37 write/sync error schedules plus four recovery-barrier schedules
+(same file/rollover, recovered-file/directory sync errors), an observed trim-floor
+rename/directory-error schedule, and the import test. The original recovery
+regression passes **2/2 tests** after the fix. Payloads, next LSNs, successful
+successor publication, removed prefix files and retained frames are checked on
+real disk. These injected errors establish ordering and error propagation;
+they do not suppress the host's background writeback or simulate device loss.
+`nix develop --command just test::local-storage-faults` also passes all **42**
+process-death schedules after both barriers. SIGKILL retains the OS page cache.
+The broader filtered disk WAL/recovery suite passes **14/14 tests**, including
+all-partition startup, direct segment traversal, cancellation, full trim, bounded
+descriptors and recovery beyond 64 MiB. Diagnostic inventory/mappings, the
+verification catalog, documentation links, Zig formatting and whitespace checks
+pass.
+
+The earlier PR qualification still has unresolved failures: the hosted bindings
+lane exceeds a public-query deadline, and hosted and local clean growth runs
+exceed the direct Table lifecycle proof's 180-second subprocess budget. The
+local clean experience run has a separate authority/restart-budget failure.
+These are not passes, not attributed to the model, and not fixed by increasing
+fixture budgets here. Full checks and committed-source clean lanes on the final
+PR revision remain separate gates.

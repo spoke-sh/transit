@@ -44,6 +44,15 @@ invariants and assumptions; they are not a proof of every Zig execution or clust
 size. The selected SQL rewrite theorems are specification results with explicit
 correspondence assumptions; no optimizer rewrite is enabled by those proofs.
 
+The local WAL model separates visible writes from durable file contents, directory
+entries and metadata. Its finite checks cover acknowledgement, fencing, recovery
+and authorized prefix deletion under explicit sync and atomic-replacement
+assumptions. Process death and power loss are distinct modeled transitions; the
+disk suites exercise process death and injected I/O errors. A model check does
+not establish host power-loss behavior or a refinement proof of the Zig owner.
+The [storage account](../internals/storage-runtime.md#local-wal-publication-and-recovery-model)
+defines the correspondence and exclusions.
+
 The console interaction model checks bounded editor/request transitions and
 replays every exported edge against its Zig owner. Its conditional progress
 check assumes eventual request settlement, cancellation join and foreground
