@@ -790,5 +790,6 @@
     "tests/work_items_browser.zig",
     "tests/work_items_contract.py",
     "tests/worker_handoff.py"
-  ]
+  ],
+  "migration_map": "docs/roadmap/development-workflow-migration.json"
 }

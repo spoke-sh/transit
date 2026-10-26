@@ -23,7 +23,9 @@ expanded suite. These counts describe the starting revision, not a future quota.
 The [source and execution baseline](development-workflow-baseline.json) preserves
 every tracked test file's size/hash and the original check/lane/nesting catalogs.
 It is a migration audit record, not another live execution inventory or a passing
-qualification result.
+qualification result. The [file disposition map](development-workflow-migration.json)
+records every original file's planned destination, role and observed reference
+consumers. Dynamic task and artifact dependencies still require the P1.1 audit.
 
 The user paused the separate storage milestone work so this branch can migrate
 the storage/query test owners as well as the other domains. Preserve any work
@@ -173,7 +175,7 @@ this plan is not another chronological test transcript.
 - [x] P1.3 Add a layout check to the existing fast inventory. Initially permit
   only enumerated unmigrated root files/directories, shrinking those exceptions
   per batch. Reject new root files, unknown owners and stale inventory entries.
-- [ ] P1.4 Test the check with actual added/moved files, missing owners, duplicate
+- [x] P1.4 Test the check with actual added/moved files, missing owners, duplicate
   destinations and stale exceptions. Verify nested task ownership after moves.
 - [ ] P1.5 Update workflow callers, Just recipes, Python roots, formatter globs,
   docs and build references. Run runner regressions and committed-source fast
@@ -367,7 +369,7 @@ they are not automatically deferred to a later milestone or follow-up PR.
 | --- | --- | --- |
 | Delivered foundation | Completed | PRs #175–#181 above; each records its scoped qualification |
 | P0 | In Progress | Repairs: `945101ead`, `251f15195`. File-query oracle: 190 cases; native/port codec: 143 cases; ten installed consumers: four collation vectors each; TypeScript: 39 adapter tests; Python types pass. Clean fast checks: 26, 20.614 seconds in the check phase. [Full baseline run](https://github.com/spoke-sh/transit/actions/runs/40404745910) at `251f15195` is pending. |
-| P1 | In Progress | Runner, lane inventory, task coverage, CI cost policy and external-profile orchestration moved together; 26 fast checks pass, including real runner failure/interruption and clean-clone controls. The layout guard passes eight actual-file regression controls and the expanded 28-check fast profile; 775 enumerated migration exceptions remain. The file disposition map and duplicate-destination audit remain pending. Committed-source checks pass after the runner move. |
+| P1 | In Progress | Runner, lane inventory, task coverage, CI cost policy and external-profile orchestration moved together; 26 fast checks pass, including real runner failure/interruption and clean-clone controls. The layout guard passes eight actual-file regression controls and the expanded 28-check fast profile; 775 enumerated migration exceptions remain. The 1,405-file disposition map is recorded; eleven layout controls cover duplicate destinations, missing dispositions and retained-evidence integrity. Dynamic task/artifact dependency auditing remains pending. Committed-source checks pass after the runner move. |
 | P2–P12 | Planned | Checklists above; no execution claimed |
 
 The final PR closes the work only when the proposed structure exists, every
