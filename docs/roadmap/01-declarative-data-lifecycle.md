@@ -255,6 +255,17 @@ passes inspection and the direct worksheet, including replacement, original-pin
 recovery and current denial. Public validation and Transit diagnostics retain
 their existing semantics.
 
+Committed-HEAD clean experience at `e550f4ed5` then passes five tasks and times
+out on the installed Table proof's post-restart DELETE/DROP batch. Signed
+inspection of the original installation confirms DELETE 647 applied one change;
+subsequent operation 695 remains incomplete publication and is not resubmitted.
+Two fresh full-workload diagnostics pass with unchanged assertions and deadlines,
+including one with temporary WAL error labels. Neither reproduces the poisoned
+WAL owner or establishes the historical failure's exact cause. The
+[original outcomes and diagnostic evidence](../../tests/README.md#installed-table-qualification-and-original-outcomes--2026-10-26)
+preserve that distinction. Final combined qualification and acceptance remain
+open; no WAL recovery gate is relaxed to obtain a pass.
+
 ## Implementation record
 
 These paragraphs record intermediate implementation states. References to

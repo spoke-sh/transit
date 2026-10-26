@@ -28063,3 +28063,32 @@ A separate installed trace records a cancelled native append followed by
 cancelled syscall, so it does not establish that this particular cancellation
 preceded mutation. Installed SQL and complete clean-lane qualification remain
 separate obligations.
+
+## Installed Table qualification and original outcomes — 2026-10-26
+
+Committed-HEAD `nix develop --command just ci-clean --lane experience` at
+`e550f4ed54ec4cd9a1c40cb4c568a64752861a16` passes five tasks, then fails
+`test::server-direct-tables`: its post-restart DELETE/DROP batch exceeds the
+unchanged 300-second console deadline during native authority unavailability
+and node replacement. The [retained evidence](verification/results/installed-table-closeout-2026-10-26/report.json)
+includes the failed lane, manager logs and signed public inspection after
+restarting the original installation with unchanged binaries. DELETE operation
+647 is terminal and applied with one matched/changed row. Subsequent operation
+695 remains uploading, dispatch-ineligible and without a terminal outcome.
+The observation submits no replacement SQL, execution or cancellation.
+
+Two fresh diagnostic installations pass the complete unchanged Table workload,
+including CRUD/DDL, namespace lifecycle, stale preparation, RESTRICT, abrupt
+restart and name reuse. The first uses the original binary bytes and completes
+in 656.65 seconds. The second uses a node rebuilt with temporary WAL I/O failure
+labels and completes in 508.48 seconds. Both retain node/gateway stderr through
+explicit exec wrappers; their changed artifact paths make them diagnostics,
+not installed-adjacency qualification. The source patch, binary hashes, scripts
+and complete captures are retained. The branch's WAL source is unchanged.
+
+Both captures contain deadline interruptions followed by continued native
+progress, without `WalRecoveryRequired`. The tracing run produces no WAL I/O
+failure label. These observations do not establish the original failure's exact
+stage or cause, nor turn the failed clean lane into a pass. Timings are single
+observations on a shared host, not latency measurements under matched conditions.
+Final-candidate combined qualification remains open.
