@@ -3,6 +3,7 @@
   zig,
   vite-plus,
   ursula,
+  minio,
 }:
 # Board and native launchers need no Kubernetes/provider CLIs or Rust build tools.
 # Keep this closure separate so that splitting CI does not copy the full shell.
@@ -20,6 +21,8 @@ pkgs.mkShell {
       ps.pyyaml
       ps.jsonschema
       ps.pyarrow
+      ps.grpcio
+      ps.protobuf
     ]))
     pkgs.process-compose
     pkgs.openssl
@@ -29,7 +32,8 @@ pkgs.mkShell {
     ursula
     pkgs.nodejs_24
     pkgs.pnpm
-  ];
+  ]
+  ++ pkgs.lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [ minio ];
   shellHook = ''
     source ${./dev-environment.sh}
   '';

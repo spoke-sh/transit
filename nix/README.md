@@ -97,7 +97,7 @@ in place to change a running installation's selected artifacts. Continue with
 MinIO is built from the source of release `2025-09-07T16-13-09Z`, matching the
 existing fixture's release because the historical binary/image distribution is
 unavailable. [minio.nix](minio.nix) owns this shared source/hash definition. On Linux
-x86_64, the default and bindings CI shells include that same executable for owned
+x86_64, the default, experience and bindings CI shells include that same executable for owned
 disk/S3 fixtures; they no longer extract or start the unavailable historical image.
 `nix build .#minio` exposes the provider independently of the local bundle. The
 existing source, vendor hash and lockfile inputs are unchanged.
@@ -368,13 +368,17 @@ sequentially in the pinned bindings shell; `just check` uses the ordinary
 developer tools. [The task inventory](../tests/verification/suite.json) owns the
 exact checks in each lane.
 
-The experience lane uses `nix develop .#ci-experience`, a shell without provider
-or Kubernetes tools. Its Python environment includes PyYAML and `jsonschema` for
+The experience lane uses `nix develop .#ci-experience`, a shell with the native
+Ursula and MinIO fixtures but no Kubernetes/provider management tools. Its Python
+environment includes PyYAML and `jsonschema` for
 the Board query contract checks, and PyArrow for the Station launcher's independent
-typed-result inspection. The bindings shell includes those same Python packages.
+typed-result inspection. The gRPC browser's independent peer uses `grpcio` and
+`protobuf`. On Linux x86_64, the HTTP and gRPC browser proofs use the shared
+source-pinned MinIO executable. The bindings shell inherits MinIO from this base
+and includes those same Python packages.
 Both use the existing locked nixpkgs input; no compiler, provider or lockfile
 revision changes are required. The previously measured 1.2 GiB environment
-closure predates the database clients and PyArrow; the current closure has not
+closure predates the database clients, PyArrow, gRPC peer and MinIO; the current closure has not
 been measured. Experience/launchers share one Nix cache, core/growth share another,
 and bindings owns the third; each group has one writer. Successful preparation is rooted
 before collection, and a miss saves only the live closure. Small changes to the
