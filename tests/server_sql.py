@@ -184,12 +184,13 @@ def run(cli, node, host, board, gateway, *, bundle=None):
             args, env = pg_args(name)
             return (denied if reject else call)([*args, sql], env=env)
 
-        def pg_count(name, *, second_row=False):
+        def count(name, *, second_row=False, protocol='postgres'):
             # These fixed, finite observations can start a fresh query after an
             # explicit capacity refusal with no disclosed rows. Never route
             # mutations, reloads or a partially returned result through here.
             sql = 'SELECT COUNT(*) FROM shared_rows' + (' WHERE id=2' if second_row else '')
-            args, env = pg_args(name)
+            assert protocol in ('postgres', 'mysql'), protocol
+            args, env = pg_args(name) if protocol == 'postgres' else (mysql_args(name), None)
             deadline = time.monotonic() + 30
             refused = 0
             while True:
@@ -197,7 +198,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
                                         timeout=max(1, deadline-time.monotonic()))
                 if result.returncode == 0:
                     if refused:
-                        print(f'Local SQL: {refused} empty COUNT observations explicitly refused for capacity before recovery.', flush=True)
+                        print(f'Local SQL: {protocol} refused {refused} empty COUNT observations for capacity before recovery.', flush=True)
                     return result.stdout.strip()
                 assert not result.stdout and 'Native request capacity exhausted' in result.stderr and time.monotonic() < deadline, (result.stdout, result.stderr)
                 refused += 1
@@ -238,7 +239,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         fixture.start()
         fixture.ready(timeout=300)
         wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
-        assert pg_count('reader') == '1'
+        assert count('reader') == '1'
         marker = fixture.root / 'stale-activation'
         marker.mkdir(mode=0o700)
         old['activation_directory'] = str(marker)
@@ -256,10 +257,10 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         fixture.ready(timeout=300)
         wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
         closed(mysql_port)
-        assert pg_count('writer') == '1'
+        assert count('writer') == '1'
         pg('SELECT * FROM shared_rows', 'reader', reject=True)
         policy(fixture, 'GRANT SELECT ON TABLE public.shared_rows TO reader;', 'reader-regrant')
-        assert pg_count('reader') == '1'
+        assert count('reader') == '1'
         print('Local SQL: retained data, native fencing, PostgreSQL-only exposure and persistent revocation passed.', flush=True)
 
         # Rotate through the existing public credential control. The input file
@@ -281,10 +282,10 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
         closed(pg_port)
         mysql('SELECT COUNT(*) FROM shared_rows', 'reader', reject=True)
-        assert mysql('SELECT COUNT(*) FROM shared_rows', 'writer') == '1'
+        assert count('writer', protocol='mysql') == '1'
         assert mysql('SELECT 1') == '1'
         mysql('DELETE FROM shared_rows WHERE id=1', 'writer')
-        assert mysql('SELECT COUNT(*) FROM shared_rows', 'writer') == '0'
+        assert count('writer', protocol='mysql') == '0'
         print('Local SQL: MySQL-only exposure, disabled account, password rotation and DELETE passed.', flush=True)
 
         # Lose the client response after an operation reaches the durable ledger.
@@ -339,7 +340,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         fixture.path.write_text(json.dumps(fixture.config))
         fixture.start(); fixture.ready(timeout=300)
         wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
-        assert pg_count('reader', second_row=True) == '1'
+        assert count('reader', second_row=True) == '1'
         assert controls('status', operation)['terminal']['state'] == 'applied'
         print('Local SQL: lost response recovered by original operation identity with both listeners disabled and no PEM access.', flush=True)
 
@@ -369,7 +370,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         args, env = pg_args()
         denied([*args, 'SELECT 1'], env=env)  # The previous CA cannot authorize the new leaf.
         ca = str(cert)
-        assert pg_count('reader', second_row=True) == '1'
+        assert count('reader', second_row=True) == '1'
         print('Local SQL: expired trust blocks admission without blocking recovery; explicit TLS replacement and client CA update passed.', flush=True)
         print(json.dumps({'local_sql': 'passed', 'installed_bundle': bundle is not None, 'elapsed_seconds': round(time.monotonic()-started, 3)}), flush=True)
         success = True
