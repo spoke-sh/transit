@@ -1456,7 +1456,7 @@ fn readRowWithColumns(self: *Self, allocator: std.mem.Allocator, basis: Root, sc
                 segment.encoded = null;
                 segment.projection = selected;
             }
-            if (segment.decoded) |*group| if (group.index != entry.row_group or group.rowIndex(entry.row_in_group) == null or (mode == .group and group.rows != null)) {
+            if (segment.decoded) |*group| if (group.view().index != entry.row_group or group.view().rowIndex(entry.row_in_group) == null or (mode == .group and group.view().rows != null)) {
                 group.deinit();
                 segment.decoded = null;
             };
@@ -1470,20 +1470,24 @@ fn readRowWithColumns(self: *Self, allocator: std.mem.Allocator, basis: Root, sc
                 var source: SegmentSource = .{ .owner = self, .locator = locator };
                 if (mode == .point) {
                     if (segment.encoded == null) segment.encoded = try segment.reader.encodedGroup(self.allocator, source.source(), schema, entry.row_group, projection[0..selected.len], f.TSeg.max_segment_bytes);
-                    segment.decoded = try segment.encoded.?.select(self.allocator, schema, &.{entry.row_in_group}, self.options.segment_decode_bytes);
+                    const decoded = try segment.encoded.?.select(self.allocator, schema, &.{entry.row_in_group}, self.options.segment_decode_bytes);
+                    segment.decoded = .{ .owned = decoded };
                 } else {
-                    // Scans amortize full-group decoding across adjacent rows.
+                    // Scans reuse verified plain payloads and bounded decoded
+                    // metadata across adjacent rows; outputs detach below.
                     if (segment.encoded) |*encoded| encoded.deinit();
                     segment.encoded = null;
-                    segment.decoded = try segment.reader.group(self.allocator, source.source(), schema, entry.row_group, projection[0..selected.len], .{ .decoded_bytes = self.options.segment_decode_bytes });
+                    const buffered = try segment.reader.bufferedGroup(self.allocator, source.source(), schema, entry.row_group, projection[0..selected.len], f.TSeg.max_segment_bytes, self.options.segment_decode_bytes);
+                    segment.decoded = .{ .buffered = buffered };
                 }
                 self.row_groups_decoded +|= 1;
             }
             var arena = std.heap.ArenaAllocator.init(allocator);
             errdefer arena.deinit();
             const cells = try arena.allocator().alloc(f.Types.Values.Cell, selected.len);
-            const row_index = segment.decoded.?.rowIndex(entry.row_in_group) orelse return error.InvalidTableRowReference;
-            for (segment.decoded.?.columns, cells) |column, *cell| {
+            const group = segment.decoded.?.view();
+            const row_index = group.rowIndex(entry.row_in_group) orelse return error.InvalidTableRowReference;
+            for (group.columns, cells) |column, *cell| {
                 if (row_index >= column.len) return error.InvalidTableRowReference;
                 cell.* = try f.Types.Values.cloneValidated(arena.allocator(), column[row_index]);
             }
@@ -1504,7 +1508,22 @@ const CachedSegment = struct {
     digest: [32]u8,
     length: u32,
     reader: f.TSegReader,
-    decoded: ?f.TSegReader.Group = null,
+    decoded: ?union(enum) {
+        owned: f.TSegReader.Group,
+        buffered: f.TSegReader.BufferedGroup,
+        pub fn view(group: *@This()) *f.TSegReader.Group {
+            return switch (group.*) {
+                .owned => |*value| value,
+                .buffered => |*value| &value.decoded,
+            };
+        }
+        fn deinit(group: *@This()) void {
+            switch (group.*) {
+                inline else => |*value| value.deinit(),
+            }
+            group.* = undefined;
+        }
+    } = null,
     encoded: ?f.TSegReader.EncodedGroup = null,
     decisions: ?struct { plan: [32]u8, value: f.TSegReader.Decisions } = null,
     projection: f.TableProjection = .{},

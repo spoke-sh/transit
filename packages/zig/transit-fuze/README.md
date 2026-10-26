@@ -29,9 +29,8 @@ page buffer. `group` additionally enforces a byte limit on actual arena backing
 allocations across the selected columns (64 MiB by default), and returns an
 owned `Group` released with `deinit`. Footer and page encoded-byte allowances
 are separate from that decoded limit and from result buffers. The segment limit
-is 16 MiB. Returned values outlive the reader and source; no borrowed Arrow or
-zero-copy profile is implied. Callback errors propagate and partial allocations
-are released by the owner. Requests are synchronous; cancellation is the host's
+is 16 MiB. Returned values outlive the reader and source. Callback errors
+propagate and partial allocations are released by the owner. Requests are synchronous; cancellation is the host's
 responsibility between calls, with no background reads surviving return.
 
 `encodedGroup` owns a projected group's verified encoded pages under a total
@@ -45,6 +44,16 @@ scratch at its peak. The encoded owner and decoded results have independent
 lifetimes. Footer metadata, allocator overhead and final caller result buffers
 are separate from these allowances.
 
+`bufferedGroup` returns a `BufferedGroup` containing verified encoded pages and
+decoded columns. Plain text, binary and JSON payloads reference those owned
+pages; recursive child arrays, conflict alternatives and cell metadata use the
+decoded arena. Other codecs retain their bounded owned decoding. The total
+encoded-page allowance includes the page directory, while the separate decoded
+allowance includes live validation scratch and arena growth. Views remain valid
+until `BufferedGroup.deinit`, which releases metadata before page buffers; the
+reader and source may close earlier. `Values.cloneValidated` detaches a cell for
+longer use. These are logical cell views, not Arrow-compatible physical arrays.
+
 `PhysicalCodecs.decodeColumnPageSelected` accepts sorted, unique row ordinals
 and owns only their decoded cells in the output arena. It validates the complete
 page, including skipped values and conflict details, using a reusable scratch
@@ -52,6 +61,10 @@ workspace. Dictionary entries borrow encoded scalar bytes until selected;
 selected repetitions share one owned value. Symbol-table and EBCDIC strings
 still require transient expansion for validation. This reduces retained decoded
 values without skipping complete-page validation.
+`decodeColumnPageBorrowingBytes` uses the same validation with an explicit input
+lifetime for plain payloads, including selected nested and conflict values.
+Both immutable input and the metadata arena must outlive its cells. Compressed
+columns use the owned fallback; unselected rows are still validated.
 `Types.Codec.decodeBoundBorrowingBytes` exposes the underlying explicit lifetime:
 text, binary and JSON bytes borrow immutable input, recursive arrays belong to
 the supplied arena, and `Values.cloneValidated` produces a detached owned cell.

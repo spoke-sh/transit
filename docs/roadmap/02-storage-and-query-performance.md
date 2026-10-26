@@ -277,6 +277,13 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   identical retained evidence, final denial, allocation failures and no writes.
   The broad history-replay rerun remains an independent completion gate.
 
+- Table group scans retain verified encoded pages and borrow plain text, binary
+  and JSON payloads through an explicit group owner. Recursive/conflict metadata
+  and compressed expansion retain bounded decoded ownership; result rows detach
+  before cache replacement. This advances shared reader ownership in #128 without
+  changing stored formats. Arrow-compatible physical buffers, broader batch
+  handoff and relational text comparison/hash/order remain open.
+
 - The shared codec walker now supports encoded single-column predicates with
   one-byte row outcomes, dictionary/run evaluation reuse and detached selected
   output. `TSegReader.filteredGroup` combines collation-aware zone-map pruning

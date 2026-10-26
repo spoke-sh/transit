@@ -1341,11 +1341,11 @@ test "Table segment ranges bound cold point IO and preserve owned rows across ev
     try t.expect(full_bytes > 1024 * 1024);
     try t.expectEqual(@as(u64, 5), table.segment_range_reads); // header/trailer/footer + two columns
     try t.expect(cold_bytes * 10 < @as(u64, full_bytes) * 6);
-    const point_resident = table.segment_cache.?.decoded.?.allocatedBytes();
-    const point_peak = table.segment_cache.?.decoded.?.peakAllocatedBytes();
+    const point_resident = table.segment_cache.?.decoded.?.view().allocatedBytes();
+    const point_peak = table.segment_cache.?.decoded.?.view().peakAllocatedBytes();
     const encoded_resident = table.segment_cache.?.encoded.?.allocatedBytes();
     try t.expect(point_peak <= 16 * 1024);
-    try t.expectEqual(@as(usize, 1), table.segment_cache.?.decoded.?.columns[0].len);
+    try t.expectEqual(@as(usize, 1), table.segment_cache.?.decoded.?.view().columns[0].len);
     var adjacent = (try table.get(t.allocator, try key(1, &key_buffer), access.guard())).?;
     defer adjacent.deinit();
     try t.expectEqual(cold_bytes, table.segment_bytes_read);
@@ -1365,6 +1365,7 @@ test "Table segment ranges bound cold point IO and preserve owned rows across ev
     const one_page = try table.scan(table.root, null);
     const one_entry = one_page.entries[0].?;
     try t.expectError(error.SegmentReadBudgetExceeded, table.readRow(t.allocator, table.root, one_entry.key, one_entry.value));
+    try t.expect(table.segment_cache.?.decoded == null);
     try t.expectEqualDeep(accepted_before_scan, table.root);
     try t.expectEqualStrings(&body, first.row().cells[1].value.atom.bytes);
     table.options.segment_decode_bytes = 64 * 1024 * 1024;
@@ -1391,9 +1392,12 @@ test "Table segment ranges bound cold point IO and preserve owned rows across ev
     try t.expectEqual(@as(usize, 512), count);
     try t.expectEqual(@as(u64, 7), table.segment_range_reads - ranges_before);
     const scan_bytes = table.segment_bytes_read - bytes_before;
-    const scan_resident = table.segment_cache.?.decoded.?.allocatedBytes();
-    try t.expect(point_resident * 20 < scan_resident);
-    std.debug.print("Table selected decoding: point={d} retained/{d} peak decoded bytes, encoded cache={d}; full group={d} retained decoded bytes\n", .{ point_resident, point_peak, encoded_resident, scan_resident });
+    const scan_resident = table.segment_cache.?.decoded.?.view().allocatedBytes();
+    try t.expect(point_resident < scan_resident);
+    try t.expect(scan_resident < body.len * 256);
+    const scan_encoded = table.segment_cache.?.decoded.?.buffered.encoded.allocatedBytes();
+    try t.expect(scan_encoded <= f.TSeg.max_segment_bytes);
+    std.debug.print("Table selected decoding: point={d} retained/{d} peak decoded bytes, encoded cache={d}; buffered group={d} metadata/{d} encoded bytes\n", .{ point_resident, point_peak, encoded_resident, scan_resident, scan_encoded });
     try t.expect(scan_bytes <= full_bytes);
     std.debug.print("Table segment ranges: segment={d} cold_point={d} warm_point=0 same_cut_scan={d} bytes; point_ranges=5 scan_ranges=7 rows={d}\n", .{ full_bytes, cold_bytes, scan_bytes, count });
     const scan_index_misses = table.index.misses - scan_index_before;

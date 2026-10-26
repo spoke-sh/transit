@@ -381,6 +381,17 @@ pub fn decodeColumnPageSelected(scratch: std.mem.Allocator, arena: std.mem.Alloc
     return decodePage(scratch, arena, column, bytes, rows);
 }
 
+/// Plain pages borrow text, binary and JSON bytes from immutable input. Cell,
+/// recursive-child and conflict arrays belong to arena. Both owners must remain
+/// alive until the result is released. Other codecs use the owned decoder.
+/// Every row is validated, including an unselected suffix or empty selection.
+pub fn decodeColumnPageBorrowingBytes(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, rows: ?[]const u32) !Selected {
+    if (column.encoding != .plain) return decodePage(scratch, arena, column, bytes, rows);
+    var sink: DecodeSink = .{ .arena = arena, .column = column, .rows = rows, .borrow_plain = true };
+    const count = try decodeInto(true, scratch, column, bytes, &sink);
+    return .{ .row_count = count, .cells = sink.cells };
+}
+
 pub const Evaluated = struct {
     outcomes: []ColumnPredicate.Outcome,
     /// Predicate evaluations over physical values (one per dictionary entry or
@@ -396,17 +407,17 @@ pub fn evaluateColumnPage(scratch: std.mem.Allocator, arena: std.mem.Allocator, 
     try predicate.validate(column);
     var sink: PredicateSink = .{ .arena = arena, .column = column, .predicate = predicate };
     errdefer arena.free(sink.outcomes);
-    _ = try decodeInto(scratch, column, bytes, &sink);
+    _ = try decodeInto(false, scratch, column, bytes, &sink);
     return .{ .outcomes = sink.outcomes, .evaluated_values = sink.evaluated_values };
 }
 
 fn decodePage(scratch: std.mem.Allocator, arena: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, rows: ?[]const u32) !Selected {
     var sink: DecodeSink = .{ .arena = arena, .column = column, .rows = rows };
-    const count = try decodeInto(scratch, column, bytes, &sink);
+    const count = try decodeInto(false, scratch, column, bytes, &sink);
     return .{ .row_count = count, .cells = sink.cells };
 }
 
-fn decodeInto(scratch: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, sink: anytype) !u32 {
+fn decodeInto(comptime borrow_plain: bool, scratch: std.mem.Allocator, column: TableSchema.Column, bytes: []const u8, sink: anytype) !u32 {
     try column.validateEncodingAndCollation();
     if (bytes.len < page_header_bytes or !std.mem.eql(u8, bytes[0..4], "TCP1")) return error.InvalidColumnPage;
     if (!std.mem.eql(u8, bytes[4..36], &definition)) return error.IncompatibleDefinition;
@@ -426,6 +437,7 @@ fn decodeInto(scratch: std.mem.Allocator, column: TableSchema.Column, bytes: []c
     defer temporary.deinit();
     try sink.start(tags);
     for (tags, 0..) |tag, i| {
+        const details = if (borrow_plain and sink.destination(i) != null) sink.arena else temporary.allocator();
         const cell: Values.Cell = switch (tag) {
             0, 1 => .null,
             2 => .missing,
@@ -433,14 +445,14 @@ fn decodeInto(scratch: std.mem.Allocator, column: TableSchema.Column, bytes: []c
             4 => blk: {
                 const alt_count = try reader.takeInt(u16, .little);
                 if (@as(usize, alt_count) * 17 > reader.end - reader.seek) return error.InvalidColumnPage;
-                const alts = try temporary.allocator().alloc(Values.Alternative, alt_count);
+                const alts = try details.alloc(Values.Alternative, alt_count);
                 for (alts) |*alt| alt.* = .{
                     .counter = try reader.takeInt(u64, .little),
                     .replica = try reader.takeInt(u64, .little),
                     .value = switch (try reader.takeByte()) {
                         0 => .null,
                         1 => .{ .type_error = std.enums.fromInt(Types.Kind, try reader.takeByte()) orelse return error.InvalidColumnPage },
-                        2 => .{ .value = try readCanonicalValue(temporary.allocator(), &reader, column.type) },
+                        2 => .{ .value = try readCanonicalValue(details, &reader, column.type) },
                         else => return error.InvalidColumnPage,
                     },
                 };
@@ -453,9 +465,15 @@ fn decodeInto(scratch: std.mem.Allocator, column: TableSchema.Column, bytes: []c
     }
 
     switch (column.encoding) {
-        .plain => for (0..value_count) |_| {
-            try sink.emit(.{ .value = try readCanonicalValue(temporary.allocator(), &reader, column.type) }, 1);
-            _ = temporary.reset(.retain_capacity);
+        .plain => {
+            var row: usize = 0;
+            for (0..value_count) |_| {
+                while (tags[row] != 0) row += 1;
+                const values = if (borrow_plain and sink.destination(row) != null) sink.arena else temporary.allocator();
+                try sink.emit(.{ .value = try readCanonicalValue(values, &reader, column.type) }, 1);
+                _ = temporary.reset(.retain_capacity);
+                row += 1;
+            }
         },
         .bitpacked => try decodeBitpackedValues(&reader, value_count, sink),
         .rle => try decodeRleValues(&temporary, &reader, value_count, sink),
@@ -496,6 +514,7 @@ const DecodeSink = struct {
     tags: []const u8 = &.{},
     cells: []Values.Cell = &.{},
     next_row: usize = 0,
+    borrow_plain: bool = false,
 
     fn destination(self: *const DecodeSink, row: usize) ?usize {
         const rows = self.rows orelse return row;
@@ -515,12 +534,12 @@ const DecodeSink = struct {
         self.cells = try self.arena.alloc(Values.Cell, if (self.rows) |rows| rows.len else tags.len);
     }
     fn nonValue(self: *DecodeSink, row: usize, cell: Values.Cell) !void {
-        if (self.destination(row)) |slot| self.cells[slot] = try Values.cloneValidated(self.arena, cell);
+        if (self.destination(row)) |slot| self.cells[slot] = if (self.borrow_plain) cell else try Values.cloneValidated(self.arena, cell);
     }
     const Cached = struct { cell: Values.Cell, owned: bool = false };
     fn prepare(self: *DecodeSink, cell: Values.Cell) !Cached {
         if (cell == .value) try cell.validate(self.column.field(), .{});
-        return .{ .cell = cell };
+        return .{ .cell = cell, .owned = self.borrow_plain };
     }
     fn emit(self: *DecodeSink, cell: Values.Cell, repeat: usize) !void {
         var cached = try self.prepare(cell);

@@ -211,6 +211,12 @@ test "TSeg filtered groups bound output expansion below a full decoded group" {
     try t.expectEqualStrings(&text, selected.columns[0][0].value.atom.bytes);
     try t.expect(selected.peakAllocatedBytes() <= 16 * 1024);
     try t.expectError(error.SegmentReadBudgetExceeded, reader.group(t.allocator, input.source(), schema, 0, &.{1}, .{ .decoded_bytes = 16 * 1024 }));
+    var buffered = try reader.bufferedGroup(t.allocator, input.source(), schema, 0, &.{1}, 256 * 1024, 16 * 1024);
+    defer buffered.deinit();
+    try t.expectEqual(@as(usize, 64), buffered.decoded.columns[0].len);
+    try t.expect(buffered.decoded.peakAllocatedBytes() <= 16 * 1024);
+    try t.expect(buffered.encoded.allocatedBytes() > 128 * 1024);
+    for (buffered.decoded.columns[0]) |cell| try t.expectEqualStrings(&text, cell.value.atom.bytes);
 }
 
 test "TSeg encoded programs preserve Boolean source order and prune with independent masks" {
@@ -579,6 +585,7 @@ test "TSeg selected decoding rejects corrupt pages and mismatched logical row co
     const bytes = input.bytes[@intCast(coordinate.offset)..][0..coordinate.length];
     bytes[0] ^= 1;
     try t.expectError(error.CorruptSegmentPage, reader.encodedGroup(t.allocator, input.source(), schema, 0, &.{1}, 8192));
+    try t.expectError(error.CorruptSegmentPage, reader.bufferedGroup(t.allocator, input.source(), schema, 0, &.{1}, 8192, 8192));
     // A checksum-valid page with one row cannot establish the two-row group.
     const column = schema.columns[1];
     const page = try @import("PhysicalCodecs.zig").encodeColumnPage(t.allocator, column, &.{.{ .value = .{ .atom = .{ .bytes = "only" } } }}, bytes);
@@ -587,6 +594,62 @@ test "TSeg selected decoding rejects corrupt pages and mismatched logical row co
     var encoded = try reader.encodedGroup(t.allocator, input.source(), schema, 0, &.{1}, 8192);
     defer encoded.deinit();
     try t.expectError(error.InvalidSegment, encoded.select(t.allocator, schema, &.{0}, 4096));
+    try t.expectError(error.InvalidSegment, reader.bufferedGroup(t.allocator, input.source(), schema, 0, &.{1}, 8192, 8192));
+}
+
+fn bufferedAllocationCase(allocator: std.mem.Allocator, bytes: []u8) !void {
+    var input: Input = .{ .bytes = bytes };
+    var reader = try Reader.open(allocator, input.source(), bytes.len, 8192);
+    defer reader.deinit();
+    var group = try reader.bufferedGroup(allocator, input.source(), schema, 3, &.{ 1, 0 }, 8192, 8192);
+    defer group.deinit();
+    try t.expectEqualStrings("seven", group.decoded.columns[0][1].value.atom.bytes);
+    try t.expectEqual(@as(i128, 7), group.decoded.columns[1][1].value.atom.signed);
+}
+
+test "TSeg buffered group allocation failures release encoded and decoded owners" {
+    var buffer: [16384]u8 = undefined;
+    const bytes = try fixture(&buffer);
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), bufferedAllocationCase, .{bytes});
+}
+
+test "TSeg buffered groups own verified pages and borrow payloads within separate budgets" {
+    var buffer: [16384]u8 = undefined;
+    var input: Input = .{ .bytes = try fixture(&buffer) };
+    var reader = try Reader.open(t.allocator, input.source(), input.bytes.len, 8192);
+    var reader_live = true;
+    defer if (reader_live) reader.deinit();
+    const before = input.calls;
+    try t.expectError(error.SegmentReadBudgetExceeded, reader.bufferedGroup(t.allocator, input.source(), schema, 3, &.{ 1, 0 }, 1, 8192));
+    try t.expectError(error.SegmentReadBudgetExceeded, reader.bufferedGroup(t.allocator, input.source(), schema, 3, &.{ 1, 0 }, 8192, 0));
+    try t.expectError(error.InvalidSegmentCoordinate, reader.bufferedGroup(t.allocator, input.source(), schema, 3, &.{2}, 8192, 8192));
+    var other = schema;
+    other.revision += 1;
+    try t.expectError(error.TableSchemaChanged, reader.bufferedGroup(t.allocator, input.source(), other, 3, &.{1}, 8192, 8192));
+    try t.expectEqual(before, input.calls);
+    var group = try reader.bufferedGroup(t.allocator, input.source(), schema, 3, &.{ 1, 0 }, 8192, 8192);
+    var group_live = true;
+    defer if (group_live) group.deinit();
+    try t.expectEqual(before + 2, input.calls);
+    try t.expect(group.encoded.allocatedBytes() <= 8192);
+    try t.expect(group.decoded.peakAllocatedBytes() <= 8192);
+    const payload = group.decoded.columns[0][1].value.atom.bytes;
+    const page = group.encoded.pages[0].bytes;
+    try t.expect(@intFromPtr(payload.ptr) >= @intFromPtr(page.ptr));
+    try t.expect(@intFromPtr(payload.ptr) + payload.len <= @intFromPtr(page.ptr) + page.len);
+    try t.expectError(error.SegmentReadBudgetExceeded, reader.bufferedGroup(t.allocator, input.source(), schema, 3, &.{ 1, 0 }, 8192, 1));
+    reader.deinit();
+    reader_live = false;
+    @memset(input.bytes, 0xaa);
+    try t.expectEqualStrings("seven", payload);
+    try t.expectEqual(@as(i128, 7), group.decoded.columns[1][1].value.atom.signed);
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const detached = try Values.cloneValidated(arena.allocator(), group.decoded.columns[0][1]);
+    group.deinit();
+    group_live = false;
+    try t.expectEqualStrings("seven", detached.value.atom.bytes);
 }
 
 test "TSeg selected decoding charges skipped string validation to the shared memory budget" {
@@ -609,6 +672,7 @@ test "TSeg selected decoding charges skipped string validation to the shared mem
     var encoded = try reader.encodedGroup(t.allocator, input.source(), compressed_schema, 0, &.{0}, 32768);
     defer encoded.deinit();
     try t.expectError(error.SegmentReadBudgetExceeded, encoded.select(t.allocator, compressed_schema, &.{0}, 4096));
+    try t.expectError(error.SegmentReadBudgetExceeded, reader.bufferedGroup(t.allocator, input.source(), compressed_schema, 0, &.{0}, 32768, 4096));
     var selected = try encoded.select(t.allocator, compressed_schema, &.{0}, 32768);
     defer selected.deinit();
     try t.expectEqualStrings("small", selected.columns[0][0].value.atom.bytes);

@@ -8338,6 +8338,7 @@
         "PredicateSink.start()": "<inferred>",
         "decodeBitpackedValues()": "<inferred>",
         "decodeColumnPage()": "<inferred>",
+        "decodeColumnPageBorrowingBytes()": "<inferred>",
         "decodeColumnPageSelected()": "<inferred>",
         "decodeDictionaryValues()": "<inferred>",
         "decodeFsstValues()": "<inferred>",
@@ -8360,7 +8361,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 134,
+        "try": 135,
         "catch": 10
       },
       "imports": [
@@ -9985,11 +9986,11 @@
       "errors": {
         "InvalidColumnSelection": 4,
         "InvalidPredicateProgram": 1,
-        "InvalidSegment": 4,
+        "InvalidSegment": 5,
         "InvalidSegmentCoordinate": 8,
         "QueryConflict": 1,
         "QueryTypeError": 1,
-        "SegmentReadBudgetExceeded": 11,
+        "SegmentReadBudgetExceeded": 12,
         "TableSchemaChanged": 6
       },
       "outcomes": {},
@@ -10004,6 +10005,7 @@
         "Source.read()": "anyerror",
         "Workspace.failure()": "anyerror",
         "Workspace.init()": "<inferred>",
+        "bufferedGroup()": "<inferred>",
         "column()": "<inferred>",
         "columnOutcomes()": "<inferred>",
         "decisions()": "<inferred>",
@@ -10019,8 +10021,8 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 45,
-        "catch": 12
+        "try": 47,
+        "catch": 14
       },
       "imports": [
         "ColumnPredicate.zig",
@@ -25424,6 +25426,10 @@
         "WriteFailed": 1
       },
       "outcomes": {
+        "CachedSegment.decoded": [
+          "owned",
+          "buffered"
+        ],
         "Edit": [
           "rename",
           "alter",

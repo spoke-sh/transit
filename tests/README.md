@@ -28835,3 +28835,58 @@ regression and broad service replay are still running at this commit. Earlier
 full lifecycle runs timed out during repeated history replay, so this component
 result alone does not close that failure. The five history phase markers make
 the unfinished proof's location visible without changing its checks or deadline.
+
+
+## Rebased retained Table service qualification — 2026-10-26
+
+At `acbc873be`, after rebasing onto `310a3f25e`, the complete
+`just test::direct-table-service` run passes **1,944 typed calls**. Both retained
+history replays complete all eight transactions and final checkpoints, using
+**210 charged requests** per replay through the eighth transaction. Main's
+physical history paging fix combines with request-local metadata recovery reuse;
+this run resolves the earlier broad lifecycle timeout without changing the
+180-second limit. Recovery, retained source closure, prepared lifetimes,
+count-range controls, collations, projected/filtered SQL, delegated closure and
+authorization lifetime all pass. This precedes the buffered segment change below.
+
+The final signed local metadata regression also passes **3/3** tests, including
+original-grant denial before malformed successor inspection. Contract reflection,
+independent signing/work-item fixtures, diagnostic inventory, verification catalog
+and documentation links pass after the rebase. The pre-rebase clean core run was
+interrupted to incorporate main's toolchain fixes; it is not a completed lane.
+Final committed-HEAD clean qualification remains open.
+
+
+## Borrowed plain segment payload ownership — 2026-10-26
+
+The focused codec/segment suite passes **48/48** tests. Plain UTF-8, nested text
+and conflict alternatives point into immutable page bytes; recursive arrays and
+conflict stamps survive temporary-arena resets. Every physical codec agrees with
+the independent logical cells, and compressed fallbacks remain detached. A
+handwritten TCP1 fixture rejects every truncated prefix, foreign definitions,
+invalid ordinals, trailing bytes and corruption in an unselected suffix.
+Exhaustive allocation failures release recursive metadata and both group owners.
+
+A 64-row group of 2 KiB strings retains all payloads under a separate encoded
+allowance while fitting a **16 KiB decoded budget**; owned full decoding rejects
+that same decoded budget. Projected groups retain exact schema/page commitments
+and footer counts. Views survive source destruction and reader closure; explicitly
+cloned output survives releasing the buffered group. Compressed expansion still
+fails when its decoded budget is insufficient.
+
+The focused disk Table/compaction/filter suite passes **6/6** tests. Its 512-row
+point/scan control records **3,898 bytes** of point metadata/owned payload and
+**86,754 bytes** of buffered group metadata, with **530,562 encoded bytes** under
+its separate allowance. Sixteen 16 KiB plain payloads fit an **8 KiB decoded
+metadata budget**. Cache projection/group replacement and reopen preserve detached
+rows, accepted roots and receipts. A one-byte decode budget leaves no partially
+published cache. Allocation failures exposed an intermediate tagged-cache
+construction bug; results are now constructed locally before assignment, and
+both compaction and filtered-read allocation schedules pass after the fix.
+
+The complete Table suite subsequently passes **59/59** tests. Documentation site,
+verification catalog and link checks pass. The signed projection service rerun
+and repository-wide check are running; those unfinished runs are not
+qualification evidence. This increment changes no
+stored definition and does not supply Arrow-compatible physical buffers or an
+end-to-end query latency measurement.

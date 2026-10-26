@@ -73,9 +73,18 @@ test "projected Table snapshots skip segment payloads and bind cursors without c
     try t.expectError(error.InvalidProjection, table.scanSnapshotColumns(t.allocator, handle, &.{1}, null, .{}, access.guard()));
     try t.expectError(error.InvalidTableSnapshotCursor, table.scanSnapshotColumns(t.allocator, handle, &.{ 0, 1 }, first.next, .{}, access.guard()));
     try t.expectError(error.InvalidTableSnapshotCursor, table.scanSnapshot(t.allocator, handle, first.next, .{}, access.guard()));
-    // Switching back to a complete scan must not reinterpret the projected
-    // decoder cache as a complete row, even when that full decode cannot fit.
+    // Switching projection cannot reuse incomplete metadata. Failed construction
+    // must leave no published cache owner; retry can borrow the wide payloads.
+    table.options.segment_decode_bytes = 1;
     try t.expectError(error.SegmentReadBudgetExceeded, table.scanSnapshot(t.allocator, handle, null, .{}, access.guard()));
+    try t.expect(table.segment_cache.?.decoded == null);
+    table.options.segment_decode_bytes = 8 * 1024;
+    var full = try table.scanSnapshot(t.allocator, handle, null, .{ .rows = 1 }, access.guard());
+    defer full.deinit();
+    try t.expectEqualStrings(&payload, full.rows[0].?.row().cells[1].value.atom.bytes);
+    try t.expect(table.segment_cache.?.decoded.? == .buffered);
+    try t.expect(table.segment_cache.?.decoded.?.view().peakAllocatedBytes() <= 8 * 1024);
+    try t.expect(table.segment_cache.?.decoded.?.buffered.encoded.allocatedBytes() > payload.len);
     var after = first.next;
     var count: u64 = first.count;
     while (after != null) {
@@ -95,9 +104,7 @@ test "projected Table snapshots skip segment payloads and bind cursors without c
     access.deny_at = access.calls + 3;
     try t.expectError(error.PermissionDenied, table.scanSnapshotColumns(t.allocator, handle, &.{0}, null, .{}, access.guard()));
     access.deny_at = std.math.maxInt(usize);
-    table.options.segment_decode_bytes = 64 * 1024 * 1024;
-    var full = try table.scanSnapshot(t.allocator, handle, null, .{ .rows = 1 }, access.guard());
-    defer full.deinit();
+    // The wide output also survives replacement by the narrow projected cache.
     try t.expectEqualStrings(&payload, full.rows[0].?.row().cells[1].value.atom.bytes);
 }
 
@@ -298,7 +305,7 @@ test "retained Table key ranges skip unrelated disk segments against a complete 
             scan_index = table.index.misses - index_before;
         }
         try t.expect(std.mem.allEqual(bool, &selected, true));
-        try t.expect(table.segment_cache.?.decoded.?.allocatedBytes() < 1024 * 1024);
+        try t.expect(table.segment_cache.?.decoded.?.view().allocatedBytes() < 1024 * 1024);
     }
     try t.expect(range_bytes * 3 < scan_bytes);
     try t.expect(range_reads * 3 < scan_reads);

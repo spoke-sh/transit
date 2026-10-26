@@ -389,6 +389,17 @@ compressed strings can require transient expansion even when unselected. A
 successful selection owns all nested values independently of the encoded group.
 These reader operations consume the existing bytes and do not change v1 formats.
 
+`bufferedGroup` owns verified encoded pages together with decoded columns. Plain
+text, binary and JSON bytes reference its immutable page buffers; cell metadata,
+recursive child arrays and conflict records belong to its decoded arena. Other
+codecs retain bounded owned decoding. The encoded allowance covers all projected
+page buffers and their directory; the decoded allowance covers arena backing
+and simultaneously live validation scratch. Complete page validation, exact
+schema binding and footer row counts still apply. Releasing this group destroys
+decoded metadata before encoded buffers. Its views outlive the source and reader
+but not the group; cloning a cell creates independent output ownership. This
+logical representation does not establish an Arrow physical-layout profile.
+
 `filteredGroup` accepts one typed column predicate and a projection. It validates
 the schema/layout, predicate and all projected coordinates before using trusted
 footer statistics. Value comparisons use the same declared collation as zone

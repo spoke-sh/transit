@@ -123,6 +123,19 @@ pub const Group = struct {
     }
 };
 
+/// One independently owned group with plain byte payloads borrowed from its
+/// verified page buffers. Release decoded metadata before those buffers. The
+/// source and reader can close immediately; views cannot outlive this owner.
+pub const BufferedGroup = struct {
+    encoded: EncodedGroup,
+    decoded: Group,
+    pub fn deinit(self: *BufferedGroup) void {
+        self.decoded.deinit();
+        self.encoded.deinit();
+        self.* = undefined;
+    }
+};
+
 /// Owned encoded pages for one projected group. Repeated point selections can
 /// reuse verified bytes without retaining unrelated expanded values. This is
 /// an explicit owner, independent of the source and reader lifetimes.
@@ -225,6 +238,25 @@ pub fn group(self: *const Self, allocator: std.mem.Allocator, source: Source, sc
         out.* = self.column(allocator, workspace.arena.allocator(), source, schema, index, column_index, limits.page_bytes) catch |err| return workspace.failure(err);
     }
     return .{ .workspace = workspace, .index = index, .source_rows = self.footer.row_groups[index].row_count, .columns = cells };
+}
+
+/// Retain projected verified pages under a total encoded-byte allowance and
+/// borrow compatible plain payloads while decoding bounded cell metadata.
+/// Compressed columns use the same bounded owned expansion as `group`.
+pub fn bufferedGroup(self: *const Self, allocator: std.mem.Allocator, source: Source, schema: TableSchema.Schema, index: usize, projection: []const usize, encoded_budget: usize, decoded_budget: usize) !BufferedGroup {
+    if (decoded_budget == 0) return error.SegmentReadBudgetExceeded;
+    var encoded = try self.encodedGroup(allocator, source, schema, index, projection, encoded_budget);
+    errdefer encoded.deinit();
+    const workspace = try Workspace.init(allocator, decoded_budget);
+    errdefer workspace.deinit();
+    const a = workspace.arena.allocator();
+    const columns = a.alloc([]Values.Cell, projection.len) catch |err| return workspace.failure(err);
+    for (encoded.pages, columns) |page, *cells| {
+        const decoded = PhysicalCodecs.decodeColumnPageBorrowingBytes(workspace.bounded(), a, schema.columns[page.column], page.bytes, null) catch |err| return workspace.failure(err);
+        if (decoded.row_count != encoded.row_count) return error.InvalidSegment;
+        cells.* = decoded.cells;
+    }
+    return .{ .encoded = encoded, .decoded = .{ .workspace = workspace, .index = index, .source_rows = encoded.row_count, .columns = columns } };
 }
 
 /// Use trusted, interpretation-bound zone maps before fetching the predicate
