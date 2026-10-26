@@ -80,6 +80,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared caller/ABI/host administration against disk-backed authority |
 | `just test::table-build-memory` | Verify candidate allocation ceilings, admitted work-limit outcomes and parent-allocation failure distinctions |
 | `just test::storage-benchmark --output PATH` | Paired native/Table disk startup, recovery and read measurements with independent values, warm/cold input pages and raw samples |
+| `just test::storage-ingest-benchmark --output PATH` | Matched Table WAL/bulk ingestion and native turn preparation/commit with independent fresh-process readback and raw samples |
 | `just test::table-checkpoints` | Verify published restart baselines, bounded replay, retained evidence and interrupted publication |
 | `just test::table-compaction` | Verify live-row consolidation, fixed-boundary restart, private memory/work limits and retained snapshots |
 | `just test::table-archives` | Verify bounded Table archival, retained reads and pending work, native authority/control reserve and real process death during publication/trim |

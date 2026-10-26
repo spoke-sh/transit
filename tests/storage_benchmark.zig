@@ -56,6 +56,10 @@ const Phase = struct {
     peak_live_bytes: usize,
     end_live_bytes: usize,
     counters: Counters,
+    /// Table-only measurement around the real Log.append call, including sync.
+    /// Native commit is measured as its own owner phase instead.
+    wal_append_ns: ?i96,
+    timed_appends: usize,
 };
 const Meter = struct {
     io: std.Io,
@@ -65,16 +69,55 @@ const Meter = struct {
     baseline: usize = 0,
     phases: [4]Phase = undefined,
     count: usize = 0,
+    timed_log: bool = false,
+    append_ns: i96 = 0,
+    append_calls: usize = 0,
     fn begin(self: *Meter, before: Counters) void {
         self.before = before;
         self.tracker.reset();
         self.baseline = self.tracker.live_bytes;
+        self.append_ns = 0;
+        self.append_calls = 0;
         self.start = std.Io.Clock.awake.now(self.io);
     }
     fn end(self: *Meter, name: []const u8, after: Counters) void {
         const elapsed = self.start.durationTo(std.Io.Clock.awake.now(self.io)).toNanoseconds();
-        self.phases[self.count] = .{ .name = name, .elapsed_ns = elapsed, .allocations = self.tracker.allocations, .allocated_bytes = self.tracker.allocated_bytes, .baseline_live_bytes = self.baseline, .peak_live_bytes = self.tracker.peak_bytes, .end_live_bytes = self.tracker.live_bytes, .counters = after.difference(self.before) };
+        self.phases[self.count] = .{ .name = name, .elapsed_ns = elapsed, .allocations = self.tracker.allocations, .allocated_bytes = self.tracker.allocated_bytes, .baseline_live_bytes = self.baseline, .peak_live_bytes = self.tracker.peak_bytes, .end_live_bytes = self.tracker.live_bytes, .counters = after.difference(self.before), .wal_append_ns = if (self.timed_log) self.append_ns else null, .timed_appends = self.append_calls };
         self.count += 1;
+    }
+};
+
+// Transparent instrumentation of the existing synchronous interface. There is
+// no synthetic append, acknowledgement delay, batching or background worker.
+const TimedLog = struct {
+    inner: s.TransitLog.Log,
+    meter: *Meter,
+    fn log(self: *TimedLog) s.TransitLog.Log {
+        return .{ .context = self, .vtable = &.{ .append = append, .read = read, .tail = tail, .trim = trim, .fence = fence } };
+    }
+    fn append(context: *anyopaque, partition: u64, expected: ?u64, writer: u64, policy: u64, kind: s.TransitLog.FrameKind, payload: []const u8) !s.TransitLog.AppendReceipt {
+        const self: *TimedLog = @ptrCast(@alignCast(context));
+        const start = std.Io.Clock.awake.now(self.meter.io);
+        const receipt = try self.inner.append(partition, expected, writer, policy, kind, payload);
+        self.meter.append_ns += start.durationTo(std.Io.Clock.awake.now(self.meter.io)).toNanoseconds();
+        self.meter.append_calls += 1;
+        return receipt;
+    }
+    fn read(context: *anyopaque, allocator: std.mem.Allocator, partition: u64, from: u64, count: usize) !s.TransitLog.Log.OwnedBatch {
+        const self: *TimedLog = @ptrCast(@alignCast(context));
+        return self.inner.read(allocator, partition, from, count);
+    }
+    fn tail(context: *anyopaque, partition: u64) !u64 {
+        const self: *TimedLog = @ptrCast(@alignCast(context));
+        return self.inner.tail(partition);
+    }
+    fn trim(context: *anyopaque, partition: u64, until: u64) !void {
+        const self: *TimedLog = @ptrCast(@alignCast(context));
+        return self.inner.trim(partition, until);
+    }
+    fn fence(context: *anyopaque, partition: u64, writer: u64, policy: u64) !void {
+        const self: *TimedLog = @ptrCast(@alignCast(context));
+        return self.inner.fence(partition, writer, policy);
     }
 };
 const Values = struct {
@@ -152,6 +195,7 @@ fn verifyTable(row: f.TableRow.Row, rows: usize) !usize {
 }
 fn table(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, rows: usize, mode: []const u8, meter: *Meter) !void {
     const a = meter.tracker.allocator();
+    meter.timed_log = true;
     meter.begin(.{});
     var wal = try s.LocalWal.LocalWal.openDiskWithOptions(a, init.io, directory, "wal", .{ .segment_bytes = 64 * 1024 });
     defer wal.deinit();
@@ -159,7 +203,8 @@ fn table(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, r
     defer objects.deinit();
     meter.end("physical_open", Counters.read(&wal, &objects));
     meter.begin(Counters.read(&wal, &objects));
-    var owner = try P.init(a, 17, declaration, wal.log(), objects.objectStore(), .{ .resident_pages = 1, .segment_cache_bytes = 128 * 1024, .segment_rows_per_group = rows_per_segment, .segment_decode_bytes = 128 * 1024 });
+    var timed: TimedLog = .{ .inner = wal.log(), .meter = meter };
+    var owner = try P.init(a, 17, declaration, timed.log(), objects.objectStore(), .{ .resident_pages = 1, .segment_cache_bytes = 128 * 1024, .segment_rows_per_group = rows_per_segment, .segment_decode_bytes = 128 * 1024 });
     defer owner.deinit();
     try owner.recover();
     meter.end("recover", Counters.table(&wal, &objects, &owner));
@@ -182,6 +227,47 @@ fn table(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, r
             _ = try owner.apply(binding(&owner, segment + 1), &changes, .bulk, access.guard());
         }
         _ = try owner.pin(pin_owner, .{ .partition = 17, .next_lsn = owner.root.next_lsn }, access.guard());
+        visited = values;
+    } else if (std.mem.eql(u8, operation, "ingest")) {
+        if (owner.root.live_rows != rows or owner.root.next_segment != rows / rows_per_segment + 1) return error.WrongFixtureSize;
+        const ingestion: P.Ingestion = if (std.mem.eql(u8, mode, "point")) .point else if (std.mem.eql(u8, mode, "bulk")) .bulk else return error.InvalidArguments;
+        const id = rows / rows_per_segment + 1;
+        var cells: [rows_per_segment][3]f.Types.Values.Cell = undefined;
+        var bodies: [rows_per_segment][body_bytes]u8 = undefined;
+        var changes: [rows_per_segment]P.Change = undefined;
+        for (&cells, &bodies, &changes, 0..) |*row, *bytes, *change, i| {
+            const key_id = rows + i;
+            row.* = .{ .{ .value = .{ .atom = .{ .signed = @intCast(key_id) } } }, .{ .value = .{ .atom = .{ .signed = score(key_id) } } }, .{ .value = .{ .atom = .{ .bytes = body(key_id, bytes) } } } };
+            change.* = .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = id, .ordinal = @intCast(rows_per_segment - i - 1) }, .cells = row }, .expect = .absent } };
+        }
+        const outcome = try owner.apply(binding(&owner, id), &changes, ingestion, access.guard());
+        if (outcome.affected != rows_per_segment or owner.root.live_rows != rows + rows_per_segment) return error.IncompleteWrite;
+        if (owner.root.next_segment != id + @as(u64, @intFromBool(ingestion == .bulk))) return error.WrongIngestionPath;
+        for (&bodies, 0..) |*bytes, i| values.add(rows + i, score(rows + i), bytes);
+        visited = values;
+    } else if (std.mem.eql(u8, operation, "verify")) {
+        if (owner.root.live_rows != rows) return error.WrongFixtureSize;
+        const bulk = if (std.mem.eql(u8, mode, "bulk")) true else if (std.mem.eql(u8, mode, "point")) false else return error.InvalidArguments;
+        if (owner.root.next_segment != rows / rows_per_segment + @as(u64, @intFromBool(bulk))) return error.WrongIngestionPath;
+        var after: ?s.TreeStore.pages.Key = null;
+        while (true) {
+            const page = try owner.scan(owner.root, after);
+            for (page.entries) |slot| if (slot) |entry| {
+                var row = try owner.readRow(a, owner.root, entry.key, entry.value);
+                defer row.deinit();
+                const id = try verifyTable(row.row(), rows);
+                values.add(id, score(id), row.row().cells[2].value.atom.bytes);
+            };
+            after = page.next orelse break;
+        }
+        if (values.count != rows) return error.IncompleteRead;
+        const original = (try owner.observe(binding(&owner, rows / rows_per_segment), access.guard())) orelse return error.MissingWriteReceipt;
+        if (original.affected != rows_per_segment) return error.WrongWriteReceipt;
+        // The new write preserves the original pin and its smaller retained cut.
+        const pin = (try owner.pinState(pin_owner, access.guard())).handle orelse return error.MissingPin;
+        var retained = try owner.inspectSnapshot(a, pin, access.guard());
+        defer retained.deinit();
+        if (retained.root.live_rows != rows - rows_per_segment) return error.ChangedRetainedCut;
         visited = values;
     } else if (std.mem.eql(u8, operation, "checkpoint")) {
         _ = try owner.checkpoint(.{ .partition = 17, .next_lsn = owner.root.next_lsn }, access.guard());
@@ -259,16 +345,24 @@ fn native(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, 
     meter.end("recover", counters);
     meter.begin(counters);
     var values: Values = .{};
-    if (std.mem.eql(u8, operation, "init")) {
-        if (engine.head.position != 1) return error.ExpectedEmptyFixture;
-        const pid = try submit(&engine, .{ .spawn = .{} });
-        const sink = try submit(&engine, .{ .spawn = .{} });
-        const resource = try submit(&engine, .{ .create_resource = .{ .writer = pid } });
-        if (pid != 1 or sink != 2 or resource != 3) return error.WrongFixtureIdentity;
-        _ = try submit(&engine, .{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = p.State.all_permissions } });
-        _ = try submit(&engine, .{ .associate = .{ .pid = pid, .name = try core.Value.init("data"), .resource = resource } });
-        _ = try submit(&engine, .{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 0 } });
-        for (0..rows) |id| {
+    const ingest = std.mem.eql(u8, operation, "ingest");
+    if (std.mem.eql(u8, operation, "init") or ingest) {
+        if (!ingest) {
+            if (engine.head.position != 1) return error.ExpectedEmptyFixture;
+            const pid = try submit(&engine, .{ .spawn = .{} });
+            const sink = try submit(&engine, .{ .spawn = .{} });
+            const resource = try submit(&engine, .{ .create_resource = .{ .writer = pid } });
+            if (pid != 1 or sink != 2 or resource != 3) return error.WrongFixtureIdentity;
+            _ = try submit(&engine, .{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = p.State.all_permissions } });
+            _ = try submit(&engine, .{ .associate = .{ .pid = pid, .name = try core.Value.init("data"), .resource = resource } });
+            _ = try submit(&engine, .{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 0 } });
+        } else if (engine.head.position != 7 + rows * 3 or (try engine.process(1)).consumed != rows) return error.WrongFixtureSize;
+        const pid = 1;
+        const sink = 2;
+        const resource = 3;
+        const start: usize = if (ingest) rows else 0;
+        const end: usize = if (ingest) rows + 1 else rows;
+        for (start..end) |id| {
             const input = try submit(&engine, .{ .send = .{ .pid = pid, .value = .{} } });
             const process = try engine.process(pid);
             const data = (try query(&engine, .{ .resource = resource })).body.resource;
@@ -280,7 +374,18 @@ fn native(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, 
             const turn: g.Turn = .{ .pid = pid, .generation = process.generation, .input = input, .expected_revision = process.revision, .views = .{ view, null, null, null }, .write_view = view, .mutations = .{ .{ .key = row_key, .value = core.Value.integer(score(id)) }, null, null, null }, .blocks = batch.mutations, .outputs = .{ .{ .pid = sink, .value = core.Value.integer(@intCast(id)) }, null, null, null } };
             const request = try g.sign(.{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .{ .turn = turn } }, try key());
             const prepared = try engine.prepareWithBlocks(request, &batch.body);
+            if (ingest) {
+                counters = Counters.read(&backend.wal, &backend.objects);
+                counters.index_misses = pages.misses;
+                meter.end("prepare", counters);
+                meter.begin(counters);
+            }
             _ = try engine.commit(prepared);
+            if (ingest) {
+                counters = Counters.read(&backend.wal, &backend.objects);
+                counters.index_misses = pages.misses;
+                meter.end("commit", counters);
+            }
             values.add(id, score(id), &bytes);
         }
     } else if (std.mem.eql(u8, operation, "checkpoint")) {
@@ -305,7 +410,7 @@ fn native(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, 
     } else return error.InvalidArguments;
     counters = Counters.read(&backend.wal, &backend.objects);
     counters.index_misses = pages.misses;
-    meter.end(operation, counters);
+    if (!ingest) meter.end(operation, counters);
     try emit(init, meter, values, values, engine.head.position, engine.head.history_floor);
 }
 

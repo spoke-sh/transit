@@ -28890,3 +28890,26 @@ and repository-wide check are running; those unfinished runs are not
 qualification evidence. This increment changes no
 stored definition and does not supply Arrow-compatible physical buffers or an
 end-to-end query latency measurement.
+
+## Disk ingestion measurement harness — 2026-10-26
+
+`just test::storage-ingest-benchmark` completes a **12-sample smoke matrix** with
+32 existing Table rows and two existing native turns. Both Table ingestion paths
+append the same sixteen new rows. Native samples prepare and commit one further
+KV/block/input/output turn. Warm/cold conditions each include one discarded
+warmup and one recorded repetition. Every sample reopens and verifies all data;
+Table checks also preserve the original retained cut, accepted receipt and
+physical point/bulk distinction. This is executable harness validation, not
+percentile evidence. The full 31-repetition matrix remains to run.
+
+The extended probe also passes the existing **24-sample read/checkpoint smoke
+matrix**. Six report-validator tests reject missing/changed values, incomplete
+phase or repetition sets, missing sync/append attribution, invented native append
+timers, invalid allocation peaks and verification writes. The
+[measurement guide](storage_benchmark.md#ingestion-and-commit-measurement)
+defines the distinct Table ingestion/append and native preparation/commit scopes.
+
+The buffered-reader signed projection rerun passes, including encoded filtering,
+owned output, prepared comparisons, ordered failures and post-compute/terminal
+revocation. The broader repository check and clean core lane at `d80f5c1ed` are
+still running; no completed clean-lane result is claimed here.

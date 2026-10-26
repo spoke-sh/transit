@@ -28,6 +28,15 @@ storage-benchmark *args:
     zig build storage-benchmark -Doptimize=ReleaseSafe
     python3 -B tests/storage_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
 
+# Matched WAL/bulk ingestion, native turn commit and independent reopen readback.
+[positional-arguments]
+[script]
+storage-ingest-benchmark *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    zig build storage-benchmark -Doptimize=ReleaseSafe
+    python3 -B tests/storage_ingest_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
+
 # Accepted Table archives, retained reads, current authority and interrupted trim.
 table-archives:
     cd packages/zig/transit-storage && zig build test -Dtest-filter="Table archive" -Dtest-filter="Table recovery rejects archive" -Dtest-filter="Table admitted work survives" --summary all
