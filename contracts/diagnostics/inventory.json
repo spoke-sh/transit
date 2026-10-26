@@ -3318,6 +3318,7 @@
         "rowOperation()": "<inferred>",
         "rowStatus()": "<inferred>",
         "scanColumns()": "<inferred>",
+        "scanFiltered()": "<inferred>",
         "scanHistory()": "<inferred>",
         "scanRows()": "<inferred>",
         "schema()": "<inferred>",
@@ -3331,7 +3332,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 673,
+        "try": 674,
         "catch": 8
       },
       "imports": [
@@ -4241,7 +4242,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 133,
+        "try": 145,
         "catch": 0
       },
       "imports": [
@@ -4382,14 +4383,18 @@
         "InvalidCatalogStepBudget": 3,
         "InvalidDirectCatalogOperation": 1,
         "InvalidNamedResourceOperation": 1,
+        "InvalidPlanEncoding": 2,
         "InvalidProjection": 2,
         "InvalidTableBasis": 3,
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
-        "InvalidTableCursor": 5,
+        "InvalidTableCursor": 6,
         "InvalidTableDelegation": 5,
         "InvalidTableKey": 2,
-        "InvalidTableReadBudget": 7,
+        "InvalidTableReadBudget": 8,
+        "InvalidTableResponse": 5,
+        "OutOfMemory": 1,
+        "SourceChanged": 1,
         "TableBatchTooLarge": 1,
         "TablePayloadTooLarge": 6,
         "TableSchemaChanged": 2
@@ -4438,6 +4443,7 @@
           "read_key",
           "scan",
           "column_scan",
+          "filter_scan",
           "key_range",
           "release"
         ],
@@ -4472,6 +4478,10 @@
           "alter",
           "rename",
           "drop"
+        ],
+        "FilteredPage.failure.outcome": [
+          "type_error",
+          "conflict"
         ],
         "ReadCheck": [
           "access",
@@ -4512,6 +4522,7 @@
           "history_page",
           "point",
           "page",
+          "filtered_page",
           "key_range",
           "released"
         ],
@@ -4539,6 +4550,8 @@
         "Ddl.intent()": "<inferred>",
         "Ddl.native()": "<inferred>",
         "Ddl.validate()": "<inferred>",
+        "FilterScan.decodePlan()": "<inferred>",
+        "FilteredPage.validate()": "<inferred>",
         "KeyCursor.encode()": "<inferred>",
         "KeyCursor.native()": "<inferred>",
         "KeyInterval.encode()": "<inferred>",
@@ -4555,8 +4568,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 142,
-        "catch": 2
+        "try": 151,
+        "catch": 3
       },
       "imports": [
         "root.zig",
@@ -4566,11 +4579,14 @@
     "packages/zig/transit-catalog/src/DirectTableReader.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
-        "InvalidTableCursor": 2,
+        "InvalidTableCursor": 4,
         "InvalidTableKey": 1,
         "InvalidTableReadBudget": 3,
-        "InvalidTableResponse": 26,
+        "InvalidTableResponse": 41,
         "MissingTestRow": 1,
+        "QueryConflict": 1,
+        "QueryTypeError": 1,
+        "SourceChanged": 1,
         "TableSnapshotReleased": 1,
         "UnsupportedHistoricalPointRead": 1,
         "UnsupportedHistoricalRangeRead": 1
@@ -4581,10 +4597,12 @@
         "Basis.fingerprint()": "<inferred>",
         "check()": "<inferred>",
         "consume()": "<inferred>",
+        "consumeFiltered()": "<inferred>",
         "cursorSource()": "<inferred>",
         "decodePage()": "<inferred>",
         "decodePoint()": "<inferred>",
         "decodeRange()": "<inferred>",
+        "filteredAllocationFailures()": "<inferred>",
         "init()": "<inferred>",
         "initHistory()": "<inferred>",
         "next()": "<inferred>",
@@ -4599,12 +4617,13 @@
         "readRange()": "<inferred>",
         "release()": "<inferred>",
         "requireClient()": "<inferred>",
-        "selectColumns()": "<inferred>"
+        "selectColumns()": "<inferred>",
+        "selectPlan()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 65,
-        "catch": 1
+        "try": 86,
+        "catch": 2
       },
       "imports": [
         "root.zig",
@@ -4614,7 +4633,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 102
+        "InvalidTableResponse": 106
       },
       "outcomes": {},
       "error_sets": {},
@@ -4633,8 +4652,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 153,
-        "catch": 8
+        "try": 157,
+        "catch": 9
       },
       "imports": [
         "root.zig",
@@ -14315,10 +14334,12 @@
     "packages/zig/transit-query/src/DirectTableScan.zig": {
       "errors": {
         "Cancelled": 2,
-        "IncompleteSource": 2,
+        "IncompleteSource": 3,
         "InvalidQueryBudget": 1,
         "QueryClosed": 1,
-        "QueryPageBudget": 1
+        "QueryConflict": 1,
+        "QueryPageBudget": 1,
+        "QueryTypeError": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -14335,7 +14356,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 11,
+        "try": 12,
         "catch": 7
       },
       "imports": [
@@ -25451,6 +25472,7 @@
         "currentBasis()": "<inferred>",
         "decodeFrame()": "<inferred>",
         "expectations()": "<inferred>",
+        "filteredCursorFingerprint()": "<inferred>",
         "filteredCursorSource()": "<inferred>",
         "flush()": "<inferred>",
         "flushWithinBudget()": "<inferred>",

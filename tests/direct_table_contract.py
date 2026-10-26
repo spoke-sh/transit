@@ -134,6 +134,24 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
         "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(projection_claim)).digest())}}
     projection_fixture = {"request": projection_request, "public_key": public_key}
 
+    # Signing/cursor fixture only: schema-bound FQP1 admission is tested in Zig.
+    filter_fingerprint = bytes([29] * 32)
+    filter_bytes = (b"transit.table.filtered-cursor.v1\0" + bytes.fromhex(definition)
+                    + struct.pack("<Q", projection_source["bytes"])
+                    + bytes(projection_source["sha256"]) + filter_fingerprint)
+    filter_input = {**request_input, "action": {"filter_scan": {
+        "snapshot": borrow_binding["target"]["snapshot"],
+        "plan": {"base64": base64.b64encode(b"FQP1-envelope-fixture").decode()},
+        "fingerprint": list(filter_fingerprint),
+        "after": {"source": {"bytes": len(filter_bytes), "sha256": list(hashlib.sha256(filter_bytes).digest())},
+                  "after": list(struct.pack(">QQI", 4, 10, 2))},
+        "limits": {"rows": 3, "encoded_bytes": 4096},
+    }}}
+    filter_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(filter_input)).digest())}
+    filter_request = {**filter_input, "proof": {"claim": filter_claim,
+        "signature": key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(filter_claim)).digest())}}
+    filter_fixture = {"request": filter_request, "public_key": public_key}
+
     dependent_definition = {"object": {"scope": {"realm": 42, "resource": 9, "catalog": 8}, "branch": 1, "object": 99}, "revision": 2**64 - 1, "digest": [4] * 32}
     source_definition = {"object": {"scope": request_input["connection"]["scope"], "branch": 1, "object": 2**64 - 2}, "revision": 2**64 - 3, "digest": [3] * 32}
     edge = {"source": source_definition, "dependent": {"kind": "captured", "interpretation": dependent_definition}, "privileges": 1}
@@ -175,6 +193,7 @@ validator.validate(borrowed_request)
 validator.validate(current_request)
 validator.validate(range_request)
 validator.validate(projection_request)
+validator.validate(filter_request)
 for columns in ("abc", [0] * 129):
     invalid = copy.deepcopy(projection_request)
     invalid["action"]["column_scan"]["columns"] = columns
@@ -221,6 +240,8 @@ def persist(path, content):
 
 
 persist(root / "contracts/direct-table-v1.schema.json", raw)
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-filter-v1.json",
+        (json.dumps(filter_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-projection-v1.json",
         (json.dumps(projection_fixture, ensure_ascii=False, indent=2) + "\n").encode())
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-table-key-range-v1.json",

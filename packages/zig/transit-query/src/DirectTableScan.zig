@@ -23,6 +23,8 @@ point_key: ?Key = null,
 count_range: ?CountRange = null,
 range_after: ?q.storage.TablePartition.KeyRange.Cursor = null,
 range_complete: bool = false,
+ordinal: u64 = 0,
+selected: u64 = 0,
 
 pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, request_limit: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
     if (request_limit < 2) return error.InvalidQueryBudget;
@@ -84,6 +86,7 @@ pub fn selectAccess(self: *Self, plan: f.LogicalQuery.Plan) !void {
     self.selectPoint(plan);
     if (self.point_key == null) self.count_range = CountRange.qualify(self.reader.schema.schema, plan);
     if (self.point_key != null or self.count_range != null) return;
+    if (plan.predicate != .all) return self.reader.selectPlan(plan);
     const selected = try f.TableProjection.fromPlan(self.reader.schema.schema, plan);
     if (selected.len < self.reader.schema.schema.columns.len) try self.reader.selectColumns(selected.columns());
 }
@@ -98,12 +101,17 @@ pub fn next(self: *Self) !?f.LogicalQuery.Row {
         self.complete = true;
         const found = row orelse return null;
         self.after = found.identity;
+        self.ordinal += 1;
         return .{ .arena = found.value.descriptor.arena, .cells = found.row().cells };
     }
-    if (self.page == null or self.index == self.page.?.count) {
+    while (self.page == null or self.index == self.page.?.count) {
         if (self.page) |*page| page.deinit();
         self.page = null;
         self.index = 0;
+        if (self.reader.failure) |failure| {
+            try self.validateCurrent();
+            return if (failure.state == .type_error) error.QueryTypeError else error.QueryConflict;
+        }
         if (self.reader.complete or self.range_complete) {
             self.complete = true;
             return null;
@@ -115,9 +123,15 @@ pub fn next(self: *Self) !?f.LogicalQuery.Row {
             self.range_after = page.next;
             self.range_complete = page.batch.complete;
         } else {
-            self.page = (self.reader.next(self.client, .{}) catch |err| return self.rejected(err)) orelse return error.IncompleteSource;
+            var limits: q.storage.TablePartition.ReadLimits = .{};
+            if (self.reader.filter) |filter| if (filter.plan.plan.limit) |limit| {
+                if (self.selected >= limit) return error.IncompleteSource;
+                limits.rows = @intCast(@min(limits.rows, limit - self.selected));
+            };
+            self.page = (self.reader.next(self.client, limits) catch |err| return self.rejected(err)) orelse return error.IncompleteSource;
         }
         if (self.page.?.count == 0) {
+            if (self.reader.filter != null) continue;
             if (!self.reader.complete and !self.range_complete) return error.IncompleteSource;
             self.complete = true;
             return null;
@@ -125,11 +139,22 @@ pub fn next(self: *Self) !?f.LogicalQuery.Row {
     }
     const row = self.page.?.rows[self.index].?;
     self.page.?.rows[self.index] = null;
+    self.ordinal = if (self.reader.filter != null) self.page.?.ordinals[self.index] else self.ordinal + 1;
+    self.selected += 1;
     self.index += 1;
     self.after = row.identity;
     // TableRow owns its value and descriptor in one arena. Transfer that arena
     // to Fuze; the source page can be freed independently of the returned row.
     return .{ .arena = row.value.descriptor.arena, .cells = row.row().cells };
+}
+pub fn batchOrdinal(self: *const Self) u64 {
+    return self.ordinal;
+}
+pub fn batchCoverage(self: *const Self) u64 {
+    return if (self.reader.filter != null) self.reader.consumed else self.ordinal;
+}
+pub fn batchFailure(self: *const Self) ?f.LogicalQuery.Failure {
+    return self.reader.failure;
 }
 pub fn batchIdentity(self: *const Self) ?f.TableRow.Identity {
     return self.after;
@@ -139,7 +164,7 @@ pub fn batchIdentity(self: *const Self) ?f.TableRow.Identity {
 pub fn nextAfter(self: *Self, after: ?f.TableRow.Identity) !?f.LogicalQuery.Row {
     // Relational rewinds require identity order; only the finite count owner
     // selects a range and it consumes next() without identity-based rewinds.
-    std.debug.assert(self.count_range == null);
+    std.debug.assert(self.count_range == null and self.reader.filter == null);
     try self.checkCancellation();
     if (std.meta.eql(after, self.after)) return self.next();
     if (self.page) |*page| page.deinit();
@@ -149,6 +174,8 @@ pub fn nextAfter(self: *Self, after: ?f.TableRow.Identity) !?f.LogicalQuery.Row 
     self.complete = false;
     self.reader.after = null;
     self.reader.consumed = 0;
+    self.ordinal = 0;
+    self.selected = 0;
     self.reader.complete = false;
     while (try self.next()) |value| {
         var row = value;

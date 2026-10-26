@@ -309,6 +309,17 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
     defer t.allocator.free(schema_bytes);
     var schema = try c.fuze.TableSchema.decode(t.allocator, schema_bytes);
     defer schema.deinit();
+    const basis: c.DirectTableReader.Basis = .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.row_count, .authority = source.authority };
+    var fields: [c.fuze.TableSchema.max_columns]c.fuze.Types.Field = undefined;
+    const plan: c.fuze.LogicalQuery.Plan = .{ .schema = try schema.schema.rowType(&fields), .source_basis = try basis.fingerprint(), .projection = &.{0}, .collations = .fromTable(schema.schema) };
+    var plan_buffer: [c.fuze.LogicalPlanCodec.max_bytes]u8 = undefined;
+    const plan_wire = try w.Binary.encode(t.allocator, try c.fuze.LogicalPlanCodec.encode(plan, &plan_buffer));
+    defer t.allocator.free(plan_wire.base64);
+    const filter_action: w.Action = .{ .filter_scan = .{ .snapshot = snapshot, .plan = plan_wire, .fingerprint = try plan.fingerprint(), .after = null, .limits = .{} } };
+    const filtered = try dispatchDelegated(service, filter_action, grant);
+    defer filtered.deinit();
+    try t.expectEqual(@as(usize, 1), filtered.value.result.filtered_page.page.rows.len);
+    try t.expectEqualDeep(grant.proof.claim.context, filtered.value.subject.context);
     var key_bytes: [c.fuze.Collation.max_sort_key_bytes]u8 = undefined;
     const point_key = try w.Binary.encode(t.allocator, try c.fuze.Collation.encodePrimaryKeySortKey(schema.schema, &.{.{ .value = .{ .atom = .{ .signed = 12 } } }}, false, &key_bytes));
     defer t.allocator.free(point_key.base64);
@@ -352,6 +363,13 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
     const borrowed_range = try dispatchBorrowed(service, range_action, grant, borrowed);
     defer borrowed_range.deinit();
     try t.expectEqualStrings(read.value.result.page.rows[0].base64, borrowed_range.value.result.key_range.rows[0].base64);
+    const borrowed_filter = try dispatchBorrowed(service, filter_action, grant, borrowed);
+    defer borrowed_filter.deinit();
+    try t.expectEqualDeep(filtered.value.result.filtered_page.offsets, borrowed_filter.value.result.filtered_page.offsets);
+    try t.expectEqualStrings(filtered.value.result.filtered_page.page.rows[0].base64, borrowed_filter.value.result.filtered_page.page.rows[0].base64);
+    var other_filter = filter_action;
+    other_filter.filter_scan.snapshot.handle.content.sha256[0] ^= 1;
+    try t.expectError(error.TableDelegationDenied, dispatchBorrowed(service, other_filter, grant, borrowed));
     var other_range = range_action;
     other_range.key_range.snapshot.handle.content.sha256[0] ^= 1;
     try t.expectError(error.TableDelegationDenied, dispatchBorrowed(service, other_range, grant, borrowed));
@@ -392,7 +410,7 @@ fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.Dir
     };
     var table = native_table;
     service.before_reply = .{ .context = &table, .run = Revoke.run };
-    try t.expectError(error.Forbidden, dispatchDelegated(service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } }, grant));
+    try t.expectError(error.Forbidden, dispatchDelegated(service, filter_action, grant));
     service.before_reply = null;
     _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(table), .owner = owner_role } });
 

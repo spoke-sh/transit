@@ -82,6 +82,8 @@ table-projection:
 table-filtering:
     cd packages/zig/transit-fuze && zig build test -Dtest-filter="TSeg" --summary all
     cd packages/zig/transit-storage && zig build test -Dtest-filter="filtered Table" -Dtest-filter="projected Table snapshots" --summary all
+    cd packages/zig/transit-catalog && zig build test -Dtest-filter="retained filter" -Dtest-filter="retained reader" --summary all
+    just test::direct-table-service projection
 
 # Independent provider stalls, exact publication races and current revocation.
 node-concurrency:

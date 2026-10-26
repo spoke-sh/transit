@@ -238,7 +238,7 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   existing paths. This advances SQL inequality pushdown for #116/#128 without
   claiming general pruning or encoded predicate execution. See the
   [query owner](../../packages/zig/transit-query/README.md) for the exact profile.
-- General SQL inequality pushdown, encoded predicates/pruned execution,
+- Compatible borrowed batches, relational text comparison/hash/order,
   retained checkpoint/maintenance and native-owner obligations remain
   open. A passing Table range test does not close #113–#118 or #123–#128.
 
@@ -247,24 +247,28 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   segment page selection. Projected cursors bind the exact column set; source
   coverage and original plan/error attribution remain intact. WAL fallback keeps
   bounded full-row decoding. This advances projection integration for #116/#128;
-  general encoded predicate execution, compatible borrowed batches and relational
-  text comparison/hash/order remain outstanding.
+  compatible borrowed batches and relational text comparison/hash/order remain
+  outstanding.
 
 - Encoded filtering accepts bounded visible-candidate pages in logical traversal
   order, with an explicit selected-prefix boundary. It preserves failure order
   when segment positions differ from identities and excludes semantic failures
   in omitted rows. Whole-page integrity checks still run. This supplies a
-  prerequisite for Table SQL predicate lowering; owner visibility, continuation
-  coverage and final authorization must still be integrated before that path is
-  claimed complete.
+  prerequisite used by retained Table filtering; signed source attribution and
+  final SQL disclosure are exercised by the integration below.
 
 - The retained Table owner now applies encoded predicates to live identity
   locators, caches bounded deferred group decisions and reports skipped-row
   coverage, per-row offsets and plan-bound continuations. Mixed segment/WAL
   sources, deletion, restart, finite collations, allocation failures and final
-  authorization have focused component checks. This advances #116/#118/#128;
-  filtered signed pages, original SQL failure attribution and finite query
-  lowering still need integration before the installed path is complete.
+  authorization have focused component checks. Signed `filter_scan` now binds
+  canonical FQP1 to the exact source, schema, collation vector and plan identity.
+  The retained reader validates sparse offsets and complete coverage; finite
+  direct/prepared SQL preserves original failure positions and LIMIT prefixes.
+  Signed disk-owner, delegated/borrowed-read and post-compute revocation proofs
+  pass. Projected and filtered reads share the node's per-Table lock stripe.
+  This advances #116/#118/#128 without claiming borrowed segment batches,
+  relational predicate lowering or new installed performance measurements.
 
 - The shared codec walker now supports encoded single-column predicates with
   one-byte row outcomes, dictionary/run evaluation reuse and detached selected

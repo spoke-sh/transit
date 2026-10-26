@@ -2005,6 +2005,10 @@ pub fn scanSnapshotColumns(self: *Self, allocator: std.mem.Allocator, handle: Sn
 /// Continuations bind the exact retained source and complete original plan.
 /// The adapter must separately validate the plan's source-basis authority.
 pub fn filteredCursorSource(handle: SnapshotHandle, plan: f.LogicalQuery.Plan) !d.Content {
+    return filteredCursorFingerprint(handle, try plan.fingerprint());
+}
+
+pub fn filteredCursorFingerprint(handle: SnapshotHandle, fingerprint: [32]u8) !d.Content {
     try handle.content.validate();
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     const domain = "transit.table.filtered-cursor.v1\x00";
@@ -2014,7 +2018,7 @@ pub fn filteredCursorSource(handle: SnapshotHandle, plan: f.LogicalQuery.Plan) !
     std.mem.writeInt(u64, &size, handle.content.bytes, .little);
     hash.update(&size);
     hash.update(&handle.content.sha256);
-    hash.update(&try plan.fingerprint());
+    hash.update(&fingerprint);
     return .{ .bytes = domain.len + 32 + 8 + 32 + 32, .sha256 = hash.finalResult() };
 }
 

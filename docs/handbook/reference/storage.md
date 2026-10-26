@@ -33,9 +33,12 @@ cache eviction, and current authorization still applies before disclosure.
 Retained key-range reads seek through a separate paged full-key directory and
 return bounded pages in the declaration's collation order. Their continuations
 preserve the exact snapshot and interval. Finite direct SQL scans select required
-output, predicate and key columns before reading segment pages; their projected
-continuations preserve the column set and complete retained-source coverage.
-General encoded predicate pushdown remains a separate query capability.
+output, predicate and key columns before reading segment pages. Identity-ordered
+predicates execute over encoded segment groups before materializing selected
+rows. Filtered continuations bind the retained source and full plan; examined
+counts and per-row positions preserve skipped-row coverage, LIMIT and ordered
+failure attribution. Empty pages can carry continuations. The owner rechecks
+current rights for selected, empty and terminal pages.
 
 The installed owner does not automatically flush point writes or expose physical
 Table garbage collection. Absence of a new `.tseg` after a point write does not

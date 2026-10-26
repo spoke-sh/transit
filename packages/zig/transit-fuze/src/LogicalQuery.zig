@@ -187,6 +187,23 @@ pub const Failure = struct {
     instruction: ?u8,
     binding: [32]u8,
     plan: [32]u8,
+    pub fn init(operation: @FieldType(Failure, "operation"), row: u64, field: types.Field, state: types.State, instruction: ?u8, binding: [32]u8, plan: [32]u8) Failure {
+        const typed = @import("FileValueDiagnostic.zig").init(.{}, field.type, null);
+        var result: Failure = .{
+            .operation = operation,
+            .row = row,
+            .column_len = @intCast(@min(field.name.len, 128)),
+            .column_truncated = field.name.len > 128,
+            .expected = typed.expected,
+            .expected_len = typed.expected_len,
+            .state = state,
+            .instruction = instruction,
+            .binding = binding,
+            .plan = plan,
+        };
+        @memcpy(result.column[0..result.column_len], field.name[0..result.column_len]);
+        return result;
+    }
     pub fn columnName(self: *const Failure) []const u8 {
         return self.column[0..self.column_len];
     }
@@ -325,22 +342,7 @@ pub fn Execution(comptime Scan: type, comptime verification: Verification) type 
         }
         fn capture(self: *Self, operation: @FieldType(Failure, "operation"), cells: []const values.Cell, column: u8, instruction: ?u8) void {
             if (self.failure != null or column >= self.plan.schema.structure.len or column >= cells.len) return;
-            const field = self.plan.schema.structure[column];
-            const typed = @import("FileValueDiagnostic.zig").init(.{}, field.type, null);
-            var detail: Failure = .{
-                .operation = operation,
-                .row = self.scanned,
-                .column_len = @intCast(@min(field.name.len, 128)),
-                .column_truncated = field.name.len > 128,
-                .expected = typed.expected,
-                .expected_len = typed.expected_len,
-                .state = std.meta.activeTag(cells[column]),
-                .instruction = instruction,
-                .binding = self.plan.source_basis,
-                .plan = self.fingerprint,
-            };
-            @memcpy(detail.column[0..detail.column_len], field.name[0..detail.column_len]);
-            self.failure = detail;
+            self.failure = Failure.init(operation, self.scanned, self.plan.schema.structure[column], std.meta.activeTag(cells[column]), instruction, self.plan.source_basis, self.fingerprint);
         }
     };
 }

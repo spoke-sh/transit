@@ -299,6 +299,45 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(row_schema, scratch));
             return .{ .page = .{ .snapshot = value.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next } };
         },
+        .filter_scan => |value| {
+            var definition = try catalog.snapshotDefinition(allocator, value.snapshot.object, value.snapshot.handle, policy);
+            defer definition.deinit();
+            try requireSource(delegation, definition);
+            const basis: c.DirectTableReader.Basis = .{
+                .snapshot = value.snapshot,
+                .interpretation = definition.root.declared(),
+                .accepted = .{ .partition = definition.root.partition, .next_lsn = definition.root.next_lsn },
+                .changed_lsn = definition.root.changed_lsn,
+                .row_count = definition.root.live_rows,
+                .authority = try catalog.readAuthority(value.snapshot.object, value.snapshot.handle.owner, policy, false),
+            };
+            const plan = try value.decodePlan(allocator, definition.schema.schema, try basis.fingerprint());
+            const selected = try c.fuze.TableProjection.fromPlan(definition.schema.schema, plan);
+            var columns: [c.fuze.TableSchema.max_columns]c.fuze.TableSchema.Column = undefined;
+            const row_schema = try selected.projectedSchema(definition.schema.schema, &columns);
+            var result = try catalog.scanFiltered(allocator, value.snapshot.object, value.snapshot.handle, plan, value.after, value.limits, policy);
+            defer result.deinit();
+            const page = &result.page;
+            const rows = try allocator.alloc(w.Binary, page.count);
+            const scratch = try allocator.alloc(u8, c.fuze.TableRow.max_bytes);
+            defer allocator.free(scratch);
+            for (rows, 0..) |*row, i| row.* = try w.Binary.encode(allocator, try page.rows[i].?.row().encode(row_schema, scratch));
+            return .{ .filtered_page = .{
+                .page = .{ .snapshot = value.snapshot, .interpretation = page.interpretation, .accepted = page.accepted, .changed_lsn = page.changed_lsn, .total_rows = page.total_rows, .rows = rows, .encoded_bytes = page.encoded_bytes, .next = page.next },
+                .examined = result.examined,
+                .offsets = result.offsets,
+                .failure = if (result.failure) |failure| .{
+                    .identity = failure.identity,
+                    .column = failure.column,
+                    .instruction = failure.instruction,
+                    .outcome = switch (failure.outcome) {
+                        .type_error => .type_error,
+                        .conflict => .conflict,
+                        else => unreachable,
+                    },
+                } else null,
+            } };
+        },
         .key_range => |value| {
             var definition = try catalog.snapshotDefinition(allocator, value.snapshot.object, value.snapshot.handle, policy);
             defer definition.deinit();

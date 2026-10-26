@@ -69,7 +69,7 @@ pub fn proof(self: Self, original: Grant, allocator: std.mem.Allocator) !p.Autho
 pub fn allow(self: Self, action: w.Action) !void {
     const target: Target = switch (action) {
         .snapshot => |value| .{ .snapshot = value },
-        inline .scan, .column_scan, .read_key, .key_range => |value| .{ .snapshot = value.snapshot },
+        inline .scan, .column_scan, .filter_scan, .read_key, .key_range => |value| .{ .snapshot = value.snapshot },
         .history_source => |value| .{ .history = value },
         .history_scan => |value| .{ .history = value.source },
         else => return error.TableDelegationDenied,

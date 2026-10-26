@@ -68,7 +68,7 @@ fn target(action: w.Action) ?u64 {
         inline .preview_rows, .preview_statement, .admit_rows, .admit_statement => |value| value.binding.target.object,
         .operation => |value| value.binding.target.object,
         inline .pin, .retain_history, .pin_status => |value| value.object.object,
-        inline .scan, .read_key, .key_range, .history => |value| value.snapshot.object.object,
+        inline .scan, .column_scan, .filter_scan, .read_key, .key_range, .history => |value| value.snapshot.object.object,
         inline .snapshot, .history_start, .history_source, .release => |value| value.object.object,
         .history_scan => |value| value.source.object.object,
         else => null,
@@ -91,4 +91,13 @@ pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, a
     }
     var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = self.options, .recovery_state = &recovered };
     return service.execute(arena, request, output);
+}
+
+test "projected and filtered Table reads share the retained object's host lock" {
+    const snapshot: w.Snapshot = .{ .object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 97 }, .handle = undefined };
+    const projected: w.Action = .{ .column_scan = .{ .snapshot = snapshot, .columns = &.{0}, .after = null, .limits = .{} } };
+    const filtered: w.Action = .{ .filter_scan = .{ .snapshot = snapshot, .plan = .{ .base64 = "" }, .fingerprint = @splat(0), .after = null, .limits = .{} } };
+    try std.testing.expectEqual(@as(?u64, 97), target(projected));
+    try std.testing.expectEqual(@as(?u64, 97), target(filtered));
+    try std.testing.expect(!exclusive(projected) and !exclusive(filtered));
 }

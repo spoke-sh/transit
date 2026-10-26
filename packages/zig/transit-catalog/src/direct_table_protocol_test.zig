@@ -664,3 +664,92 @@ test "retained column scan consumes independent signed projection and cursor fin
     changed.proof.claim.context = try w.Request.context(changed.input(), t.allocator);
     try t.expectError(error.InvalidTableCursor, changed.validate(t.allocator));
 }
+
+test "retained filter scan binds independent signed cursor and sparse coverage envelope" {
+    const Fixture = struct { request: w.Request, public_key: [32]u8 };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/direct-table-filter-v1.json"));
+    defer parsed.deinit();
+    const request = parsed.value.request;
+    try request.validate(t.allocator);
+    try request.proof.verify(parsed.value.public_key);
+    try t.expect(!request.transport().mutation);
+    const scan = request.action.filter_scan;
+    try t.expectEqualDeep(scan.after.?.source, try c.storage.TablePartition.filteredCursorFingerprint(scan.snapshot.handle, scan.fingerprint));
+    var changed = request;
+    changed.action.filter_scan.fingerprint[0] ^= 1;
+    changed.proof.claim.context = try w.Request.context(changed.input(), t.allocator);
+    try t.expectError(error.InvalidTableCursor, changed.validate(t.allocator));
+    changed = request;
+    changed.action.filter_scan.plan.base64 = "";
+    changed.proof.claim.context = try w.Request.context(changed.input(), t.allocator);
+    try t.expectError(error.InvalidPlanEncoding, changed.validate(t.allocator));
+    const page: w.Page = .{
+        .snapshot = scan.snapshot,
+        .interpretation = .{ .interpretation = .{ .object = scan.snapshot.object, .revision = 1, .digest = @splat(3) }, .content = .{ .bytes = 104, .sha256 = @splat(3) }, .schema_fingerprint = @splat(5), .retired = false },
+        .accepted = .{ .partition = 9, .next_lsn = 10 },
+        .changed_lsn = 9,
+        .total_rows = 24,
+        .rows = &.{},
+        .encoded_bytes = 0,
+        .next = .{ .source = scan.after.?.source, .after = try (c.fuze.TableRow.Identity{ .origin = 4, .operation = 10, .ordinal = 10 }).encode() },
+    };
+    var value: w.FilteredPage = .{ .page = page, .examined = 8, .offsets = @splat(0), .failure = null };
+    var response: w.Response = .{ .definition = p.Growth.current_definition, .context = request.proof.claim.context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = request.proof.claim.context }, .result = .{ .filtered_page = value } };
+    try c.DirectTableClient.validateResponse(t.allocator, request, response);
+    value.examined = 0;
+    try t.expectError(error.InvalidTableResponse, value.validate());
+    value.examined = 9;
+    try t.expectError(error.InvalidTableResponse, value.validate());
+    value.examined = 8;
+    value.offsets[0] = 1;
+    try t.expectError(error.InvalidTableResponse, value.validate());
+    value.offsets[0] = 0;
+    value.page.next.?.source = scan.snapshot.handle.content;
+    response.result.filtered_page = value;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, response));
+    value.page.next = null;
+    value.examined = 3;
+    value.failure = .{ .identity = .{ .origin = 4, .operation = 10, .ordinal = 6 }, .column = 0, .instruction = 0, .outcome = .type_error };
+    response.result.filtered_page = value;
+    try c.DirectTableClient.validateResponse(t.allocator, request, response);
+    value.failure.?.identity.ordinal = 2;
+    response.result.filtered_page = value;
+    try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(t.allocator, request, response));
+    value.failure.?.instruction = 64;
+    try t.expectError(error.InvalidTableResponse, value.validate());
+    value.failure.?.instruction = 0;
+    value.page.next = page.next;
+    try t.expectError(error.InvalidTableResponse, value.validate());
+}
+
+test "retained filter plan admission binds source schema collations and complete fingerprint" {
+    const f = c.fuze;
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "label", .type = .utf8, .collation = .ascii_ci }};
+    const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns };
+    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+    var plan: f.LogicalQuery.Plan = .{ .schema = try schema.rowType(&fields), .source_basis = @splat(17), .projection = &.{0}, .collations = .fromTable(schema), .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .bytes = "A" } } } };
+    var encoded: [f.LogicalPlanCodec.max_bytes]u8 = undefined;
+    const fixture = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8 }, a, @embedFile("fixtures/direct-table-filter-v1.json"));
+    var scan = fixture.value.request.action.filter_scan;
+    scan.plan = try w.Binary.encode(a, try f.LogicalPlanCodec.encode(plan, &encoded));
+    scan.fingerprint = try plan.fingerprint();
+    const decoded = try scan.decodePlan(a, schema, plan.source_basis);
+    try t.expectEqualDeep(scan.fingerprint, try decoded.fingerprint());
+    try t.expectEqualDeep(plan.collations, decoded.collations);
+    try t.expectError(error.InvalidPlanEncoding, scan.decodePlan(a, schema, @splat(18)));
+    scan.fingerprint[0] ^= 1;
+    try t.expectError(error.SourceChanged, scan.decodePlan(a, schema, plan.source_basis));
+    scan.fingerprint = try plan.fingerprint();
+    var changed = schema;
+    changed.columns = &.{.{ .id = 1, .name = "label", .type = .utf8, .collation = .utf8_binary }};
+    try t.expectError(error.SourceChanged, scan.decodePlan(a, changed, plan.source_basis));
+    encoded[4] ^= 1;
+    scan.plan = try w.Binary.encode(a, encoded[0..(try scan.plan.decode(a, f.LogicalPlanCodec.max_bytes)).len]);
+    try t.expectError(error.InvalidPlanEncoding, scan.decodePlan(a, schema, plan.source_basis));
+    plan.limit = 1;
+    scan.plan = try w.Binary.encode(a, try f.LogicalPlanCodec.encode(plan, &encoded));
+    try t.expectError(error.SourceChanged, scan.decodePlan(a, schema, plan.source_basis));
+}

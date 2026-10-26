@@ -38,6 +38,16 @@ and reads recheck current source rights and lifetime, including after DROP and
 name reuse. Release addresses the original pin and does not imply physical
 reclamation. An arbitrary staged schema is not accepted historical evidence.
 
+`DirectTableReader.selectPlan` freezes a schema-bound finite plan before traversing
+an ordinary retained snapshot. The reader owns its canonical bytes, literals and
+physical column selection. `next` returns owned batches with original source
+ordinals and an optional deferred predicate failure. Empty batches may be
+nonterminal; only verified complete coverage establishes exhaustion. Decode or
+attribution failure leaves traversal unchanged. The copied failure follows the
+batch's earlier rows and never means completion. Local destruction releases these
+buffers without releasing the durable pin. [Finite execution](../../transit-query/README.md)
+consumes this evidence and rechecks current rights after computation.
+
 ## Neutral general Table callers
 
 The ABI, port and language SDKs share `DirectTableBridge.Session`. SQL compilation

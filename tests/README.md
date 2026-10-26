@@ -28774,3 +28774,42 @@ SQL filtering support; their source owner must validate exact coverage and
 current authority. The instrumented broad service retry still times out during
 history replay after one complete eight-transaction pass; remaining replay and
 later service phases are unproved by that run.
+
+## Signed filtered Table reads and finite SQL — 2026-10-26
+
+`just test::direct-table-service projection` passes against the signed local disk
+owner with finite scans lowering predicates through `filter_scan`. The fixture
+contains 17 wide segment rows and an accepted WAL row, then a later write outside
+the retained cut. It verifies two empty eight-identity pages before matches at
+source positions 17 and 18, 1 KiB projected pages, complete skipped-row coverage,
+LIMIT zero/one, empty COUNT, COUNT(column), SUM and prepared ASCII_CI predicates.
+A keyless fixture skips a NULL before SUM overflow and reports original row 3,
+column name and plan identity. Wrong-source plans reject as InvalidRequest and
+wrong fingerprints as Conflict. Revocation after physical evaluation denies
+both selected rows and empty aggregate results; repeated terminal disclosure and
+released-pin reads also reject.
+
+The catalog reader/protocol suite passes **7/7** tests. Independent signed
+fixtures bind the filtered cursor domain and full plan fingerprint. Malformed
+coverage, offsets, failure instruction/column, source positions, foreign plans,
+schemas/collations and incomplete rows reject without advancing traversal.
+Exhaustive allocation failures cover owned plans, empty prefixes, selected rows
+and deferred failures; the failure injector disables backing-allocator resizing
+to keep allocation counts deterministic. Returned rows and copied diagnostics
+outlive their reader.
+
+`zig build test-local-catalog` passes **3/3** tests, including filtered execution
+through original delegation and an exact borrowed snapshot, substituted-pin
+rejection and revocation before the reply. Projected and filtered actions select
+the same per-Table host lock as ordinary reads. The focused logical/batch suite
+passes **91/91** tests, and the direct/logical/relational query suite passes
+**47/47**, including the 16,840-row relational growth fixture. Reflected direct
+contracts, diagnostic mappings/error boundaries/outcomes (**3,411** projections,
+**24** surfaces), verification catalog and documentation checks pass.
+
+The earlier service attempt reached the wrong-plan rejection but expected the
+wrong local error tag; the assertion now expects the client's existing Conflict
+translation. The passing rerun includes the corrected assertion and host lock
+routing. These focused runs do not close the broad history-replay timeout or
+establish final committed-HEAD clean qualification, borrowed batches, relational
+text pushdown, physical Table collection or a performance improvement.

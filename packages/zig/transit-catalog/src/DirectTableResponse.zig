@@ -146,6 +146,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .snapshot => .snapshot,
         .read_key => .point,
         .scan, .column_scan => .page,
+        .filter_scan => .filtered_page,
         .key_range => .key_range,
         .release => .released,
     };
@@ -532,6 +533,17 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                 },
                 else => unreachable,
             }
+        },
+        .filtered_page => |value| {
+            const query = request.action.filter_scan;
+            if (request.delegation) |grant| grant.requireSource(value.page.interpretation.interpretation, value.page.accepted) catch return error.InvalidTableResponse;
+            try validateRowEnvelope(allocator, request.connection, query.snapshot, query.limits, value.page);
+            try value.validate();
+            if (value.page.next) |next| {
+                if (!std.meta.eql(next.source, try P.filteredCursorFingerprint(query.snapshot.handle, query.fingerprint))) return error.InvalidTableResponse;
+                if (query.after) |cursor| if (std.mem.order(u8, &next.after, &cursor.after) != .gt) return error.InvalidTableResponse;
+            }
+            if (value.failure) |failure| if (query.after) |cursor| if (std.mem.order(u8, &try failure.identity.encode(), &cursor.after) != .gt) return error.InvalidTableResponse;
         },
         .key_range => |value| {
             if (request.delegation) |grant| grant.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;

@@ -83,6 +83,18 @@ plan identity and column names in failure evidence. Aliases, repeated output
 columns, declared collations, source order, LIMIT and complete-source coverage
 retain their original meaning. Point/count-range paths keep their full rows.
 
+Predicates in identity-ordered finite scans execute in the Table owner before
+selected segment columns are materialized. The signed request carries a canonical
+plan bound to the retained source and collations. Source pages examine at most
+eight identities, including misses, and may return no rows while retaining a
+continuation. The reader verifies cumulative coverage and copies original source
+positions into compute batches; skipped rows do not renumber overflow or predicate
+failures. LIMIT stops at the selected prefix and limits each source request's
+remaining matches. Empty full-source results still verify all source coverage.
+A deferred predicate failure follows earlier selected rows so prior aggregate
+failures or a satisfied LIMIT retain precedence. These reads use owned rows;
+compatible borrowing and relational predicate pushdown have separate owners.
+
 `DirectTablePrepared.prepare` checks current SELECT rights and owns an immutable
 schema-bound template without acquiring a pin. Its preparation fingerprint
 includes the complete connection, selected role, namespace, name and declaration.
