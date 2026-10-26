@@ -81,6 +81,7 @@ test {
     _ = @import("tseg_test.zig");
     _ = @import("tseg_reader_test.zig");
     _ = @import("column_codec_test.zig");
+    _ = @import("selected_column_test.zig");
     _ = @import("table_dml_codec_test.zig");
     _ = @import("logical_plan_codec_test.zig");
     _ = @import("logical_stream_test.zig");

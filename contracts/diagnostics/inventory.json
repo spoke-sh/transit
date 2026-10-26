@@ -8064,7 +8064,8 @@
         "IncompatibleColumnEncoding": 3,
         "IncompatibleDefinition": 1,
         "InvalidBitpackedPage": 3,
-        "InvalidColumnPage": 10,
+        "InvalidColumnPage": 11,
+        "InvalidColumnSelection": 1,
         "InvalidComp3Length": 1,
         "InvalidComp4Length": 1,
         "InvalidDictionaryCode": 2,
@@ -8077,10 +8078,13 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "DecodeSink.emit()": "<inferred>",
         "decodeBitpackedValues()": "<inferred>",
         "decodeColumnPage()": "<inferred>",
+        "decodeColumnPageSelected()": "<inferred>",
         "decodeDictionaryValues()": "<inferred>",
         "decodeFsstValues()": "<inferred>",
+        "decodePage()": "<inferred>",
         "decodeRleValues()": "<inferred>",
         "encodeBitpackedValues()": "<inferred>",
         "encodeColumnPage()": "<inferred>",
@@ -8097,7 +8101,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 111,
+        "try": 121,
         "catch": 10
       },
       "imports": [
@@ -9668,11 +9672,12 @@
         "readFooter()": "<inferred>",
         "readFooterParts()": "<inferred>",
         "requireInterpretation()": "<inferred>",
+        "verifyColumnRange()": "<inferred>",
         "writeSegment()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 124,
+        "try": 125,
         "catch": 2
       },
       "imports": [
@@ -9689,27 +9694,31 @@
     },
     "packages/zig/transit-fuze/src/TSegReader.zig": {
       "errors": {
-        "InvalidSegment": 1,
-        "InvalidSegmentCoordinate": 2,
-        "SegmentReadBudgetExceeded": 4,
-        "TableSchemaChanged": 2
+        "InvalidColumnSelection": 1,
+        "InvalidSegment": 2,
+        "InvalidSegmentCoordinate": 4,
+        "SegmentReadBudgetExceeded": 8,
+        "TableSchemaChanged": 4
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "EncodedGroup.select()": "<inferred>",
         "Source.read()": "anyerror",
         "Workspace.failure()": "anyerror",
         "Workspace.init()": "<inferred>",
         "column()": "<inferred>",
+        "encodedGroup()": "<inferred>",
         "group()": "<inferred>",
         "open()": "<inferred>"
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 12,
-        "catch": 2
+        "try": 19,
+        "catch": 6
       },
       "imports": [
+        "PhysicalCodecs.zig",
         "TSeg.zig",
         "TableSchema.zig",
         "Values.zig",
@@ -10797,7 +10806,9 @@
         "Reader.readCount()": "<inferred>",
         "decode()": "<inferred>",
         "decodeBound()": "<inferred>",
+        "decodeBoundBorrowingBytes()": "<inferred>",
         "decodeBoundInto()": "<inferred>",
+        "decodeBoundWithOwnership()": "<inferred>",
         "encode()": "<inferred>",
         "encodeBound()": "<inferred>",
         "readAtom()": "<inferred>",
@@ -25076,7 +25087,7 @@
         "InvalidTableOperation": 16,
         "InvalidTableReadBudget": 2,
         "InvalidTableReceipt": 2,
-        "InvalidTableRowReference": 20,
+        "InvalidTableRowReference": 21,
         "InvalidTableSegment": 2,
         "InvalidTableSnapshotCursor": 4,
         "InvalidTableStatementIntent": 1,
@@ -25123,6 +25134,10 @@
         "OwnedRow": [
           "wal",
           "segment"
+        ],
+        "readRowWithSchema().mode": [
+          "point",
+          "group"
         ]
       },
       "error_sets": {},
@@ -25201,7 +25216,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 418,
+        "try": 420,
         "catch": 4
       },
       "imports": [

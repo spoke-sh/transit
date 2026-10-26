@@ -76,6 +76,36 @@ existing scan path; this measurement exercises the retained range operation.
 The [proof ledger](../../../tests/README.md#retained-table-cross-segment-range-control--2026-10-26)
 records the fixture and reproduction command.
 
+## Table point-read decoding measurements
+
+Point reads can retain one verified encoded row group and decode the requested
+row under a separate memory allowance. In a disk-backed 512-row Table with
+256-row groups and 2,048-byte text values, the selected and full-group readers
+produce the same values and identities. The measurement uses one resident index
+page and the pinned Debug build on Linux x86_64.
+
+| Retained allocation | Selected point | Full-group scan |
+| --- | ---: | ---: |
+| Decoded arena backing bytes | 3,898 | 891,024 |
+| Encoded page cache and directory | 530,562 | 0 |
+
+The scan also uses a transient encoded page while decoding. The selected path's
+peak decoded allocation is 3,898 bytes for this plain-text fixture; dictionary
+entries, nested values and compressed-string validation can increase that peak.
+Footer/index allocations, returned row copies, allocator overhead and process RSS
+are outside this table. Both complete decoder arenas and selected scratch/output
+are budgeted; the encoded cache has its own limit.
+
+A cold point requests 563,420 segment bytes in five ranges. An adjacent point
+requests no additional segment bytes. The complete same-root scan requests
+1,093,934 bytes in seven ranges and checks all 512 original keys and payloads.
+Current and retained-snapshot point reads succeed with a 16 KiB decoded budget;
+full-group decoding refuses that budget. Selections still validate complete
+pages, so reduced retained allocation does not establish lower CPU cost or
+installed SQL latency. OS caches remain available. The
+[proof ledger](../../../tests/README.md#selected-table-segment-decoding--2026-10-26)
+records the checks and reproduction command.
+
 ## Interactive execution measurements
 
 In the recorded client-side execution fixture, the local server returns the

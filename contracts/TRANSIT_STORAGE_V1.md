@@ -227,6 +227,17 @@ incompatible interpretation, transport failure or exhausted budget fails the rea
 without establishing an empty or complete query result. The reader acquires no
 source pin or permission, and the service must recheck rights before disclosure.
 
+An encoded group can retain projected pages for repeated row selections. Its
+total allowance covers page buffers and their directory; the exact schema
+binding and group row count travel with that owner. Selected row ordinals must
+be strictly increasing, unique and inside the group. Each selection validates
+all page tags, details, values and framing, including skipped rows, and compares
+the decoded row count with the footer. It returns only selected owned cells.
+Dictionary/validation scratch and output arena blocks share the decoded budget;
+compressed strings can require transient expansion even when unselected. A
+successful selection owns all nested values independently of the encoded group.
+These reader operations consume the existing bytes and do not change v1 formats.
+
 ## Local WAL persistence
 
 `LocalWal.openDisk` holds an exclusive POSIX file lock for its directory. A second

@@ -26,6 +26,28 @@ zero-copy profile is implied. Callback errors propagate and partial allocations
 are released by the owner. Requests are synchronous; cancellation is the host's
 responsibility between calls, with no background reads surviving return.
 
+`encodedGroup` owns a projected group's verified encoded pages under a total
+encoded-byte allowance, including its page directory. Its `select` method accepts
+sorted, unique row ordinals and returns a detached `Group`; `rowIndex` maps source
+ordinals to that group's selected cells. Repeated selections use cached encoded
+bytes and repeat complete page validation. The decoded allowance covers the
+output arena and simultaneously live validation/dictionary scratch. `allocatedBytes`
+reports retained output arena blocks; `peakAllocatedBytes` includes transient
+scratch at its peak. The encoded owner and decoded results have independent
+lifetimes. Footer metadata, allocator overhead and final caller result buffers
+are separate from these allowances.
+
+`PhysicalCodecs.decodeColumnPageSelected` accepts sorted, unique row ordinals
+and owns only their decoded cells in the output arena. It validates the complete
+page, including skipped values and conflict details, using a reusable scratch
+workspace. Dictionary entries borrow encoded scalar bytes until selected;
+selected repetitions share one owned value. Symbol-table and EBCDIC strings
+still require transient expansion for validation. This reduces retained decoded
+values without claiming to skip all decoding work or supply encoded predicates.
+`Types.Codec.decodeBoundBorrowingBytes` exposes the underlying explicit lifetime:
+text, binary and JSON bytes borrow immutable input, recursive arrays belong to
+the supplied arena, and `Values.cloneValidated` produces a detached owned cell.
+
 `AuthorizationSql.compile` parses the selected role, membership, privilege,
 default-privilege, schema and ownership statements into unresolved typed syntax.
 Its owned arena is released with `deinit`. Names are bounded to 63 UTF-8 bytes;

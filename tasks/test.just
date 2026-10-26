@@ -12,7 +12,7 @@ unit:
 
 # Verified segment metadata/page ranges and the disk-backed direct Table reader.
 storage-segments:
-    cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg --summary all
+    cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg -Dtest-filter="column" -Dtest-filter="bound borrowing" --summary all
     cd packages/zig/transit-storage && zig build test -Dtest-filter="Table segment ranges" --summary all
 
 # Real process death at WAL append/fence/trim and object publication boundaries.

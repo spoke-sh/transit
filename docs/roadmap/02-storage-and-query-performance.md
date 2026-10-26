@@ -106,7 +106,7 @@ pending full-suite qualification; this assessment does not mark that work passed
 | Codecs and collations (#118/#128) | `TableSchema`, `PhysicalCodecs` and `Collation` admit explicit profiles; ICU rejects, CP037 uses a full table, HFP admission is exact, and the symbol-table format does not claim FSST interchange. SQL rejects non-binary text comparison. | Independent encoded/decoded and pruned/unpruned query oracles, encoded operators, five-state provenance, compatible borrowing and complete comparison/hash/order propagation. Explicit rejection is not delivery of the remaining selected profiles. |
 | Bounded execution (#116/#128) | Direct sources return owned bounded rows; Fuze has separate compute budgets and relational disk-backed group state. | Audit sort/hash/spill, decoded expansion and cancellation across the shared reader, including data larger than caches and many small segments. |
 | Evidence and public claims (#123/#124/#76) | Public storage/Table owners distinguish installed acceptance from separate helpers. Earlier performance measurements and failures remain recorded. | Matched disk-backed owner and installed SQL controls, byte/range/allocation/RSS attribution, focused recovery proofs, repository checks and committed-HEAD clean lanes. No latency target is inferred. |
-| Providers/concurrent writers (#117/#121) | Local exclusive ownership and process-locked object publication are implemented. OCC/cache/provider helpers do not establish installed concurrent writers. | Milestone 14 retains distributed providers, disk cache and integrated concurrent-writer obligations; local safety and fencing remain here. |
+| Providers/concurrent writers (#117/#121) | Local exclusive ownership and process-locked object publication are implemented. OCC/cache/provider helpers do not establish installed concurrent writers. | Milestone 15 retains distributed providers, disk cache and integrated concurrent-writer obligations; local safety and fencing remain here. |
 
 Implementation order: first build and qualify the shared bounded segment range
 reader and integrate it into live Table reads; then complete ordered access and
@@ -163,7 +163,14 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
   index page. The [measurement](../handbook/reference/performance.md#retained-table-key-range-measurements)
   attributes segment ranges/bytes and index misses; installed latency and broader
   mixed-workload controls remain unqualified.
-- SQL inequality pushdown, encoded/pruned execution,
+- Selected column decoding now preserves complete-page validation while retaining
+  only requested cells. The shared reader caches verified encoded groups with
+  separate encoded and combined decoded/scratch budgets. Live current/retained
+  point reads use that path; scans retain full-group decoding. Independent byte
+  fixtures, all-codec state/provenance checks, allocation failures and a same-cut
+  disk control establish the [scoped behavior and memory counts](../../tests/README.md#selected-table-segment-decoding--2026-10-26).
+  This advances #116/#118/#128; repeated selection still validates skipped data.
+- SQL inequality pushdown, encoded predicates/pruned execution,
   retained checkpoint/maintenance and native-owner obligations remain
   open. A passing Table range test does not close #113–#118 or #123–#128.
 

@@ -40,9 +40,18 @@ pub fn decodeBound(arena: *std.heap.ArenaAllocator, field: types.Field, bytes: [
 }
 /// The caller's request arena owns all children and partial-failure allocations.
 pub fn decodeBoundInto(arena: std.mem.Allocator, field: types.Field, bytes: []const u8) !v.Cell {
+    return decodeBoundWithOwnership(arena, field, bytes, false);
+}
+/// Decode with the same validation as the owned reader, borrowing text, binary
+/// and JSON bytes from immutable input. Recursive child arrays belong to arena.
+/// Both input and arena must outlive the result; cloneValidated detaches it.
+pub fn decodeBoundBorrowingBytes(arena: std.mem.Allocator, field: types.Field, bytes: []const u8) !v.Cell {
+    return decodeBoundWithOwnership(arena, field, bytes, true);
+}
+fn decodeBoundWithOwnership(arena: std.mem.Allocator, field: types.Field, bytes: []const u8, borrow_bytes: bool) !v.Cell {
     if (bytes.len > max_bytes) return error.ValueBudgetExceeded;
     try field.type.validate(.{});
-    var reader: Reader = .{ .reader = .fixed(bytes), .allocator = arena };
+    var reader: Reader = .{ .reader = .fixed(bytes), .allocator = arena, .borrow_bytes = borrow_bytes };
     const cell = try readCell(&reader, field.type, 0);
     if (reader.reader.bufferedLen() != 0) return error.InvalidValueEncoding;
     try cell.validate(field, .{});
@@ -143,6 +152,7 @@ pub const Decoded = struct {
 const Reader = struct {
     reader: std.Io.Reader,
     allocator: std.mem.Allocator,
+    borrow_bytes: bool = false,
     children: usize = 0,
     bytes: usize = 0,
     fn child(self: *Reader, depth: usize) !void {
@@ -155,7 +165,8 @@ const Reader = struct {
         const limits: types.Limits = .{};
         if (size > limits.value_bytes -| self.bytes) return error.ValueBudgetExceeded;
         self.bytes += size;
-        return self.allocator.dupe(u8, try self.reader.take(size));
+        const bytes = try self.reader.take(size);
+        return if (self.borrow_bytes) bytes else self.allocator.dupe(u8, bytes);
     }
     fn readCount(self: *Reader) !usize {
         const count = try self.reader.takeInt(u32, .little);
@@ -351,4 +362,34 @@ test "schema-bound payload shares canonical FVL cells and owns every decoded val
     try t.expectError(error.NullNotAllowed, decodeBound(&arena, .{ .name = "id", .type = .int64 }, &.{1}));
     try t.expectError(error.MissingRequiredField, decodeBound(&arena, .{ .name = "id", .type = .int64 }, &.{0}));
     try t.expectError(error.InvalidValueEncoding, decodeBound(&arena, .{ .name = "b", .type = .boolean }, &.{ 3, 2 }));
+}
+
+test "bound borrowing preserves recursive validation and explicit detached ownership" {
+    const t = std.testing;
+    const field: types.Field = .{ .name = "v", .type = .{ .structure = &.{
+        .{ .name = "mapping", .type = .{ .map = .{ .key = &.utf8, .value = .{ .type = &.utf8 } } } },
+        .{ .name = "json", .type = .json },
+    } } };
+    const cell: v.Cell = .{ .value = .{ .structure = &.{
+        .{ .value = .{ .map = &.{.{ .key = .{ .bytes = "key" }, .value = .{ .value = .{ .atom = .{ .bytes = "value" } } } }} } },
+        .{ .value = .{ .json = "{\"a\":1}" } },
+    } } };
+    var buffer: [1024]u8 = undefined;
+    const bytes = try encodeBound(cell, field, &buffer);
+    var temporary = std.heap.ArenaAllocator.init(t.allocator);
+    defer temporary.deinit();
+    const borrowed = try decodeBoundBorrowingBytes(temporary.allocator(), field, bytes);
+    const fields = borrowed.value.structure;
+    for ([_][]const u8{ fields[0].value.map[0].key.bytes, fields[0].value.map[0].value.value.atom.bytes, fields[1].value.json }) |text| {
+        try t.expect(@intFromPtr(text.ptr) >= @intFromPtr(bytes.ptr));
+        try t.expect(@intFromPtr(text.ptr) + text.len <= @intFromPtr(bytes.ptr) + bytes.len);
+    }
+    var output = std.heap.ArenaAllocator.init(t.allocator);
+    defer output.deinit();
+    const owned = try v.cloneValidated(output.allocator(), borrowed);
+    _ = temporary.reset(.free_all);
+    @memset(&buffer, 0xaa);
+    try t.expectEqualStrings("value", owned.value.structure[0].value.map[0].value.value.atom.bytes);
+    try t.expectEqualStrings("{\"a\":1}", owned.value.structure[1].value.json);
+    try t.expectError(error.InvalidValueEncoding, decodeBoundBorrowingBytes(temporary.allocator(), .{ .name = "b", .type = .boolean }, &.{ 3, 2 }));
 }
