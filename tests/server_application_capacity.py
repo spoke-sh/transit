@@ -7,7 +7,7 @@ from pathlib import Path
 import signal
 import subprocess
 import time
-from server import children, command
+from harness.processes import children, command
 from server_applications import Applications, provision_authority
 from server_application_faults import wait_file
 

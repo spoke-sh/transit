@@ -169,6 +169,15 @@
         ]
       },
       {
+        "id": "process-harness",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/harness/test_processes.py"
+        ]
+      },
+      {
         "id": "ci_runner",
         "phase": "static",
         "command": [

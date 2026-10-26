@@ -27,3 +27,8 @@ check includes these controls. Fixture changes also require the affected real
 backend schedules, such as `just test::storage` and
 `just test::direct-table-service`. Preserve physical-disk and process-death
 qualification separately from model exploration and fake transports.
+
+[Process helpers](processes.py) discover Linux children and join owned processes
+with a finite deadline. [Process controls](test_processes.py) check live-child
+refusal and reaping a grandchild after its manager is killed. Domain fixtures
+retain startup, activation and recovery assertions.

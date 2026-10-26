@@ -12,7 +12,8 @@ import sys
 import tempfile
 import time
 
-import server
+from harness import processes
+from table_console import results as table_results, atom
 from server_board import Board
 
 
@@ -62,14 +63,14 @@ def defaults(package):
                     result = subprocess.run([str(cli), 'console', '--no-rc',
                                              '--format', 'json', '-c', 'SELECT COUNT(*) FROM items'], cwd=root, env=env, capture_output=True, timeout=90)
                     assert result.returncode == 0, result
-                    queries = server.table_results(json.loads(line) for line in result.stdout.splitlines())
+                    queries = table_results(json.loads(line) for line in result.stdout.splitlines())
                     assert len(queries) == 1, queries
-                    assert server.atom(queries[0], 'unsigned') == '0', queries
+                    assert atom(queries[0], 'unsigned') == '0', queries
                 finally:
-                    owned = server.children(process.pid)
+                    owned = processes.children(process.pid)
                     process.terminate()
                     process.wait(timeout=30)
-                    server.joined(owned)
+                    processes.joined(owned)
                     process.stdout.close()
                 assert process.returncode == 0, (root/'stderr').read_text()
         print('Packaged defaults: adjacent executables without a manifest, no-file initialization/restart on isolated ports, default Board, bare-console automatic SQL and identical effective defaults/YAML/environment identity passed with no runtime PATH tools.', flush=True)

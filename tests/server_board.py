@@ -15,7 +15,7 @@ import time
 import urllib.error
 import urllib.request
 
-from server import children, command, joined
+from harness.processes import children, command, joined
 from server_applications import Applications
 from server_application_faults import ExistingKey, native, post, install_peer, arm, wait_file, descendants
 from harness.services import free_port

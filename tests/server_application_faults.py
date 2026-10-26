@@ -14,7 +14,8 @@ import tempfile
 import threading
 import time
 
-from server import children, joined, freeze_executables
+from harness.processes import children, joined
+from server import freeze_executables
 from harness.services import free_port
 from serving import compact
 

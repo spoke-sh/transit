@@ -16,7 +16,8 @@ import time
 
 from console_latency import digest, override
 from latency_probe import Probe
-from server import Fixture, children
+from harness.processes import children
+from server import Fixture
 from pages import metrics, sample_process
 from table_console import results as table_results, atom
 from harness.services import free_port

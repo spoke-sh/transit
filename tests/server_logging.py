@@ -12,7 +12,8 @@ import subprocess
 import sys
 import time
 
-from server import Fixture, children, freeze_executables
+from harness.processes import children
+from server import Fixture, freeze_executables
 from server_sql import wait_status
 
 TEXT = re.compile(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z (DEBUG|INFO|WARN|ERROR) \[[a-z-]+\] ')

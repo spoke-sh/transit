@@ -10,7 +10,8 @@ import signal
 import subprocess
 import sys
 
-from server import Fixture, children, command
+from harness.processes import children, command
+from server import Fixture
 from table_console import atom, records
 from server_application_faults import ExistingKey, native, post
 from serving import compact
