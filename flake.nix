@@ -96,6 +96,7 @@
             ;
         in
         rec {
+          ci-formal = import ./nix/ci-formal.nix { inherit pkgs zig; };
           docs = pkgs.mkShellNoCC {
             packages = [
               pkgs.just

@@ -69,6 +69,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - lane: formal
+            shell: ci-formal
+            cache: formal
+            cache_writer: true
+            timeout: 15
           - lane: core
             shell: default
             cache: core
@@ -136,11 +141,11 @@ jobs:
           # provider CLIs, PyArrow, or their build dependencies. Small local
           # plugin/environment changes rebuild locally without a store upload.
           primary-key: nix-v2-${{ matrix.cache }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock', 'flake.nix', 'nix/*.nix', 'nix/*.patch', 'nix/vite-plus/**', 'nix/ate-upgrade/**', 'deploy/reference/versions.json') }}
-          # Seed new lane caches from the existing store once, avoiding a cold
-          # Ursula Rust build just because the workflow was decomposed.
+          # Provider lanes can seed from the old shared closure. Formal checks
+          # must not download that unrelated provider/SDK store on their first run.
           restore-prefixes-first-match: |
             nix-v2-${{ matrix.cache }}-${{ runner.os }}-${{ runner.arch }}-
-            nix-v1-${{ runner.os }}-${{ runner.arch }}-
+            ${{ matrix.cache != 'formal' && format('nix-v1-{0}-{1}-', runner.os, runner.arch) || '' }}
       - name: Prepare development shell
         id: shell
         # Keep the shell closure rooted through cache GC; a temporary `-c true`
@@ -195,6 +200,8 @@ jobs:
             .cache/verification/*.json
             .cache/verification/model/*.json
             .cache/verification/model/*.log
+            .cache/verification/wal-model/
+            .cache/verification/console-model/
             .cache/verification/mutations/*.json
             .cache/verification/mutations/*.log
             .cache/verification/transitions/*.json

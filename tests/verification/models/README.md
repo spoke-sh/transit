@@ -47,12 +47,12 @@ collision limits. See the [TLC documentation](https://docs.tlapl.us/using:tlc:st
 for model-checking scope and [the pinned release](https://github.com/tlaplus/tlaplus/releases/tag/v1.7.4).
 
 Logs, completion evidence and concrete counterexamples are retained under
-`.cache/verification/model/`. The ordinary bindings lane runs the small model;
+`.cache/verification/model/`. The ordinary formal lane runs the small model;
 weekly discovery expands it and runs targeted mutations of the actual Zig guards.
 
 ## Finite console interaction model
 
-Run `nix develop --command just test::console-model`. The ordinary bindings lane
+Run `nix develop --command just test::console-model`. The ordinary formal lane
 owns this check, using the same pinned TLC as the authority model. Each TLC run
 has one worker, fingerprint/seed `0`/`1`, a 512 MiB heap and a 60-second timeout.
 The [specification](Console.tla) and [configuration](Console.cfg) model the
@@ -108,7 +108,7 @@ cutoff: the stated finite abstraction must be exhausted.
 ## Finite local WAL model
 
 Run `nix develop --command just test::wal-model`; `--lsns 3` expands the LSN bound
-and `--seconds N` changes the per-configuration timeout. The ordinary bindings
+and `--seconds N` changes the per-configuration timeout. The ordinary formal
 lane owns this check. [Wal.tla](Wal.tla) and [Wal.cfg](Wal.cfg) use the same locked
 TLC as the other models: one worker, fingerprint/seed `0`/`1`, 512 MiB heap and a
 60-second default timeout. Completion requires an exhausted queue; timeout,

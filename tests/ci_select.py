@@ -7,16 +7,27 @@ import subprocess
 
 
 def select(paths, event="pull_request"):
-    # Handbook sources and site tooling run the documentation gate. Component
-    # READMEs, contracts, fixtures and shared infrastructure stay full.
+    # Navigation/instructions and inert historical records run the documentation
+    # gate. Executable contracts, fixtures, models and selection metadata stay
+    # full. Both endpoints of a rename must qualify independently.
     def documentation(path):
         p = PurePosixPath(path)
-        return path in {"README.md", "AGENTS.md"} or (
-            ".." not in p.parts and (
-                (p.parts[0:1] == ("docs",) and p.suffix == ".md") or
-                p.parts[0:2] == ("docs", "handbook")
-            )
-        )
+        if p.is_absolute() or ".." in p.parts or not p.parts:
+            return False
+        if p.parts[0] == "contracts":
+            return False
+        if p.name in {"README.md", "AGENTS.md"}:
+            return True
+        if p.parts[0:2] == ("docs", "handbook"):
+            return True
+        if p.parts[0] == "docs" and p.suffix == ".md":
+            return True
+        if path == "docs/history/qualification/migration.json":
+            return True
+        # These are retained observations, never fixtures or input budgets.
+        # Do not extend this to other results/ directories: some own live gates.
+        return (p.parts[:3] == ("tests", "verification", "results") and
+                p.suffix in {".md", ".json", ".log", ".gz", ".patch", ".txt"})
 
     full = event != "pull_request" or not paths or not all(map(documentation, paths))
     return {"version": 1, "full": full, "docs": True,

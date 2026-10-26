@@ -74,9 +74,10 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just ci::core`, `just ci::experience`, `just ci::bindings-1`, `just ci::bindings-2`, `just ci::browser` | Run individual hosted lanes with task timings; select the matching shell, and install the browser before its proof |
 | `just ci::bindings`, `just ci-clean --lane bindings` | Run both bindings lanes sequentially, preserving the full language inventory |
 | `just ci::growth`, `just ci::launchers` | Run the growing-state and launcher/build-smoke lanes from the same inventory |
+| `nix develop .#ci-formal --command just ci::formal` | Run finite Authority, WAL, Delivery and Console checks, concrete replay where defined, and Lean rewrite theorems with their own pinned tools |
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
 | `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci` inventory without existing workspace outputs |
-| `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout; complete ordinary qualification needs all six lane reports at the same committed revision |
+| `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout with its declared shell/preparation; complete ordinary qualification needs all seven lane reports at the same committed revision |
 | `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared caller/ABI/host administration against disk-backed authority |
 | `just test::table-build-memory` | Verify candidate allocation ceilings, admitted work-limit outcomes and parent-allocation failure distinctions |
 | `just test::storage-benchmark --output PATH` | Paired native/Table disk startup, recovery and read measurements with independent values, warm/cold input pages and raw samples |
@@ -143,7 +144,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just bindings::unified-compound` | Build all ten SDKs and run filtering Boolean programs through installed callers and the SQL shell across KV, Table and Document, including exact retry, disk restart, current denial and retirement |
 | `just test::document` | Qualify Document change/checkpoint publication, exact retries, current-policy reads and bounded cleanup through worker/node/store loss |
 | `just test::publication` | Qualify 64 KiB immutable records, bounded staging/cleanup, exact retry and worker/node/store recovery |
-| `just test::unit` | Runs Zig unit/protocol tests without a service |
+| `just test::unit` | Runs the root Zig test graph, including local disk and process-death tests; this is broader than in-memory units |
 | `just test::build` | Compiles application/probe entry points separately from unit tests; included in core CI |
 | `just test::sql` | Compare Zig/ANTLR/PostgreSQL ASTs, durable plan encodings and independently decoded paged Arrow results |
 | `just test::declarative-benchmark [--rows N --samples N --output PATH]` | Verify and measure synthetic declarative components; report all TPC-C/E/H/DS workload blockers; see [benchmark tooling](../tests/benchmarks/README.md) |

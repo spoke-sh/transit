@@ -445,17 +445,23 @@ corpus. It records a negative control, not a discovered production defect.
 
 The [finite TLA+ model](models/README.md) checks publication, retry and closure
 safety and replays four removed-guard counterexamples against the real engine.
-`just test::model` is part of the bindings lane so ordinary core/frontend checks
-do not acquire a Java dependency. Its tools use the existing nixpkgs lock.
+`just ci::formal` owns the small Authority, WAL, Delivery and Console model
+checks and the Lean rewrite theorems. It runs independently of the SDK lanes in
+`nix develop .#ci-formal`, with the existing nixpkgs lock and no frontend install.
+`just ci-clean --lane formal` repeats that inventory from committed HEAD without
+workspace build outputs. This lane preserves each model's bounds, negative
+controls and distinct correspondence claims; it does not replace disk or caller
+qualification. Clean-run preparation and check timings are separate fields in
+`.cache/ci/clean/*/preparation.json`; interrupted work remains incomplete.
 
 `just test::wal-model` checks the exclusive local WAL publication/recovery model
-in the bindings lane. It requires exhaustive finite safety exploration and six
+in the formal lane. It requires exhaustive finite safety exploration and six
 named negative controls. Disk regressions separately check recovery sync ordering;
 there is no automatic model-to-Zig trace replay or power-loss experiment. See the
 [model guide](models/README.md#finite-local-wal-model).
 
 `just test::console-model` checks the finite editor interaction/request model in
-the same bindings lane. Every exported edge is replayed against the production
+the same formal lane. Every exported edge is replayed against the production
 Zig reducer from a shortest representative path, with state and effect comparison.
 Six removed model guards must yield their specified violations and safe concrete
 replay. A separate fairness configuration checks borrower release. The
