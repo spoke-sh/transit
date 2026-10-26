@@ -28505,3 +28505,38 @@ verification catalog pass.
 Archiving preserves unlimited logical history and retains immutable objects.
 It does not establish logical retention floors, a faster replay checkpoint,
 Table-object collection, automatic installed scheduling or full clean-CI results.
+
+
+## Bounded live Table segment compaction — 2026-10-26
+
+`just test::table-compaction` passes its selected storage, local native and
+ReleaseSafe process-death checks. The storage checks merge live rows from four
+partially deleted segments in bounded two-row calls, lose a publication reply,
+reopen disk owners and finish the same exclusive segment boundary. A second
+boundary merges the two outputs; old snapshots still contain removed rows and
+current unflushed rows remain WAL-backed. Complete/no-op retries append nothing.
+Identity/order roots, live counts and logical-change frontiers remain unchanged.
+
+Private memory, encoded-row bytes, row count and index-work limits reject before
+publication. Revocation after staging preserves the old root. The allocation
+failure sweep separately passes every compactor/cold-reader allocation point,
+checking unchanged accepted roots and cleanup. The shared `MemoryBudget` suite
+passes 22 selected Fuze tests; its relational consumers pass 36 tests, including
+16,840 input rows and 8,420 groups with bounded disk spill. The local native
+control-reserve case compacts and archives after ordinary allocation admission
+fills, then checks current authorization before trimming.
+
+`just test::local-storage-faults` passes **78 SIGKILL schedules**, including **15**
+new compaction cases. They stop during segment/index object durability, before
+acceptance, during a partial acceptance frame and each acceptance durability
+barrier, and after acceptance before reply. Fresh owners compare current values,
+retained snapshots, original receipts and logical history with independent Python
+expectations. Retrying the fixed boundary produces exactly one accepted physical
+checkpoint and never selects its own output. The previous 63 schedules continue
+to pass with explicit current-row values in their oracle.
+
+These checks establish bounded physical relocation, not deletion of old segment
+or index objects, logical expiry, automatic scheduling, host power-loss recovery
+or a matched latency improvement. The clean core attempt at `1f6e1c969` stopped
+at Zig formatting of the new definition enum tag; `9c2b44597` corrects that spelling.
+Later complete clean qualification remains pending.

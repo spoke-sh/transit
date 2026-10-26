@@ -118,6 +118,13 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Bounded Table compaction now consolidates live rows from older segments, omits
+  deleted/replaced rows and preserves logical roots, retained snapshots and exact
+  operation evidence. A fixed segment boundary plus accepted locators provides
+  restart progress; private build allocations, rows, bytes and index work have
+  explicit bounds. This advances #116/#127 and the builder audit. Old physical
+  objects remain retained pending the separate collection/retention owner.
+
 - Table roots now publish a paged archive of complete original WAL records before
   physical prefix trimming. Bounded archive calls and resumable trimming preserve
   receipts, admitted operations, unflushed snapshots and offline history cursors;

@@ -5,7 +5,7 @@ const q = @import("root.zig");
 const f = q.fuze;
 const r = f.Relational;
 const c = q.catalog;
-const Memory = @import("QueryMemory.zig");
+const Memory = @import("root.zig").QueryMemory;
 const Self = @This();
 parent: std.mem.Allocator,
 memory: Memory,

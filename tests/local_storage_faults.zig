@@ -209,17 +209,18 @@ fn table(init: std.process.Init, io: std.Io, directory: []const u8, operation: [
     var access: TableAccess = .{};
     const first: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = object.scope, .principal = 4, .operation = 1 }, .target = object, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(7) };
     const pin_owner: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 100 };
-    if (std.mem.eql(u8, operation, "init")) {
-        _ = try owner.apply(first, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 1 } } }} } } }}, .point, access.guard());
+    if (std.mem.eql(u8, operation, "init") or std.mem.eql(u8, operation, "compact-init")) {
+        const ingestion: storage.TablePartition.Ingestion = if (std.mem.eql(u8, operation, "compact-init")) .bulk else .point;
+        _ = try owner.apply(first, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 1 } } }} } } }}, ingestion, access.guard());
         _ = try owner.pin(pin_owner, .{ .partition = 17, .next_lsn = 1 }, access.guard());
         var second = first;
         second.identity.operation = 2;
         second.action = .insert;
         second.expected_definition = owner.root.interpretation;
-        _ = try owner.apply(second, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 2 } } }} } } }}, .point, access.guard());
+        _ = try owner.apply(second, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 2 } } }} } } }}, ingestion, access.guard());
         return emit(init, .{ .tail = owner.root.next_lsn });
     }
-    if (std.mem.eql(u8, operation, "inspect")) {
+    if (std.mem.eql(u8, operation, "inspect") or std.mem.eql(u8, operation, "compact-inspect")) {
         const receipt = (try owner.observe(first, access.guard())).?;
         const pin = (try owner.pinState(pin_owner, access.guard())).handle.?;
         var page = try owner.scanSnapshot(init.gpa, pin, null, .{}, access.guard());
@@ -227,11 +228,23 @@ fn table(init: std.process.Init, io: std.Io, directory: []const u8, operation: [
         if (page.count != 1 or page.next != null) return error.WrongSnapshot;
         const history = try owner.history(.{ .partition = 17, .next_lsn = 0 }, .{ .partition = 17, .next_lsn = 3 }, 3, access.guard());
         if (history.count != 2 or history.entries[0].?.receipt.binding.identity.operation != 1 or history.entries[1].?.receipt.binding.identity.operation != 2) return error.WrongHistory;
-        return emit(init, .{ .archived = owner.root.archive.through, .tail = owner.root.next_lsn, .rows = owner.root.live_rows, .pinned = page.rows[0].?.row().cells[0].value.atom.signed, .receipt = receipt.position.next_lsn, .history = history.count });
+        var current: [2]i128 = undefined;
+        for (&current, 1..) |*value, id| {
+            var bytes: [4096]u8 = undefined;
+            const key = try f.Collation.encodePrimaryKeySortKey(schema, &.{.{ .value = .{ .atom = .{ .signed = id } } }}, false, &bytes);
+            var row = (try owner.get(init.gpa, key, access.guard())) orelse return error.MissingRow;
+            defer row.deinit();
+            value.* = row.row().cells[0].value.atom.signed;
+        }
+        return emit(init, .{ .archived = owner.root.archive.through, .tail = owner.root.next_lsn, .rows = owner.root.live_rows, .pinned = page.rows[0].?.row().cells[0].value.atom.signed, .receipt = receipt.position.next_lsn, .history = history.count, .current = current, .next_segment = owner.root.next_segment });
     }
     access.calls = 0;
     Fault.arm(point);
-    if (std.mem.eql(u8, operation, "archive")) {
+    if (std.mem.eql(u8, operation, "compact")) {
+        const result = try owner.compact(3, .{}, access.guard());
+        Fault.acknowledged();
+        return emit(init, .{ .next_segment = owner.root.next_segment, .rows = result.rows });
+    } else if (std.mem.eql(u8, operation, "archive")) {
         _ = try owner.archive(.{ .partition = 17, .next_lsn = 3 }, .{ .frames = 1 }, access.guard());
     } else if (std.mem.eql(u8, operation, "archive-all")) {
         while (!(try owner.archive(.{ .partition = 17, .next_lsn = 3 }, .{ .frames = 1 }, access.guard())).complete) {}

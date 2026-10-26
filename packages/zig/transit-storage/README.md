@@ -60,6 +60,8 @@ automatic archive scheduling, immutable Table-object collection or multi-process
   record for rows, paged indexes and exact operation receipts. It supports point
   WAL batches, staged `.tseg` batches, bounded flushing, durable read pins and
   accepted history archives with resumable physical WAL trimming.
+  Explicit bounded compaction merges live segment rows below a fixed boundary
+  while retained roots keep their original physical references.
   Frozen row admission, rejection and cancellation share that Table WAL; row
   acceptance atomically clears pending work and records matched/changed counts.
   Bounded logical-history inspection separates accepted statements from physical

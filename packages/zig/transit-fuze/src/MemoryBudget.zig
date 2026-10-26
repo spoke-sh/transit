@@ -1,4 +1,4 @@
-//! Allocation accounting for a single finite-query owner. Freed bytes release
+//! Allocation accounting for one query or storage workspace. Freed bytes release
 //! capacity; failed growth leaves both the allocation and accounting unchanged.
 const std = @import("std");
 const Self = @This();
@@ -47,7 +47,7 @@ fn free(context: *anyopaque, bytes: []u8, alignment: std.mem.Alignment, ra: usiz
     self.parent.rawFree(bytes, alignment, ra);
     self.account(bytes.len, 0);
 }
-test "query memory bounds simultaneous allocations and releases capacity after failure" {
+test "memory budget bounds simultaneous allocations and releases capacity after failure" {
     const t = std.testing;
     var budget: Self = .{ .parent = t.allocator, .limit = 64 };
     const a = budget.allocator();

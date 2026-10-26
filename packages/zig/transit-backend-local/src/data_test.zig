@@ -131,9 +131,15 @@ test "direct Table archive uses control reserve and trims only accepted coverage
     try table.recover();
     const exact: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = object.scope, .principal = 1, .operation = 1 }, .target = object, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(5) };
     const accepted = try table.apply(exact, &.{}, .point, authority.guard());
+    var insertion = exact;
+    insertion.identity.operation = 2;
+    insertion.action = .insert;
+    insertion.expected_definition = table.root.interpretation;
+    _ = try table.apply(insertion, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 42 } } }} } } }}, .bulk, authority.guard());
     // An ordinary physical caller cannot substitute the WAL tail for coverage.
     try t.expectError(error.NoCheckpointIntent, data.log().trim(17, 1));
     owner.limits.bytes = owner.allocated;
+    try t.expectEqual(@as(usize, 1), (try table.compact(table.root.next_segment, .{}, authority.guard())).rows);
     try t.expect((try table.archive(accepted.position, .{}, authority.guard())).complete);
     owner.limits = .{};
     try t.expectError(error.NoCheckpointIntent, data.log().trim(17, table.root.next_lsn));

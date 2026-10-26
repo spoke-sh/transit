@@ -331,3 +331,35 @@ recovery/read rather than returning an empty prefix. The archive mechanism keeps
 all original logical records and does not collect Table segments, indexes or
 archive objects. See the [storage contract](../../../../contracts/TRANSIT_STORAGE_V1.md#table-history-archives)
 for the mandatory persisted layout and recovery order.
+
+
+## Compact live segments
+
+Capture the current `root.next_segment` and pass it as the fixed exclusive boundary
+to `compact(before_segment, limits, guard)` until its result is `complete`. Each
+call rewrites a bounded group of live rows from older segments into one new
+segment. It skips WAL rows and any segment at or above that boundary. Persist the
+same boundary if a maintenance driver must resume this pass after replacement.
+Accepted row locators record progress: a retry after an uncertain reply does not
+rewrite the segment produced by that accepted call. A zero-row complete response
+performs no append and requires no private row/build workspace.
+
+The current paged row directories determine liveness. Compaction merges small
+segments and omits their removed or replaced rows; the direct owner does not
+require a separate `.tdel` bitmap to make those rows invisible. It preserves row
+identities, full-key order, definitions, receipts, pending operations, pins,
+`live_rows` and `changed_lsn`. Its physical checkpoint uses the same acceptance
+path as flushing. Older retained roots continue to use their original segments.
+No segment or index object is deleted by this operation.
+
+`CompactionLimits` admits at most 1,024 rows and the Table operation's encoded-row
+byte bound per call. The default private allocation budget is 64 MiB; it accounts
+requested backing bytes for row, encoder and segment-build allocations, including
+arena growth slack. Allocator bookkeeping and process RSS are separate measurements.
+Reader caches and decoded groups retain their existing separate bounds, as do
+index staging, the acceptance-frame buffer and provider I/O. The result reports
+rows, contributing input segments, encoded row bytes and private peak allocation.
+Budget exhaustion, staging failure or revocation before publication leaves the
+accepted root unchanged. Configured control adapters supply reserved staging and
+append capacity. Compaction rejects retired Tables; retained reads remain separate.
+Automatic candidate selection and scheduling are not part of this component API.

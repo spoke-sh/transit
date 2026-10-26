@@ -429,3 +429,11 @@ the shared [diagnostic value](../../../contracts/DIAGNOSTICS_V1.md): stable SQL
 codes, source coordinates, expected/actual types, parameter sites and typed
 correction actions. It does not perform additional catalog reads. Human console
 hints remain a separate presentation; structured actions contain no dot commands.
+
+
+`MemoryBudget` accounts concurrent requested backing bytes for query and storage
+workspaces, including arena growth slack. Successful free/shrink operations
+release capacity; failed growth leaves accounting unchanged. Callers own the
+budget's stable lifetime and map exhaustion at their domain boundary. The finite
+relational owner and Table compaction share this allocator; reader caches and
+provider buffers keep their separately declared bounds.

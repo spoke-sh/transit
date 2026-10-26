@@ -7,6 +7,7 @@ pub const execution = @import("execute.zig");
 pub const FileQuery = @import("FileQuery.zig");
 pub const BatchExecution = @import("BatchExecution.zig");
 pub const Batch = @import("Batch.zig");
+pub const MemoryBudget = @import("MemoryBudget.zig");
 pub const LogicalQuery = @import("LogicalQuery.zig");
 pub const Relational = @import("Relational.zig");
 pub const RelationalExecution = @import("RelationalExecution.zig");
@@ -58,6 +59,7 @@ pub const TSeg = @import("TSeg.zig");
 pub const TSegReader = @import("TSegReader.zig");
 test {
     _ = Batch;
+    _ = MemoryBudget;
     _ = BatchExecution;
     _ = Relational;
     _ = RelationalExecution;

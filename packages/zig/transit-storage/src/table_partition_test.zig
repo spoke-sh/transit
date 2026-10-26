@@ -9,6 +9,141 @@ const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64
 const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
 const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
 
+test "Table compaction consolidates only live segment rows and resumes the same boundary after lost reply and restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var pin: P.SnapshotHandle = undefined;
+    var boundary: u64 = undefined;
+    var changed: u64 = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        for (0..4) |segment| {
+            const low: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = segment * 2 + 1 } } };
+            const high: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = segment * 2 + 2 } } };
+            const operation = segment + 1;
+            var second = change(&high, operation);
+            second.put.row.identity.ordinal = 1;
+            _ = try table.apply(binding(&table, operation), &.{ change(&low, operation), second }, .bulk, access.guard());
+        }
+        pin = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 1001 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        var key_bytes: [4][4096]u8 = undefined;
+        var deletes: [4]P.Change = undefined;
+        for (&deletes, &key_bytes, 0..) |*item, *bytes, i| item.* = .{ .remove = try key(@intCast(i * 2 + 2), bytes) };
+        var deletion = binding(&table, 5);
+        deletion.action = .delete;
+        _ = try table.apply(deletion, &deletes, .point, access.guard());
+        const unflushed: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 99 } } };
+        _ = try table.apply(binding(&table, 6), &.{change(&unflushed, 6)}, .point, access.guard());
+        boundary = table.root.next_segment;
+        changed = table.root.changed_lsn;
+        const identities = table.root.identities;
+        const ordered = table.root.ordered_rows;
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.compact(boundary, .{ .rows = 2 }, access.guard()));
+        table.lose_reply = false;
+        try t.expectEqual(boundary + 1, table.root.next_segment);
+        try t.expectEqual(changed, table.root.changed_lsn);
+        try t.expectEqualDeep(identities, table.root.identities);
+        try t.expectEqualDeep(ordered, table.root.ordered_rows);
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    const result = try table.compact(boundary, .{ .rows = 2 }, access.guard());
+    try t.expectEqual(@as(usize, 2), result.rows);
+    try t.expectEqual(@as(usize, 2), result.input_segments);
+    try t.expect(result.complete);
+    try t.expect(result.resident_peak <= 64 * 1024 * 1024);
+    try t.expectEqual(changed, table.root.changed_lsn);
+    try t.expectEqual(@as(u64, 5), table.root.live_rows);
+    const before = table.root;
+    const again = try table.compact(boundary, .{ .resident_bytes = 1 }, access.guard());
+    try t.expect(again.complete and again.rows == 0 and again.resident_peak == 0);
+    try t.expectEqualDeep(before, table.root);
+    // A later explicit boundary can merge the two newly compacted segments.
+    const merged = try table.compact(table.root.next_segment, .{}, access.guard());
+    try t.expect(merged.complete);
+    try t.expectEqual(@as(usize, 4), merged.rows);
+    try t.expectEqual(@as(usize, 2), merged.input_segments);
+    try t.expectEqual(changed, table.root.changed_lsn);
+    var key_bytes: [4096]u8 = undefined;
+    for (1..9) |id| {
+        var current = try table.get(t.allocator, try key(@intCast(id), &key_bytes), access.guard());
+        defer if (current) |*row| row.deinit();
+        try t.expectEqual(id % 2 != 0, current != null);
+    }
+    var retained = try table.scanSnapshot(t.allocator, pin, null, .{}, access.guard());
+    defer retained.deinit();
+    try t.expectEqual(@as(u8, 8), retained.count);
+    for (retained.rows[0..8], 1..) |row, expected| try t.expectEqual(@as(i128, @intCast(expected)), row.?.row().cells[0].value.atom.signed);
+    var unflushed = (try table.get(t.allocator, try key(99, &key_bytes), access.guard())).?;
+    defer unflushed.deinit();
+    try t.expect(unflushed == .wal);
+    try table.recover();
+    try t.expectEqual(changed, table.root.changed_lsn);
+}
+
+test "Table compaction enforces private memory and byte work budgets before publication" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 7 } } };
+    _ = try table.apply(binding(&table, 1), &.{change(&cell, 1)}, .bulk, access.guard());
+    const before = table.root;
+    try t.expectError(error.InvalidTableCompactionBudget, table.compact(before.next_segment, .{ .rows = 0 }, access.guard()));
+    try t.expectError(error.TableCompactionBudget, table.compact(before.next_segment, .{ .resident_bytes = 1 }, access.guard()));
+    try t.expectError(error.TableCompactionBudget, table.compact(before.next_segment, .{ .encoded_bytes = 1 }, access.guard()));
+    try t.expectEqualDeep(before, table.root);
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.compact(before.next_segment, .{}, access.guard()));
+    try t.expectEqualDeep(before, table.root);
+    access.deny_at = std.math.maxInt(usize);
+    table.options.index_work_bytes = 1;
+    try t.expectError(error.StorageCandidateTooLarge, table.compact(before.next_segment, .{}, access.guard()));
+    try t.expectEqualDeep(before, table.root);
+    table.options.index_work_bytes = 64 * 1024 * 1024;
+    try t.expect((try table.compact(before.next_segment, .{}, access.guard())).complete);
+}
+
+test "Table compaction allocation failures preserve accepted roots and release private ownership" {
+    const Case = struct {
+        fn run(allocator: std.mem.Allocator) !void {
+            var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+            defer wal.deinit();
+            var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+            defer objects.deinit();
+            var table = try owner(&wal, &objects);
+            defer table.deinit();
+            var access: Access = .{};
+            const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 7 } } };
+            _ = try table.apply(binding(&table, 1), &.{change(&cell, 1)}, .bulk, access.guard());
+            const before = table.root;
+            // Fail the compactor and its cold reader, independently of fixture
+            // setup and the separately owned provider/index caches.
+            table.allocator = allocator;
+            const result = table.compact(before.next_segment, .{}, access.guard()) catch |err| {
+                try t.expectEqualDeep(before, table.root);
+                return err;
+            };
+            try t.expect(result.complete and result.rows == 1);
+        }
+    };
+    try t.checkAllAllocationFailures(t.allocator, Case.run, .{});
+}
+
 test "Table archive preserves receipts, unflushed snapshots and offline history after WAL trim and restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

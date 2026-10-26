@@ -1497,10 +1497,15 @@ pub fn flush(self: *Self, guard: Guard) !usize {
         after = batch.next orelse break;
     }
     if (rows.items.len == 0) return 0;
+    try self.publishSegmentRows(a, rows.items, guard);
+    return rows.items.len;
+}
+
+fn publishSegmentRows(self: *Self, allocator: std.mem.Allocator, rows: []const f.TableRow.Row, guard: Guard) !void {
     try self.index.begin(self.options.index_work_bytes);
     defer self.index.end();
     var next = self.root;
-    const segment = try self.stageSegment(a, self.declaration.schema.schema, next.next_segment, rows.items);
+    const segment = try self.stageSegment(allocator, self.declaration.schema.schema, next.next_segment, rows);
     next.next_segment = try std.math.add(u64, next.next_segment, 1);
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     var offset: usize = 0;
@@ -1524,7 +1529,111 @@ pub fn flush(self: *Self, guard: Guard) !usize {
     }
     try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .checkpoint }, &.{}, guard);
     try self.reply();
-    return rows.items.len;
+}
+
+pub const CompactionLimits = struct {
+    rows: usize = max_changes,
+    encoded_bytes: usize = max_row_bytes,
+    /// Private row/encoder/build allocations, separate from configured reader
+    /// caches, index staging work and provider buffers.
+    resident_bytes: usize = 64 * 1024 * 1024,
+    fn validate(self: CompactionLimits) !void {
+        if (self.rows == 0 or self.rows > max_changes or self.encoded_bytes == 0 or
+            self.encoded_bytes > max_row_bytes or self.resident_bytes == 0) return error.InvalidTableCompactionBudget;
+    }
+};
+pub const CompactionProgress = struct {
+    before_segment: u64,
+    rows: usize,
+    input_segments: usize,
+    encoded_bytes: usize,
+    resident_peak: usize,
+    complete: bool,
+};
+
+/// Rewrite live rows from segments below a fixed, previously observed
+/// next_segment. New output sorts above that boundary, so the accepted row
+/// locators themselves are resumable progress after a lost reply/restart.
+/// The caller retains the same boundary until complete; no history expires.
+pub fn compact(self: *Self, before_segment: u64, limits: CompactionLimits, guard: Guard) !CompactionProgress {
+    try self.ready();
+    try limits.validate();
+    if (before_segment == 0 or before_segment > self.root.next_segment) return error.InvalidTableBasis;
+    if (self.root.retired) return error.TableRetired;
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+    }
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = limits.resident_bytes };
+    return self.compactBounded(before_segment, limits, &memory, guard) catch |err| {
+        return if (err == error.OutOfMemory and memory.exhausted) error.TableCompactionBudget else err;
+    };
+}
+
+fn compactBounded(self: *Self, before_segment: u64, limits: CompactionLimits, memory: *f.MemoryBudget, guard: Guard) !CompactionProgress {
+    const ordinary_log = self.log;
+    const ordinary_objects = self.objects;
+    const ordinary_store = self.index.store;
+    defer {
+        self.log = ordinary_log;
+        self.objects = ordinary_objects;
+        self.index.store = ordinary_store;
+    }
+    if (self.options.control) |control| {
+        self.log = control.log;
+        self.objects = control.objects;
+        self.index.store = control.objects;
+    }
+    // A strict prefix of every segment locator skips all WAL locators with one
+    // paged seek, independently of unflushed backlog size.
+    const first = try pages.Key.init(&.{2});
+    const initial = try self.scan(self.root, first);
+    if (initial.entries[0] == null or (try r.Locator.decode(initial.entries[0].?.value)).lsn >= before_segment) {
+        return .{ .before_segment = before_segment, .rows = 0, .input_segments = 0, .encoded_bytes = 0, .resident_peak = 0, .complete = true };
+    }
+    const bounded = memory.allocator();
+    var arena = std.heap.ArenaAllocator.init(bounded);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const encoded = try bounded.alloc(u8, max_row_bytes);
+    defer bounded.free(encoded);
+    var rows: std.ArrayList(f.TableRow.Row) = .empty;
+    var bytes: usize = 0;
+    var segments: usize = 0;
+    var last_segment: ?u64 = null;
+    var after: ?pages.Key = first;
+    find: while (rows.items.len < limits.rows) {
+        const batch = try self.scan(self.root, after);
+        for (batch.entries) |slot| if (slot) |entry| {
+            if (rows.items.len == limits.rows) break :find;
+            const locator = try r.Locator.decode(entry.value);
+            if (locator.kind != .segment) return error.InvalidTableRowReference;
+            if (locator.lsn >= before_segment) break :find;
+            var owned = try self.readRow(bounded, self.root, entry.key, entry.value);
+            defer owned.deinit();
+            const row = owned.row();
+            const length = (try row.encode(self.declaration.schema.schema, encoded)).len;
+            if (length > limits.encoded_bytes - bytes) break :find;
+            const cells = try a.alloc(f.Types.Values.Cell, row.cells.len);
+            for (row.cells, cells) |cell, *copy| copy.* = try f.Types.Values.cloneValidated(a, cell);
+            try rows.append(a, .{ .identity = row.identity, .cells = cells });
+            bytes += length;
+            if (last_segment == null or last_segment.? != locator.lsn) segments += 1;
+            last_segment = locator.lsn;
+            after = try locator.scanKey();
+        };
+        if (batch.next == null) break;
+    }
+    // One bounded metadata lookahead, before acceptance, identifies whether
+    // this batch exhausts the fixed segment boundary without decoding a row.
+    const remaining = try self.scan(self.root, after);
+    const complete = if (remaining.entries[0]) |entry| (try r.Locator.decode(entry.value)).lsn >= before_segment else true;
+    if (rows.items.len == 0) {
+        if (!complete) return error.TableCompactionBudget;
+        return .{ .before_segment = before_segment, .rows = 0, .input_segments = 0, .encoded_bytes = 0, .resident_peak = memory.peak, .complete = true };
+    }
+    try self.publishSegmentRows(a, rows.items, guard);
+    return .{ .before_segment = before_segment, .rows = rows.items.len, .input_segments = segments, .encoded_bytes = bytes, .resident_peak = memory.peak, .complete = complete };
 }
 
 pub const ArchiveProgress = struct {

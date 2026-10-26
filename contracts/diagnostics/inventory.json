@@ -8256,6 +8256,20 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/MemoryBudget.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/PhysicalCodecs.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -11356,6 +11370,7 @@
         "LogicalQuery.zig",
         "LogicalSchema.zig",
         "LogicalStream.zig",
+        "MemoryBudget.zig",
         "PhysicalCodecs.zig",
         "Prepared.zig",
         "QueryCollations.zig",
@@ -14088,7 +14103,6 @@
         "catch": 0
       },
       "imports": [
-        "QueryMemory.zig",
         "root.zig",
         "std"
       ]
@@ -14122,7 +14136,6 @@
         "catch": 1
       },
       "imports": [
-        "QueryMemory.zig",
         "root.zig",
         "std"
       ]
@@ -14640,20 +14653,6 @@
       },
       "imports": [
         "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-query/src/QueryMemory.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {},
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 0,
-        "catch": 0
-      },
-      "imports": [
         "std"
       ]
     },
@@ -16904,7 +16903,6 @@
         "Interactive.zig",
         "QueryAuthorization.zig",
         "QueryFailure.zig",
-        "QueryMemory.zig",
         "RelationalBridge.zig",
         "RelationalBundle.zig",
         "RelationalCaller.zig",
@@ -25305,7 +25303,8 @@
         "InvalidDataDefinition": 1,
         "InvalidPartitionLease": 1,
         "InvalidSegmentIndex": 1,
-        "InvalidTableBasis": 6,
+        "InvalidTableBasis": 7,
+        "InvalidTableCompactionBudget": 1,
         "InvalidTableDeclaration": 1,
         "InvalidTableHistory": 39,
         "InvalidTableIdentity": 1,
@@ -25313,14 +25312,16 @@
         "InvalidTableOperation": 16,
         "InvalidTableReadBudget": 2,
         "InvalidTableReceipt": 2,
-        "InvalidTableRowReference": 21,
+        "InvalidTableRowReference": 22,
         "InvalidTableSegment": 2,
         "InvalidTableSnapshotCursor": 4,
         "InvalidTableStatementIntent": 1,
         "LostAcknowledgement": 1,
+        "OutOfMemory": 1,
         "StorageCandidateTooLarge": 1,
         "TableAlreadyExists": 1,
         "TableBatchTooLarge": 5,
+        "TableCompactionBudget": 2,
         "TableDataChanged": 6,
         "TableDefinitionChanged": 4,
         "TableHistoryConflict": 1,
@@ -25333,7 +25334,7 @@
         "TableOperationsPending": 1,
         "TableReadBudgetTooSmall": 2,
         "TableRecoveryRequired": 1,
-        "TableRetired": 8,
+        "TableRetired": 9,
         "TableRowIdentityChanged": 2,
         "TableRowMissing": 2,
         "TableSchemaChanged": 2,
@@ -25368,6 +25369,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "CompactionLimits.validate()": "<inferred>",
         "Guard.acquire()": "anyerror",
         "HistoryPoint.cursorSource()": "<inferred>",
         "ReadLimits.validate()": "<inferred>",
@@ -25386,6 +25388,8 @@
         "cancel()": "<inferred>",
         "changeDefinition()": "<inferred>",
         "checkExpectations()": "<inferred>",
+        "compact()": "<inferred>",
+        "compactBounded()": "<inferred>",
         "currentBasis()": "<inferred>",
         "expectations()": "<inferred>",
         "flush()": "<inferred>",
@@ -25412,6 +25416,7 @@
         "pin()": "<inferred>",
         "pinState()": "<inferred>",
         "publish()": "<inferred>",
+        "publishSegmentRows()": "<inferred>",
         "rangeSnapshot()": "<inferred>",
         "readCurrent()": "<inferred>",
         "readHistoryFrame()": "<inferred>",
@@ -25446,8 +25451,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 436,
-        "catch": 5
+        "try": 455,
+        "catch": 6
       },
       "imports": [
         "OrderedKeyIndex.zig",

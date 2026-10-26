@@ -181,6 +181,29 @@ rows, exact schema and row indexes across restart. Snapshot retirement does not
 claim object deletion. Automatic scheduling and immutable Table-object collection
 are separate from the archive mechanism.
 
+### Table segment compaction
+
+`TablePartition.compact` takes an exclusive segment-ID boundary captured from an
+accepted `next_segment`. It rewrites live segment rows below that boundary into
+one new segment per call and publishes replacement point/physical locators with
+a `checkpoint` action. Stable identity/full-key indexes and every logical/control
+root remain unchanged. WAL rows and newer segments are excluded. The published
+segment ID is at or above the fixed boundary, so repeating the same pass after a
+lost reply or restart cannot select its own prior output. A bounded metadata
+lookahead determines `complete` before acceptance; no post-acceptance read is
+needed to construct the response.
+
+The call admits at most 1,024 rows, at most the existing Table encoded-row byte
+bound, and explicit private resident allocation. It uses the existing index-work
+and reader-cache budgets separately. The private allocator charges actual blocks,
+including arena slack, and returns capacity on free. Input rows own their decoded
+values; output staging cannot borrow a cache that a later row read replaces.
+Budget failure or denied publication publishes no partial relocation. A control
+adapter can reserve physical staging/append capacity. This API rejects retired
+Tables and performs no object deletion or logical expiry. Liveness comes from the
+accepted paged row directory: removed/replaced rows are omitted from new segments,
+while older retained roots keep their original segment references.
+
 ### Table history archives
 
 Every accepted Table root and saved snapshot root contains a mandatory `archive`
