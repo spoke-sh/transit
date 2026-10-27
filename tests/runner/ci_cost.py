@@ -76,18 +76,25 @@ def summarize(run, jobs, log, budgets, suite=SUITE):
         lines = [line for line in log.splitlines() if line.startswith(job['name'] + '\t')]
         # Extract only byte counts and cache kinds, never raw logs or keys.
         sizes = [int(n) for line in lines for n in re.findall(r'Cache Size:.*\((\d+) B\)', line)]
-        hits = {kind for line in lines for kind in re.findall(r'Cache (?:hit for(?: restore-key)?:|restored from key:) (nix|zig)-', line)}
+        requested = {key for line in lines for key in re.findall(r'(?:\t|Z )[ \t]*(?:primary-key|key): ((?:nix|zig)-\S+)$', line)}
+        restored = {key for line in lines for key in re.findall(r'Cache (?:hit for(?: restore-key)?:|restored from key:) ((?:nix|zig)-\S+)', line)}
+        hits = {key.split('-', 1)[0] for key in restored}
         misses = any('Cache not found' in line or 'Could not find a cache' in line for line in lines)
-        fallback = any('Cache hit for restore-key:' in line for line in lines)
+        # actions/cache uses the same restored-key message for exact and prefix
+        # hits. Compare its action input with the observed key, not just its kind.
+        fallback = any('Cache hit for restore-key:' in line for line in lines) or bool(requested and restored - requested)
         cold = any('CI dependency cache mode: cold' in line for line in lines)
         # Match an emitted line, not Actions' rendered `echo "$NIX_CACHE"`
         # command. gh prefixes real output with a timestamp; controls omit it.
         policies = {policy for line in lines for policy in re.findall(r'(?:\t|Z )CI Nix cache policy: (\S+)$', line)}
         nix_policy = next(iter(policies)) if len(policies) == 1 else 'github' if not policies else 'unknown'
         expected_hits = {'zig'} if nix_policy == 'substitutes' else {'nix', 'zig'}
+        exact_keys = (len(requested) == len(expected_hits)
+                      and {key.split('-', 1)[0] for key in requested} == expected_hits
+                      and restored == requested)
         row['cache'] = dict(restored_bytes=sum(sizes) if sizes else 0 if cold else None,
                             nix_policy=nix_policy,
-                            mode='cold' if cold and not hits and not sizes else 'miss-or-partial' if misses or fallback else 'warm' if nix_policy in {'github', 'substitutes'} and hits == expected_hits and len(sizes) == len(expected_hits) else 'unknown')
+                            mode='cold' if cold and not hits and not sizes else 'miss-or-partial' if misses or fallback else 'warm' if nix_policy in {'github', 'substitutes'} and exact_keys and len(sizes) == len(expected_hits) else 'unknown')
         lanes.append(row)
     complete = bool(lanes) and all(row['conclusion'] == 'success' and row['seconds'] is not None for row in lanes)
     ends = [j['completed_at'] for j in jobs if j.get('completed_at')]

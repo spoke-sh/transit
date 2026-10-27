@@ -168,7 +168,8 @@ def main():
                "inventory": inventory_identity()}
     sample = dict(id=1, head_sha='fixture', html_url='https://example.invalid', conclusion='success', created_at='2026-01-01T00:00:00Z')
     job = dict(name='core', conclusion='success', started_at='2026-01-01T00:00:01Z', completed_at='2026-01-01T00:00:10Z', steps=[])
-    log = 'core\tCache hit for: nix-key\ncore\tCache Size: ~0 MB (100 B)\ncore\tCache hit for: zig-key\ncore\tCache Size: ~0 MB (200 B)\n'
+    log = ('core\t  primary-key: nix-key\ncore\tCache hit for: nix-key\ncore\tCache Size: ~0 MB (100 B)\n'
+           'core\t  key: zig-key\ncore\tCache hit for: zig-key\ncore\tCache Size: ~0 MB (200 B)\n')
     full_jobs = [dict(job, name=name) for name in selected]
     full_log = ''.join(log.replace('core\t', name + '\t') for name in selected)
     measured = summarize(sample, full_jobs, full_log, budgets)
@@ -217,9 +218,16 @@ def main():
     fallback = summarize(sample, full_jobs, fallback_log, budgets)
     assert fallback['restored_cache_bytes'] == 300 * len(selected) and fallback['cache_profile'] == 'miss-or-partial'
     assert fallback['status'] == 'measured' and not fallback['budget_met']
+    # The pinned action emits the same restored-key message on a prefix hit;
+    # no explicit "restore-key" marker is needed to establish a mismatch.
+    silent_fallback = full_log.replace('Cache hit for: zig-key', 'Cache restored from key: zig-other')
+    assert summarize(sample, full_jobs, silent_fallback, budgets)['cache_profile'] == 'miss-or-partial'
+    no_keys = full_log.replace('primary-key: nix-key', 'No requested Nix key').replace('key: zig-key', 'No requested Zig key')
+    assert summarize(sample, full_jobs, no_keys, budgets)['cache_profile'] == 'unknown'
+    assert not summarize(sample, full_jobs, no_keys, budgets)['budget_met']
     # Formal deliberately uses Nix binary substitutes; only its configured Zig
     # cache can be warm. An undeclared missing Nix restore remains incomplete.
-    formal_log = 'formal\tCI Nix cache policy: substitutes\nformal\tCache hit for: zig-key\nformal\tCache Size: ~0 MB (200 B)\n'
+    formal_log = 'formal\tCI Nix cache policy: substitutes\nformal\t  key: zig-key\nformal\tCache hit for: zig-key\nformal\tCache Size: ~0 MB (200 B)\n'
     substitutes_log = full_log.replace(log.replace('core\t', 'formal\t'), formal_log)
     substitutes = summarize(sample, full_jobs, substitutes_log, budgets)
     assert substitutes['cache_profile'] == 'warm' and substitutes['budget_met']
