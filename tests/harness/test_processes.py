@@ -2,6 +2,7 @@
 import ctypes
 import os
 from pathlib import Path
+import select
 import signal
 import subprocess
 import sys
@@ -12,9 +13,14 @@ from processes import children, command, joined
 
 class Processes(unittest.TestCase):
     def test_live_child_cannot_count_as_joined(self):
-        child = subprocess.Popen([sys.executable, "-B", "-c", "import time; time.sleep(30)"],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        child = subprocess.Popen(
+            [sys.executable, "-B", "-c", "import time; print('ready', flush=True); time.sleep(30)"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         try:
+            # The pinned interpreter launcher can still be replacing its process
+            # image when Popen returns. Inspect the command only after Python runs.
+            self.assertTrue(select.select([child.stdout], [], [], 5)[0])
+            self.assertEqual(child.stdout.readline(), "ready\n")
             self.assertIn(child.pid, children(os.getpid()))
             self.assertIn("time.sleep(30)", command(child.pid))
             with self.assertRaisesRegex(AssertionError, "Unjoined children"):
@@ -23,6 +29,7 @@ class Processes(unittest.TestCase):
         finally:
             child.kill()
             child.wait(timeout=5)
+            child.stdout.close()
         joined([child.pid])
         self.assertEqual(command(child.pid), "")
         self.assertEqual(children(child.pid), set())
@@ -42,7 +49,6 @@ p.wait()
 """
             manager = subprocess.Popen([sys.executable, "-B", "-c", script],
                                        stdout=subprocess.PIPE, text=True)
-            import select
             self.assertTrue(select.select([manager.stdout], [], [], 5)[0])
             grandchild = int(manager.stdout.readline())
             self.assertEqual(children(manager.pid), {grandchild})
