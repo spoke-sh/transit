@@ -152,6 +152,49 @@ journey with mixed schemas and safe maintenance; after P7, run it from the singl
 executable. P8 establishes the complete final evidence rather than introducing
 the first end-to-end test at the end of the milestone.
 
+### Early integration PR and statement-result handoff
+
+On 2026-10-27 the user prioritized merging the live Table integration so the
+statement-result work can proceed concurrently. Deliver the already implemented
+owner recovery/payload routes, automatic flushing and lazy schema projection in
+an early PR. This does not close milestone 3 or move its remaining obligations
+to milestone 4. Direct SQL already reaches the real WAL/Table owner; the PR
+qualifies that installed path with mixed physical schemas and automatic flushing.
+Single-executable packaging is a later P7 outcome, not a prerequisite for the
+shared SQL result reader.
+
+The handoff gate is:
+
+- [x] Installed direct SQL accepts and reads WAL-only rows while the application
+  query worker is stopped; exact values survive abrupt owner restart.
+- [x] Default flushing publishes verified segment coverage under the existing
+  two-second maintenance deadline without changing logical mutation positions.
+- [x] Compatible lazy ALTER preserves frozen defaults and stable column identity
+  across mixed WAL/segment reads, restart and subsequent normalization.
+- [x] Current definition, generated contracts and independent signed fixtures
+  agree; missing or incompatible retained formats remain refusals.
+- [x] Native collector composition retains the new schema dependencies and
+  preserves current-policy, quota and paused-I/O/control-progress checks.
+- [ ] Complete the early PR's committed-source checks and report remaining
+  qualification explicitly in its description.
+
+Milestone 4 owns `transit-sql` statement outcomes and batches,
+`transit-sql-client` consumption/settlement, console presentation and affected SQL
+adapters. It consumes exact Table definitions, retained source cuts and bounded
+owned rows through the current direct APIs. Storage page size is not the result
+batch size; collecting several pulls must preserve value ownership and current
+authorization before disclosure. Keep the existing source/basis, acknowledgement,
+incomplete-prefix and original-operation recovery rules while evolving that
+contract. Coordinate any shared-definition replacement and regenerated resources
+across the two branches; neither branch may retain a parallel legacy definition.
+
+Remaining work here includes P0's baseline diagnosis, P1.4's broader resource
+matrix, P4's automatic archive/checkpoint/compaction/collection, P5's measured
+reader/recovery reuse and waiting, P6's storage views, P7's packaging and P8's
+full common-revision qualification. Unfinished bounded WAL cleanup is a follow-up
+to the early PR. Coordinate P5 reader lifetime and P6 SQL inspection changes with
+the statement-result owner instead of editing its result lifecycle independently.
+
 #### P0 — Freeze the contracts and baseline
 
 - [ ] P0.1 Record exact baseline binaries, definition, build profile and task
@@ -384,22 +427,22 @@ Owners: [TableDeclaration](../../packages/zig/transit-storage/src/TableDeclarati
 [TablePartition](../../packages/zig/transit-storage/src/TablePartition.zig),
 Fuze schema/evolution/readers, catalog and query adapters.
 
-- [ ] P3.1 Bind each physical row/segment interpretation to retained immutable
+- [x] P3.1 Bind each physical row/segment interpretation to retained immutable
   definition and stable column identities. Specify bounded mapping lookup and
   retention across repeated edits; do not make read cost or resident state grow
   with an unbounded schema ancestry chain. Update the collector's dependencies.
-- [ ] P3.2 Qualify D3's exact edit matrix. Publish compatible definition changes
+- [x] P3.2 Qualify D3's exact edit matrix. Publish compatible definition changes
   without traversing/re-encoding all rows; preserve old cuts, old operation
   receipts, default-at-add semantics and rename/drop/recreate identity.
-- [ ] P3.3 Apply the same projection to WAL rows, segments, point/key-range reads,
+- [x] P3.3 Apply the same projection to WAL rows, segments, point/key-range reads,
   filtered scans and predicate writes. Evaluate filters and pruning under the
   requested logical definition and declared collation; historical physical
   metadata may prune only where the mapping proves it sound.
-- [ ] P3.4 Normalize selected groups during later bounded flush/compaction,
+- [x] P3.4 Normalize selected groups during later bounded flush/compaction,
   preserving identities, logical change positions, history and old readers.
   New writes use the new definition. Missing/corrupt interpretation fails;
   guessing the current schema is forbidden.
-- [ ] P3.5 Check repeated ADD/default changes/rename/DROP, NULL versus missing,
+- [x] P3.5 Check repeated ADD/default changes/rename/DROP, NULL versus missing,
   denied or revoked reads, old receipts after ALTER, and restart between DDL
   acceptance and physical maintenance. Compare results against an independent
   eager projection oracle.
@@ -430,9 +473,17 @@ allocation afterward. The mandatory root directories and revision-bearing row
 locators use shared definition
 `654ca199c506604af21873605129e34e18c1c349a42643ece06ed0da9dca7a93`;
 native/binding/browser contracts and independent binary/signing fixtures are
-regenerated together. All 39 fast and 18 contract checks pass. Installed
-mixed-row and native collector qualification remain open before P3 closes.
-Component checks do not establish the installed SQL gate.
+regenerated together. All 39 fast and 18 contract checks pass. The installed SQL
+schedule passes mixed WAL/segment schema edits, frozen defaults, name reuse,
+restart before flushing, and exact projected values after default automatic
+flushing (0.987 seconds after readiness, not a latency distribution). The same
+run passes namespace lifecycle, stale preparation, RESTRICT and original
+outcomes. The native collector composition also passes with 1,165 graph steps
+and one confirmed unreachable allocation reclaimed; current-policy, quota,
+paused-private-I/O/control progress and retained receipt/pin checks pass in the
+same schedule. The selected physical flush uses 29,396,584 peak private bytes
+and 127 ms. These are scoped observations, not the final common-revision
+performance gate.
 
 #### P4 — Schedule archival, checkpoints, compaction and collection
 
@@ -465,6 +516,17 @@ and the backend's native/direct/payload maintenance owners.
 **Gate:** the installed owner converges on eligible maintenance under a finite
 workload, resumes it after process death and preserves every retained obligation.
 Reclaim only objects proved unreachable; storage pressure never authorizes expiry.
+
+Implementation sequencing: first separate bounded WAL cleanup from publishing a
+trim floor, then schedule archive/checkpoint/trim and native/direct collection
+with independent resumable work classes. Each Table class needs its own catalog
+cursor; rotating a class on a single cursor can permanently skip work when Table
+count aligns with the rotation. Keep fixed archive and compaction cuts and avoid
+maintenance records endlessly triggering further maintenance. Collection resumes
+incomplete durable progress before starting another pass, preserves the existing
+six-minute reader grace, and publishes the required native time fence before
+deletion. Cold owner replay/directory costs remain explicit P5 work; bounded
+cleanup alone cannot establish the complete P4 resource gate.
 
 #### P5 — Qualify and reduce the remaining live read and wait costs
 

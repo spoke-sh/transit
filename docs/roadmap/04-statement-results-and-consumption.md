@@ -18,6 +18,15 @@ and bounded batching improvements can proceed alongside that cutover; they do
 not require every provider or codec to finish. Existing cutover obligations for
 safe bounded reads remain with their owner.
 
+The approved [early integration handoff](03-live-storage-and-sql-cutover.md#early-integration-pr-and-statement-result-handoff)
+separates that dependency from completion of the entire storage milestone. Start
+implementation from the merged early PR, which qualifies installed direct SQL,
+automatic point flushing and lazy schema projection over mixed WAL/segment data.
+Automatic archive/collection, further reader performance work, storage inspection
+and single-executable packaging remain with the storage owner. Coordinate shared
+reader lifetime/inspection changes and any replacement of the current definition
+across both branches; do not introduce parallel compatibility definitions.
+
 The [SQL session contract](../../contracts/SQL_SESSION_V1.md),
 [query semantics](../handbook/reference/queries.md),
 [shared SQL service](../../packages/zig/transit-sql/README.md) and
