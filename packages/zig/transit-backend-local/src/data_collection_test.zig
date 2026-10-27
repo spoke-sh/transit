@@ -41,6 +41,22 @@ fn until(f: *Fixture, collection: *Collection, phase: @FieldType(Collection.Stat
     return error.FixtureBudget;
 }
 
+fn cleanup(f: *Fixture, collection: *Collection) !void {
+    try t.expectEqual(.complete, (try collection.current()).?.phase);
+    for (0..1000) |_| {
+        const disk = f.owner.data_allocations.queue.disk.?;
+        const entries = disk.trim_entries;
+        const frames = disk.trim_frames;
+        const segments = disk.trim_segments;
+        const progressed = try collection.step(&f.engine, .{ .unix_ms = f.now });
+        try t.expect(disk.trim_entries - entries <= 32);
+        try t.expect(disk.trim_frames - frames <= 1);
+        try t.expect(disk.trim_segments - segments <= 1);
+        if (!progressed) return;
+    }
+    return error.FixtureBudget;
+}
+
 test "direct collection resumes deletion while preserving accepted and newer reused content" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -80,7 +96,7 @@ test "direct collection resumes deletion while preserving accepted and newer reu
         try t.expectEqualStrings(key, try f.owner.read(key, &output));
     }
     try t.expectEqual(@as(u64, 1), try data.log().tail(1));
-    try t.expect(!try collection.step(&f.engine, .{ .unix_ms = f.now }));
+    try cleanup(&f, &collection);
     f.close();
     try f.open(tmp.dir, false);
     try t.expectEqualDeep(completed, (try collection.current()).?);
@@ -152,7 +168,8 @@ test "direct collection resumes every deletion sync failure without losing other
         var buffer: [64]u8 = undefined;
         try t.expectEqualStrings("separate owner", try f.owner.read("external/keep", &buffer));
         try t.expectEqualDeep(head, f.engine.head);
-        try t.expect(!try collection.step(&f.engine, .{ .unix_ms = f.now }));
+        try cleanup(&f, &collection);
+        try t.expectEqualDeep(head, f.engine.head);
     }
     std.debug.print("Direct collection deletion: {d} sync failures recovered.\n", .{schedules});
 }
