@@ -248,7 +248,8 @@ and never establishes a durable outcome. It contains work nanoseconds, the zero
 authority-lock wait field, decoded cache hits/misses, staged pages/bytes, and provider request,
 transport failure, elapsed-time, append payload byte and response byte counters.
 Provider time is contained in work time; these durations must not be added.
-Append payload bytes exclude HTTP/framing and non-append operation bodies.
+Payload byte counters exclude HTTP and filesystem framing. Local direct Table
+requests include immutable object bodies as well as WAL append bodies.
 Counters cover this process's completed attempt, not maintenance in another
 process, durable outcomes, caller persistence or response transport time.
 Missing headers mean missing measurement, not zero work. Counters do not depend
@@ -256,6 +257,8 @@ on sampled logs and retain no payloads, credentials or principal labels. Encodin
 failure omits diagnostics without changing the authority response. Metrics
 headers are opt-in. With local storage, provider counters measure native log
 and immutable page/block operations, including conflicts and storage failures.
+The direct Table route also includes its request-owned catalog/Table WAL and
+object attempts, merged into the lane's counters on both success and failure.
 Cache hits do not count as provider reads. Local payload bytes count serialized
 WAL entries and page/block envelopes; they do not count filesystem framing or
 individual system calls. Trimming includes its verification reads.

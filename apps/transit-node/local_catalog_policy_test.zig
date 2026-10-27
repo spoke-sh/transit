@@ -324,8 +324,14 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     statement.binding.intent = try statement.digest(alloc);
     var saved = try c.DirectTableIntent.create(alloc, .{ .scope = config.scope, .branch = config.branch, .audience = config.audience, .principal = 101, .role = null }, .{ .statement = statement });
     defer saved.deinit();
+    const native_before_stage = engine.head.position;
+    const staged_bytes_before = engine.journal.observe.metrics.request_payload_bytes;
     const staged = try dispatch(&service, .{ .stage = .{ .namespace = 1, .intent = saved.parsed.value } });
     defer staged.deinit();
+    // Staging appends no native transition. Its exact immutable intent bytes
+    // must nevertheless appear in the Table request's provider diagnostics.
+    try t.expectEqual(native_before_stage, engine.head.position);
+    try t.expectEqual(staged.value.result.staged.content.bytes, engine.journal.observe.metrics.request_payload_bytes - staged_bytes_before);
     try (try saved.reference(1)).requireSame(staged.value.result.staged);
     const unstaged_position = try dispatch(&service, .{ .lookup = .{ .namespace = 1, .name = ddl.name } });
     defer unstaged_position.deinit();
