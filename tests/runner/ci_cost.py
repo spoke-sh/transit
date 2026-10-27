@@ -80,7 +80,9 @@ def summarize(run, jobs, log, budgets, suite=SUITE):
         misses = any('Cache not found' in line or 'Could not find a cache' in line for line in lines)
         fallback = any('Cache hit for restore-key:' in line for line in lines)
         cold = any('CI dependency cache mode: cold' in line for line in lines)
-        policies = {policy for line in lines for policy in re.findall(r'CI Nix cache policy: (\S+)', line)}
+        # Match an emitted line, not Actions' rendered `echo "$NIX_CACHE"`
+        # command. gh prefixes real output with a timestamp; controls omit it.
+        policies = {policy for line in lines for policy in re.findall(r'(?:\t|Z )CI Nix cache policy: (\S+)$', line)}
         nix_policy = next(iter(policies)) if len(policies) == 1 else 'github' if not policies else 'unknown'
         expected_hits = {'zig'} if nix_policy == 'substitutes' else {'nix', 'zig'}
         row['cache'] = dict(restored_bytes=sum(sizes) if sizes else 0 if cold else None,

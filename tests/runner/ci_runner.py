@@ -225,6 +225,14 @@ def main():
     assert substitutes['cache_profile'] == 'warm' and substitutes['budget_met']
     assert substitutes['restored_cache_bytes'] == 300 * len(selected) - 100
     assert next(row for row in substitutes['lanes'] if row['name'] == 'formal')['cache']['nix_policy'] == 'substitutes'
+    echoed = ('formal\tRecord dependency cache mode\t2026-10-27T05:28:48.4628028Z '
+              '\x1b[36;1mecho "CI Nix cache policy: $NIX_CACHE"\x1b[0m\n')
+    hosted_policy = substitutes_log.replace('formal\tCI Nix cache policy: substitutes',
+        'formal\tRecord dependency cache mode\t2026-10-27T05:28:48.4771360Z CI Nix cache policy: substitutes')
+    assert summarize(sample, full_jobs, echoed + hosted_policy, budgets)['cache_profile'] == 'warm'
+    assert not summarize(sample, full_jobs, hosted_policy.replace('policy: substitutes', 'policy: unknown'), budgets)['budget_met']
+    conflicting = hosted_policy + 'formal\tCI Nix cache policy: github\n'
+    assert not summarize(sample, full_jobs, conflicting, budgets)['budget_met']
     undeclared = summarize(sample, full_jobs, substitutes_log.replace('CI Nix cache policy: substitutes', 'No policy'), budgets)
     assert undeclared['cache_profile'] == 'mixed' and not undeclared['budget_met']
     nix_miss_log = substitutes_log.replace('formal\tCI Nix cache policy: substitutes', 'formal\tCould not find a cache.')
