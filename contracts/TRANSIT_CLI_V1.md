@@ -129,14 +129,10 @@ artifact identities, realm/root public key, storage locations, role identities,
 credential references and accepted provisioning receipts. Dependency checking
 happens before provisioning. Published release bundles are not available; a shell,
 Python, `just`, Process Compose and a source checkout are not runtime dependencies
-of the server. Ursula remains the pinned upstream binary.
-
-The selected local profile also runs an explicitly supplied native MinIO binary:
-pinned Ursula provides S3 cold storage, with no filesystem cold backend. Keeping
-the provider separate preserves its bounded hot/cache profile without introducing
-a new storage engine into the CLI. The source-built local bundle includes this
-dependency; distribution must retain its license alongside the selected Transit
-artifacts. Role limits and exact artifact
+of the server. The default local profile uses the node's exclusive local WAL and
+immutable object owner; it does not start Ursula or MinIO. Explicit Ursula
+deployments use the pinned upstream provider and its S3 cold storage configuration.
+Role limits and exact artifact
 versions belong in the [server guide](../apps/transit-cli/docs/server.md).
 
 Startup initializes a missing or genuinely empty installation directory by

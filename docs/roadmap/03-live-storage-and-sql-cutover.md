@@ -186,6 +186,62 @@ the first end-to-end test at the end of the milestone.
 projection, packaging and maintenance contracts. Required paths have concrete
 acceptance assertions before implementation; unavailable evidence is labelled.
 
+**Frozen baseline (27 October 2026):** runtime source
+`c2d665e5ec7e4095f70f5b0c0d92a17e8497d8f6`, `ReleaseSafe`, pinned Zig
+`0.17.0-dev.2267+48abf1a34`, Linux x86_64, physical disk under `/var/tmp`.
+The private `.cache/milestone3/baseline-identity.json` records executable,
+driver and inventory hashes; `.cache/milestone3/baseline-mutation.json` records
+the three-repeat, eight-row control and original failure. It completed sixteen
+samples before an `update_same` submission returned `SqlOutcomeUnknown` after
+30 seconds. The original installation is retained with its matching binaries.
+This is an incomplete control, not a successful latency qualification, and
+three repeats cannot support p95/p99 claims. P5 must diagnose and resolve the
+original outcome before comparing the final candidate.
+
+**Accepted maintenance contract to implement:**
+
+- One local owner has one maintenance executor, sharing its physical WAL/object
+  owner with request lanes. Lifecycle scans and physical work alternate; no
+  worker or in-memory queue is allocated per durable Table. Discovery uses
+  resumable pages over accepted catalog/partition directories. Each selected
+  Table gets one bounded unit before enumeration advances, including when a
+  hot writer keeps that Table eligible.
+- Catalog publication takes the directory's exclusive lock. Table work takes
+  its shared side and the same bounded Table lock stripe as public requests.
+  Private staging releases native authority; acceptance reacquires current
+  authorization, resource lifetime and storage-epoch fences. Owner replacement
+  joins every task before closing storage. Scheduler cursors are hints; accepted
+  roots, fixed targets and durable collection progress establish completion.
+- Automatic flush moves only accepted WAL rows. Byte/row thresholds and maximum
+  pending age select work; defaults are measured in P2. Work has one configured
+  deadline and aggregate resident budget, including read caches, index staging
+  and encoder buffers. Timeout or quota refusal leaves the accepted state and
+  pending target intact. A failed class backs off and does not disable the
+  lifecycle/control scan. A poisoned WAL requires owner replacement.
+- Automatic work uses the configured maintenance principal's current authority.
+  Explicit requests use the caller's existing object control privileges;
+  observation uses current object inspection privileges. Configuration remains
+  deployment policy. Neither a request nor configuration can grant retention,
+  bypass a revoked grant or recreate a dropped object. Board only observes.
+- A requested flush fixes its original accepted cut. Completion means no current
+  row still depends on WAL row bytes at or before that cut; overwritten/deleted
+  rows cease to be current obligations. Historical readers retain independent
+  dependencies. Later writes do not extend this target. Inspection publishes no
+  maintenance record and never initiates work.
+- Observations identify object/definition, observed physical acceptance frontier,
+  logical change frontier, pending WAL row count/bytes and earliest current-row
+  WAL dependency separately. Archive coverage, recovery checkpoint, logical
+  history floor, retained pin summary and collection phase have distinct fields.
+  Counts computed by a bounded page walk disclose partial coverage; they cannot
+  masquerade as exact totals. Directory summaries are independent observations,
+  not a cross-Table snapshot. Failures use bounded categories without payloads.
+- New persisted interpretation/counter fields have no compatibility defaults.
+  P2/P3/P6's changed records and wire/ABI surfaces require a shared-definition
+  cutover, regenerated contracts/bindings/signatures, foreign/missing-definition
+  rejection and fresh candidate installations. P1 owner reopen itself changes
+  no persisted or wire interpretation. Keep the frozen baseline installation
+  isolated from later incompatible candidate binaries.
+
 #### P1 — Complete live ownership, reopen and payload recovery
 
 Owners: [Local](../../apps/transit-node/Local.zig),
