@@ -85,11 +85,11 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just ci all` | Loads the pinned bindings shell and runs foundation, package, recovery, Board/frontend, local launcher and language checks |
 | `just ci::core`, `just ci::experience`, `just ci::bindings-1`, `just ci::bindings-2`, `just ci::browser` | Run individual hosted lanes with task timings; select the matching shell, and install the browser before its proof |
 | `just ci::bindings`, `just ci clean --lane bindings` | Run both bindings lanes sequentially, preserving the full language inventory |
-| `just ci::growth`, `just ci::launchers` | Run the growing-state and launcher/build-smoke lanes from the same inventory |
+| `just ci::growth`, `just ci::interfaces`, `just ci::launchers` | Run the storage/query, SQL/transport and launcher/build-smoke lanes from the same inventory |
 | `nix develop .#ci-formal --command just ci::formal` | Run finite Authority, WAL, Delivery and Console checks, concrete replay where defined, and Lean rewrite theorems with their own pinned tools |
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
 | `just ci clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci all` inventory without existing workspace outputs |
-| `just ci clean --lane NAME` | Runs one inventory lane in its own clean checkout with its declared shell/preparation; complete ordinary qualification needs all seven lane reports at the same committed revision |
+| `just ci clean --lane NAME` | Runs one inventory lane in its own clean checkout with its declared shell/preparation; complete ordinary qualification needs all eight lane reports at the same committed revision |
 | `just ci clean --check fast`, `just ci clean --check contracts` | Run a check-module scope from committed HEAD and retain preparation and validation reports; `--check core` and `--check all` select the broader repository scopes |
 | `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared caller/ABI/host administration against disk-backed authority |
 | `just test::table-build-memory` | Verify candidate allocation ceilings, admitted work-limit outcomes and parent-allocation failure distinctions |
@@ -128,8 +128,8 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::grpc-control` | Focus finite work expiry and bounded closure with an active blocked RPC; also included in `test::grpc-faults` |
 | `just test::sql-wire-contracts` | Check bounded PostgreSQL/MySQL framing, cycle admission, scalar type admission and SCRAM against independent credential derivation; included in core CI |
 | `just test::sql-wire-reference`, `just test::sql-wire-tls` | Use the pinned SQL-wire shell to qualify upstream driver exchanges and the standalone Zig TLS transport |
-| `just test::sql-gateway` | Exercise signed gateway controls and direct Table outcome recovery through local durable owners; included in growth CI |
-| `just test::sql-wire-gateway` | Exercise the real TLS gateway with pinned PostgreSQL/MySQL CLI, C and Python clients, signed controls, socket faults and fenced restart; included in growth CI |
+| `just test::sql-gateway` | Exercise signed gateway controls and direct Table outcome recovery through local durable owners; included in interfaces CI |
+| `just test::sql-wire-gateway` | Exercise the real TLS gateway with pinned PostgreSQL/MySQL CLI, C and Python clients, signed controls, socket faults and fenced restart; included in interfaces CI |
 | `just test::sql-wire-encoding` | Measure scalar validation and framed-row construction separately from TLS/native/storage work; also runs before the gateway proof |
 | `just test::flight` | Qualify native TLS Flight SQL through pinned PyArrow and ADBC Python/C consumers |
 | `just test::flight-outbound` | Record a TLS Flight effect through the RPC worker and replay typed Arrow after node/store loss with the peer stopped |
@@ -217,7 +217,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::packages` | Runs each library’s standalone test suite for focused package work |
 | `just test::serving-counter` | Typed counter queue, frozen deltas, lost turns, overflow and output-budget rollback |
 | `just test::serving`, `just test::serving-tls`, `just test::serving-capacity` | Signed application admission/recovery, actual nginx termination and bounded concurrent gateway reads; focused M19 proofs |
-| `just test::packages-build [WORKERS]` | Compiles each package's `check` target through its own manifest; defaults to one worker, supports one to four; [package and root test scopes differ](../tests/runner/package-checks.md) |
+| `just test::packages-build [WORKERS]` | Compiles each package's `check` target through its own manifest; defaults to two workers, supports one to four; [package and root test scopes differ](../tests/runner/package-checks.md) |
 | `just test::fuze-types`, `just test::fuze-sources` | Independent logical type and CSV/JSONL fixtures, exact codecs, frozen discovery, budgets, allocation and denial/cancellation checks |
 | `just test::table-schema` | Independent Table schema bytes, stable column identities, typed defaults, nullable omission and row constraints |
 | `just test::relational-sql` | Compare selected JOIN/GROUP BY syntax and Boolean instruction order across production Zig, independent ANTLR and PostgreSQL ASTs; included in `test::sql` |
@@ -252,12 +252,13 @@ Use `zig build test-growing-service -Doptimize=Debug` or
 in Debug. Unit tests retain their default Debug build.
 
 `just ci::cost RUN_ID` compares ordinary-suite budgets only when every ordinary
-lane appears exactly once and completes successfully with available cache evidence.
+lane appears exactly once and completes successfully with available cache evidence
+and a matching budget inventory, including the browser continuation.
 Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
-Hosted execution caps are 90 minutes for core, 300 for growth, 120 for experience,
+Hosted execution caps are 90 minutes for core, 150 each for growth and interfaces, 120 for experience,
 30 for launchers (45 with cold-cache selection), and 360 for each of the two bindings lanes.
 The authorization budget record (archived)
 records the measured basis: the complete core lane takes 27.91 minutes before
@@ -416,7 +417,7 @@ physical placements remain explicit external proofs.
 
 `just test::grpc-server` qualifies the bounded inbound transport independently of
 M16 outbound calls. `just test::flight-metadata` checks pinned protobuf drift and
-standard metadata IPC with PyArrow. Both run in the ordinary growth CI lane;
+standard metadata IPC with PyArrow. Both run in the ordinary interfaces CI lane;
 full Flight/ADBC qualification remains separate.
 
 M22 adds `just test::flight` for TLS PyArrow and pinned ADBC C/Python clients,

@@ -1,0 +1,439 @@
+[
+  {
+    "lane": "interfaces",
+    "task": "test::sql-gateway",
+    "log": "001.log",
+    "command": [
+      "just",
+      "test::sql-gateway"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 2939,
+    "diagnostics": {
+      "bytes": 661,
+      "retained_bytes": 661,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "001.log",
+        "bytes": 661,
+        "sha256": "cfe9a534b526e09770c5d6773c47e356db177ca1690bae3c2c830cf54ec776ae"
+      }
+    },
+    "seconds": 284.19
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::sql-wire-gateway",
+    "log": "002.log",
+    "command": [
+      "just",
+      "test::sql-wire-gateway"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 3327,
+    "diagnostics": {
+      "bytes": 19158,
+      "retained_bytes": 19158,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "002.log",
+        "bytes": 19158,
+        "sha256": "b95a44c5c46ebb1013b857ed00f36cc4900c3939014946b3c5d90987b361e041"
+      }
+    },
+    "seconds": 645.81
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::sql-sessions",
+    "log": "003.log",
+    "command": [
+      "just",
+      "test::sql-sessions"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 6074,
+    "diagnostics": {
+      "bytes": 7433,
+      "retained_bytes": 7433,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "003.log",
+        "bytes": 7433,
+        "sha256": "968a495a4b265182d66be1184a881aa3ce6ebd8e45eab19c0e01ddb02b99a82d"
+      }
+    },
+    "seconds": 311.53
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::relational-callers",
+    "log": "004.log",
+    "command": [
+      "just",
+      "test::relational-callers"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 7520,
+    "diagnostics": {
+      "bytes": 7296,
+      "retained_bytes": 7296,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "004.log",
+        "bytes": 7296,
+        "sha256": "11056698bdcd9a52f3796872673d341c08d2e602bb41268974e837f47d15366c"
+      }
+    },
+    "seconds": 317.77
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::relational-maintenance",
+    "log": "005.log",
+    "command": [
+      "just",
+      "test::relational-maintenance"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 9290,
+    "diagnostics": {
+      "bytes": 1345,
+      "retained_bytes": 1345,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "005.log",
+        "bytes": 1345,
+        "sha256": "766ebc62c070903c45d846f77a6aec656bbe25ef13375634e16c196a89758349"
+      }
+    },
+    "seconds": 102.49
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::relational-exchanges",
+    "log": "006.log",
+    "command": [
+      "just",
+      "test::relational-exchanges"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 26545,
+    "diagnostics": {
+      "bytes": 1271,
+      "retained_bytes": 1271,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "006.log",
+        "bytes": 1271,
+        "sha256": "6df61049142382a691a38b1eea3849f0bf16de9e250a789a1e4f810b847de642"
+      }
+    },
+    "seconds": 198.79
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::named-relational",
+    "log": "007.log",
+    "command": [
+      "just",
+      "test::named-relational"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 57457,
+    "diagnostics": {
+      "bytes": 1745,
+      "retained_bytes": 1745,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "007.log",
+        "bytes": 1745,
+        "sha256": "0f3cc7bb4fb6c44a578c17388a8c1d7daa27e4ac7a8d031fa31fce6fb727a626"
+      }
+    },
+    "seconds": 39.42
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::http-transport",
+    "log": "008.log",
+    "command": [
+      "just",
+      "test::http-transport"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 64981,
+    "diagnostics": {
+      "bytes": 306,
+      "retained_bytes": 306,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "008.log",
+        "bytes": 306,
+        "sha256": "c36969506bf01b54ce74a75a87c9fd9a62a05b8f36bcab04a1163dc16a32e8a9"
+      }
+    },
+    "seconds": 18.95
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::tls-alpn",
+    "log": "009.log",
+    "command": [
+      "just",
+      "test::tls-alpn"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 65280,
+    "diagnostics": {
+      "bytes": 128,
+      "retained_bytes": 128,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "009.log",
+        "bytes": 128,
+        "sha256": "a54f96b555047f685c52310a256be33a808de442c973c9ba1207ea8f70cd3315"
+      }
+    },
+    "seconds": 4.15
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::grpc-libraries",
+    "log": "010.log",
+    "command": [
+      "just",
+      "test::grpc-libraries"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 65304,
+    "diagnostics": {
+      "bytes": 46,
+      "retained_bytes": 46,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "010.log",
+        "bytes": 46,
+        "sha256": "e068808da054102b0a9dc745fc0cc46bf1fceb6b48520d79fd86a8165721f87d"
+      }
+    },
+    "seconds": 8.69
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::grpc-codegen",
+    "log": "011.log",
+    "command": [
+      "just",
+      "test::grpc-codegen"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 65359,
+    "diagnostics": {
+      "bytes": 153,
+      "retained_bytes": 153,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "011.log",
+        "bytes": 153,
+        "sha256": "cc428ad9c2818a34335a3930881010f6366b9ec4f9702d5f769f3cb1b892b856"
+      }
+    },
+    "seconds": 6.06
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::grpc-transport",
+    "log": "012.log",
+    "command": [
+      "just",
+      "test::grpc-transport"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 65395,
+    "diagnostics": {
+      "bytes": 379,
+      "retained_bytes": 379,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "012.log",
+        "bytes": 379,
+        "sha256": "e03a7edde199977bad323216f5b9d86d119ddcf1e506f809747248a4d6ccc118"
+      }
+    },
+    "seconds": 10.05
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::grpc-server",
+    "log": "013.log",
+    "command": [
+      "just",
+      "test::grpc-server"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 65477,
+    "diagnostics": {
+      "bytes": 1736,
+      "retained_bytes": 1736,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "013.log",
+        "bytes": 1736,
+        "sha256": "3250b159454a898b0375b32214e07f844512c835d1fc25f2d480c49ca5447171"
+      }
+    },
+    "seconds": 10.52
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::flight-metadata",
+    "log": "014.log",
+    "command": [
+      "just",
+      "test::flight-metadata"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 66726,
+    "diagnostics": {
+      "bytes": 452,
+      "retained_bytes": 452,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "014.log",
+        "bytes": 452,
+        "sha256": "2c38afddf52005a5eb005857f74ad09134ae1dd716e91796b4c34095933bff0a"
+      }
+    },
+    "seconds": 38.97
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::grpc-worker",
+    "log": "015.log",
+    "command": [
+      "just",
+      "test::grpc-worker"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 66794,
+    "diagnostics": {
+      "bytes": 216,
+      "retained_bytes": 216,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "015.log",
+        "bytes": 216,
+        "sha256": "ae32e0ba3dcb5fc7c2e756339badbb762202efa9e0ea11dbc6baca4966fb32f2"
+      }
+    },
+    "seconds": 164.02
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::grpc-faults",
+    "log": "016.log",
+    "command": [
+      "just",
+      "test::grpc-faults"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 76354,
+    "diagnostics": {
+      "bytes": 885,
+      "retained_bytes": 885,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "016.log",
+        "bytes": 885,
+        "sha256": "4bbc110b160d78e1753299123061b7ee8b50dd07f2145df1c4e588b8cb2c8f40"
+      }
+    },
+    "seconds": 185.0
+  },
+  {
+    "lane": "interfaces",
+    "task": "test::http-worker",
+    "log": "017.log",
+    "command": [
+      "just",
+      "test::http-worker"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 81179,
+    "diagnostics": {
+      "bytes": 2448,
+      "retained_bytes": 2448,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "017.log",
+        "bytes": 2448,
+        "sha256": "289a623dd31a19f54e4fdccd743c08f4f4f820bdc1200196822cf7c8882e0a82"
+      }
+    },
+    "seconds": 223.85
+  },
+  {
+    "lane": "interfaces",
+    "task": "examples::http",
+    "log": "018.log",
+    "command": [
+      "just",
+      "examples::http"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 94167,
+    "diagnostics": {
+      "bytes": 276,
+      "retained_bytes": 276,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "018.log",
+        "bytes": 276,
+        "sha256": "dbe24810854361be54f9b04c06aaea9462ea350812fff5310c85aa6d5cb295ad"
+      }
+    },
+    "seconds": 19.85
+  },
+  {
+    "lane": "interfaces",
+    "task": "examples::grpc",
+    "log": "019.log",
+    "command": [
+      "just",
+      "examples::grpc"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 94568,
+    "diagnostics": {
+      "bytes": 274,
+      "retained_bytes": 274,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "019.log",
+        "bytes": 274,
+        "sha256": "954a6aeb35080168d986773f4af18dae8d7dd3f450ceef9e559db42fd6aeb5c7"
+      }
+    },
+    "seconds": 24.1
+  }
+]

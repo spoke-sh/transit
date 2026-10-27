@@ -329,7 +329,8 @@ def main():
                     report['unknown_outcomes'] += 1
                     report['failed_sample'] = {'case': 'schema_setup', **writer.last_measurement}
                     raise
-                assert result['operation']['phase'] == 'terminal' and result['operation']['outcome'] in ('applied', 'unchanged'), result
+                assert result['completion']['outcome'] in ('applied', 'unchanged'), result
+                assert result['completion']['pending_restart'] is False, result
                 report['schema_profile']['setup'].append(measurement)
                 save()
 
@@ -351,8 +352,8 @@ def main():
                 outcome = result['direct_table']['rows']['committed']['outcome']
                 assert (outcome['matched'], outcome['affected']) == (str(affected), str(changed)), result
             else:
-                outcome = result['operation']
-                assert outcome['phase'] == 'terminal' and outcome['outcome'] in ('applied', 'unchanged'), result
+                outcome = result['completion']
+                assert outcome['outcome'] in ('applied', 'unchanged') and outcome['pending_restart'] is False, result
                 assert (outcome['matched'], outcome['changed']) == (affected, changed), result
             if case:
                 if native:

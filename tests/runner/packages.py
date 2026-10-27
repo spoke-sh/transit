@@ -122,7 +122,7 @@ def execute(root, jobs):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--jobs", type=int, choices=range(1, 5), default=1)
+    parser.add_argument("--jobs", type=int, choices=range(1, 5), default=2)
     args = parser.parse_args()
     try:
         raise SystemExit(execute(ROOT, args.jobs))

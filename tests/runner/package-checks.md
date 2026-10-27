@@ -8,8 +8,8 @@ manifest. `just test packages` executes each package's `test` target. These
 commands check standalone dependency declarations; compiling a module through
 the application's graph does not establish that its package builds independently.
 
-`just test packages-build` uses one worker. `just test packages-build 2` selects
-two; the explicit supported range is one to four. Each worker runs `zig build
+`just test packages-build` uses two workers. `just test packages-build 1` selects
+sequential compilation; the explicit supported range is one to four. Each worker runs `zig build
 check` in the owning package, preserving its dependencies and Zig's cache. This
 compiles checks; it does not reuse previous test outcomes or start package tests.
 The sequential `just test packages` command remains the execution owner.

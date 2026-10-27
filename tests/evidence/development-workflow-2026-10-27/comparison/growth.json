@@ -1,0 +1,236 @@
+[
+  {
+    "lane": "growth",
+    "task": "test::arrow",
+    "seconds": 74.18,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::fuze-types",
+    "seconds": 2.88,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::fuze-sources",
+    "seconds": 0.6,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::file-query",
+    "seconds": 36.72,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::logical-arrow",
+    "seconds": 8.74,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::logical-codec",
+    "seconds": 11.21,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::pages",
+    "seconds": 10.92,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::growing",
+    "seconds": 35.01,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::growing-service",
+    "seconds": 342.55,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::local-catalog",
+    "seconds": 50.64,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::direct-table-service",
+    "seconds": 226.5,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::direct-catalog-abi",
+    "seconds": 157.92,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::node-concurrency",
+    "seconds": 13.62,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::block-storage",
+    "seconds": 52.9,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::native-blocks",
+    "seconds": 1.65,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::storage-collection",
+    "seconds": 98.08,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::public-query",
+    "seconds": 175.75,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::publication",
+    "seconds": 109.82,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::table-query-writer",
+    "seconds": 48.79,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::catalog",
+    "seconds": 958.12,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::sql-gateway",
+    "seconds": 153.7,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::sql-wire-gateway",
+    "seconds": 648.46,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::sql-sessions",
+    "seconds": 461.25,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::relational-callers",
+    "seconds": 165.71,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::relational-maintenance",
+    "seconds": 144.36,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::relational-exchanges",
+    "seconds": 271.64,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::named-relational",
+    "seconds": 56.44,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::http-transport",
+    "seconds": 19.9,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::tls-alpn",
+    "seconds": 4.39,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::grpc-libraries",
+    "seconds": 8.0,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::grpc-codegen",
+    "seconds": 6.18,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::grpc-transport",
+    "seconds": 10.84,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::grpc-server",
+    "seconds": 10.1,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::flight-metadata",
+    "seconds": 40.61,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::grpc-worker",
+    "seconds": 178.48,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::grpc-faults",
+    "seconds": 190.94,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "test::http-worker",
+    "seconds": 243.69,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "examples::http",
+    "seconds": 20.88,
+    "exit_code": 0
+  },
+  {
+    "lane": "growth",
+    "task": "examples::grpc",
+    "seconds": 26.23,
+    "exit_code": 0
+  }
+]

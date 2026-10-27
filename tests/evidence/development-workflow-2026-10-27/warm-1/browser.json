@@ -1,0 +1,163 @@
+[
+  {
+    "lane": "browser",
+    "task": "transit-board::browser",
+    "log": "001.log",
+    "command": [
+      "just",
+      "transit-board::browser"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 42917,
+    "diagnostics": {
+      "bytes": 9659,
+      "retained_bytes": 9659,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "001.log",
+        "bytes": 9659,
+        "sha256": "7fcb36c078fcecd3ac69e917d91335883c1fec3cb9f3bf9102e86b2fcc3272b6"
+      }
+    },
+    "seconds": 247.78
+  },
+  {
+    "lane": "browser",
+    "task": "transit-board::query-browser",
+    "log": "002.log",
+    "command": [
+      "just",
+      "transit-board::query-browser"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 44585,
+    "diagnostics": {
+      "bytes": 4944,
+      "retained_bytes": 4944,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "002.log",
+        "bytes": 4944,
+        "sha256": "ef917aa3b7ac3904506d41b7a47f6f5ac3d37611c2e923d234041984ede1205d"
+      }
+    },
+    "seconds": 117.38
+  },
+  {
+    "lane": "browser",
+    "task": "transit-board::http-browser",
+    "log": "003.log",
+    "command": [
+      "just",
+      "transit-board::http-browser"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 46728,
+    "diagnostics": {
+      "bytes": 6748,
+      "retained_bytes": 6748,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "003.log",
+        "bytes": 6748,
+        "sha256": "030acdf3e9677ba7ddc8fea9e9db0bb19421ec062d0bf6814802fc4f3a21463a"
+      }
+    },
+    "seconds": 262.55
+  },
+  {
+    "lane": "browser",
+    "task": "transit-board::grpc-browser",
+    "log": "004.log",
+    "command": [
+      "just",
+      "transit-board::grpc-browser"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 59989,
+    "diagnostics": {
+      "bytes": 4515,
+      "retained_bytes": 4515,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "004.log",
+        "bytes": 4515,
+        "sha256": "0f3847a0a76b5de59770d7f729c8ffd789c604fc3b61cc777a277d1175032549"
+      }
+    },
+    "seconds": 194.31
+  },
+  {
+    "lane": "browser",
+    "task": "test::reactive-browser",
+    "log": "005.log",
+    "command": [
+      "just",
+      "test::reactive-browser"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 69839,
+    "diagnostics": {
+      "bytes": 8111,
+      "retained_bytes": 8111,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "005.log",
+        "bytes": 8111,
+        "sha256": "d7ab46a3184811f36d32c3d60e8f45ca891359b18b7e20cc24ed3107378e3133"
+      }
+    },
+    "seconds": 364.96
+  },
+  {
+    "lane": "browser",
+    "task": "test::reactive-views",
+    "log": "006.log",
+    "command": [
+      "just",
+      "test::reactive-views"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 111671,
+    "diagnostics": {
+      "bytes": 74923,
+      "retained_bytes": 74923,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "006.log",
+        "bytes": 74923,
+        "sha256": "0534b7f23eec13cab4999518785a853dad4f3eb161bdf468fbcab73ebc0939ca"
+      }
+    },
+    "seconds": 214.25
+  },
+  {
+    "lane": "browser",
+    "task": "test::reactive-views-lifecycle",
+    "log": "007.log",
+    "command": [
+      "just",
+      "test::reactive-views-lifecycle"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 339053,
+    "diagnostics": {
+      "bytes": 8866,
+      "retained_bytes": 8866,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "007.log",
+        "bytes": 8866,
+        "sha256": "0fd8db2be3527e2f1d109e5dfe597e87fe3c576d7f29e4027fdd2dfee5a3bdd8"
+      }
+    },
+    "seconds": 94.1
+  }
+]

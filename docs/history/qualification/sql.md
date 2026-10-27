@@ -651,7 +651,7 @@ Issue #48 implementation starts from merged `b775e2b7`. On 2026-10-13,
 MySQL 8.4.11 servers with verified TLS. Psycopg 3.3.4 and Connector/Python 9.4.0
 execute prepared reads, INSERT, UPDATE and DELETE where exercised by the
 [probe](../../../tests/interfaces/sql_wire/reference.py); psql/mysql execute literal reads. The
-[sanitized transcript](../../../tests/interfaces/sql_wire/reference-transcript.json) retains message kinds
+[sanitized transcript](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/sql_wire/reference-transcript.json) retains message kinds
 and selected driver settings, never authentication, parameter or result bytes.
 The PostgreSQL intermediary actively withholds Execute through Sync; the
 prepared executions complete without a Flush dependency. The MySQL intermediary

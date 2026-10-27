@@ -3,6 +3,16 @@
   "profiles": {
     "fast": [
       {
+        "id": "query-expiry-evidence-controls",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/query/unified/test_expiry.py"
+        ]
+      },
+      {
         "id": "test-layout",
         "phase": "tooling",
         "command": [
@@ -199,6 +209,15 @@
         ]
       },
       {
+        "id": "ursula-listeners",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/harness/test_ursula.py"
+        ]
+      },
+      {
         "id": "process-harness",
         "phase": "tooling",
         "command": [
@@ -253,6 +272,15 @@
           "python3",
           "-B",
           "tests/runner/ci_runner.py"
+        ]
+      },
+      {
+        "id": "ci-selection",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_selection.py"
         ]
       },
       {

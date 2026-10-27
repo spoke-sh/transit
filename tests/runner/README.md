@@ -20,7 +20,7 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | [test_checks.py](test_checks.py) | Real subprocess controls for generator/validator failures and incomplete evidence |
 | [ci.py](ci.py) | Execute the shared lane inventory with checkpointed task outcomes |
 | [ci_clean.py](ci_clean.py) | Qualify committed HEAD in a separate clone with scoped dependency preparation |
-| [ci_select.py](ci_select.py) | Conservative changed-path selection; unknown or shared inputs select full CI |
+| [ci_select.py](ci_select.py), [test_selection.py](test_selection.py) | Reviewed dependency selection, source-bound plans and conservative fallback controls |
 | [ci_cost.py](ci_cost.py) | Read hosted setup, execution and cache costs without treating missing lanes as success |
 | [ci_runner.py](ci_runner.py) | Selection, inventory, aggregate gate, interruption and clean-run regression controls |
 | [external_profiles.py](external_profiles.py) | Execute explicit deployment profiles and discovery campaigns with separate completion records |
@@ -90,6 +90,40 @@ inputs have recorded byte counts and SHA-256 identities. To check a retained
 invocation, run `python3 -B tests/runner/capture.py PATH_TO_RUN_DIRECTORY`.
 Missing or changed artifacts and incomplete runs fail this check.
 
+CI lane metadata includes initial and current resource observations at task
+checkpoints. Child CPU and block-I/O counters are cumulative for children waited
+by the runner. Maximum child RSS is the largest child high-water mark, not the
+sum of concurrent resident memory (KiB on Linux, bytes on macOS). Linux available
+memory and workspace free space are boundary snapshots, not interval minima.
+Linux I/O pressure totals are whole-host cumulative stall seconds; their delta
+includes other host work. Unsupported or unreadable host observations are null.
+These measurements cover lane execution, while hosted setup/cache costs come
+from job records. They do not establish isolated workload throughput.
+
+`just ci cost RUN_ID` reports job/setup/cache costs and the first successfully
+completed ordinary lane. That first-lane time includes queue and preparation;
+it is not the time of the first assertion. Budget eligibility requires the same
+ordered task lists and lane allocation, including the browser continuation.
+Missing or foreign inventory identities leave the measured costs visible but
+cannot meet a budget. The reporter reads the measured revision's inventory as
+data and records its own source separately; it executes no code from that run.
+An unavailable source inventory leaves the result inconclusive.
+[CI budgets](ci-budgets.json) identify the calibrated inventory and separate warm
+and cold thresholds; the earlier 33-task limits retain their historical source.
+The command reports `budget_met`; a cost overrun alone does not fail the required
+correctness gate. These thresholds allow regression headroom and are distinct
+from faster feedback targets. A matching inventory hash confirms registration,
+not identical internal assertions or workload sizes. Review source, toolchain
+and workload changes before attributing a timing difference. The
+[calibration account](../../docs/history/qualification/verification.md#test-ownership-and-development-workflow--2026-10-27)
+records the measurements and their limits.
+Warm cache classification requires every configured GitHub cache to restore its
+matching key. Formal explicitly uses upstream Nix substitutes in both modes and
+has only a Zig GitHub cache; its policy is recorded separately. An undeclared
+missing Nix restore remains unknown or partial. Cache-miss runs disable GitHub
+restores/saves and retain upstream Nix substitutes. Neither mode promises empty
+upstream caches or a particular provider download rate.
+
 Clean qualification preserves these records and preparation logs before removing
 a successful clone. Failed clones remain private at the reported path. Local
 records remain until explicitly removed; hosted CI uploads run records and the
@@ -111,6 +145,41 @@ affected real clean check/lane. [CI commands](../../tasks/ci.just) and
 and scenario definitions; this directory owns how their required tasks execute.
 The [task coverage checker](task_coverage.py) verifies direct
 recipe nesting and required tier ownership before expensive qualification.
+
+`just ci select BASE HEAD` reports the changed inputs, transitive consumer groups,
+proposed tasks and enforced lanes from `suite.json`. Changes confined to the
+reviewed formal-model or Go SDK inputs execute their dependent tasks. Other code
+changes retain the full ordinary inventory; documentation-only changes run the
+documentation checks. Main, release, merge-group and manually dispatched qualification stay full.
+Both ends of a rename are inputs; a missing comparison revision fails planning.
+
+The reviewed graph is deliberately small. The Authority, WAL, Console and Delivery
+specifications feed their model drivers and formal tasks. The Go module feeds its
+archive builder, then the installed Go consumer and example in
+`bindings::go-sdk-test`. That task includes formatting, vet, race/cgo checks,
+foreign-definition rejection and the disk-backed raw-client recovery schedule.
+Changes to Go's generated ABI declarations also select `bindings::check` for
+generation drift; shared generators and authoritative contracts select full CI.
+The [task recipes](../../tasks/bindings.just), [native registration](../../build/checks.zig)
+and [consumer registry](../sdk/consumer_registry.py) are the audited callers; Go
+does not participate in the Station interoperability ring. Other SDKs and native
+packages still select full qualification. Shared harnesses, contracts, fixtures,
+active budgets, build/runner policy and unknown files also stay full.
+
+Adding a reviewed group requires its input owners, dependency edges, executable
+consumers and resource classes. Test changed dependencies, new/deleted inputs,
+rename endpoints and unknown paths, then compare the proposed task set with
+complete successful runs before enabling it. Directory location alone is not
+evidence that no other caller exists. CI records the proposal with the executed
+tasks; the runner rejects plans for another commit, unowned/omitted tasks or a
+different policy. A scoped successful result cannot qualify a full-suite budget.
+Hosted work schedules eight lanes within the existing seven-job ceiling; each
+lane remains sequential, with isolated mutable state and one writer per selected
+Nix cache group; formal does not write a Nix cache. Storage/catalog/query tasks belong to `growth`;
+SQL protocol/relational and HTTP/gRPC tasks belong to `interfaces`. These split
+the former 39-task growth lane at existing task boundaries. Formal feedback stays
+early. The additional job repeats its shell/cache and native preparation; cost
+comparisons must include that work as well as elapsed-time changes.
 
 `just bindings::runtime-boundary` checks Nix input selection, then builds and
 exercises the actual packaged runtime and SQL gateway without test or SDK source.

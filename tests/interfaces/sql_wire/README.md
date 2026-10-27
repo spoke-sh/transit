@@ -10,10 +10,14 @@ Read the [protocol reference](../../../docs/handbook/reference/database-protocol
 | Installed gateway and independent clients | [gateway.py](gateway.py), [clients.py](clients.py) |
 | Authorization, lifecycle and lost replies | [authority.py](authority.py), [lifecycle.py](lifecycle.py), [faults.py](faults.py) |
 | TLS and connection settings | [tls.py](tls.py), [settings.py](settings.py) |
-| Explicit reference deployment | [reference.py](reference.py), [reference input](reference-transcript.json) |
+| Explicit reference deployment | [reference.py](reference.py) |
 | Phase and transport measurements | [measure.py](measure.py), [phases.py](phases.py), [costs.py](costs.py) |
 
 Run the owning `just test::sql-wire-*` task with pinned clients; recipes identify
 the `sql-wire` shell and native binary inputs. Protocol acceptance and performance
 measurements have separate expectations. Reference deployment requires its own
 available infrastructure and cannot be inferred from local gateway checks.
+
+The reference task prints sanitized observations for its actual run. Its
+[earlier saved transcript](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/sql_wire/reference-transcript.json)
+is a historical observation, not an executable input or current passing result.

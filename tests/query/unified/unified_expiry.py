@@ -10,6 +10,24 @@ from harness.services import free_port, wait_ready
 from query.unified.unified_abi import Native, Failure, upload
 
 
+def assert_expired_read(client, operation):
+    """Require a semantic denial, retrying one stale pooled connection read."""
+    assert len(operation) == 1 and next(iter(operation)) in {'status', 'page'}
+    for attempt in range(2):
+        try:
+            client.call(operation)
+        except Failure as error:
+            # The fixture deliberately kills the authority with an existing
+            # client connection. A closed connection is not expiry evidence.
+            # Retry only this same read; persistent transport failure still fails.
+            if error.detail['err'] == 'HttpConnectionClosing' and attempt == 0:
+                print('Unified expiry: retrying the same read after a closed connection.', flush=True)
+                continue
+            assert error.detail['err'] in ('QuerySourceUnavailable', 'Rejected', 'AccessDenied'), error
+            return
+        raise AssertionError('expired request disclosed a result')
+
+
 def run(node, host, proof, library, kinds):
     for kind in kinds:
         started = time.monotonic()
@@ -78,11 +96,7 @@ def run(node, host, proof, library, kinds):
                 resource = invoke('expire-request')
                 assert resource['phase'] == 'retired' and resource['deadline_ms'] == expires, resource
                 for operation in ({'status': '1'}, {'page': {'namespace': '1', 'cursor': first['next']}}):
-                    try:
-                        client.call(operation)
-                        raise AssertionError('expired request disclosed a result')
-                    except Failure as error:
-                        assert error.detail['err'] in ('QuerySourceUnavailable', 'Rejected', 'AccessDenied'), error
+                    assert_expired_read(client, operation)
                 # Current lifetime still denies after the actual authority/store
                 # processes restart from the same durable journal.
                 for process in processes[1:]:
@@ -91,11 +105,7 @@ def run(node, host, proof, library, kinds):
                 fixture.stop(); fixture.start()
                 authority = start('node-recovered', [node, str(config)])
                 wait_ready(fixture.http, authority, url+'/health')
-                try:
-                    client.call({'page': {'namespace': '1'}})
-                    raise AssertionError('restart revived expired query')
-                except Failure as error:
-                    assert error.detail['err'] in ('QuerySourceUnavailable', 'Rejected', 'AccessDenied'), error
+                assert_expired_read(client, {'page': {'namespace': '1'}})
                 print(f'Unified {kind} expiry: prefix/complete reads denied, source pin released, node/store restart preserves expiry; '
                       f'{time.monotonic()-started:.2f}s / backend={"local_directory" if kind == "table" else "ursula"} / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes.', flush=True)
             except BaseException:

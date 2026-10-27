@@ -1,0 +1,1230 @@
+{
+  "version": 1,
+  "revision": "8333fdfcda6fe77415cfd22f8f1729f8bf65931d",
+  "dirty": false,
+  "toolchain": {
+    "flake_lock_sha256": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264",
+    "python_version": "3.13.15 (main, Aug  5 2026, 12:25:43) [GCC 15.3.0]",
+    "executables": {
+      "python": "/nix/store/sc8j4gs7giafyr1g7njyy0sxb8f26wdj-python3-3.13.15-env/bin/python3.13",
+      "nix": "/nix/store/g1bq7lardr5fpbx6g36crbs9amf7pda5-nix-3.8.5/bin/nix",
+      "zig": "/nix/store/z00l6pzdnz193c9cj3l77xc33a57x9x9-transit-zig",
+      "just": "/nix/store/lccvn99vpz9xz6c9faamsqas3kb2r78h-just-1.51.0/bin/just"
+    }
+  },
+  "profile": "packages-build",
+  "jobs": 1,
+  "logical_cpus": 48,
+  "started_unix": 1793070393.5905137,
+  "affinity": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "expected_checks": [
+    "telemetry",
+    "transit-backend-local",
+    "transit-backend-ursula",
+    "transit-board-api",
+    "transit-catalog",
+    "transit-client",
+    "transit-config",
+    "transit-core",
+    "transit-exchange",
+    "transit-flight",
+    "transit-fuze",
+    "transit-grpc",
+    "transit-http-server",
+    "transit-mysql",
+    "transit-observability",
+    "transit-postgres",
+    "transit-protocol",
+    "transit-query",
+    "transit-runtime-substrate",
+    "transit-serving",
+    "transit-serving-http",
+    "transit-sql",
+    "transit-sql-client",
+    "transit-sql-protocol",
+    "transit-station",
+    "transit-station-app",
+    "transit-station-bindings",
+    "transit-station-document",
+    "transit-station-flight",
+    "transit-station-grpc",
+    "transit-station-http",
+    "transit-storage",
+    "transit-tls",
+    "transit-tls-server"
+  ],
+  "checks": [
+    {
+      "id": "telemetry",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/telemetry",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "telemetry.log",
+          "exit_code": 0,
+          "pid": 2234584,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "telemetry.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 1.5177193842828274
+        }
+      ]
+    },
+    {
+      "id": "transit-backend-local",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-backend-local",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-backend-local.log",
+          "exit_code": 0,
+          "pid": 2235121,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-backend-local.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 10.996522881090641
+        }
+      ]
+    },
+    {
+      "id": "transit-backend-ursula",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-backend-ursula",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-backend-ursula.log",
+          "exit_code": 0,
+          "pid": 2238661,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-backend-ursula.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 11.329227886162698
+        }
+      ]
+    },
+    {
+      "id": "transit-board-api",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-board-api",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-board-api.log",
+          "exit_code": 0,
+          "pid": 2242204,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-board-api.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 10.214108366984874
+        }
+      ]
+    },
+    {
+      "id": "transit-catalog",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-catalog",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-catalog.log",
+          "exit_code": 0,
+          "pid": 2245495,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-catalog.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 13.382896377705038
+        }
+      ]
+    },
+    {
+      "id": "transit-client",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-client",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-client.log",
+          "exit_code": 0,
+          "pid": 2249831,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-client.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 3.852170687634498
+        }
+      ]
+    },
+    {
+      "id": "transit-config",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-config",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-config.log",
+          "exit_code": 0,
+          "pid": 2250926,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-config.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 1.6919832923449576
+        }
+      ]
+    },
+    {
+      "id": "transit-core",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-core",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-core.log",
+          "exit_code": 0,
+          "pid": 2251510,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-core.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 2.3916913880966604
+        }
+      ]
+    },
+    {
+      "id": "transit-exchange",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-exchange",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-exchange.log",
+          "exit_code": 0,
+          "pid": 2252314,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-exchange.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 10.203724664170295
+        }
+      ]
+    },
+    {
+      "id": "transit-flight",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-flight",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-flight.log",
+          "exit_code": 0,
+          "pid": 2255538,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-flight.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 13.304947915952653
+        }
+      ]
+    },
+    {
+      "id": "transit-fuze",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-fuze",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-fuze.log",
+          "exit_code": 0,
+          "pid": 2259862,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-fuze.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 11.411245398689061
+        }
+      ]
+    },
+    {
+      "id": "transit-grpc",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-grpc",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-grpc.log",
+          "exit_code": 0,
+          "pid": 2263502,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-grpc.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 1.5754265747964382
+        }
+      ]
+    },
+    {
+      "id": "transit-http-server",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-http-server",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-http-server.log",
+          "exit_code": 0,
+          "pid": 2263989,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-http-server.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 1.4334257380105555
+        }
+      ]
+    },
+    {
+      "id": "transit-mysql",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-mysql",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-mysql.log",
+          "exit_code": 0,
+          "pid": 2264482,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-mysql.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 9.860355694312602
+        }
+      ]
+    },
+    {
+      "id": "transit-observability",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-observability",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-observability.log",
+          "exit_code": 0,
+          "pid": 2267601,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-observability.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 1.4692179788835347
+        }
+      ]
+    },
+    {
+      "id": "transit-postgres",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-postgres",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-postgres.log",
+          "exit_code": 0,
+          "pid": 2268086,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-postgres.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 9.983898884151131
+        }
+      ]
+    },
+    {
+      "id": "transit-protocol",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-protocol",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-protocol.log",
+          "exit_code": 0,
+          "pid": 2271391,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-protocol.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 2.6245403280481696
+        }
+      ]
+    },
+    {
+      "id": "transit-query",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-query",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-query.log",
+          "exit_code": 0,
+          "pid": 2272187,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-query.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 21.822960363700986
+        }
+      ]
+    },
+    {
+      "id": "transit-runtime-substrate",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-runtime-substrate",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-runtime-substrate.log",
+          "exit_code": 0,
+          "pid": 2279192,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-runtime-substrate.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 1.4889563047327101
+        }
+      ]
+    },
+    {
+      "id": "transit-serving",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-serving",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-serving.log",
+          "exit_code": 0,
+          "pid": 2279715,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-serving.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 13.175056325737387
+        }
+      ]
+    },
+    {
+      "id": "transit-serving-http",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-serving-http",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-serving-http.log",
+          "exit_code": 0,
+          "pid": 2283936,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-serving-http.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 12.270726460032165
+        }
+      ]
+    },
+    {
+      "id": "transit-sql",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-sql",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-sql.log",
+          "exit_code": 0,
+          "pid": 2287918,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-sql.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 12.636409404221922
+        }
+      ]
+    },
+    {
+      "id": "transit-sql-client",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-sql-client",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-sql-client.log",
+          "exit_code": 0,
+          "pid": 2291907,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-sql-client.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 9.904277978930622
+        }
+      ]
+    },
+    {
+      "id": "transit-sql-protocol",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-sql-protocol",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-sql-protocol.log",
+          "exit_code": 0,
+          "pid": 2295060,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-sql-protocol.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 10.184718359261751
+        }
+      ]
+    },
+    {
+      "id": "transit-station",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-station",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-station.log",
+          "exit_code": 0,
+          "pid": 2298274,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-station.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 12.47987557016313
+        }
+      ]
+    },
+    {
+      "id": "transit-station-app",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-station-app",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-station-app.log",
+          "exit_code": 0,
+          "pid": 2302460,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-station-app.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 12.973307087086141
+        }
+      ]
+    },
+    {
+      "id": "transit-station-bindings",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-station-bindings",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-station-bindings.log",
+          "exit_code": 0,
+          "pid": 2306616,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-station-bindings.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 13.447502594906837
+        }
+      ]
+    },
+    {
+      "id": "transit-station-document",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-station-document",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-station-document.log",
+          "exit_code": 0,
+          "pid": 2310903,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-station-document.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 10.096574913244694
+        }
+      ]
+    },
+    {
+      "id": "transit-station-flight",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-station-flight",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-station-flight.log",
+          "exit_code": 0,
+          "pid": 2314104,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-station-flight.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 10.035393104888499
+        }
+      ]
+    },
+    {
+      "id": "transit-station-grpc",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-station-grpc",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-station-grpc.log",
+          "exit_code": 0,
+          "pid": 2317396,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-station-grpc.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 10.161585437133908
+        }
+      ]
+    },
+    {
+      "id": "transit-station-http",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-station-http",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-station-http.log",
+          "exit_code": 0,
+          "pid": 2320724,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-station-http.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 10.237540573813021
+        }
+      ]
+    },
+    {
+      "id": "transit-storage",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-storage",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-storage.log",
+          "exit_code": 0,
+          "pid": 2323956,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-storage.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 10.841807090677321
+        }
+      ]
+    },
+    {
+      "id": "transit-tls",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-tls",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-tls.log",
+          "exit_code": 0,
+          "pid": 2327430,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-tls.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 2.894101922865957
+        }
+      ]
+    },
+    {
+      "id": "transit-tls-server",
+      "phase": "build-graph",
+      "completed": true,
+      "expected_stages": [
+        "compile"
+      ],
+      "stages": [
+        {
+          "stage": "compile",
+          "cwd": "packages/zig/transit-tls-server",
+          "completed": true,
+          "command": [
+            "zig",
+            "build",
+            "check"
+          ],
+          "log": "transit-tls-server.log",
+          "exit_code": 0,
+          "pid": 2328248,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "transit-tls-server.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 1.5831246981397271
+        }
+      ]
+    }
+  ],
+  "completed": true,
+  "active": null,
+  "run_directory": "runs/packages-build-fn9vmflv",
+  "seconds": 293.7549400180578,
+  "child_resources": {
+    "user_seconds": 361.427149,
+    "system_seconds": 65.463791,
+    "max_child_rss_platform_units": 544280,
+    "input_blocks": 2728,
+    "output_blocks": 9938128
+  }
+}

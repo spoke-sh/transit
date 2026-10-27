@@ -71,9 +71,14 @@ not inherit arbitrary environment variables. The supervisor retains bounded
 child-output prefixes rather than forwarding raw provider or application output.
 See the [server logging guide](../../../apps/transit-cli/docs/server.md#logging-and-readiness)
 for lifecycle, terminal and machine output behavior. Expected service failures
-emit one error event and exit unsuccessfully after a bounded flush. CLI argument,
-configuration and SQL errors retain their command-specific diagnostics. Panics
-and crashes are outside the normal service event path.
+submit one terminal error event and exit unsuccessfully after a bounded flush.
+The terminal event has a separate 2 KiB slot so ordinary queue contention and
+rate suppression cannot discard it. Level and record-size limits still apply;
+`off` suppresses it. The flush attempt lasts at most 200 ms. A blocked or failed
+sink, or abrupt termination, can still prevent delivery. See the
+[telemetry bounds](../../../packages/zig/telemetry/README.md#measurements-and-bounds).
+CLI argument, configuration and SQL errors retain their command-specific
+diagnostics. Panics and crashes are outside the normal service event path.
 
 Start with [launcher diagnostics](../../../launchers/README.md#service-diagnostics)
 and [node operations](../../../apps/transit-node/docs/operations.md) for exact options.

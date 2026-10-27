@@ -58,7 +58,9 @@
       "test::public-query",
       "test::publication",
       "test::table-query-writer",
-      "test::catalog",
+      "test::catalog"
+    ],
+    "interfaces": [
       "test::sql-gateway",
       "test::sql-wire-gateway",
       "test::sql-sessions",
@@ -133,6 +135,7 @@
       "formal",
       "core",
       "growth",
+      "interfaces",
       "experience",
       "launchers",
       "bindings-1",
@@ -142,6 +145,7 @@
       "formal",
       "core",
       "growth",
+      "interfaces",
       "experience",
       "launchers",
       "bindings-1",
@@ -319,6 +323,10 @@
       "shell": "default",
       "prepare": []
     },
+    "interfaces": {
+      "shell": "default",
+      "prepare": []
+    },
     "experience": {
       "shell": "ci-experience",
       "prepare": [
@@ -410,5 +418,186 @@
       "bindings::direct-catalog-dotnet",
       "bindings::direct-catalog-beam"
     ]
+  },
+  "workers": {
+    "formal": {
+      "cache": "formal",
+      "timeout": 15
+    },
+    "core": {
+      "cache": "core",
+      "timeout": 90
+    },
+    "growth": {
+      "cache": "core",
+      "timeout": 150
+    },
+    "interfaces": {
+      "cache": "core",
+      "timeout": 150
+    },
+    "experience": {
+      "cache": "experience",
+      "timeout": 120
+    },
+    "launchers": {
+      "cache": "experience"
+    },
+    "bindings-1": {
+      "cache": "bindings",
+      "timeout": 360
+    },
+    "bindings-2": {
+      "cache": "bindings",
+      "timeout": 360
+    }
+  },
+  "selection": {
+    "version": 1,
+    "mode": "enabled",
+    "max_parallel": 7,
+    "groups": {
+      "authority-specification": {
+        "paths": [
+          "tests/verification/models/Authority.tla",
+          "tests/verification/models/Authority.cfg"
+        ],
+        "depends_on": [],
+        "tasks": [],
+        "resources": []
+      },
+      "authority-proof": {
+        "paths": [
+          "tests/verification/models/model.py"
+        ],
+        "depends_on": [
+          "authority-specification"
+        ],
+        "tasks": [
+          "test::model"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "wal-specification": {
+        "paths": [
+          "tests/verification/models/Wal.tla",
+          "tests/verification/models/Wal.cfg"
+        ],
+        "depends_on": [],
+        "tasks": [],
+        "resources": []
+      },
+      "wal-proof": {
+        "paths": [
+          "tests/verification/models/wal_model.py"
+        ],
+        "depends_on": [
+          "wal-specification"
+        ],
+        "tasks": [
+          "test::wal-model"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "console-specification": {
+        "paths": [
+          "tests/verification/models/Console.tla",
+          "tests/verification/models/Console.cfg"
+        ],
+        "depends_on": [],
+        "tasks": [],
+        "resources": []
+      },
+      "console-proof": {
+        "paths": [
+          "tests/verification/models/console_model.py",
+          "tests/verification/models/console_state.zig"
+        ],
+        "depends_on": [
+          "console-specification"
+        ],
+        "tasks": [
+          "test::console-model"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "delivery-specification": {
+        "paths": [
+          "tests/verification/models/Delivery.tla",
+          "tests/verification/models/Delivery.cfg"
+        ],
+        "depends_on": [],
+        "tasks": [],
+        "resources": []
+      },
+      "delivery-proof": {
+        "paths": [],
+        "depends_on": [
+          "delivery-specification"
+        ],
+        "tasks": [
+          "test::model-delivery"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "go-module": {
+        "prefixes": [
+          "sdks/go/"
+        ],
+        "depends_on": [],
+        "tasks": [],
+        "resources": []
+      },
+      "go-package": {
+        "paths": [
+          "bindings/build_go.py"
+        ],
+        "depends_on": [
+          "go-module"
+        ],
+        "tasks": [],
+        "resources": [
+          "native-build"
+        ]
+      },
+      "go-installed-consumer": {
+        "prefixes": [
+          "tests/sdk/consumers/go/",
+          "examples/go-client/"
+        ],
+        "depends_on": [
+          "go-package"
+        ],
+        "tasks": [
+          "bindings::go-sdk-test"
+        ],
+        "resources": [
+          "native-build",
+          "private-disk-authority"
+        ]
+      },
+      "go-generated-contract": {
+        "paths": [
+          "sdks/go/internal/nativeclient/api_generated.h",
+          "sdks/go/internal/nativeclient/transit_client.h",
+          "sdks/go/internal/nativeclient/constants_generated.go"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "bindings::check"
+        ],
+        "resources": [
+          "contract-compiler"
+        ]
+      }
+    }
   }
 }

@@ -3,9 +3,43 @@ import argparse
 import ast
 import json
 from pathlib import Path
+import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def build_invocations(root):
+    """Check the literal Python command forms used by build registration.
+
+    This is an invocation convention check, not a Zig interpreter. Computed
+    commands and example-owned launchers still need their actual schedules.
+    """
+    result = []
+    for path in [root / 'build.zig', *sorted((root / 'build').glob('*.zig'))]:
+        if not path.is_file():
+            continue
+        source = path.read_text()
+        pattern = r'const (\w+) = b\.addSystemCommand\(&\.\{([^}]+)\}\);'
+        for match in re.finditer(pattern, source):
+            arguments = re.findall(r'"([^"\\]*)"', match[2])
+            if arguments[:2] != ['python3', '-B']:
+                continue
+            if len(arguments) > 2:
+                script = arguments[2]
+            else:
+                files = re.search(re.escape(match[1]) + r'\.addFileArg\(b\.path\("([^"]+)"\)\)',
+                                  source[match.end():])
+                if files is None:
+                    continue
+                script = files[1]
+            script = script.removeprefix('./')
+            owner = str(path.relative_to(root))
+            line = source[:match.start()].count('\n') + 1
+            assert not script.startswith('tests/') or script.startswith('tests/runner/'), (
+                f'{owner}:{line}: domain driver {script} requires tests/runner/launch.py')
+            result.append(dict(source=owner, line=line, command=match[1], entry_point=script))
+    return result
 
 
 def declarations(tree):
@@ -92,6 +126,7 @@ def audit(root):
                     assert exists(target), f'{path}:{node.lineno}: missing local module {target}'
                     edges.append(dict(source=path, line=node.lineno, module=target))
     return {'version': 1, 'module_count': len(modules), 'edges': edges,
+            'build_invocations': build_invocations(root),
             'limits': 'Static declarations only; generated scripts, runtime conditions and external packages require their real schedules.'}
 
 
@@ -101,7 +136,8 @@ def main():
     args = parser.parse_args()
     report = audit(ROOT)
     print(json.dumps(report, indent=2) if args.json else
-          f"Local test imports: {report['module_count']} modules and {len(report['edges'])} explicit edges checked")
+          f"Local test imports: {report['module_count']} modules, {len(report['edges'])} explicit edges "
+          f"and {len(report['build_invocations'])} literal build invocations checked")
 
 
 if __name__ == '__main__':

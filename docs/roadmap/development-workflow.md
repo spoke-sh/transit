@@ -1,6 +1,6 @@
 # Development workflow and test ownership implementation
 
-[Roadmap](README.md) · **Status: In Progress**
+[Roadmap](README.md) · **Status: Completed**
 
 This supporting engineering plan completes the test organization and development
 feedback work begun in PRs #175–#181. It does not insert or renumber a product
@@ -8,24 +8,30 @@ milestone. The intended outcome is that contributors can find a declaration's
 checks, run the appropriate scope, and inspect complete, attributable results
 without unnecessary compilation, packaging or environment setup.
 
-Deliver the remaining work on one feature branch, in logical commits, followed
-by one PR that closes this plan. Update this checklist as work is implemented and
-qualified. A merged earlier slice, a registered command, a successful compilation
-or a partial CI run cannot complete an unchecked acceptance criterion.
+The foundation is merged in [PR #185](https://github.com/spoke-sh/transit/pull/185)
+from `refactor/test-workflow-foundation`, frozen at `6f6fbc521`. The remaining
+implementation and qualification are delivered in
+[PR #186](https://github.com/spoke-sh/transit/pull/186) from
+`refactor/test-workflow-completion`. This split follows the user's request to
+submit the foundation before completing the plan. The checklist records the
+implemented changes, executed scopes and retained limits; neither registered
+commands nor partial runs count as completed qualification.
 
 ## Source basis and scope
 
 The starting revision is `a610ecd5dcff22f2d0177b61b905a8e985252c13` (PR #181).
 Its tracked inventory contains 1,405 files under `tests/`, including 487 root
 files: 276 Python and 107 Zig files. Ordinary CI selects 103 tasks in seven lanes.
-The retained performance budgets qualify an earlier 33-task inventory, not this
-expanded suite. These counts describe the starting revision, not a future quota.
+The cost budgets at the start qualify an earlier 33-task inventory. The final
+[calibration](../history/qualification/verification.md#test-ownership-and-development-workflow--2026-10-27)
+establishes separate limits for the expanded suite. These counts describe the starting revision, not a future quota.
 The [source and execution baseline](development-workflow-baseline.json) preserves
 every tracked test file's size/hash and the original check/lane/nesting catalogs.
 It is a migration audit record, not another live execution inventory or a passing
 qualification result. The [file disposition map](development-workflow-migration.json)
-records every original file's planned destination, role and observed reference
-consumers. Dynamic task and artifact dependencies still require the P1.1 audit.
+records every original file's destination, role and original reference consumers.
+The [ownership audit](development-workflow-audit.md) records current task/artifact
+boundaries, dynamic consumers and explicitly unregistered helpers.
 
 The user paused the separate storage milestone work so this branch can migrate
 the storage/query test owners as well as the other domains. Preserve any work
@@ -246,13 +252,13 @@ this plan is not another chronological test transcript.
   Source serializers, new bundle plans and lookup consistency checks preserve
   the declared vector across all ten Station SDKs; four independently encoded
   collation fixtures exercise every installed consumer.
-- [ ] P0.5 Establish a comparable successful baseline for the current inventory
+- [x] P0.5 Establish a comparable successful baseline for the current inventory
   before performance changes. Record source, toolchain, workload, profiles,
   machine and cache conditions. Failed or incomplete runs remain incomplete.
 
 ### P1 — File inventory, runner and layout enforcement
 
-- [ ] P1.1 Map every tracked test file to destination, owner and role: executable,
+- [x] P1.1 Map every tracked test file to destination, owner and role: executable,
   helper, oracle, input, model, active budget or retained observation. Identify
   its scenario/task, consumers, required artifacts and qualification boundary.
 - [x] P1.2 Move `tooling/` to `runner/`; move execution inventory, task ownership
@@ -275,12 +281,12 @@ this plan is not another chronological test transcript.
 - [x] P2.2 Standardize an explicit Python test import root and supported launch
   convention. Update nested scripts and example consumers together; remove
   accidental working-directory and per-file depth assumptions.
-- [ ] P2.3 Give fixtures explicit matching binary paths and explicit backends.
+- [x] P2.3 Give fixtures explicit matching binary paths and explicit backends.
   Keep mutable installations, ports, credentials and durable state private to
   their scenarios. Preserve failed installations when investigation needs them.
-- [ ] P2.4 Preserve bounded startup, child-exit detection, signal/restart behavior
+- [x] P2.4 Preserve bounded startup, child-exit detection, signal/restart behavior
   and joined cleanup. Execute failure controls and real local/Ursula schedules.
-- [ ] P2.5 Measure setup separately. Share a running service only if reset and
+- [x] P2.5 Measure setup separately. Share a running service only if reset and
   isolation are demonstrated, including grants, quotas, snapshots and background
   work; run independent/order controls. Keep destructive recovery isolated.
 
@@ -305,17 +311,17 @@ this plan is not another chronological test transcript.
   from the current tree after preserving immutable source-revision links and
   hashes. Keep active inputs and specifically justified reproducibility data with
   their owners; moving every historical log into a new folder is insufficient.
-- [ ] P4.3 Update consumers of active budget/reference data, source selectors,
+- [x] P4.3 Update consumers of active budget/reference data, source selectors,
   CI routing, artifact publication paths and current documentation links.
-- [ ] P4.4 Verify that executable inputs still invalidate owning builds/checks
+- [x] P4.4 Verify that executable inputs still invalidate owning builds/checks
   while inert evidence does not. Exercise renamed-file and unknown-input controls.
-- [ ] P4.5 Run benchmark runner/oracle checks and affected real workloads. Keep
+- [x] P4.5 Run benchmark runner/oracle checks and affected real workloads. Keep
   old driver hashes intact and establish current baseline identities explicitly.
-- [ ] P4.6 Standardize automatic per-task result, log and artifact capture across
+- [x] P4.6 Standardize automatic per-task result, log and artifact capture across
   local, clean and hosted runs. Preserve failure and interruption status, source,
   command, toolchain and completion metadata. Test missing/incomplete artifacts;
   ordinary results must not require manually authored evidence files or commits.
-- [ ] P4.7 Publish runner-generated summaries and artifacts with an explicit
+- [x] P4.7 Publish runner-generated summaries and artifacts with an explicit
   retention policy. Long-lived scientific or regression references need a stable
   archived identity; a temporary CI URL alone does not replace a required input.
 
@@ -325,9 +331,9 @@ this plan is not another chronological test transcript.
   `sdk/`, retaining installed-consumer separation from SDK implementation units.
 - [x] P5.2 Update all package builders, native fixture inputs, language compiler
   commands, temporary projects, examples, interop and scenario catalogs.
-- [ ] P5.3 Preserve every required SDK family, direct catalog nested execution,
+- [x] P5.3 Preserve every required SDK family, direct catalog nested execution,
   incompatible-definition rejection, ownership/lifetime and uncertain-call check.
-- [ ] P5.4 Execute migrated installed consumers outside the source tree against
+- [x] P5.4 Execute migrated installed consumers outside the source tree against
   explicit matching artifacts. Run actual example binaries and interop schedules.
 
 ### P6 — Public interfaces
@@ -338,7 +344,7 @@ this plan is not another chronological test transcript.
   schedules with their owning interface. Preserve read-only inspection gates.
 - [x] P6.3 Group installation, launcher, configuration and reference deployment
   checks. Keep reusable provisioning in harness and installation assertions here.
-- [ ] P6.4 Execute affected protocol, installed, browser, launcher and external
+- [x] P6.4 Execute affected protocol, installed, browser, launcher and external
   provider profiles. Record unavailable infrastructure as unqualified, not passed.
 
 ### P7 — Catalog and query semantics
@@ -347,9 +353,9 @@ this plan is not another chronological test transcript.
   scenarios into catalog, with their independent contract validators.
 - [x] P7.2 Move planning, logical values, execution, snapshot and result scenarios
   into query, including SQL/relational oracles and their native drivers.
-- [ ] P7.3 Split mixed operation modules by responsibility using explicit Zig
+- [x] P7.3 Split mixed operation modules by responsibility using explicit Zig
   module interfaces where needed; preserve test executable targets and behavior.
-- [ ] P7.4 Execute declaration, authorization, snapshot, bounded query, complete
+- [x] P7.4 Execute declaration, authorization, snapshot, bounded query, complete
   result, lifetime and recovery scenarios affected by the moves.
 
 ### P8 — Storage and application runtime
@@ -360,7 +366,7 @@ this plan is not another chronological test transcript.
   scenarios into runtime. Assign mixed core tests by the boundary they assert.
 - [x] P8.3 Preserve supported provider tests and retained actor-runtime checks.
   Remove superseded data-path checks only with an identified, executed replacement.
-- [ ] P8.4 Execute local and Ursula disk/restart/fault coverage and affected
+- [x] P8.4 Execute local and Ursula disk/restart/fault coverage and affected
   application runtime schedules. Keep tmpfs and physical-disk evidence distinct.
 - [x] P8.5 Reach the exact final root/owner layout. Remove all migration exceptions,
   old directory aliases and temporary forwarding mechanisms.
@@ -386,71 +392,72 @@ this plan is not another chronological test transcript.
 - [x] P10.1 Record relevant source/input identity, compiler, target/CPU, options,
   optimization profile, ABI/definition and output hashes for shared artifact sets.
   Prefer existing Zig/Nix artifacts to a new general-purpose cache framework.
-- [ ] P10.2 Keep Debug and ReleaseSafe sets distinct. Pass immutable outputs to
+- [x] P10.2 Keep Debug and ReleaseSafe sets distinct. Pass immutable outputs to
   SDK builders and scenarios instead of depending on mutable `zig-out` contents.
-- [ ] P10.3 Avoid repeated native/package work only for matching inputs. Never
+- [x] P10.3 Avoid repeated native/package work only for matching inputs. Never
   reuse test outcomes, mutable installations or incomplete build publications.
   Start with nested C/C++ and interop preparation; map duplicate executions before
   removing them. Cross-job artifact transfer must save measured total work.
 - [x] P10.4 Add wrong-source/profile/definition and interrupted-build controls;
   verify concurrent callers cannot observe partial or mismatched artifact sets.
-- [ ] P10.5 Record compilation, installation, packaging, provisioning, scenario
+- [x] P10.5 Record compilation, installation, packaging, provisioning, scenario
   execution and teardown separately, including failures and incomplete work.
-- [ ] P10.6 Measure bounded concurrency for independent package checks while
+- [x] P10.6 Measure bounded concurrency for independent package checks while
   retaining each package's own manifest boundary and controlling resource use.
-- [ ] P10.7 Evaluate local documentation cache reuse with clean production checks
+- [x] P10.7 Evaluate local documentation cache reuse with clean production checks
   retained. Verify generated references/search/specification invalidation before
   adopting it; record a measured decision if no safe improvement is established.
-- [ ] P10.8 Run the same required SDK schedules and compare work/time against the
+- [x] P10.8 Run the same required SDK schedules and compare work/time against the
   qualified baseline. Do not equate a profile switch with a compilation cache miss.
   Report C/C++, interop and development-shell preparation separately; retain
   residual scenario costs for the owning storage/runtime milestone.
 
 ### P11 — Dependency-aware selection and resource scheduling
 
-- [ ] P11.1 Extend current execution metadata with reviewed input/dependency and
+- [x] P11.1 Extend current execution metadata with reviewed input/dependency and
   resource ownership, including shared fixtures, generated contracts and consumers.
   Use bounded, audited groups; unmodeled dependencies retain full qualification
   rather than requiring a universal dependency analyzer before delivery.
-- [ ] P11.2 Compute affected PR coverage transitively; shared/unknown inputs and
+- [x] P11.2 Compute affected PR coverage transitively; shared/unknown inputs and
   unavailable comparison data must never silently select less qualification.
   Keep main/release full qualification and preserve both rename endpoints.
-- [ ] P11.3 Exercise changed package, SDK, fixture, budget, model, contract, build,
+- [x] P11.3 Exercise changed package, SDK, fixture, budget, model, contract, build,
   harness, evidence, deletion, rename and unknown-path selection controls.
-- [ ] P11.4 Compare proposed scoped selections with full runs before enabling
+- [x] P11.4 Compare proposed scoped selections with full runs before enabling
   them. Document selection limits; a directory match is not a dependency proof.
-- [ ] P11.5 Schedule heavy disk/build workloads within measured resource limits;
+- [x] P11.5 Schedule heavy disk/build workloads within measured resource limits;
   keep formal feedback early and mutable outputs isolated. Preserve all scenarios.
   Evaluate scenario splits in C/C++, interop, core and growth using existing
   tasks/jobs, accounting for repeated preparation and total runner cost.
 
 ### P12 — Qualification and final PR
 
-- [ ] P12.1 Audit the complete migration map, final directory policy, task/scenario
+- [x] P12.1 Audit the complete migration map, final directory policy, task/scenario
   coverage, current links and immutable evidence hashes. Account for every original
   file and required execution, including deliberate replacements/consolidations.
-- [ ] P12.2 Freeze the qualification inventory and relevant source/toolchain/
+- [x] P12.2 Freeze the qualification inventory and relevant source/toolchain/
   workload profiles. Run affected complete/browser and external profiles as well
   as ordinary CI; state each scope and actual result explicitly.
-- [ ] P12.3 Collect at least three successful ordinary warm samples and one
+- [x] P12.3 Collect at least three successful ordinary warm samples and one
   dependency-cache-miss sample. Record GitHub cache and upstream Nix substitute
   conditions separately; one cold run does not establish cold variance.
-- [ ] P12.4 Report first useful feedback, required completion, aggregate runner
+- [x] P12.4 Report first useful feedback, required completion, aggregate runner
   time, phase costs, cache transfer and relevant peak memory/disk pressure.
   Compare like workloads and publish remaining bottlenecks and regressions.
   Distinguish measured workflow gains from unmet feedback targets and anticipated
   storage-cutover savings; record residual costs without expanding this branch
   into runtime redesign.
-- [ ] P12.5 Establish current regression budgets from that evidence. Preserve
+- [x] P12.5 Establish current regression budgets from that evidence. Preserve
   the old 33-task qualification as historical; do not silently certify 103 tasks.
-- [ ] P12.6 Finish owner README/AGENTS, contributor/task/toolchain documentation,
+- [x] P12.6 Finish owner README/AGENTS, contributor/task/toolchain documentation,
   and one concise qualification account with selected raw evidence. Keep current
   workflows discoverable without this plan or a chat transcript.
-- [ ] P12.7 Clean up only this work's temporary clones, artifacts requiring no
+- [x] P12.7 Clean up only this work's temporary clones, artifacts requiring no
   retention and stale branches/worktrees. Preserve user notes and unrelated work.
-- [ ] P12.8 Submit the final review-ready PR with completed checklist, logical
-  commit map, executed evidence and comparison results. Mark this plan Completed
-  only when every required acceptance item is satisfied.
+- [x] P12.8 Submit the review-ready completion PR after the foundation snapshot
+  in #185, with completed checklist, logical commit map, executed evidence and
+  comparison results. Mark this plan Completed only when every required acceptance
+  item is satisfied.
 
 ## Validation and completion policy
 
@@ -471,40 +478,165 @@ they are not automatically deferred to a later milestone or follow-up PR.
 
 ## Progress and evidence
 
-| Stage | Status | Implementation and validation reference |
+The [earlier detailed checkpoints](https://github.com/spoke-sh/transit/blob/8dd62c8db/docs/roadmap/development-workflow.md#progress-and-evidence)
+preserve intermediate file counts, failed runs, corrections and original source
+attribution. The final [qualification account](../history/qualification/verification.md#test-ownership-and-development-workflow--2026-10-27)
+and [selected automatic records](../../tests/evidence/development-workflow-2026-10-27/README.md)
+reconcile the checklist below. An earlier pass does not qualify a later source
+automatically; failed manual profiles retain their outcomes.
+
+| Stage | Implementation and executed evidence | Outcome and limits |
 | --- | --- | --- |
-| Delivered foundation | Completed | PRs #175–#181 above; each records its scoped qualification |
-| P0 | In Progress | Repairs: `945101ead`, `251f15195`, `c61a3f546`. File-query oracle: 190 cases; native/port codec: 143 cases; ten installed consumers: four collation vectors each; TypeScript: 39 adapter tests; Python types pass. KV, direct Table and Document unified live schedules now pass across all ten SDKs. [Earlier run](https://github.com/spoke-sh/transit/actions/runs/40404745910) was canceled after stale adapter failures; [corrected frozen baseline](https://github.com/spoke-sh/transit/actions/runs/40409695176) at `e61ef1891` has passed core, formal, launcher and both SDK lanes. Growth also passed; the browser profile failed because its reactive-view Board configuration omitted the required collation vector. `f85a5edf2` repairs the fixture and the actual browser scenario passes locally. The same correction is applied to comparison revision `cbf04c0e7`; [replacement baseline](https://github.com/spoke-sh/transit/actions/runs/40423756480) has passed core, formal, launcher and both SDK lanes but failed the reactive browser task with a shared HTTP client panic. Growth also passes (39 tasks, 100.1 minutes). `4ef3ced95` repairs the shared HTTP client; the same repair is applied to comparison revision `55720dbad` for the [next baseline run](https://github.com/spoke-sh/transit/actions/runs/40434970935). No failed or incomplete run establishes a successful full baseline. |
-| P1 | In Progress | Runner, lane inventory, task coverage, CI cost policy and external-profile orchestration moved together; 26 fast checks pass, including real runner failure/interruption and clean-clone controls. The layout guard passes eight actual-file regression controls and the expanded 28-check fast profile; 775 enumerated migration exceptions remain. The 1,405-file disposition map is recorded; eleven layout controls cover duplicate destinations, missing dispositions and retained-evidence integrity. Dynamic task/artifact dependency auditing remains pending. `f65cc07d3` adds a checked Python import graph, including function-local imports, and explicit shared SDK consumer registration; all 36 fast checks pass from clean committed source. Committed-source checks pass after the runner move. The final directory audit now accounts for all 1,405 original files, with 712 current test files, no migration exceptions and all 734 archived hashes verified; earlier counts describe intermediate batches. |
-| P2 | In Progress | Linux child discovery/joining extracted in `e61ef1891`; real child-death and adopted-grandchild controls pass. All 29 fast checks pass from clean committed source. The shared Python launcher has real controls for moved drivers, subdirectory invocation, arguments, failures and installed-child import isolation; the catalog uses it and the expanded 30-check fast scope passes locally. All drivers now use domain-qualified imports and the supported launcher. `5442d843f` extracts private installation setup, frozen executable copies and manager cleanup into the harness; real child/isolation/restart and early-exit controls pass, and all remaining installation methods retain identical syntax trees. The expanded 31-check fast profile passes. The server schedule passes startup/configuration/host checks, then fails the SQL reply-observation control with `SqlOutcomeUnknown`; the private failed installation is preserved. `4df99b21a` repairs a moved process-helper import and qualifies the complete local SQL installation schedule, including real database clients, TLS, restart and bootstrap receipt-loss recovery. Other installation/provider qualification remains incomplete. |
-| P4 | In Progress | 734 historical/generated records leave the current tree with immutable Git links and original hashes; archive integrity checks verify all original blobs. Twelve layout controls and 29 fast checks pass. Active budgets remain executable inputs; 22 Nix invalidation controls pass. Automatic per-task capture is implemented in `81823b2e5`: local and clean-source fast/contract runs preserve logs, exact generator inputs and verifiable completion; missing/changed artifacts and interruption controls pass. Hosted publication paths include these records with 14-day retention. Benchmark families and active budgets now use performance owners; shared HTTP instrumentation belongs to harness. All 30 fast checks and 22 Nix input controls pass, and the original active-budget hashes are unchanged. At `261595975`, seven ReleaseSafe native benchmark targets build; declarative, SQL and all file-query comparator workloads pass. Small physical-disk storage (36 samples) and ingestion/reopen (18 samples) profiles pass; these do not recalibrate default performance budgets. Remaining affected workloads, final hosted and packaged-runtime qualification are pending. |
-| P3 | Completed | Forty formal runner, simulation, Zig fixture and corpus files moved to their owners with explicit imports and updated build/callers. All 24 saved replay JSON inputs retain their original hashes. The five-task formal lane passes: Authority 7,867 states and four replayed controls; WAL 201,771 states and six controls; Console 5,278 states / 91,198 replayed edges and six controls; Delivery and four Lean theorems pass. All 30 fast checks pass. Verification is now a navigation index; deterministic methods sit beside their scenarios and historical narratives retain an immutable source citation. Concrete schedules pass: 40 authority traces / 1,687 events, 14 delivery / 749, 204 resource / 3,958, eight scheduler / 542 and ten component schedules with identical replay. Mutation qualification exposed stale revision/permission patterns and a missing active-credential denial case; `bf9605ef0` and `3a4e3909d` repair those controls. All 19 production mutants are now detected across five campaigns from committed source. At committed `3a4e3909d`, the updated authority profile passes 41 traces / 1,697 events and the complete five-task formal lane passes; automatic artifacts are retained locally. |
-| P5 | In Progress | 158 scenario, ABI, installer and language-consumer files now have SDK ownership. Dynamic imports, copied compiler inputs, isolated retry processes, scenario catalogs and task/build callers follow the move. At `eb72e53f2`, all 30 fast checks and the complete 11-task bindings-1 lane pass from clean committed source, including native boundaries, installed Python/Node/Rust/Ruby consumers, the complete ten-edge language ring, SQL oracles, gRPC faults and connector preparation. At `fd2adf7f0`, the complete clean bindings-2 lane passes installed Go, C/C++, Java, .NET, Erlang and Elixir schedules. Both SDK lanes also pass in the hosted migrated run at that revision. Final-source qualification after native-prefix, phase and registry changes remains pending. |
-| P6 | In Progress | 161 Python/Node/C interface drivers, inputs and guides move under native, CLI, Board, SQL, serving, installation and deployment owners. Import roots, generated fault wrappers, nested capacity invocations, Node imports, build/task callers and contract validators follow the move. Fast (30) and compiled contract (18) scopes pass locally. The remaining native fixtures now use 53 explicit shared modules across domain owners, including embedded gRPC descriptors and generated provider-root paths. Integration probes and all nine provider executables compile; gRPC generation and 3,411 diagnostic outcome projections pass. Real interface/fault qualification remains pending. |
-| P7 | In Progress | 51 catalog/query drivers and SQL guides now have domain ownership, with independent SQL helpers qualified explicitly and installed fault peers kept standalone. Fast checks pass. The actual SQL aggregate passes 174 compiler ASTs, 142 plans/Arrow results, 72 unified results, 280 DDL cases, 44 DML cases and parameter controls; independent grammar and all four Lean rewrite theorems pass. Native fixtures now use explicit cross-domain modules with shared type identities. The private operation driver compiles; live domain qualification remains pending. |
-| P8 | In Progress | 49 storage/runtime drivers and shared ABI/artifact helpers move to explicit owners. Backend choices, saved operation identities and schedules are preserved. The audit places Station provisioning, delivery receipt controls and query recovery assertions with their actual semantic owners. All 30 fast checks and 23 Nix input-selection controls pass. All 109 remaining Zig files move, provider-backed page/growth/collection tests are classified separately from local storage, and the structural page-layout experiment belongs to performance. The final root contains only the two indexes and 12 owners. The actual local direct Table schedule passes 1,942 typed calls, including retained history, current-policy denial, exact retry and three restarts. All redistributed native scopes now pass: 34 component roots (including physical-disk tests), 14 independent fixture/codec groups and four process-fault groups. Native fault schedules include 92 WAL/Table crash boundaries, 15 collection cases and three 12-race object-publication schedules. Remaining Ursula/application qualification is pending. |
-| P9 | Completed | `f902b7a0a` separates runtime/test registration while retaining all 188 previous named steps. At committed `d326243ac`, actual Transit and SQL gateway packages build and run without test/SDK source, and disabled/missing checks reject; 23 source-invalidation controls pass. `61a63e235` partitions all 52 original aggregate edges into explicit component, fixture and fault scopes with automatic capture; all three scopes pass. Clean fast qualification passes at that commit. The [package and contract audit](../../tests/runner/package-checks.md) records all 34 standalone package owners, seven not explicitly registered as root component tests, additional Query/Fuze roots, real I/O boundaries and retained exact validator overlap. |
-| P10 | In Progress | Clean setup previously waited 466.7 seconds behind a concurrent Nix evaluation-cache reader; `7207c6f61` bypasses that mutable cache while preserving store/compiler caches. The actual clean run at `61a63e235` spends 4.1 seconds entering the shell and 26.6 seconds on 30 checks; these are scoped observations under concurrent host work, not a whole-suite benchmark. `a7734ae8d` adds a passing real isolated cache-lock/value-preservation control. `400d2b140` resolves immutable native prefixes through Zig with source/profile/target/CPU/compiler/definition and output hashes. Wrong-input/output and interrupted-build controls pass; concurrent real callers resolve the same complete set with separate records. `b6ba94208` wires SDK tasks to explicit native inputs and separates Debug/ReleaseSafe package directories. All 32 fast checks pass from clean committed source; installed Python/Node logical codecs (111 vectors each) and Go vet/race/cgo checks pass against the new paths. `e176b8b12` adds automatic preparation/packaging/provider lifecycle phases and real failure/interruption/cleanup controls. `dfa176531` adds bounded standalone compilation with per-package logs and joined cancellation. At clean `f65cc07d3`, three warm 34-package samples take 2.44–2.49 seconds with one worker and 1.21–1.24 seconds with two, under concurrent host work; these measure warm graph lookup, not cold compilation. The default remains one worker pending cold resource measurements. `4df99b21a` also fixes the real Nix lock control for hosted Nix's busy-cache fallback. `d96b28f98` composes C/C++ SDK libraries and examples in one immutable build graph with source/profile/definition controls; actual Debug packaging and all 36 clean fast checks pass. Full installed C/C++ qualification remains in progress. Final language/fault qualification, package preparation reuse, phase coverage and documentation cache decisions remain unchecked above. |
-| P11–P12 | Planned | Checklists above; no complete execution or performance qualification claimed |
+| P0 — Baseline | Collation fixtures, the independent plan fingerprint, shared HTTP cancellation and terminal logging are corrected on both comparison and candidate sources. All ordinary and browser tasks pass at `40e70d202` in [run 40441691526](https://github.com/spoke-sh/transit/actions/runs/40441691526). The run takes 98.1 elapsed / 400.4 aggregate runner minutes with partial dependency-cache reuse. | Complete. These conditions are not a warm baseline. |
+| P1 — Inventory/layout | All 1,405 original files are accounted for: 670 domain-owned files and 735 archived observations with original hashes. The root has two files and twelve owners, with no migration exceptions. The import/task audit includes dynamic SDK, example and fixture consumers. | Complete. |
+| P2 — Harness | Shared process, readiness, immutable-artifact and private-installation mechanics have real child/isolation/exit/restart controls. Drivers use one explicit import root; installed children do not inherit a test PYTHONPATH. Six SQL ports are allocated together after reproducing duplicate independent discoveries. Ursula keeps distinct admin/public ports across restart; child-process controls and the complete installed Rust SDK pass at `ab7150250`. | Complete: three warm full runs, final cold run and the corrected provider fixture's full Rust recovery task pass. The separate generic server failures remain below. |
+| P3 — Verification | Formal inputs, deterministic schedules and mutation campaigns have explicit owners. All 24 replay inputs retain their hashes. Authority/WAL/Console/Delivery and four Lean theorems pass; all 19 production mutants are detected. Native schedules retain authority/resource/delivery/scheduler/component correspondence. | Complete within the recorded finite bounds. |
+| P4 — Results/performance | Automatic records retain commands, source/toolchain identity, outcomes, bounded logs, completion and nested phases. Current workload/oracle checks execute; successful vector, typed-pipeline and frozen-file runs contain 80, 320 and 324 samples. The mutation decoder now checks the current completion envelope and preserves uncertain outcomes. | Complete execution/reconciliation. Mutation and generic server schedules remain failed; running a workload does not turn its failure into a pass. |
+| P5 — SDK ownership | All ten installed Station SDKs retain shared lifecycle/query/codec schedules and the interoperability ring; raw Go has its separate installed-client boundary. Debug/ReleaseSafe packages and immutable native inputs remain distinct. Both SDK lanes pass in all three warm samples and [cold run 40465924045](https://github.com/spoke-sh/transit/actions/runs/40465924045); the earlier browser failure remains separately attributed. | Complete: both SDK lanes pass in all four full samples. The account compares C/C++, interop and shell preparation, including slower observations. |
+| P6 — Interfaces | Native, CLI, Board, SQL, serving, Flight and deployment callers follow their owners. Real SQL clients, TLS and bootstrap receipt-loss recovery pass. The corrected relational browser schedule passes locally at the `28ad2c80e` tree; contracts, strict checks and 102 frontend tests pass. Available external profiles are recorded below. | Complete within available profiles: all seven browser tasks pass in the final cold sample. Reference deployment infrastructure remains unavailable and unqualified. |
+| P7 — Catalog/query | Compiler/oracle scopes retain 174 AST, 142 plan/Arrow, 72 unified-result, 280 DDL and 44 DML cases plus parameter controls. Current growth/interface lanes and external query lifecycle/expiry/session profiles execute through their moved owners. | Complete in the successful warm/cold samples, with separate external query evidence below. |
+| P8 — Storage/runtime | All redistributed native scopes pass: 34 component roots, 14 fixture groups, four fault groups, 92 WAL/Table crash boundaries, 15 collection cases and three 12-race object-publication schedules. Local direct Tables pass 1,942 typed calls; provider-backed growth/recovery remains separate. | Complete execution of the moved scopes in the full samples. Broader bootstrap/uncertain-operation investigation remains in #124/#173. |
+| P9 — Build boundaries | All 188 named build steps and 52 original aggregate edges are preserved. Actual runtime/gateway packages build and run without test/SDK source at `d326243ac`; disabled/missing test inputs reject and 23 Nix invalidation controls pass. All 34 standalone manifests retain their own checks. | Complete. |
+| P10 — Reuse/phases | Lazy C/C++ peer preparation reduces six installations from 24 peer compilations to ten. Matching native/package reuse, distinct profiles, automatic interop phases and two-worker package compilation are implemented. Mutable fixtures and clean production documentation builds remain isolated. | Complete: package compilation 293.8 to 153.1 seconds, peer builds 24 to ten. Whole-SDK speedup is not established; no further reuse framework is planned. |
+| P11 — Selection/resources | Reviewed formal-model and Go dependencies select their actual consumers; shared/unknown paths remain full. Rename/deletion, missing source, foreign format, omitted/duplicated tasks and child-environment controls pass. The 39-task growth lane is split 20/19 within seven jobs. Formal uses substitutes rather than a Nix archive that exceeded cache capacity. | Complete: four-CPU hosted observations, bounded two-worker package compilation and seven-job ceiling. Largest-child RSS is not aggregate peak memory. |
+| P12 — Qualification/PR | The migration audit is complete. Clean committed-source fast qualification passes all 39 groups at `49546a3f4` in 28.6 seconds of check execution, excluding clone/shell setup. The successful comparison, available external profiles and scoped corrections retain exact source identities. | Three warm and one cold full sample pass; current budgets, account and owned cleanup are complete. Submitted in [PR #186](https://github.com/spoke-sh/transit/pull/186). |
 
-The [hosted migrated run](https://github.com/spoke-sh/transit/actions/runs/40425464863)
-at `fd2adf7f0` passes formal, launchers and both SDK lanes. Its core Nix-lock
-control and experience process-import failures are repaired and locally qualified
-in `4df99b21a`. Growth fails during SQL gateway initialization; its control deadline
-is a symptom and remains under investigation. The comparison browser crash has
-an isolated HTTP-body cancellation reproducer. `4ef3ced95` repairs shared native
-and application-management body reads; all 39 client/ABI package tests pass in
-Debug and ReleaseSafe, including incomplete framing and gzip controls. The full
-local SQL session scenario also passes; this does not explain the intermittent
-hosted initialization failure or establish a successful full performance sample. A final production
-handbook build also passes locally at `f65cc07d3`.
+### Measured preparation and selection boundaries
 
-Remaining delivery is concentrated in finishing P10 artifact/preparation reuse,
-implementing and qualifying P11 dependency/resource selection, and P12's matched
-full-run measurements and close-out. P1–P8's unchecked execution items still
-require final-source qualification. Structural completion alone does not close
-these acceptance items.
+At clean `8333fdfcd`, fresh workspaces restricted to CPUs 0–3 compile all 34
+package manifests in 293.8 seconds with one worker and 153.1 with two. Child CPU
+totals are 426.9 and 422.1 seconds; largest child RSS is 544,280 and 544,396 KiB.
+This single sequential pair retains dependency caches; it does not isolate
+cache-order effects or establish aggregate peak memory or cold variance.
 
-The final PR closes the work only when the proposed structure exists, every
-required scenario has an executable owner, source-clean checks pass, retained
-evidence is intact, and measured workflow improvements preserve coverage.
+The C/C++ preparation observation falls from 140.9 to 91.9 seconds after lazy
+peer compilation; the full owning aggregate and both Document schedules pass.
+This is a setup measurement under concurrent host work, not a whole-lane speedup.
+The ten-language interop ring passes in 810.5 seconds at the `50555d3c1` tree
+with installation/pair phases; the checkout changes during that focused run, so
+it is not a clean full-suite cost sample. Keep its ordered history together.
+
+Private grants, quotas, snapshots and destructive recovery justify separate
+installations. Documentation generation measures 64.5 seconds after clearing
+generated state and 10.8 with it retained, but correct reference/search/specification
+invalidation is not established for the retained state. Keep clean production
+checks. These are bounded decisions to retain isolation, not unfinished cache work.
+
+Actual selection-aware execution at `27b8d5a97` passes four formal tasks in
+40.5 seconds and installed Go in 29.0 seconds. These manually supplied reviewed
+inputs use warm workspace artifacts; they are not hosted focused-PR timings.
+Their tasks also occur in the successful full comparison. The final selection
+uses one source-bound v1 format; missing/foreign source or policy rejects before
+children start. The runner consumes its selection variable before invoking
+applications whose strict configuration rejects unknown `TRANSIT_` settings.
+
+### Current full-run qualification
+
+All three warm samples pass every ordinary and browser task at `93503e966`.
+Each restores matching GitHub cache keys and transfers 22.01 GiB across its jobs.
+
+| Sample | Full feedback, minutes | Aggregate runner minutes | First completed lane, seconds |
+| --- | ---: | ---: | ---: |
+| [40455488048](https://github.com/spoke-sh/transit/actions/runs/40455488048) | 75.2 | 363.3 | 226 |
+| [40455490500](https://github.com/spoke-sh/transit/actions/runs/40455490500) | 82.0 | 416.1 | 205 |
+| [40455492918](https://github.com/spoke-sh/transit/actions/runs/40455492918) | 74.7 | 375.0 | 230 |
+| [Cold: 40465924045](https://github.com/spoke-sh/transit/actions/runs/40465924045), `ab7150250` | 85.7 | 463.5 | 226 |
+
+Full feedback is shorter than the successful comparison's 98.1 minutes, but its
+partial dependency-cache reuse prevents attributing the whole reduction to code.
+Aggregate cost ranges from below to above the comparison's 400.4 runner-minutes;
+there is no demonstrated consistent aggregate saving. C/C++ takes 30.5–33.2 minutes
+versus 26.8 in the comparison despite compiling fewer peers. Keep these slower
+observations alongside the controlled preparation gains. The 20–30-minute full
+feedback target remains unmet; it does not expand this branch into runtime redesign.
+
+The original [cache-miss attempt](https://github.com/spoke-sh/transit/actions/runs/40453741480)
+fails the browser's first-response assertion: HTTP 429 is a pre-dispatch refusal
+that the existing client retries identically. `28ad2c80e` instead observes the
+final response, injects one refusal, verifies identical requests within the
+unchanged three-retry bound and waits for the settled UI. Persistent refusal
+still fails. The real disk-backed schedule passes locally with 504 public
+requests. Production behavior and deadlines are unchanged. The failed run's
+unfinished jobs are cancelled; it is not a qualification sample.
+
+Replacement [cache-miss run 40459344495](https://github.com/spoke-sh/transit/actions/runs/40459344495)
+at `722ae22df` fails when Ursula exits with `Address already in use` during the
+Rust SDK's deliberate store restart. The log does not identify the socket owner.
+The pinned provider binds admin first; the fixture leaves admin ephemeral, allowing
+it to consume the selected public port. `ab7150250` allocates distinct admin/public
+ports together and preserves them across restart. Child-process collision,
+restart and occupied-endpoint controls pass, as does the complete installed Rust
+SDK task with disk recovery, HTTP/gRPC and direct catalog checks. This removes a
+reproduced self-collision mechanism without proving the hosted socket's owner.
+The failed cold attempt cannot qualify P12.3.
+
+The final implementation [cache-miss run 40465924045](https://github.com/spoke-sh/transit/actions/runs/40465924045)
+passes every ordinary lane, all seven browser tasks and the aggregate gate at
+`ab7150250`, with zero GitHub restored bytes and upstream Nix substitutes available. It includes the browser transport-fault control, stricter
+cost reporting and listener correction. The warm samples retain their earlier
+source and do not claim these added controls ran there. Later documentation and
+reporting-budget edits retain that implementation-source boundary.
+
+The active budget allows 100 elapsed / 500 aggregate runner minutes for warm
+runs and 105 / 560 for cold, with 27 GiB / zero GitHub restore respectively.
+These initial reporting thresholds use the largest successful observation in
+each profile plus 20% headroom, rounded up to five minutes or one GiB. They are
+separate from improvement targets and correctness gates. One cold sample does
+not establish cold variance. The old 33-task limits retain their historical source.
+
+The [cache-seeding attempt](https://github.com/spoke-sh/transit/actions/runs/40453738558)
+also fails: Station bootstrap completes, but the initial direct Table total does
+not reach its expected value within the existing deadline. Its private hosted
+installation is not in the uploaded artifacts; the available task log establishes
+the failure, not its cause. Remaining jobs are cancelled after preserving completed
+results. This run had partial cache reuse and never qualified as a warm sample.
+
+The repository reports a 10 GB Actions-cache limit. One generation of the former
+four Nix archives totals approximately 10.5 GiB before Zig or duplicate branches.
+Formal now uses upstream substitutes; three Nix archives plus the Zig cache occupy
+about 9.5 GiB in the observed generation. No quota or runner class changes.
+Future unrelated cache keys can still evict entries. The reporter requires matching
+run-source task/lane/browser identities; the old 33-task budget never qualified
+this expanded inventory. The new limits use the measured eight-lane inventory. Missing, conflicting or echoed policy text cannot
+establish warmth.
+
+### External and manual execution limits
+
+Available external profiles pass with their own sources and scopes:
+
+| Profile | Executed evidence |
+| --- | --- |
+| Application | [40441787577](https://github.com/spoke-sh/transit/actions/runs/40441787577), `8333fdfcd`; two stages, 576.5 seconds |
+| Discovery | [40441786385](https://github.com/spoke-sh/transit/actions/runs/40441786385), `8333fdfcd`; all 13 stages, 2,172.3 seconds |
+| Reactive lifecycle | [40445518654](https://github.com/spoke-sh/transit/actions/runs/40445518654), `04d37829a`; 519.8 seconds |
+| Query | Clean local `c78be2f79`; lifecycle 67.2 seconds, disk expiry/restart 193.6 and SQL sessions 401.5 |
+| External SDK | Local `87ce7b164`; Python/Node fault stages, 47.5 seconds |
+
+The generic installed-server task still fails locally on bootstrap/confirmation
+timeouts. Corrected mutation drivers retain 17 default and five wide-profile
+samples before `SqlOutcomeUnknown`; those complete schedules remain failed.
+Private original installations are preserved and uncertain writes are never
+resubmitted as replacements. These symptoms overlap the broader investigations
+in [#124](https://github.com/spoke-sh/transit/issues/124) and
+[#173](https://github.com/spoke-sh/transit/issues/173); identical causes are not
+established. The hosted initial-total failure occurs after bootstrap and must
+not be described as the diagnosed bootstrap-reopen failure in #173.
+
+Successful vector, pipeline, file-query, page-layout, console and offered-load
+workloads establish their recorded scopes only; they do not recalibrate all
+historical performance budgets or qualify unavailable reference infrastructure.
+No actor/data-path optimization or deadline extension is added to hide these
+outcomes. Required failed or incomplete full runs remain ineligible for P12.3.
+
+Owned cleanup is complete: obsolete measurement branches, temporary comparison
+worktrees and successful clean clones are removed. The comparison source branch
+is retained as a reproducibility reference. User notes, the original unpublished
+SQL/storage branch, unrelated world-simulator worktrees and private failed
+installations remain intact. Reusable build caches and diagnostic run records
+remain available for review.
+
+[PR #186](https://github.com/spoke-sh/transit/pull/186) submits the completed
+workflow plan, including the required samples, calibration and qualification account. The 20–30-minute
+full feedback target remains unmet; re-measure live SDK/query/runtime costs after
+the storage cutover, preserving Station's application/effect coverage. This does
+not reopen completed workflow implementation or close the broader runtime issues.

@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "run_id": 40465924045,
+  "revision": "ab715025057a5949c76014a396f6f3f83a038278",
+  "url": "https://github.com/spoke-sh/transit/actions/runs/40465924045",
+  "run_attempt": 1,
+  "cache_profile": "cold",
+  "budget": null,
+  "inventory": {
+    "sha256": "774c79bc32565ed2c797e1e8bc8e6770ef5bc1119c9c53e60c63627cf1b1e86b",
+    "ordinary_tasks": 103,
+    "ordinary_lanes": 8,
+    "browser_tasks": 7
+  },
+  "budget_inventory_matches": false,
+  "first_completed_lane": {
+    "name": "formal",
+    "seconds": 226.0
+  },
+  "conclusion": "success",
+  "status": "measured",
+  "missing_lanes": [],
+  "duplicate_lanes": [],
+  "feedback_seconds": 5141.0,
+  "aggregate_runner_seconds": 27809.0,
+  "restored_cache_bytes": 0,
+  "lanes": [
+    {
+      "name": "launchers",
+      "conclusion": "success",
+      "seconds": 1494.0,
+      "phases": {
+        "setup": 603.0,
+        "checks_including_builds": 888.0,
+        "cleanup": 1.0
+      },
+      "cache": {
+        "restored_bytes": 0,
+        "nix_policy": "github",
+        "mode": "cold"
+      }
+    },
+    {
+      "name": "bindings-2",
+      "conclusion": "success",
+      "seconds": 4374.0,
+      "phases": {
+        "setup": 638.0,
+        "checks_including_builds": 3732.0,
+        "cleanup": 2.0
+      },
+      "cache": {
+        "restored_bytes": 0,
+        "nix_policy": "github",
+        "mode": "cold"
+      }
+    },
+    {
+      "name": "interfaces",
+      "conclusion": "success",
+      "seconds": 4629.0,
+      "phases": {
+        "setup": 918.0,
+        "checks_including_builds": 3707.0,
+        "cleanup": 1.0
+      },
+      "cache": {
+        "restored_bytes": 0,
+        "nix_policy": "github",
+        "mode": "cold"
+      }
+    },
+    {
+      "name": "formal",
+      "conclusion": "success",
+      "seconds": 200.0,
+      "phases": {
+        "setup": 43.0,
+        "checks_including_builds": 154.0,
+        "cleanup": 1.0
+      },
+      "cache": {
+        "restored_bytes": 0,
+        "nix_policy": "substitutes",
+        "mode": "cold"
+      }
+    },
+    {
+      "name": "core",
+      "conclusion": "success",
+      "seconds": 3616.0,
+      "phases": {
+        "setup": 752.0,
+        "checks_including_builds": 2860.0,
+        "cleanup": 2.0
+      },
+      "cache": {
+        "restored_bytes": 0,
+        "nix_policy": "github",
+        "mode": "cold"
+      }
+    },
+    {
+      "name": "bindings-1",
+      "conclusion": "success",
+      "seconds": 5109.0,
+      "phases": {
+        "setup": 618.0,
+        "checks_including_builds": 4487.0,
+        "cleanup": 2.0
+      },
+      "cache": {
+        "restored_bytes": 0,
+        "nix_policy": "github",
+        "mode": "cold"
+      }
+    },
+    {
+      "name": "growth",
+      "conclusion": "success",
+      "seconds": 3263.0,
+      "phases": {
+        "setup": 766.0,
+        "checks_including_builds": 2492.0,
+        "cleanup": 2.0
+      },
+      "cache": {
+        "restored_bytes": 0,
+        "nix_policy": "github",
+        "mode": "cold"
+      }
+    },
+    {
+      "name": "experience",
+      "conclusion": "success",
+      "seconds": 5101.0,
+      "phases": {
+        "setup": 645.0,
+        "checks_including_builds": 4451.0,
+        "cleanup": 2.0
+      },
+      "cache": {
+        "restored_bytes": 0,
+        "nix_policy": "github",
+        "mode": "cold"
+      }
+    }
+  ],
+  "budget_met": false,
+  "reporter_revision": "49546a3f4a9fd02f37892a27d7c8ce9063f6f4b9",
+  "unavailable_source_inventory": null,
+  "unavailable_job_logs": []
+}

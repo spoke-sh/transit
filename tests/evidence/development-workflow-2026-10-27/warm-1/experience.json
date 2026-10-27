@@ -1,0 +1,301 @@
+[
+  {
+    "lane": "experience",
+    "task": "transit-board::check",
+    "log": "001.log",
+    "command": [
+      "just",
+      "transit-board::check"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 3075,
+    "diagnostics": {
+      "bytes": 11143,
+      "retained_bytes": 11143,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "001.log",
+        "bytes": 11143,
+        "sha256": "eeced43b17b6a3bfef7e764fc15bec7e0a47421fa01407e981336d049c65b4d3"
+      }
+    },
+    "seconds": 126.16
+  },
+  {
+    "lane": "experience",
+    "task": "transit-docs::check",
+    "log": "002.log",
+    "command": [
+      "just",
+      "transit-docs::check"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 4809,
+    "diagnostics": {
+      "bytes": 1720,
+      "retained_bytes": 1720,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "002.log",
+        "bytes": 1720,
+        "sha256": "bfbfb6c71e9ffeda7bac653ac409b2cc50b7c340a54fc399057840ebbf67be0a"
+      }
+    },
+    "seconds": 56.67
+  },
+  {
+    "lane": "experience",
+    "task": "bindings::node-check",
+    "log": "003.log",
+    "command": [
+      "just",
+      "bindings::node-check"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 5069,
+    "diagnostics": {
+      "bytes": 4797,
+      "retained_bytes": 4797,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "003.log",
+        "bytes": 4797,
+        "sha256": "d57a46502e12ce6c0ab14fb506656f08ad60aeaffcdedab5a481e4df57527b5b"
+      }
+    },
+    "seconds": 13.92
+  },
+  {
+    "lane": "experience",
+    "task": "test::observability",
+    "log": "004.log",
+    "command": [
+      "just",
+      "test::observability"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 5820,
+    "diagnostics": {
+      "bytes": 3875,
+      "retained_bytes": 3875,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "004.log",
+        "bytes": 3875,
+        "sha256": "99b03bb4d9c677786bbf03780f41bc365cf4216d9f094d88a1d10b9c287794a1"
+      }
+    },
+    "seconds": 42.71
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-logging",
+    "log": "005.log",
+    "command": [
+      "just",
+      "test::server-logging"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 6046,
+    "diagnostics": {
+      "bytes": 4027,
+      "retained_bytes": 4027,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "005.log",
+        "bytes": 4027,
+        "sha256": "62780da70dfcc5017f7bbf9d821ef6d8afe21a78d4d06eeb6e000e6a1bac6cb9"
+      }
+    },
+    "seconds": 371.49
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-direct-tables",
+    "log": "006.log",
+    "command": [
+      "just",
+      "test::server-direct-tables"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 6724,
+    "diagnostics": {
+      "bytes": 4496,
+      "retained_bytes": 4496,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "006.log",
+        "bytes": 4496,
+        "sha256": "9701a0e7d28c58823c31fc398b396ed22d5ec029874f130dcacc1bbe8db37bf1"
+      }
+    },
+    "seconds": 60.21
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-direct-faults",
+    "log": "007.log",
+    "command": [
+      "just",
+      "test::server-direct-faults"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 7336,
+    "diagnostics": {
+      "bytes": 4024,
+      "retained_bytes": 4024,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "007.log",
+        "bytes": 4024,
+        "sha256": "c384ae9b7041174d11c52050e21adbe01ba6c751c36f009feada4480a229b768"
+      }
+    },
+    "seconds": 25.21
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-sql-lifetimes",
+    "log": "008.log",
+    "command": [
+      "just",
+      "test::server-sql-lifetimes"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 16183,
+    "diagnostics": {
+      "bytes": 4142,
+      "retained_bytes": 4142,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "008.log",
+        "bytes": 4142,
+        "sha256": "e3a680b116e9ed891a005168579bce80270231dbe3a36d6fcdbcb12d951eb767"
+      }
+    },
+    "seconds": 51.2
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-sql",
+    "log": "009.log",
+    "command": [
+      "just",
+      "test::server-sql"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 16744,
+    "diagnostics": {
+      "bytes": 4710,
+      "retained_bytes": 4710,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "009.log",
+        "bytes": 4710,
+        "sha256": "ac2160d1be2f709e565798b58caf6e8c5e59e19baf7459bfd09a54aca3a5251a"
+      }
+    },
+    "seconds": 56.11
+  },
+  {
+    "lane": "experience",
+    "task": "test::server-sql-local",
+    "log": "010.log",
+    "command": [
+      "just",
+      "test::server-sql-local"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 33375,
+    "diagnostics": {
+      "bytes": 4405,
+      "retained_bytes": 4405,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "010.log",
+        "bytes": 4405,
+        "sha256": "786b1d1093b4e44f5cb6a8f77cdb633f359be0a37b2b7a31da42f6ce99e22590"
+      }
+    },
+    "seconds": 632.26
+  },
+  {
+    "lane": "experience",
+    "task": "transit-board::test",
+    "log": "011.log",
+    "command": [
+      "just",
+      "transit-board::test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 35439,
+    "diagnostics": {
+      "bytes": 4000,
+      "retained_bytes": 4000,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "011.log",
+        "bytes": 4000,
+        "sha256": "8ec5f6af252ca3eb20021d3cb7c1e31539eb4d50b2fa65859ec611a26015b4b5"
+      }
+    },
+    "seconds": 11.07
+  },
+  {
+    "lane": "experience",
+    "task": "transit-board::query-test",
+    "log": "012.log",
+    "command": [
+      "just",
+      "transit-board::query-test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 35776,
+    "diagnostics": {
+      "bytes": 4545,
+      "retained_bytes": 4545,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "012.log",
+        "bytes": 4545,
+        "sha256": "d7cb46b29f720641495f1dbd3bab1a05dfffd92f9b62ba908a2d416c061dc3c3"
+      }
+    },
+    "seconds": 67.11
+  },
+  {
+    "lane": "experience",
+    "task": "launchers::local::test-station",
+    "log": "013.log",
+    "command": [
+      "just",
+      "launchers::local::test-station"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 37010,
+    "diagnostics": {
+      "bytes": 972,
+      "retained_bytes": 972,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "013.log",
+        "bytes": 972,
+        "sha256": "f886d5b2b79c5fb45e38ff676d9098ec2192eb66b1f9d5ad87ea622b5db62469"
+      }
+    },
+    "seconds": 83.03
+  }
+]

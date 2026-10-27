@@ -30,8 +30,18 @@ requires both a client `--native-prefix` and an explicit `--node`; the Rust
 lifetime driver requires explicit node, CLI, library and installed artifacts.
 Neither driver infers these inputs from the last contents of `zig-out/`.
 
+C/C++ installations compile an HTTP, gRPC or Document peer when that installation
+first invokes it. Each peer still compiles against private installed headers and
+libraries; unrelated schedules do not compile unused peers. Station/header and
+incompatible-native checks remain in each installation. Preparation and peer
+compilation have separate automatic phase records.
+
 Query/storage and interface fixtures own their semantic assertions. The SDK
 installers expose those same schedules to language callers; a codec-only check
 does not establish live authorization, uncertain-call recovery or disk behavior.
 Use [test contribution rules](../AGENTS.md) and [SDK instructions](AGENTS.md)
 before changing these boundaries.
+
+[binding_port_fixture.py](binding_port_fixture.py) is a retained adversarial peer
+with no current executable consumer. It does not contribute to the registered
+host-boundary proof; any reuse requires current contract and task registration.

@@ -113,15 +113,15 @@ pub fn runService(init: std.process.Init, comptime service: []const u8, lifecycl
     runtime.start();
     defer runtime.stop();
     if (configuration_error) |err| {
-        runtime.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
+        runtime.terminalEvent(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
         return 1;
     }
     runtime.event(.{ .name = "service.starting", .level = lifecycle_level });
     body(init, &runtime) catch |err| {
-        runtime.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
+        runtime.terminalEvent(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
         return 1;
     };
-    runtime.event(.{ .name = "service.stopped", .level = lifecycle_level });
+    runtime.terminalEvent(.{ .name = "service.stopped", .level = lifecycle_level });
     return 0;
 }
 
@@ -141,6 +141,10 @@ pub const Runtime = struct {
     busy: std.atomic.Value(bool) = .init(false),
     mutex: std.Io.Mutex = .init,
     queue: [128]Record = undefined,
+    // runService has one terminal publisher, after the body has joined its
+    // producers. Its final record must not race the writer's queue try-lock.
+    terminal_record: Record = undefined,
+    terminal_ready: std.atomic.Value(bool) = .init(false),
     head: usize = 0,
     len: usize = 0,
     rate_second: i64 = 0,
@@ -171,7 +175,7 @@ pub const Runtime = struct {
             const until = std.Io.Clock.awake.now(self.io).toMilliseconds() + 200;
             while (std.Io.Clock.awake.now(self.io).toMilliseconds() < until) {
                 if (self.mutex.tryLock()) {
-                    const empty = self.len == 0 and !self.busy.load(.acquire);
+                    const empty = self.len == 0 and !self.terminal_ready.load(.acquire) and !self.busy.load(.acquire);
                     self.mutex.unlock(self.io);
                     if (empty) break;
                 }
@@ -212,12 +216,23 @@ pub const Runtime = struct {
         self.emit(.service, null, null, value);
     }
 
+    fn terminalEvent(self: *Runtime, value: Event) void {
+        const record = self.encode(.service, null, null, value) orelse return;
+        self.terminal_record = record;
+        self.terminal_ready.store(true, .release);
+    }
+
     fn enabled(self: *const Runtime, level: Level) bool {
         return self.config.level != .off and level != .off and @backingInt(level) >= @backingInt(self.config.level);
     }
 
     fn emit(self: *Runtime, scope: Scope, context: ?Context, duration_ns: ?u64, value: Event) void {
-        if (!self.enabled(value.level)) return;
+        const record = self.encode(scope, context, duration_ns, value) orelse return;
+        self.enqueue(record, @backingInt(value.level) >= @backingInt(Level.warn));
+    }
+
+    fn encode(self: *Runtime, scope: Scope, context: ?Context, duration_ns: ?u64, value: Event) ?Record {
+        if (!self.enabled(value.level)) return null;
         var record: Record = .{};
         var output: std.Io.Writer = .fixed(&record.bytes);
         const now = std.Io.Clock.real.now(self.io).toMilliseconds();
@@ -241,14 +256,14 @@ pub const Runtime = struct {
         }, .{ .emit_null_optional_fields = false }, &output);
         encoded catch {
             _ = self.dropped.fetchAdd(1, .monotonic);
-            return;
+            return null;
         };
         output.writeByte('\n') catch {
             _ = self.dropped.fetchAdd(1, .monotonic);
-            return;
+            return null;
         };
         record.len = output.end;
-        self.enqueue(record, @backingInt(value.level) >= @backingInt(Level.warn));
+        return record;
     }
 
     fn textEvent(self: *Runtime, output: *std.Io.Writer, now: i64, scope: Scope, duration_ns: ?u64, context: ?Context, value: Event) !void {
@@ -297,7 +312,13 @@ pub const Runtime = struct {
     fn pop(self: *Runtime) ?Record {
         if (!self.mutex.tryLock()) return null;
         defer self.mutex.unlock(self.io);
-        if (self.len == 0) return null;
+        if (self.len == 0) {
+            if (!self.terminal_ready.swap(false, .acq_rel)) return null;
+            // Under the queue lock, so stop cannot observe an empty queue
+            // between taking the terminal record and beginning its write.
+            self.busy.store(true, .release);
+            return self.terminal_record;
+        }
         const result = self.queue[self.head];
         self.head = (self.head + 1) % self.queue.len;
         self.len -= 1;
@@ -444,6 +465,44 @@ test "failed response write cannot erase known receipt; restart resets local cou
     const restarted = Runtime.init(std.testing.io, "test", .{ .format = .json });
     try std.testing.expect(!std.mem.eql(u8, &runtime.instance, &restarted.instance));
     try std.testing.expectEqual(0, restarted.snapshot(.server).outcomes[@backingInt(Outcome.failed)]);
+}
+
+test "terminal service record survives queue contention and drains once" {
+    const io = std.testing.io;
+    var temporary = std.testing.tmpDir(.{});
+    defer temporary.cleanup();
+    for ([_]Format{ .json, .text }) |format| {
+        const file = try temporary.dir.createFile(io, "terminal.log", .{});
+        defer file.close(io);
+        var runtime = Runtime.init(io, "test", .{ .format = format });
+        runtime.sink = file;
+        runtime.event(.{ .name = "service.starting" });
+        try std.testing.expect(runtime.mutex.tryLock());
+        runtime.event(.{ .name = "ordinary.contended" });
+        runtime.terminalEvent(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = "ExpectedConfig" });
+        runtime.mutex.unlock(io);
+        try std.testing.expectEqual(1, runtime.dropped.load(.monotonic));
+        try std.testing.expect(runtime.terminal_ready.load(.acquire));
+        runtime.start();
+        runtime.stop();
+        try std.testing.expect(!runtime.terminal_ready.load(.acquire));
+        const output = try temporary.dir.readFileAlloc(io, "terminal.log", std.testing.allocator, .limited(8192));
+        defer std.testing.allocator.free(output);
+        try std.testing.expectEqual(1, std.mem.count(u8, output, "service.failed"));
+        try std.testing.expect(std.mem.indexOf(u8, output, "service.starting").? < std.mem.indexOf(u8, output, "service.failed").?);
+        try std.testing.expect(std.mem.indexOf(u8, output, "ordinary.contended") == null);
+    }
+}
+
+test "terminal service record retains filtering and oversized record bounds" {
+    var runtime = Runtime.init(std.testing.io, "test", .{ .level = .off });
+    runtime.terminalEvent(.{ .name = "service.failed", .level = .err });
+    try std.testing.expect(!runtime.terminal_ready.load(.acquire));
+    runtime.config.level = .info;
+    const message: [4096]u8 = @splat('x');
+    runtime.terminalEvent(.{ .name = "service.failed", .message = &message, .level = .err });
+    try std.testing.expect(!runtime.terminal_ready.load(.acquire));
+    try std.testing.expectEqual(1, runtime.dropped.load(.monotonic));
 }
 
 test "periodic metrics honor log level while measurement continues" {

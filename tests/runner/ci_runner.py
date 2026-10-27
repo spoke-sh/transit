@@ -1,5 +1,6 @@
 """CI must propagate failures and keep local/hosted task selection aligned."""
 import json
+import base64
 import os
 from pathlib import Path
 import subprocess
@@ -11,9 +12,9 @@ import time
 import yaml
 from ci import LANES, ROOT, SUITE
 from capture import verify
-from ci_select import select
+from ci_select import matrix, select
 from ci_clean import profile
-from ci_cost import summarize
+from ci_cost import inventory_identity, source_inventory, summarize
 from external_profiles import DISCOVERY
 from packages import discover
 from task_coverage import read_recipes
@@ -103,23 +104,34 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
 
 
 def main():
+    # Fixture runners must not inherit the hosted job's source-bound selection.
+    os.environ.pop("TRANSIT_CI_SELECTION_PATH", None)
     clean_runner()
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
-    selected = [row["lane"] for row in workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]]
+    strategy = workflow["jobs"]["checks"]["strategy"]
+    assert strategy["matrix"] == "${{ fromJSON(needs.plan.outputs.matrix) }}"
+    assert strategy["max-parallel"] == SUITE["selection"]["max_parallel"]
+    workers = matrix({task for lane in SUITE["tiers"]["ordinary"] for task in LANES[lane]})
+    selected = [row["lane"] for row in workers]
     assert selected == SUITE["tiers"]["ordinary"]
     assert SUITE["tiers"]["bindings"] == ["bindings-1", "bindings-2"]
     assert set(SUITE["tiers"]["bindings"]) <= set(selected)
     assert workflow["jobs"]["checks"]["strategy"]["fail-fast"] is False
     steps = workflow["jobs"]["checks"]["steps"]
     reclaim = next(step for step in steps if step.get("name") == "Reclaim unused hosted SDKs")
-    assert reclaim["if"] == "runner.environment == 'github-hosted'"
+    assert reclaim["if"] == "runner.environment == 'github-hosted' && matrix.cache != 'formal'"
     # A primary cache hit can fill the disk during extraction, before the shell
-    # starts. Reclaim on all hosted runs and before either restore or build.
+    # starts. Large hosted lanes reclaim before either restore or build. Formal
+    # uses binary substitutes and does not restore an unrelated SDK closure.
     for name in ("Restore Nix store", "Prepare development shell"):
         assert steps.index(reclaim) < next(i for i, step in enumerate(steps) if step.get("name") == name)
     names = [step.get("name") for step in steps]
     assert names.index("Prepare development shell") < names.index("Save Nix store")
     assert names.index("Save Nix store") < names.index("Run ${{ matrix.lane }} checks")
+    for name in ('Restore Nix store', 'Save Nix store'):
+        assert "matrix.cache != 'formal'" in next(step['if'] for step in steps if step.get('name') == name)
+    assert "github.event_name == 'workflow_dispatch' && github.run_id" in workflow['concurrency']['group']
+    assert workflow['concurrency']['cancel-in-progress'] is True
     artifacts = next(step for step in steps if step.get("name") == "Preserve task timings and completion evidence")
     assert ".cache/m9/station-local-readiness.json" in artifacts["with"]["path"].splitlines()
     assert ".cache/checks/*.json" in artifacts["with"]["path"].splitlines()
@@ -127,18 +139,18 @@ def main():
     assert ".cache/native-artifacts/" in artifacts["with"]["path"].splitlines()
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
-    assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"
+    assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.documentation == 'true'"
+    assert workflow["jobs"]["checks"]["if"] == "needs.plan.outputs.checks == 'true'"
     assert "transit-docs::check" in LANES["experience"]
-    matrix = workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]
-    for row in matrix:
+    for row in workers:
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
     assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": []}
     assert LANES["formal"] == ["test::model", "test::wal-model", "test::model-delivery",
                                "test::console-model", "test::sql-rewrites"]
     assert ".cache/verification/wal-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/console-model/" in artifacts["with"]["path"].splitlines()
-    for cache in {row["cache"] for row in matrix}:
-        assert sum(row["cache_writer"] for row in matrix if row["cache"] == cache) == 1
+    for cache in {row["cache"] for row in workers}:
+        assert sum(row["cache_writer"] for row in workers if row["cache"] == cache) == (0 if cache == 'formal' else 1)
     events = workflow.get("on", workflow.get(True))
     assert events["push"]["branches"] == ["main"]
     assert {"pull_request", "merge_group", "workflow_dispatch"} <= events.keys()
@@ -152,16 +164,46 @@ def main():
     reclaim = next(step for step in fault_steps if step.get('name') == 'Reclaim unused hosted SDKs')
     assert reclaim['if'] == "runner.environment == 'github-hosted'"
     assert fault_steps.index(reclaim) < next(i for i, step in enumerate(fault_steps) if step.get('name') == 'Restore Nix store')
-    budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 300 * len(selected) + 1}
+    budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 300 * len(selected) + 1,
+               "inventory": inventory_identity()}
     sample = dict(id=1, head_sha='fixture', html_url='https://example.invalid', conclusion='success', created_at='2026-01-01T00:00:00Z')
     job = dict(name='core', conclusion='success', started_at='2026-01-01T00:00:01Z', completed_at='2026-01-01T00:00:10Z', steps=[])
-    log = 'core\tCache hit for: nix-key\ncore\tCache Size: ~0 MB (100 B)\ncore\tCache hit for: zig-key\ncore\tCache Size: ~0 MB (200 B)\n'
+    log = ('core\t  primary-key: nix-key\ncore\tCache hit for: nix-key\ncore\tCache Size: ~0 MB (100 B)\n'
+           'core\t  key: zig-key\ncore\tCache hit for: zig-key\ncore\tCache Size: ~0 MB (200 B)\n')
     full_jobs = [dict(job, name=name) for name in selected]
     full_log = ''.join(log.replace('core\t', name + '\t') for name in selected)
     measured = summarize(sample, full_jobs, full_log, budgets)
     assert measured['budget_met'] and measured['restored_cache_bytes'] == 300 * len(selected)
     assert measured['feedback_seconds'] == 10 and measured['aggregate_runner_seconds'] == 9 * len(selected)
     assert not measured['missing_lanes'] and not measured['duplicate_lanes']
+    assert measured['first_completed_lane'] == dict(name=selected[0], seconds=10)
+    assert measured['budget_inventory_matches'] and measured['inventory']['ordinary_tasks'] == 103
+    for old_inventory in (None, dict(inventory_identity(), ordinary_tasks=33),
+                          dict(inventory_identity(), sha256='foreign')):
+        stale = summarize(sample, full_jobs, full_log, dict(budgets, inventory=old_inventory))
+        assert stale['status'] == 'measured' and not stale['budget_met']
+        assert stale['budget'] is None and not stale['budget_inventory_matches']
+    changed = json.loads(json.dumps(SUITE))
+    changed['lanes']['browser'][0] = 'test::different-browser-scope'
+    assert inventory_identity(changed)['sha256'] != inventory_identity()['sha256']
+    assert not summarize(sample, full_jobs, full_log, dict(budgets, inventory=inventory_identity(changed)))['budget_met']
+    def source_api(path):
+        assert path == 'contents/tests/runner/suite.json?ref=measured-source'
+        return dict(encoding='base64', content=base64.b64encode(json.dumps(changed).encode()).decode())
+    historical = source_inventory('measured-source', source_api)
+    other_source = summarize(sample, full_jobs, full_log, budgets, suite=historical)
+    assert other_source['status'] == 'measured' and not other_source['budget_met']
+    assert other_source['inventory'] == inventory_identity(changed)
+    unavailable = summarize(sample, full_jobs, full_log, budgets, suite=None)
+    assert unavailable['status'] == 'inconclusive' and unavailable['inventory'] is None
+    assert not unavailable['budget_met'] and unavailable['budget'] is None
+    for invalid in (dict(SUITE, version=999), dict(SUITE, tiers={'ordinary': ['core', 'core']})):
+        try:
+            source_inventory('measured-source', lambda path: dict(encoding='base64', content=base64.b64encode(json.dumps(invalid).encode()).decode()))
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError('Foreign or duplicated source inventory qualified')
     assert not summarize(sample, full_jobs, '', budgets)['budget_met']
     assert not summarize(sample, [dict(job, conclusion='failure'), *full_jobs[1:]], full_log, budgets)['budget_met']
     assert not summarize(sample, [dict(job, completed_at=None), *full_jobs[1:]], full_log, budgets)['budget_met']
@@ -171,11 +213,38 @@ def main():
     cold_budget = dict(feedback_seconds=20, aggregate_runner_seconds=10 * len(selected), restored_cache_bytes=0)
     cold = summarize(sample, full_jobs, cold_log, dict(budgets, cold=cold_budget))
     assert cold['budget_met'] and cold['budget'] == cold_budget and cold['cache_profile'] == 'cold'
-    assert measured['budget'] == budgets and measured['cache_profile'] == 'warm'
+    assert measured['budget'] == {key: value for key, value in budgets.items() if key != 'inventory'} and measured['cache_profile'] == 'warm'
     fallback_log = full_log.replace('Cache hit for: zig-key', 'Cache hit for restore-key: zig-key')
     fallback = summarize(sample, full_jobs, fallback_log, budgets)
     assert fallback['restored_cache_bytes'] == 300 * len(selected) and fallback['cache_profile'] == 'miss-or-partial'
     assert fallback['status'] == 'measured' and not fallback['budget_met']
+    # The pinned action emits the same restored-key message on a prefix hit;
+    # no explicit "restore-key" marker is needed to establish a mismatch.
+    silent_fallback = full_log.replace('Cache hit for: zig-key', 'Cache restored from key: zig-other')
+    assert summarize(sample, full_jobs, silent_fallback, budgets)['cache_profile'] == 'miss-or-partial'
+    no_keys = full_log.replace('primary-key: nix-key', 'No requested Nix key').replace('key: zig-key', 'No requested Zig key')
+    assert summarize(sample, full_jobs, no_keys, budgets)['cache_profile'] == 'unknown'
+    assert not summarize(sample, full_jobs, no_keys, budgets)['budget_met']
+    # Formal deliberately uses Nix binary substitutes; only its configured Zig
+    # cache can be warm. An undeclared missing Nix restore remains incomplete.
+    formal_log = 'formal\tCI Nix cache policy: substitutes\nformal\t  key: zig-key\nformal\tCache hit for: zig-key\nformal\tCache Size: ~0 MB (200 B)\n'
+    substitutes_log = full_log.replace(log.replace('core\t', 'formal\t'), formal_log)
+    substitutes = summarize(sample, full_jobs, substitutes_log, budgets)
+    assert substitutes['cache_profile'] == 'warm' and substitutes['budget_met']
+    assert substitutes['restored_cache_bytes'] == 300 * len(selected) - 100
+    assert next(row for row in substitutes['lanes'] if row['name'] == 'formal')['cache']['nix_policy'] == 'substitutes'
+    echoed = ('formal\tRecord dependency cache mode\t2026-10-27T05:28:48.4628028Z '
+              '\x1b[36;1mecho "CI Nix cache policy: $NIX_CACHE"\x1b[0m\n')
+    hosted_policy = substitutes_log.replace('formal\tCI Nix cache policy: substitutes',
+        'formal\tRecord dependency cache mode\t2026-10-27T05:28:48.4771360Z CI Nix cache policy: substitutes')
+    assert summarize(sample, full_jobs, echoed + hosted_policy, budgets)['cache_profile'] == 'warm'
+    assert not summarize(sample, full_jobs, hosted_policy.replace('policy: substitutes', 'policy: unknown'), budgets)['budget_met']
+    conflicting = hosted_policy + 'formal\tCI Nix cache policy: github\n'
+    assert not summarize(sample, full_jobs, conflicting, budgets)['budget_met']
+    undeclared = summarize(sample, full_jobs, substitutes_log.replace('CI Nix cache policy: substitutes', 'No policy'), budgets)
+    assert undeclared['cache_profile'] == 'mixed' and not undeclared['budget_met']
+    nix_miss_log = substitutes_log.replace('formal\tCI Nix cache policy: substitutes', 'formal\tCould not find a cache.')
+    assert next(row for row in summarize(sample, full_jobs, nix_miss_log, budgets)['lanes'] if row['name'] == 'formal')['cache']['mode'] == 'miss-or-partial'
     # Match an actual full hosted selection: the alternative docs-only job is
     # skipped, but every required matrix lane must still execute successfully.
     docs_skipped = dict(job, name='Documentation site', conclusion='skipped')
@@ -215,9 +284,10 @@ def main():
                   ["tests/evidence/verification/../suite.json"],
                   ["tests/performance/query/budgets/record/budgets.json"],
                   ["tests/verification/invariants.json"], ["tests/runner/suite.json"],
-                  ["tests/verification/models/Wal.tla"],
                   ["tests/README.md", "packages/zig/transit-core/src/lib.zig"]):
         assert select(paths)["full"], paths
+    assert select(["tests/verification/models/Wal.tla"])["lanes"] == {"formal": ["test::wal-model"]}
+    assert select(["sdks/go/client/types.go"])["lanes"] == {"bindings-2": ["bindings::go-sdk-test"]}
     for event in ("push", "merge_group", "workflow_dispatch", "unknown"):
         assert select(["README.md"], event)["full"]
     # A moved source file must not become a docs-only diff. Check Git path
@@ -244,16 +314,19 @@ def main():
     # Exercise the actual shell gate: skipped, cancelled and missing evidence
     # cannot pass merely because a dependent job did not execute.
     gate_script = gate["steps"][0]["run"]
-    for plan in ("success", "failure", "cancelled", "skipped", ""):
-        for full in ("true", "false", ""):
+    for checks, documentation in (("true", "false"), ("false", "true"), ("true", "true"),
+                                  ("false", "false"), ("", "true"), ("true", "")):
+        for plan in ("success", "failure", "cancelled", "skipped", ""):
             for result in ("success", "failure", "cancelled", "skipped", ""):
                 for docs in ("success", "failure", "cancelled", "skipped", ""):
                     passed = subprocess.run(["bash", "-e", "-c", gate_script], env=os.environ | {
-                        "PLAN": plan, "FULL": full, "RESULT": result, "DOCS": docs,
+                        "PLAN": plan, "CHECKS": checks, "DOCUMENTATION": documentation,
+                        "RESULT": result, "DOCS": docs,
                     }).returncode == 0
-                    assert passed == (plan == "success" and (full, result, docs) in {
-                        ("true", "success", "skipped"), ("false", "skipped", "success"),
-                    }), (plan, full, result, docs)
+                    assert passed == (plan == "success" and (checks, documentation) != ("false", "false")
+                                      and (checks, result) in {("true", "success"), ("false", "skipped")}
+                                      and (documentation, docs) in {("true", "success"), ("false", "skipped")}), (
+                                          plan, checks, documentation, result, docs)
     tasks = [task for lane in selected for task in LANES[lane]]
     assert len(tasks) == len(set(tasks)), "a proof is duplicated across lanes"
     assert {"test::packages-build", "test::compute"} <= set(LANES["core"])
@@ -322,6 +395,10 @@ def main():
             assert [row["task"] for row in evidence] == expected
             assert metadata["completed"] and metadata["expected_tasks"] == expected
             assert metadata["result_count"] == len(expected)
+            initial, current = metadata['resources_initial'], metadata['resources_current']
+            assert current['child_user_seconds'] >= initial['child_user_seconds']
+            assert current['child_system_seconds'] >= initial['child_system_seconds']
+            assert current['max_child_rss_platform_units'] >= initial['max_child_rss_platform_units'] > 0
             assert all(row["exit_code"] == 0 for row in evidence)
             verify(path / ".cache/ci" / metadata["run_directory"])
     # Kill the real runner while its second task is active. Neither SIGTERM nor

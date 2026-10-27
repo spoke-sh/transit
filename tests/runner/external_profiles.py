@@ -47,50 +47,67 @@ def main():
     report_path.write_text(json.dumps(report, indent=2) + '\n')
     if args.profile == 'discovery' and report['dirty']:
         raise SystemExit('Discovery includes mutation checks against committed HEAD; commit source changes first.')
-    native = ['zig-out/bin/transit-node', 'zig-out/bin/transit-admin', 'zig-out/lib/libtransit_client.so']
     profiles = dict(
-        sdk=[['just', 'bindings::python-build', 'bindings::node-build'],
-             ['zig', 'build', 'transit-node', 'transit-admin'],
-             [sys.executable, '-B', 'tests/runner/launch.py', 'tests/sdk/consumers/python/python_client_sdk.py', *native, '.cache/bindings/wheels', str(destination / 'python.json')],
-             [sys.executable, '-B', 'tests/runner/launch.py', 'tests/sdk/consumers/node/node_client_sdk.py', *native, '.cache/bindings/node', str(destination / 'node.json')]],
         application=[['just', 'test::server-application-faults'], ['just', 'test::runtime-upgrade']],
         query=[['just', 'test::unified-lifecycle'], ['just', 'test::unified-expiry'],
-               ['just', 'test::interactive-query', '--source', 'table']],
+               ['just', 'test::interactive-query']],
         reactive=[['just', 'test::reactive-views-lifecycle']],
         discovery=DISCOVERY)
     started = time.monotonic()
+
+    def execute(command, *, capture=False):
+        # Keep artifact preparation in the same failure/timeout ledger as the
+        # scenarios. Native preparation emits one verified immutable prefix.
+        stage = dict(command=list(map(str, command)), completed=False,
+                     timeout_seconds=3600 if args.profile == 'discovery' else 900)
+        index = len(report['stages'])
+        report['stages'].append(stage)
+        report_path.write_text(json.dumps(report, indent=2) + '\n')
+        print(f'External {args.profile}: {command[0:3]}', flush=True)
+        begin = time.monotonic()
+        with (destination / f'{index}.log').open('w') as log:
+            child = subprocess.Popen(command, cwd=ROOT,
+                stdout=subprocess.PIPE if capture else log, stderr=log, start_new_session=True, text=True)
+            try:
+                output, _ = child.communicate(timeout=stage['timeout_seconds'])
+                if output:
+                    log.write(output)
+                stage.update(exit=child.returncode, completed=child.returncode == 0)
+                if child.returncode:
+                    raise RuntimeError(f'external stage failed; inspect {destination / f"{index}.log"}')
+                return output.strip() if capture else None
+            finally:
+                if child.poll() is None:
+                    # Let the owned fixture join its children before escalating
+                    # within this invocation's process group only.
+                    os.killpg(child.pid, signal.SIGTERM)
+                    try:
+                        child.wait(timeout=20)
+                    except subprocess.TimeoutExpired:
+                        os.killpg(child.pid, signal.SIGKILL)
+                        child.wait(timeout=10)
+                stage['seconds'] = round(time.monotonic() - begin, 3)
+                report_path.write_text(json.dumps(report, indent=2) + '\n')
+
     try:
-        for index, command in enumerate(profiles[args.profile]):
-            # Exploration has its own cap; the registered resource sweep samples
-            # fault points. Real fault/progress deadlines inside
-            # each task and the existing external profiles remain unchanged.
-            stage = dict(command=command, completed=False,
-                         timeout_seconds=3600 if args.profile == 'discovery' else 900)
-            report['stages'].append(stage)
-            report_path.write_text(json.dumps(report, indent=2) + '\n')
-            print(f'External {args.profile}: {command[0:3]}', flush=True)
-            begin = time.monotonic()
-            with (destination / f'{index}.log').open('w') as log:
-                child = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-                try:
-                    code = child.wait(timeout=stage['timeout_seconds'])
-                    stage.update(exit=code, completed=code == 0)
-                    if code:
-                        raise RuntimeError(f'external stage failed; inspect {destination / f"{index}.log"}')
-                finally:
-                    if child.poll() is None:
-                        # Give the owning fixtures an opportunity to join their
-                        # children; escalate only within this owned process group.
-                        os.killpg(child.pid, signal.SIGTERM)
-                        try:
-                            child.wait(timeout=20)
-                        except subprocess.TimeoutExpired:
-                            os.killpg(child.pid, signal.SIGKILL)
-                            child.wait(timeout=10)
-                    stage['seconds'] = round(time.monotonic() - begin, 3)
+        if args.profile == 'sdk':
+            execute(['just', 'bindings::python-build', 'bindings::node-build'])
+            prepare = [sys.executable, '-B', 'tests/runner/launch.py',
+                       'tests/harness/native_artifacts.py', 'prepare']
+            clients = Path(execute([*prepare, 'clients', '--optimize', 'Debug'], capture=True)).resolve(strict=True)
+            authority = Path(execute([*prepare, 'authority', '--optimize', 'Debug'], capture=True)).resolve(strict=True)
+            native = [authority / 'bin/transit-node', clients / 'bin/transit-admin', clients / 'lib/libtransit_client.so']
+            packages = ROOT / '.cache/bindings/Debug'
+            profiles['sdk'] = [
+                [sys.executable, '-B', 'tests/runner/launch.py', 'tests/sdk/consumers/python/python_client_sdk.py',
+                 *native, packages / 'wheels', destination / 'python.json'],
+                [sys.executable, '-B', 'tests/runner/launch.py', 'tests/sdk/consumers/node/node_client_sdk.py',
+                 *native, packages / 'node', destination / 'node.json']]
+        for command in profiles[args.profile]:
+            execute(command)
         if args.profile == 'sdk':
             report['artifacts'] = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
-                for p in [*(ROOT / n for n in native), *(ROOT / '.cache/bindings/wheels').glob('*.whl'), *(ROOT / '.cache/bindings/node').glob('*.tgz')]}
+                for p in [*native, *(packages / 'wheels').glob('*.whl'), *(packages / 'node').glob('*.tgz')]}
             for name in ('python', 'node'):
                 if not json.loads((destination / f'{name}.json').read_text())['completed']:
                     raise RuntimeError(f'incomplete installed {name} driver')

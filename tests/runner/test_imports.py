@@ -4,10 +4,36 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from imports import audit
+from imports import audit, build_invocations
 
 
 class Imports(unittest.TestCase):
+    def test_build_commands_cannot_bypass_the_domain_launcher(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / 'build/checks.zig'
+            path.parent.mkdir()
+            # The inline spelling was missed during migration and only failed
+            # once the hosted maintained-query schedule reached its driver.
+            for source in (
+                'const driver = b.addSystemCommand(&.{ "python3", "-B", "./tests/query/driver.py" });',
+                'const driver = b.addSystemCommand(&.{ "python3", "-B" });\n'
+                'driver.addFileArg(b.path("tests/query/driver.py"));',
+            ):
+                path.write_text(source)
+                with self.assertRaisesRegex(AssertionError, 'requires tests/runner/launch.py'):
+                    build_invocations(root)
+            path.write_text('''const driver = b.addSystemCommand(&.{ "python3", "-B" });
+driver.addFileArg(b.path("tests/runner/launch.py"));
+driver.addFileArg(b.path("tests/query/driver.py"));
+const checks = b.addSystemCommand(&.{ "python3", "-B" });
+checks.addFileArg(b.path("tests/runner/checks.py"));
+const example = b.addSystemCommand(&.{ "python3", "-B", "examples/owned.py" });
+''')
+            rows = build_invocations(root)
+            self.assertEqual([row['entry_point'] for row in rows],
+                             ['tests/runner/launch.py', 'tests/runner/checks.py', 'examples/owned.py'])
+
     def test_nested_missing_symbol_and_moved_module_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

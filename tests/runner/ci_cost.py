@@ -2,25 +2,57 @@
 from datetime import datetime
 from pathlib import Path
 import argparse
+import base64
+import hashlib
 import json
 import os
 import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
-ORDINARY_LANES = json.loads((ROOT / 'tests/runner/suite.json').read_text())['tiers']['ordinary']
+SUITE = json.loads((ROOT / 'tests/runner/suite.json').read_text())
+
+
+def inventory_identity(suite=SUITE):
+    # Include the browser continuation required by the experience job. A budget
+    # for fewer tasks, or a different lane allocation, cannot qualify this suite.
+    lanes = {name: suite['lanes'][name] for name in [*suite['tiers']['ordinary'], 'browser']}
+    encoded = json.dumps(lanes, sort_keys=True, separators=(',', ':')).encode()
+    return dict(sha256=hashlib.sha256(encoded).hexdigest(),
+                ordinary_tasks=sum(len(suite['lanes'][name]) for name in suite['tiers']['ordinary']),
+                ordinary_lanes=len(suite['tiers']['ordinary']), browser_tasks=len(lanes['browser']))
+
+
+def source_inventory(revision, api):
+    # Read data from the measured revision; never execute that revision's code.
+    # The workflow_run reporter deliberately runs trusted default-branch code.
+    document = api(f'contents/tests/runner/suite.json?ref={revision}')
+    assert document['encoding'] == 'base64', 'Unavailable source inventory bytes'
+    suite = json.loads(base64.b64decode(''.join(document['content'].split()), validate=True))
+    assert suite['version'] == 1, 'Unsupported source inventory'
+    ordinary = suite['tiers']['ordinary']
+    assert isinstance(ordinary, list) and ordinary and all(isinstance(name, str) for name in ordinary)
+    assert len(set(ordinary)) == len(ordinary) and 'browser' not in ordinary
+    tasks = []
+    for name in [*ordinary, 'browser']:
+        owned = suite['lanes'][name]
+        assert isinstance(owned, list) and owned and all(isinstance(task, str) for task in owned)
+        tasks.extend(owned)
+    assert len(set(tasks)) == len(tasks), 'Duplicated source task ownership'
+    return suite
 
 
 def seconds(start, end):
     return (datetime.fromisoformat(end.replace('Z', '+00:00')) - datetime.fromisoformat(start.replace('Z', '+00:00'))).total_seconds()
 
 
-def summarize(run, jobs, log, budgets):
+def summarize(run, jobs, log, budgets, suite=SUITE):
     lanes = []
+    ordinary_lanes = suite['tiers']['ordinary'] if suite is not None else []
     names = [job['name'] for job in jobs]
-    missing_lanes = sorted(name for name in ORDINARY_LANES if name not in names)
-    duplicate_lanes = sorted(name for name in ORDINARY_LANES if names.count(name) > 1)
-    full_inventory = not missing_lanes and not duplicate_lanes
+    missing_lanes = sorted(name for name in ordinary_lanes if name not in names)
+    duplicate_lanes = sorted(name for name in ordinary_lanes if names.count(name) > 1)
+    full_inventory = bool(ordinary_lanes) and not missing_lanes and not duplicate_lanes
     for job in jobs:
         if job['name'] in ('Selection and documentation', 'foundation-and-protocol'):
             continue
@@ -44,12 +76,25 @@ def summarize(run, jobs, log, budgets):
         lines = [line for line in log.splitlines() if line.startswith(job['name'] + '\t')]
         # Extract only byte counts and cache kinds, never raw logs or keys.
         sizes = [int(n) for line in lines for n in re.findall(r'Cache Size:.*\((\d+) B\)', line)]
-        hits = {kind for line in lines for kind in re.findall(r'Cache (?:hit for(?: restore-key)?:|restored from key:) (nix|zig)-', line)}
-        misses = any('Cache not found' in line for line in lines)
-        fallback = any('Cache hit for restore-key:' in line for line in lines)
+        requested = {key for line in lines for key in re.findall(r'(?:\t|Z )[ \t]*(?:primary-key|key): ((?:nix|zig)-\S+)$', line)}
+        restored = {key for line in lines for key in re.findall(r'Cache (?:hit for(?: restore-key)?:|restored from key:) ((?:nix|zig)-\S+)', line)}
+        hits = {key.split('-', 1)[0] for key in restored}
+        misses = any('Cache not found' in line or 'Could not find a cache' in line for line in lines)
+        # actions/cache uses the same restored-key message for exact and prefix
+        # hits. Compare its action input with the observed key, not just its kind.
+        fallback = any('Cache hit for restore-key:' in line for line in lines) or bool(requested and restored - requested)
         cold = any('CI dependency cache mode: cold' in line for line in lines)
+        # Match an emitted line, not Actions' rendered `echo "$NIX_CACHE"`
+        # command. gh prefixes real output with a timestamp; controls omit it.
+        policies = {policy for line in lines for policy in re.findall(r'(?:\t|Z )CI Nix cache policy: (\S+)$', line)}
+        nix_policy = next(iter(policies)) if len(policies) == 1 else 'github' if not policies else 'unknown'
+        expected_hits = {'zig'} if nix_policy == 'substitutes' else {'nix', 'zig'}
+        exact_keys = (len(requested) == len(expected_hits)
+                      and {key.split('-', 1)[0] for key in requested} == expected_hits
+                      and restored == requested)
         row['cache'] = dict(restored_bytes=sum(sizes) if sizes else 0 if cold else None,
-                            mode='cold' if cold and not hits and not sizes else 'miss-or-partial' if misses or fallback else 'warm' if hits == {'nix', 'zig'} and len(sizes) == 2 else 'unknown')
+                            nix_policy=nix_policy,
+                            mode='cold' if cold and not hits and not sizes else 'miss-or-partial' if misses or fallback else 'warm' if nix_policy in {'github', 'substitutes'} and exact_keys and len(sizes) == len(expected_hits) else 'unknown')
         lanes.append(row)
     complete = bool(lanes) and all(row['conclusion'] == 'success' and row['seconds'] is not None for row in lanes)
     ends = [j['completed_at'] for j in jobs if j.get('completed_at')]
@@ -59,11 +104,18 @@ def summarize(run, jobs, log, budgets):
     cache_bytes = sum(row['cache']['restored_bytes'] or 0 for row in lanes) if cache_known else None
     modes = {row['cache']['mode'] for row in lanes}
     profile = next(iter(modes)) if len(modes) == 1 else 'mixed'
-    limits = budgets.get('cold') if profile == 'cold' else budgets if profile == 'warm' else None
+    inventory = inventory_identity(suite) if suite is not None else None
+    budget_matches = inventory is not None and budgets.get('inventory') == inventory
+    limits = (budgets.get('cold') if profile == 'cold' else budgets if profile == 'warm' else None) if budget_matches else None
     recorded_limits = {key: limits[key] for key in ('feedback_seconds', 'aggregate_runner_seconds', 'restored_cache_bytes')} if limits else None
     qualified = full_inventory and complete and run['conclusion'] == 'success' and cache_known
+    completed_lanes = [job for job in jobs if job['name'] in ordinary_lanes
+                       and job['conclusion'] == 'success' and job.get('completed_at')]
+    first = min(completed_lanes, key=lambda job: job['completed_at']) if completed_lanes else None
     return dict(version=1, run_id=run['id'], revision=run['head_sha'], url=run['html_url'],
                 run_attempt=run.get('run_attempt', 1), cache_profile=profile, budget=recorded_limits,
+                inventory=inventory, budget_inventory_matches=budget_matches,
+                first_completed_lane=dict(name=first['name'], seconds=seconds(run['created_at'], first['completed_at'])) if first else None,
                 conclusion=run['conclusion'], status='measured' if qualified else 'inconclusive',
                 missing_lanes=missing_lanes, duplicate_lanes=duplicate_lanes,
                 feedback_seconds=feedback, aggregate_runner_seconds=cost,
@@ -81,6 +133,12 @@ def main():
     def api(path):
         return json.loads(subprocess.check_output(['gh', 'api', f'repos/{args.repo}/{path}'], text=True))
     run = api(f'actions/runs/{args.run}')
+    source_error = None
+    try:
+        suite = source_inventory(run['head_sha'], api)
+    except (subprocess.CalledProcessError, ValueError, AssertionError, KeyError, TypeError) as error:
+        suite = None
+        source_error = type(error).__name__
     response = api(f'actions/runs/{args.run}/attempts/{run["run_attempt"]}/jobs?per_page=100')
     if response['total_count'] != len(response['jobs']):
         raise ValueError('Job pagination is incomplete')
@@ -99,7 +157,9 @@ def main():
             logs.append(fetched.stdout)
     log = '\n'.join(logs)
     budgets = json.loads((ROOT / 'tests/runner/ci-budgets.json').read_text())
-    result = summarize(run, response['jobs'], log, budgets)
+    result = summarize(run, response['jobs'], log, budgets, suite=suite)
+    result['reporter_revision'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+    result['unavailable_source_inventory'] = source_error
     result['unavailable_job_logs'] = missing_logs
     if missing_logs:
         result.update(status='inconclusive', budget_met=False)

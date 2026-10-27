@@ -1,5 +1,6 @@
 """A public-SDK ring: every target is service and requester for a foreign peer."""
 from runner.paths import ROOT
+from harness.phases import phase
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from http.client import HTTPConnection
@@ -27,6 +28,7 @@ from runtime.station.station import frame
 from sdk.sdk_scenarios import check
 
 
+@phase("schedule", "sdk-interop")
 def run(node, cli, library, artifacts, report_path=None):
     started = time.monotonic()
     artifacts = Path(artifacts).resolve()
@@ -43,7 +45,8 @@ def run(node, cli, library, artifacts, report_path=None):
             clients.append((label, target, installer(target)))
         for language, folder in (('python', 'wheels'), ('node', 'node'), ('rust', 'rust'), ('ruby', 'ruby'),
                                  ('c', 'c'), ('java', 'java'), ('dotnet', 'dotnet'), ('beam', 'beam')):
-            RUNNERS[language](node, cli, library, artifacts / folder, execute=install)
+            with phase("consumer-install", f"interop-{language}"):
+                RUNNERS[language](node, cli, library, artifacts / folder, execute=install)
         installed_at = time.monotonic()
         fault = {'pid': None, 'lost': 0, 'reader': None, 'unavailable_reads': 0,
                  'drop_delivery': True, 'delivery_lost': 0}
@@ -234,84 +237,85 @@ def run(node, cli, library, artifacts, report_path=None):
             return turns
         pairs, timings = [], []
         for index, service in enumerate(clients):
-            pair_started = time.monotonic()
-            requester = clients[(index + 1) % len(clients)]
-            source, destination = provision(service, 'service'), provision(requester, 'requester')
-            destination['peer'] = source['pid']
-            send(source, b'TSC\x01\x01' + (2**64-1).to_bytes(8, 'little'))
-            example(service, source, 'service')
-            send(destination, b'TSC\x01\x03')
-            example(requester, destination, 'requester')
-            own(source); own(destination); deliver()
-            example(service, source, 'service'); deliver()
-            example(requester, destination, 'requester')
-            revision = read({'resource': destination['resource']})['body']['resource']['revision']
-            page = read({'entries': {'resource': destination['resource'], 'revision': revision, 'key': b'observed'.hex()}})['body']['entries']['page']
-            observed = next(entry for entry in page['entries'] if entry)
-            assert bytes.fromhex(observed['value']) == b'TSU\x01' + (2**64-1).to_bytes(8, 'little')
-            assert read({'process': destination['pid']})['body']['process']['process']['consumed'] == 2
-            table, query = provision(service, 'table'), provision(requester, 'query')
-            table['peer'], query['peer'] = query['pid'], table['pid']
-            server, caller = worker(service, table), worker(requester, query)
-            before_recovery = reconciliations
-            before_read_retry = read_retries
-            fault['pid'] = table['pid']
-            fault['reader'] = table['principal']
-            expected = [{'id': -(2**63), 'value': None}, {'id': 0, 'value': 2**53+1}, {'id': 2**63-1, 'value': -(2**63)}]
-            operations = []
-            # First DML creates a durable automatic schema entry; no explicit
-            # Initialize command or host-memory initialization performs the work.
-            for row in expected:
-                payload = b'TSQ\x01\x02' + row['id'].to_bytes(8, 'little', signed=True)
-                payload += b'\0' if row['value'] is None else b'\1' + row['value'].to_bytes(8, 'little', signed=True)
-                operations.append(send(table, payload)); assert one(server) == 'Committed'
-            assert fault['pid'] is None and reconciliations > before_recovery
-            assert fault['reader'] is None and read_retries > before_read_retry
-            send(query, b'TSQ\x01\x04'); assert one(caller) == 'Committed'
-            for _ in range(32):
-                deliver(); one(server); one(caller)
-                busy = state_value(query, b'not-ready')
-                if busy is not None:
-                    assert busy == state_value(query, b'request')
-                    break
-            else: raise AssertionError('Foreign requester did not authenticate busy reply')
-            close(server); own(table); server = worker(service, table)
-            table_turns = drain_table(table, server, operations)
-            close(caller); own(query); caller = worker(requester, query)
-            send(query, b'TSQ\x01\x04'); assert one(caller) == 'Committed'
-            manifest_file = Path(query['output'], 'manifest.json')
-            fragments = math.ceil(65535 / 221)
-            round_budget = 2 * (fragments + math.ceil(fragments / 3) + 8) + 16
-            deadline = time.monotonic() + 600
-            for query_round in range(round_budget):
-                assert time.monotonic() < deadline, 'Cross-language query deadline'
-                deliver()
-                assert one(server) in ('Committed', 'Idle')
-                assert one(caller) in ('Committed', 'Idle')
-                if manifest_file.exists(): break
-            else: raise AssertionError('Cross-language query did not complete')
-            close(server); close(caller)
-            manifest = json.loads(manifest_file.read_bytes())
-            assert (manifest['rows'], manifest['source'], manifest['destination'], manifest['resource']) == (3, table['pid'], query['pid'], table['resource'])
-            segments = [Path(query['output'], f'{i}.arrow').read_bytes() for i in range(manifest['segments'])]
-            types = [{'int64': {}}, {'int64': {}}, {'utf8': {}}, {'list': {'type': {'int64': {}}, 'nullable': False}}]
-            actual = []
-            for ipc in segments:
-                schema, batches = read_stream(ipc)
-                assert schema.names == ['id', 'value', 'label', 'tags']
-                fields = [{'name': name, 'type': typ, 'nullable': name == 'value', 'optional': False} for name, typ in zip(schema.names, types)]
-                assert schema.metadata[b'transit.logical_schema'] == descriptor({'structure': fields}).hex().encode()
-                for batch in batches:
-                    actual.extend([[arrow_cell(batch.column(column), row, typ) for column, typ in enumerate(types)] for row in range(batch.num_rows)])
-            def signed(value): return {'value': {'atom': {'signed': str(value)}}}
-            expected_cells = [[signed(row['id']), {'null': {}} if row['value'] is None else signed(row['value']),
-                {'value': {'atom': {'utf8': 'example'}}}, {'value': {'list': [signed(1), signed(2)]}}] for row in expected]
-            assert actual == [[cell_bytes(cell, typ) for cell, typ in zip(row, types)] for row in expected_cells]
-            assert sum(map(len, segments)) == manifest['bytes']
-            pair = f'{service[0]} -> {requester[0]}'
-            pairs.append(pair)
-            timings.append({'pair': pair, 'elapsed_seconds': round(time.monotonic()-pair_started, 3), 'table_drain_turns': table_turns, 'query_rounds': query_round + 1, 'ipc_bytes': manifest['bytes']})
-            print(f'Public pair {pair}: installed CLIs, restarted durable reply, lost-receipt reconciliation, automatic schema creation, queued Table recovery, authenticated busy reply and owned nested IPC passed.', flush=True)
+            with phase("scenario", f"interop-pair-{index}"):
+                pair_started = time.monotonic()
+                requester = clients[(index + 1) % len(clients)]
+                source, destination = provision(service, 'service'), provision(requester, 'requester')
+                destination['peer'] = source['pid']
+                send(source, b'TSC\x01\x01' + (2**64-1).to_bytes(8, 'little'))
+                example(service, source, 'service')
+                send(destination, b'TSC\x01\x03')
+                example(requester, destination, 'requester')
+                own(source); own(destination); deliver()
+                example(service, source, 'service'); deliver()
+                example(requester, destination, 'requester')
+                revision = read({'resource': destination['resource']})['body']['resource']['revision']
+                page = read({'entries': {'resource': destination['resource'], 'revision': revision, 'key': b'observed'.hex()}})['body']['entries']['page']
+                observed = next(entry for entry in page['entries'] if entry)
+                assert bytes.fromhex(observed['value']) == b'TSU\x01' + (2**64-1).to_bytes(8, 'little')
+                assert read({'process': destination['pid']})['body']['process']['process']['consumed'] == 2
+                table, query = provision(service, 'table'), provision(requester, 'query')
+                table['peer'], query['peer'] = query['pid'], table['pid']
+                server, caller = worker(service, table), worker(requester, query)
+                before_recovery = reconciliations
+                before_read_retry = read_retries
+                fault['pid'] = table['pid']
+                fault['reader'] = table['principal']
+                expected = [{'id': -(2**63), 'value': None}, {'id': 0, 'value': 2**53+1}, {'id': 2**63-1, 'value': -(2**63)}]
+                operations = []
+                # First DML creates a durable automatic schema entry; no explicit
+                # Initialize command or host-memory initialization performs the work.
+                for row in expected:
+                    payload = b'TSQ\x01\x02' + row['id'].to_bytes(8, 'little', signed=True)
+                    payload += b'\0' if row['value'] is None else b'\1' + row['value'].to_bytes(8, 'little', signed=True)
+                    operations.append(send(table, payload)); assert one(server) == 'Committed'
+                assert fault['pid'] is None and reconciliations > before_recovery
+                assert fault['reader'] is None and read_retries > before_read_retry
+                send(query, b'TSQ\x01\x04'); assert one(caller) == 'Committed'
+                for _ in range(32):
+                    deliver(); one(server); one(caller)
+                    busy = state_value(query, b'not-ready')
+                    if busy is not None:
+                        assert busy == state_value(query, b'request')
+                        break
+                else: raise AssertionError('Foreign requester did not authenticate busy reply')
+                close(server); own(table); server = worker(service, table)
+                table_turns = drain_table(table, server, operations)
+                close(caller); own(query); caller = worker(requester, query)
+                send(query, b'TSQ\x01\x04'); assert one(caller) == 'Committed'
+                manifest_file = Path(query['output'], 'manifest.json')
+                fragments = math.ceil(65535 / 221)
+                round_budget = 2 * (fragments + math.ceil(fragments / 3) + 8) + 16
+                deadline = time.monotonic() + 600
+                for query_round in range(round_budget):
+                    assert time.monotonic() < deadline, 'Cross-language query deadline'
+                    deliver()
+                    assert one(server) in ('Committed', 'Idle')
+                    assert one(caller) in ('Committed', 'Idle')
+                    if manifest_file.exists(): break
+                else: raise AssertionError('Cross-language query did not complete')
+                close(server); close(caller)
+                manifest = json.loads(manifest_file.read_bytes())
+                assert (manifest['rows'], manifest['source'], manifest['destination'], manifest['resource']) == (3, table['pid'], query['pid'], table['resource'])
+                segments = [Path(query['output'], f'{i}.arrow').read_bytes() for i in range(manifest['segments'])]
+                types = [{'int64': {}}, {'int64': {}}, {'utf8': {}}, {'list': {'type': {'int64': {}}, 'nullable': False}}]
+                actual = []
+                for ipc in segments:
+                    schema, batches = read_stream(ipc)
+                    assert schema.names == ['id', 'value', 'label', 'tags']
+                    fields = [{'name': name, 'type': typ, 'nullable': name == 'value', 'optional': False} for name, typ in zip(schema.names, types)]
+                    assert schema.metadata[b'transit.logical_schema'] == descriptor({'structure': fields}).hex().encode()
+                    for batch in batches:
+                        actual.extend([[arrow_cell(batch.column(column), row, typ) for column, typ in enumerate(types)] for row in range(batch.num_rows)])
+                def signed(value): return {'value': {'atom': {'signed': str(value)}}}
+                expected_cells = [[signed(row['id']), {'null': {}} if row['value'] is None else signed(row['value']),
+                    {'value': {'atom': {'utf8': 'example'}}}, {'value': {'list': [signed(1), signed(2)]}}] for row in expected]
+                assert actual == [[cell_bytes(cell, typ) for cell, typ in zip(row, types)] for row in expected_cells]
+                assert sum(map(len, segments)) == manifest['bytes']
+                pair = f'{service[0]} -> {requester[0]}'
+                pairs.append(pair)
+                timings.append({'pair': pair, 'elapsed_seconds': round(time.monotonic()-pair_started, 3), 'table_drain_turns': table_turns, 'query_rounds': query_round + 1, 'ipc_bytes': manifest['bytes']})
+                print(f'Public pair {pair}: installed CLIs, restarted durable reply, lost-receipt reconciliation, automatic schema creation, queued Table recovery, authenticated busy reply and owned nested IPC passed.', flush=True)
         assert fault['lost'] == fault['unavailable_reads'] == len(clients)
         assert fault['delivery_lost'] == 1 and admin_retries > 0
         assert cold.data_objects() > 0
