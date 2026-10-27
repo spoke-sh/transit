@@ -9,6 +9,122 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Retained direct-data graph and physical collection — 2026-10-27
+
+At clean source `15c35f005`, the complete native aggregate passes, including the
+integrated local Table/catalog collector, backend sync-failure cases and owned
+process-death schedules. This qualifies the composition of `DirectStorageGraph`
+with `DataCollection`; the earlier allocation/root-walk records below qualify
+its prerequisites separately. The [storage internals](../../handbook/internals/storage-runtime.md#retained-direct-data-graph-and-physical-collection)
+defines the model and reasoning, and the [maintenance guide](../../../packages/zig/transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
+defines its component operations and limits.
+
+The physical-disk Table fixture explicitly expires history while preserving
+pinned unflushed and flushed rows, a live history anchor, admitted work and
+original receipts. Its first pass removes an obsolete archive frame while keeping
+those retained dependencies. After pin release and further explicit expiry, a
+second pass removes the old pinned archive frames and segment. Reopen verifies
+the original receipt and values, then completes the previously admitted work.
+Current-policy denial still prevents retained reads and receipt disclosure. The current aggregate reports 205/1,967 bounded steps and
+24/928 confirmed reclaimed allocations for its two passes. These are observed
+fixture/progress counts, not minimum collection throughput or universal object
+counts. The signed catalog-policy composition also passes, reporting 1,068 steps
+and one confirmed reclamation while retaining the complete catalog control chain.
+
+Eight deletion sync-failure and 35 marking sync-failure schedules recover the
+last durable private progress. Corrupt or incomplete graph metadata, quota
+refusal, missing required history, unfinished/newer content reuse and omitted
+time/grace authority cannot establish permission to delete. Permanent operation
+identity reservations, saved direct-intent references and unknown namespaces
+remain protected. Both native and direct collector harnesses pass 15 owned
+SIGKILL schedules, preserving accepted roots and unrelated objects while resuming
+exact descriptor/payload/checksum/marker deletion and allocation FIFO progress.
+Process termination and injected errors do not simulate losing the only disk or
+prove arbitrary filesystem rollback.
+
+`just check native` runs the aggregate through the pinned shell; the focused
+operations are `just test::local-data-collection`, `just test::local-catalog` and
+`zig build test-local-native`. The complete aggregate's retained source/outcome
+record is `.cache/checks/native-all.json`, with its log in
+`.cache/checks/runs/native-all-2oqj3d_6/001-validate.log` (SHA-256
+`e065e9e8c7d0b80baabe969ea5463ffc36d00951e73d31a2359598b425b71772`).
+It exits zero after 1,424.891 seconds. The enclosing repository log is
+`/var/tmp/transit-m2-completion-check-all2.log`; its later frontend/site checks
+are separate outcomes. The pinned Zig build prints diagnostic stderr under
+`run test w` with a `failed command` label even on these successful test steps;
+the runner's completed exit-zero record establishes this aggregate outcome.
+
+Collection remains an explicit local component operation. Automatic installed
+scheduling and public progress presentation are not qualified by these tests.
+The work/mark graph is paged and each transition has explicit resident/work
+bounds; no constant total I/O or latency guarantee follows from that bound.
+
+## Disk ingestion and commit matrix — 2026-10-27
+
+The complete ReleaseSafe ingestion matrix passes at clean source `1b9ccb12c`:
+**384 raw write/readback samples**, with one discarded warmup and 31 recorded
+observations per arm. Table fixtures start with 128 or 1,024 rows and insert
+sixteen 1 KiB rows through point/WAL or bulk/segment acceptance. Native fixtures
+start with 16 or 64 turns and prepare/commit one further turn. Every write is
+followed by independent fresh-process verification of original and new values,
+receipts, retained pins and native input/output progress.
+
+At the 1,024-row Table baseline:
+
+| Entry / ingestion path | Owner ingestion median / p95 ms | Final WAL append median / p95 ms |
+| --- | ---: | ---: |
+| Warm / point | 466.355 / 1,576.511 | 3.072 / 3.850 |
+| Warm / bulk | 476.678 / 505.204 | 2.921 / 3.597 |
+| Cold / point | 507.989 / 1,989.104 | 3.217 / 3.812 |
+| Cold / bulk | 522.221 / 535.448 | 3.061 / 3.816 |
+
+Both Table paths append one acceptance record with three WAL syncs. Point/bulk
+WAL bytes are 23,616/3,840, while staged object bytes are 67,566/88,155 across
+67/68 puts. Requested object ranges/bytes are 612/597,132 and 613/598,032.
+Tracked peak write allocations are 23,050,633 and 67,016,007 bytes. Bulk reduces
+WAL bytes without a consistent reduction in total owner latency or retained
+storage. These standalone Table owners omit the installed native authorization
+and direct-data allocation adapter; their zero inventory-WAL counters do not
+establish that installed Table writes have no allocation-log cost.
+
+At 64 native turns, preparation median/p95 is 494.104/1,114.347 ms warm and
+510.551/2,030.872 ms cold; commit is 3.085/3.599 and 3.070/3.331 ms. Preparation
+includes two authority appends (3,584 bytes, six syncs), **43 allocation-inventory
+appends (16,512 bytes, 129 syncs)**, 43 object puts (53,551 bytes) and 227 object
+ranges (273,210 bytes). Commit adds one authority append (2,304 bytes, three
+syncs), with no object puts or inventory appends. The phases have 26,850 and
+23,600 tracked peak allocation bytes. The counters distinguish the two logs;
+no synthetic native append-only timing is inferred from the complete phases.
+
+The 1,024-row Table starts with 6,074,707 retained bytes / 11,937 files and ends
+with 6,194,493 / 12,181 through point writes or 6,195,850 / 12,185 through bulk.
+The 64-turn native fixture grows from 5,829,470 bytes / 11,738 files to 5,935,693 /
+11,953. Maximum write-child RSS across the matrix is 33,908 KiB for Table and
+8,680 KiB for native. Tracked operation allocations, executable RSS, allocated
+filesystem blocks and retained logical file sizes are separate measurements.
+
+The pinned Zig `0.17.0-dev.2267+48abf1a34` build runs on the shared Linux x86_64
+AMD Threadripper 3960X host, CPU 0, with physical `/var/tmp` ext4 fixtures. Warm
+and cold states are observed for every fixture file immediately before each
+child. Affinity does not isolate filesystem, frequency or other host activity.
+These samples establish owner-level values, I/O attribution and observed
+percentiles; they do not establish installed SQL latency, concurrent group
+commit, confidence intervals, host-RAM growth or power-loss survival.
+
+Reproduce inside the pinned shell with
+`just test::storage-ingest-benchmark --output .cache/storage-ingestion.json`.
+The report is `.cache/storage-ingestion-completion.json`, SHA-256
+`e5d53ca6af61ad6f7f8454acfa1ea87441732b298b4ac8bad3aa3088af76cdd1`;
+the log is `/var/tmp/transit-m2-ingestion-completion.log`. The frozen executable
+hash is `567d6bf36c3e7f821c4d4d6f7246a3ca64c0e02092d099bd684f800eb906e59f`.
+The driver/common-driver hashes are
+`7b01be614d7e83fd4e6353c5e4948a34c47cd3414623295fbca42b7c46ffcb2a` /
+`128ef906f2251a5c48341cffcbad76fe92cf63622ff883189183f97addea9b18`;
+the probe hash is
+`8e8cb93f6037975bc6ac4e006f4d548a224a72e9232b2493dccc274ced974a4b`.
+Earlier matrices preserve their sources and outcomes; differences across those
+runs are not controlled performance comparisons.
+
 ## Disk owner recovery and read matrix — 2026-10-27
 
 The complete matched ReleaseSafe owner matrix passes at clean source

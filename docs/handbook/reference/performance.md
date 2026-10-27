@@ -141,6 +141,41 @@ records the fixture and reproduction command.
 
 ## Local ingestion and bounded growth measurements
 
+The current matrix at `1b9ccb12c` completes **384 independently verified
+write/readback samples**, with 31 recorded observations per arm after a discarded
+warmup. Inserting sixteen 1 KiB rows into a 1,024-row Table takes median/p95
+**466.35/1,576.51 ms** through point/WAL acceptance and **476.68/505.20 ms** through
+bulk/segment acceptance with warm fixture pages. Cold-entry times are
+**507.99/1,989.10 ms** and **522.22/535.45 ms**. Both append one acceptance record
+with three WAL syncs. Bulk reduces WAL bytes from 23,616 to 3,840 while increasing
+staged object bytes from 67,566 to 88,155; it does not consistently reduce whole
+owner latency or storage.
+
+For a 64-turn native fixture, preparing one more turn takes median/p95
+494.10/1,114.35 ms warm and 510.55/2,030.87 ms cold; committing it takes about
+3.07–3.08 ms median. Preparation includes two authority-WAL appends and **43
+allocation-WAL appends**, plus immutable object staging. Commit adds one authority
+append. The standalone Table composition omits the installed native authorization
+and direct-data allocation adapter, so its counters do not measure installed
+Table ingestion. Maximum write-child RSS is 33,908 KiB for Table and 8,680 KiB
+for native. The [executed account](../../history/qualification/storage.md#disk-ingestion-and-commit-matrix--2026-10-27)
+records phase percentiles, both WALs, object ranges/bytes, tracked allocations,
+retained files, exact source/build identities and the raw report. These are
+shared-host local-owner observations, not installed SQL or concurrent group-commit
+measurements.
+
+The current [Table growth matrix](../../history/qualification/storage.md#local-bounded-growth-requalification--2026-10-27)
+verifies 2,048 and 8,192 rows with 16 KiB values under a fixed 128 MiB process
+address-space ceiling. The larger fixture retains 193,003,856 file bytes; cold
+fresh-process readback verifies every value without changing storage. Setup's
+tracked peak is 67,015,751 bytes at both sizes, and readback's is 312,449 bytes.
+This exceeds the process ceiling and configured caches, not host RAM. The
+separate native matrix fails its default 1,800-second setup guard; it is not a
+completed native growth proof.
+
+The earlier disk-owner matrix below preserves its original source and outcomes;
+changes between these runs are not controlled performance comparisons.
+
 A separate disk-owner matrix completes 384 verified write/readback samples,
 including 31 observations per arm. At a 1,024-row baseline, inserting sixteen
 1 KiB rows takes median / p95 **473.68 / 1,188.34 ms** through point ingestion

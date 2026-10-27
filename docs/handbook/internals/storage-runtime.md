@@ -1058,8 +1058,10 @@ exercise trim abort, quota/corrupt progress, incomplete reuse and sync uncertain
 The shared [process-death harness](../../../tests/storage/local/local_native_collection_faults.py)
 has independent native/direct profiles. The
 [maintenance guide](../../../packages/zig/transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
-owns reproduction commands, including signed policy composition. These finite schedules do not prove arbitrary power
-loss, and automatic installed scheduling remains separate. Exact formats and
+owns reproduction commands, including signed policy composition. The
+[executed account](../../history/qualification/storage.md#retained-direct-data-graph-and-physical-collection--2026-10-27)
+records the integrated disk and failure outcomes. These finite schedules do not
+prove arbitrary power loss, and automatic installed scheduling remains separate. Exact formats and
 retention roots are owned by the
 [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#local-direct-data-collection).
 
