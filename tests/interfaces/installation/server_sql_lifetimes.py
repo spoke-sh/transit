@@ -18,6 +18,7 @@ from interfaces.installation.server import Fixture
 from harness.local_installation import freeze_executables
 from interfaces.installation.server_sql import wait_status
 from interfaces.sql_sessions.native import Client
+from interfaces.sql_sessions.result_frame import Decoder
 from interfaces.cli.table_console import TableConsole
 
 
@@ -103,6 +104,7 @@ class Local(Client):
         self.instance = self.session = self.account = None
         self.last = 0
         self.results = {}
+        self.decoder = Decoder()
         self.transport()
 
     def transport(self):
