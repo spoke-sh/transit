@@ -6,7 +6,7 @@ import sys
 import tempfile
 import urllib.request
 
-from .services import free_port, wait_ready
+from .services import free_ports, wait_ready
 from .phases import phase
 
 
@@ -18,7 +18,9 @@ class Fixture:
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
         self.env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2")
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        self.port = free_port()
+        # Ursula binds admin before public traffic. An ephemeral admin listener
+        # can consume the selected public port, including during a restart.
+        self.port, admin_port = free_ports(2)
         self.url = f"http://127.0.0.1:{self.port}"
         self.config = self.root / "ursula.toml"
         storage_config = storage_config or '''[storage.cold]
@@ -28,7 +30,7 @@ backend = "inline"
 '''
         self.config.write_text(f'''[server]
 listen = "127.0.0.1:{self.port}"
-admin_listen = "127.0.0.1:0"
+admin_listen = "127.0.0.1:{admin_port}"
 [runtime]
 core_count = 2
 [raft]

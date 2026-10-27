@@ -209,6 +209,15 @@
         ]
       },
       {
+        "id": "ursula-listeners",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/harness/test_ursula.py"
+        ]
+      },
+      {
         "id": "process-harness",
         "phase": "tooling",
         "command": [

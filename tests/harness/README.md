@@ -8,6 +8,7 @@ assertions in domain scenarios and provider setup in explicitly named fixtures.
 | [services.py](services.py) | Loopback port selection and bounded HTTP readiness while observing the owned process |
 | [ursula.py](ursula.py) | Isolated disk-backed Ursula configuration, startup, SIGKILL/restart and joined cleanup |
 | [test_services.py](test_services.py) | Real HTTP readiness/retry, early process exit and deadline controls |
+| [test_ursula.py](test_ursula.py) | Provider listener collision and restart controls using owned child processes; no storage qualification |
 | [abi_support.py](abi_support.py) | Generated native ABI dispatch, bounded handle ownership and exact saved bytes for cross-component fixtures |
 | [operation_helpers.py](operation_helpers.py) | Explicit private operation-driver location; never substitute the installed CLI |
 | [recovery_fixture.py](recovery_fixture.py) | Preserve owned failed state after joining its supplied provider fixtures |
@@ -60,6 +61,12 @@ discovery results, not reservations against other processes. `wait_ready()` requ
 HTTP 200, observes early process exit, uses a 30-second deadline and bounds each
 request to 0.5 seconds. Callers own process termination and joining, including
 startup failure. Readiness does not establish durable acceptance or recovery.
+
+The Ursula fixture selects distinct public and admin ports in one batch and
+preserves both across restart. Ursula binds admin first; an ephemeral admin port
+could otherwise consume the selected public port. Another process can still take
+a released discovery port. Startup fails in that case; the fixture does not
+retry with a different endpoint or replace the conflicting process.
 
 Run `python3 -B tests/harness/test_services.py` inside `nix develop`; the fast
 check includes these controls. Fixture changes also require the affected real
