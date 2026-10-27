@@ -101,6 +101,16 @@
         ]
       },
       {
+        "id": "console_latency_test",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/performance/console/console_latency_test.py"
+        ]
+      },
+      {
         "id": "mutation_latency_test",
         "phase": "static",
         "command": [

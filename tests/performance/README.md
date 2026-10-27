@@ -32,3 +32,31 @@ their source, machine, workload and measurement limits. Active budgets remain
 executable inputs and invalidate their owning checks/builds. An older budget's
 recorded driver, toolchain or machine identity does not automatically qualify a
 new run after a path migration; qualify and freeze a matching comparison basis.
+
+## SQL result consumption
+
+`just test::console-latency --rows 70 --repeat 3` creates an owned local Table
+with fixed integers and deterministic variable-width text. It checks narrow,
+wide, relational and metadata results, records first-output/terminal time and
+sampled console RSS, then measures native batch counts, canonical/HTTP bytes and
+an ordered cell digest independently. A 50-ms consumer delay exercises bounded
+pull pacing. `--instrument` adds native/provider proxies and their attempt counts;
+compare those runs separately from unproxied latency.
+
+`--representations` adds a separate row/column payload experiment using the
+pinned PyArrow LZ4/Zstd codecs. It verifies every decompressed byte, reports
+encoded sizes and codec times, and counts schema/observation JSON separately.
+These are length-framed canonical cells, not Arrow IPC or a proposed complete
+wire format; they exclude envelope negotiation, alignment and transport costs.
+Codec work is excluded from the preceding console/native timing runs. The fast
+reporting control checks independent byte expectations and rejects a deliberately
+corrupt decompression result.
+
+The zero-row default preserves the empty-result workload. For an explicitly
+frozen pre-result-model executable, `--historical-result-profile` checks its
+recorded console and native shapes solely for baseline comparison; ordinary
+callers do not accept that profile. Run baseline and candidate sequentially with
+the same seeded data, optimization, driver and sampling options, preserve binary
+hashes, compare value digests, and record background load. Do not compare latency
+while concurrent heavy builds or proofs are running. These observations are not
+service guarantees or complete deployment memory measurements.

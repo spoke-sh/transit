@@ -14,3 +14,14 @@ operations; [contribution instructions](AGENTS.md) describe their test boundary.
 Use `just test::sql-sessions` and the affected installed SQL task from the
 [test module](../../../tasks/test.just). Measurements describe elapsed work;
 they do not replace completion, authorization or recovery assertions.
+
+The shared result model and client correspondence checks run through
+`just test::sql-wire-contracts`. They exercise row and column sources with the
+same public consumers, Arrow value-buffer borrowing with state details, finite
+partition schedules, malformed evidence, allocation failure and bounded resident
+memory. `console_outcomes.py` adds independent HTTP loss/cancellation schedules and
+one-result presentation; native sessions verify owner counts, retained cuts and
+current authorization on buffered data, metadata and empty-terminal repeats.
+`measurements.py` owns the native portion of the seeded console comparison in the
+[performance runner](../../performance/console/console_latency.py). Executed results
+and limitations remain in qualification history.

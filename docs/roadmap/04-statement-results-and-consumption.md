@@ -274,6 +274,18 @@ Compression/decompression belongs to the representation adapter, with explicit
 encoded and decoded bounds and measured CPU/latency tradeoffs. Do not introduce
 a second permanent legacy result protocol or double compression.
 
+The native result cutover must replace hex/JSON cell carriage before completion.
+Small control metadata can remain JSON; result payloads must be bounded binary
+columns, with schema and observation supplied on the initial batch and immutable
+commitments thereafter. Exact repetition of that initial batch repeats its
+description. Reuse Fuze's validated column codecs and Arrow-compatible value
+buffers where supported; preserve all five states and rich types. Binary frames
+need explicit current-definition, lengths, alignment, row counts and terminal
+evidence. Reject malformed or foreign frames before exposing their values. The
+old hex representation is a frozen measurement baseline, never a runtime fallback.
+Measure representation costs independently from service execution, and qualify
+any compression with encoded/decoded bounds and round-trip negative controls.
+
 Arrow integration uses the same logical result lifecycle and preserves all five
 cell states and exact types. Distinguish local borrowed/C Data buffers, IPC batches
 and Flight transport. Existing rich logical IPC segment limits and the narrower

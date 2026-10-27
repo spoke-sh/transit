@@ -646,7 +646,7 @@ diagnostic-grammar:
     zig build diagnostic-grammar
     nix shell .#sql-tools --command python3 -B tests/runner/launch.py tests/interfaces/cli/diagnostic_grammar.py zig-out/bin/transit-diagnostic-grammar
 
-# Measure the default local empty Table with consistently optimized executables.
+# Measure local empty or seeded finite results with consistently optimized executables.
 console-latency *args:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
     python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}

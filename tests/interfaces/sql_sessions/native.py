@@ -387,12 +387,20 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         selected.close()
         select_source(None)
     first = Client(root, port).open()
-    protected = first.execute('SELECT id FROM native_sessions')['batch']
-    authorize(False)
-    denied = first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='AccessDenied')['err']
-    assert denied['sqlstate'] == list(b'42501')
-    authorize(True)
-    first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='SqlResultIncomplete')
+    for sql in ('SELECT id FROM native_sessions',
+                'SELECT id FROM native_sessions WHERE id = -1',
+                'DESCRIBE native_sessions', 'SHOW TABLES',
+                'EXPLAIN SELECT id FROM native_sessions'):
+        protected = first.execute(sql)['batch']
+        authorize(False)
+        try:
+            denied = first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='AccessDenied')['err']
+            assert denied['sqlstate'] == list(b'42501')
+        finally:
+            authorize(True)
+        first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='SqlResultIncomplete')
+    print(json.dumps(dict(profile='native_sql_buffered_disclosure', data=True, empty_terminal=True,
+                          describe=True, catalog=True, explain=True, denied_repeats_disclose_no_rows=True)), flush=True)
     first.close()
     consumer = root/'consumer'
     consumer.mkdir()
