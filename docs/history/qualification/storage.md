@@ -9,6 +9,64 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Disk owner recovery and read matrix — 2026-10-27
+
+The complete matched ReleaseSafe owner matrix passes at clean source
+`1b9ccb12c`: **768 raw samples**, including one discarded warmup and 31 recorded
+observations for each owner/size/path/checkpoint/cache arm. Table fixtures have
+128 and 1,024 rows; native fixtures have 16 and 64 turns. The independent Python
+oracle checks complete counts, sums and payload digests, retained source identity,
+input/output progress and no publication during reads. Cache observations require
+all fixture file pages warm or absent immediately before each child starts.
+
+At 1,024 Table rows, the original retained four-row interval and complete scan
+give these read-phase times:
+
+| Fixture entry | Full scan median / p95 ms | Ordered interval median / p95 ms |
+| --- | ---: | ---: |
+| Warm | 575.080 / 582.862 | 10.753 / 11.816 |
+| Cold | 696.305 / 722.611 | 15.184 / 18.567 |
+
+The scan requests 384 segment ranges, 1,312,768 segment bytes and 4,225 index
+misses across 64 segments; the interval requests 12 ranges and 41,024 bytes
+across two segments. Including index and retained-handle objects, those read
+phases request 6,361,502 and 140,469 bytes respectively. A Table checkpoint
+reduces logical recovery from 65 records/240 object ranges to one record/eight
+ranges. Warm logical recovery median/p95 changes from 22.526/24.806 to
+0.856/1.283 ms; cold changes from 60.879/64.486 to 2.849/3.722 ms. Physical WAL
+startup still verifies 65 or 66 records; checkpointing does not remove that gate.
+
+The 64-turn native baseline/checkpoint read medians are 190.281/189.980 ms warm
+and 218.156/210.578 ms cold. Their p95 values are 197.322/214.396 and
+226.825/245.890 ms. Native physical-open medians remain about 70–73 ms. The
+straddling authority segment remains, and startup validates 2,345/2,350 separate
+allocation-inventory frames in addition to 199/200 authority frames. Native
+checkpointing provides no material read/startup benefit or physical reclamation
+in this fixture. Maximum executable RSS across recorded samples is 9,624 KiB
+for Table and 7,656 KiB for native; these observations are not deployment limits.
+
+The host is a shared AMD Ryzen Threadripper 3960X with ext4 storage under
+`/var/tmp`, affinity to CPU zero and compiler `0.17.0-dev.2267+48abf1a34`.
+Each Table owner uses one index page and separate 128 KiB encoded/decoded
+allowances; the native owner uses one page. The 2 GiB child virtual-memory
+ceiling is separate from those caches. The standalone Table fixture omits the
+installed native-authority/allocation adapter; native counters include both
+authority and allocation WALs. File-page conditioning does not isolate device
+caches, filesystem metadata or unrelated host load.
+
+Reproduce with `just test::storage-benchmark --output .cache/storage-owners.json`
+inside the pinned shell. The raw report is
+`.cache/storage-owners-completion.json` (SHA-256
+`48ed0425311df73b8bb2b0faf6a6c024c4b21f7e839b642f542cee8718946d79`);
+the log is `/var/tmp/transit-m2-owners-completion.log`. The executable hash is
+`567d6bf36c3e7f821c4d4d6f7246a3ca64c0e02092d099bd684f800eb906e59f`.
+The report retains driver/probe/lock hashes, every observation, phase counters,
+tracked allocations, process metrics, cache attempts and fixture commitments.
+The [measurement guide](../../../tests/performance/storage/storage_benchmark.md)
+owns these scopes and independent controls. This is not installed SQL, provider
+or concurrent-writer qualification, and does not establish a p99 or host-RAM
+growth claim. Earlier matrices retain their original sources and outcomes.
+
 ## Local bounded-growth requalification — 2026-10-27
 
 The complete Table growth matrix passes at clean source `d75f0ac7b`, using

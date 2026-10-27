@@ -76,7 +76,24 @@ records the source, controls and reproduction.
 
 ## Retained Table key-range measurements
 
-A paired ReleaseSafe disk-owner matrix measures 1,024-row Table scans and a
+A complete matrix at `1b9ccb12c` records 768 verified raw samples across Table and
+native owners, warm/cold fixture pages and baseline/checkpoint arms. At 1,024
+Table rows, full-scan median/p95 read times are **575.08/582.86 ms** warm and
+**696.31/722.61 ms** cold. The same retained four-row interval takes
+**10.75/11.82 ms** and **15.18/18.57 ms**, requesting 41,024 segment bytes across
+two segments versus 1,312,768 bytes across 64 for the scan. Each arm has 31
+recorded observations, with independent value checks and one discarded warmup.
+
+In this run, checkpointing reduces Table logical recovery from 65 records to
+one: warm median 22.53 to 0.86 ms, cold median 60.88 to 2.85 ms. Physical startup
+still validates the WAL. Native 64-turn reads/startup change little, and its
+allocation WAL still requires startup validation alongside the authority WAL.
+Maximum executable RSS is 9,624 KiB for Table and 7,656 KiB for native samples.
+The [executed account](../../history/qualification/storage.md#disk-owner-recovery-and-read-matrix--2026-10-27)
+records all phases, physical scope, source hashes and raw-report location. These
+are local owner measurements on a shared host, not installed SQL or latency SLOs.
+
+An earlier paired ReleaseSafe disk-owner matrix measures 1,024-row Table scans and a
 four-row interval at the same retained snapshot. With warm fixture pages, the
 baseline median / p95 read times are **621.72 / 645.94 ms** for a complete scan
 and **11.89 / 16.33 ms** for the interval. With verified cold fixture pages at
