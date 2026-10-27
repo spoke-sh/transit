@@ -15,6 +15,7 @@ import sys
 import time
 
 from harness.processes import children, command
+from harness.local_installation import freeze_executables
 from interfaces.installation.server import Fixture
 from harness.services import free_port
 from harness.http_probe import Probe
@@ -156,7 +157,7 @@ def main():
     parser.add_argument('--age-queries', type=int, default=0, choices=range(1001), metavar='0..1000',
                         help='execute this many unmeasured SELECTs before measurements')
     parser.add_argument('--instrument', action='store_true',
-                        help='count native/provider attempts through loopback proxies; adds overhead')
+                        help='count native/Table attempts and owner work through a loopback proxy; adds overhead')
     parser.add_argument('--rows', type=int, default=0, choices=range(513), metavar='0..512',
                         help='seed a fixed narrow/variable-width result workload')
     parser.add_argument('--historical-result-profile', action='store_true',
@@ -173,17 +174,13 @@ def main():
     probes = {}
     try:
         # Freeze all selected executables for the measurement and retained identity.
-        for role in ('node', 'query_host'):
-            frozen = fixture.root / role
-            shutil.copy2(fixture.config['executables'][role], frozen)
-            fixture.config['executables'][role] = str(frozen)
+        freeze_executables(fixture)
         binaries = {'cli': fixture.cli, **fixture.config['executables']}
         node = binaries['node']
         node_fields = {'resident_pages': args.resident_pages}
         if args.instrument:
             real_port = free_port()
-            probes['provider'] = Probe(f"http://127.0.0.1:{fixture.config['ports']['store']}")
-            node_fields.update(port=real_port, ursula_url=probes['provider'].url)
+            node_fields.update(port=real_port, request_metrics=True)
         gate = fixture.root / 'probe-gate' if args.instrument else None
         override(fixture, 'node', node_fields, gate)
         override(fixture, 'query_host', {'interval_ms': args.worker_interval_ms,
@@ -191,6 +188,7 @@ def main():
         fixture.path.write_text(json.dumps(fixture.config))
         print(json.dumps({'binary_revision': args.binary_revision, 'driver_sha256': digest(__file__),
               'system': platform.platform(), 'machine': platform.machine(), 'logical_cpus': os.cpu_count(),
+              'load_average': os.getloadavg(),
               'sample_method': 'sequential post-bootstrap; no timing warmup; RSS sampled every 20 ms',
               'executables': {role: digest(path) for role, path in
               binaries.items()}, 'source_rows': args.rows, 'historical_result_profile': args.historical_result_profile, 'instrumented': args.instrument,
