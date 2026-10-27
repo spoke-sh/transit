@@ -41,6 +41,106 @@ fn provision(engine: *Engine) !struct { pid: u64, resource: u64, guard: a.Guard 
     return .{ .pid = pid, .resource = resource, .guard = guard };
 }
 
+test "direct owner cuts retain pre-fence acceptance while later appends continue" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var cursor: backend.DataCuts = undefined;
+    {
+        var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+        defer owner.deinit();
+        var pages = try backend.PageStore.init(&owner, 1);
+        defer pages.deinit();
+        var journal: backend.Store = .{ .backend = &owner };
+        var engine = try Engine.bootstrap(&journal, &pages, try genesis());
+        var data: backend.DataStore = .{ .backend = &owner };
+        const log = data.log();
+        const policy = engine.head.authorization.revision + 1;
+        _ = try log.append(10, 0, 1, policy, .catalog_ddl, "old-ten");
+        _ = try log.append(2, 0, 1, policy, .row_delta, "old-two");
+        var clock_context: u8 = 0;
+        engine.clock = .{ .context = &clock_context, .read = clock };
+        _ = try submit(&engine, .{ .storage_fence = {} });
+        cursor = try backend.DataCuts.init(engine.head);
+        _ = try log.append(2, 1, 2, policy, .row_delta, "new-two");
+        _ = try log.append(1, 0, 2, policy, .row_delta, "new-owner");
+        try t.expectError(error.StaleStorageEpoch, log.append(3, 0, 1, policy, .row_delta, "late-old-owner"));
+        try owner.wal.fenceEpochs(3, 2, policy); // An empty fenced owner.
+        try t.expectEqual(.progress, try cursor.next(&owner)); // Select 1.
+        try t.expectEqual(.progress, try cursor.next(&owner)); // Only new work.
+        try t.expectEqual(.progress, try cursor.next(&owner)); // Select 2 at tail 2.
+        try t.expectEqual(@as(?u64, 2), cursor.next_lsn);
+        _ = try log.append(2, 2, 2, policy, .row_delta, "after-selection");
+        try t.expectEqual(.progress, try cursor.next(&owner)); // Skip LSN 1 only.
+        try t.expectEqual(@as(?u64, 1), cursor.next_lsn);
+    }
+    // Save/restore the fixed cursor and reopen the actual bytes, without a live
+    // native engine or cached partition descriptor from the first owner.
+    const encoded = try std.json.Stringify.valueAlloc(t.allocator, cursor, .{});
+    defer t.allocator.free(encoded);
+    const parsed = try std.json.parseFromSlice(backend.DataCuts, t.allocator, encoded, .{});
+    defer parsed.deinit();
+    cursor = parsed.value;
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var cuts: usize = 0;
+    for (0..10) |_| {
+        switch (try cursor.next(&owner)) {
+            .progress => {},
+            .complete => break,
+            .cut => |cut| {
+                try t.expectEqual(@as(u64, if (cuts == 0) 2 else 10), cut.header.partition_id);
+                try t.expectEqual(@as(u64, 0), cut.header.lsn);
+                try t.expectEqual(@as(u64, 1), cut.header.writer_epoch);
+                var expected: [32]u8 = undefined;
+                std.crypto.hash.sha2.Sha256.hash(if (cuts == 0) "old-two" else "old-ten", &expected, .{});
+                try t.expectEqualSlices(u8, &expected, &cut.payload_hash);
+                cuts += 1;
+            },
+        }
+    }
+    try t.expectEqual(@as(usize, 2), cuts);
+    try t.expectEqual(.complete, try cursor.next(&owner));
+    try t.expectEqual(@as(u64, 3), try owner.wal.tailLsn(2));
+}
+
+test "direct owner cuts preserve their cursor when required history or fence is invalid" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.bootstrap(&journal, &pages, try genesis());
+    try t.expectError(error.NoStorageFence, backend.DataCuts.init(engine.head));
+    var data: backend.DataStore = .{ .backend = &owner };
+    const log = data.log();
+    const policy = engine.head.authorization.revision + 1;
+    _ = try log.append(1, 0, 1, policy, .row_delta, "old-root");
+    var clock_context: u8 = 0;
+    engine.clock = .{ .context = &clock_context, .read = clock };
+    _ = try submit(&engine, .{ .storage_fence = {} });
+    var cursor = try backend.DataCuts.init(engine.head);
+    _ = try log.append(1, 1, 2, policy, .row_delta, "new-root");
+    try t.expectEqual(.progress, try cursor.next(&owner));
+    try t.expectEqual(.progress, try cursor.next(&owner));
+    const before = cursor;
+    // A Table can archive/trim during discovery. Without its old physical WAL
+    // anchor this traversal is incomplete; an empty result would be unsafe.
+    try owner.wal.trimUpTo(1, 1);
+    try t.expectError(error.WalHistoryTrimmed, cursor.next(&owner));
+    try t.expectEqualDeep(before, cursor);
+    cursor.genesis[0] ^= 1;
+    const foreign = cursor;
+    try t.expectError(error.InvalidStorageCollection, cursor.next(&owner));
+    try t.expectEqualDeep(foreign, cursor);
+    cursor = before;
+    cursor.epoch += 1;
+    const future = cursor;
+    try t.expectError(error.InvalidStorageCollection, cursor.next(&owner));
+    try t.expectEqualDeep(future, cursor);
+}
+
 test "direct data inventory records newer content reuse before publication and recounts quota on reopen" {
     const Allocations = @import("DataAllocations.zig");
     var tmp = t.tmpDir(.{});

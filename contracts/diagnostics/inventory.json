@@ -2325,6 +2325,37 @@
         "transit_storage"
       ]
     },
+    "packages/zig/transit-backend-local/src/DataCuts.zig": {
+      "errors": {
+        "IncompleteHistory": 2,
+        "InvalidStorageCollection": 2,
+        "NoStorageFence": 1
+      },
+      "outcomes": {
+        "Step": [
+          "progress",
+          "cut",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>",
+        "next()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "Backend.zig",
+        "Store.zig",
+        "std",
+        "transit_core",
+        "transit_storage"
+      ]
+    },
     "packages/zig/transit-backend-local/src/DataStore.zig": {
       "errors": {
         "AuthorizationChanged": 1,
@@ -2645,6 +2676,7 @@
       "imports": [
         "Backend.zig",
         "DataAuthority.zig",
+        "DataCuts.zig",
         "DataStore.zig",
         "PageStore.zig",
         "PayloadStore.zig",

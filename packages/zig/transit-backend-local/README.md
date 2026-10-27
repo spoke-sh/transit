@@ -69,6 +69,16 @@ published in the latest accepted Table archive record; it preserves the last WAL
 record and every archived logical record. Mutable data objects and Table-object
 collection are unavailable through this adapter.
 
+`DataCuts` walks the local nonzero partitions under an accepted native storage
+fence. It fixes each partition's observed tail, then reads one frame per step
+backwards to its last acceptance in an older storage epoch. Later appends cannot
+extend that walk. The fixed cursor owns its fields and resumes after reopen;
+each selected cut binds the frame header and full payload hash. Empty owners
+and owners created after the fence contribute no older cut. Missing or trimmed
+required history stops traversal. This discovery supplies neither a complete
+object graph nor deletion authority; catalog and Table retained-root traversal
+must account for the selected owners before collection.
+
 `DataAuthority` authenticates the original signed subject and checks the supplied
 generic native requirements. It separately verifies the catalog resource's
 current lifetime, owner and dependencies through the existing state rules.
