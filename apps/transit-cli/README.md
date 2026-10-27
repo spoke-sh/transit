@@ -4,8 +4,10 @@
 `transit console` opens interactive or batch SQL sessions for queries, Table
 DDL/DML and catalog operations through the shared SQL service.
 
-The local server starts and supervises a separate `transit-board`
-process by default in version-1 local installations, with `--no-ui` for headless operation. See the
+The `transit` executable contains the node, query host, SQL gateway and Board,
+including its frontend assets. The local server starts these roles as separate
+processes from the same executable. Board runs by default, with `--no-ui` for
+headless operation. See the
 [server guide](docs/server.md#default-board-and-compatibility) for grants and compatibility.
 
 The `transit-admin` administration utility remains separate.

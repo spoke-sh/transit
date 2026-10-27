@@ -30,7 +30,8 @@ class Boundary:
         self.upstream = fixture.reserve_port()
         wrapper = fixture.root / 'direct-node'
         module = str(TESTS)
-        binary = fixture.config['executables']['node']
+        configured = fixture.config.setdefault('executables', {}).get('node')
+        binary = [configured] if configured else [fixture.cli, '__transit_role_v1', 'node']
         wrapper.write_text(f'#!{sys.executable}\nimport sys\nsys.path.insert(0, {module!r})\n'
                            f'from interfaces.installation.server_direct_boundary import run_node\n'
                            f'run_node({binary!r}, {str(self.directory)!r}, {self.upstream})\n')
@@ -140,7 +141,7 @@ def run_node(binary, directory, upstream_port):
     server.daemon_threads = True
     for name in (signal.SIGTERM, signal.SIGINT):
         signal.signal(name, lambda *_: stopping.set())
-    child = subprocess.Popen([binary, str(upstream_config), *sys.argv[2:]], preexec_fn=parent_death)
+    child = subprocess.Popen([*binary, str(upstream_config), *sys.argv[2:]], preexec_fn=parent_death)
     (directory / f'node-{child.pid}.pid').write_text(f'{child.pid} {process_start(child.pid)}')
     thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': .05}, daemon=True)
     thread.start()

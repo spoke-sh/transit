@@ -990,6 +990,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_server_test.has_side_effects = true;
     direct_server_test.stdio = .inherit;
     b.step("test-server-direct-tables", "Prove installed SQL uses the direct Table owner and exact bootstrap recovery").dependOn(&direct_server_test.step);
+    const single_server_test = b.addSystemCommand(&.{ "python3", "-B" });
+    single_server_test.addFileArg(b.path("tests/runner/launch.py"));
+    single_server_test.addFileArg(b.path("tests/interfaces/installation/server_board_package.py"));
+    single_server_test.addArtifactArg(transit_cli);
+    single_server_test.has_side_effects = true;
+    single_server_test.stdio = .inherit;
+    b.step("test-server-single-executable", "Prove default server, console and Board from one copied executable").dependOn(&single_server_test.step);
     const direct_fault_test = b.addSystemCommand(&.{ "python3", "-B" });
     direct_fault_test.addFileArg(b.path("tests/runner/launch.py"));
     direct_fault_test.addFileArg(b.path("tests/interfaces/installation/server_direct_faults.py"));
@@ -1019,7 +1026,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         run.addFileArg(b.path(proof[1]));
         if (comptime std.mem.eql(u8, proof[0], "test-server-sql-local")) {
             // Exercise the default installation users run from zig-out/bin,
-            // including adjacent executable discovery instead of cache artifacts.
+            // including built-in runtime roles from that one installed artifact.
             run.addArg("--source-install");
             run.addDirectoryArg2(.{ .relative = .{ .base = .install_prefix } }, .{});
             run.step.dependOn(b.getInstallStep());

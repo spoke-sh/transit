@@ -1,5 +1,5 @@
 {
-  "definition": "654ca199c506604af21873605129e34e18c1c349a42643ece06ed0da9dca7a93",
+  "definition": "47c035195248bf570ed52323112b2a32622ee69714ffb7719124218e034b1b2b",
   "settings": [
     {
       "name": "version",
@@ -380,14 +380,14 @@
     },
     {
       "name": "executables.node",
-      "description": "Matching executable path",
+      "description": "Explicit standalone role executable; null uses the role built into transit",
       "owner": "node",
       "kind": "string",
       "scope": "component",
       "change": "restart",
-      "default_json": null,
+      "default_json": "null",
       "session_mutable": false,
-      "nullable": false,
+      "nullable": true,
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
@@ -396,14 +396,14 @@
     },
     {
       "name": "executables.query_host",
-      "description": "Matching executable path",
+      "description": "Explicit standalone role executable; null uses the role built into transit",
       "owner": "query",
       "kind": "string",
       "scope": "component",
       "change": "restart",
-      "default_json": null,
+      "default_json": "null",
       "session_mutable": false,
-      "nullable": false,
+      "nullable": true,
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
@@ -412,12 +412,12 @@
     },
     {
       "name": "executables.board",
-      "description": "Matching executable path",
+      "description": "Explicit standalone role executable; null uses the role built into transit",
       "owner": "board",
       "kind": "string",
       "scope": "component",
       "change": "restart",
-      "default_json": null,
+      "default_json": "null",
       "session_mutable": false,
       "nullable": true,
       "sensitive": false,
@@ -428,14 +428,14 @@
     },
     {
       "name": "executables.sql_gateway",
-      "description": "Matching executable path",
+      "description": "Explicit standalone role executable; null uses the role built into transit",
       "owner": "sql",
       "kind": "string",
       "scope": "component",
       "change": "restart",
-      "default_json": null,
+      "default_json": "null",
       "session_mutable": false,
-      "nullable": false,
+      "nullable": true,
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
@@ -1365,31 +1365,44 @@
         "additionalProperties": false,
         "properties": {
           "node": {
-            "type": "string",
-            "description": "Matching executable path",
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Explicit standalone role executable; null uses the role built into transit",
             "x-transit-owner": "node",
-            "x-transit-change": "restart"
+            "x-transit-change": "restart",
+            "default": null
           },
           "query_host": {
-            "type": "string",
-            "description": "Matching executable path",
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Explicit standalone role executable; null uses the role built into transit",
             "x-transit-owner": "query",
-            "x-transit-change": "restart"
+            "x-transit-change": "restart",
+            "default": null
           },
           "board": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Matching executable path",
+            "description": "Explicit standalone role executable; null uses the role built into transit",
             "x-transit-owner": "board",
-            "x-transit-change": "restart"
+            "x-transit-change": "restart",
+            "default": null
           },
           "sql_gateway": {
-            "type": "string",
-            "description": "Matching executable path",
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Explicit standalone role executable; null uses the role built into transit",
             "x-transit-owner": "sql",
-            "x-transit-change": "restart"
+            "x-transit-change": "restart",
+            "default": null
           }
         }
       },

@@ -27,10 +27,10 @@ pub const descriptors = [_]D{
     .{ .name = "query.statement_timeout_ceiling", .default_json = "0", .description = "Maximum session deadline; zero is unlimited", .owner = "query", .kind = .duration, .scope = .session, .change = .new_session, .maximum = 86400000 },
     port("ports.node", "node"),
     port("ports.gateway", "gateway"),
-    executable("executables.node", "node", false),
-    executable("executables.query_host", "query", false),
-    executable("executables.board", "board", true),
-    executable("executables.sql_gateway", "sql", false),
+    executable("executables.node", "node"),
+    executable("executables.query_host", "query"),
+    executable("executables.board", "board"),
+    executable("executables.sql_gateway", "sql"),
     .{ .name = "sql.native.local", .default_json = "true", .description = "Private Unix SQL listener and once-enrolled local peer account", .owner = "sql", .kind = .boolean, .change = .restart },
     .{ .name = "sql.native.http", .default_json = "null", .description = "Native SQL HTTP listener; independent of database wire listeners", .owner = "sql", .kind = .object, .change = .restart, .nullable = true },
     .{ .name = "sql.native.http.address", .default_json = "\"127.0.0.1\"", .description = "Native SQL HTTP bind address", .owner = "sql", .kind = .string, .change = .restart },
@@ -94,8 +94,8 @@ fn port(comptime name: []const u8, comptime owner: []const u8) D {
         @compileError("Port default is required");
     }, .description = "Loopback TCP port", .owner = owner, .kind = .unsigned, .change = .restart, .minimum = 1024, .maximum = 65535 };
 }
-fn executable(comptime name: []const u8, comptime owner: []const u8, comptime nullable: bool) D {
-    return .{ .name = name, .description = "Matching executable path", .owner = owner, .kind = .string, .change = .restart, .nullable = nullable };
+fn executable(comptime name: []const u8, comptime owner: []const u8) D {
+    return .{ .name = name, .default_json = "null", .description = "Explicit standalone role executable; null uses the role built into transit", .owner = owner, .kind = .string, .change = .restart, .nullable = true };
 }
 
 test "local settings descriptors have unique canonical names" {

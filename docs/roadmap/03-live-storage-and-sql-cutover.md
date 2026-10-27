@@ -156,15 +156,26 @@ the first end-to-end test at the end of the milestone.
 
 On 2026-10-27 the user prioritized merging the live Table integration so the
 statement-result work can proceed concurrently. Deliver the already implemented
-owner recovery/payload routes, automatic flushing and lazy schema projection in
-an early PR. This does not close milestone 3 or move its remaining obligations
+owner recovery/payload routes, automatic flushing, lazy schema projection and
+single-executable packaging in an early PR. The user clarified that the ordinary
+`transit server` and `transit console` workflow must make the new implementation
+available for human testing, without special flags, executable configuration or
+test commands. Move P7 ahead of P4–P6 for this integration gate. This does not
+close milestone 3 or move its remaining obligations
 to milestone 4. Direct SQL already reaches the real WAL/Table owner; the PR
 qualifies that installed path with mixed physical schemas and automatic flushing.
-Single-executable packaging is a later P7 outcome, not a prerequisite for the
-shared SQL result reader.
+Single-executable packaging is required before this early PR and the
+statement-result handoff.
 
 The handoff gate is:
 
+- [ ] One copied `transit` executable starts with `transit server`, including
+  default Board assets and internal runtime roles, without sibling Transit
+  binaries or external storage services. `transit console` discovers it and
+  executes Table DDL/DML and reads through the new default storage owner.
+- [ ] The same ordinary commands preserve accepted rows through restart;
+  `--no-ui`, opt-in database listeners and owned-role shutdown/recovery retain
+  their existing behavior. Qualify the copied executable with unavailable PATH.
 - [x] Installed direct SQL accepts and reads WAL-only rows while the application
   query worker is stopped; exact values survive abrupt owner restart.
 - [x] Default flushing publishes verified segment coverage under the existing
@@ -190,7 +201,7 @@ across the two branches; neither branch may retain a parallel legacy definition.
 
 Remaining work here includes P0's baseline diagnosis, P1.4's broader resource
 matrix, P4's automatic archive/checkpoint/compaction/collection, P5's measured
-reader/recovery reuse and waiting, P6's storage views, P7's packaging and P8's
+reader/recovery reuse and waiting, P6's storage views and P8's
 full common-revision qualification. Unfinished bounded WAL cleanup is a follow-up
 to the early PR. Coordinate P5 reader lifetime and P6 SQL inspection changes with
 the statement-result owner instead of editing its result lifecycle independently.

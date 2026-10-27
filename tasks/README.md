@@ -138,7 +138,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::server-sql`, `just test::server-sql-faults` | Exercise opt-in PostgreSQL/MySQL clients, explicit authorization, retained work and interrupted enrollment |
 | `just test::server-direct-tables` | Exercise installed direct Table CRUD/DDL with the query worker stopped, exact bootstrap recovery and deliberate default-Table deletion |
 | `just test::server-direct-faults` | Refuse direct execution while testing new-console status, cancellation and exact recovery across caller/manager loss |
-| `just test::server-sql-local` | Exercise the default build's installed executables and adjacent discovery under `.cache/transit-sql-local`, with real trust/password clients, TLS modes, revocation and interrupted owner setup |
+| `just test::server-sql-local` | Exercise the default build's single executable under `.cache/transit-sql-local`, with real trust/password clients, TLS modes, revocation and interrupted owner setup |
 | `just test::server-sql-lifetimes` | Verify idle psql and PostgreSQL/MySQL sockets, native session expiry, explicit timeout errors and bounded partial frames over plaintext/TLS |
 | `just test::server-sql-package` | Run the public SQL workflow against the installed local Nix bundle outside the checkout |
 | `just test::cli-diagnostics` | Check real CLI errors, argument/file/field/listener coordinates, next steps, privacy and stdout/stderr separation without starting services; included in `just check all` |
@@ -147,7 +147,8 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::diagnostic-outcomes` | Execute retained outcome mappings, fact provenance and exact recovery actions against reviewed expectations. |
 | `just test::console-history` | Check real PTY reverse search, SQL/dot-command persistence, concurrent consoles, malformed records and file-failure fallback; included in `just check all` |
 | `just test::console-latency [--single --resident-pages N --worker-interval-ms N]` | Measure idle CPU and empty-Table SQL with frozen ReleaseSafe executables and isolated disk providers; optional cache/polling controls, no latency threshold |
-| `just test::server-board`, `just test::server-board-package` | Qualify default embedded Board, explicit headless operation, retained inspection grants, recovery and the Nix downstream manifest |
+| `just test::server-single-executable` | Copy only `transit`; exercise bare server/console, Table lifecycle, automatic flush, restart persistence, default Board and owned role recovery without runtime PATH tools |
+| `just test::server-board`, `just test::server-board-package` | Qualify default embedded Board, explicit headless operation, retained inspection grants, recovery and the single-executable Nix package |
 | `just test::server-faults` | Add interrupted provisioning, native gateway denial/capacity and negative provider-rollback checks |
 | `just test::server-capacity` | Fill a newly allocated ext4 image to real ENOSPC, preserve accepted query identity and recover the same installation |
 | `just test::unified-codec` | Check independent v1 bundles and nested Arrow through the native library and local port |

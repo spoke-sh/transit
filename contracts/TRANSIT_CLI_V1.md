@@ -123,7 +123,14 @@ implicit upgrades. Effect connectors remain unsupported optional
 roles. Board readiness, configuration and compatibility belong to the
 [server guide](../apps/transit-cli/docs/server.md#default-board-and-compatibility).
 
-The configuration names its installation directory and executable dependencies.
+The configuration names its installation directory. Missing or null role
+executable settings select the node, query host, SQL gateway and Board compiled
+into `transit`; Board's frontend assets are embedded. The supervisor starts each
+role in a separate process using private dispatch arguments, outside the public
+command interface. Explicit paths select matching standalone role executables.
+There is no adjacent-binary or PATH discovery. Each retained role artifact hash
+binds the shared definition, role name, embedded/external invocation mode and
+executable bytes. A changed mode or artifact rejects before activation.
 The persistent installation records a random installation identity, format and
 artifact identities, realm/root public key, storage locations, role identities,
 credential references and accepted provisioning receipts. Dependency checking

@@ -18,8 +18,7 @@ def run(cli, node, host, board, gateway, *, bundle=None, source_install=False):
     os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(Path(gateway).resolve())
     fixture = Fixture(cli, node, host)
     if bundle:
-        fixture.cli = str(Path(bundle).resolve() / 'bin/transit')
-        fixture.config.pop('executables')  # Installed adjacent Transit artifacts.
+        fixture.config.pop('executables')  # All roles come from the copied CLI.
     else:
         freeze(fixture)
     fixture.config['sql'] = {'native': {'local': False}}
@@ -174,11 +173,14 @@ sql:
             print(f'Local authentication evidence retained at {fixture.root}', file=sys.stderr, flush=True)
 
 
-def bootstrap_fault(cli, node, host, board, gateway):
+def bootstrap_fault(cli, node, host, board, gateway, *, embedded=False):
     from harness.processes import joined
     from interfaces.installation.server_application_faults import descendants, install_peer, wait_file
     fixture = Fixture(cli, node, host)
-    freeze(fixture)
+    if embedded:
+        fixture.config.pop('executables')
+    else:
+        freeze(fixture)
     install_peer(fixture)
     fixture.config['applications'] = {'port': fixture.reserve_port()}
     fixture.config['board'] = {'port': fixture.reserve_port()}
@@ -234,9 +236,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.bundle or args.source_install:
         root = (args.bundle or args.source_install).resolve()
-        binaries = [root / 'bin' / name for name in ('transit', 'transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway')]
+        binaries = [root / 'bin/transit'] * 5
         run(*binaries, bundle=root, source_install=args.source_install is not None)
-        bootstrap_fault(*binaries)
+        bootstrap_fault(*binaries, embedded=True)
     else:
         assert len(args.binaries) == 5
         run(*args.binaries)

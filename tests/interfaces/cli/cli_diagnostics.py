@@ -211,7 +211,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         invoke(['console', '--no-rc', '--config', path], 1, ('SQL parse error',), data=data)
         assert all(action != 'execute' for action, _ in SESSION_ACTIONS[before:]), 'Unclosed batch input reached SQL execution'
     invoke(['console', '--no-rc', '--config', path], 1, ('4096-byte statement limit',), data=b'SELECT '+b'x'*4096)
-    # The executable's physical directory precedes PATH, independent of cwd.
+    # Built-in roles ignore adjacent files and PATH; explicit overrides still validate.
     adjacent, search = root/'bin', root/'search'
     adjacent.mkdir(); search.mkdir()
     local_cli = adjacent/'transit'
@@ -230,13 +230,13 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     def convention(**values):
         return invoke(['server', '--config', discovery_config, '--no-ui'], 1, ('startup requires an existing installation',),
                       env=dict(ENV, PATH=str(search), **values), cwd=root, binary=str(local_cli))
-    convention()  # No manifest or tools on PATH.
+    convention()  # No external role selection.
     for name in names: (search/name).touch(mode=0o700)
-    convention()  # Executable but invalid PATH files cannot shadow adjacent binaries.
+    convention()  # Invalid PATH files cannot shadow built-in roles.
     for name in names:
         (adjacent/name).unlink(); (search/name).unlink(); (search/name).symlink_to(sys.executable)
-    convention()  # PATH fallback.
-    # Explicit executable overrides win over both discovery locations.
+    convention()  # Removing adjacent files still uses built-in roles.
+    # Explicit standalone overrides validate instead of falling back to a built-in role.
     discovery_config.write_text(json.dumps({'executables': {'node': 'absent-node'}}))
     invoke(['server', '--config', discovery_config], contains=('executables.node',),
            env=dict(ENV, PATH=str(search)), cwd=root, binary=str(local_cli))

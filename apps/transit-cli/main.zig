@@ -16,6 +16,10 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len > 1 and std.mem.eql(u8, args[1], "__transit_child_v1")) return @import("server/Process.zig").trampoline(init, args);
     if (args.len == 3 and std.mem.eql(u8, args[1], "__transit_gateway_v1")) return @import("server/Gateway.zig").run(init, args[2]);
+    const runtime = @import("RuntimeRole.zig");
+    if (args.len >= 3 and std.mem.eql(u8, args[1], runtime.argument)) {
+        return runtime.run(init, std.meta.stringToEnum(runtime.Role, args[2]) orelse return error.InvalidInvocation);
+    }
     const options = try @import("Options.zig").parseDiagnosed(args[1..], init.environ_map.get("TRANSIT_CONSOLE_CONFIG"), diagnostic);
     if (options.command == .help or options.help) return @import("Options.zig").writeHelp(init.io, options);
     return switch (options.command) {

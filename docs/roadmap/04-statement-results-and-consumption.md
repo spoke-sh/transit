@@ -21,9 +21,10 @@ safe bounded reads remain with their owner.
 The approved [early integration handoff](03-live-storage-and-sql-cutover.md#early-integration-pr-and-statement-result-handoff)
 separates that dependency from completion of the entire storage milestone. Start
 implementation from the merged early PR, which qualifies installed direct SQL,
-automatic point flushing and lazy schema projection over mixed WAL/segment data.
+automatic point flushing, lazy schema projection over mixed WAL/segment data and
+single-executable startup through ordinary `transit server` / `transit console`.
 Automatic archive/collection, further reader performance work, storage inspection
-and single-executable packaging remain with the storage owner. Coordinate shared
+and final storage qualification remain with the storage owner. Coordinate shared
 reader lifetime/inspection changes and any replacement of the current definition
 across both branches; do not introduce parallel compatibility definitions.
 

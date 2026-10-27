@@ -18,6 +18,10 @@ their actual inputs. Missing fixtures must never silently remove a target.
 
 Both graphs share the same runtime modules and artifact objects. Test registration
 adds dependencies to those objects instead of reconstructing runtime binaries.
+The local `transit` executable imports the registered node, query host, SQL
+gateway and Board entry-point modules. The standalone artifacts and private
+local roles share those modules and package identities. Board assets are linked
+into the executable; the supervisor launches independent role processes from it.
 
 The fixture registry declares shared Zig modules and their direct imports.
 Scenario implementations live under their [test owners](../tests/README.md).

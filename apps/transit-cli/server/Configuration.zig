@@ -305,12 +305,10 @@ fn apply(self: *Self, a: std.mem.Allocator, wire: *q.wire.Client, state: *State,
 }
 
 fn matchingArtifacts(init: std.process.Init, config: Config, identity: Config.Identity) !bool {
+    const executable = try std.process.executablePathAlloc(init.io, init.arena.allocator());
     inline for (@typeInfo(Config.Executables).@"struct".field_names) |name| {
-        if (comptime std.mem.eql(u8, name, "board")) {
-            const path = config.executables.board orelse return false;
-            const expected = identity.board orelse return false;
-            if (!std.mem.eql(u8, &try Config.digest(init, path), &expected)) return false;
-        } else if (!std.mem.eql(u8, &try Config.digest(init, @field(config.executables, name)), &@field(identity, name))) return false;
+        const actual = try config.roleDigest(init, executable, @field(@import("../RuntimeRole.zig").Role, name));
+        if (!std.mem.eql(u8, &actual, &@field(identity, name))) return false;
     }
     return true;
 }

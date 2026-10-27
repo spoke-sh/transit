@@ -127,13 +127,15 @@ def run(cli, node, host, board, gateway, *, bundle=None):
     gateway = str(Path(gateway).resolve())
     fixture = SQLFixture(cli, node, host)
     if bundle:
-        fixture.cli = str(Path(bundle).resolve() / 'bin/transit')
+        fixture.config.pop('executables')
+        gateway = [fixture.cli, '__transit_role_v1', 'sql_gateway']
     else:
         freeze(fixture)
-        gateway = fixture.config['executables']['sql_gateway']
+        gateway = [fixture.config['executables']['sql_gateway']]
+    # Select the fault boundary before first startup: artifact identities cannot
+    # change from an embedded role to an external wrapper during restart. The
+    # default unwrapped single-executable path has its own packaging schedule.
     fixture.boundary = Boundary(fixture)
-    if bundle:
-        fixture.config.pop('executables')  # Exercise installed adjacent discovery.
     fixture.config['sql'] = {'native': {'local': False}}
     fixture.config['applications'] = {'port': fixture.reserve_port()}
     fixture.config['board'] = {'port': fixture.reserve_port()}
@@ -146,7 +148,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         report = fixture.ready()
         assert report['sql'] is None
         assert not (fixture.installation / 'sql').exists()
-        assert not any('transit-sql-gateway' in command(pid) for pid in children(fixture.process.pid))
+        assert not any('transit-sql-gateway' in command(pid) or '__transit_role_v1 sql_gateway ' in command(pid) for pid in children(fixture.process.pid))
         fixture.stop()
         print('Local SQL: disabled installation has no SQL process or enrollment.', flush=True)
         passwords = {name: secrets.token_hex(24) for name in ('owner', 'writer', 'reader')}
@@ -243,7 +245,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
             while True:
                 remaining = deadline-time.monotonic()
                 assert remaining > 0, ('Original SQL operation did not complete', original)
-                observed = json.loads(call([gateway, 'control', control, 'status', str(original)],
+                observed = json.loads(call([*gateway, 'control', control, 'status', str(original)],
                     timeout=remaining, retry_observation=True))
                 assert observed['operation']['operation'] == original, observed
                 if observed['terminal'] is not None:
@@ -256,7 +258,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
 
         profile = fixture.installation / 'sql/accounts/owner/control.json'
         def controls(*args):
-            return json.loads(call([gateway, 'control', profile, *map(str, args)], retry_observation=True))
+            return json.loads(call([*gateway, 'control', profile, *map(str, args)], retry_observation=True))
 
         assert pg('SELECT 1') == mysql('SELECT 1') == '1'
         assert pg('SHOW DATABASES') == 'transit'
@@ -293,7 +295,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         old['postgres_port'] = old['mysql_port'] = old['health_port'] = None
         stale = fixture.root / 'stale-gateway.json'
         stale.write_text(json.dumps(old))
-        denied([gateway, stale])
+        denied([*gateway, stale])
 
         policy(fixture, 'REVOKE SELECT ON TABLE public.shared_rows FROM reader CASCADE;', 'reader-revoke')
         pg('SELECT * FROM shared_rows', 'reader', reject=True)
@@ -316,7 +318,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         passwords['owner'] = secrets.token_hex(24)
         rotation = fixture.root / 'rotated.password'
         rotation.write_text(passwords['owner']); rotation.chmod(0o600)
-        call([gateway, 'control', profile, 'credential', rotation, fixture.installation / 'sql/accounts/owner/verifier.json', '2'])
+        call([*gateway, 'control', profile, 'credential', rotation, fixture.installation / 'sql/accounts/owner/verifier.json', '2'])
         args, env = pg_args()
         denied([*args, 'SELECT 1'], env=env | {'PGPASSWORD': previous})
         assert pg('SELECT 1') == '1'
@@ -337,14 +339,6 @@ def run(cli, node, host, board, gateway, *, bundle=None):
 
         # Lose the client response after an operation reaches the durable ledger.
         # Observe its identity; never submit this SQL a second time.
-        if bundle:
-            # Earlier startup/replacements exercised installed discovery. Fault
-            # injection now wraps only that same installed node artifact.
-            fixture.stop()
-            fixture.config['executables'] = {'node': str(fixture.root / 'direct-node')}
-            fixture.path.write_text(json.dumps(fixture.config))
-            fixture.start(); fixture.ready(timeout=300)
-            wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
         fixture.boundary.pause()
         before = {e['operation'] for e in controls('list')['entries']}
         lost = subprocess.Popen([*mysql_args(), "INSERT INTO shared_rows (id,label) VALUES (2,'retained')"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -437,7 +431,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.bundle:
         root = args.bundle.resolve()
-        run(*(root/'bin'/name for name in ('transit', 'transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway')), bundle=root)
+        run(*([root/'bin/transit'] * 5), bundle=root)
     else:
         assert len(args.binaries) == 5
         run(*args.binaries)

@@ -117,8 +117,9 @@ Concrete batches contain at most 1024 changes within 4 MiB of framed work.
 Typed predicate UPDATE/DELETE plans select rows inside the Table owner under
 explicit work budgets. These data operations do not use actor mailbox frames or
 native turn-block quotas. Point writes can remain in retained WAL records;
-bulk ingestion publishes immutable `.tseg` objects. The installed owner does
-not automatically flush point writes. See the [storage boundary](storage.md#direct-table-data)
+bulk ingestion publishes immutable `.tseg` objects. The local server enables
+bounded automatic point flushing by default, based on pending rows, bytes and
+age. See the [storage boundary](storage.md#direct-table-data)
 for acceptance, retention and physical cleanup limits.
 
 Matched and changed row counts come from the committed outcome. An unchanged

@@ -178,7 +178,7 @@ fn cycle(self: *Self) !void {
     const courier_config = try installation.path("courier.json");
     const destinations = [_]u64{ connection.source, connection.requester };
     try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = if (applications != null) destinations[0..0] else destinations[0..], .all_destinations = applications != null } }, .interval_ms = 10, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
-    try self.start(allocator, .courier, &.{ config.executables.query_host, courier_config }, &.{}, false);
+    try self.start(allocator, .courier, try config.command(allocator, self.executable, .query_host, &.{courier_config}), &.{}, false);
     try installation.initializeBehaviors();
     const started = std.Io.Clock.awake.now(self.init.io);
     while (true) {
@@ -212,7 +212,7 @@ fn cycle(self: *Self) !void {
     defer if (sql) |manager| manager.destroy();
     if (self.ui) {
         const board_path = try Board.configuration(installation, allocator);
-        try self.start(allocator, .board, &.{ config.executables.board.?, board_path }, &.{}, false);
+        try self.start(allocator, .board, try config.command(allocator, self.executable, .board, &.{board_path}), &.{}, false);
         const board_started = std.Io.Clock.awake.now(self.init.io);
         while (true) {
             if (Signals.interrupted()) return error.ServerStopped;
@@ -301,9 +301,16 @@ fn node(self: *Self, allocator: std.mem.Allocator) !void {
     // and every replacement; a generic supervisor failure loses that context.
     installation.wire.observer = self.diagnostics;
     const node_config = try installation.path("node.json");
-    try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .local_directory = try installation.path("data/native"), .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = config.storage, .table = try @import("Tables.zig").node(installation), .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
-    const node_args = [_][]const u8{ config.executables.node, node_config, "--bootstrap" };
-    try self.start(allocator, .node, node_args[0..if (installation.record.genesis_observed) @as(usize, 2) else 3], &.{}, false);
+    const table = try @import("Tables.zig").node(installation);
+    var storage = config.storage;
+    // Native bootstrap first publishes the catalog's scope and grants. The
+    // owned restart in cycle() activates the Table host and configured flushing
+    // together, before workers or SQL can accept data. There is no Table to
+    // maintain during that initial native-only bootstrap.
+    if (table == null) storage.maintenance.flush.enabled = false;
+    try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .local_directory = try installation.path("data/native"), .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = storage, .table = table, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
+    const node_args = [_][]const u8{ node_config, "--bootstrap" };
+    try self.start(allocator, .node, try config.command(allocator, self.executable, .node, node_args[0..if (installation.record.genesis_observed) @as(usize, 1) else 2]), &.{}, false);
     const node_health = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.node});
     try self.ready(node_health);
     _ = try installation.query(.{ .capabilities = {} });
@@ -320,7 +327,7 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const tables = installation.directCatalog();
     const config: Common = .{ .tables = if (role == .source) .{ .url = installation.wire.url, .scope = tables.scope, .branch = tables.branch, .audience = tables.audience } else null, .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .unified_source = .{ .peer = connection.requester, .initializer = Installation.caller } } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
     const json = try std.json.Stringify.valueAlloc(allocator, config, .{});
-    try self.start(allocator, role, &.{ installation.config.executables.query_host, "--bootstrap-json", json }, &.{}, true);
+    try self.start(allocator, role, try installation.config.command(allocator, self.executable, .query_host, &.{ "--bootstrap-json", json }), &.{}, true);
     var bytes: [1024]u8 = undefined;
     const registration = try self.processes[@backingInt(role)].registration(self.init.io, &bytes);
     const parsed = try std.json.parseFromSlice(struct { growing_bootstrap: q.wire.bootstrap.GrowingRegistration }, allocator, registration, .{});

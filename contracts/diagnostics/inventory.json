@@ -713,6 +713,37 @@
         "transit_query"
       ]
     },
+    "apps/transit-cli/RuntimeRole.zig": {
+      "errors": {
+        "UnsupportedLocalPlatform": 1
+      },
+      "outcomes": {
+        "Role": [
+          "node",
+          "query_host",
+          "sql_gateway",
+          "board"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "arguments()": "<inferred>",
+        "run()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
+        "builtin",
+        "std",
+        "transit_board_role",
+        "transit_node_role",
+        "transit_query_host_role",
+        "transit_sql_gateway_role"
+      ]
+    },
     "apps/transit-cli/Settings.zig": {
       "errors": {
         "ConfigurationTooLarge": 1
@@ -1012,7 +1043,7 @@
         "InvalidConfiguration": 1,
         "InvalidConfigurationPath": 1,
         "InvalidCredentialFile": 1,
-        "InvalidInvocation": 1,
+        "InvalidInvocation": 2,
         "InvalidQueryInput": 1,
         "QueryInputTooLarge": 1
       },
@@ -1031,6 +1062,7 @@
         "Console.zig",
         "Diagnostic.zig",
         "Options.zig",
+        "RuntimeRole.zig",
         "server/Gateway.zig",
         "server/Process.zig",
         "server/Server.zig",
@@ -1178,28 +1210,22 @@
     },
     "apps/transit-cli/server/Config.zig": {
       "errors": {
-        "AccessDenied": 1,
-        "BoardExecutableRequired": 1,
         "EndOfStream": 1,
-        "ExecutableNotFound": 2,
-        "ExecutableSearchTooLarge": 2,
-        "FileNotFound": 3,
+        "FileNotFound": 2,
         "InvalidBoardOrigin": 1,
         "InvalidConfiguration": 5,
         "InvalidConfigurationPath": 1,
         "InvalidExecutable": 1,
         "InvalidSettingType": 1,
-        "NotDir": 1,
         "SettingOutOfRange": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "candidate()": "<inferred>",
         "capture()": "<inferred>",
         "checkedDigest()": "<inferred>",
         "clone()": "<inferred>",
-        "defaultExecutable()": "<inferred>",
+        "command()": "<inferred>",
         "digest()": "<inferred>",
         "forConsole()": "<inferred>",
         "identities()": "<inferred>",
@@ -1208,15 +1234,17 @@
         "preflight()": "<inferred>",
         "resolve()": "<inferred>",
         "resolveExecutable()": "<inferred>",
+        "roleDigest()": "<inferred>",
         "value()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 48,
-        "catch": 19
+        "try": 37,
+        "catch": 16
       },
       "imports": [
         "../Diagnostic.zig",
+        "../RuntimeRole.zig",
         "../Settings.zig",
         "Files.zig",
         "Hosts.zig",
@@ -1270,6 +1298,7 @@
       },
       "imports": [
         "../Diagnostic.zig",
+        "../RuntimeRole.zig",
         "Config.zig",
         "Files.zig",
         "Hosts.zig",
@@ -1539,7 +1568,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 86,
+        "try": 90,
         "catch": 8
       },
       "imports": [
@@ -1621,7 +1650,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 94,
+        "try": 96,
         "catch": 4
       },
       "imports": [
@@ -13421,7 +13450,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"654ca199c506604af21873605129e34e18c1c349a42643ece06ed0da9dca7a93\""
+          "@\"47c035195248bf570ed52323112b2a32622ee69714ffb7719124218e034b1b2b\""
         ],
         "Effect.phase": [
           "pending",
