@@ -15,7 +15,11 @@ global collectors or import-time threads. Standalone executables can use
 `runService(init, name, lifecycle_level, body)`, which owns this lifetime,
 reports one terminal failure and returns an exit status after flushing. The
 executable exits with that status instead of returning the same error to Zig's
-unhandled-error renderer. Invalid logging configuration emits only its stable
+unhandled-error renderer. Its single terminal record has a separate publication
+slot, so a concurrent queue pop cannot discard the final event. It drains after
+queued events within the same shutdown bound and retains level, format and record
+size limits. A blocked/failed sink or abrupt exit can still prevent delivery.
+Invalid logging configuration emits only its stable
 error name using a valid selected format or the default text format. Libraries borrow an optional runtime;
 `begin(null, ...)` is a no-op span. A failed writer never fails service startup.
 
@@ -93,6 +97,7 @@ new instance and resets its counters as usual.
 | --- | --- |
 | Record | 2 KiB including newline; oversized records drop |
 | Queue | 128 records (256 KiB payload); normal records use at most 112 slots |
+| Service terminal slot | One additional 2 KiB record, published once by `runService` after its body; independent of ordinary queue contention and rate suppression |
 | Emission | Fixed formatting buffer, try-lock enqueue; never waits for sink I/O or a queue lock |
 | Rate | Up to 200 ordinary and 20 warning/error records per monotonic second; excess counted as suppressed |
 | Writer | One guaranteed-concurrent task; 10 ms idle polling; no network, WAL or file ownership |
