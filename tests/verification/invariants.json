@@ -132,20 +132,24 @@
       "claim": "Recovery restores decisions without running handlers or redispatching effects",
       "owner": "docs/handbook/reference/streams.md",
       "implementation": [
-        "packages/zig/transit-core/src/root.zig"
+        "packages/zig/transit-core/src/root.zig",
+        "packages/zig/transit-backend-local/src/native_test.zig"
       ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::storage",
         "test::service",
         "test::station",
-        "test::properties"
+        "test::properties",
+        "check::native"
       ],
       "scenarios": [
         "SIGKILL and WAL recovery",
-        "Checkpoint plus trimmed tail"
+        "Checkpoint plus trimmed tail",
+        "Local authorized/unknown attempts and observed/closed-unknown outcomes retain exact lost-reply receipts across one-page reopen and trimming",
+        "Late local effect outcomes retain evidence without admitting new input to the retired caller"
       ],
-      "limits": "Process kill is not host power loss; legacy checkpoint includes the whole bounded catalog.",
+      "limits": "Finite recovery schedules. Process kill is not host power loss. The local owner case records connector observations but performs no external request and establishes no remote cancellation or exactly-once external effect guarantee.",
       "model": null,
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },

@@ -297,6 +297,97 @@ test "local native turn atomically recovers state, blocks, input progress, outpu
     try t.expectEqual(@as(u32, 0), result.blocks.len);
 }
 
+test "local effect attempts and terminal outcomes survive lost replies and trimmed restart" {
+    for ([_]bool{ false, true }) |abandon| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var clock_context: u8 = 0;
+        var pid: u64 = undefined;
+        var effect: u64 = undefined;
+        var attempt: u64 = undefined;
+        var terminal: u64 = undefined;
+        var dispatch: g.SignedRequest = undefined;
+        var outcome: g.SignedRequest = undefined;
+        for (0..5) |phase| {
+            var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+            defer owner.deinit();
+            var pages = try backend.PageStore.init(&owner, 1);
+            defer pages.deinit();
+            var journal: backend.Store = .{ .backend = &owner };
+            var engine = if (phase == 0) try Engine.bootstrap(&journal, &pages, try genesis()) else try Engine.open(&journal, &pages, try genesis());
+            engine.clock = .{ .context = &clock_context, .read = clock };
+            if (phase == 0) {
+                pid = try submit(&engine, .{ .spawn = .{ .allow_collection = true } });
+                _ = try submit(&engine, .{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } });
+                const input = try submit(&engine, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } });
+                const process = try engine.process(pid);
+                effect = try submit(&engine, .{ .turn = .{
+                    .pid = pid,
+                    .generation = process.generation,
+                    .input = input,
+                    .expected_revision = process.revision,
+                    .effect = core.Value.integer(9),
+                } });
+                dispatch = try g.sign(.{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .{ .dispatch = .{ .pid = pid, .effect = effect } } }, try rootKey());
+                attempt = engine.head.position;
+                journal.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, engine.submit(dispatch));
+                continue;
+            }
+            const saved = (try query(&engine, .{ .effects = .{ .pid = pid } })).body.effects.entries[0].?;
+            try t.expectEqual(effect, saved.id);
+            try t.expectEqual(@as(?u64, attempt), saved.attempt);
+            try t.expectEqual(@as(i64, 9), try saved.payload.asInteger());
+            if (phase == 1) {
+                // Reopening an authorized attempt neither invents its outcome
+                // nor creates another dispatch. Resolve the original request.
+                try t.expectEqual(.authorized, saved.phase);
+                const position = engine.head.position;
+                const created = pages.created;
+                try t.expectEqual(attempt, try engine.submit(dispatch));
+                try t.expectEqual(position, engine.head.position);
+                try t.expectEqual(created, pages.created);
+                try t.expectError(error.AttemptAlreadyAuthorized, submit(&engine, .{ .dispatch = .{ .pid = pid, .effect = effect } }));
+                _ = try submit(&engine, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = null } });
+                _ = try submit(&engine, .{ .checkpoint = {} });
+                try journal.maintain(engine.head);
+            } else if (phase == 2) {
+                try t.expectError(error.HistoryReclaimed, journal.read(0));
+                try t.expectEqual(.unknown, saved.phase);
+                try t.expect(saved.result == null and saved.closure == null);
+                _ = try submit(&engine, .{ .terminate = pid });
+                const command: g.Command = if (abandon)
+                    .{ .close_effect = .{ .pid = pid, .effect = effect, .attempt = attempt } }
+                else
+                    .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = core.Value.integer(10) } };
+                outcome = try g.sign(.{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = command }, try rootKey());
+                terminal = engine.head.position;
+                journal.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, engine.submit(outcome));
+            } else {
+                try t.expectEqual(@as(@TypeOf(saved.phase), if (abandon) .closed_unknown else .observed), saved.phase);
+                try t.expectEqual(@as(@TypeOf(saved.closure.?.reason), if (abandon) .abandoned else .observed), saved.closure.?.reason);
+                try t.expectEqual(if (abandon) @as(?i64, null) else 10, if (saved.result) |value| try value.asInteger() else null);
+                const process = try engine.process(pid);
+                try t.expectEqual(.terminated, process.lifecycle);
+                try t.expectEqual(@as(u64, 1), process.admitted);
+                try t.expectEqual(@as(u64, 1), process.consumed);
+                const position = engine.head.position;
+                const created = pages.created;
+                try t.expectEqual(terminal, try engine.submit(outcome));
+                try t.expectEqual(position, engine.head.position);
+                try t.expectEqual(created, pages.created);
+                try t.expectError(error.ReconciliationClosed, submit(&engine, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = core.Value.integer(99) } }));
+                try t.expectError(error.RetiredProcess, submit(&engine, .{ .dispatch = .{ .pid = pid, .effect = effect } }));
+                if (phase == 3) {
+                    _ = try submit(&engine, .{ .checkpoint = {} });
+                    try journal.maintain(engine.head);
+                } else try t.expectError(error.HistoryReclaimed, journal.read(0));
+            }
+        }
+    }
+}
+
 test "native owner rejects a second owner, foreign marker and unrelated object history" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
