@@ -451,6 +451,12 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             return self.submitWithBlocks(signed, null);
         }
         pub fn submitWithBlocks(self: *Self, signed: g.SignedRequest, body: ?*const p.Blocks.Body) !u64 {
+            // A local journal may sequence complete submissions before private
+            // staging. This is scheduling, never authority: explicit prepared
+            // candidates still require the same conditional append, and every
+            // queued submission refreshes and authenticates after admission.
+            if (@hasDecl(Journal, "beginSubmission")) try self.journal.beginSubmission();
+            defer if (@hasDecl(Journal, "beginSubmission")) self.journal.endSubmission();
             self.block_body = body;
             defer self.block_body = null;
             try self.refresh();

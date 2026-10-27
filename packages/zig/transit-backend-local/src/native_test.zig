@@ -216,6 +216,102 @@ test "native publication survives a lost reply and restart without repeating acc
     try t.expectEqual(@as(u64, 1), (try engine.process(1)).pid);
 }
 
+test "local native submissions sequence private staging without blocking direct data" {
+    const Gate = struct {
+        var real: *const std.Io.VTable = undefined;
+        var armed: std.atomic.Value(bool) = .init(false);
+        var entered: std.Io.Event = .unset;
+        var release: std.Io.Event = .unset;
+        fn lock(context: ?*anyopaque, file: std.Io.File, kind: std.Io.File.Lock) std.Io.File.LockError!void {
+            if (armed.swap(false, .acq_rel)) {
+                entered.set(t.io);
+                try release.wait(t.io);
+            }
+            return real.fileLock(context, file, kind);
+        }
+        fn run(owner: *backend.Backend, signed: g.SignedRequest, started: *std.Io.Event, done: *std.Io.Event) !u64 {
+            started.set(t.io);
+            defer done.set(t.io);
+            var pages = try backend.PageStore.init(owner, 1);
+            defer pages.deinit();
+            var journal: backend.Store = .{ .backend = owner };
+            var engine = try Engine.open(&journal, &pages, try genesis());
+            return engine.submit(signed);
+        }
+        fn direct(owner: *backend.Backend, done: *std.Io.Event) !void {
+            defer done.set(t.io);
+            var pages = try backend.PageStore.init(owner, 1);
+            defer pages.deinit();
+            var journal: backend.Store = .{ .backend = owner };
+            var engine = try Engine.open(&journal, &pages, try genesis());
+            try t.expectEqual(@as(u64, 1), (try engine.principal(0)).sequence);
+            var data: backend.DataStore = .{ .backend = owner };
+            _ = try data.log().append(17, 0, engine.head.storage_epoch, engine.head.authorization.revision + 1, .row_delta, "independent data");
+        }
+    };
+    Gate.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileLock = Gate.lock;
+    var io = t.io;
+    io.vtable = &vtable;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const user = try core.Ed25519.KeyPair.generateDeterministic(@splat(29));
+    const first_request = try g.sign(.{ .realm = 42, .principal = 0, .sequence = 2, .command = .{ .spawn = .{} } }, try rootKey());
+    const second_request = try g.sign(.{ .realm = 42, .principal = 1, .sequence = 1, .command = .{ .spawn = .{} } }, user);
+    var positions: [2]u64 = undefined;
+    {
+        var owner = try backend.Backend.open(t.allocator, io, tmp.dir, "native", .{});
+        defer owner.deinit();
+        var pages = try backend.PageStore.init(&owner, 1);
+        defer pages.deinit();
+        var journal: backend.Store = .{ .backend = &owner };
+        var engine = try Engine.bootstrap(&journal, &pages, try genesis());
+        engine.clock = .{ .context = &owner, .read = clock };
+        _ = try submit(&engine, .{ .grant = .{ .subject = 1, .public_key = user.public_key.toBytes(), .permissions = core.permission(.spawn) | core.permission(.inspect) } });
+        const before = try journal.tail();
+        var first_started: std.Io.Event = .unset;
+        var first_done: std.Io.Event = .unset;
+        Gate.armed.store(true, .release);
+        var first = try t.io.concurrent(Gate.run, .{ &owner, first_request, &first_started, &first_done });
+        defer _ = first.cancel(t.io) catch {};
+        defer Gate.release.set(t.io);
+        try waitFor(&Gate.entered);
+        var second_started: std.Io.Event = .unset;
+        var second_done: std.Io.Event = .unset;
+        var second = try t.io.concurrent(Gate.run, .{ &owner, second_request, &second_started, &second_done });
+        defer _ = second.cancel(t.io) catch {};
+        try waitFor(&second_started);
+        var direct_done: std.Io.Event = .unset;
+        var direct = try t.io.concurrent(Gate.direct, .{ &owner, &direct_done });
+        defer _ = direct.cancel(t.io) catch {};
+        try waitFor(&direct_done);
+        try direct.await(t.io);
+        // The other principal must wait before staging against a root that the
+        // paused submission will replace. Direct acceptance needs no such turn.
+        try t.expectError(error.ProgressTimeout, waitFor(&second_done));
+        Gate.release.set(t.io);
+        positions = .{ try first.await(t.io), try second.await(t.io) };
+        try t.expectEqual(before, positions[0]);
+        try t.expectEqual(before + 1, positions[1]);
+        try t.expectEqual(before + 2, try journal.tail());
+    }
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.open(&journal, &pages, try genesis());
+    const inventory = try owner.allocations.current();
+    try t.expectEqual(positions[0], try engine.submit(first_request));
+    try t.expectEqual(positions[1], try engine.submit(second_request));
+    try t.expectEqualDeep(inventory, try owner.allocations.current());
+    var data: backend.DataStore = .{ .backend = &owner };
+    var accepted = try data.log().read(t.allocator, 17, 0, 1);
+    defer accepted.deinit();
+    try t.expectEqualStrings("independent data", accepted.frames[0].payload);
+}
+
 test "native pages and immutable blocks grow beyond a one-page cache and reopen" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

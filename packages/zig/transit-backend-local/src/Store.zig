@@ -13,6 +13,14 @@ cached: ?struct { at: u64, entry: core.growing.Entry } = null,
 /// Failure injection after durable acceptance; used by the recovery proof.
 lose_reply: bool = false,
 
+pub fn beginSubmission(self: *Self) !void {
+    try self.backend.submissions.lock(self.backend.io);
+}
+
+pub fn endSubmission(self: *Self) void {
+    self.backend.submissions.unlock(self.backend.io);
+}
+
 pub fn tail(self: *Self) !u64 {
     return self.observe.run(self.backend.io, "native.tail", tailImpl, .{self});
 }

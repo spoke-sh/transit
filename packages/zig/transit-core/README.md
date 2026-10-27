@@ -21,6 +21,12 @@ stage immutable pages; only conditional publication grants authority. A competin
 revocation invalidates a stale candidate. Exact retries recheck current permission
 before returning the original receipt.
 
+A journal may implement paired `beginSubmission`/`endSubmission` hooks to sequence
+complete `submit` calls before refresh, authentication and private preparation.
+The local backend uses this to avoid competing native candidates. Explicit
+`prepare`/`commit` remains optimistic; every path retains conditional publication
+and current authorization. The engine owns no scheduling lock or provider policy.
+
 Retention defaults to unlimited. Resource history policy, finite lifetimes,
 working metadata collection and authority-prefix trimming are separate opt-ins.
 Pending work, live dependencies, retained read versions and uncertain effects

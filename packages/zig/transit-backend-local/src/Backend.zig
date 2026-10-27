@@ -16,6 +16,10 @@ objects: storage.LocalSegmentStore.LocalSegmentStore,
 allocations: Allocations,
 data_allocations: DataAllocations,
 mutex: std.Io.Mutex = .init,
+/// Sequence complete native submissions before staging their COW candidates.
+/// Direct data requests and native reads do not acquire this mutex. Explicit
+/// prepare/commit callers retain optimistic CAS and can still cause conflicts.
+submissions: std.Io.Mutex = .init,
 collection: std.Io.Mutex = .init,
 /// Creation holds the shared side through inventory and object publication.
 /// Reclamation must hold the exclusive side before inspecting the latest epoch.

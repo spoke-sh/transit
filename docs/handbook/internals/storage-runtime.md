@@ -58,11 +58,14 @@ has its own publication lock; readers capture an atomic descriptor and verify
 the requested content. A separate shared creator fence protects direct-data
 publication against exclusive reclamation; neither path holds the native journal
 mutex through direct object I/O.
-The explicit native collector has a different creation/deletion boundary:
-`Backend.putNative` holds the journal mutex through allocation recording and
-object publication, and native reclamation holds the same mutex. This prevents
-a delayed creator from recreating an object after its allocation is consumed;
-native allocation/object syncs can therefore delay unrelated journal work.
+Native pages and blocks have a separate allocation mutex and shared creation
+fence. `Backend.putNative` holds that fence until immutable publication finishes;
+native reclamation acquires its exclusive side before consuming an allocation.
+This joins a delayed creator before deletion can remove its marker. Private
+native allocation/object syncs release the journal mutex, while epoch checks and
+quota reservations still take it briefly. Native collection progress publication
+and physical reclamation retain their journal lock; this remaining contention
+boundary is distinct from private staging.
 
 [`Backend.put`](../../../packages/zig/transit-backend-local/src/Backend.zig)
 checks for an existing descriptor, reserves encoded bytes under the shared
@@ -88,6 +91,41 @@ outcomes. Disk object tests share one facade across concurrent immutable and
 conditional writers and inspect counters after joining them. These schedules
 test lock independence and publication safety, not a wall-clock guarantee:
 device contention and the serialized WAL can still delay progress.
+
+The corresponding native-allocation schedule pauses an inventory sync while
+another lane reads native state and accepts independent data. A
+[collection schedule](../../../packages/zig/transit-backend-local/src/collection_test.zig)
+pauses creation after its inventory entry but before its object lock; reclamation
+must join that creator before removing its bytes and marker. These tests reject
+the earlier shared-journal staging lock and an unprotected creator respectively.
+
+### Sequencing local native candidates
+
+Can concurrent native preparation increase disk work without increasing accepted
+throughput? Native candidates share one accepted catalog frontier. Two candidates
+prepared from that frontier cannot both publish: one conditional append loses,
+even if both already synced private pages. Repeated retries can consume a request
+deadline and leave more unreachable allocations. This argument concerns native
+control/process state; direct Tables have their own acceptance frontiers.
+
+The local [Store](../../../packages/zig/transit-backend-local/src/Store.zig)
+sequences complete native submissions before refresh and preparation through
+the generic engine's paired journal hooks. A waiting submission reauthenticates
+and checks original receipts against the then-current authority. It still uses
+the same conditional append. Explicit prepared candidates do not hold this
+sequencer and can cause a conflict; native reads and direct data acceptance do
+not acquire it. This trades parallel native staging for less speculative disk
+work, without asserting that physical I/O or authorization waits are bounded in
+wall-clock time.
+
+The native submission regression pauses one principal before object publication,
+queues another principal and verifies independent native reads and direct data
+acceptance. Both native submissions then complete in order and recover their
+original receipts after reopen without staging again. The schedule fails with
+sequencing disabled and passes with it enabled. Run the package's `zig build test`
+with `-Dtest-filter='local native submissions'` inside the pinned development
+shell. This is a contention and recovery check; a matched installed SQL run is
+still needed to establish any latency improvement from the scheduling change.
 
 ### Local WAL publication and recovery model
 

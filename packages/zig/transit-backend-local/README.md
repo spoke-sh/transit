@@ -55,6 +55,16 @@ native staging. Competing native creators still serialize their inventory writes
 Explicit native collection retains the journal mutex during progress-file
 publication and physical reclamation; those bounded steps can delay journal work.
 
+Complete native `submit` calls acquire a separate submission mutex before
+refreshing authority and staging their candidates. Cooperating request lanes
+therefore avoid preparing competing copies of the same native root. Native
+reads and direct Table requests never acquire this mutex. Explicit
+`prepare`/`commit` callers remain optimistic and can still cause conditional
+append conflicts. The mutex changes scheduling only: queued submissions check
+current credentials, permissions and receipts after acquiring it, and every
+candidate still requires its original conditional append. Cancellation while
+waiting stages no bytes; uncertain storage writes still require recovery.
+
 The object root requires the shared definition and a 64-byte `.native-owner`
 marker (`TNOWNER1`, the 32 definition bytes, then 24 zeros), locked exclusively
 for the owner's lifetime. An existing unmarked object collection rejects as a
