@@ -3,6 +3,16 @@
   "profiles": {
     "fast": [
       {
+        "id": "query-expiry-evidence-controls",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/query/unified/test_expiry.py"
+        ]
+      },
+      {
         "id": "test-layout",
         "phase": "tooling",
         "command": [
