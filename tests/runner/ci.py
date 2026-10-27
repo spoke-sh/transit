@@ -61,7 +61,10 @@ def selected_tasks(lane, selection):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("lane", choices=("all", *SUITE["tiers"], *LANES))
-    parser.add_argument("--selection", default=os.getenv("TRANSIT_CI_SELECTION_PATH"))
+    # This is runner input, not Transit application configuration. Consume it
+    # before starting tools/services, whose TRANSIT_ namespace rejects unknown
+    # settings. Keep the parsed plan in metadata instead of the child environment.
+    parser.add_argument("--selection", default=os.environ.pop("TRANSIT_CI_SELECTION_PATH", None))
     args = parser.parse_args()
     tier = "ordinary" if args.lane == "all" else args.lane
     lanes = SUITE["tiers"].get(tier, [tier])

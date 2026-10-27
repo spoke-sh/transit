@@ -79,7 +79,8 @@ class Selection(unittest.TestCase):
         sdk.mkdir(parents=True)
         (sdk / "types.go").write_text("package client\n")
         executable = root / "just"
-        executable.write_text(f"#!{sys.executable}\nimport sys\nfrom pathlib import Path\n"
+        executable.write_text(f"#!{sys.executable}\nimport os, sys\nfrom pathlib import Path\n"
+                              "assert 'TRANSIT_CI_SELECTION_PATH' not in os.environ, 'runner selection leaked into application configuration'\n"
                               "with Path('executed').open('a') as output: output.write(sys.argv[1]+'\\n')\n")
         executable.chmod(0o700)
 
@@ -128,8 +129,12 @@ class Selection(unittest.TestCase):
             original = json.loads(selection.read_text())
             env = {k: v for k, v in os.environ.items() if k != "TRANSIT_CI_SELECTION_PATH"}
             env["PATH"] = str(root) + os.pathsep + env["PATH"]
+            env["TRANSIT_CI_SELECTION_PATH"] = str(selection)
             command = [sys.executable, "-B", runner / "ci.py", "bindings-2", "--selection", selection]
-            subprocess.run(command, cwd=root, env=env, check=True, capture_output=True)
+            # Hosted jobs supply the selection through the environment. It must
+            # select this task without becoming an unknown Transit setting in
+            # the actual child process. Later calls also check explicit arguments.
+            subprocess.run(command[:-2], cwd=root, env=env, check=True, capture_output=True)
             self.assertEqual((root / "executed").read_text().splitlines(), ["bindings::go-sdk-test"])
             metadata = json.loads((root / ".cache/ci/bindings-2.meta.json").read_text())
             self.assertTrue(metadata["completed"])
