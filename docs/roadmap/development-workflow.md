@@ -1,6 +1,6 @@
 # Development workflow and test ownership implementation
 
-[Roadmap](README.md) · **Status: In Progress**
+[Roadmap](README.md) · **Status: Completed**
 
 This supporting engineering plan completes the test organization and development
 feedback work begun in PRs #175–#181. It does not insert or renumber a product
@@ -8,14 +8,14 @@ milestone. The intended outcome is that contributors can find a declaration's
 checks, run the appropriate scope, and inspect complete, attributable results
 without unnecessary compilation, packaging or environment setup.
 
-The delivered foundation is merged in
-[PR #185](https://github.com/spoke-sh/transit/pull/185) from
-`refactor/test-workflow-foundation`, frozen at `6f6fbc521`. Continue the remaining
-work on `refactor/test-workflow-completion` in logical commits, followed by a
-completion PR. This split follows the user's request to submit the current work
-before finishing the plan. Update this checklist as work is implemented and
-qualified. A merged earlier slice, a registered command, a successful compilation
-or a partial CI run cannot complete an unchecked acceptance criterion.
+The foundation is merged in [PR #185](https://github.com/spoke-sh/transit/pull/185)
+from `refactor/test-workflow-foundation`, frozen at `6f6fbc521`. The remaining
+implementation and qualification are delivered in
+[PR #186](https://github.com/spoke-sh/transit/pull/186) from
+`refactor/test-workflow-completion`. This split follows the user's request to
+submit the foundation before completing the plan. The checklist records the
+implemented changes, executed scopes and retained limits; neither registered
+commands nor partial runs count as completed qualification.
 
 ## Source basis and scope
 
@@ -454,7 +454,7 @@ this plan is not another chronological test transcript.
   workflows discoverable without this plan or a chat transcript.
 - [x] P12.7 Clean up only this work's temporary clones, artifacts requiring no
   retention and stale branches/worktrees. Preserve user notes and unrelated work.
-- [ ] P12.8 Submit the review-ready completion PR after the foundation snapshot
+- [x] P12.8 Submit the review-ready completion PR after the foundation snapshot
   in #185, with completed checklist, logical commit map, executed evidence and
   comparison results. Mark this plan Completed only when every required acceptance
   item is satisfied.
@@ -499,7 +499,7 @@ automatically; failed manual profiles retain their outcomes.
 | P9 — Build boundaries | All 188 named build steps and 52 original aggregate edges are preserved. Actual runtime/gateway packages build and run without test/SDK source at `d326243ac`; disabled/missing test inputs reject and 23 Nix invalidation controls pass. All 34 standalone manifests retain their own checks. | Complete. |
 | P10 — Reuse/phases | Lazy C/C++ peer preparation reduces six installations from 24 peer compilations to ten. Matching native/package reuse, distinct profiles, automatic interop phases and two-worker package compilation are implemented. Mutable fixtures and clean production documentation builds remain isolated. | Complete: package compilation 293.8 to 153.1 seconds, peer builds 24 to ten. Whole-SDK speedup is not established; no further reuse framework is planned. |
 | P11 — Selection/resources | Reviewed formal-model and Go dependencies select their actual consumers; shared/unknown paths remain full. Rename/deletion, missing source, foreign format, omitted/duplicated tasks and child-environment controls pass. The 39-task growth lane is split 20/19 within seven jobs. Formal uses substitutes rather than a Nix archive that exceeded cache capacity. | Complete: four-CPU hosted observations, bounded two-worker package compilation and seven-job ceiling. Largest-child RSS is not aggregate peak memory. |
-| P12 — Qualification/PR | The migration audit is complete. Clean committed-source fast qualification passes all 39 groups at `49546a3f4` in 28.6 seconds of check execution, excluding clone/shell setup. The successful comparison, available external profiles and scoped corrections retain exact source identities. | Three warm and one cold full sample pass; current budgets, account and owned cleanup are complete. Completion PR submission remains. |
+| P12 — Qualification/PR | The migration audit is complete. Clean committed-source fast qualification passes all 39 groups at `49546a3f4` in 28.6 seconds of check execution, excluding clone/shell setup. The successful comparison, available external profiles and scoped corrections retain exact source identities. | Three warm and one cold full sample pass; current budgets, account and owned cleanup are complete. Submitted in [PR #186](https://github.com/spoke-sh/transit/pull/186). |
 
 ### Measured preparation and selection boundaries
 
@@ -635,8 +635,8 @@ SQL/storage branch, unrelated world-simulator worktrees and private failed
 installations remain intact. Reusable build caches and diagnostic run records
 remain available for review.
 
-The required samples, calibration and account are complete. The remaining final
-step is submitting the completion PR and recording its link. The 20–30-minute
+[PR #186](https://github.com/spoke-sh/transit/pull/186) submits the completed
+workflow plan, including the required samples, calibration and qualification account. The 20–30-minute
 full feedback target remains unmet; re-measure live SDK/query/runtime costs after
 the storage cutover, preserving Station's application/effect coverage. This does
 not reopen completed workflow implementation or close the broader runtime issues.

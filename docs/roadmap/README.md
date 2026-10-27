@@ -4,8 +4,8 @@ This roadmap tracks milestone scope, sequencing, acceptance criteria and
 completion status for Transit, ordered by dependencies and explicit delivery
 priorities, not delivery dates.
 The supporting [development workflow implementation plan](development-workflow.md)
-tracks the test directory migration, build reuse and feedback qualification in
-progress alongside this product sequence.
+records the completed test directory migration, build reuse and feedback
+qualification alongside this product sequence.
 Current behavior belongs in the [public reference](../README.md), mechanisms in
 [Internals](../handbook/internals/README.md), and executed checks in the
 [proof ledger](../history/qualification/README.md). A planned milestone does not establish
