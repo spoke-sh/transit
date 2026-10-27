@@ -22,7 +22,7 @@ fn clock(_: *anyopaque) anyerror!core.Time.Sample {
     return .{ .unix_ms = 100 };
 }
 
-fn waitFor(event: *std.Io.Event) !void {
+pub fn waitFor(event: *std.Io.Event) !void {
     const Result = union(enum) { ready: anyerror!void, timeout: anyerror!void };
     var results: [2]Result = undefined;
     var select: std.Io.Select(Result) = .init(t.io, &results);
@@ -121,6 +121,68 @@ test "paused private object sync permits native reads and quota-reserved control
     var bytes: [32]u8 = undefined;
     try t.expectEqualStrings("staged bytes", try owner.read("private", &bytes));
     try t.expect(try owner.objects.objectStore().head("over-quota") == null);
+}
+
+test "paused native allocation sync permits native reads and independent data acceptance" {
+    const Gate = struct {
+        var real: *const std.Io.VTable = undefined;
+        var armed: std.atomic.Value(bool) = .init(false);
+        var entered: std.Io.Event = .unset;
+        var release: std.Io.Event = .unset;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (armed.swap(false, .acq_rel)) {
+                entered.set(t.io);
+                try release.wait(t.io);
+            }
+            return real.fileSync(context, file);
+        }
+        fn readAndAppend(owner: *backend.Backend, done: *std.Io.Event) !void {
+            defer done.set(t.io);
+            var pages = try backend.PageStore.init(owner, 1);
+            defer pages.deinit();
+            var journal: backend.Store = .{ .backend = owner };
+            var engine = try Engine.open(&journal, &pages, try genesis());
+            try t.expectEqual(@as(u64, 0), (try engine.principal(0)).sequence);
+            var data: backend.DataStore = .{ .backend = owner };
+            _ = try data.log().append(17, 0, engine.head.storage_epoch, engine.head.authorization.revision + 1, .row_delta, "independent accepted frame");
+            try t.expectEqual(@as(u64, 1), try data.log().tail(17));
+        }
+    };
+    Gate.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Gate.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    {
+        var owner = try backend.Backend.open(t.allocator, io, tmp.dir, "native", .{});
+        defer owner.deinit();
+        var pages = try backend.PageStore.init(&owner, 1);
+        defer pages.deinit();
+        var journal: backend.Store = .{ .backend = &owner };
+        _ = try Engine.bootstrap(&journal, &pages, try genesis());
+        Gate.armed.store(true, .release);
+        var writer = try t.io.concurrent(backend.Backend.putNative, .{ &owner, 1, .block, @as([32]u8, @splat(44)), "private native bytes", false });
+        defer _ = writer.cancel(t.io) catch {};
+        defer Gate.release.set(t.io);
+        try waitFor(&Gate.entered);
+        var done: std.Io.Event = .unset;
+        var reader = try t.io.concurrent(Gate.readAndAppend, .{ &owner, &done });
+        defer _ = reader.cancel(t.io) catch {};
+        try waitFor(&done);
+        try reader.await(t.io);
+        try t.expect(!Gate.release.isSet());
+        Gate.release.set(t.io);
+        try writer.await(t.io);
+    }
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var data: backend.DataStore = .{ .backend = &owner };
+    var accepted = try data.log().read(t.allocator, 17, 0, 1);
+    defer accepted.deinit();
+    try t.expectEqual(@as(usize, 1), accepted.frames.len);
+    try t.expectEqualStrings("independent accepted frame", accepted.frames[0].payload);
 }
 
 test "native publication survives a lost reply and restart without repeating accepted work" {

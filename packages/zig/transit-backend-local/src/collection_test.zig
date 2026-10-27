@@ -81,6 +81,79 @@ pub const Fixture = struct {
     }
 };
 
+test "native collection joins a creator paused between inventory and object publication" {
+    const Gate = struct {
+        var real: *const std.Io.VTable = undefined;
+        var armed: std.atomic.Value(bool) = .init(false);
+        var entered: std.Io.Event = .unset;
+        var release: std.Io.Event = .unset;
+        // The first object-key lock follows the durable inventory record but
+        // precedes any content. Pausing here exposes the untracked-recreation
+        // race; pausing a payload sync would already hold the per-key lock.
+        fn lock(context: ?*anyopaque, file: std.Io.File, kind: std.Io.File.Lock) std.Io.File.LockError!void {
+            if (armed.swap(false, .acq_rel)) {
+                entered.set(t.io);
+                try release.wait(t.io);
+            }
+            return real.fileLock(context, file, kind);
+        }
+        fn reclaim(f: *Fixture, started: *std.Io.Event, done: *std.Io.Event) !void {
+            started.set(t.io);
+            defer done.set(t.io);
+            try t.expect(try f.step());
+        }
+    };
+    const waitFor = @import("native_test.zig").waitFor;
+    Gate.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileLock = Gate.lock;
+    var io = t.io;
+    io.vtable = &vtable;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var f: Fixture = .{};
+    try f.openWithIo(tmp.dir, true, io);
+    defer f.close();
+    const address: [32]u8 = @splat(44);
+    const body = "unpublished native creator";
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(body, &digest, .{});
+    const allocation: Allocations.Allocation = .{ .epoch = 1, .kind = .block, .address = address, .meta = .{ .size = body.len, .sha256 = digest } };
+    Gate.armed.store(true, .release);
+    var creator = try t.io.concurrent(local.Backend.putNative, .{ &f.owner, 1, .block, address, body, false });
+    defer _ = creator.cancel(t.io) catch {};
+    defer Gate.release.set(t.io);
+    try waitFor(&Gate.entered);
+    try t.expectEqualDeep(allocation, (try f.owner.allocations.read(allocation.name())).?);
+    // The private creator holds neither the journal nor the allocation queue
+    // while waiting to publish. Accepted fencing and marking can still finish.
+    const cut = try f.submit(.{ .storage_fence = {} });
+    try f.collector.start(&f.engine, cut);
+    try f.until(.wait);
+    try f.elapse();
+    try f.until(.deleting);
+    // Bootstrap may leave earlier unreachable allocations. Reclamation joins
+    // all in-flight creators before consuming any eligible allocation.
+    var started: std.Io.Event = .unset;
+    var done: std.Io.Event = .unset;
+    var reclaim = try t.io.concurrent(Gate.reclaim, .{ &f, &started, &done });
+    defer _ = reclaim.cancel(t.io) catch {};
+    try waitFor(&started);
+    try t.expectError(error.ProgressTimeout, waitFor(&done));
+    try t.expect(!Gate.release.isSet());
+    Gate.release.set(t.io);
+    try creator.await(t.io);
+    try reclaim.await(t.io);
+    try f.until(.complete);
+    var key: [96]u8 = undefined;
+    try t.expect(try f.owner.objects.objectStore().head(try allocation.key(&key)) == null);
+    try t.expect(try f.owner.allocations.read(allocation.name()) == null);
+    f.close();
+    try f.open(tmp.dir, false);
+    try t.expect(try f.owner.objects.objectStore().head(try allocation.key(&key)) == null);
+    try t.expect(try f.owner.allocations.read(allocation.name()) == null);
+}
+
 test "native collection retains history, fences delayed writers and resumes pending physical deletion" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

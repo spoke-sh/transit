@@ -35,6 +35,15 @@ old creators. Direct data adapters reject the reserved `native/` object namespac
 The mandatory shared definition binds this allocation layout; an older directory
 is incompatible and is never reset or inferred to contain current metadata.
 
+Native creators hold a shared creation fence through allocation recording and
+immutable object publication. Reclamation joins them with an exclusive fence
+before consuming their inventory entries; a creator paused after recording its
+intent cannot recreate an untracked object after collection. A separate mutex
+serializes the native allocation queue. Epoch validation and quota reservation
+briefly take the journal mutex, while private allocation and object syncs release
+it so unrelated native reads and direct data acceptance can progress. Collection
+progress publication and physical reclamation still hold the journal mutex.
+
 `storage_compact` uses the native engine's bounded relocation operation. It
 preserves logical values and resource revisions. An opted-in `checkpoint` and
 `Store.maintain` can release earlier native log history, while current captured

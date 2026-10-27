@@ -81,12 +81,12 @@ pub fn start(self: *Self, engine: anytype, fence_position: u64) !void {
     if (try self.current()) |previous| if (previous.phase != .complete) return error.ActiveStorageCollection;
     const grace = try std.math.add(u64, now.upper(), core.protocol.Growth.snapshot_lifetime_ms + 60_000);
     if (grace > core.protocol.max_counter) return error.InvalidStorageCollection;
-    try self.backend.mutex.lock(self.backend.io);
+    try self.backend.native_inventory.lock(self.backend.io);
     const end = (self.backend.allocations.current() catch |err| {
-        self.backend.mutex.unlock(self.backend.io);
+        self.backend.native_inventory.unlock(self.backend.io);
         return err;
     }).tail;
-    self.backend.mutex.unlock(self.backend.io);
+    self.backend.native_inventory.unlock(self.backend.io);
     try self.save(.{ .definition = core.protocol.Growth.current_definition, .phase = .mark, .cut = cut, .inventory_end = end, .grace_until_ms = grace, .roots = .init(cut) });
 }
 
@@ -124,6 +124,12 @@ fn mark(state: *State, pages: *PageStore, edge: core.StorageWalk.Edge) !void {
     state.marks = marks.snapshot;
 }
 fn reclaim(self: *Self, cursor: u64, allocation: Allocations.Allocation, cut: core.growing.Head) !u64 {
+    // A paused creator must finish before its inventory item can be consumed.
+    // Otherwise it could publish bytes after deletion discarded their marker.
+    try self.backend.native_creators.lock(self.backend.io);
+    defer self.backend.native_creators.unlock(self.backend.io);
+    try self.backend.native_inventory.lock(self.backend.io);
+    defer self.backend.native_inventory.unlock(self.backend.io);
     try self.backend.mutex.lock(self.backend.io);
     defer self.backend.mutex.unlock(self.backend.io);
     const current_head = try Store.currentHeadLocked(self.backend);
@@ -144,8 +150,8 @@ fn reclaim(self: *Self, cursor: u64, allocation: Allocations.Allocation, cut: co
 }
 fn sweep(self: *Self, state: *State, pages: *PageStore) !void {
     const selected = blk: {
-        try self.backend.mutex.lock(self.backend.io);
-        defer self.backend.mutex.unlock(self.backend.io);
+        try self.backend.native_inventory.lock(self.backend.io);
+        defer self.backend.native_inventory.unlock(self.backend.io);
         const head = try self.backend.allocations.current();
         if (head.cursor >= state.inventory_end) {
             state.phase = .complete;
@@ -153,7 +159,7 @@ fn sweep(self: *Self, state: *State, pages: *PageStore) !void {
             return;
         }
         const item = (try self.backend.allocations.at(head.cursor)).item orelse {
-            try self.backend.reserve(512, true);
+            try self.reserveInventory();
             try self.backend.allocations.consumeEmpty(state.inventory_end);
             return;
         };
@@ -162,9 +168,9 @@ fn sweep(self: *Self, state: *State, pages: *PageStore) !void {
     const item = selected.allocation;
     var marks = try c.Catalog(PageStore).open(pages, state.marks);
     if (item.epoch >= state.cut.storage_epoch or try marks.get([32]u8, try objectKey(item.kind, item.address)) != null) {
-        try self.backend.mutex.lock(self.backend.io);
-        defer self.backend.mutex.unlock(self.backend.io);
-        try self.backend.reserve(512, true);
+        try self.backend.native_inventory.lock(self.backend.io);
+        defer self.backend.native_inventory.unlock(self.backend.io);
+        try self.reserveInventory();
         try self.backend.allocations.consume(selected.cursor, item, true);
         state.retained_objects += 1;
     } else {
@@ -173,9 +179,15 @@ fn sweep(self: *Self, state: *State, pages: *PageStore) !void {
     }
 }
 fn trim(self: *Self) !void {
+    try self.backend.native_inventory.lock(self.backend.io);
+    defer self.backend.native_inventory.unlock(self.backend.io);
+    try self.backend.allocations.trim();
+}
+
+fn reserveInventory(self: *Self) !void {
     try self.backend.mutex.lock(self.backend.io);
     defer self.backend.mutex.unlock(self.backend.io);
-    try self.backend.allocations.trim();
+    try self.backend.reserve(512, true);
 }
 /// At most four graph edges, one allocation, or 64 empty progress records per
 /// step. The allocation FIFO carries retained items and trims consumed prefixes.

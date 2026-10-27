@@ -772,6 +772,16 @@ untracked content. Creation checks the accepted native epoch under the publicati
 mutex, allowing the current epoch or the next epoch for a prepared fence and
 rejecting older creators. Direct data access reserves the `native/` namespace.
 
+Native creation holds a shared creation/reclamation fence through inventory and
+immutable object publication. Its allocation queue has a separate mutex; the
+native journal mutex protects the accepted-epoch check and quota reservation,
+without covering private inventory or object syncs. Collection takes the
+exclusive creation fence before consuming an allocation or deleting its object.
+A creator paused after recording its intent cannot recreate content after the
+collector has discarded that intent. These locks change no stored record or
+acceptance boundary; native publication still checks its original expected head
+and epoch independently of private staging.
+
 Direct-data creation and reuse have a separate mandatory `data-allocations/`
 directory. Every object PUT first records its key, exact metadata and observed
 native storage epoch. Existing immutable content reused in a newer epoch records

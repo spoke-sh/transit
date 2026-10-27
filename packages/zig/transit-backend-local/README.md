@@ -44,10 +44,16 @@ even deduplicated reuse can fail quota when it requires a newer epoch record.
 This inventory supplies no reachability or deletion authority. Its mandatory
 directory is created only for a fresh current-definition installation; missing
 history rejects on reopen instead of being reset.
-Native page/block creation and explicit native collection retain the journal
-mutex through allocation, publication and reclamation. Their syncs can delay
-journal work; this serialization prevents a delayed native creator from
-recreating an object after collection consumes its allocation record.
+Native page/block creation likewise uses its own allocation-queue mutex and
+holds a shared creation/reclamation fence until immutable publication finishes.
+Only the accepted-epoch check and quota reservation take the journal mutex;
+private native inventory and object syncs do not hold it. Native collection
+acquires the exclusive creation fence before checking and consuming an allocation,
+so a paused creator cannot publish untracked bytes after its marker is reclaimed.
+Independent direct-data acceptance and native reads can progress during private
+native staging. Competing native creators still serialize their inventory writes.
+Explicit native collection retains the journal mutex during progress-file
+publication and physical reclamation; those bounded steps can delay journal work.
 
 The object root requires the shared definition and a 64-byte `.native-owner`
 marker (`TNOWNER1`, the 32 definition bytes, then 24 zeros), locked exclusively
