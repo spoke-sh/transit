@@ -3,7 +3,10 @@ from collections import deque
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import selectors
+import signal
 import shutil
 import subprocess
 import sys
@@ -106,12 +109,14 @@ class Log:
 
 
 def run(command, *, cwd, log, result, input=None, capture_stdout=False,
-        console=None, limit=LOG_LIMIT, env=None):
+        console=None, limit=LOG_LIMIT, env=None, cancelled=None):
     """Retain diagnostic bytes even on failure; never truncate semantic stdout.
 
     The enclosing runner checkpoints result/log names before launch. SIGKILL or
     job cancellation may prevent finalization, so absence of `completed` remains
-    incomplete. Children stay in the caller's process group for job cancellation.
+    incomplete. By default children stay in the caller's process group. A bounded
+    concurrent coordinator can supply a cancellation event; each such command
+    owns a process group which is killed and joined before the worker returns.
     """
     result.update(command=command, log=log.name, completed=False, exit_code=None)
     if console is None:
@@ -129,13 +134,31 @@ def run(command, *, cwd, log, result, input=None, capture_stdout=False,
         process = None
         try:
             process = subprocess.Popen(command, cwd=cwd, env=env,
+                                       start_new_session=cancelled is not None,
                                        stdin=stdin if input is not None else None,
                                        stdout=semantic if semantic else subprocess.PIPE,
                                        stderr=subprocess.PIPE if semantic else subprocess.STDOUT)
             result["pid"] = process.pid
             stream = process.stderr if semantic else process.stdout
             with stream:
-                while data := stream.read1(65536):
+                def chunks():
+                    if cancelled is None:
+                        while data := stream.read1(65536):
+                            yield data
+                        return
+                    with selectors.DefaultSelector() as ready:
+                        ready.register(stream, selectors.EVENT_READ)
+                        while True:
+                            if cancelled.is_set():
+                                raise InterruptedError("Command cancelled by its coordinator")
+                            if not ready.select(timeout=0.1):
+                                continue
+                            data = stream.read1(65536)
+                            if not data:
+                                return
+                            yield data
+
+                for data in chunks():
                     retained.write(data)
                     if hasattr(console, "encoding"):
                         console.write(data.decode(console.encoding or "utf-8", errors="replace"))
@@ -155,7 +178,13 @@ def run(command, *, cwd, log, result, input=None, capture_stdout=False,
         except BaseException as error:
             result["error"] = type(error).__name__
             if process is not None:
-                process.kill()
+                if cancelled is None:
+                    process.kill()
+                else:
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
                 process.wait()
                 result["exit_code"] = process.returncode
             raise

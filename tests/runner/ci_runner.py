@@ -15,6 +15,8 @@ from ci_select import select
 from ci_clean import profile
 from ci_cost import summarize
 from external_profiles import DISCOVERY
+from packages import discover
+from task_coverage import read_recipes
 
 
 def clean_runner():
@@ -257,12 +259,15 @@ def main():
     assert {"test::packages-build", "test::compute"} <= set(LANES["core"])
     assert "test::packages" not in LANES["core"]
     recipes = (ROOT / "tasks/test.just").read_text()
-    compile_recipe = recipes.split("\npackages-build:\n", 1)[1].split("\n\n", 1)[0]
+    compile_recipe = read_recipes(ROOT)["test::packages-build"]
+    assert compile_recipe["body"] == [['python3 -B tests/runner/packages.py --jobs "$1"']]
     full_recipe = recipes.split("\npackages:\n", 1)[1].split("\n\n", 1)[0]
-    assert compile_recipe.replace("zig build check", "zig build test") == full_recipe
-    for build in (ROOT / "packages/zig").glob("*/build.zig"):
+    discovered = discover(ROOT)
+    assert len(discovered) == len(full_recipe.strip().splitlines())
+    for package in discovered:
+        build = package / "build.zig"
         assert 'b.step("check",' in build.read_text(), build
-        assert f"packages/zig/{build.parent.name}" in compile_recipe, build
+        assert f"cd packages/zig/{package.name} && zig build test" in full_recipe, build
     # Compile-only checks cannot replace Fuze's upstream runtime owner.
     assert 'zig build test-compute' in recipes
     assert 'b.step("test-compute",' in (ROOT / "packages/zig/transit-fuze/build.zig").read_text()

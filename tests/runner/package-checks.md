@@ -8,6 +8,27 @@ manifest. `just test packages` executes each package's `test` target. These
 commands check standalone dependency declarations; compiling a module through
 the application's graph does not establish that its package builds independently.
 
+`just test packages-build` uses one worker. `just test packages-build 2` selects
+two; the explicit supported range is one to four. Each worker runs `zig build
+check` in the owning package, preserving its dependencies and Zig's cache. This
+compiles checks; it does not reuse previous test outcomes or start package tests.
+The sequential `just test packages` command remains the execution owner.
+
+The [package runner](packages.py) discovers every `packages/zig/*/build.zig`
+and requires its manifest. It retains a unique check report and per-package
+diagnostics under `.cache/checks/runs/`. Failure stops new work and cancels active
+compiler process groups. Interruption joins those processes and leaves the run
+incomplete. The [controls](test_packages.py) exercise actual concurrent child
+processes, manifest omission, a compiler failure and cancellation.
+
+Reports include worker count, affinity, elapsed time, per-package build-graph
+durations and child CPU/I/O resource counters. The maximum child RSS is the
+largest observed child value, not the sum of simultaneous resident memory; its
+units are those of the host's `getrusage` (KiB on Linux, bytes on macOS). Block
+counters are system observations, not an estimate of physical-device throughput.
+Compare matching sources/toolchains and cache conditions before changing the
+default. Extra concurrency can increase memory and disk pressure.
+
 The root `test-components` scope registers 34 test executions, including 27
 package owners, two client roots, examples, applications and private fixtures.
 The count is not the number of packages. Imported dependency tests can also be

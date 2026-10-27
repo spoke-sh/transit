@@ -220,6 +220,15 @@
         ]
       },
       {
+        "id": "package-scheduling",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_packages.py"
+        ]
+      },
+      {
         "id": "ci_runner",
         "phase": "static",
         "command": [

@@ -329,42 +329,10 @@ packages:
     cd packages/zig/transit-client && zig build test
     cd packages/zig/transit-runtime-substrate && zig build test
 
-# Compile each library independently; check native owns the root execution graph.
-packages-build:
-    cd packages/zig/transit-config && zig build check
-    cd packages/zig/transit-flight && zig build check
-    cd packages/zig/transit-station-flight && zig build check
-    cd packages/zig/transit-serving-http && zig build check
-    cd packages/zig/transit-http-server && zig build check
-    cd packages/zig/transit-station-app && zig build check
-    cd packages/zig/transit-serving && zig build check
-    cd packages/zig/transit-station-document && zig build check
-    cd packages/zig/transit-station-grpc && zig build check
-    cd packages/zig/transit-grpc && zig build check
-    cd packages/zig/transit-tls && zig build check
-    cd packages/zig/transit-tls-server && zig build check
-    cd packages/zig/transit-sql-protocol && zig build check
-    cd packages/zig/transit-sql-client && zig build check
-    cd packages/zig/transit-sql && zig build check
-    cd packages/zig/transit-postgres && zig build check
-    cd packages/zig/transit-mysql && zig build check
-    cd packages/zig/transit-station-bindings && zig build check
-    cd packages/zig/transit-exchange && zig build check
-    cd packages/zig/transit-station-http && zig build check
-    cd packages/zig/transit-query && zig build check
-    cd packages/zig/transit-catalog && zig build check
-    cd packages/zig/transit-station && zig build check
-    cd packages/zig/transit-storage && zig build check
-    cd packages/zig/transit-fuze && zig build check
-    cd packages/zig/transit-observability && zig build check
-    cd packages/zig/telemetry && zig build check
-    cd packages/zig/transit-board-api && zig build check
-    cd packages/zig/transit-protocol && zig build check
-    cd packages/zig/transit-core && zig build check
-    cd packages/zig/transit-backend-ursula && zig build check
-    cd packages/zig/transit-backend-local && zig build check
-    cd packages/zig/transit-client && zig build check
-    cd packages/zig/transit-runtime-substrate && zig build check
+# Compile each manifest independently; optional bounded parallelism (1..4).
+[positional-arguments]
+packages-build jobs="1":
+    python3 -B tests/runner/packages.py --jobs "$1"
 
 # Run the upstream compute tests absent from the root library suite.
 compute:
