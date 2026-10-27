@@ -53,7 +53,14 @@ or native trim savings remain visible in that inventory.
 
 Owner counters distinguish WAL appends/bytes/syncs/startup frames, object
 puts/ranges/payload bytes, immutable index misses and Table segment ranges/bytes,
-decoded groups and logical replay frames. Object counters describe the public
+decoded groups and logical replay frames. The `wal_*` fields count the Table or
+native authority log. Separate `inventory_wal_*` fields count the native backend's
+allocation queues, including their startup validation and syncs. Successful native
+object creation must report its preceding durable inventory writes; readback
+must append to neither log. The standalone Table fixture composes its WAL and
+object store directly, so these inventory fields are zero. It does not measure
+the installed direct-data adapter's allocation inventory or native authority
+checks. Object counters describe the public
 storage interface: they exclude descriptor/checksum reads, directory enumeration
 and filesystem metadata. Kernel child block-I/O counters have their separate
 whole-process scope. A lower Table replay count does not bypass WAL startup

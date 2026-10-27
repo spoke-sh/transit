@@ -40,7 +40,9 @@ class Reports(unittest.TestCase):
     def sample(self):
         phase = dict(elapsed_ns=100, peak_live_bytes=16, baseline_live_bytes=0,
                      end_live_bytes=0, counters=dict(wal_appends=0, object_puts=0,
-                                                   table_replay_frames=0))
+                                                   table_replay_frames=0, inventory_wal_appends=0,
+                                                   inventory_wal_bytes=0, inventory_wal_syncs=0,
+                                                   inventory_wal_startup_frames=0))
         phases = [dict(copy.deepcopy(phase), name=name) for name in ('physical_open', 'recover', 'measure')]
         phases[1]['counters']['table_replay_frames'] = 1
         values = driver.oracle(range(14, 18))
@@ -63,7 +65,7 @@ class Reports(unittest.TestCase):
                 self.validate(bad)
 
     def test_phase_coverage_and_measurements(self):
-        for mutation in ('missing', 'duplicate', 'time', 'peak', 'publication', 'replay'):
+        for mutation in ('missing', 'duplicate', 'time', 'peak', 'publication', 'replay', 'inventory'):
             bad = self.sample()
             phases = bad['record']['phases']
             if mutation == 'missing':
@@ -76,6 +78,8 @@ class Reports(unittest.TestCase):
                 phases[0]['end_live_bytes'] = 17
             elif mutation == 'publication':
                 phases[2]['counters']['wal_appends'] = 1
+            elif mutation == 'inventory':
+                phases[2]['counters']['inventory_wal_appends'] = 1
             else:
                 phases[1]['counters']['table_replay_frames'] = 0
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
@@ -104,7 +108,11 @@ class IngestionReports(unittest.TestCase):
         for name in names:
             appends = 2 if name == 'prepare' else 1 if name in ('commit', 'ingest') else 0
             phases.append(dict(name=name, elapsed_ns=100, baseline_live_bytes=10, end_live_bytes=20,
-                               peak_live_bytes=30, counters=dict(wal_appends=appends, wal_syncs=appends, object_puts=appends),
+                               peak_live_bytes=30, counters=dict(wal_appends=appends, wal_syncs=appends, object_puts=appends,
+                                   inventory_wal_appends=appends if owner == 'native' else 0,
+                                   inventory_wal_bytes=appends * 512 if owner == 'native' else 0,
+                                   inventory_wal_syncs=appends * 3 if owner == 'native' else 0,
+                                   inventory_wal_startup_frames=0),
                                timed_appends=appends if owner == 'table' else 0,
                                wal_append_ns=(30 if appends else 0) if owner == 'table' else None))
         return dict(record=dict(complete=True, build_mode='safe', **values, visited=values['count'],
@@ -144,6 +152,24 @@ class IngestionReports(unittest.TestCase):
             bad['record']['phases'][-1]['counters']['object_puts'] = 1
             with self.assertRaises(ValueError):
                 ingestion.validate(bad, owner, 32, 'verify')
+
+    def test_native_inventory_attribution_is_required_and_reads_cannot_append(self):
+        original = self.sample('native')
+        ingestion.validate(original, 'native', 32, 'ingest')
+        for name in ('inventory_wal_appends', 'inventory_wal_bytes', 'inventory_wal_syncs'):
+            for missing in (False, True):
+                bad = copy.deepcopy(original)
+                counters = bad['record']['phases'][-1]['counters']
+                if missing:
+                    del counters[name]
+                else:
+                    counters[name] = 0
+                with self.subTest(name=name, missing=missing), self.assertRaises(ValueError):
+                    ingestion.validate(bad, 'native', 32, 'ingest')
+        bad = self.sample('native', 'verify')
+        bad['record']['phases'][0]['counters']['inventory_wal_appends'] = 1
+        with self.assertRaises(ValueError):
+            ingestion.validate(bad, 'native', 32, 'verify')
 
     def test_summary_requires_all_repetitions(self):
         samples = [dict(write=self.sample(), owner='table', rows=32, cache='cold', mode='bulk',
