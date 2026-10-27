@@ -266,15 +266,12 @@ pub const Client = struct {
             headers[header_count] = .{ .name = "x-transit-wait", .value = try hint.format(&wait_buffer) };
             header_count += 1;
         }
-        const response = self.http.fetch(.{
-            .location = .{ .url = url },
-            .method = .POST,
-            .payload = body,
-            .headers = .{ .content_type = .{ .override = "application/json" } },
-            .redirect_behavior = .not_allowed,
-            .extra_headers = headers[0..header_count],
+        const response = @import("HttpPost.zig").send(&self.http, .{
+            .url = url,
+            .body = body,
+            .headers = headers[0..header_count],
             .keep_alive = true,
-            .response_writer = writer,
+            .output = writer,
         }) catch |err| switch (err) {
             // The pinned socket API uses AccessDenied for a local firewall or
             // OS refusal. Reserve AccessDenied below for a validated authority

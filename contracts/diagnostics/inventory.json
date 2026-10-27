@@ -5347,6 +5347,7 @@
         "catch": 1
       },
       "imports": [
+        "HttpPost.zig",
         "std",
         "transit_protocol"
       ]
@@ -5692,6 +5693,26 @@
         "Abi.zig",
         "std",
         "transit_client"
+      ]
+    },
+    "packages/zig/transit-client/src/HttpPost.zig": {
+      "errors": {
+        "EndOfStream": 1,
+        "ReadFailed": 2,
+        "UnsupportedCompressionMethod": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "send()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 1
+      },
+      "imports": [
+        "std"
       ]
     },
     "packages/zig/transit-client/src/ResourceReader.zig": {
@@ -6059,6 +6080,7 @@
         "AuthorizationSet.zig",
         "BlockBatch.zig",
         "BoundedBody.zig",
+        "HttpPost.zig",
         "ResourceReader.zig",
         "Session.zig",
         "SnapshotReader.zig",
