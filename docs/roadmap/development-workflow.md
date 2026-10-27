@@ -28,8 +28,9 @@ The [source and execution baseline](development-workflow-baseline.json) preserve
 every tracked test file's size/hash and the original check/lane/nesting catalogs.
 It is a migration audit record, not another live execution inventory or a passing
 qualification result. The [file disposition map](development-workflow-migration.json)
-records every original file's planned destination, role and observed reference
-consumers. Dynamic task and artifact dependencies still require the P1.1 audit.
+records every original file's destination, role and original reference consumers.
+The [ownership audit](development-workflow-audit.md) records current task/artifact
+boundaries, dynamic consumers and explicitly unregistered helpers.
 
 The user paused the separate storage milestone work so this branch can migrate
 the storage/query test owners as well as the other domains. Preserve any work
@@ -256,7 +257,7 @@ this plan is not another chronological test transcript.
 
 ### P1 — File inventory, runner and layout enforcement
 
-- [ ] P1.1 Map every tracked test file to destination, owner and role: executable,
+- [x] P1.1 Map every tracked test file to destination, owner and role: executable,
   helper, oracle, input, model, active budget or retained observation. Identify
   its scenario/task, consumers, required artifacts and qualification boundary.
 - [x] P1.2 Move `tooling/` to `runner/`; move execution inventory, task ownership
@@ -329,7 +330,7 @@ this plan is not another chronological test transcript.
   `sdk/`, retaining installed-consumer separation from SDK implementation units.
 - [x] P5.2 Update all package builders, native fixture inputs, language compiler
   commands, temporary projects, examples, interop and scenario catalogs.
-- [ ] P5.3 Preserve every required SDK family, direct catalog nested execution,
+- [x] P5.3 Preserve every required SDK family, direct catalog nested execution,
   incompatible-definition rejection, ownership/lifetime and uncertain-call check.
 - [ ] P5.4 Execute migrated installed consumers outside the source tree against
   explicit matching artifacts. Run actual example binaries and interop schedules.
@@ -430,7 +431,7 @@ this plan is not another chronological test transcript.
 
 ### P12 — Qualification and final PR
 
-- [ ] P12.1 Audit the complete migration map, final directory policy, task/scenario
+- [x] P12.1 Audit the complete migration map, final directory policy, task/scenario
   coverage, current links and immutable evidence hashes. Account for every original
   file and required execution, including deliberate replacements/consolidations.
 - [ ] P12.2 Freeze the qualification inventory and relevant source/toolchain/
@@ -497,6 +498,7 @@ The continuation after #185 contains these additional bounded changes:
 
 | Change | Observed result and remaining limit |
 | --- | --- |
+| Final ownership audit | All 1,405 original files have dispositions and reviewed task/artifact boundaries. Dynamic SDK compiler inputs, example imports, replay corpora, manual generators and benchmark observers are accounted for. Two pre-existing unregistered helpers remain explicitly outside executable coverage. The unconsumed SQL reference transcript is archived with its original hash, bringing the archive to 735 observations and leaving 670 migrated original files. |
 | C/C++ peer preparation (`3ff4e4c2d`) | HTTP/gRPC/Document peers compile only when their private installation invokes them. The full C/C++ aggregate and both Document schedules pass. Six aggregate installations previously compiled 24 peers; they now compile ten. Local installation/peer-compile phases fall from 140.9 to 91.9 seconds (about 35%); this is preparation under concurrent host work, not a whole-lane improvement. |
 | External SDK artifacts (`87ce7b164`) | The external SDK profile uses explicit immutable Debug native sets and profile-specific packages. Actual installed Python/Node fault schedules pass; preparation remains inside its failure and timeout ledger. |
 | Distinct fixture ports (`1f93ccf22`) | Six independent port discoveries reproduced a duplicate in one configuration. Batch discovery holds sockets until all six distinct ports are obtained. Real allocation/failure-cleanup controls and the complete SQL wire gateway task pass. This establishes a fixture defect, not the cause of the earlier hosted initialization failure whose configuration was unavailable. |

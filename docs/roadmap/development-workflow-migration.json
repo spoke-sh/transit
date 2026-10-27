@@ -1,7 +1,7 @@
 {
   "version": 1,
   "baseline_revision": "a610ecd5dcff22f2d0177b61b905a8e985252c13",
-  "purpose": "Per-file migration disposition. Reference consumers are candidate source references, not complete dynamic dependency or executed coverage claims. Archived generated outputs retain their original Git revision and hash; current execution remains owned by runner and domain catalogs.",
+  "purpose": "Per-file migration disposition. Reference consumers are candidate references at the original baseline, not current dynamic dependencies or executed coverage claims. The qualification audit records current task/artifact boundaries and manually reviewed consumers. Archived outputs retain their original Git revision and hash; current execution remains owned by runner and domain catalogs.",
   "files": [
     {
       "source": "tests/AGENTS.md",
@@ -9221,12 +9221,19 @@
     },
     {
       "source": "tests/sql_wire/reference-transcript.json",
-      "destination": "tests/interfaces/sql_wire/reference-transcript.json",
-      "owner": "interfaces",
-      "role": "catalog",
+      "destination": null,
+      "owner": "evidence",
+      "role": "retained-observation",
       "reference_consumers": [
         "tests/runner/layout.json"
-      ]
+      ],
+      "disposition": "archive",
+      "archive": {
+        "revision": "a610ecd5dcff22f2d0177b61b905a8e985252c13",
+        "path": "tests/sql_wire/reference-transcript.json",
+        "sha256": "c8507531d688531958e44b507c9acc051a23d776f68bf3c316c9a63f007c84af",
+        "url": "https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/sql_wire/reference-transcript.json"
+      }
     },
     {
       "source": "tests/sql_wire/reference.py",
@@ -18307,5 +18314,6 @@
       ]
     }
   ],
-  "baseline": "docs/roadmap/development-workflow-baseline.json"
+  "baseline": "docs/roadmap/development-workflow-baseline.json",
+  "qualification_audit": "docs/roadmap/development-workflow-audit.md"
 }

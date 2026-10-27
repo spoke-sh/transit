@@ -53,7 +53,7 @@ An owner may close/unsubscribe its session after read-policy revocation; these
 controls only release its own live work and disclose no source data.
 
 Independent Python/OpenSSL fixtures pin every control, full-width IDs, cursors
-and scoped signatures (`python3 -B tests/interfaces/reactive/reactive_fixtures.py` from the root).
+and scoped signatures (`python3 -B tests/runner/launch.py tests/interfaces/reactive/reactive_fixtures.py` from the root).
 Deterministic tests cover competing attachments, stale subscription controls,
 renewal/expiry races, retained growth, aggregate quota and failed reads. These
 checks do not advertise SSE/WebSocket or prove deployed recovery.

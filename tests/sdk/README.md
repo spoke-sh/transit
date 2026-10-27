@@ -41,3 +41,7 @@ installers expose those same schedules to language callers; a codec-only check
 does not establish live authorization, uncertain-call recovery or disk behavior.
 Use [test contribution rules](../AGENTS.md) and [SDK instructions](AGENTS.md)
 before changing these boundaries.
+
+[binding_port_fixture.py](binding_port_fixture.py) is a retained adversarial peer
+with no current executable consumer. It does not contribute to the registered
+host-boundary proof; any reuse requires current contract and task registration.
