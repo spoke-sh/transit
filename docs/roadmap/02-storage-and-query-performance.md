@@ -460,6 +460,31 @@ reopening review:
    mailbox and table/resource root shares one global copy-on-write B-tree root
    serialized through a single journal tail.
 
+## Local WAL acknowledgement decision
+
+The local foundation retains synchronous acknowledgement of each accepted log
+record. This explicitly replaces the original group-commit implementation target
+for this milestone, using the recorded-scope-change alternative in
+[#113](https://github.com/spoke-sh/transit/issues/113). Segmented append, durable
+fencing/frontiers, uncertain-outcome recovery and process-death/I/O schedules
+remain unchanged acceptance requirements. Multi-row Table ingestion still commits
+one atomic owner record; it is not group commit across independent operations.
+
+The source-attributed [ingestion matrix](../handbook/reference/performance.md#local-ingestion-and-bounded-growth-measurements)
+measures the final WAL append at about 0.5–1.2% of owner ingestion medians for its
+selected Table fixtures. It supplies no concurrent offered-load measurement or
+evidence that waiting to coalesce independent commands improves those workloads.
+The current exclusive owner also serializes validation, publication and receipt
+observation. Delaying its sync alone cannot safely create overlapping accepted
+operations or remove immutable staging costs.
+
+[Milestone 10's existing runtime optimization work](10-data-structures-and-performance.md)
+owns evaluation of batching/group commit under measured concurrent load, with
+explicit queue bounds, acknowledgement timing, per-operation uncertainty and
+control reserve. This decision does not claim that group commit lacks a benefit
+under other workloads, or that current ingestion latency meets an unstated target.
+The remaining completion evidence below must pass for the synchronous profile.
+
 ## Target architecture
 
 The architecture below includes future backend choices to keep the shared
@@ -483,8 +508,9 @@ Split the storage engine into two explicit Zig interfaces with swappable backend
      once changes and all required recovery/history evidence are checkpointed
      or archived and the retention floors in #127 permit physical removal.
    - Backends:
-     - **Native Zig Local Segmented WAL (`LocalWal`):** Pre-allocated `64 MiB`
-       append-only segment files using `fdatasync`/`io_uring` and group commit.
+     - **Native Zig Local Segmented WAL (`LocalWal`):** Incremental `64 MiB`
+       append-only segment files with sync before acknowledgement. The local
+       acknowledgement decision above resolves the earlier group-commit target.
        Default for `transit server` so local development runs as a single Zig
        binary with no external storage daemons. Resolve runtime composition in
        #122/#126; measure commit latency instead of promising a universal bound.
@@ -621,7 +647,7 @@ each milestone closes only against its own explicit evidence.
 
 1. **Define and implement `TransitLog` and `TransitObjectStore` with native local backends.**
    Specify `TWAL1` frames and the `TransitObjectStore` conditional-put/range-read
-   contract. Build `LocalWal` (`fdatasync`/`io_uring` + group commit) and
+   contract. Build `LocalWal` (segmented append and synchronous acknowledgement) and
    `LocalSegmentStore` (`O_CREAT|O_EXCL` + `fsync` + `rename`, `mmap`/`preadv`)
    and compose them with native durable owners from #126 in disk-backed owner
    proofs. Milestone 3 owns actual live-server wiring and installed acceptance.

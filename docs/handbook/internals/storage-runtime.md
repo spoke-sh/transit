@@ -28,6 +28,26 @@ The current realm journal remains a serialization point. Separating durable
 cardinality from cache size therefore does not establish horizontal authority
 throughput. It answers a memory-growth question, not every scaling question.
 
+### Synchronous local acknowledgement
+
+Why does the local owner sync each accepted record instead of collecting a queue
+of independent appends? Its caller serializes validation, immutable preparation,
+log publication and receipt observation. `DiskWal.append` syncs the written frame
+and any new segment directory entry, then publishes a synced frontier before
+returning. A post-write failure poisons the owner until recovery establishes the
+original outcome. Multi-row Table operations share that one accepted record;
+separate operations do not share a deferred acknowledgement.
+
+The [disk ingestion controls](../reference/performance.md#local-ingestion-and-bounded-growth-measurements)
+attribute about 0.5–1.2% of owner ingestion medians to the final WAL append in
+their selected Table workloads. This source-specific observation favors retaining
+the simple acknowledgement boundary while addressing measured staging/read
+costs. It is not a throughput comparison: group commit can amortize syncs under
+concurrent load, and these controls do not measure that regime. Such a design
+needs bounded queued ownership, original per-command receipts, explicit uncertain
+prefixes and control progress under saturation. Deferring a sync in the current
+serialized API does not establish those properties.
+
 ### Private object staging and native progress
 
 Can a private direct-data write block unrelated native reads and control publication?
@@ -467,7 +487,7 @@ flowchart TB
   end
 
   subgraph LocalBackends["Local / Edge Mode (transit server default — zero child daemons)"]
-    LocalWal["LocalWal\nSegmented 64 MiB POSIX files (fdatasync / io_uring + group commit)"]
+    LocalWal["LocalWal\nRolling 64 MiB POSIX files · sync before acknowledgement"]
     LocalSeg["LocalSegmentStore\nAtomic POSIX O_CREAT|O_EXCL + fsync + rename (.tseg / .tdel / manifests)"]
   end
 
@@ -494,11 +514,11 @@ flowchart TB
 records (`+row`/`-row` columnar batches, catalog DDL transitions, process mailbox
 admissions, and recorded effect intents).
 
-- **Native Zig `LocalWal` (`transit server` default):** Writes `TWAL1` frames
-  directly to pre-allocated `64 MiB` local segment files using `fdatasync` or
-  `io_uring` with group commit. This removes the external Ursula child daemon
-  from `transit server`, cutting single-write commit latency to sub-millisecond
-  local disk flush times.
+- **Native Zig `LocalWal` (`transit server` default):** Appends `TWAL1` frames
+  incrementally to rolling `64 MiB` local segment files. It syncs each accepted
+  append and its required metadata before acknowledgement. The local owner
+  requires no Ursula child daemon. Its measured costs depend on the owner
+  workload and filesystem; the interface does not promise a latency bound.
 - **`UrsulaWal` (Distributed Stream Backbone):** Repositions Ursula from a
   per-turn B-tree page store to its natural role: a durable, replicated stream
   log that sequences `TWAL1` frames per partition and streams live deltas to
