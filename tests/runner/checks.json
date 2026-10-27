@@ -536,6 +536,50 @@
           "tests/sdk/binding_schema_types.py"
         ]
       }
+    ],
+    "native-all": [
+      {
+        "id": "native-all",
+        "phase": "compile-and-execute",
+        "command": [
+          "zig",
+          "build",
+          "test"
+        ]
+      }
+    ],
+    "native-components": [
+      {
+        "id": "native-components",
+        "phase": "compile-and-execute",
+        "command": [
+          "zig",
+          "build",
+          "test-components"
+        ]
+      }
+    ],
+    "native-fixtures": [
+      {
+        "id": "native-fixtures",
+        "phase": "compile-and-execute",
+        "command": [
+          "zig",
+          "build",
+          "test-fixtures"
+        ]
+      }
+    ],
+    "native-faults": [
+      {
+        "id": "native-faults",
+        "phase": "compile-and-execute",
+        "command": [
+          "zig",
+          "build",
+          "test-faults"
+        ]
+      }
     ]
   }
 }

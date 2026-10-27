@@ -2,7 +2,7 @@
 """Check reviewed semantic mappings independently of source-inventory recording.
 
 This gate covers declared boundaries in mappings.json. Runtime owner tests execute
-through just test::unit; finding their source is an ownership check, not a test run.
+through just check::native; finding their source is an ownership check, not a test run.
 Unlisted boundaries are not certified by this gate.
 """
 import copy
@@ -184,7 +184,7 @@ def main():
     result = validate(manifest, surface, files)
     self_test(manifest, surface, files)
     print('Diagnostic semantic mappings:', json.dumps(result, sort_keys=True),
-          '(declared scope only; executable owner tests run in test::unit).')
+          '(declared scope only; executable owner tests run in check::native).')
 
 
 if __name__ == '__main__':

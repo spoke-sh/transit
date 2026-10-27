@@ -10,7 +10,7 @@
       ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::storage",
         "test::properties",
         "test::model",
@@ -33,7 +33,7 @@
       ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::service",
         "test::state",
         "test::properties",
@@ -57,7 +57,7 @@
       ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::state",
         "test::storage",
         "test::station",
@@ -114,7 +114,7 @@
       ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::service",
         "test::storage",
         "test::model"
@@ -158,7 +158,7 @@
       ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::capacity",
         "test::growing-capacity",
         "test::growing-quota"
@@ -240,7 +240,7 @@
       ],
       "profile": "unified-query-v1",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::arrow"
       ],
       "scenarios": [
@@ -263,7 +263,7 @@
       ],
       "profile": "transit-v1/station-growing/query capture development",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::growing-service",
         "test::query"
       ],
@@ -377,7 +377,7 @@
       ],
       "profile": "immutable-page-v2 primitive; not a public authority profile",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::pages"
       ],
       "scenarios": [
@@ -399,7 +399,7 @@
       ],
       "profile": "transit-v1 development control slice; not running service",
       "tasks": [
-        "test::unit",
+        "check::native",
         "check::contracts"
       ],
       "scenarios": [
@@ -422,7 +422,7 @@
       ],
       "profile": "transit-v1 development state slice; not running service",
       "tasks": [
-        "test::unit",
+        "check::native",
         "check::contracts"
       ],
       "scenarios": [
@@ -444,7 +444,7 @@
       ],
       "profile": "transit-v1 development read slice; not running service",
       "tasks": [
-        "test::unit",
+        "check::native",
         "check::contracts"
       ],
       "scenarios": [
@@ -468,7 +468,7 @@
       ],
       "profile": "transit-v1 development work slice; not running service",
       "tasks": [
-        "test::unit",
+        "check::native",
         "check::contracts",
         "test::simulation"
       ],
@@ -494,7 +494,7 @@
       "profile": "transit-v1 development authority and disk Ursula; not running service",
       "tasks": [
         "test::growing",
-        "test::unit",
+        "check::native",
         "check::contracts"
       ],
       "scenarios": [
@@ -525,7 +525,7 @@
       "profile": "transit-v1 development service; legacy launcher defaults preserved",
       "tasks": [
         "test::growing-service",
-        "test::unit",
+        "check::native",
         "check::contracts"
       ],
       "scenarios": [
@@ -554,7 +554,7 @@
       ],
       "profile": "transit-v1 development maintenance; one record per rotating scan step",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::growing-service"
       ],
       "scenarios": [
@@ -587,7 +587,7 @@
       ],
       "profile": "Station growing development behavior/point-state slice",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::station",
         "test::client-abi",
         "test::growing-service",
@@ -628,7 +628,7 @@
       ],
       "profile": "transit-v1 scoped retry development capability",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::growing-service",
         "check::contracts"
       ],
@@ -661,7 +661,7 @@
       ],
       "profile": "transit-v1 retained read version development capability",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::growing-service",
         "check::contracts",
         "test::growing"
@@ -692,7 +692,7 @@
       ],
       "profile": "transit-v1 development control slice; not running service",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::growing-capacity",
         "test::growing-quota"
       ],
@@ -716,7 +716,7 @@
       ],
       "profile": "growing Station result delivery; publication is disabled unless a host supplies QueryDelivery.Context",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::model-delivery"
       ],
       "scenarios": [
@@ -724,7 +724,7 @@
         "Sender blocked at the credit window until a grant is observed",
         "Acknowledgement only reachable once every segment is durably received"
       ],
-      "limits": "Type/safety-only TLC check of the abstract credit protocol; no guard mutants or Zig trace replay yet, unlike Authority.tla. Fragmentation below one segment, digest/schema verification and durable KV encoding are exercised by test::unit, not this model.",
+      "limits": "Type/safety-only TLC check of the abstract credit protocol; no guard mutants or Zig trace replay yet, unlike Authority.tla. Fragmentation below one segment, digest/schema verification and durable KV encoding are exercised by check::native, not this model.",
       "model": "tests/verification/models/Delivery.tla",
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
@@ -765,7 +765,7 @@
       ],
       "profile": "current SELECT / unified-query-v1",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::sql"
       ],
       "scenarios": [
@@ -812,7 +812,7 @@
       ],
       "profile": "M13 public query v1 over growing v3",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::public-query"
       ],
       "scenarios": [
@@ -867,7 +867,7 @@
       ],
       "profile": "transit-v1/station-publication-v1",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::publication"
       ],
       "scenarios": [
@@ -898,7 +898,7 @@
       ],
       "profile": "station-exchange-v1; first HTTP transport profile",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::http-transport",
         "test::tls-alpn",
         "test::http-worker",
@@ -994,7 +994,7 @@
       ],
       "profile": "serving-v1/growing-v3; signed HTTP/TLS service callers",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::serving",
         "test::serving-capacity",
         "test::serving-lifetimes",
@@ -1032,7 +1032,7 @@
       ],
       "profile": "M20/M21 selected int64 Table, private shared browser caller, growing-v3",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::reactive",
         "test::reactive-limits",
         "test::reactive-refresh",
@@ -1067,7 +1067,7 @@
       ],
       "profile": "M22 codec and inbound transport foundation; full gateway interoperability open",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::flight-metadata",
         "test::grpc-server"
       ],
@@ -1135,7 +1135,7 @@
       ],
       "profile": "M23 bounded declarations and signed native publication owner",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::application-grammar",
         "test::application",
         "test::application-browser"
@@ -1166,7 +1166,7 @@
       ],
       "profile": "M23 work-item Table migration, native/Compose/Substrate generated application",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::work-items",
         "test::work-items-browser",
         "test::work-items-placement"
@@ -1225,7 +1225,7 @@
       ],
       "profile": "M24 Linux local_table_v1 with native MinIO, disk Ursula and eight owned child roles",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::server",
         "test::server-faults",
         "test::server-capacity"
@@ -1255,7 +1255,7 @@
       "profile": "M25 trusted local Linux, neutral v1 installation/bootstrap and separately compiled Zig work-item consumer",
       "tasks": [
         "check::contracts",
-        "test::unit",
+        "check::native",
         "test::server-applications",
         "test::server-application-faults",
         "test::server-application-capacity"
@@ -1284,7 +1284,7 @@
       ],
       "profile": "M27 version-3 trusted local Linux neighborhood with default embedded Board and explicit application inspection",
       "tasks": [
-        "test::unit",
+        "check::native",
         "check::contracts",
         "test::server-board",
         "test::server-board-package"
@@ -1447,7 +1447,7 @@
       ],
       "profile": "direct-table-v1/native-local",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::direct-table-service",
         "test::direct-catalog-abi",
         "bindings::direct-catalog-python",
@@ -1485,7 +1485,7 @@
       ],
       "profile": "direct-table-v1/unified-query/native-local",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::table-query-writer"
       ],
       "scenarios": [
@@ -1513,7 +1513,7 @@
       ],
       "profile": "state-declaration-v1/offline",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::sql"
       ],
       "scenarios": [
@@ -1590,7 +1590,7 @@
       ],
       "profile": "declarative-catalog-v1/direct-table-v1/native-local",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::catalog",
         "test::cli-diagnostics",
         "bindings::catalog-python",
@@ -1762,7 +1762,7 @@
       "profile": "One trusted manager with durable private records, one unbound PID and writer-owned resource, one native authority",
       "tasks": [
         "test::relational-exchanges",
-        "test::unit"
+        "check::native"
       ],
       "scenarios": [
         "Manager and node/store reconstruction at every recorded phase",
@@ -1792,7 +1792,7 @@
       "profile": "Interactive one/two-catalog caller through the Station ABI/port, installed TypeScript/Python adapters and explicit Board HTTP/browser, one native authority and disk Ursula",
       "tasks": [
         "test::relational-callers",
-        "test::unit",
+        "check::native",
         "bindings::relational-node",
         "bindings::relational-python",
         "transit-board::relational-browser"
@@ -1824,7 +1824,7 @@
       "profile": "Application-owned names, immutable definitions and native Station controls with direct Table input and native local progress",
       "tasks": [
         "test::named-relational",
-        "test::unit"
+        "check::native"
       ],
       "scenarios": [
         "Publication and authorization do not activate a query",
@@ -1875,7 +1875,7 @@
       ],
       "profile": "Current native v1; disk Ursula segment layout",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::native-blocks",
         "test::storage-collection",
         "test::block-storage",
@@ -1902,7 +1902,7 @@
       ],
       "profile": "Current native v1; local POSIX WAL and object store",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::local-storage-faults",
         "test::storage-io-faults"
       ],
@@ -1928,7 +1928,7 @@
       "profile": "One local owner and partition; two LSNs, two writer epochs and two policy epochs; one frame per segment",
       "tasks": [
         "test::wal-model",
-        "test::unit",
+        "check::native",
         "test::storage-io-faults",
         "test::local-storage-faults"
       ],
@@ -1992,7 +1992,7 @@
       "profile": "Finite editor interaction/request model plus production Zig reducer and Linux PTY adapter",
       "tasks": [
         "test::console-model",
-        "test::unit",
+        "check::native",
         "test::console-history"
       ],
       "scenarios": [
@@ -2016,7 +2016,7 @@
       ],
       "profile": "Current native v1; serialized local Table owner with unlimited logical history",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::table-archives"
       ],
       "scenarios": [
@@ -2040,7 +2040,7 @@
       ],
       "profile": "Current native v1; serialized local Table owner, immutable retained history",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::table-compaction"
       ],
       "scenarios": [
@@ -2076,7 +2076,7 @@
       "model": null,
       "qualification": "Executed focused checks are recorded in tests/README.md; complete committed-HEAD clean qualification is separate.",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::table-checkpoints"
       ]
     },
@@ -2101,7 +2101,7 @@
       "model": null,
       "qualification": "Executed focused results belong in tests/README.md; repository-wide and matched performance qualification remain separate.",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::table-build-memory"
       ]
     },
@@ -2133,7 +2133,7 @@
       "model": null,
       "qualification": "Component, signed service and SQL execution are recorded separately in tests/README.md.",
       "tasks": [
-        "test::unit",
+        "check::native",
         "test::table-filtering"
       ]
     }

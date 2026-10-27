@@ -418,7 +418,7 @@
       },
       "proofs": [
         {
-          "task": "test::unit",
+          "task": "check::native",
           "source": "packages/zig/transit-client/src/Abi.zig",
           "anchor": "test \"every post-commit response allocation failure remains uncertain and releases buffers\""
         }

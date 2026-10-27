@@ -286,7 +286,7 @@
       "test::diagnostic-errors",
       "test::diagnostic-outcomes",
       "test::diagnostic-grammar",
-      "test::unit",
+      "check::native",
       "test::cli-diagnostics",
       "check::contracts",
       "test::console-history"

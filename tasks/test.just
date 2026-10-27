@@ -6,10 +6,6 @@ set working-directory := ".."
 _default:
     @just --list test
 
-# Run unit and protocol checks without a service.
-unit:
-    zig build test
-
 # Verified segment metadata/page ranges and the disk-backed direct Table reader.
 storage-segments:
     cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg -Dtest-filter="column" -Dtest-filter="bound borrowing" --summary all
@@ -333,7 +329,7 @@ packages:
     cd packages/zig/transit-client && zig build test
     cd packages/zig/transit-runtime-substrate && zig build test
 
-# Compile each library independently; root unit checks own shared test execution.
+# Compile each library independently; check native owns the root execution graph.
 packages-build:
     cd packages/zig/transit-config && zig build check
     cd packages/zig/transit-flight && zig build check

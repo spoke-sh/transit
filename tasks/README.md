@@ -42,9 +42,14 @@ adding or changing this interface.
 groups; `just launchers::local` or `just --list launchers local` lists one
 environment's recipes. Bare module commands list tasks, including `just check`
 and `just ci`; select `just ci all` explicitly to run ordinary local qualification.
-`just test` lists the test recipes; use `just test::unit` to run the root Zig test
+`just test` lists the test recipes; use `just check native` to run the root Zig test
 graph, including its disk and process-death checks. `just --list --list-submodules` shows the full
 tree.
+
+`just check native components`, `just check native fixtures` and
+`just check native faults` select the [native scopes](../tests/runner/native-checks.md).
+Components can include local filesystem tests; faults include real child death.
+The complete aggregate retains all scopes and records its output automatically.
 
 Each module explicitly sets the strict Bash shell and repository-root working
 directory. Recipes work from repository subdirectories after entering the dev
@@ -138,7 +143,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::server-sql-package` | Run the public SQL workflow against the installed local Nix bundle outside the checkout |
 | `just test::cli-diagnostics` | Check real CLI errors, argument/file/field/listener coordinates, next steps, privacy and stdout/stderr separation without starting services; included in `just check all` |
 | `just test::diagnostic-inventory` | Detect changes to qualified outcome types, error declarations/returns, literal causes, propagation, imports and grammar; excludes dependency caches |
-| `just test::diagnostic-mappings` | Require reviewed stable compiler codes and explicit boundary exceptions independently of inventory recording; owning executable cases run through `test::unit` |
+| `just test::diagnostic-mappings` | Require reviewed stable compiler codes and explicit boundary exceptions independently of inventory recording; owning executable cases run through `check::native` |
 | `just test::diagnostic-outcomes` | Execute retained outcome mappings, fact provenance and exact recovery actions against reviewed expectations. |
 | `just test::console-history` | Check real PTY reverse search, SQL/dot-command persistence, concurrent consoles, malformed records and file-failure fallback; included in `just check all` |
 | `just test::console-latency [--single --resident-pages N --worker-interval-ms N]` | Measure idle CPU and empty-Table SQL with frozen ReleaseSafe executables and isolated disk providers; optional cache/polling controls, no latency threshold |
@@ -152,7 +157,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just bindings::unified-compound` | Build all ten SDKs and run filtering Boolean programs through installed callers and the SQL shell across KV, Table and Document, including exact retry, disk restart, current denial and retirement |
 | `just test::document` | Qualify Document change/checkpoint publication, exact retries, current-policy reads and bounded cleanup through worker/node/store loss |
 | `just test::publication` | Qualify 64 KiB immutable records, bounded staging/cleanup, exact retry and worker/node/store recovery |
-| `just test::unit` | Runs the root Zig test graph, including local disk and process-death tests; this is broader than in-memory units |
+| `just check::native` | Runs the root Zig test graph, including local disk and process-death tests; this is broader than in-memory units |
 | `just test::build` | Compiles application/probe entry points separately from unit tests; included in core CI |
 | `just test::sql` | Compare Zig/ANTLR/PostgreSQL ASTs, durable plan encodings and independently decoded paged Arrow results |
 | `just test::declarative-benchmark [--rows N --samples N --output PATH]` | Verify and measure synthetic declarative components; report all TPC-C/E/H/DS workload blockers; see [benchmark tooling](../tests/performance/declarative/README.md) |

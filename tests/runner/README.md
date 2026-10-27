@@ -6,6 +6,7 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | File | Purpose |
 | --- | --- |
 | [checks.json](checks.json) | Ordered fast checks and generated-contract validators |
+| [Native scopes](native-checks.md) | Compiled components, independent fixtures and local process faults, with a complete aggregate |
 | [checks.py](checks.py) | Execute the inventory, propagate child failures and retain stage timings |
 | [capture.py](capture.py) | Stream diagnostics, preserve automatic run artifacts and verify their identity/completion |
 | [launch.py](launch.py), [paths.py](paths.py) | Explicit Python test import root and shared repository coordinates |
@@ -27,6 +28,9 @@ oracle checks, diagnostic inventory/mappings and documentation links. It builds
 no runtime binaries and starts no Transit services. It does not replace compiled
 contract checks, package tests, disk/recovery proofs or frontend validation.
 `just check all` and the hosted core lane retain those broader checks.
+`just check native` runs the complete native aggregate; append `components`,
+`fixtures` or `faults` for a focused scope. Component tests can use local files;
+none of these names promises an in-memory-only unit suite.
 
 Launch migrated Python drivers through `python3 -B tests/runner/launch.py`,
 followed by their repository-relative path and arguments. For example,

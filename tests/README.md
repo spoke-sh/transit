@@ -55,7 +55,7 @@ iteration; [tasks/README.md](../tasks/README.md) documents commands and dependen
 | Build, fixture or CI infrastructure | Runner/tooling checks and affected real tasks | Committed-source clean qualification of affected lanes |
 
 `just check` lists validation scopes. Use `just check fast` for local static/oracle
-feedback and `just check all` for the broad repository check. The current `test::unit` target
+feedback and `just check all` for the broad repository check. The current `check::native` target
 also contains disk and process-death checks; it is not a pure in-memory unit
 profile. `just ci clean --lane NAME` runs one lane from committed HEAD without
 workspace build outputs. A successful lane is not the complete suite. Full

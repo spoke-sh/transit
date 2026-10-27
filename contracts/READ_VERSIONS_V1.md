@@ -110,7 +110,7 @@ does not remove the existing finite Arrow result limit.
 
 ## Verification
 
-`just test::unit` checks old command/query digest fixtures, atomic private staging,
+`just check::native` checks old command/query digest fixtures, atomic private staging,
 invalid release rollback, lost accepted replies, replacement ownership, bounded
 filtered discovery, stale cuts, final disclosure races, missing captured pages,
 explicit release and finite source expiry. Root-only recovery ignores an invalidated
