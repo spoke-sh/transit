@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=2560, initial-scale=1.0" />
+  <title>Transit World Simulator &amp; Spatial Agentic OS — D1 Visual Studies</title>
+  <link rel="stylesheet" href="d1.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="top-bar">
+      <div class="brand-cluster">
+        <div class="brand-mark">
+          <span class="brand-dot"></span>
+          <span>Transit World OS</span>
+        </div>
+        <nav class="mode-tabs" id="screen-nav">
+          <a href="#macro-map" data-screen="macro-map" class="mode-tab active">1. Macro Map &amp; Apps</a>
+          <a href="#faction-archeology" data-screen="faction-archeology" class="mode-tab">2. Factions &amp; Archeology</a>
+          <a href="#simready-dock" data-screen="simready-dock" class="mode-tab">3. Meso SimReady Dock</a>
+          <a href="#agent-pov" data-screen="agent-pov" class="mode-tab">4. Micro Agent POV</a>
+          <a href="#modernization-loop" data-screen="modernization-loop" class="mode-tab">5. Modernization Loop</a>
+          <a href="#mmo-mainnet" data-screen="mmo-mainnet" class="mode-tab">6. MMO Mainnet Upgrades</a>
+        </nav>
+      </div>
+      <div class="seed-cluster">
+        <span class="pill cyan" id="hdr-mode-pill">Seed #8841-IRON-TIDE &middot; Macro View (1.0&times;)</span>
+        <span class="pill teal" id="hdr-cut-pill">WorldCommons &middot; Manifest v1,420 &middot; policy_epoch 24</span>
+        <span class="pill amber" id="hdr-clock-pill">Day 412 &middot; 14:22:08 UTC</span>
+      </div>
+    </header>
+
+    <main>
+      <!-- =====================================================================
+           SCREEN 1: MACRO WORLD MAP & ANCHORED WEB APPS
+           ===================================================================== -->
+      <section class="screen active" id="screen-macro-map">
+        <!-- Left Dock -->
+        <div class="dock-col">
+          <div class="panel flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">Procedural Faction Topology</div>
+              <span class="pill cyan">6 Active Biomes</span>
+            </div>
+            <div class="panel-body">
+              <p class="desc-text">
+                Geography is compiled from workload verification constraints: oceans and mountain corridors encode network latency and partition schedules; faction architecture encodes native protocols, physical codecs (&epsilon;) and collations (&kappa;).
+              </p>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Faction</th>
+                    <th>Protocols</th>
+                    <th>Codecs &amp; Collation</th>
+                    <th>Cadence</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Clearing Spire</strong><br/><span class="panel-sub">Wall St / Iron</span></td>
+                    <td class="mono">FIX 4.2, TN3270</td>
+                    <td class="mono">COMP-3, IBM_HFP, CP037</td>
+                    <td><span class="pill amber">1.2ms / T+1</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Java Islands</strong><br/><span class="panel-sub">Retail &amp; Ports</span></td>
+                    <td class="mono">SOAP/XML, REST</td>
+                    <td class="mono">UTF8, Doc Projections</td>
+                    <td><span class="pill coral">11.4h Queue</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Heartland Rail</strong><br/><span class="panel-sub">Midwest Mutual</span></td>
+                    <td class="mono">ISPF, X12 EDI</td>
+                    <td class="mono">ZONED, COMP-3, EBCDIC</td>
+                    <td><span class="pill amber">24h Batch</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Rust Foundry</strong><br/><span class="panel-sub">Heavy Robotics</span></td>
+                    <td class="mono">Transit v1, gRPC</td>
+                    <td class="mono">BITPACK, RLE, Arrow</td>
+                    <td><span class="pill teal">4.8ms Fenced</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Gopher Domes</strong><br/><span class="panel-sub">Bio-Telemetry</span></td>
+                    <td class="mono">gRPC, Protobuf</td>
+                    <td class="mono">BITPACK, DICT, FSST</td>
+                    <td><span class="pill cyan">124k ev/s</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Ruby Mines</strong><br/><span class="panel-sub">Gem Commerce</span></td>
+                    <td class="mono">Webhooks, PG</td>
+                    <td class="mono">FSST, ASCII_CI</td>
+                    <td><span class="pill amber">N+1 Burst</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="panel-title">Regional Governance &amp; Partition Zones</div>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Jurisdiction</th>
+                    <th>Policy &amp; Network Rule</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Washington Audit</strong></td>
+                    <td class="mono">policy_epoch 24 &middot; Mandatory source attribution</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Europe Sovereign</strong></td>
+                    <td class="mono">Derived summaries only &middot; Raw PII blocked</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Shenzhen Hub</strong></td>
+                    <td class="mono">Direct .tseg bulk ingestion &middot; NVMe tier cache</td>
+                  </tr>
+                  <tr>
+                    <td><strong>LATAM Corridor</strong></td>
+                    <td class="mono">Instant payment rails + municipal tax rules</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Outback / North</strong></td>
+                    <td class="mono">145ms satellite RTT &middot; Partition durability</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Active World Processes</div>
+                  <div class="metric-val" style="color: #5eead4;">42,810 PIDs</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">Bounded resident memory</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Retained World History</div>
+                  <div class="metric-val" style="color: #7dd3fc;">1.84 TiB .tseg</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">Unlimited retention default</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Stage: Expansive 1712x963 16:9 World Viewport + Bottom Protocol Strip -->
+        <div class="center-stage">
+          <div class="viewport-frame">
+            <img class="viewport-img" src="images/raw/raw-01-macro-world-map.png" alt="Procedurally generated archipelago of computing and regional factions" />
+            <div class="viewport-banner">
+              <div class="viewport-badge">
+                <strong>Macro Spatial View (Zoom 1.0&times;)</strong> &middot; Click any facility to enter Isometric <code>SimReady</code> View (12&times;) or Agent POV (100&times;)
+              </div>
+              <div class="viewport-badge" style="border-color: var(--teal);">
+                Subsea Fiber &amp; Rail Overlay: <strong style="color: #5eead4;">ON</strong>
+              </div>
+            </div>
+
+            <div class="vp-pin teal" style="left: 26%; top: 20%;">
+              <div class="vp-pin-hdr"><span>The Clearing Spire (Wall St / Iron)</span><span class="pill teal">1.2 ms</span></div>
+              <div class="vp-pin-sub">FIX 4.2 Surface (48.2k/s) &middot; CICS/COMP-3 Vault</div>
+            </div>
+
+            <div class="vp-pin amber" style="left: 24%; top: 53%;">
+              <div class="vp-pin-hdr"><span>Java Archipelago &middot; Port of Beans</span><span class="pill coral">11.4h Delay</span></div>
+              <div class="vp-pin-sub">14-hop SOAP/XML ESB Customs Bottleneck</div>
+            </div>
+
+            <div class="vp-pin violet" style="left: 27%; top: 84%;">
+              <div class="vp-pin-hdr"><span>Ruby Canyon Mines &amp; Gopher Bio-Domes</span><span class="pill violet">124k ev/s</span></div>
+              <div class="vp-pin-sub">JSON Webhooks + gRPC Hydroponic Telemetry</div>
+            </div>
+
+            <div class="vp-pin cyan" style="left: 58%; top: 36%;">
+              <div class="vp-pin-hdr"><span>Midwest Mutual Rail Heartland</span><span class="pill amber">Batch Lock: 03h 14m</span></div>
+              <div class="vp-pin-sub">TN3270/ISPF &middot; 18 Freight Trains Staged at Junction 9</div>
+            </div>
+
+            <div class="vp-pin teal" style="left: 77%; top: 72%;">
+              <div class="vp-pin-hdr"><span>The Rust Foundry &amp; Shipyards</span><span class="pill teal">SimReady USD</span></div>
+              <div class="vp-pin-sub">9,600 actuator turns/s &middot; Strict PID Epoch Fencing</div>
+            </div>
+          </div>
+
+          <div class="bottom-strip">
+            <div class="panel amber-border">
+              <div class="panel-hdr">
+                <div class="panel-title">Anchored App #1 &middot; TN3270 / ISPF Mainframe Terminal (Heartland Junction 9)</div>
+                <span class="pill amber">LU2: CICS-INV-04 &middot; 24&times;80</span>
+              </div>
+              <div class="panel-body">
+                <div class="ispf-terminal">
+                  <div class="ispf-hdr">
+                    <span>DFH0XCMN  MIDWEST RAIL &amp; CLEARING LEDGER  CICS/TS V5.6</span>
+                    <span>TERM: T3278M2</span>
+                  </div>
+                  <div class="ispf-row"><span>COMMAND ===&gt; <u>                                        </u></span><span>SCROLL ===&gt; CSR</span></div>
+                  <div class="ispf-row"><span>COPYBOOK: MW.RAIL.MANIFEST.COBOL (EBCDIC_CP037 / COMP-3)</span><span>VSAM KSDS</span></div>
+                  <div class="ispf-row"><span>------------------------------------------------------------------------</span></div>
+                  <div class="ispf-row"><span>WAYBILL   ORIGIN-DEPOT    DEST-PORT       QTY-COMP3     SETTLEMENT-STATE</span></div>
+                  <div class="ispf-row"><span>WB-90411  ORD-HEARTLAND   PORT-BEANS-04   +0000450C     <span class="ispf-warn">LOCKED-BATCH-T1</span></span></div>
+                  <div class="ispf-row"><span>WB-90412  RUBY-QUARRY-2   CLEARING-SPIRE  +0001280C     <span class="ispf-warn">WAIT-EDI-X12</span></span></div>
+                  <div class="ispf-row"><span>WB-90415  GOPHER-DOME-7   RUST-FOUNDRY    <span class="ispf-err">HEX:0x1A?</span>     <span class="ispf-err">ABEND-S0C7-DEC</span></span></div>
+                  <div class="ispf-row"><span>WB-90419  LATAM-CORRIDOR  PORT-BEANS-04   +0000890C     <span class="ispf-cyan">BRIDGED-TRANSIT</span></span></div>
+                  <div class="ispf-row"><span class="ispf-warn">MSG: 18 FREIGHT TRAINS IDLING AT JUNCTION 9 UNTIL 00:00 BATCH WINDOW</span></div>
+                  <div class="ispf-row"><span>PF1=HELP   PF3=EXIT   PF5=RFIND   PF7=UP   PF8=DOWN   PF12=CANCEL</span></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ink-muted);">
+                  <span>Real TN3270 socket &middot; Operable by humans or Station agents</span>
+                  <span class="mono" style="color: #5eead4;">Mounted as Foreign Table v4</span>
+                </div>
+                <div class="metric-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">VSAM Batch Window Cutoff</div>
+                    <div class="metric-val" style="color: #fcd34d;">00:00 UTC</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">18 trains held on exclusive lock</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Copybook Zero-ETL Mount</div>
+                    <div class="metric-val" style="color: #5eead4;">COMP-3 + CP037</div>
+                    <div class="metric-delta" style="color: #5eead4;">5-state cell preservation active</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel teal-border">
+              <div class="panel-hdr">
+                <div class="panel-title">Anchored App #2 &middot; Transit Cross-Faction Strangler-Fig Query (<code>Fuze</code>)</div>
+                <span class="pill teal">Cut: Manifest v1,420</span>
+              </div>
+              <div class="panel-body">
+                <div class="code-box"><span class="cmt">-- Zero-ETL equijoin across Midwest EBCDIC/COMP-3 copybook &amp; Java Port HTTP table</span>
+<span class="kw">SELECT</span> w.waybill_id, w.committed_qty, p.berth_id, p.customs_state
+<span class="kw">FROM</span> midwest_rail_ledger w
+<span class="kw">INNER JOIN</span> port_beans_berths p <span class="kw">ON</span> w.dest_port_id = p.port_id
+<span class="kw">WHERE</span> w.settlement_state = <span class="str">'BRIDGED-TRANSIT'</span>;</div>
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Waybill</th><th>COMP-3 Qty</th><th>Berth</th><th>Customs State</th><th>Cut Provenance</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="mono">WB-90419</td><td class="mono">890</td><td class="mono">BERTH-A01</td><td><span class="pill teal">CLEARED</span></td><td class="mono">rail@v42, port@v88</td></tr>
+                    <tr><td class="mono">WB-90422</td><td class="mono">640</td><td class="mono">BERTH-A02</td><td><span class="pill teal">CLEARED</span></td><td class="mono">rail@v42, port@v88</td></tr>
+                  </tbody>
+                </table>
+                <div class="metric-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">Legacy Unbridged Settlement</div>
+                    <div class="metric-val" style="color: #fcd34d;">14h 22m</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">Held until CICS VSAM batch</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Transit Activated Corridor</div>
+                    <div class="metric-val" style="color: #5eead4;">18.4 ms</div>
+                    <div class="metric-delta" style="color: #5eead4;">Fuze view + Station fenced</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Dock -->
+        <div class="dock-col">
+          <div class="panel cyan-border flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">Anchored App #3 &middot; Spire FIX 4.2 Feed</div>
+              <span class="pill cyan">tcp://spire:9801</span>
+            </div>
+            <div class="panel-body">
+              <p class="desc-text">
+                Real-protocol financial hedges execute on the Clearing Spire over FIX 4.2 while physical cargo moves across rail and sea lanes:
+              </p>
+              <div class="code-box">8=FIX.4.2|9=196|<span class="kw">35=8</span>|49=SPIRE|56=PORT_BEANS|34=88412|
+<span class="fn">11=ORD-1004</span>|<span class="str">55=COFFEE.DEC26</span>|54=1|38=450|44=248.50|
+<span class="kw">39=0 (Held in T+1 Escrow)</span>|10=184|
+
+8=FIX.4.2|9=204|<span class="kw">35=8</span>|49=SPIRE|56=RUST_FOUNDRY|34=88413|
+<span class="fn">11=ORD-1019</span>|<span class="str">55=STEEL.COIL.Q4</span>|54=2|38=1200|44=810.00|
+<span class="kw">39=2 (Filled via Transit Cut v1420)</span>|10=092|</div>
+
+              <div class="panel-title">Anchored App #4 &middot; Port HTTP/OpenAPI Portal</div>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Vessel / Train</th>
+                    <th>Protocol Origin</th>
+                    <th>Clearance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>MV-Java-Star</strong></td>
+                    <td class="mono">SOAP ESB (14 hops)</td>
+                    <td><span class="pill coral">Stalled 11.4h</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Heartland-09</strong></td>
+                    <td class="mono">TN3270 + X12 EDI</td>
+                    <td><span class="pill amber">Batch Wait</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Foundry-Exp</strong></td>
+                    <td class="mono">Transit Native v1</td>
+                    <td><span class="pill teal">Cleared 18ms</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Gem-Runner-4</strong></td>
+                    <td class="mono">HTTP Webhook &rarr; Transit</td>
+                    <td><span class="pill teal">Cleared 22ms</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="panel-title">Subsea Link Backlog &amp; Catch-Up (<code>workloads.md</code>)</div>
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Outage Backlog (&lambda;&middot;D)</div>
+                  <div class="metric-val" style="color: #fcd34d;">60,000 ev</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">&lambda;=1,000/s &times; 60s cut</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Catch-Up Time</div>
+                  <div class="metric-val" style="color: #5eead4;">120.0 s</div>
+                  <div class="metric-delta" style="color: #5eead4;">&mu;=1,500/s (&mu; &gt; &lambda;)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SCREEN 2: COMPUTING FACTIONS & SOFTWARE ARCHEOLOGY
+           ===================================================================== -->
+      <section class="screen" id="screen-faction-archeology">
+        <!-- Left Dock -->
+        <div class="dock-col">
+          <div class="panel flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">Excavating the 4 Geological Strata</div>
+              <span class="pill amber">48 Years of Sediment</span>
+            </div>
+            <div class="panel-body">
+              <p class="desc-text">
+                Enterprise systems are geological strata. Each layer was engineered for the hardware economics of its era, leaving incompatible formats that break naive migrations:
+              </p>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Stratum &amp; Era</th>
+                    <th>Wire / Storage</th>
+                    <th>Naive Migration Failure</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>IV (2026)</strong><br/><span class="panel-sub">Agentic Surface</span></td>
+                    <td class="mono">MCP, JSON, WS</td>
+                    <td>Hallucinates on stale cache; double-fires unfenced effects</td>
+                  </tr>
+                  <tr>
+                    <td><strong>III (2015)</strong><br/><span class="panel-sub">Cloud Services</span></td>
+                    <td class="mono">REST, gRPC, Proto</td>
+                    <td>N+1 worker saturation; dropped context on burst fan-in</td>
+                  </tr>
+                  <tr>
+                    <td><strong>II (2001)</strong><br/><span class="panel-sub">ESB Middleware</span></td>
+                    <td class="mono">SOAP/XML, JMS</td>
+                    <td>Concurrent document edits silently overwritten as NULL</td>
+                  </tr>
+                  <tr>
+                    <td><strong>I (1978)</strong><br/><span class="panel-sub">Mainframe Bedrock</span></td>
+                    <td class="mono">COBOL, COMP-3, ZONED, EBCDIC</td>
+                    <td>ASCII sort corrupts EBCDIC range pruning; float rounding</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="panel-title">Orthogonal (&tau;, &epsilon;, &kappa;) Schema Declaration</div>
+              <div class="code-box"><span class="cmt">-- Logical type (tau), physical codec (epsilon) &amp; collation (kappa)</span>
+<span class="kw">CREATE FOREIGN TABLE</span> spire_bedrock (
+  acct_id   <span class="fn">INT64</span>       <span class="str">CODEC(ZONED)</span>,
+  amt_cents <span class="fn">INT64</span>       <span class="str">CODEC(COMP_3)</span>,
+  depot_cd  <span class="fn">VARCHAR(16)</span> <span class="str">CODEC(EBCDIC)</span>
+                        <span class="str">COLLATE EBCDIC_CP037</span>
+);</div>
+
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Mainframe Float Format</div>
+                  <div class="metric-val" style="font-size: 14px; color: #7dd3fc;">IBM_HFP (Base-16)</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">Preserved without IEEE-754 drift</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Packed Decimal</div>
+                  <div class="metric-val" style="font-size: 14px; color: #5eead4;">COMP-3 BCD</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">Exact sign nibble C/D/F check</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Stage -->
+        <div class="center-stage">
+          <div class="viewport-frame">
+            <img class="viewport-img" src="images/raw/raw-02-faction-archeology.png" alt="Isometric cutaway showing four computing factions and their underground legacy strata" />
+            <div class="viewport-banner">
+              <div class="viewport-badge">
+                <strong>Cross-Sectional Archeology View</strong> &middot; Underground Legacy Strata Exposed Beneath Faction Landmarks
+              </div>
+              <div class="viewport-badge" style="border-color: var(--amber);">
+                Strata Depth: 1978 Mainframe Bedrock &rarr; 2026 Agentic Surface
+              </div>
+            </div>
+
+            <div class="vp-pin amber" style="left: 14%; top: 20%;">
+              <div class="vp-pin-hdr"><span>Clearing Spire Vault</span><span class="pill amber">COBOL / FIX</span></div>
+              <div class="vp-pin-sub">4 Basement Levels of 1978 Tape &amp; COMP-3 DASD</div>
+            </div>
+
+            <div class="vp-pin coral" style="left: 38%; top: 20%;">
+              <div class="vp-pin-hdr"><span>Java Customs House</span><span class="pill coral">SOAP / JMS</span></div>
+              <div class="vp-pin-sub">Stratified Pneumatic Tubes &amp; ESB Middleware Racks</div>
+            </div>
+
+            <div class="vp-pin cyan" style="left: 61%; top: 20%;">
+              <div class="vp-pin-hdr"><span>Gopher Bio-Dome &amp; Ruby Mine</span><span class="pill cyan">gRPC / JSON</span></div>
+              <div class="vp-pin-sub">Ore Carts + High-Density Fiber Telemetry Conduits</div>
+            </div>
+
+            <div class="vp-pin teal" style="left: 86%; top: 20%;">
+              <div class="vp-pin-hdr"><span>The Rust Foundry</span><span class="pill teal">Transit Native</span></div>
+              <div class="vp-pin-sub">Fenced Robotic Arms over Basalt Bedrock</div>
+            </div>
+          </div>
+
+          <div class="bottom-strip">
+            <div class="panel cyan-border">
+              <div class="panel-hdr">
+                <div class="panel-title">5-State Cell Excavation Profile Across Strata (<code>data-model.md</code>)</div>
+                <span class="pill cyan">1,000 Sampled Cells</span>
+              </div>
+              <div class="panel-body">
+                <div class="state-bar">
+                  <div class="state-seg val" style="width: 94.2%;"></div>
+                  <div class="state-seg null" style="width: 2.8%;"></div>
+                  <div class="state-seg miss" style="width: 1.4%;"></div>
+                  <div class="state-seg err" style="width: 0.9%;"></div>
+                  <div class="state-seg conf" style="width: 0.7%;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px;">
+                  <span style="color: #5eead4;">Value: 942</span>
+                  <span style="color: #94a3b8;">Null: 28</span>
+                  <span style="color: #fde047;">Missing: 14</span>
+                  <span style="color: #fca5a5;">Type Error: 9</span>
+                  <span style="color: #d8b4fe;">Conflict: 7</span>
+                </div>
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Key</th>
+                      <th>Stratum Origin</th>
+                      <th>Observed 5-State Cell</th>
+                      <th>Fuze Query Behavior</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="mono">WB-90411</td>
+                      <td>Stratum I (VSAM)</td>
+                      <td><span class="pill teal">VALUE &middot; +450C (COMP-3)</span></td>
+                      <td>Decoded natively to INT64</td>
+                    </tr>
+                    <tr>
+                      <td class="mono">WB-90415</td>
+                      <td>Stratum I (Copybook)</td>
+                      <td><span class="pill coral">TYPE_ERROR &middot; 0x1A byte</span></td>
+                      <td>Preserved without aborting scan</td>
+                    </tr>
+                    <tr>
+                      <td class="mono">PORT-882</td>
+                      <td>Stratum II (Java Doc)</td>
+                      <td><span class="pill violet">CONFLICT &middot; r81 vs r82</span></td>
+                      <td>Explicit CRDT conflict surfaced</td>
+                    </tr>
+                    <tr>
+                      <td class="mono">GEM-4410</td>
+                      <td>Stratum III (Webhook)</td>
+                      <td><span class="pill amber">MISSING &middot; Omitted field</span></td>
+                      <td>Kept distinct from SQL NULL</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="panel teal-border">
+              <div class="panel-hdr">
+                <div class="panel-title">Collation-Preserving Zone Maps in <code>.tseg</code> Hybrid Segments</div>
+                <span class="pill teal">Sound Range Pruning</span>
+              </div>
+              <div class="panel-body">
+                <p class="desc-text">
+                  In <code>EBCDIC_CP037</code>, digits (<code>0xF0..0xF9</code>) sort <em>after</em> uppercase letters (<code>0xC1..0xE9</code>), opposite to ASCII (<code>0x30..0x39</code> before <code>0x41..0x5A</code>). Transit <code>.tseg</code> zone maps store <code>min</code>/<code>max</code> bounds under the declared column collation (&kappa;) so mainframe range predicates never prune valid blocks:
+                </p>
+                <div class="code-box"><span class="cmt">-- Range scan using EBCDIC_CP037 zone-map min/max pruning</span>
+<span class="kw">SELECT</span> acct_id, depot_cd, amt_cents <span class="kw">FROM</span> spire_bedrock
+<span class="kw">WHERE</span> depot_cd <span class="kw">BETWEEN</span> <span class="str">'ORD-NORTH'</span> <span class="kw">AND</span> <span class="str">'ORD-99999'</span>;</div>
+                <div class="metric-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">ASCII Naive Range Scan</div>
+                    <div class="metric-val" style="color: #fca5a5;">14% False Prune</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">Misses alphanumeric depot IDs</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Transit .tseg Collation Scan</div>
+                    <div class="metric-val" style="color: #5eead4;">100% Exact</div>
+                    <div class="metric-delta" style="color: #5eead4;">EBCDIC_CP037 B-tree &amp; Zone Map</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Dock -->
+        <div class="dock-col">
+          <div class="panel flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">Regional &amp; Cultural Computing Matrix</div>
+              <span class="pill teal">World Lore &amp; Constraints</span>
+            </div>
+            <div class="panel-body">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Archetype</th>
+                    <th>Cultural Inspiration</th>
+                    <th>Transit Verification Target</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Wall St Spire</strong></td>
+                    <td>High-finance FIX + 1970s COBOL settlement</td>
+                    <td>Sub-ms stream capture + exact decimal/collation</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Java Islands</strong></td>
+                    <td>Coffee trade, container ports &amp; deep ESB hierarchies</td>
+                    <td>Collaborative Documents &amp; multi-hop view collapse</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Ruby Mines</strong></td>
+                    <td>Gem extraction &amp; rapid convention-over-config web apps</td>
+                    <td>Direct data-plane <code>.tseg</code> bulk &amp; point write path</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Gopher Domes</strong></td>
+                    <td>Bio-engineering &amp; concurrent channel telemetry</td>
+                    <td>Bounded memory under high-fan-in arrival rate &lambda;</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Rust Foundry</strong></td>
+                    <td>Heavy metallurgy &amp; borrow-checked robotics</td>
+                    <td>PID fencing, <code>policy_epoch</code> &amp; physical actuation</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Shenzhen Hub</strong></td>
+                    <td>High-density dark factories &amp; hardware assembly</td>
+                    <td>Local NVMe segment cache &amp; zero actor-frame limit</td>
+                  </tr>
+                  <tr>
+                    <td><strong>LATAM Rail</strong></td>
+                    <td>Instant payment rails &amp; municipal tax ledgers</td>
+                    <td>High-concurrency keyed state + rule verification</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Outback / North</strong></td>
+                    <td>Remote resource extraction over satellite links</td>
+                    <td>Partition durability &amp; &lambda; / (&mu; &minus; &lambda;) recovery</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Supported Codecs (&epsilon;)</div>
+                  <div class="metric-val" style="font-size: 13.5px; color: #5eead4;">9 Physical Codecs</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">RLE, BITPACK, DICT, FSST, COMP-3..</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Supported Collations (&kappa;)</div>
+                  <div class="metric-val" style="font-size: 13.5px; color: #7dd3fc;">4 Collation Families</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">UTF8, ASCII_CI, CP037, ICU</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SCREEN 3: MESO ISOMETRIC FACILITY (NVIDIA SIMREADY ASSETS)
+           ===================================================================== -->
+      <section class="screen" id="screen-simready-dock">
+        <!-- Left Dock -->
+        <div class="dock-col">
+          <div class="panel amber-border flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">Bay B Bottleneck &middot; Legacy TN3270 Clerk</div>
+              <span class="pill coral">Backlog: 42 Pallets</span>
+            </div>
+            <div class="panel-body">
+              <p class="desc-text">
+                In Left Bay B, trucks idle belching exhaust because clerks at vintage CRT terminals cannot release pallets while the mainframe VSAM dataset is held by an exclusive batch job:
+              </p>
+              <div class="ispf-terminal">
+                <div class="ispf-hdr">
+                  <span>ISPF/PDF  PORT-BEANS DOCK B RECEIVING</span>
+                  <span>LOCKED</span>
+                </div>
+                <div class="ispf-row"><span>WAYBILL ===&gt; <u>WB-90411</u>  PALLET ===&gt; <u>PLT-8841</u></span></div>
+                <div class="ispf-row"><span class="ispf-err">DFH0912E DATASET HELD BY JOB 'NIGHTCLR'</span></div>
+                <div class="ispf-row"><span class="ispf-warn">3 SEMI-TRUCKS QUEUED AT GATE B-01..B-03</span></div>
+                <div class="ispf-row"><span>ARRIVAL RATE: 18/MIN &gt; SERVICE: 6/MIN</span></div>
+                <div class="ispf-row"><span>STAGE FLOOR OCCUPANCY: 94.2% (CRITICAL)</span></div>
+              </div>
+
+              <div class="panel-title">Queueing &amp; Physical Space Telemetry</div>
+              <table class="data-table">
+                <thead>
+                  <tr><th>Metric</th><th>Bay B (Legacy)</th><th>Bay A (Transit)</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>Arrival Rate (&lambda;)</strong></td><td class="mono">18 pallets/min</td><td class="mono">28 pallets/min</td></tr>
+                  <tr><td><strong>Service Rate (&mu;)</strong></td><td class="mono" style="color:#fca5a5;">6 pallets/min</td><td class="mono" style="color:#5eead4;">34 pallets/min</td></tr>
+                  <tr><td><strong>Stability (&mu; &gt; &lambda;)</strong></td><td><span class="pill coral">Unbounded Queue</span></td><td><span class="pill teal">Stable Drain</span></td></tr>
+                  <tr><td><strong>Duplicate Loads</strong></td><td class="mono">3 (Manual Re-key)</td><td class="mono">0 (Fenced PID)</td></tr>
+                </tbody>
+              </table>
+
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Bay B Turn Latency</div>
+                  <div class="metric-val" style="color: #fca5a5;">47m 12s</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">Queue growing (+12/min)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Bay A Turn Latency</div>
+                  <div class="metric-val" style="color: #5eead4;">14.2 s</div>
+                  <div class="metric-delta" style="color: #5eead4;">Bounded by 4.2 m/s forklift</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Stage -->
+        <div class="center-stage">
+          <div class="viewport-frame">
+            <img class="viewport-img" src="images/raw/raw-03-isometric-simready-dock.png" alt="Isometric intermodal warehouse dock populated with nvidia/simready-assets" />
+            <div class="viewport-banner">
+              <div class="viewport-badge">
+                <strong>Meso Facility Cutaway (Zoom 12&times;)</strong> &middot; Sector 04 Intermodal Dock Populated with <code>nvidia/simready-assets</code>
+              </div>
+              <div class="viewport-badge" style="border-color: var(--cyan);">
+                OpenUSD Physics: Mass, Friction &amp; Convex Colliders Active
+              </div>
+            </div>
+
+            <div class="vp-pin coral" style="left: 14%; top: 32%;">
+              <div class="vp-pin-hdr"><span>Idling Legacy Freight Queue</span><span class="pill coral">3 Trucks Blocked</span></div>
+              <div class="vp-pin-sub">Waiting on CICS/VSAM Batch Cutoff</div>
+            </div>
+
+            <div class="vp-pin amber" style="left: 36%; top: 82%;">
+              <div class="vp-pin-hdr"><span>Green-Screen Clerk Desks</span><span class="pill amber">Manual Re-Keying</span></div>
+              <div class="vp-pin-sub">TN3270 Screen Lock Stalls Floor Staging</div>
+            </div>
+
+            <div class="vp-pin cyan" style="left: 64%; top: 28%;">
+              <div class="vp-pin-hdr"><span>Optical / LiDAR Scanner Gantry</span><span class="pill cyan">250 Hz Telemetry</span></div>
+              <div class="vp-pin-sub">Streams into Transit Direct Data Plane</div>
+            </div>
+
+            <div class="vp-pin teal" style="left: 69%; top: 68%;">
+              <div class="vp-pin-hdr"><span>SimReady Autonomous Fleet</span><span class="pill teal">PIDs 204..206</span></div>
+              <div class="vp-pin-sub">Counterbalance Forklifts + AMR Sortation Carts</div>
+            </div>
+          </div>
+
+          <div class="bottom-strip">
+            <div class="panel cyan-border">
+              <div class="panel-hdr">
+                <div class="panel-title">OpenUSD Scene Manifest &middot; <code>nvidia/simready-assets</code></div>
+                <span class="pill cyan">Physical AI Grounded</span>
+              </div>
+              <div class="panel-body">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>OpenUSD Asset Path</th>
+                      <th>Validated Physics Metadata</th>
+                      <th>Bound Transit Owner</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="mono">forklift_counterbalance_01.usd</td>
+                      <td class="mono">4,120 kg &middot; Max 4.2 m/s &middot; convexDecomp</td>
+                      <td><span class="pill teal">Station PID 204 (Gen 7)</span></td>
+                    </tr>
+                    <tr>
+                      <td class="mono">pallet_euro_stacked_04.usd</td>
+                      <td class="mono">620 kg &middot; &mu;_f=0.64 &middot; CoM [0,0,58cm]</td>
+                      <td><span class="pill cyan">Row: shipments#1004</span></td>
+                    </tr>
+                    <tr>
+                      <td class="mono">amr_industrial_cart_02.usd</td>
+                      <td class="mono">380 kg &middot; Max 3.1 m/s &middot; convexHull</td>
+                      <td><span class="pill teal">Station PID 205 (Gen 4)</span></td>
+                    </tr>
+                    <tr>
+                      <td class="mono">conveyor_roller_sort_08.usd</td>
+                      <td class="mono">1.8 m/s Belt &middot; Photo-Eye Trigger</td>
+                      <td><span class="pill violet">Source: belt_events</span></td>
+                    </tr>
+                    <tr>
+                      <td class="mono">rack_heavy_selective_12.usd</td>
+                      <td class="mono">Static Collider &middot; Max Load 18,000 kg</td>
+                      <td><span class="pill cyan">Table: bay_a_slots</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="metric-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">Active USD Rigid Bodies</div>
+                    <div class="metric-val" style="color: #7dd3fc;">1,420 Assets</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">Mass, CoM &amp; friction from SimReady</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Physics Step Determinism</div>
+                    <div class="metric-val" style="color: #5eead4;">60 Hz Fixed</div>
+                    <div class="metric-delta" style="color: #5eead4;">Bit-exact across CI &amp; browser</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel teal-border">
+              <div class="panel-hdr">
+                <div class="panel-title">Station Fenced Physical Actuation (<code>connectors.md</code>)</div>
+                <span class="pill teal">Zero Replay Duplication</span>
+              </div>
+              <div class="panel-body">
+                <p class="desc-text">
+                  Re-sending an actuator command after a dropped Wi-Fi packet causes physical collisions or double-loaded trucks. <code>Station</code> records connector intents before dispatch and reconciles uncertain outcomes before retry:
+                </p>
+                <div class="code-box"><span class="cmt">// Station Worker: dock_coordinator.zig (PID 204 · Gen 7)</span>
+<span class="kw">1. Commit Turn:</span> Mutate <span class="fn">dock_state</span> + Record Intent <span class="str">#effect-814</span>
+<span class="kw">2. Actuate:</span>     gRPC <span class="fn">simready.Forklift/LiftPallet</span> (Wi-Fi Ack Lost)
+<span class="kw">3. On Replay:</span>   Inspects <span class="str">#effect-814 (UNCERTAIN)</span> &rarr; <span class="kw">NO RE-DISPATCH</span>
+<span class="kw">4. Reconcile:</span>   LiDAR Gantry LSN 44,910 confirms lift &rarr; <span class="str">VERIFIED</span></div>
+                <div class="metric-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">Uncertain Intents Reconciled</div>
+                    <div class="metric-val" style="color: #5eead4;">100% Verified</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">Via optical/LiDAR sensor cut</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Stale Worker Actuations</div>
+                    <div class="metric-val" style="color: #5eead4;">0 Dispatched</div>
+                    <div class="metric-delta" style="color: #5eead4;">Fenced by PID Gen 7 &amp; epoch 24</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Dock -->
+        <div class="dock-col">
+          <div class="panel flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">Anchored Web App &middot; Port Portal (HTTP)</div>
+              <span class="pill teal">Live REST / AsyncAPI</span>
+            </div>
+            <div class="panel-body">
+              <p class="desc-text">
+                Modern web apps and legacy terminals coexist on the same facility canvas. Clicking any autonomous unit switches the camera to its First-Person POV:
+              </p>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Unit / PID</th>
+                    <th>Current Task</th>
+                    <th>Control Mode</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Forklift-07</strong><br/><span class="panel-sub">PID 204 &middot; Gen 7</span></td>
+                    <td class="mono">Load PLT-8841 &rarr; Gate A1</td>
+                    <td><span class="pill teal">Enter POV &rarr;</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>AMR-Cart-12</strong><br/><span class="panel-sub">PID 205 &middot; Gen 4</span></td>
+                    <td class="mono">Stage SKU-4410 &rarr; Sorter</td>
+                    <td><span class="pill cyan">Autonomous</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>AMR-Cart-14</strong><br/><span class="panel-sub">PID 208 &middot; Gen 4</span></td>
+                    <td class="mono">Return Empty Pallet</td>
+                    <td><span class="pill cyan">Autonomous</span></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Gantry-02</strong><br/><span class="panel-sub">PID 206 &middot; Gen 2</span></td>
+                    <td class="mono">Scan Inbound Trailer #9</td>
+                    <td><span class="pill cyan">Autonomous</span></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="panel-title">Maintained View Driving Bay A Beacons</div>
+              <div class="code-box"><span class="kw">SELECT</span> bay_id, COUNT(*) <span class="kw">AS</span> ready_pallets
+<span class="kw">FROM</span> dock_staging_inventory
+<span class="kw">WHERE</span> customs_cleared = <span class="str">1</span>
+<span class="kw">GROUP BY</span> bay_id; <span class="cmt">-- Fresh @ Manifest v1,420</span></div>
+
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Direct Data-Plane Ingest</div>
+                  <div class="metric-val" style="font-size: 14px; color: #5eead4;">250 Hz LiDAR</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">Bypasses actor frame limits</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Active Lease Fencing</div>
+                  <div class="metric-val" style="font-size: 14px; color: #7dd3fc;">policy_epoch 24</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">Checked on every actuator turn</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SCREEN 4: MICRO AGENT POV, COUNTERFACTUAL BRANCHES & MANUAL TAKEOVER
+           ===================================================================== -->
+      <section class="screen" id="screen-agent-pov">
+        <!-- Left Dock -->
+        <div class="dock-col">
+          <div class="panel cyan-border flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">Possessed Agent &middot; <code>Forklift-07</code></div>
+              <span class="pill cyan">PID 204 POV</span>
+            </div>
+            <div class="panel-body">
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Bound Snapshot Cut</div>
+                  <div class="metric-val" style="font-size: 13px; color: #5eead4;">orders@v1420, dock@v891</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">0 commits behind head</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Delegated Principal</div>
+                  <div class="metric-val" style="font-size: 13px;">role/dock_autonomy_a</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">policy_epoch 24</div>
+                </div>
+              </div>
+              <p class="desc-text">
+                The operator sees both the physical warehouse aisle through <code>Forklift-07</code>'s stereo RGB-D/LiDAR camera and the software terminals the agent is operating:
+              </p>
+              <div class="ispf-terminal">
+                <div class="ispf-hdr">
+                  <span>AGENT PIP &middot; 3270 &amp; HTTP API</span>
+                  <span>SYNCED</span>
+                </div>
+                <div class="ispf-row"><span>[3270] WB-90411 TEMP: +2.4C RELEASED</span></div>
+                <div class="ispf-row"><span class="ispf-cyan">[HTTP] POST /v1/bay-a/load #op-9912</span></div>
+                <div class="ispf-row"><span>[USD]  FORKS: 0.42m  TILT: +1.5 deg</span></div>
+              </div>
+              <table class="data-table">
+                <thead>
+                  <tr><th>Observation &amp; Feedback Stage</th><th>Recorded Evidence</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>1. Observe</strong></td><td class="mono">LiDAR + ISPF @ Cut v1420</td></tr>
+                  <tr><td><strong>2. Form Model</strong></td><td class="mono">Bay 1 blocked; spoilage in 18m</td></tr>
+                  <tr><td><strong>3. Imagine</strong></td><td class="mono">2 isolated branches evaluated</td></tr>
+                  <tr><td><strong>4. Act</strong></td><td class="mono">Intent #op-9912 &rarr; Berth 2</td></tr>
+                  <tr><td><strong>5. Consequences</strong></td><td class="mono">Load cell LSN 44,918 verified</td></tr>
+                  <tr><td><strong>6. Revise</strong></td><td class="mono">Update Bay 1 congestion weight</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Stage -->
+        <div class="center-stage">
+          <div class="viewport-frame">
+            <img class="viewport-img" src="images/raw/raw-04-agent-pov-control.png" alt="First-person optical and LiDAR POV from autonomous forklift agent PID 204" />
+            <div class="viewport-banner">
+              <div class="viewport-badge">
+                <strong>Micro Agent POV (Zoom 100&times;)</strong> &middot; Optical RGB-D + OpenUSD Collision Mesh &amp; Trajectory Splines
+              </div>
+              <div class="viewport-badge" style="border-color: var(--amber);">
+                Manual Takeover Ready: <strong>[SPACE] Drive / [T] Terminal Focus</strong>
+              </div>
+            </div>
+
+            <div class="vp-pin cyan" style="left: 46%; top: 53%;">
+              <div class="vp-pin-hdr"><span>AMR-Cart-12 (PID 205)</span><span class="pill cyan">3.1 m/s</span></div>
+              <div class="vp-pin-sub">Cleared on Spline Path Aisle-04</div>
+            </div>
+
+            <div class="vp-pin teal" style="left: 76%; top: 62%;">
+              <div class="vp-pin-hdr"><span>Target: pallet_euro_stacked_04.usd</span><span class="pill teal">620 kg</span></div>
+              <div class="vp-pin-sub">WB-90411 &middot; COMP-3 Qty: 450 &middot; Alignment &pm;1.4 mm</div>
+            </div>
+          </div>
+
+          <div class="bottom-strip">
+            <div class="panel teal-border">
+              <div class="panel-hdr">
+                <div class="panel-title">Counterfactual Branch Simulation Before Physical Actuation</div>
+                <span class="pill teal">Production main Unchanged</span>
+              </div>
+              <div class="panel-body">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Candidate Realm Branch</th>
+                      <th>Physical Path &amp; Duration</th>
+                      <th>Spoilage Risk</th>
+                      <th>Outcome</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="mono"><strong>branch/reroute-berth-2</strong> (v1420+2)</td>
+                      <td class="mono">142 m @ 3.8 m/s (37.4 s)</td>
+                      <td><span class="pill teal">0.0% ($0)</span></td>
+                      <td><span class="pill teal">Selected</span></td>
+                    </tr>
+                    <tr>
+                      <td class="mono"><strong>branch/wait-bay-1-batch</strong> (v1420+1)</td>
+                      <td class="mono">28 m + 3h 14m batch wait</td>
+                      <td><span class="pill coral">64.2% ($48k)</span></td>
+                      <td><span class="pill coral">Rejected</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="code-box"><span class="cmt">-- Executed on isolated branch/reroute-berth-2 before physical movement</span>
+<span class="kw">SELECT</span> pallet_id, predicted_core_temp_c, berth_clearance_sec
+<span class="kw">FROM</span> cold_chain_risk_model <span class="kw">WHERE</span> branch = <span class="str">'branch/reroute-berth-2'</span>;</div>
+                <div class="metric-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">Branch Fork Overhead</div>
+                    <div class="metric-val" style="color: #5eead4;">0.4 ms (CoW)</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">Zero-copy .tseg manifest fork</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Prevented Cargo Spoilage</div>
+                    <div class="metric-val" style="color: #5eead4;">$48,000 Saved</div>
+                    <div class="metric-delta" style="color: #5eead4;">Berth 2 trajectory committed</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel amber-border">
+              <div class="panel-hdr">
+                <div class="panel-title">Human Manual Takeover &amp; Authority Separation (<code>collaborative-decisions.md</code>)</div>
+                <span class="pill amber">Authenticated Principal</span>
+              </div>
+              <div class="panel-body">
+                <p class="desc-text">
+                  When a human takes manual control (<code>WASD</code> steering or typing into the <code>TN3270</code> screen), operations bind to the human's authenticated principal (<code>operator/alex</code>). Delegated agents never acquire human merge-approval rights implicitly:
+                </p>
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Actor / Principal</th>
+                      <th>Permitted Scope</th>
+                      <th>Fencing &amp; Audit Rule</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="mono"><strong>agent/forklift-07</strong></td>
+                      <td>Fork branch, stage Bay A</td>
+                      <td>Bounded by <code>policy_epoch 24</code> grant</td>
+                    </tr>
+                    <tr>
+                      <td class="mono"><strong>operator/alex</strong></td>
+                      <td>Manual drive, CICS override, merge</td>
+                      <td>Signed human receipt in <code>TransitLog</code></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="metric-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">Agent Delegation Scope</div>
+                    <div class="metric-val" style="font-size: 13.5px; color: #7dd3fc;">Branch + Bay A Load</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">Cannot merge policy changes</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Human Operator Scope</div>
+                    <div class="metric-val" style="font-size: 13.5px; color: #fcd34d;">Manual Override + Merge</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">Signed human receipt required</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Dock -->
+        <div class="dock-col">
+          <div class="panel flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">Physical vs. Observation Time Ledger</div>
+              <span class="pill cyan">Event vs. Knowledge Time</span>
+            </div>
+            <div class="panel-body">
+              <p class="desc-text">
+                Following <code>workloads.md</code>, the simulator strictly separates when a physical event occurred in the warehouse from when that observation became visible to a decision branch:
+              </p>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Event</th>
+                    <th>Physical Time</th>
+                    <th>Transit Commit Cut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Reefer Temp Rise (+2.4&deg;C)</td>
+                    <td class="mono">14:22:07.110</td>
+                    <td class="mono">v1,419 (14:22:07.118)</td>
+                  </tr>
+                  <tr>
+                    <td>CICS Customs Release</td>
+                    <td class="mono">14:22:08.004</td>
+                    <td class="mono">v1,420 (14:22:08.019)</td>
+                  </tr>
+                  <tr>
+                    <td>Branch Eval Complete</td>
+                    <td class="mono">14:22:08.031</td>
+                    <td class="mono">reroute@v1420+2</td>
+                  </tr>
+                  <tr>
+                    <td>Forks Lift Pallet #8841</td>
+                    <td class="mono">14:22:08.410</td>
+                    <td class="mono">Intent #op-9912</td>
+                  </tr>
+                  <tr>
+                    <td>Late Supplier Correction</td>
+                    <td class="mono">14:22:06.500</td>
+                    <td class="mono">v1,421 (14:22:09.102)</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="code-box"><span class="cmt">-- Point-in-time query prevents future-knowledge leakage</span>
+<span class="kw">SELECT</span> pallet_id, temp_c, berth_status
+<span class="kw">FROM</span> cold_chain_observations
+<span class="kw">AS OF</span> MANIFEST <span class="str">1420</span>;</div>
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Knowledge Leakage</div>
+                  <div class="metric-val" style="color: #5eead4;">0 Events</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">Late corrections isolated</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Sensor-to-Cut Lag</div>
+                  <div class="metric-val" style="color: #7dd3fc;">8.4 ms</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">Direct table write path</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SCREEN 5: NON-STOP MODERNIZATION OPTIMIZATION WORKBENCH
+           ===================================================================== -->
+      <section class="screen" id="screen-modernization-loop">
+        <!-- Left Dock -->
+        <div class="dock-col">
+          <div class="panel flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">Strangler-Fig Modernization Playbook</div>
+              <span class="pill teal">Continuous Optimization</span>
+            </div>
+            <div class="panel-body">
+              <p class="desc-text">
+                Players compete to modernize entrenched legacy corridors without dropping in-flight business transactions:
+              </p>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Stage</th>
+                    <th>Architectural Move</th>
+                    <th>Visible World Impact</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>1. Shadow</strong></td>
+                    <td>Mount <code>COMP-3</code>/<code>EBCDIC</code> &amp; <code>SOAP</code> sources into <code>.tseg</code> tables</td>
+                    <td>Zero-SQL 5-state inspection; legacy apps untouched</td>
+                  </tr>
+                  <tr>
+                    <td><strong>2. Activate</strong></td>
+                    <td>Replace batch jobs with <code>Fuze</code> views &amp; <code>Station</code> actors</td>
+                    <td>Idling freight trains &amp; port queues immediately clear</td>
+                  </tr>
+                  <tr>
+                    <td><strong>3. Cutover</strong></td>
+                    <td>Route <code>FIX</code>/<code>HTTP</code> callers to Transit gateways</td>
+                    <td>Cadence shifts from 24h batch to sub-20ms turns</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="panel-title">Before vs. After Modernization Metrics</div>
+              <table class="data-table">
+                <thead>
+                  <tr><th>Corridor KPI</th><th>Legacy Baseline</th><th>Transit Activated</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>Settlement Lag</strong></td><td class="mono">14.2 hours</td><td class="mono" style="color:#5eead4;">16.0 ms</td></tr>
+                  <tr><td><strong>Rail Utilization</strong></td><td class="mono">31% (Idling)</td><td class="mono" style="color:#5eead4;">94% (Continuous)</td></tr>
+                  <tr><td><strong>Cold Spoilage</strong></td><td class="mono">8.4% of cargo</td><td class="mono" style="color:#5eead4;">0.0% of cargo</td></tr>
+                  <tr><td><strong>Audit Coverage</strong></td><td class="mono">Partial logs</td><td class="mono" style="color:#5eead4;">100% Provenance</td></tr>
+                </tbody>
+              </table>
+
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Time to Observation</div>
+                  <div class="metric-val" style="color: #5eead4;">16.0 ms</div>
+                  <div class="metric-delta" style="color: #5eead4;">Was 14.2 hours (Batch)</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Corridor Capital Velocity</div>
+                  <div class="metric-val" style="color: #7dd3fc;">$18.9M/hr</div>
+                  <div class="metric-delta" style="color: #5eead4;">+1,250% vs Legacy Baseline</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Stage -->
+        <div class="center-stage">
+          <div class="viewport-frame">
+            <img class="viewport-img" src="images/raw/raw-05-modernization-loop.png" alt="Isometric diorama of legacy mainframe and rail systems transforming through a Transit node into high-speed automated logistics" />
+            <div class="viewport-banner">
+              <div class="viewport-badge">
+                <strong>End-to-End Corridor Transformation Diorama</strong> &middot; Legacy Mainframe &amp; Rail (Left) &rarr; Transit Host Core (Center) &rarr; Autonomous Intermodal Port (Right)
+              </div>
+              <div class="viewport-badge" style="border-color: var(--teal);">
+                100&times; Headless CI Benchmark Rate: <strong>142,000 ticks/sec</strong>
+              </div>
+            </div>
+
+            <div class="vp-pin amber" style="left: 16%; top: 38%;">
+              <div class="vp-pin-hdr"><span>Legacy Mainframe &amp; Tape Room</span><span class="pill amber">COBOL / VSAM</span></div>
+              <div class="vp-pin-sub">Paper Manifests &amp; Overnight Batch Windows</div>
+            </div>
+
+            <div class="vp-pin coral" style="left: 34%; top: 58%;">
+              <div class="vp-pin-hdr"><span>Congested Steam/Diesel Siding</span><span class="pill coral">&lambda; &gt; &mu; Backlog</span></div>
+              <div class="vp-pin-sub">Locomotives Blocked on Settlement Cutoff</div>
+            </div>
+
+            <div class="vp-pin teal" style="left: 51%; top: 32%;">
+              <div class="vp-pin-hdr"><span>Transit Host Layer Nexus</span><span class="pill teal">.tseg + Fuze + Station</span></div>
+              <div class="vp-pin-sub">Decodes COMP-3/EBCDIC &amp; Fences External Effects</div>
+            </div>
+
+            <div class="vp-pin cyan" style="left: 78%; top: 45%;">
+              <div class="vp-pin-hdr"><span>Synchronized Intermodal Corridor</span><span class="pill cyan">18.4 ms Cutover</span></div>
+              <div class="vp-pin-sub">Bullet Freight + Automated AGVs &amp; Ship Cranes</div>
+            </div>
+          </div>
+
+          <div class="bottom-strip">
+            <div class="panel coral-border">
+              <div class="panel-hdr">
+                <div class="panel-title">Adversarial Fault Injection &middot; Why Naive Cloud Migrations Fail</div>
+                <span class="pill coral">Packet Loss Fault #F-19</span>
+              </div>
+              <div class="panel-body">
+                <p class="desc-text">
+                  Injecting a 400ms TCP drop right after a warehouse agent dispatches <code>POST /ship-pallet</code> exposes the difference between stateless retries and durable connector intents:
+                </p>
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Target Stack</th>
+                      <th>Behavior When HTTP Reply Drops</th>
+                      <th>Physical World Consequence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>Naive Frankenstack</strong><br/><span class="panel-sub">Postgres + Queue + Retry</span></td>
+                      <td>Client retries <code>POST /ship</code> as new work</td>
+                      <td><span class="pill coral">20 Pallets Double-Shipped (-$140k)</span></td>
+                    </tr>
+                    <tr>
+                      <td><strong>Transit Host Layer</strong><br/><span class="panel-sub">Station + Recorded Intent</span></td>
+                      <td>Reconciles saved <code>#op-7741</code> before retry</td>
+                      <td><span class="pill teal">Exact Single Load &middot; 0 Duplicates</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="metric-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">Frankenstack Retry Loss</div>
+                    <div class="metric-val" style="color: #fca5a5;">-$140,000</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">Unfenced retry after TCP drop</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Transit Fenced Outcome</div>
+                    <div class="metric-val" style="color: #5eead4;">$0 Loss</div>
+                    <div class="metric-delta" style="color: #5eead4;">Idempotent intent reconciliation</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel teal-border">
+              <div class="panel-hdr">
+                <div class="panel-title">Inspecting Declaration Fulfillment (<code>data-model.md</code>)</div>
+                <span class="pill teal">All Declarations Verified</span>
+              </div>
+              <div class="panel-body">
+                <div class="code-box"><span class="cmt">-- Verify whether maintained views and policies match declared intent</span>
+<span class="kw">SHOW TABLES IN</span> world_commons.intermodal_corridor;
+<span class="cmt">-- Inspector: 12 Tables · 4 Maintained Computations (Fresh @ v1,420)</span></div>
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Declared Resource</th>
+                      <th>Target SLA</th>
+                      <th>Observed Fulfillment</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="mono">view/corridor_clearance</td>
+                      <td class="mono">Lag &le; 25 ms</td>
+                      <td><span class="pill teal">Fulfilled (16.0 ms)</span></td>
+                    </tr>
+                    <tr>
+                      <td class="mono">policy/cold_chain_grant</td>
+                      <td class="mono">epoch 24 enforced</td>
+                      <td><span class="pill teal">Fulfilled (0 violations)</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="metric-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">Injected Network/Disk Faults</div>
+                    <div class="metric-val" style="color: #7dd3fc;">14,800 Faults</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">Seeded deterministic schedule</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Unreconciled Side Effects</div>
+                    <div class="metric-val" style="color: #5eead4;">0</div>
+                    <div class="metric-delta" style="color: #5eead4;">100% receipt verification</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Dock -->
+        <div class="dock-col">
+          <div class="panel flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">Headless CI Proving Ground vs. Play</div>
+              <span class="pill cyan">Dual Execution Engine</span>
+            </div>
+            <div class="panel-body">
+              <p class="desc-text">
+                The deterministic world tick engine is decoupled from the 3D/isometric renderer so the exact same world seeds power both automated Transit qualification and interactive play:
+              </p>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Dimension</th>
+                    <th>Headless CI Harness</th>
+                    <th>Interactive Spatial OS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Clock Speed</strong></td>
+                    <td class="mono">100&times;..1,000&times; Tick</td>
+                    <td class="mono">1&times; Real-Time / Step</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Physics</strong></td>
+                    <td class="mono">SimReady Rigid-Body</td>
+                    <td class="mono">WebGPU / Three.js USD</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Protocols</strong></td>
+                    <td class="mono">TN3270, FIX, HTTP</td>
+                    <td class="mono">Anchored Live Apps</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Faults</strong></td>
+                    <td class="mono">Seeded PRNG Schedule</td>
+                    <td class="mono">Interactive Chaos UI</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="code-box"><span class="cmt"># Run deterministic 24-hour multi-faction seed in CI</span>
+$ world-sim verify --seed 8841-IRON-TIDE \
+    --ticks 864000 --fault-profile subsea-cut \
+    --assert-zero-duplicate-effects</div>
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Simulated 24h Wall Time</div>
+                  <div class="metric-val" style="color: #5eead4;">6.08 sec</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">At 142,000 ticks/sec in CI</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Replay Determinism</div>
+                  <div class="metric-val" style="color: #7dd3fc;">Bit-Exact</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">Identical manifest digest</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================================
+           SCREEN 6: PERSISTENT MMO MAINNET & 5-AXIS ROLLING UPGRADES
+           ===================================================================== -->
+      <section class="screen" id="screen-mmo-mainnet">
+        <!-- Left Dock -->
+        <div class="dock-col">
+          <div class="panel teal-border flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">5-Axis Live Upgrade</div>
+              <span class="pill teal">412d Uptime</span>
+            </div>
+            <div class="panel-body">
+              <p class="desc-text">
+                The MMO Mainnet never resets. Every Transit release and application migration rolls across the live world using the five independent identities defined in <code>applications.md</code>:
+              </p>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Identity Axis</th>
+                    <th>Live Transition</th>
+                    <th>In-Flight Guarantee</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>1. Installation ID</strong></td>
+                    <td class="mono">app/clearing-backbone</td>
+                    <td>Stable scope &amp; grants</td>
+                  </tr>
+                  <tr>
+                    <td><strong>2. Artifact Rev</strong></td>
+                    <td class="mono">v1.0.14 &rarr; v1.0.15</td>
+                    <td>Compatible Zig worker swap</td>
+                  </tr>
+                  <tr>
+                    <td><strong>3. Ownership Gen</strong></td>
+                    <td class="mono">Gen 88 &rarr; Gen 89</td>
+                    <td>Fences old worker turns</td>
+                  </tr>
+                  <tr>
+                    <td><strong>4. Data Epoch</strong></td>
+                    <td class="mono">Epoch 31 &rarr; 32</td>
+                    <td>Durable step receipt <code>#r-884</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>5. Interface Rev</strong></td>
+                    <td class="mono">Screen rev 19 &rarr; 20</td>
+                    <td>Conditional UI activation</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="panel-title">Recent Mainnet Release History</div>
+              <table class="data-table">
+                <thead>
+                  <tr><th>Cutover</th><th>Date</th><th>World Impact</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td class="mono">Epoch 32 (v1.0.15)</td><td class="mono">Day 412</td><td><span class="pill teal">0 Dropped Turns</span></td></tr>
+                  <tr><td class="mono">Epoch 31 (v1.0.14)</td><td class="mono">Day 384</td><td><span class="pill teal">0 Dropped Turns</span></td></tr>
+                  <tr><td class="mono">Epoch 30 (v1.0.13)</td><td class="mono">Day 351</td><td><span class="pill teal">0 Dropped Turns</span></td></tr>
+                </tbody>
+              </table>
+
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-label">Fenced Handoff Gap</div>
+                  <div class="metric-val" style="color: #5eead4;">2.1 ms</div>
+                  <div class="metric-delta" style="color: var(--ink-muted);">Gen 88 drain &rarr; Gen 89 lease</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-label">Duplicate Effects</div>
+                  <div class="metric-val" style="color: #5eead4;">0</div>
+                  <div class="metric-delta" style="color: #5eead4;">Across all 32 epochs</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Stage -->
+        <div class="center-stage">
+          <div class="viewport-frame">
+            <img class="viewport-img" src="images/raw/raw-06-mmo-mainnet-epochs.png" alt="Panoramic MMO Mainnet world with a live rolling upgrade wavefront sweeping across islands" />
+            <div class="viewport-banner">
+              <div class="viewport-badge">
+                <strong>Persistent MMO "Mainnet" Orbital View</strong> &middot; Live Rolling Cutover Wavefront (Epoch 31 &rarr; Epoch 32)
+              </div>
+              <div class="viewport-badge" style="border-color: var(--teal);">
+                World Resets: <strong>0</strong> &middot; Dropped Sessions: <strong>0</strong> &middot; Duplicate Effects: <strong>0</strong>
+              </div>
+            </div>
+
+            <div class="vp-pin teal" style="left: 33%; top: 30%;">
+              <div class="vp-pin-hdr"><span>Western Spire (Upgraded &middot; Epoch 32)</span><span class="pill teal">v1.0.15 Active</span></div>
+              <div class="vp-pin-sub">Ownership Gen 89 &middot; 1,420 Ships &amp; Trains Active</div>
+            </div>
+
+            <div class="vp-pin amber" style="left: 55%; top: 46%;">
+              <div class="vp-pin-hdr"><span>Live Cutover Wavefront</span><span class="pill amber">Fencing Gen 88 &rarr; 89</span></div>
+              <div class="vp-pin-sub">Draining In-Flight Turns Without Dropping Traffic</div>
+            </div>
+
+            <div class="vp-pin cyan" style="left: 65%; top: 76%;">
+              <div class="vp-pin-hdr"><span>Intermodal Port Under Cutover</span><span class="pill cyan">Zero Stall</span></div>
+              <div class="vp-pin-sub">Cranes &amp; Forklifts Continue Operating Across Epoch Boundary</div>
+            </div>
+          </div>
+
+          <div class="bottom-strip">
+            <div class="panel cyan-border">
+              <div class="panel-hdr">
+                <div class="panel-title">Multi-Version Coexistence &amp; Pinned Neighborhoods</div>
+                <span class="pill cyan">No Global Stop-the-World</span>
+              </div>
+              <div class="panel-body">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Mainnet Sector / Guild</th>
+                      <th>Active Schema &amp; Worker</th>
+                      <th>Concurrent Activity During Wavefront</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>Rust Foundry Guild</strong></td>
+                      <td class="mono">DefinitionId v13 &middot; Epoch 32</td>
+                      <td>Publishing new <code>.tseg</code> segments with <code>priority_tier</code></td>
+                    </tr>
+                    <tr>
+                      <td><strong>Heartland Rail NPCs</strong></td>
+                      <td class="mono">DefinitionId v12 &middot; Epoch 31</td>
+                      <td>Continuing legacy <code>X12 EDI</code> ingestion uninterrupted</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Washington Audit Job</strong></td>
+                      <td class="mono">Pinned Cut: Manifest v1,042,100</td>
+                      <td>Verifying retained historical snapshot &amp; original schema</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Java Port Brokers</strong></td>
+                      <td class="mono">Interface rev 19 &rarr; rev 20</td>
+                      <td>Staged screen activation after target row verification</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="metric-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">Concurrent Schema Definitions</div>
+                    <div class="metric-val" style="color: #7dd3fc;">v12 &amp; v13 Active</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">Pinned per sector manifest</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Global Stop-the-World Locks</div>
+                    <div class="metric-val" style="color: #5eead4;">0 Locks</div>
+                    <div class="metric-delta" style="color: #5eead4;">Wavefront drains per partition</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel teal-border">
+              <div class="panel-hdr">
+                <div class="panel-title">Public Mainnet Verification Ledger (Inspectable via Board)</div>
+                <span class="pill teal">Cryptographic &amp; Causal Proof</span>
+              </div>
+              <div class="panel-body">
+                <p class="desc-text">
+                  Any external viewer, customer or investor can connect to the Mainnet's read-only Board endpoint to inspect live upgrade receipts and verify that zero accepted mutations or sessions were lost:
+                </p>
+                <div class="code-box"><span class="kw">SELECT</span> epoch_id, migrated_rows, duplicate_effects, dropped_sessions
+<span class="kw">FROM</span> mainnet_audit.upgrade_ledger <span class="kw">WHERE</span> epoch_id = <span class="str">32</span>;
+<span class="cmt">-- Verified: 1,420,000 rows · 0 duplicate effects · 0 dropped sessions</span></div>
+                <div class="metric-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">Epoch 32 Migrated Rows</div>
+                    <div class="metric-val" style="color: #5eead4;">1,420,000</div>
+                    <div class="metric-delta" style="color: var(--ink-muted);">Receipt #r-884 verified</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">Read-Only Board Inspection</div>
+                    <div class="metric-val" style="color: #7dd3fc;">Public Grant</div>
+                    <div class="metric-delta" style="color: #5eead4;">Zero raw-storage bypass</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Dock -->
+        <div class="dock-col">
+          <div class="panel flex-1">
+            <div class="panel-hdr">
+              <div class="panel-title">Why an MMO Mainnet Matters</div>
+              <span class="pill teal">Day-1,000 Enterprise Proof</span>
+            </div>
+            <div class="panel-body">
+              <p class="desc-text">
+                Today's player-deployed service in Month 1 becomes the upstream dependency for 50 player supply chains in Month 12—creating organic software archeology in real time:
+              </p>
+              <div class="metric-card">
+                <div class="metric-label">Accumulated Mainnet History</div>
+                <div class="metric-val" style="color: #5eead4;">48.4 TiB .tseg</div>
+                <div class="metric-delta" style="color: var(--ink-muted);">Unlimited retention default; zero silent drops</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Completed Live Engine Cutovers</div>
+                <div class="metric-val" style="color: #7dd3fc;">15 Releases</div>
+                <div class="metric-delta" style="color: #5eead4;">100% online across active player companies</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Active Player &amp; NPC Processes</div>
+                <div class="metric-val" style="color: #fcd34d;">284,000 PIDs</div>
+                <div class="metric-delta" style="color: var(--ink-muted);">Bounded resident memory independent of history</div>
+              </div>
+              <table class="data-table">
+                <thead>
+                  <tr><th>Player Guild</th><th>Role</th><th>Uptime SLA</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><strong>IronBridge Corp</strong></td><td>Spire &harr; Port Clearing</td><td><span class="pill teal">99.999%</span></td></tr>
+                  <tr><td><strong>GopherBio Logistics</strong></td><td>Cold-Chain Telemetry</td><td><span class="pill teal">100.0%</span></td></tr>
+                  <tr><td><strong>CanyonRail Co</strong></td><td>Ruby &harr; Heartland Freight</td><td><span class="pill teal">99.994%</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="status-bar">
+      <div class="status-group">
+        <span><strong>Packaging Boundary:</strong> Standalone Downstream Application Suite (Separate Repo / GitHub Org)</span>
+        <span>&middot;</span>
+        <span><strong>Transit Authority:</strong> Public Client, SQL, Fuze, Station &amp; Connector Contracts Only</span>
+      </div>
+      <div class="status-group">
+        <span>Viewport: 2560&times;1600 @ 2&times; (5120&times;3200 PNG)</span>
+        <span>&middot;</span>
+        <span id="status-screen-label">Active Study: Figure 1 — Macro World Map &amp; Anchored Apps</span>
+      </div>
+    </footer>
+  </div>
+  <script src="d1.js"></script>
+</body>
+</html>

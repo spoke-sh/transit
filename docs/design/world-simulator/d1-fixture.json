@@ -1,0 +1,138 @@
+{
+  "seed": "8841-IRON-TIDE",
+  "worldTick": 1420890,
+  "simulationMode": "Single-Player Deterministic Seed (100x Headless CI Capable) & MMO Mainnet",
+  "viewportSpec": {
+    "cssWidth": 2560,
+    "cssHeight": 1600,
+    "deviceScaleFactor": 2,
+    "outputResolution": "5120x3200"
+  },
+  "factions": [
+    {
+      "id": "clearing-spire",
+      "name": "The Clearing Spire",
+      "inspiration": "Wall Street / COBOL + C++ / FPGA",
+      "biome": "Basalt Vault Island & Microwave Relay Spire",
+      "protocols": ["FIX 4.2/5.0", "TN3270/ISPF", "X12 EDI"],
+      "codecs": ["COMP-3", "ZONED", "IBM_HFP", "EBCDIC_CP037"],
+      "latencyMs": 1.2,
+      "throughput": "48,200 msg/s (FIX) · T+1 Batch Lock (Vault)",
+      "bottleneck": "Sub-ms FIX matching stalls on overnight CICS/VSAM settlement batch window"
+    },
+    {
+      "id": "java-archipelago",
+      "name": "The Java Archipelago",
+      "inspiration": "Enterprise Retail, Coffee Trade & Global Container Ports",
+      "biome": "Deep-Water Container Harbors & Multi-Tiered Customs Exchanges",
+      "protocols": ["SOAP/XML", "JMS", "HTTP/REST", "OpenAPI"],
+      "codecs": ["UTF8_BINARY", "FSST", "Document Projections"],
+      "latencyMs": 38.0,
+      "throughput": "1,840 TEU/hr · 14-hop ESB Envelope Chain",
+      "bottleneck": "AbstractSingletonFactory middleware and XML schema conflicts stall port customs clearance"
+    },
+    {
+      "id": "midwest-heartland",
+      "name": "The Midwest Mutual Heartland",
+      "inspiration": "Actuarial Insurance, Grain Silos & Transcontinental Rail",
+      "biome": "Prairie Rail Switching Yards & Brutalist Underwriting Towers",
+      "protocols": ["TN3270/ISPF", "X12 EDI 404/214", "Batch FTP"],
+      "codecs": ["ZONED", "COMP-3", "EBCDIC_CP037"],
+      "latencyMs": 24.5,
+      "throughput": "640 railcars/day · 24h Batch Cutoff",
+      "bottleneck": "Freight locomotives idle at switching junctions awaiting 00:00 CST COBOL ledger reconciliation"
+    },
+    {
+      "id": "rust-foundry",
+      "name": "The Rust Foundry",
+      "inspiration": "Heavy Industry, Shipyards & Zero-Cost Autonomous Robotics",
+      "biome": "Volcanic Smelter Peninsula & Automated Gantry Shipyards",
+      "protocols": ["gRPC", "Transit Native v1", "OpenUSD SimReady Control"],
+      "codecs": ["BITPACK", "RLE", "Arrow 64B Aligned"],
+      "latencyMs": 4.8,
+      "throughput": "9,600 actuator turns/s · Strict Borrow/Epoch Fencing",
+      "bottleneck": "Refuses unverified upstream manifests; halts cranes on ambiguous ownership generation"
+    },
+    {
+      "id": "gopher-burrows",
+      "name": "The Gopher Burrows",
+      "inspiration": "Go Concurrency, Bio-Reactors & Telemetry Swarms",
+      "biome": "Subterranean Geodesic Hydroponic Domes & Pneumatic Conduits",
+      "protocols": ["gRPC Streaming", "Protobuf", "AsyncAPI"],
+      "codecs": ["BITPACK", "DICT", "FSST"],
+      "latencyMs": 9.4,
+      "throughput": "124,000 sensor events/s fan-in",
+      "bottleneck": "Unbounded goroutine channel fan-in drops context when downstream consumer mu < lambda"
+    },
+    {
+      "id": "ruby-mines",
+      "name": "The Ruby Mines & Gemworks",
+      "inspiration": "Ruby Convention-over-Configuration, Rapid Commerce & Mining",
+      "biome": "Red Canyon Crystal Quarries & Artisan Rail Bazaars",
+      "protocols": ["HTTP/JSON Webhooks", "REST", "PostgreSQL Wire"],
+      "codecs": ["DICT", "FSST", "ASCII_CI"],
+      "latencyMs": 42.0,
+      "throughput": "3,100 orders/min · N+1 Job Queue Spike",
+      "bottleneck": "Background worker queues saturate during gem rush spikes without direct data-plane ingestion"
+    }
+  ],
+  "jurisdictions": [
+    {
+      "id": "washington-capitol",
+      "name": "Washington Audit District",
+      "policy": "policy_epoch 24 · Mandatory source-vector provenance & human-principal merge approval"
+    },
+    {
+      "id": "europe-sovereign",
+      "name": "European Sovereign Federation",
+      "policy": "Cross-border raw record export prohibited · Authorized derived summaries only"
+    },
+    {
+      "id": "frontier-links",
+      "name": "Australia / Canada / LATAM Frontier Corridors",
+      "policy": "145 ms satellite/subsea links · Partition catch-up verification (backlog / (mu - lambda))"
+    }
+  ],
+  "simReadyAssets": [
+    {
+      "assetId": "nvidia/simready-assets/forklift_counterbalance_01.usd",
+      "role": "Autonomous Dock Forklift (PID 204 · Gen 7)",
+      "massKg": 4120,
+      "maxSpeedMps": 4.2,
+      "collider": "convexDecomposition",
+      "sensorSuite": "RGB-D Stereo + 3D LiDAR + RFID Reader"
+    },
+    {
+      "assetId": "nvidia/simready-assets/pallet_euro_stacked_04.usd",
+      "role": "Cold-Chain Pharmaceutical & Gem Crate (SKU-8841)",
+      "massKg": 620,
+      "friction": 0.64,
+      "centerOfMassCm": [0, 0, 58],
+      "logicalState": "value (verified COMP-3 qty: 450 units)"
+    },
+    {
+      "assetId": "nvidia/simready-assets/amr_industrial_cart_02.usd",
+      "role": "Sortation Transfer Cart (PID 205 · Gen 4)",
+      "massKg": 380,
+      "maxSpeedMps": 3.1,
+      "collider": "convexHull"
+    }
+  ],
+  "fiveStateArcheologyCounts": {
+    "totalCells": 1000,
+    "value": 942,
+    "null": 28,
+    "missing": 14,
+    "type_error": 9,
+    "conflict": 7
+  },
+  "mainnetEpoch": {
+    "continuousUptimeDays": 412,
+    "worldResets": 0,
+    "installationId": "app/intermodal-clearing-backbone",
+    "artifactTransition": "transit-worker-v1.0.14 -> transit-worker-v1.0.15",
+    "ownershipGeneration": "Gen 88 (fenced) -> Gen 89 (active)",
+    "dataEpoch": "Epoch 31 -> Epoch 32 (online .tseg schema evolution)",
+    "interfaceRevision": "Interface rev 19 -> rev 20 (conditional activation)"
+  }
+}
