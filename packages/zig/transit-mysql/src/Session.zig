@@ -79,7 +79,9 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             try self.host.validate(prepared);
             if (prepared.mutation()) {
                 const result = try self.host.write(prepared, values);
-                const affected = if (result.kind == .update and self.flags & m.Handshake.found_rows == 0) result.changed else result.count;
+                try result.validate();
+                if (result.outcome != .applied and result.outcome != .unchanged) return error.InvalidWireCompletion;
+                const affected = if (result.counts) |counts| if (result.kind == .update and self.flags & m.Handshake.found_rows == 0) counts.changed else counts.matched else 0;
                 try self.send(try self.backend.ok(affected, false));
                 return;
             }

@@ -21,7 +21,7 @@ const Name = struct {
 /// destroy, validate, bind, openRead, closeRead, write, begin/end and diagnostic
 /// keep database/probe policy out of the protocol. Read.nextBatch owns at most
 /// the requested rows until its next call/close. No batch crosses Execute.
-/// write returns an attributed Backend completion and count.
+/// write returns the shared, owner-attributed CommandCompletion.
 pub fn Engine(comptime Host: type, comptime Transport: type) type {
     return struct {
         const Self = @This();
@@ -170,8 +170,10 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             }
             if (prepared.mutation()) {
                 const result = try self.host.write(prepared, portal.values);
+                try result.validate();
+                if (result.outcome != .applied and result.outcome != .unchanged) return error.InvalidWireCompletion;
                 portal.complete = true;
-                try self.send(try self.backend.complete(result.kind, result.count));
+                try self.send(try self.backend.complete(result.kind, if (result.counts) |counts| counts.matched else 0));
                 return;
             }
             if (portal.read == null) portal.read = try self.host.openRead(prepared, portal.values);

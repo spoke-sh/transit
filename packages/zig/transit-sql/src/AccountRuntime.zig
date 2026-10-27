@@ -334,7 +334,7 @@ fn prepareControl(lane: *g.ControlLane, client: anytype, command: g.Control.Comm
 }
 /// observer and table borrow the connection's own native transport; no HTTP
 /// client or mutable sequence state is shared between concurrent sessions.
-pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !g.Terminal {
+pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !struct { terminal: g.Terminal, completion: g.results.CommandCompletion } {
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
     const item = try self.admit(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation);
@@ -358,7 +358,7 @@ pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, t
             try self.waitProgress(2);
             continue;
         };
-        if (terminal) |value| return value;
+        if (terminal) |value| return .{ .terminal = value, .completion = try value.completion(intent.commandKind(), .{ .account = self.ledger.configuration.account, .id = item.id }) };
         self.notify();
         try self.waitProgress(2);
     }
@@ -475,8 +475,10 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
             }
         }
     }
+    const identity: g.results.Operation = .{ .account = self.ledger.configuration.account, .id = id };
+    const completion = if (outcome) |terminal| try terminal.completion(command orelse return error.InvalidGatewayTerminal, identity) else null;
     return .{
-        .identity = .{ .account = self.ledger.configuration.account, .id = id },
+        .identity = identity,
         .command = command,
         .token = item.nonce,
         .phase = switch (item.phase) {
@@ -484,14 +486,9 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
         },
         .blocked = item.blocked != 0,
         .cancellation_requested = item.cancel != 0,
-        .outcome = if (outcome) |terminal| switch (terminal.state) {
-            .applied => .applied,
-            .unchanged => .unchanged,
-            .rejected => .rejected,
-            .cancelled => .cancelled,
-        } else null,
-        .matched = if (outcome) |terminal| terminal.matched else 0,
-        .changed = if (outcome) |terminal| terminal.changed else 0,
+        .outcome = if (completion) |value| value.outcome else null,
+        .matched = if (completion) |value| value.counts.?.matched else 0,
+        .changed = if (completion) |value| value.counts.?.changed else 0,
         .diagnostic = diagnostic,
     };
 }

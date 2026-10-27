@@ -519,33 +519,25 @@ fn releasePins(self: *Self, read: *Read) void {
     };
     self.runtime.notify();
 }
-pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !struct { kind: g.Completion, count: u64, changed: u64 } {
+pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.results.CommandCompletion {
     try self.validate(prepared);
     if (prepared.* == .settings) {
         try Settings.mutate(self, &prepared.settings);
-        return .{ .kind = if (prepared.settings.plan.statement == .reset) .reset else .set, .count = 0, .changed = 0 };
+        return .{ .kind = if (prepared.settings.plan.statement == .reset) .reset else .set, .outcome = .applied, .counts = null, .operation = null, .pending_restart = false, .diagnostic = null };
     }
     if (prepared.* == .probe) {
         if (prepared.probe.kind != .set) return error.ExpectedGatewayWrite;
-        return .{ .kind = .set, .count = 0, .changed = 0 };
+        return .{ .kind = .set, .outcome = .applied, .counts = null, .operation = null, .pending_restart = false, .diagnostic = null };
     }
-    const terminal = try self.runtime.execute(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation);
-    self.terminal = terminal;
-    switch (terminal.state) {
+    const result = try self.runtime.execute(self.allocator, &self.observer, &self.table, &prepared.native, values, self.deadline, &self.operation);
+    self.terminal = result.terminal;
+    switch (result.terminal.state) {
         .applied, .unchanged => {},
         .rejected => return error.GatewayMutationRejected,
         .cancelled => return error.GatewayMutationCancelled,
     }
     try self.current();
-    return .{ .kind = switch (prepared.native.kind()) {
-        .insert => .insert,
-        .update => .update,
-        .delete => .delete,
-        .create => if (prepared.native.plan == .namespace_change) .create_schema else .create_table,
-        .alter => if (prepared.native.plan == .namespace_change) .alter_schema else .alter_table,
-        .drop => if (prepared.native.plan == .namespace_change) .drop_schema else .drop_table,
-        .select => return error.ExpectedGatewayWrite,
-    }, .count = terminal.matched, .changed = terminal.changed };
+    return result.completion;
 }
 pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {
     const rejected = self.observationRejection(self.diagnostic_source);

@@ -12497,6 +12497,7 @@
       "errors": {
         "EmptyWireQuery": 2,
         "InvalidWireColumns": 1,
+        "InvalidWireCompletion": 1,
         "TooManyWireParameters": 2,
         "TooManyWireStatements": 1,
         "UnknownWireStatement": 2,
@@ -12518,7 +12519,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 61,
+        "try": 62,
         "catch": 1
       },
       "imports": [
@@ -12759,6 +12760,7 @@
         "DuplicateWirePortal": 1,
         "DuplicateWireStatement": 1,
         "InvalidWireColumns": 1,
+        "InvalidWireCompletion": 1,
         "InvalidWireName": 1,
         "TooManyWirePortals": 1,
         "TooManyWireStatements": 1,
@@ -12784,7 +12786,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 71,
+        "try": 72,
         "catch": 1
       },
       "imports": [
@@ -19891,6 +19893,7 @@
         "GatewayWaitCancelled": 1,
         "InvalidGatewayCommand": 1,
         "InvalidGatewayConfiguration": 1,
+        "InvalidGatewayTerminal": 1,
         "InvalidSqlReadRecovery": 6,
         "MissingGatewayOperation": 2,
         "MissingGatewayTerminal": 2,
@@ -19931,7 +19934,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 85,
+        "try": 87,
         "catch": 17
       },
       "imports": [
@@ -20752,7 +20755,7 @@
         "DuplicateWireStatement": 1,
         "EmptyWireQuery": 1,
         "ExpectedGatewayRead": 1,
-        "ExpectedGatewayWrite": 2,
+        "ExpectedGatewayWrite": 1,
         "ExpectedIdentifier": 1,
         "GatewayCredentialChanged": 2,
         "GatewayDatabaseDenied": 1,
@@ -21065,7 +21068,7 @@
     "packages/zig/transit-sql/src/Terminal.zig": {
       "errors": {
         "GatewayIdentityConflict": 1,
-        "InvalidGatewayTerminal": 16
+        "InvalidGatewayTerminal": 18
       },
       "outcomes": {
         "kind": [
@@ -21084,6 +21087,7 @@
       "error_sets": {},
       "error_returns": {
         "base()": "<inferred>",
+        "completion()": "<inferred>",
         "fromReference()": "<inferred>",
         "fromResult()": "<inferred>",
         "matches()": "<inferred>",
@@ -21091,7 +21095,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
+        "try": 22,
         "catch": 0
       },
       "imports": [

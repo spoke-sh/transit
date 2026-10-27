@@ -268,7 +268,7 @@ pub fn main(init: std.process.Init) !void {
                 break :found (item orelse return error.MissingDetachedOperation).id;
             }
         } else null;
-        return support.print(init, .{ .operation = operation, .outcome = result, .detached = detached });
+        return support.print(init, .{ .operation = operation, .outcome = result.terminal, .completion = result.completion, .detached = detached });
     }
     if (std.mem.eql(u8, mode, "read")) {
         var caller: c.DirectTableClient = .{ .allocator = init.gpa, .authority = &wire, .service = &wire, .connection = .{ .scope = .{ .realm = 46, .resource = config.binding.resource, .catalog = config.binding.catalog }, .branch = 1, .audience = config.binding.owner, .principal = config.table_principal, .role = config.binding.role }, .key = try tableKey(config) };
