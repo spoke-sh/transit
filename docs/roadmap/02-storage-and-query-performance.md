@@ -118,6 +118,31 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Nullable TEXT now participates in finite relational projection, filtering,
+  equijoins, grouping, retained checkpoints, maintained revisions and exchange
+  routing under the declared binary, ASCII case-insensitive or CP037 collation.
+  Owned variable-width rows and keys use explicit resident/spill bounds. The
+  [executed evidence](../history/qualification/query.md#collated-text-relational-execution-and-owned-results--2026-10-26)
+  includes independent SQLite/routing oracles, growth beyond resident operator
+  memory, worker replacement and a maintained representative-spelling change.
+  This closes the remaining selected relational collation path in #118/#128;
+  the final common-revision checks remain separate.
+
+- Verified plain segment groups can retain Arrow value arrays through slices
+  and C exports, with explicit final-release ownership and bounded decoding for
+  other profiles. Cancellation preserves previously returned arrays and frees
+  incomplete reads. The [ownership evidence](../history/qualification/storage.md#shared-segment-arrow-value-ownership--2026-10-26)
+  covers pointer identity, nested C-export allocation failures and IPC output
+  failures. This supplies #128's local value-buffer handoff; five-state logical
+  export uses its existing IPC schema. Arbitrary foreign import remains in
+  milestone 11.
+
+- The [local WAL acknowledgement decision](#local-wal-acknowledgement-decision)
+  explicitly retains synchronous per-record acceptance for this foundation.
+  It records #113's scope alternative and keeps concurrent group-commit
+  evaluation with milestone 10's existing measured runtime work. Safety,
+  recovery, retention and local failure schedules remain required here.
+
 - Direct Table/catalog collection now composes pre-fence owner cuts, complete
   retained dependency traversal, paged durable marks/work and exact physical
   deletion. Explicit history expiry and pin release permit obsolete archive,

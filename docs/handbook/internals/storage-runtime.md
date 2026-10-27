@@ -1056,9 +1056,9 @@ pin release, original receipts, pending work and cold reopen. The
 [component faults](../../../packages/zig/transit-backend-local/src/data_collection_test.zig)
 exercise trim abort, quota/corrupt progress, incomplete reuse and sync uncertainty.
 The shared [process-death harness](../../../tests/storage/local/local_native_collection_faults.py)
-has independent native/direct profiles. Reproduce with
-`just test::local-data-collection`; signed policy composition is covered by
-`just test::local-catalog`. These finite schedules do not prove arbitrary power
+has independent native/direct profiles. The
+[maintenance guide](../../../packages/zig/transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
+owns reproduction commands, including signed policy composition. These finite schedules do not prove arbitrary power
 loss, and automatic installed scheduling remains separate. Exact formats and
 retention roots are owned by the
 [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#local-direct-data-collection).
