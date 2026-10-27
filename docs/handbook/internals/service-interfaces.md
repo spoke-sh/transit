@@ -404,7 +404,8 @@ owned decoding and bounded copying costs while centralizing those obligations.
 rows/bytes; streaming retains only one decoded chunk. Console width sampling has
 its own budget and never needs to drain a query to compute column widths.
 
-Reproduction uses `just test::sql-wire-contracts` in the pinned shell. The
+The [SQL session test guide](../../../tests/interfaces/sql_sessions/README.md)
+provides reproduction commands for the bounded result-consumption checks. The
 [finite oracle](../../../packages/zig/transit-sql-client/src/consumer_test.zig)
 expects occurrence `i` to contain `i mod 3`, independently of production counters
 or encoders. It exercises the same public consumer over scripted semantic sources
