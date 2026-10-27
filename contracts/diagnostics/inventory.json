@@ -25055,7 +25055,7 @@
         "CorruptWalMetadata": 5,
         "FileNotFound": 4,
         "IncompatibleDefinition": 3,
-        "InvalidWalDirectory": 6,
+        "InvalidWalDirectory": 10,
         "InvalidWalEpoch": 2,
         "InvalidWalHeader": 1,
         "InvalidWalLimits": 1,
@@ -25069,7 +25069,7 @@
         "WalInUse": 1,
         "WalLsnConflict": 1,
         "WalLsnExhausted": 2,
-        "WalMetadataMissing": 2,
+        "WalMetadataMissing": 3,
         "WalPayloadTooLarge": 1,
         "WalRecoveryRequired": 2
       },
@@ -25084,6 +25084,7 @@
         "load()": "<inferred>",
         "loadCold()": "<inferred>",
         "metadata()": "<inferred>",
+        "nextPartition()": "<inferred>",
         "nextSegment()": "<inferred>",
         "open()": "<inferred>",
         "read()": "<inferred>",
@@ -25099,8 +25100,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 77,
-        "catch": 18
+        "try": 80,
+        "catch": 19
       },
       "imports": [
         "TransitLog.zig",
@@ -25168,6 +25169,7 @@
         "LocalWal.fenceEpochs()": "<inferred>",
         "LocalWal.fenceErased()": "anyerror",
         "LocalWal.getOrCreatePartition()": "<inferred>",
+        "LocalWal.nextPartition()": "<inferred>",
         "LocalWal.openDisk()": "<inferred>",
         "LocalWal.openDiskWithOptions()": "<inferred>",
         "LocalWal.readErased()": "anyerror",

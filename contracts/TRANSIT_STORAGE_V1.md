@@ -588,6 +588,17 @@ This is not a persistent segment index: each uncached partition still scans the
 directory, and physical trimming may scan it repeatedly. No throughput claim
 follows from these bounds.
 
+The local owner's `nextPartition(after)` selects the least existing partition
+ID strictly greater than the optional cursor. A null cursor includes partition
+zero; exhaustion returns null without wrapping the largest `u64` ID. Empty
+fenced and fully trimmed partitions remain discoverable through metadata.
+Discovery scans both metadata and segment names with constant resident memory,
+rejects noncanonical names, and verifies the selected partition's mandatory
+metadata directly. A cached descriptor cannot hide missing metadata. Unpublished
+atomic-file temporaries supply no partition identity. Each call requires caller
+serialization; the cursor is not a snapshot and does not freeze membership or
+authorize collection. Its directory I/O grows with the file count.
+
 Within each cached partition, three volatile frame coordinates retain the latest
 accepted frame and the start/continuation of the last read. They contain no
 payload or authority. Sequential bounded pages resume at a verified offset and

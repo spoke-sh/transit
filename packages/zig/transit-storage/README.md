@@ -115,6 +115,13 @@ overlapping and noncanonical segment names reject. The inventory retains no
 filename array; cold partition loads still enumerate the directory, and trim
 may enumerate it repeatedly.
 
+`LocalWal.nextPartition(after)` discovers existing partitions in numeric order,
+including empty fenced and fully trimmed partitions. Each call retains one ID
+and scans the directory, checking canonical names and the selected owner's
+mandatory metadata even when its descriptor is cached. Segment-only owners
+reject instead of disappearing from discovery. Callers serialize each call and
+establish their own acceptance cut; the cursor is not a retained snapshot.
+
 `zig build test` includes real temporary-directory WAL tests: cache eviction,
 segmented recovery above 64 MiB, durable empty-log fencing and full trim,
 incomplete tails, missing/corrupt acknowledged history, incompatible definitions,

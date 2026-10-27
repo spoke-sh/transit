@@ -368,6 +368,36 @@ pub fn tail(self: *Self, id: u64) !u64 {
     return (try self.load(id)).next;
 }
 
+/// Enumerate metadata and segment identities together: an orphan segment must
+/// not disappear from a collector's owner inventory. Do not consult the cache
+/// for the mandatory metadata check, even if this partition was recently read.
+pub fn nextPartition(self: *Self, after: ?u64) !?u64 {
+    try self.usable();
+    self.directory_scans +|= 1;
+    var selected: ?u64 = null;
+    var it = self.dir.iterate();
+    while (try it.next(self.io)) |entry| {
+        if (std.mem.eql(u8, entry.name, ".lock") or std.mem.eql(u8, entry.name, ".definition")) continue;
+        if (entry.kind != .file) return error.InvalidWalDirectory;
+        const id = if (parseMeta(entry.name)) |id| blk: {
+            var name: [64]u8 = undefined;
+            if (!std.mem.eql(u8, entry.name, metaName(id, &name))) return error.InvalidWalDirectory;
+            break :blk id;
+        } else if (parseSegment(entry.name)) |parsed| blk: {
+            var name: [96]u8 = undefined;
+            if (!std.mem.eql(u8, entry.name, segmentName(parsed.partition, parsed.first, &name))) return error.InvalidWalDirectory;
+            break :blk parsed.partition;
+        } else {
+            if (entry.name.len != 16 or (std.fmt.parseInt(u64, entry.name, 16) catch null) == null) return error.InvalidWalDirectory;
+            continue; // Unpublished atomic-file temporary, never an owner.
+        };
+        if (after != null and id <= after.?) continue;
+        if (selected == null or id < selected.?) selected = id;
+    }
+    if (selected) |id| if (try self.metadata(id) == null) return error.WalMetadataMissing;
+    return selected;
+}
+
 pub fn append(self: *Self, id: u64, expected_lsn: ?u64, writer: u64, policy: u64, kind: log.FrameKind, payload: []const u8) !log.AppendReceipt {
     if (writer == 0 or policy == 0) return error.InvalidWalEpoch;
     if (payload.len > log.max_payload_bytes) return error.WalPayloadTooLarge;

@@ -188,6 +188,21 @@ pub const LocalWal = struct {
         return part.next_lsn;
     }
 
+    /// Select the least existing partition strictly after `after`, including
+    /// empty fenced/fully trimmed partitions. This is discovery, not a snapshot:
+    /// callers serialize each call and establish their own acceptance cut.
+    /// Disk discovery uses constant resident memory and one directory scan.
+    pub fn nextPartition(self: *LocalWal, after: ?u64) !?u64 {
+        if (self.disk) |disk| return disk.nextPartition(after);
+        var selected: ?u64 = null;
+        for (self.partitions.items) |part| {
+            const id = part.partition_id;
+            if (after != null and id <= after.?) continue;
+            if (selected == null or id < selected.?) selected = id;
+        }
+        return selected;
+    }
+
     pub fn trimUpTo(self: *LocalWal, partition_id: u64, up_to_lsn: u64) !void {
         if (self.disk) |disk| return disk.trim(partition_id, up_to_lsn);
         const part = self.findPartition(partition_id) orelse return;

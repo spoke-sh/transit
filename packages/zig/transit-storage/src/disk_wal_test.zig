@@ -7,6 +7,90 @@ fn open(dir: std.Io.Dir) !Wal {
     return Wal.openDiskWithOptions(t.allocator, t.io, dir, "wal", .{ .segment_bytes = 256, .batch_frames = 2 });
 }
 
+test "WAL partition discovery includes empty owners in numeric order" {
+    for ([_]bool{ false, true }) |disk| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var wal = if (disk) try open(tmp.dir) else Wal.initMemory(t.allocator);
+        defer wal.deinit();
+        try t.expectEqual(@as(?u64, null), try wal.nextPartition(null));
+        // A lookup of an absent partition is not creation.
+        try t.expectEqual(@as(u64, 0), try wal.tailLsn(7));
+        const ids = [_]u64{ std.math.maxInt(u64), 10, 0, 2 };
+        for (ids) |id| try wal.fenceEpochs(id, 3, 5);
+        _ = try wal.appendFrame(2, 0, 3, 5, .row_delta, "retired");
+        try wal.trimUpTo(2, 1);
+        var cursor: ?u64 = null;
+        for ([_]u64{ 0, 2, 10, std.math.maxInt(u64) }) |expected| {
+            cursor = try wal.nextPartition(cursor);
+            try t.expectEqual(@as(?u64, expected), cursor);
+        }
+        try t.expectEqual(@as(?u64, null), try wal.nextPartition(cursor));
+        try t.expectEqual(@as(u64, 1), try wal.tailLsn(2));
+    }
+}
+
+test "disk WAL partition discovery exceeds descriptor and memory fixture bounds" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    {
+        var wal = try open(tmp.dir);
+        defer wal.deinit();
+        for (0..73) |i| {
+            const id = (72 - i) * 13;
+            _ = try wal.appendFrame(id, 0, 3, 5, .row_delta, "x");
+            if (i % 3 == 0) try wal.trimUpTo(id, 1);
+        }
+    }
+    var buffer: [32 * 1024]u8 = undefined;
+    var fixed = std.heap.FixedBufferAllocator.init(&buffer);
+    var wal = try Wal.openDiskWithOptions(fixed.allocator(), t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var cursor: ?u64 = null;
+    const scans = wal.disk.?.directory_scans;
+    for (0..73) |i| {
+        cursor = try wal.nextPartition(cursor);
+        try t.expectEqual(@as(?u64, i * 13), cursor);
+    }
+    try t.expectEqual(@as(?u64, null), try wal.nextPartition(cursor));
+    try t.expectEqual(@as(u64, 74), wal.disk.?.directory_scans - scans);
+}
+
+test "disk WAL partition discovery rejects missing metadata and filename aliases" {
+    for (0..5) |scenario| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var wal = try open(tmp.dir);
+        defer wal.deinit();
+        _ = try wal.appendFrame(2, 0, 3, 5, .row_delta, "accepted");
+        try t.expectEqual(@as(u64, 1), try wal.tailLsn(2));
+        const expected = switch (scenario) {
+            0 => blk: {
+                // The cached descriptor cannot hide lost mandatory metadata.
+                try tmp.dir.deleteFile(t.io, "wal/part-2.meta");
+                break :blk error.WalMetadataMissing;
+            },
+            1 => blk: {
+                const file = try tmp.dir.openFile(t.io, "wal/part-2.meta", .{ .mode = .read_write });
+                defer file.close(t.io);
+                try file.writePositionalAll(t.io, "x", 96);
+                break :blk error.CorruptWalMetadata;
+            },
+            else => blk: {
+                const name = switch (scenario) {
+                    2 => "wal/part-02.meta",
+                    3 => "wal/part-02-0.twal",
+                    else => "wal/part-bad.meta",
+                };
+                const file = try tmp.dir.createFile(t.io, name, .{});
+                file.close(t.io);
+                break :blk error.InvalidWalDirectory;
+            },
+        };
+        try t.expectError(expected, wal.nextPartition(null));
+    }
+}
+
 test "disk WAL opening validates every partition across directory pages" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
