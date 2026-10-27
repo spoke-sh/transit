@@ -4,8 +4,11 @@
 
 This design item explores a physics-grounded enterprise world simulator and
 spatial Agentic OS operator interface built as a downstream application suite
-on top of Transit. The proposed world spans continental terrain, computing and
-regional factions, cities and inhabited facilities. It pairs those places with
+on top of Transit. The proposed world spans multiple large archipelagos with
+uneven resources, electricity, transport, food systems and industries that build
+and maintain its places. Each job is a playable observation/decision/action loop;
+the modernization game improves that loop under its original obligations.
+It pairs those places with
 real application code intended to run over standard
 industry protocols (`TN3270/ISPF`, `FIX`, `X12 EDI`, `SOAP/XML`, `HTTP/REST`,
 `gRPC` and SQL), physical facility interiors populated with OpenUSD
@@ -28,7 +31,7 @@ It consumes Transit strictly through public client, SQL, [`Fuze`](../../handbook
 
 | Review | Focus | Status | Outcome or next decision |
 | --- | --- | --- | --- |
-| [D1](D1.md) | Continental atlas, regional corridors, city strata, miniature facilities, agent POV, modernization comparisons and a persistent night world; original Argon Figures 1–6 plus Codex alternatives 1B–6B | In review | Reviewer requested a larger map-like world and retained miniature detail; review the five-scale camera progression, quieter styling and explicit observation/control distinction |
+| [D1](D1.md) | Interdependent archipelagos; electricity and night; air/rail/truck/sea transport; food, animals, manufacturing and building; jobs as modernizable minigames. Figures 7–12 extend preserved Figures 1–6 and 1B–6B. | In review | Reviewer endorsed the map/miniature direction and requested continued D1 iteration; review resource dependencies, domain responsibilities, job obligations and the Milk before dawn campaign |
 
 Review status tracks the design conversation. The visual studies and local
 compositing prototype do not establish a shipped simulator binary, OpenUSD
@@ -45,6 +48,10 @@ this item is `D2.md`.
 
 ## Supporting material
 
+- [Archipelagos and job minigames, Figures 7–12](D1.md#jobs-in-an-interdependent-world),
+  [vertical job catalog](D1.md#the-verticals-and-their-modernized-games),
+  [Milk before dawn](D1.md#worked-campaign-milk-before-dawn) and
+  [generation/edit prompts and asset manifest](d1-job-world-prompts.json).
 - [Codex map-scale visual alternatives, Figures 1B–6B](D1.md#map-scale-visual-alternatives),
   [camera progression](D1.md#camera-progression-and-place-continuity) and
   [exact generation prompts and asset manifest](d1-codex-prompts.json).
