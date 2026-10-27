@@ -10,6 +10,7 @@ import sys
 import tarfile
 from sdk.sdk_station_runner import Consumer, run as schedule
 from sdk.sdk_http_runner import run as http_schedule
+from harness.phases import phase
 
 
 def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
@@ -29,31 +30,31 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
             subprocess.run(['zig', 'c++', '-std=c++17', '-Wall', '-Wextra', '-Werror', *(['-DTRANSIT_TEST_C_API'] if language == 'C' else []), source,
                             *flags, '-lpthread', '-o', binary], cwd=target, env=environment, check=True)
             source.unlink()
-            http_binary = target / 'http-consumer'
-            http_sources = [target / name for name in ('c_http_sdk.cpp', 'c_http_sdk.c', 'c_http_sdk.h')]
-            for item in http_sources: shutil.copyfile(root / 'tests/sdk/consumers/c' / item.name, item)
-            http_object = target / 'http-callbacks.o'
-            subprocess.run(['zig', 'cc', '-std=c11', '-Wall', '-Wextra', '-Werror', f'-I{prefix / "include"}', '-c', http_sources[1], '-o', http_object],
-                           cwd=target, env=environment, check=True)
-            subprocess.run(['zig', 'c++', '-std=c++17', '-Wall', '-Wextra', '-Werror', *(['-DTRANSIT_TEST_C_API'] if language == 'C' else []),
-                            http_sources[0], http_object, *flags, '-lpthread', '-o', http_binary], cwd=target, env=environment, check=True)
-            for item in [*http_sources, http_object]: item.unlink()
-            grpc_binary = target / 'grpc-consumer'
-            grpc_sources = [target / name for name in ('c_grpc_sdk.cpp', 'c_grpc_sdk.c', 'c_grpc_sdk.h')]
-            for item in grpc_sources: shutil.copyfile(root / 'tests/sdk/consumers/c' / item.name, item)
-            grpc_object = target / 'grpc-callbacks.o'
-            subprocess.run(['zig', 'cc', '-std=c11', '-Wall', '-Wextra', '-Werror', f'-I{prefix / "include"}', '-c', grpc_sources[1], '-o', grpc_object],
-                           cwd=target, env=environment, check=True)
-            subprocess.run(['zig', 'c++', '-std=c++17', '-Wall', '-Wextra', '-Werror', *(['-DTRANSIT_TEST_C_API'] if language == 'C' else []),
-                            grpc_sources[0], grpc_object, *flags, '-lpthread', '-o', grpc_binary], cwd=target, env=environment, check=True)
-            for item in [*grpc_sources, grpc_object]: item.unlink()
-            document_binary = target / 'document-consumer'
-            document_sources = [target / name for name in ('c_document_sdk.cpp', 'c_document_sdk.c', 'c_document_sdk.h')]
-            for item in document_sources: shutil.copyfile(root / 'tests/sdk/consumers/c' / item.name, item)
-            document_object = target / 'document-callbacks.o'
-            subprocess.run(['zig', 'cc', '-std=c11', '-Wall', '-Wextra', '-Werror', f'-I{prefix / "include"}', '-c', document_sources[1], '-o', document_object], cwd=target, env=environment, check=True)
-            subprocess.run(['zig', 'c++', '-std=c++17', '-Wall', '-Wextra', '-Werror', *(['-DTRANSIT_TEST_C_API'] if language == 'C' else []), document_sources[0], document_object, *flags, '-lpthread', '-o', document_binary], cwd=target, env=environment, check=True)
-            for item in [*document_sources, document_object]: item.unlink()
+            peers = {}
+
+            def peer(family):
+                # Each schedule keeps its own installed libraries and binaries.
+                # Compile a protocol peer only when this installation invokes it;
+                # unrelated peers used to be rebuilt for every Station/interop run.
+                if family not in peers:
+                    with phase("consumer-compile", f"{language.lower().replace('++', 'pp')}-{family}"):
+                        sources = [target / f'c_{family}_sdk.{extension}' for extension in ('cpp', 'c', 'h')]
+                        for item in sources:
+                            shutil.copyfile(root / 'tests/sdk/consumers/c' / item.name, item)
+                        callbacks = target / f'{family}-callbacks.o'
+                        executable = target / f'{family}-consumer'
+                        subprocess.run(['zig', 'cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
+                                        f'-I{prefix / "include"}', '-c', sources[1], '-o', callbacks],
+                                       cwd=target, env=environment, check=True)
+                        subprocess.run(['zig', 'c++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
+                                        *(['-DTRANSIT_TEST_C_API'] if language == 'C' else []),
+                                        sources[0], callbacks, *flags, '-lpthread', '-o', executable],
+                                       cwd=target, env=environment, check=True)
+                        for item in [*sources, callbacks]:
+                            item.unlink()
+                        peers[family] = executable
+                return peers[family]
+
             if language == 'C++':
                 for body in ('void wrong(transit::sdk::station::Turn &turn) { turn.state().put(transit::sdk::examples::total_key, true); }',
                              'void copy(transit::sdk::station::Runner<uint64_t> &runner) { auto copied = runner; }'):
@@ -99,12 +100,12 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
                     data = json.loads(Path(cfg['document_fixtures']).read_bytes())
                     document_fixtures = target / 'document-codecs.txt'
                     document_fixtures.write_text('\n'.join([data['reference_hex'], *[v['wire_hex'] for v in data['changes']]]) + '\n')
-                    return [document_binary, mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']), str(cfg['resource']), document_fixtures, *cfg['changes']]
+                    return [peer('document'), mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']), str(cfg['resource']), document_fixtures, *cfg['changes']]
                 if mode.startswith('http-'):
-                    return [http_binary, mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
+                    return [peer('http'), mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
                             str(cfg['resource']), cfg['body'], str(cfg['deadline']), cfg.get('outcome', ''), cfg.get('ready', ''), cfg.get('continue', ''), cfg.get('accepted', ''), http_fixtures, cfg.get('followup_reason', 'retry')]
                 if mode.startswith('grpc-'):
-                    return [grpc_binary, mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
+                    return [peer('grpc'), mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
                             str(cfg['resource']), cfg['body'], str(cfg['deadline']), cfg.get('outcome', ''), cfg.get('ready', ''), cfg.get('continue', ''), cfg.get('accepted', ''), grpc_fixtures, cfg['descriptor']]
                 return [binary, mode, cfg['url'], str(cfg['realm']), str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
                         cfg['role'], str(cfg['resource']), cfg['pending'], cfg['output'], fixtures, '1' if cfg['query_results'] else '0', wrong]
