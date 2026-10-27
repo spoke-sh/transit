@@ -9,6 +9,48 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Local foundation repository qualification — 2026-10-27
+
+The complete workspace `just check all` passes at clean committed source
+`15c35f00549f217aac0650c0a2929c9a47af7f3b`. This includes 36 fast checks,
+compiled diagnostic/grammar controls, the pinned toolchain check, 18 contract
+checks, the complete native components/fixtures/faults aggregate, CLI diagnostics,
+PTY history/input checks, Board's 101 tests and the documentation site's nine
+content tests plus production build. The log is
+`/var/tmp/transit-m2-completion-check-all2.log`. Native execution has its own
+completed source/outcome record and takes 1,424.891 seconds; the integrated
+collection account above identifies that record. A successful build is not
+substituted for the executed native tests.
+
+Committed-HEAD `just ci clean --check all` also passes at the same source. Its
+check phase takes 1,955.787 seconds; the native aggregate within it takes
+1,439.382 seconds and exits zero. Clone, checkout, pinned shell and locked
+frontend dependency preparation all complete successfully. The retained record
+is `.cache/ci/clean/15c35f00549f-transit-ci-i29fxeah/preparation.json`, SHA-256
+`e39d1e3bea36bb0b967908d4c8b1831b47a914df225291893ac60917f1029bf8`;
+its sibling `checks/` directory retains the per-check records and diagnostic
+logs. The complete output is `/var/tmp/transit-m2-completion-clean-all2.log`.
+This scope repeats repository validation from an isolated checkout without local
+outputs. It is not the seven hosted CI lanes or a claim that every installed,
+SDK, provider, capacity or browser schedule ran at this source. Those boundaries
+retain their own executed records and delivery owners.
+
+The earlier workspace attempt at `6a72588c5` fails in diagnostic outcome review:
+`('unmapped outcome', 'query.caller')` for the new permanent exchange-credit
+budget error. Its log remains `/var/tmp/transit-m2-completion-check-all.log`.
+The manually reviewed expectations added by `15c35f005` cover query caller,
+Board, Flight and inspection projections, including existing dispatched-outcome
+and access-denial precedence. The focused rerun passes 3,417 projections across
+24 surfaces and its mutation controls; no diagnostic assertion is weakened or
+expectation automatically regenerated. The later complete run includes this fix.
+
+The evidence-only follow-up `e99b6ae6d` changes three documentation files. Its
+link check, content tests, strict types/format/lint and complete production site
+build pass (`/var/tmp/transit-m2-completion-measurement-docs.log`). Runtime code
+and contracts are identical to `15c35f005`. Native growth qualification remains
+a separate gate; this repository-check record does not convert its earlier
+timeout into a pass.
+
 ## Retained direct-data graph and physical collection — 2026-10-27
 
 At clean source `15c35f005`, the complete native aggregate passes, including the
