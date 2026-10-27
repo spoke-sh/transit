@@ -21,7 +21,7 @@ def install(target, language, environment):
     packages.mkdir()
     artifacts = {}
     if language == 'python':
-        for path in (ROOT / '.cache/bindings/wheels').glob('*.whl'):
+        for path in (ROOT / '.cache/bindings/Debug/wheels').glob('*.whl'):
             if path.name.split('-')[1] != '0.2.0' or path.name.split('-')[0] not in ('transit_client', 'transit_native_client', 'transit_station', 'transit_native_station'): continue
             shutil.copy2(path, packages / path.name)
             artifacts[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -40,7 +40,7 @@ def install(target, language, environment):
     elif language == 'node':
         dependencies = {}
         for name in ('client', 'native-client', 'station', 'native-station'):
-            path = ROOT / '.cache/bindings/node' / f'transit-{name}-0.2.0.tgz'
+            path = ROOT / '.cache/bindings/Debug/node' / f'transit-{name}-0.2.0.tgz'
             copy = packages / path.name
             shutil.copy2(path, copy)
             artifacts[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()

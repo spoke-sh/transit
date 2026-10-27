@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = '0.2.0'
 
 
-def build(output, names, native_prefix=ROOT / 'zig-out'):
+def build(output, names, native_prefix):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     gson = Path(os.environ['TRANSIT_GSON_JAR'])
@@ -60,6 +60,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
     parser.add_argument('packages', nargs='*')
-    parser.add_argument('--native-prefix', type=Path, default=ROOT / 'zig-out')
+    parser.add_argument('--native-prefix', type=Path, required=True)
     args = parser.parse_args()
     build(args.output, args.packages or ['transit-native-client', 'transit-client', 'transit-native-station', 'transit-station-sdk', 'examples/station-sdk/java'], args.native_prefix.resolve())

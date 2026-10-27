@@ -9,10 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = '0.2.0'
 
 
-def build(output, native_prefix=None):
+def build(output, native_prefix):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    native_prefix = Path(native_prefix).resolve() if native_prefix else ROOT / 'zig-out'
+    native_prefix = Path(native_prefix).resolve()
     native = native_prefix / 'lib/libtransit_client.so'
     sdk = ROOT / 'sdks/c/transit-client/zig-out/lib/libtransit_sdk_client.so'
     if not native.is_file() or not sdk.is_file():
@@ -70,6 +70,6 @@ def build(output, native_prefix=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output')
-    parser.add_argument('--native-prefix')
+    parser.add_argument('--native-prefix', required=True)
     args = parser.parse_args()
     build(args.output, args.native_prefix)

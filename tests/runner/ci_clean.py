@@ -133,6 +133,8 @@ def main():
             shutil.copytree(checkout / ".cache/verification", evidence / "verification")
         if (checkout / ".cache/checks").exists():
             shutil.copytree(checkout / ".cache/checks", evidence / "checks")
+        if (checkout / ".cache/native-artifacts").exists():
+            shutil.copytree(checkout / ".cache/native-artifacts", evidence / "native-artifacts")
         print(f"Clean CI timing and completion evidence: {evidence}", flush=True)
         shutil.rmtree(directory)
     label = f"Clean check {args.check}" if args.check else f"Clean CI lane {args.lane}" if args.lane else "Clean CI"

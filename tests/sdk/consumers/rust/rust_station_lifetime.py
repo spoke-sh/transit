@@ -9,6 +9,10 @@ from sdk.sdk_station_runner import run as schedule
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cases', type=int, default=128)
+    parser.add_argument('--node', required=True)
+    parser.add_argument('--cli', required=True)
+    parser.add_argument('--library', required=True)
+    parser.add_argument('--artifacts', required=True)
     args = parser.parse_args()
     if not 1 <= args.cases <= 1024:
         parser.error('--cases must be in 1..1024')
@@ -26,8 +30,7 @@ def main():
                 completed += count
                 print(f'Rust lifetime: {completed}/{args.cases} cases verified with joined fixture cleanup.', flush=True)
 
-    run('zig-out/bin/transit-node', 'zig-out/bin/transit-admin',
-        'zig-out/lib/libtransit_client.so', '.cache/bindings/rust', execute=batches)
+    run(args.node, args.cli, args.library, args.artifacts, execute=batches)
 
 
 if __name__ == '__main__':

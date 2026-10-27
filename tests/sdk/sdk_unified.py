@@ -125,7 +125,7 @@ def install(root, languages):
         subprocess.run([sys.executable, '-m', 'venv', '--without-pip', venv], check=True, env=env)
         python = str(venv/'bin/python')
         subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index',
-            '--find-links', str(ROOT/'.cache/bindings/wheels'), 'transit-station==0.2.0'], check=True, env=env, stdout=subprocess.DEVNULL)
+            '--find-links', str(ROOT/'.cache/bindings/Debug/wheels'), 'transit-station==0.2.0'], check=True, env=env, stdout=subprocess.DEVNULL)
         script = root/'consumer.py'
         shutil.copyfile(ROOT/'tests/sdk/consumers/python/python_unified_sdk.py', script)
         subprocess.run([python, '-B', script, 'codecs', root/'fixtures.json'], check=True, env=env, cwd=root, timeout=90)
@@ -154,7 +154,7 @@ def install_python_direct(root, packages):
     return lambda endpoint, profile, phase: subprocess.run([python, '-B', script, endpoint, str(profile), phase], cwd=root, env=env, check=True, timeout=120)
 
 
-def install_node(root, fixtures, packages=ROOT/'.cache/bindings/node', *, direct=False):
+def install_node(root, fixtures, packages=ROOT/'.cache/bindings/Debug/node', *, direct=False):
     root.mkdir()
     dependencies = {f'@transit/{name}': 'file:' + str(packages/f'transit-{name}-0.2.0.tgz')
         for name in ('client', 'native-client', 'station', 'native-station')}
@@ -176,7 +176,7 @@ def install_node(root, fixtures, packages=ROOT/'.cache/bindings/node', *, direct
     return open_callers
 
 
-def install_ruby(root, fixtures, packages=ROOT/'.cache/bindings/ruby', *, direct=False):
+def install_ruby(root, fixtures, packages=ROOT/'.cache/bindings/Debug/ruby', *, direct=False):
     root.mkdir()
     default = subprocess.check_output(['ruby', '-rrubygems', '-e', 'puts Gem.default_dir'], text=True).strip()
     env = {k: v for k, v in os.environ.items() if k not in ('RUBYLIB', 'RUBYOPT', 'GEM_HOME', 'GEM_PATH', 'TRANSIT_HOST')}
@@ -197,7 +197,7 @@ def install_ruby(root, fixtures, packages=ROOT/'.cache/bindings/ruby', *, direct
     return open_callers
 
 
-def install_rust(root, fixtures, packages=ROOT/'.cache/bindings/rust', *, direct=False):
+def install_rust(root, fixtures, packages=ROOT/'.cache/bindings/Debug/rust', *, direct=False):
     root.mkdir()
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
     for name in names:
@@ -279,7 +279,7 @@ class CConsumer(Consumer):
         return result
 
 
-def install_c(root, fixtures, language, packages=ROOT / '.cache/bindings/c', *, direct=False):
+def install_c(root, fixtures, language, packages=ROOT / '.cache/bindings/Debug/c', *, direct=False):
     root.mkdir()
     prefix = root/'installed'
     for artifact in sorted(packages.glob('*.tar.gz')):
@@ -333,7 +333,7 @@ def install_c(root, fixtures, language, packages=ROOT / '.cache/bindings/c', *, 
     return open_callers
 
 
-def install_java(root, fixtures, packages=ROOT/'.cache/bindings/java', *, direct=False):
+def install_java(root, fixtures, packages=ROOT/'.cache/bindings/Debug/java', *, direct=False):
     root.mkdir(); lib = root/'lib'; lib.mkdir()
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
     for name in (*[f'{name}-0.2.0.jar' for name in names], 'gson-2.12.1.jar'):
@@ -355,7 +355,7 @@ def install_java(root, fixtures, packages=ROOT/'.cache/bindings/java', *, direct
     return open_callers
 
 
-def install_dotnet(root, fixtures, packages=ROOT/'.cache/bindings/dotnet', *, direct=False):
+def install_dotnet(root, fixtures, packages=ROOT/'.cache/bindings/Debug/dotnet', *, direct=False):
     import xml.etree.ElementTree as ET
     root.mkdir(); source = root/'source'; source.mkdir(); feed = root/'feed'; feed.mkdir()
     for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
@@ -385,7 +385,7 @@ def install_dotnet(root, fixtures, packages=ROOT/'.cache/bindings/dotnet', *, di
     return open_callers
 
 
-def install_beam(root, fixtures, language, packages=ROOT / '.cache/bindings/beam', *, direct=False):
+def install_beam(root, fixtures, language, packages=ROOT / '.cache/bindings/Debug/beam', *, direct=False):
     root.mkdir(); lib = root/'lib'; lib.mkdir(); classes = root/'classes'; classes.mkdir()
     names = ['transit_native_client', 'transit_client', 'transit_native_station', 'transit_station_sdk']
     if language == 'elixir': names += ['transit_client_elixir', 'transit_station_elixir']

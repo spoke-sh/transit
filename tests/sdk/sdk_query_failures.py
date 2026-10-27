@@ -11,8 +11,9 @@ FAMILIES = ('python', 'node', 'rust', 'ruby', 'c', 'java', 'dotnet', 'beam')
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--native-prefix', type=Path, default=Path('zig-out'))
-    parser.add_argument('--artifacts', type=Path, default=Path('.cache/bindings'))
+    parser.add_argument('--native-prefix', type=Path, required=True)
+    parser.add_argument('--node', type=Path, required=True)
+    parser.add_argument('--artifacts', type=Path, default=Path('.cache/bindings/Debug'))
     parser.add_argument('--family', choices=FAMILIES, action='append')
     args = parser.parse_args()
     native = args.native_prefix.resolve()
@@ -23,7 +24,7 @@ def main():
         for family in args.family or FAMILIES:
             package = 'wheels' if family == 'python' else family
             importlib.import_module(f'sdk.consumers.{family}.{family}_station_sdk').run(
-                str(native / 'bin/transit-node'), str(native / 'bin/transit-admin'),
+                str(args.node.resolve()), str(native / 'bin/transit-admin'),
                 str(native / 'lib/libtransit_client.so'), str(artifacts / package),
                 execute=sdk_station_runner.run)
     finally:

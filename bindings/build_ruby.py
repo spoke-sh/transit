@@ -8,7 +8,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def build(output, names, native_prefix=ROOT / 'zig-out'):
+def build(output, names, native_prefix):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     for name in names:
@@ -31,6 +31,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
     parser.add_argument('packages', nargs='*')
-    parser.add_argument('--native-prefix', type=Path, default=ROOT / 'zig-out')
+    parser.add_argument('--native-prefix', type=Path, required=True)
     args = parser.parse_args()
     build(args.output, args.packages or ['transit-native-client', 'transit-client', 'transit-native-station', 'transit-station', 'examples/station-sdk/ruby'], args.native_prefix.resolve())

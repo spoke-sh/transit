@@ -203,6 +203,7 @@ jobs:
             .cache/ci/runs/
             .cache/checks/*.json
             .cache/checks/runs/
+            .cache/native-artifacts/
             .cache/verification/*.json
             .cache/verification/model/*.json
             .cache/verification/model/*.log

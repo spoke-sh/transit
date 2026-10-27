@@ -23,6 +23,12 @@ nested execution. Run repository drivers through
 matching native binaries and package directories. Copied programs run directly
 inside their private installed environments.
 
+Native inputs come from [immutable fixture sets](../harness/README.md), with
+separate Debug and ReleaseSafe package directories. The query-failure driver
+requires both a client `--native-prefix` and an explicit `--node`; the Rust
+lifetime driver requires explicit node, CLI, library and installed artifacts.
+Neither driver infers these inputs from the last contents of `zig-out/`.
+
 Query/storage and interface fixtures own their semantic assertions. The SDK
 installers expose those same schedules to language callers; a codec-only check
 does not establish live authorization, uncertain-call recovery or disk behavior.

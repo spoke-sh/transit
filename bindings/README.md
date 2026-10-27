@@ -45,17 +45,23 @@ Linux x86_64 and are built from this checkout. Native packages retain their loca
 Nix runtime linkage. Public registries and other platform artifacts are not
 provided by these build tasks.
 
-The Python wheel, Node tarball, Ruby gem, Java JAR, .NET NuGet, Rust crate, BEAM OTP and C/C++ archive builders accept `--native-prefix PATH`
+The Python wheel, Node tarball, Ruby gem, Java JAR, .NET NuGet, Rust crate, Go, BEAM OTP and C/C++ archive builders require `--native-prefix PATH`
 to package libraries and hosts from an explicitly selected Zig install prefix. For example,
 `python3 -B bindings/build_python.py /tmp/transit-wheels --native-prefix /tmp/transit-native`
 uses that prefix's `lib/` and `bin/` artifacts; all must come from the same source
-definition and build. Omitting the option uses this checkout's `zig-out/`.
+definition and build. The task module resolves immutable native outputs through
+the [Zig fixture graph](../build/README.md) and records their source, profile,
+compiler, target, definition and hashes under `.cache/native-artifacts/`.
+Debug and ReleaseSafe package directories are separate under
+`.cache/bindings/<profile>/`. Each recipe explicitly selects the authority and
+client profiles; installed consumer schedules retain their existing profiles.
+The package directories are generated outputs, not cached test results.
 
 | Task | Work |
 | --- | --- |
 | `just bindings::zig-test` | Shared module identity and isolated real Zig application build |
 | `just bindings::runtime-boundary` | Nix runtime and gateway build without SDK source |
-| `just bindings::build` | Shared client/Station libraries and native hosts |
+| `just bindings::build` | Resolve and record the immutable Debug client fixture set |
 | `just bindings::native` | Native/port parity, scoped turns, exact recovery, query capture and checkpoint/tail materialization |
 | `just bindings::python-test` | Strict Python APIs and clean installed wheel consumers |
 | `just bindings::node-sdk-test` | TypeScript checks and installed Node consumers |
@@ -86,7 +92,7 @@ just bindings::go-sdk-test
 ```
 
 The task builds the Go module and explicit native installation archives under
-`.cache/bindings/go/`, checks formatting, runs `go vet` and race tests with
+`.cache/bindings/Debug/go/`, checks formatting, runs `go vet` and race tests with
 `GOEXPERIMENT=cgocheck2`, and runs the real-authority recovery schedule from an
 installed consumer outside the checkout. It also builds and runs the actual
 [Go example](../examples/go-client/README.md). A foreign-definition build and a

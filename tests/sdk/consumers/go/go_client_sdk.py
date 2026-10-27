@@ -74,7 +74,7 @@ replace github.com/spoke-sh/transit/sdks/go => ../sdk
                     assert json.loads(output) == json.loads(result)
             return result
         return invoke
-    schedule(node, cli, library, install, 'Go', ROOT / '.cache/bindings/go/raw-evidence.json')
+    schedule(node, cli, library, install, 'Go', Path(artifacts).resolve() / 'raw-evidence.json')
 
 
 if __name__ == '__main__':

@@ -4,6 +4,7 @@ const Runtime = @import("runtime.zig").Context;
 
 pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, context: Runtime) void {
     @import("native_fixtures.zig").register(b, target, optimize, context);
+    const sdk_packages = b.option([]const u8, "sdk-packages", "Installed SDK package directory") orelse ".cache/bindings/Debug";
     const http_server = context.http_server;
     const serving_http = context.serving_http;
     const application = context.application;
@@ -1235,7 +1236,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_catalog_python.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_python.addArtifactArg(node_artifact);
     direct_catalog_python.addArtifactArg(direct_table_client);
-    direct_catalog_python.addArgs(&.{ "sdk-python", ".cache/bindings/wheels" });
+    direct_catalog_python.addArgs(&.{ "sdk-python", b.pathJoin(&.{ sdk_packages, "wheels" }) });
     direct_catalog_python.has_side_effects = true;
     direct_catalog_python.stdio = .inherit;
     b.step("test-direct-catalog-python", "Prove installed Python direct lifecycle and retained SQL recovery").dependOn(&direct_catalog_python.step);
@@ -1244,7 +1245,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_catalog_node.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_node.addArtifactArg(node_artifact);
     direct_catalog_node.addArtifactArg(direct_table_client);
-    direct_catalog_node.addArgs(&.{ "sdk-node", ".cache/bindings/node" });
+    direct_catalog_node.addArgs(&.{ "sdk-node", b.pathJoin(&.{ sdk_packages, "node" }) });
     direct_catalog_node.has_side_effects = true;
     direct_catalog_node.stdio = .inherit;
     b.step("test-direct-catalog-node", "Prove installed Node direct lifecycle and retained SQL recovery").dependOn(&direct_catalog_node.step);
@@ -1253,7 +1254,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_catalog_ruby.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_ruby.addArtifactArg(node_artifact);
     direct_catalog_ruby.addArtifactArg(direct_table_client);
-    direct_catalog_ruby.addArgs(&.{ "sdk-ruby", ".cache/bindings/ruby" });
+    direct_catalog_ruby.addArgs(&.{ "sdk-ruby", b.pathJoin(&.{ sdk_packages, "ruby" }) });
     direct_catalog_ruby.has_side_effects = true;
     direct_catalog_ruby.stdio = .inherit;
     b.step("test-direct-catalog-ruby", "Prove installed Ruby direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_ruby.step);
@@ -1262,7 +1263,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_catalog_java.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_java.addArtifactArg(node_artifact);
     direct_catalog_java.addArtifactArg(direct_table_client);
-    direct_catalog_java.addArgs(&.{ "sdk-java", ".cache/bindings/java" });
+    direct_catalog_java.addArgs(&.{ "sdk-java", b.pathJoin(&.{ sdk_packages, "java" }) });
     direct_catalog_java.has_side_effects = true;
     direct_catalog_java.stdio = .inherit;
     b.step("test-direct-catalog-java", "Prove installed Java direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_java.step);
@@ -1271,7 +1272,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_catalog_dotnet.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_dotnet.addArtifactArg(node_artifact);
     direct_catalog_dotnet.addArtifactArg(direct_table_client);
-    direct_catalog_dotnet.addArgs(&.{ "sdk-dotnet", ".cache/bindings/dotnet" });
+    direct_catalog_dotnet.addArgs(&.{ "sdk-dotnet", b.pathJoin(&.{ sdk_packages, "dotnet" }) });
     direct_catalog_dotnet.has_side_effects = true;
     direct_catalog_dotnet.stdio = .inherit;
     b.step("test-direct-catalog-dotnet", "Prove installed .NET direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_dotnet.step);
@@ -1280,7 +1281,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_catalog_rust.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_rust.addArtifactArg(node_artifact);
     direct_catalog_rust.addArtifactArg(direct_table_client);
-    direct_catalog_rust.addArgs(&.{ "sdk-rust", ".cache/bindings/rust" });
+    direct_catalog_rust.addArgs(&.{ "sdk-rust", b.pathJoin(&.{ sdk_packages, "rust" }) });
     direct_catalog_rust.has_side_effects = true;
     direct_catalog_rust.stdio = .inherit;
     b.step("test-direct-catalog-rust", "Prove installed Rust direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_rust.step);
@@ -1289,7 +1290,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_catalog_beam.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_beam.addArtifactArg(node_artifact);
     direct_catalog_beam.addArtifactArg(direct_table_client);
-    direct_catalog_beam.addArgs(&.{ "sdk-beam", ".cache/bindings/beam" });
+    direct_catalog_beam.addArgs(&.{ "sdk-beam", b.pathJoin(&.{ sdk_packages, "beam" }) });
     direct_catalog_beam.has_side_effects = true;
     direct_catalog_beam.stdio = .inherit;
     b.step("test-direct-catalog-beam", "Prove installed Erlang and Elixir direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_beam.step);
@@ -1298,7 +1299,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_catalog_c.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
     direct_catalog_c.addArtifactArg(node_artifact);
     direct_catalog_c.addArtifactArg(direct_table_client);
-    direct_catalog_c.addArgs(&.{ "sdk-c", ".cache/bindings/c" });
+    direct_catalog_c.addArgs(&.{ "sdk-c", b.pathJoin(&.{ sdk_packages, "c" }) });
     direct_catalog_c.has_side_effects = true;
     direct_catalog_c.stdio = .inherit;
     b.step("test-direct-catalog-c", "Prove installed C and C++ direct lifecycle and retained metadata recovery").dependOn(&direct_catalog_c.step);

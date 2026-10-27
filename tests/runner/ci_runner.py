@@ -46,6 +46,8 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
     (path / "result.json").write_text('{"fixture": true}\\n')
     Path(".cache/verification").mkdir()
     Path(".cache/verification/proof.json").write_text('{"fixture": true}\\n')
+    Path(".cache/native-artifacts/fixture").mkdir(parents=True)
+    Path(".cache/native-artifacts/fixture/record.json").write_text('{"fixture": true}\\n')
     sys.exit(int(os.environ.get("CI_CLEAN_EXIT", "0")))
 ''')
         executable.chmod(0o755)
@@ -84,6 +86,7 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
                 reports = [p for p in reports if json.loads(p.read_text())["selection"] == lane]
                 assert len(reports) == 1
                 assert (reports[0].parent / "verification/proof.json").is_file()
+                assert (reports[0].parent / "native-artifacts/fixture/record.json").is_file()
                 result_directory = "checks" if check_scope else "."
                 assert (reports[0].parent / result_directory / "runs/fixture/task.log").read_text() == "automatic output"
                 if check_scope:
@@ -119,6 +122,7 @@ def main():
     assert ".cache/m9/station-local-readiness.json" in artifacts["with"]["path"].splitlines()
     assert ".cache/checks/*.json" in artifacts["with"]["path"].splitlines()
     assert {".cache/ci/runs/", ".cache/checks/runs/"} <= set(artifacts["with"]["path"].splitlines())
+    assert ".cache/native-artifacts/" in artifacts["with"]["path"].splitlines()
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"
