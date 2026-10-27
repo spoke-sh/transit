@@ -293,7 +293,12 @@ pub fn main(init: std.process.Init) !void {
         const snapshot = try s.open(&server.ready.?, 3);
         var reader: station.ImmutableIndex.Reader(*Turn) = .{ .publication = s.publication(), .source = &server.ready.? };
         var cursor: doc.Document.SequenceCursor = .{};
-        try t.expect((try snapshot.sequenceStep(&reader, .{ .counter = 1, .replica = 1 }, &cursor)) == .item);
+        try t.expectEqual(.more, try snapshot.sequenceStep(&reader, .{ .counter = 1, .replica = 1 }, &cursor));
+        try t.expectEqualDeep(doc.Model.Dot{ .counter = 2, .replica = 1 }, cursor.current);
+        const visible = try snapshot.sequenceStep(&reader, .{ .counter = 1, .replica = 1 }, &cursor);
+        try t.expect(visible == .item);
+        try t.expectEqualDeep(doc.Model.Dot{ .counter = 6, .replica = 2 }, visible.item.id);
+        try t.expectEqual(@as(u32, 0x1f642), visible.item.values.assignments[0].value.character);
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Principal, .permissions = 0 } });
         try t.expectError(error.AccessDenied, s.readSequence(&server.ready.?, .{ .revision = 3, .object = .{ .counter = 1, .replica = 1 }, .traversal = cursor }));
         try t.expectError(error.AccessDenied, server.finish(null));
