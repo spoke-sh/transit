@@ -9,6 +9,39 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Segment membership selectivity — 2026-10-27
+
+The range-reader control in `be360c2f0` holds the row count at 256 and varies
+distinct int64 values across 4, 16, 64 and 256. Values are multiples of 4,096;
+the 2,048 absent probes are the odd integers from 1 through 4,095, all inside
+every group's min/max. The matched control changes only the decoded membership
+mask to all ones. The real encoded predicate and integrity/projection path still
+run; each arm independently returns no rows. Every present value is also queried
+and checked against its exact expected multiplicity.
+
+The 64-bit mask sets 7, 27, 60 and 64 bits respectively. False positives request
+22, 379, 1,803 and 2,048 predicate pages out of 2,048; the control requests all
+2,048. Each page is 2,432 bytes. The fixed filter therefore saves 4,927,232,
+4,059,008, 595,840 and zero payload bytes respectively. The
+[performance reference](../../handbook/reference/performance.md#segment-membership-filter-selectivity)
+records the rates and sizing ratios. Both four- and sixteen-value fixtures
+enforce fewer than 25% false positives as a deterministic regression ceiling;
+no universal workload bound follows. The saturated control prevents treating
+this fixed filter as an adaptive or large-distinct-count index.
+
+In the pinned shell, `zig build test -Dtest-filter='TSeg membership' --summary all`
+from `packages/zig/transit-fuze` passes **22/22** selected/dependent tests in
+seven seconds, with 9 MiB reported test-process MaxRSS and no allocator leaks.
+Raw output is `/var/tmp/transit-m2-membership-selectivity.log`. The compiler's
+runner prints a `failed command` label for diagnostic stderr, but exits zero
+with all eight build steps successful; there is no failing test in this run.
+
+This experiment measures payload range requests against an in-memory immutable
+source, excluding common metadata reads. It does not measure physical disk I/O,
+installed latency or probabilistic confidence intervals. The representation and
+runtime implementation are unchanged. The contract now states its exact fixed
+filter and distinguishes the embedded sorted array from the live paged key index.
+
 ## Document conflicts, tombstones and retained revisions on disk — 2026-10-26
 
 The Document crash schedule in `f96727c0a` passes against the local backend;

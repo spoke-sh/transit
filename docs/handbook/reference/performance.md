@@ -51,6 +51,29 @@ does not isolate frequency, caches or memory bandwidth. Hardware performance
 counters are unavailable, so no cycle, instruction or bandwidth attribution is
 claimed. Medians are not tail percentiles or service latency guarantees.
 
+## Segment membership filter selectivity
+
+Segment groups retain a fixed 64-bit, two-hash membership filter per indexed
+column. A controlled range-reader experiment uses 256 int64 rows per group and
+4, 16, 64 or 256 distinct values. Each arm asks about the same 2,048 absent values
+inside the group's minimum/maximum bounds. The control disables only membership
+pruning; page layout, integrity checks and predicate evaluation stay identical.
+
+| Distinct values | Filter bits per distinct value | False positives | Payload bytes with filter / control |
+| --- | ---: | ---: | ---: |
+| 4 | 16 | 22 / 2,048 (1.07%) | 53,504 / 4,980,736 |
+| 16 | 4 | 379 / 2,048 (18.51%) | 921,728 / 4,980,736 |
+| 64 | 1 | 1,803 / 2,048 (88.04%) | 4,384,896 / 4,980,736 |
+| 256 | 0.25 | 2,048 / 2,048 (100%) | 4,980,736 / 4,980,736 |
+
+The fixed filter helps low-distinct-count groups and saturates on the 256-value
+fixture. It is not an adaptive filter or a guaranteed false-positive bound.
+Every present value also returns its independently expected multiplicity; no
+false negative is observed. Counts measure requested payload ranges from an
+in-memory immutable source, excluding the common footer reads. They do not
+measure filesystem I/O or latency. The [executed account](../../history/qualification/storage.md#segment-membership-selectivity--2026-10-27)
+records the source, controls and reproduction.
+
 ## Retained Table key-range measurements
 
 A paired ReleaseSafe disk-owner matrix measures 1,024-row Table scans and a
@@ -829,9 +852,10 @@ staging pipeline:
   for selected point reads and decoded groups for scans, and enforces separate
   byte budgets. Full-key ranges use the paged ordered index with declared
   collations. Finite direct scans select required columns before reading segment
-  pages. General SQL predicate pushdown and encoded operators remain separate
-  work; segment Zone Map and Bloom-filter primitives alone do not establish
-  those execution paths.
+  pages and execute bounded predicates before materializing selected rows.
+  Relational predicate pushdown remains separate; the
+  [query owner](../../../packages/zig/transit-query/README.md) defines the finite
+  scan's source-coverage, failure-order and authorization gates.
 - **Cache and manifest components:** `NvmeCache` caches `64 KiB`
   SHA-256-verified ranges and protects `.metadata_or_index` chunks from
   sequential `.column_data` scans. `PartitionLease.OccCoordinator` can rebase
