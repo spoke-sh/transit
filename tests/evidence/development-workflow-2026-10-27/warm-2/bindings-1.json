@@ -1,0 +1,255 @@
+[
+  {
+    "lane": "bindings-1",
+    "task": "bindings::check",
+    "log": "001.log",
+    "command": [
+      "just",
+      "bindings::check"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 3355,
+    "diagnostics": {
+      "bytes": 413,
+      "retained_bytes": 413,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "001.log",
+        "bytes": 413,
+        "sha256": "cb313eed2ff797ce95d7ce1f55ba824735465c3f18a54713cab58b2bb4d16e83"
+      }
+    },
+    "seconds": 122.42
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::native",
+    "log": "002.log",
+    "command": [
+      "just",
+      "bindings::native"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 3454,
+    "diagnostics": {
+      "bytes": 1103,
+      "retained_bytes": 1103,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "002.log",
+        "bytes": 1103,
+        "sha256": "2a5b091f1ead67c652f411d80e61457935bf602f65bb010f37942c44543cc5f6"
+      }
+    },
+    "seconds": 246.12
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::python-test",
+    "log": "003.log",
+    "command": [
+      "just",
+      "bindings::python-test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 9294,
+    "diagnostics": {
+      "bytes": 55504,
+      "retained_bytes": 55504,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "003.log",
+        "bytes": 55504,
+        "sha256": "e9be7b825540f987291e7b3b5683029adab541415d64b5b47c57359f7846699d"
+      }
+    },
+    "seconds": 1370.43
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::node-sdk-test",
+    "log": "004.log",
+    "command": [
+      "just",
+      "bindings::node-sdk-test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 25127,
+    "diagnostics": {
+      "bytes": 24248,
+      "retained_bytes": 24248,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "004.log",
+        "bytes": 24248,
+        "sha256": "1748018e368e23a42765c8e5dcab2ed1cfb5445da82e85fafbd8a238e7adbe81"
+      }
+    },
+    "seconds": 647.3
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::logical-test",
+    "log": "005.log",
+    "command": [
+      "just",
+      "bindings::logical-test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 42057,
+    "diagnostics": {
+      "bytes": 23172,
+      "retained_bytes": 23172,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "005.log",
+        "bytes": 23172,
+        "sha256": "6fcc7e58fd4539b76e4b167073f5ec71fe9fbe2f4014f8df7cfcac4f4103567e"
+      }
+    },
+    "seconds": 49.8
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::rust-sdk-test",
+    "log": "006.log",
+    "command": [
+      "just",
+      "bindings::rust-sdk-test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 42515,
+    "diagnostics": {
+      "bytes": 33677,
+      "retained_bytes": 33677,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "006.log",
+        "bytes": 33677,
+        "sha256": "ccefd235c7e5b0dc9d7e760479d9de0753235963172b164cc33cf83445d3eb1f"
+      }
+    },
+    "seconds": 509.96
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::ruby-sdk-test",
+    "log": "007.log",
+    "command": [
+      "just",
+      "bindings::ruby-sdk-test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 65821,
+    "diagnostics": {
+      "bytes": 20333,
+      "retained_bytes": 20333,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "007.log",
+        "bytes": 20333,
+        "sha256": "8c8c1efe48a3548acba6f0996bac1c1eb14807f26a77fed5f0cf7c841514b6c5"
+      }
+    },
+    "seconds": 289.85
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::sdk-interop",
+    "log": "008.log",
+    "command": [
+      "just",
+      "bindings::sdk-interop"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 79828,
+    "diagnostics": {
+      "bytes": 40848,
+      "retained_bytes": 40848,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "008.log",
+        "bytes": 40848,
+        "sha256": "4920bdd51a5e3180927bab02cfb0a156ae2c68fadd422a784765f5f385136911"
+      }
+    },
+    "seconds": 1181.42
+  },
+  {
+    "lane": "bindings-1",
+    "task": "test::sql",
+    "log": "009.log",
+    "command": [
+      "just",
+      "test::sql"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 103110,
+    "diagnostics": {
+      "bytes": 1396,
+      "retained_bytes": 1396,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "009.log",
+        "bytes": 1396,
+        "sha256": "d109705bb1665f16b351b5199eb52201ece22990632b474cec4abfacf7828978"
+      }
+    },
+    "seconds": 43.82
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::grpc-faults",
+    "log": "010.log",
+    "command": [
+      "just",
+      "bindings::grpc-faults"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 103233,
+    "diagnostics": {
+      "bytes": 25743,
+      "retained_bytes": 25743,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "010.log",
+        "bytes": 25743,
+        "sha256": "8955ea9dcdff3b21f52875d9e3ff1cf6b506544ed556c733f150febe3bac170d"
+      }
+    },
+    "seconds": 119.95
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::connector-preparation",
+    "log": "011.log",
+    "command": [
+      "just",
+      "bindings::connector-preparation"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 107417,
+    "diagnostics": {
+      "bytes": 23153,
+      "retained_bytes": 23153,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "011.log",
+        "bytes": 23153,
+        "sha256": "d162b3e7c548e0bb61f1c4c86fba47a6599ac4c6c0c4dbe7e61f777ad50207ef"
+      }
+    },
+    "seconds": 49.41
+  }
+]

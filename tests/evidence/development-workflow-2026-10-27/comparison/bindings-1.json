@@ -1,0 +1,68 @@
+[
+  {
+    "lane": "bindings-1",
+    "task": "bindings::check",
+    "seconds": 124.57,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::native",
+    "seconds": 240.5,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::python-test",
+    "seconds": 1116.82,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::node-sdk-test",
+    "seconds": 624.58,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::logical-test",
+    "seconds": 46.6,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::rust-sdk-test",
+    "seconds": 500.89,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::ruby-sdk-test",
+    "seconds": 286.56,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::sdk-interop",
+    "seconds": 1222.06,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "test::sql",
+    "seconds": 48.71,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::grpc-faults",
+    "seconds": 113.56,
+    "exit_code": 0
+  },
+  {
+    "lane": "bindings-1",
+    "task": "bindings::connector-preparation",
+    "seconds": 44.51,
+    "exit_code": 0
+  }
+]

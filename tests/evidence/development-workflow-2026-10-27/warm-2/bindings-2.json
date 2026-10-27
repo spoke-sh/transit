@@ -1,0 +1,117 @@
+[
+  {
+    "lane": "bindings-2",
+    "task": "bindings::go-sdk-test",
+    "log": "001.log",
+    "command": [
+      "just",
+      "bindings::go-sdk-test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 3258,
+    "diagnostics": {
+      "bytes": 920,
+      "retained_bytes": 920,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "001.log",
+        "bytes": 920,
+        "sha256": "f78fe72c1148977b19970e617955360809d9204783be310dc5589b70774f5eda"
+      }
+    },
+    "seconds": 279.15
+  },
+  {
+    "lane": "bindings-2",
+    "task": "bindings::c-sdk-test",
+    "log": "002.log",
+    "command": [
+      "just",
+      "bindings::c-sdk-test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 10732,
+    "diagnostics": {
+      "bytes": 30115,
+      "retained_bytes": 30115,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "002.log",
+        "bytes": 30115,
+        "sha256": "59986a3cf0cf20fe3fd7723be1f3368ab05b03e926f72da76871aa37bc2e14aa"
+      }
+    },
+    "seconds": 1992.62
+  },
+  {
+    "lane": "bindings-2",
+    "task": "bindings::java-sdk-test",
+    "log": "003.log",
+    "command": [
+      "just",
+      "bindings::java-sdk-test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 39621,
+    "diagnostics": {
+      "bytes": 15700,
+      "retained_bytes": 15700,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "003.log",
+        "bytes": 15700,
+        "sha256": "c49d0c8a40c515d4f3e7f0fc33a91311d1265b133862f30fa6c0475170e99061"
+      }
+    },
+    "seconds": 402.56
+  },
+  {
+    "lane": "bindings-2",
+    "task": "bindings::dotnet-sdk-test",
+    "log": "004.log",
+    "command": [
+      "just",
+      "bindings::dotnet-sdk-test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 56108,
+    "diagnostics": {
+      "bytes": 21734,
+      "retained_bytes": 21734,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "004.log",
+        "bytes": 21734,
+        "sha256": "3997f1d7c5c10dde9c4a00bc60567ab02114150761388da43ec480715ce8ef4f"
+      }
+    },
+    "seconds": 309.46
+  },
+  {
+    "lane": "bindings-2",
+    "task": "bindings::beam-sdk-test",
+    "log": "005.log",
+    "command": [
+      "just",
+      "bindings::beam-sdk-test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 71451,
+    "diagnostics": {
+      "bytes": 102524,
+      "retained_bytes": 102524,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "005.log",
+        "bytes": 102524,
+        "sha256": "7474dd519f8781570d756ac2e926d18d58cb6646014e1b540469cea5ca6f8d56"
+      }
+    },
+    "seconds": 857.07
+  }
+]

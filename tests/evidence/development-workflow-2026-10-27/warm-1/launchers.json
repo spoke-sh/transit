@@ -1,0 +1,48 @@
+[
+  {
+    "lane": "launchers",
+    "task": "test::build",
+    "log": "001.log",
+    "command": [
+      "just",
+      "test::build"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 3047,
+    "diagnostics": {
+      "bytes": 3798,
+      "retained_bytes": 3798,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "001.log",
+        "bytes": 3798,
+        "sha256": "7867dfa1143299b20caf81cc29bcedf39f3a4a76377d158718d8497cfbff886d"
+      }
+    },
+    "seconds": 225.93
+  },
+  {
+    "lane": "launchers",
+    "task": "launchers::local::test",
+    "log": "002.log",
+    "command": [
+      "just",
+      "launchers::local::test"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 3786,
+    "diagnostics": {
+      "bytes": 4345,
+      "retained_bytes": 4345,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "002.log",
+        "bytes": 4345,
+        "sha256": "80ce5c360c9c3a35c8eebca1dd1ef89903997d9c5d768c0bd3fe35282922436b"
+      }
+    },
+    "seconds": 440.5
+  }
+]

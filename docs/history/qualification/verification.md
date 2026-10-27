@@ -1794,6 +1794,300 @@ their earlier source and definition attribution. They do not qualify that later
 implementation or establish cross-definition compatibility; current storage
 integration and qualification remain separate.
 
+## Test ownership and development workflow — 2026-10-27
+
+This qualification asks whether contributors can find and execute the required
+checks with less repeated preparation, without losing installed-language,
+physical-disk, recovery, protocol or browser coverage. It evaluates test ownership,
+build inputs, artifact reuse, check selection and scheduling. It does not qualify
+a new storage engine or change the application's accepted-operation semantics.
+
+The [implementation plan](../../roadmap/development-workflow.md),
+[file dispositions](../../roadmap/development-workflow-migration.json) and
+[ownership audit](../../roadmap/development-workflow-audit.md) retain the delivery
+and migration details. Current commands and limits belong to the
+[runner](../../../tests/runner/README.md), [task guide](../../../tasks/README.md)
+and [toolchain guide](../../../nix/README.md).
+
+### Comparison basis and method
+
+The original inventory at `a610ecd5dcff22f2d0177b61b905a8e985252c13` contains
+1,405 test files and 103 ordinary tasks. The migration preserves 670 original
+files with their domain owners and archives 735 generated observations at their
+original source/hash. Only README.md and AGENTS.md remain at the root. All 103
+ordinary tasks still run exactly once; seven browser tasks remain an explicit
+continuation. The 14 original SDK scenario identities remain, with one additional
+registry entry for the collation repair also present in the comparison source.
+
+The successful comparison source is `40e70d2029acf2478cd7c185b57adc2dbdae49d7`.
+Obtaining that baseline required correcting existing collation fixtures, HTTP
+body-read cancellation and terminal logging. The same semantic repairs are in
+the candidate. Production application/package and SDK implementation sources
+match between that comparison and candidate `93503e966`; differences in those
+owners are documentation, diagnostic reference paths and test source imports.
+Build/test registration and preparation are the changes under evaluation.
+This is not a claim of identical compiled binaries across different source paths.
+
+[Comparison run 40441691526](https://github.com/spoke-sh/transit/actions/runs/40441691526)
+passes all ordinary and browser checks. It takes 98.1 elapsed minutes and 400.4
+aggregate runner minutes. Its Nix cache reuse is partial, which prevents treating
+the entire elapsed difference from a warm candidate as a pure code speedup.
+Task/build phases and controlled local experiments provide narrower comparisons.
+Additional runner controls increase fast-check coverage from 29 to 39 groups;
+the ordinary scenario inventory is preserved, not every internal instruction.
+
+Hosted candidate records identify four logical CPUs and fresh checkouts without
+workspace object files. The comparison selects the same hosted runner class but
+predates the added resource snapshots; exact physical-host matching is not
+established. All samples use the pinned toolchain, with Debug and ReleaseSafe
+as distinct inputs. The three warm manual dispatches start together on
+independent hosted workers and share one branch's immutable dependency caches.
+The seven-job ceiling applies to each workflow, not the combined calibration
+campaign. Hosted timestamps and the date of this account use UTC.
+Warm means each configured GitHub cache restores its matching key. Formal uses
+upstream Nix substitutes in both modes and restores only the Zig dependency cache.
+The explicit cache-miss mode disables GitHub restores/saves while retaining Nix
+binary substitutes. Neither mode means an empty upstream cache.
+
+All three successful warm runs use `93503e966` and the current ordinary/browser
+inventory hash `774c79bc32565ed2c797e1e8bc8e6770ef5bc1119c9c53e60c63627cf1b1e86b`
+(103 ordinary tasks, eight lanes, seven browser tasks). The comparison uses
+`8645c92b17ea210bf0e99f80922d7b6c6bea4c8bb75aeb4996d184e3ae786c45`
+with the same task inventory in seven lanes.
+
+| Successful sample | Full feedback, minutes | Aggregate runner minutes | First completed lane, seconds | GitHub restored GiB |
+| --- | ---: | ---: | ---: | ---: |
+| [Comparison](https://github.com/spoke-sh/transit/actions/runs/40441691526), partial reuse | 98.1 | 400.4 | 338 | 13.39 |
+| [Warm 1](https://github.com/spoke-sh/transit/actions/runs/40455488048) | 75.2 | 363.3 | 226 | 22.01 |
+| [Warm 2](https://github.com/spoke-sh/transit/actions/runs/40455490500) | 82.0 | 416.1 | 205 | 22.01 |
+| [Warm 3](https://github.com/spoke-sh/transit/actions/runs/40455492918) | 74.7 | 375.0 | 230 | 22.01 |
+| [Cold](https://github.com/spoke-sh/transit/actions/runs/40465924045) | 85.7 | 463.5 | 226 | 0 |
+
+The successful cold source is `ab715025057a5949c76014a396f6f3f83a038278`, with the
+same task/lane/browser identity. It adds the browser transport-fault assertion,
+provider-listener controls and cost-reporting corrections described below.
+All ordinary jobs, the browser continuation and the aggregate required gate pass.
+Later changes to the public explanation, reporting thresholds and this account
+retain those implementation-source boundaries.
+
+The warm median is 75.2 minutes of full feedback and 375.0 runner-minutes.
+Elapsed feedback is 16.5–23.9% shorter than the comparison, but that comparison's
+partial cache reuse prevents attributing the whole difference to code changes.
+Aggregate cost spans 9.3% below to 3.9% above the comparison; these observations
+do not establish a consistent aggregate saving. The 20–30-minute full target
+remains unmet. The fast target is met by the scoped local measurement below;
+the 5–15-minute focused-PR target has no matched hosted sample yet.
+
+Warm regression reporting uses 100 minutes of full feedback, 500 runner-minutes
+and 27 GiB restored. Each is the largest successful warm observation plus 20%
+headroom, rounded up to five minutes or one GiB. The same method applied to the
+successful cold observation gives 105 minutes, 560 runner-minutes and zero GitHub
+restored bytes. One cold sample does not establish cold variance. These are initial regression
+thresholds, not achieved improvement targets or statistically established tails.
+The three samples do not establish long-term variance. The cost command reports
+budget violations; correctness CI does not fail solely for exceeding a cost
+budget. Future comparisons must retain this scenario inventory or recalibrate it
+explicitly; moving work to another lane cannot inherit these thresholds silently.
+Calibration reports retain their original `budget_met: false` because
+the only active budget when they were collected described the historical 33-task
+suite. Publishing a new budget does not rewrite those observations.
+
+Queue/selection time is included in required feedback. Aggregate runner cost sums
+job wall time, not a billable price. The first completed lane is a scoped result,
+not the first assertion or complete qualification. Resource observations retain
+initial and final snapshots (or the latest
+task boundary on failure): child CPU/block I/O are cumulative; largest child RSS is
+not the sum of concurrent memory; free disk/available memory are not interval
+minima. Host I/O pressure can include unrelated host work.
+
+In the retained first warm sample, largest-child RSS spans 0.90–3.44 GiB and
+final workspace free space spans 75.3–89.2 GiB. These boundary observations do
+not show aggregate peak RAM or minimum free disk. Together with the controlled
+package experiment they support retaining two compilation workers and the
+seven-job workflow ceiling, not adding more concurrency to live disk schedules.
+
+### Controlled preparation changes and retained boundaries
+
+At clean `8333fdfcd`, fresh local workspaces restricted to CPUs 0–3 compile all
+34 package manifests. One worker takes 293.8 seconds and two take 153.1 seconds
+inside the package runner. Child CPU totals are 426.9 and 422.1 seconds; largest
+child RSS is 544,280 and 544,396 KiB. Dependency caches are retained.
+This single sequential pair supports a two-worker default for package compilation; it does not isolate
+cache-order effects or establish cold variance or aggregate peak RAM.
+Package tests remain sequential.
+
+The full C/C++ installed aggregate and both Document schedules pass after lazy
+peer preparation. Six private installations previously compiled 24 peers; they
+now compile ten. Local installation/peer phases fall from 140.9 to 91.9 seconds.
+That is a preparation observation under concurrent host work, not a whole-lane
+speedup. Matching immutable native artifacts and separate optimization-profile
+packages remain mandatory. No independent scenario shares mutable state.
+
+The ten-language interoperability ring passes with automatic installation and
+pair phases. Its ordered durable history remains one schedule; splitting the
+ring would change its recovery claim. Keep private installations for unrelated
+grants, quotas, snapshots and destructive recovery. The documentation experiment
+measures 64.5 seconds after clearing generated state and 10.8 with it retained;
+keep clean production checks because correct invalidation of references/search
+and generated specifications has not been established for retained state.
+
+Executed task time, excluding hosted setup/cache transfer, retains the slower
+observations alongside the improvements:
+
+| Scope, minutes | Comparison | Warm 1 | Warm 2 | Warm 3 |
+| --- | ---: | ---: | ---: | ---: |
+| First SDK lane | 72.8 | 69.7 | 77.2 | 49.0 |
+| Second SDK lane | 51.3 | 59.9 | 64.0 | 62.0 |
+| C/C++ aggregate | 26.8 | 30.5 | 33.2 | 31.7 |
+| Interoperability ring | 20.4 | 18.4 | 19.7 | 12.9 |
+
+C/C++ and its enclosing SDK lane are slower in all three warm observations
+despite fewer peer compilations. The other SDK lane varies in both directions.
+These runs do not establish a consistent whole-SDK execution speedup. In the
+first warm sample, core is 58.9 versus 60.6 minutes, its core aggregate 23.3
+versus 22.1, and package compilation 3.1 versus 5.6. Live schedules still dominate.
+The comparison's first SDK lane takes 72.8 minutes and core 60.6, so splitting
+C/C++ alone would not shorten that measured critical path. Preserve those
+schedules and leave residual execution costs with their runtime/storage owners.
+
+The Actions `Prepare development shell` step takes 18 seconds in each comparison
+SDK job and 16–19 seconds across the six warm candidate SDK jobs. These SDK jobs
+already have matching restored Nix archives in the comparison; its partial cache
+classification comes from other lanes. Shell entry therefore shows no material
+speedup in this matched-cache subset. In the final cold source, those two shell
+steps take 493 and 524 seconds (8.2 and 8.7 minutes). Cache restoration,
+hosted-tool reclamation,
+locked package installation and checks are separate costs. The retained
+[shell step observations](../../../tests/evidence/development-workflow-2026-10-27/sdk-shell-steps.json)
+are explicit API-field extracts with their endpoints and original timestamps.
+
+Splitting the former 39-task growth lane uses existing task boundaries. The
+successful comparison spends 40.3 minutes in the first 20 tasks and 44.4 in the
+remaining 19. The candidate has separate growth and interfaces lanes while
+retaining the seven-job ceiling. The new job repeats preparation, so elapsed
+time and aggregate cost must be assessed together. With roughly 400 runner
+minutes and seven workers, unchanged work alone implies a lower bound near
+57 minutes; a 20–30-minute full-suite target requires substantially less work.
+
+The cache-capacity investigation finds a configured 10 GB repository limit.
+One generation of core/bindings/experience/formal archives totals approximately
+10.5 GiB before the Zig cache, while temporary branches duplicate archives.
+Formal's Nix tools take about 31 seconds to obtain from upstream substitutes in
+the observed run. Removing its 1.1 GiB archive and unrelated hosted-SDK cleanup
+reduces pressure; independent manual dispatches can share one branch's caches.
+No quota, runner class or dependency pin is changed. Old keys and unrelated
+branches can still evict entries; a reuse request alone never establishes warmth.
+
+### Selection, failures and scope limits
+
+Only reviewed Authority/WAL/Console/Delivery inputs and the Go SDK dependency
+graph select narrower ordinary coverage. Generated Go declarations also select
+binding-generation drift checks. Shared contracts, fixtures, build/runner policy,
+other SDKs and unknown paths remain full; both rename endpoints contribute.
+Main, release, merge-group and manual qualification remain full. Foreign/missing
+source identity, omitted/duplicated tasks and unsupported selection formats reject
+before any child command starts.
+
+The selected tasks are compared with successful full-run observations. Actual
+local execution through the selection-aware runner at `27b8d5a97` passes four
+formal tasks in 40.5 seconds and the installed Go task in 29.0 seconds. These
+manually supplied representative inputs use warm workspace artifacts; they do
+not measure a hosted focused PR.
+Clean fast qualification at `49546a3f4` passes all 39 groups in
+28.6 seconds of recorded check execution. Clean-clone/development-shell setup
+is outside that sum; this is a local measurement, not hosted full feedback.
+
+Earlier failed and cancelled runs retain their outcomes. The migration exposed
+a missing maintained-query Python launch root, obsolete interactive-task arguments
+and a CI selection variable leaking into strict application configuration. Each
+has an owning regression control and real execution evidence. A stale connection
+after deliberate authority replacement now retries only the identical expiry
+read once; persistent transport failure and disclosed results still fail.
+
+The terminal-diagnostic correction in `8333fdfcd` closes the mechanism described
+by [#171](https://github.com/spoke-sh/transit/issues/171). Ordinary telemetry's
+try-lock could discard the sole service failure while the writer popped its
+queue. A separate bounded terminal slot preserves that event, and the writer
+marks an in-flight write before releasing the queue lock so shutdown cannot
+mistake it for a drained sink. Debug/ReleaseSafe controls exercise contention,
+filtering and oversized records; the full logging schedule and blocked/closed
+pipe tests pass. The correction retains the 200 ms flush attempt and does not
+promise delivery through a blocked sink or abrupt termination. It is present in
+both comparison and candidate, and is not an actor/data-plane optimization.
+
+The relational browser assertion previously inspected the first HTTP attempt,
+which may be a documented pre-dispatch 429 refusal. At `28ad2c80e` the browser
+schedule injects one such refusal, requires byte-identical close requests within
+the existing three-retry bound, then verifies the successful final response and
+settled UI. The real disk-backed browser schedule passes (504 public requests),
+as do Board contracts, strict frontend checks and 102 frontend tests, including
+persistent-refusal exhaustion. Production code and deadlines are unchanged.
+The warm timing samples retain their earlier source; this added transport
+fault control is not relabelled as executed in those runs. The final cold source
+includes the control.
+
+The replacement cold attempt at `722ae22df`,
+[40459344495](https://github.com/spoke-sh/transit/actions/runs/40459344495), fails
+when Ursula exits with `Address already in use` during Rust's deliberate store
+restart. All seven other lanes, including the corrected browser continuation,
+pass; the enclosing run remains failed. The hosted log does not identify the socket owner.
+The pinned provider binds admin first; the fixture selected a public port but left admin ephemeral,
+allowing the admin listener to take that public port. `ab7150250` allocates two
+distinct ports together and preserves the configuration across restart. Three
+child-process controls reproduce the permitted collision, verify stable restart
+identity and reject another owner's occupied endpoint without retries. This
+removes a demonstrated self-collision mechanism; it does not retrospectively
+prove which process held the hosted socket. Ports remain discovery results,
+not reservations against other processes.
+The complete installed Rust SDK task passes locally from clean committed
+`ab7150250`: raw client, Station disk/host recovery, public queries, HTTP/gRPC
+effects and the direct catalog schedule (80 public requests). All 39 fast groups
+also pass through committed-source clean qualification.
+
+The cost reporter at `722ae22df` distinguishes emitted cache-policy observations
+from GitHub's echoed shell command. Actual hosted-log and negative controls verify
+that missing or conflicting declarations cannot establish a warm-cache result.
+At `a6828e255`, the reporter also compares requested and restored keys directly: the
+pinned cache action uses the same restored-key message for exact and prefix hits.
+Missing key declarations, mismatches and conflicting policies cannot qualify a
+warm budget. These reporting corrections do not change the measured workload.
+
+The successful full samples execute the preserved installed SDK, local/Ursula,
+application runtime, catalog/query and interface schedules, including all seven
+browser tasks. Their pass conclusions do not resolve the historical failures
+above or the separate failed manual profiles below.
+
+The external SDK and query profiles pass locally at `87ce7b164` and `c78be2f79`.
+Hosted application, discovery and reactive profiles pass in runs
+[40441787577](https://github.com/spoke-sh/transit/actions/runs/40441787577),
+[40441786385](https://github.com/spoke-sh/transit/actions/runs/40441786385) and
+[40445518654](https://github.com/spoke-sh/transit/actions/runs/40445518654).
+These are separate profiles, not ordinary cost samples. Reference-provider
+infrastructure remains unavailable and unqualified.
+
+Actual migrated vector (`04d37829a`), typed-pipeline and frozen-file (`7af0cd9ba`)
+workloads pass 80, 320 and 324 samples; all four page-layout variants and the
+default console-latency and growing-load (`3acdc1b04`) drivers execute.
+The mutation driver is corrected to inspect the
+current completion envelope and, in a dirty working tree based on `cf71149c9`,
+verifies 17 default samples before a write returns `SqlOutcomeUnknown`; a wide profile verifies five before the same class
+of failure. The generic installed-server task also exposes bootstrap/confirmation
+timeouts already observed during runtime qualification. Those complete schedules
+remain failed, their private installations remain available, and no operation is
+resubmitted to replace an uncertain original outcome. Similar symptoms do not
+prove that the causes tracked in [#124](https://github.com/spoke-sh/transit/issues/124)
+and [#173](https://github.com/spoke-sh/transit/issues/173) are identical. No data-path deadline or
+actor/storage implementation is changed to turn these observations into passes.
+
+The [selected automatic records](../../../tests/evidence/development-workflow-2026-10-27/README.md)
+retain the cost samples, controlled package comparison, fast result, selected
+SDK/task/resource observations and final affected scopes beyond ordinary artifact
+retention. Their [checksums](../../../tests/evidence/development-workflow-2026-10-27/SHA256SUMS.txt)
+verify retained bytes, not execution. Raw routine logs stay in CI and ignored
+runner output. The [active budgets](../../../tests/runner/ci-budgets.json) cite
+this calibration and preserve the older 33-task limits through their immutable
+historical source; those old limits never qualify this expanded suite.
+
 ## Former verification guide narratives
 
 The [former guide at its recorded source](https://github.com/spoke-sh/transit/blob/b4a3411e7246f1a10709c1089eaf06a0a0cad867/tests/verification/README.md)

@@ -22,8 +22,9 @@ or a partial CI run cannot complete an unchecked acceptance criterion.
 The starting revision is `a610ecd5dcff22f2d0177b61b905a8e985252c13` (PR #181).
 Its tracked inventory contains 1,405 files under `tests/`, including 487 root
 files: 276 Python and 107 Zig files. Ordinary CI selects 103 tasks in seven lanes.
-The retained performance budgets qualify an earlier 33-task inventory, not this
-expanded suite. These counts describe the starting revision, not a future quota.
+The cost budgets at the start qualify an earlier 33-task inventory. The final
+[calibration](../history/qualification/verification.md#test-ownership-and-development-workflow--2026-10-27)
+establishes separate limits for the expanded suite. These counts describe the starting revision, not a future quota.
 The [source and execution baseline](development-workflow-baseline.json) preserves
 every tracked test file's size/hash and the original check/lane/nesting catalogs.
 It is a migration audit record, not another live execution inventory or a passing
@@ -283,7 +284,7 @@ this plan is not another chronological test transcript.
 - [x] P2.3 Give fixtures explicit matching binary paths and explicit backends.
   Keep mutable installations, ports, credentials and durable state private to
   their scenarios. Preserve failed installations when investigation needs them.
-- [ ] P2.4 Preserve bounded startup, child-exit detection, signal/restart behavior
+- [x] P2.4 Preserve bounded startup, child-exit detection, signal/restart behavior
   and joined cleanup. Execute failure controls and real local/Ursula schedules.
 - [x] P2.5 Measure setup separately. Share a running service only if reset and
   isolation are demonstrated, including grants, quotas, snapshots and background
@@ -314,7 +315,7 @@ this plan is not another chronological test transcript.
   CI routing, artifact publication paths and current documentation links.
 - [x] P4.4 Verify that executable inputs still invalidate owning builds/checks
   while inert evidence does not. Exercise renamed-file and unknown-input controls.
-- [ ] P4.5 Run benchmark runner/oracle checks and affected real workloads. Keep
+- [x] P4.5 Run benchmark runner/oracle checks and affected real workloads. Keep
   old driver hashes intact and establish current baseline identities explicitly.
 - [x] P4.6 Standardize automatic per-task result, log and artifact capture across
   local, clean and hosted runs. Preserve failure and interruption status, source,
@@ -332,7 +333,7 @@ this plan is not another chronological test transcript.
   commands, temporary projects, examples, interop and scenario catalogs.
 - [x] P5.3 Preserve every required SDK family, direct catalog nested execution,
   incompatible-definition rejection, ownership/lifetime and uncertain-call check.
-- [ ] P5.4 Execute migrated installed consumers outside the source tree against
+- [x] P5.4 Execute migrated installed consumers outside the source tree against
   explicit matching artifacts. Run actual example binaries and interop schedules.
 
 ### P6 — Public interfaces
@@ -343,7 +344,7 @@ this plan is not another chronological test transcript.
   schedules with their owning interface. Preserve read-only inspection gates.
 - [x] P6.3 Group installation, launcher, configuration and reference deployment
   checks. Keep reusable provisioning in harness and installation assertions here.
-- [ ] P6.4 Execute affected protocol, installed, browser, launcher and external
+- [x] P6.4 Execute affected protocol, installed, browser, launcher and external
   provider profiles. Record unavailable infrastructure as unqualified, not passed.
 
 ### P7 — Catalog and query semantics
@@ -354,7 +355,7 @@ this plan is not another chronological test transcript.
   into query, including SQL/relational oracles and their native drivers.
 - [x] P7.3 Split mixed operation modules by responsibility using explicit Zig
   module interfaces where needed; preserve test executable targets and behavior.
-- [ ] P7.4 Execute declaration, authorization, snapshot, bounded query, complete
+- [x] P7.4 Execute declaration, authorization, snapshot, bounded query, complete
   result, lifetime and recovery scenarios affected by the moves.
 
 ### P8 — Storage and application runtime
@@ -365,7 +366,7 @@ this plan is not another chronological test transcript.
   scenarios into runtime. Assign mixed core tests by the boundary they assert.
 - [x] P8.3 Preserve supported provider tests and retained actor-runtime checks.
   Remove superseded data-path checks only with an identified, executed replacement.
-- [ ] P8.4 Execute local and Ursula disk/restart/fault coverage and affected
+- [x] P8.4 Execute local and Ursula disk/restart/fault coverage and affected
   application runtime schedules. Keep tmpfs and physical-disk evidence distinct.
 - [x] P8.5 Reach the exact final root/owner layout. Remove all migration exceptions,
   old directory aliases and temporary forwarding mechanisms.
@@ -406,7 +407,7 @@ this plan is not another chronological test transcript.
 - [x] P10.7 Evaluate local documentation cache reuse with clean production checks
   retained. Verify generated references/search/specification invalidation before
   adopting it; record a measured decision if no safe improvement is established.
-- [ ] P10.8 Run the same required SDK schedules and compare work/time against the
+- [x] P10.8 Run the same required SDK schedules and compare work/time against the
   qualified baseline. Do not equate a profile switch with a compilation cache miss.
   Report C/C++, interop and development-shell preparation separately; retain
   residual scenario costs for the owning storage/runtime milestone.
@@ -424,7 +425,7 @@ this plan is not another chronological test transcript.
   harness, evidence, deletion, rename and unknown-path selection controls.
 - [x] P11.4 Compare proposed scoped selections with full runs before enabling
   them. Document selection limits; a directory match is not a dependency proof.
-- [ ] P11.5 Schedule heavy disk/build workloads within measured resource limits;
+- [x] P11.5 Schedule heavy disk/build workloads within measured resource limits;
   keep formal feedback early and mutable outputs isolated. Preserve all scenarios.
   Evaluate scenario splits in C/C++, interop, core and growth using existing
   tasks/jobs, accounting for repeated preparation and total runner cost.
@@ -434,24 +435,24 @@ this plan is not another chronological test transcript.
 - [x] P12.1 Audit the complete migration map, final directory policy, task/scenario
   coverage, current links and immutable evidence hashes. Account for every original
   file and required execution, including deliberate replacements/consolidations.
-- [ ] P12.2 Freeze the qualification inventory and relevant source/toolchain/
+- [x] P12.2 Freeze the qualification inventory and relevant source/toolchain/
   workload profiles. Run affected complete/browser and external profiles as well
   as ordinary CI; state each scope and actual result explicitly.
-- [ ] P12.3 Collect at least three successful ordinary warm samples and one
+- [x] P12.3 Collect at least three successful ordinary warm samples and one
   dependency-cache-miss sample. Record GitHub cache and upstream Nix substitute
   conditions separately; one cold run does not establish cold variance.
-- [ ] P12.4 Report first useful feedback, required completion, aggregate runner
+- [x] P12.4 Report first useful feedback, required completion, aggregate runner
   time, phase costs, cache transfer and relevant peak memory/disk pressure.
   Compare like workloads and publish remaining bottlenecks and regressions.
   Distinguish measured workflow gains from unmet feedback targets and anticipated
   storage-cutover savings; record residual costs without expanding this branch
   into runtime redesign.
-- [ ] P12.5 Establish current regression budgets from that evidence. Preserve
+- [x] P12.5 Establish current regression budgets from that evidence. Preserve
   the old 33-task qualification as historical; do not silently certify 103 tasks.
-- [ ] P12.6 Finish owner README/AGENTS, contributor/task/toolchain documentation,
+- [x] P12.6 Finish owner README/AGENTS, contributor/task/toolchain documentation,
   and one concise qualification account with selected raw evidence. Keep current
   workflows discoverable without this plan or a chat transcript.
-- [ ] P12.7 Clean up only this work's temporary clones, artifacts requiring no
+- [x] P12.7 Clean up only this work's temporary clones, artifacts requiring no
   retention and stale branches/worktrees. Preserve user notes and unrelated work.
 - [ ] P12.8 Submit the review-ready completion PR after the foundation snapshot
   in #185, with completed checklist, logical commit map, executed evidence and
@@ -479,24 +480,26 @@ they are not automatically deferred to a later milestone or follow-up PR.
 
 The [earlier detailed checkpoints](https://github.com/spoke-sh/transit/blob/8dd62c8db/docs/roadmap/development-workflow.md#progress-and-evidence)
 preserve intermediate file counts, failed runs, corrections and original source
-attribution. The table below reconciles current implementation with the remaining
-acceptance items; an earlier pass does not qualify a later source automatically.
+attribution. The final [qualification account](../history/qualification/verification.md#test-ownership-and-development-workflow--2026-10-27)
+and [selected automatic records](../../tests/evidence/development-workflow-2026-10-27/README.md)
+reconcile the checklist below. An earlier pass does not qualify a later source
+automatically; failed manual profiles retain their outcomes.
 
-| Stage | Implementation and executed evidence | Remaining acceptance |
+| Stage | Implementation and executed evidence | Outcome and limits |
 | --- | --- | --- |
 | P0 — Baseline | Collation fixtures, the independent plan fingerprint, shared HTTP cancellation and terminal logging are corrected on both comparison and candidate sources. All ordinary and browser tasks pass at `40e70d202` in [run 40441691526](https://github.com/spoke-sh/transit/actions/runs/40441691526). The run takes 98.1 elapsed / 400.4 aggregate runner minutes with partial dependency-cache reuse. | Complete. These conditions are not a warm baseline. |
 | P1 — Inventory/layout | All 1,405 original files are accounted for: 670 domain-owned files and 735 archived observations with original hashes. The root has two files and twelve owners, with no migration exceptions. The import/task audit includes dynamic SDK, example and fixture consumers. | Complete. |
-| P2 — Harness | Shared process, readiness, immutable-artifact and private-installation mechanics have real child/isolation/exit/restart controls. Drivers use one explicit import root; installed children do not inherit a test PYTHONPATH. Six SQL ports are allocated together after reproducing duplicate independent discoveries. | Final combined local/provider qualification; retain unrelated original server failures. |
+| P2 — Harness | Shared process, readiness, immutable-artifact and private-installation mechanics have real child/isolation/exit/restart controls. Drivers use one explicit import root; installed children do not inherit a test PYTHONPATH. Six SQL ports are allocated together after reproducing duplicate independent discoveries. Ursula keeps distinct admin/public ports across restart; child-process controls and the complete installed Rust SDK pass at `ab7150250`. | Complete: three warm full runs, final cold run and the corrected provider fixture's full Rust recovery task pass. The separate generic server failures remain below. |
 | P3 — Verification | Formal inputs, deterministic schedules and mutation campaigns have explicit owners. All 24 replay inputs retain their hashes. Authority/WAL/Console/Delivery and four Lean theorems pass; all 19 production mutants are detected. Native schedules retain authority/resource/delivery/scheduler/component correspondence. | Complete within the recorded finite bounds. |
-| P4 — Results/performance | Automatic records retain commands, source/toolchain identity, outcomes, bounded logs, completion and nested phases. Current workload/oracle checks execute; successful vector, typed-pipeline and frozen-file runs contain 80, 320 and 324 samples. The mutation decoder now checks the current completion envelope and preserves uncertain outcomes. | Final qualification account and explicit reconciliation of the failed complete mutation/server schedules below. |
-| P5 — SDK ownership | All ten installed Station SDKs retain shared lifecycle/query/codec schedules and the interoperability ring; raw Go has its separate installed-client boundary. Debug/ReleaseSafe packages and immutable native inputs remain distinct. Both SDK lanes pass in [run 40450573565](https://github.com/spoke-sh/transit/actions/runs/40450573565), whose browser continuation fails separately. | Successful full measurement samples and matching SDK cost comparison. |
-| P6 — Interfaces | Native, CLI, Board, SQL, serving, Flight and deployment callers follow their owners. Real SQL clients, TLS and bootstrap receipt-loss recovery pass. The corrected relational browser schedule passes locally at the `28ad2c80e` tree; contracts, strict checks and 102 frontend tests pass. Available external profiles are recorded below. | Final combined browser qualification; reference deployment infrastructure remains unavailable and unqualified. |
-| P7 — Catalog/query | Compiler/oracle scopes retain 174 AST, 142 plan/Arrow, 72 unified-result, 280 DDL and 44 DML cases plus parameter controls. Current growth/interface lanes and external query lifecycle/expiry/session profiles execute through their moved owners. | Reconcile the final full samples. |
-| P8 — Storage/runtime | All redistributed native scopes pass: 34 component roots, 14 fixture groups, four fault groups, 92 WAL/Table crash boundaries, 15 collection cases and three 12-race object-publication schedules. Local direct Tables pass 1,942 typed calls; provider-backed growth/recovery remains separate. | Reconcile the final local/Ursula/application samples and retained launcher failure. |
+| P4 — Results/performance | Automatic records retain commands, source/toolchain identity, outcomes, bounded logs, completion and nested phases. Current workload/oracle checks execute; successful vector, typed-pipeline and frozen-file runs contain 80, 320 and 324 samples. The mutation decoder now checks the current completion envelope and preserves uncertain outcomes. | Complete execution/reconciliation. Mutation and generic server schedules remain failed; running a workload does not turn its failure into a pass. |
+| P5 — SDK ownership | All ten installed Station SDKs retain shared lifecycle/query/codec schedules and the interoperability ring; raw Go has its separate installed-client boundary. Debug/ReleaseSafe packages and immutable native inputs remain distinct. Both SDK lanes pass in all three warm samples and [cold run 40465924045](https://github.com/spoke-sh/transit/actions/runs/40465924045); the earlier browser failure remains separately attributed. | Complete: both SDK lanes pass in all four full samples. The account compares C/C++, interop and shell preparation, including slower observations. |
+| P6 — Interfaces | Native, CLI, Board, SQL, serving, Flight and deployment callers follow their owners. Real SQL clients, TLS and bootstrap receipt-loss recovery pass. The corrected relational browser schedule passes locally at the `28ad2c80e` tree; contracts, strict checks and 102 frontend tests pass. Available external profiles are recorded below. | Complete within available profiles: all seven browser tasks pass in the final cold sample. Reference deployment infrastructure remains unavailable and unqualified. |
+| P7 — Catalog/query | Compiler/oracle scopes retain 174 AST, 142 plan/Arrow, 72 unified-result, 280 DDL and 44 DML cases plus parameter controls. Current growth/interface lanes and external query lifecycle/expiry/session profiles execute through their moved owners. | Complete in the successful warm/cold samples, with separate external query evidence below. |
+| P8 — Storage/runtime | All redistributed native scopes pass: 34 component roots, 14 fixture groups, four fault groups, 92 WAL/Table crash boundaries, 15 collection cases and three 12-race object-publication schedules. Local direct Tables pass 1,942 typed calls; provider-backed growth/recovery remains separate. | Complete execution of the moved scopes in the full samples. Broader bootstrap/uncertain-operation investigation remains in #124/#173. |
 | P9 — Build boundaries | All 188 named build steps and 52 original aggregate edges are preserved. Actual runtime/gateway packages build and run without test/SDK source at `d326243ac`; disabled/missing test inputs reject and 23 Nix invalidation controls pass. All 34 standalone manifests retain their own checks. | Complete. |
-| P10 — Reuse/phases | Lazy C/C++ peer preparation reduces six installations from 24 peer compilations to ten. Matching native/package reuse, distinct profiles, automatic interop phases and two-worker package compilation are implemented. Mutable fixtures and clean production documentation builds remain isolated. | Final SDK/preparation cost comparison; no further reuse framework is planned. |
-| P11 — Selection/resources | Reviewed formal-model and Go dependencies select their actual consumers; shared/unknown paths remain full. Rename/deletion, missing source, foreign format, omitted/duplicated tasks and child-environment controls pass. The 39-task growth lane is split 20/19 within seven jobs. Formal uses substitutes rather than a Nix archive that exceeded cache capacity. | Final resource/cost observations. Selection is already enabled. |
-| P12 — Qualification/PR | The migration audit is complete. Clean committed-source fast qualification passes all 39 groups at `ab7150250`. The successful comparison, available external profiles and scoped corrections retain exact source identities. | All three warm full samples pass. One successful explicit cache-miss sample, calibrated budgets, final account, cleanup reconciliation and completion PR remain. |
+| P10 — Reuse/phases | Lazy C/C++ peer preparation reduces six installations from 24 peer compilations to ten. Matching native/package reuse, distinct profiles, automatic interop phases and two-worker package compilation are implemented. Mutable fixtures and clean production documentation builds remain isolated. | Complete: package compilation 293.8 to 153.1 seconds, peer builds 24 to ten. Whole-SDK speedup is not established; no further reuse framework is planned. |
+| P11 — Selection/resources | Reviewed formal-model and Go dependencies select their actual consumers; shared/unknown paths remain full. Rename/deletion, missing source, foreign format, omitted/duplicated tasks and child-environment controls pass. The 39-task growth lane is split 20/19 within seven jobs. Formal uses substitutes rather than a Nix archive that exceeded cache capacity. | Complete: four-CPU hosted observations, bounded two-worker package compilation and seven-job ceiling. Largest-child RSS is not aggregate peak memory. |
+| P12 — Qualification/PR | The migration audit is complete. Clean committed-source fast qualification passes all 39 groups at `49546a3f4` in 28.6 seconds of check execution, excluding clone/shell setup. The successful comparison, available external profiles and scoped corrections retain exact source identities. | Three warm and one cold full sample pass; current budgets, account and owned cleanup are complete. Completion PR submission remains. |
 
 ### Measured preparation and selection boundaries
 
@@ -537,6 +540,7 @@ Each restores matching GitHub cache keys and transfers 22.01 GiB across its jobs
 | [40455488048](https://github.com/spoke-sh/transit/actions/runs/40455488048) | 75.2 | 363.3 | 226 |
 | [40455490500](https://github.com/spoke-sh/transit/actions/runs/40455490500) | 82.0 | 416.1 | 205 |
 | [40455492918](https://github.com/spoke-sh/transit/actions/runs/40455492918) | 74.7 | 375.0 | 230 |
+| [Cold: 40465924045](https://github.com/spoke-sh/transit/actions/runs/40465924045), `ab7150250` | 85.7 | 463.5 | 226 |
 
 Full feedback is shorter than the successful comparison's 98.1 minutes, but its
 partial dependency-cache reuse prevents attributing the whole reduction to code.
@@ -566,11 +570,19 @@ SDK task with disk recovery, HTTP/gRPC and direct catalog checks. This removes a
 reproduced self-collision mechanism without proving the hosted socket's owner.
 The failed cold attempt cannot qualify P12.3.
 
-The final-source [cache-miss run 40465924045](https://github.com/spoke-sh/transit/actions/runs/40465924045)
-is running at `ab7150250`, with GitHub dependency caches disabled and upstream Nix
-substitutes available. It includes the browser transport-fault control, stricter
+The final implementation [cache-miss run 40465924045](https://github.com/spoke-sh/transit/actions/runs/40465924045)
+passes every ordinary lane, all seven browser tasks and the aggregate gate at
+`ab7150250`, with zero GitHub restored bytes and upstream Nix substitutes available. It includes the browser transport-fault control, stricter
 cost reporting and listener correction. The warm samples retain their earlier
-source and do not claim these added controls ran there.
+source and do not claim these added controls ran there. Later documentation and
+reporting-budget edits retain that implementation-source boundary.
+
+The active budget allows 100 elapsed / 500 aggregate runner minutes for warm
+runs and 105 / 560 for cold, with 27 GiB / zero GitHub restore respectively.
+These initial reporting thresholds use the largest successful observation in
+each profile plus 20% headroom, rounded up to five minutes or one GiB. They are
+separate from improvement targets and correctness gates. One cold sample does
+not establish cold variance. The old 33-task limits retain their historical source.
 
 The [cache-seeding attempt](https://github.com/spoke-sh/transit/actions/runs/40453738558)
 also fails: Station bootstrap completes, but the initial direct Table total does
@@ -584,8 +596,8 @@ four Nix archives totals approximately 10.5 GiB before Zig or duplicate branches
 Formal now uses upstream substitutes; three Nix archives plus the Zig cache occupy
 about 9.5 GiB in the observed generation. No quota or runner class changes.
 Future unrelated cache keys can still evict entries. The reporter requires matching
-run-source task/lane/browser identities; the old 33-task budget cannot qualify
-this expanded inventory. Missing, conflicting or echoed policy text cannot
+run-source task/lane/browser identities; the old 33-task budget never qualified
+this expanded inventory. The new limits use the measured eight-lane inventory. Missing, conflicting or echoed policy text cannot
 establish warmth.
 
 ### External and manual execution limits
@@ -616,6 +628,15 @@ historical performance budgets or qualify unavailable reference infrastructure.
 No actor/data-path optimization or deadline extension is added to hide these
 outcomes. Required failed or incomplete full runs remain ineligible for P12.3.
 
-The completion PR follows successful required samples, current budget calibration,
-the final qualification account and owned-work cleanup. Structural completion,
-partial lanes and registered commands alone cannot close this plan.
+Owned cleanup is complete: obsolete measurement branches, temporary comparison
+worktrees and successful clean clones are removed. The comparison source branch
+is retained as a reproducibility reference. User notes, the original unpublished
+SQL/storage branch, unrelated world-simulator worktrees and private failed
+installations remain intact. Reusable build caches and diagnostic run records
+remain available for review.
+
+The required samples, calibration and account are complete. The remaining final
+step is submitting the completion PR and recording its link. The 20–30-minute
+full feedback target remains unmet; re-measure live SDK/query/runtime costs after
+the storage cutover, preserving Station's application/effect coverage. This does
+not reopen completed workflow implementation or close the broader runtime issues.

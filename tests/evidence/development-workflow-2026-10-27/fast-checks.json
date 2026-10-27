@@ -1,0 +1,1399 @@
+{
+  "version": 1,
+  "revision": "49546a3f4a9fd02f37892a27d7c8ce9063f6f4b9",
+  "dirty": false,
+  "toolchain": {
+    "flake_lock_sha256": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264",
+    "python_version": "3.13.15 (main, Aug  5 2026, 12:25:43) [GCC 15.3.0]",
+    "executables": {
+      "python": "/nix/store/sc8j4gs7giafyr1g7njyy0sxb8f26wdj-python3-3.13.15-env/bin/python3.13",
+      "nix": "/nix/store/g1bq7lardr5fpbx6g36crbs9amf7pda5-nix-3.8.5/bin/nix",
+      "zig": "/nix/store/z00l6pzdnz193c9cj3l77xc33a57x9x9-transit-zig",
+      "just": "/nix/store/lccvn99vpz9xz6c9faamsqas3kb2r78h-just-1.51.0/bin/just"
+    }
+  },
+  "run_directory": "runs/fast-a60gvn1_",
+  "checks_sha256": "6366c6b9c1f9203321ab6c1c872b44b2c3ebbf5d2faf3e56363cce48e00233bd",
+  "started_unix": 1793086413.7791529,
+  "completed": true,
+  "expected_checks": [
+    "query-expiry-evidence-controls",
+    "test-layout",
+    "test-layout-controls",
+    "local-test-imports",
+    "local-test-import-controls",
+    "nix-format",
+    "workflows",
+    "benchmarks-runner",
+    "fuze_benchmarks-runner",
+    "storage_benchmark_test",
+    "mutation_latency_test",
+    "latency_probe_test",
+    "fuze_sources",
+    "fuze_types",
+    "table_schema",
+    "column_codecs",
+    "relational",
+    "table_storage",
+    "table_catalog",
+    "sdk_layout",
+    "service-harness",
+    "ursula-listeners",
+    "process-harness",
+    "phase-recording",
+    "native-artifact-controls",
+    "installation-harness",
+    "package-scheduling",
+    "ci_runner",
+    "ci-selection",
+    "reference_launcher_state",
+    "verification-catalog",
+    "verification-task-coverage",
+    "diagnostic-inventory",
+    "diagnostic-mappings",
+    "zig-format",
+    "test-launcher",
+    "check-runner",
+    "docs",
+    "whitespace"
+  ],
+  "checks": [
+    {
+      "id": "query-expiry-evidence-controls",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/query/unified/test_expiry.py"
+          ],
+          "exit_code": 0,
+          "log": "001-validate.log",
+          "completed": true,
+          "pid": 3655758,
+          "diagnostics": {
+            "bytes": 234,
+            "retained_bytes": 234,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "001-validate.log",
+              "bytes": 234,
+              "sha256": "348074fa925b966fd98388759e844af9ae0a432287e8626399d031966ad1eb4e"
+            }
+          },
+          "seconds": 0.124
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "test-layout",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/layout.py"
+          ],
+          "exit_code": 0,
+          "log": "002-validate.log",
+          "completed": true,
+          "pid": 3655808,
+          "diagnostics": {
+            "bytes": 69,
+            "retained_bytes": 69,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "002-validate.log",
+              "bytes": 69,
+              "sha256": "a0c120babe9c69af7cb77e5801c72c6be77d2040a4f4b0137e4c909ed6af58d1"
+            }
+          },
+          "seconds": 0.088
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "test-layout-controls",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/test_layout.py"
+          ],
+          "exit_code": 0,
+          "log": "003-validate.log",
+          "completed": true,
+          "pid": 3655815,
+          "diagnostics": {
+            "bytes": 111,
+            "retained_bytes": 111,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "003-validate.log",
+              "bytes": 111,
+              "sha256": "95c6f7f55978481a9db93be7dffbb1f3c0ec37a860ab198756b072dc8a13240a"
+            }
+          },
+          "seconds": 0.283
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "local-test-imports",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/imports.py"
+          ],
+          "exit_code": 0,
+          "log": "004-validate.log",
+          "completed": true,
+          "pid": 3655886,
+          "diagnostics": {
+            "bytes": 95,
+            "retained_bytes": 95,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "004-validate.log",
+              "bytes": 95,
+              "sha256": "dfda8c703ff4d880c0fd22246c9996d0d3593a3292f55863181128607e2ccc5d"
+            }
+          },
+          "seconds": 2.014
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "local-test-import-controls",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/test_imports.py"
+          ],
+          "exit_code": 0,
+          "log": "005-validate.log",
+          "completed": true,
+          "pid": 3656518,
+          "diagnostics": {
+            "bytes": 102,
+            "retained_bytes": 102,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "005-validate.log",
+              "bytes": 102,
+              "sha256": "7137eeba0f1475e79f6dce65a349431fdd4c73ecad493315cc596f599d3a273f"
+            }
+          },
+          "seconds": 0.085
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "nix-format",
+      "phase": "format",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "nixfmt",
+            "--check",
+            "flake.nix",
+            "nix/bindings-tools.nix",
+            "nix/build-sources.nix",
+            "nix/check-toolchain.nix",
+            "nix/ci-bindings.nix",
+            "nix/ci-experience.nix",
+            "nix/ci-formal.nix",
+            "nix/flight-tools.nix",
+            "nix/fuze-benchmark-tools.nix",
+            "nix/kubectl-transit.nix",
+            "nix/minio.nix",
+            "nix/python-tools.nix",
+            "nix/reference-tools.nix",
+            "nix/sql-tools.nix",
+            "nix/sql-wire-tools.nix",
+            "nix/transit-local.nix",
+            "nix/transit-sql-gateway.nix",
+            "nix/transit.nix",
+            "nix/ursula.nix",
+            "nix/vite-plus.nix",
+            "nix/zig.nix"
+          ],
+          "exit_code": 0,
+          "log": "006-validate.log",
+          "completed": true,
+          "pid": 3656562,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "006-validate.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 0.056
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "workflows",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "actionlint",
+            ".github/workflows/ci-cost.yml",
+            ".github/workflows/ci.yml",
+            ".github/workflows/fault-verification.yml",
+            ".github/workflows/flight.yml",
+            ".github/workflows/handbook.yml",
+            ".github/workflows/reference.yml"
+          ],
+          "exit_code": 0,
+          "log": "007-validate.log",
+          "completed": true,
+          "pid": 3656569,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "007-validate.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 0.036
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "benchmarks-runner",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/performance/declarative/test_runner.py"
+          ],
+          "exit_code": 0,
+          "log": "008-validate.log",
+          "completed": true,
+          "pid": 3656709,
+          "diagnostics": {
+            "bytes": 107,
+            "retained_bytes": 107,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "008-validate.log",
+              "bytes": 107,
+              "sha256": "ed6fe51c726aa8f0bb72e45b6d8b6e9e133d6c52d813204a672f300a8fce1d26"
+            }
+          },
+          "seconds": 0.242
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "fuze_benchmarks-runner",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/performance/query/test_runner.py"
+          ],
+          "exit_code": 0,
+          "log": "009-validate.log",
+          "completed": true,
+          "pid": 3656773,
+          "diagnostics": {
+            "bytes": 107,
+            "retained_bytes": 107,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "009-validate.log",
+              "bytes": 107,
+              "sha256": "7e65fa019e2da5770d779277e3a4a63df5752c28269b8b2c657bbd3361ac6e61"
+            }
+          },
+          "seconds": 0.515
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "storage_benchmark_test",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/performance/storage/storage_benchmark_test.py"
+          ],
+          "exit_code": 0,
+          "log": "010-validate.log",
+          "completed": true,
+          "pid": 3656934,
+          "diagnostics": {
+            "bytes": 107,
+            "retained_bytes": 107,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "010-validate.log",
+              "bytes": 107,
+              "sha256": "0b91efbf18bf599405ac2d4b15a2eefd01b926339e841af31a3da4aa2361e4f9"
+            }
+          },
+          "seconds": 0.14
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "mutation_latency_test",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/performance/mutations/mutation_latency_test.py"
+          ],
+          "exit_code": 0,
+          "log": "011-validate.log",
+          "completed": true,
+          "pid": 3656936,
+          "diagnostics": {
+            "bytes": 102,
+            "retained_bytes": 102,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "011-validate.log",
+              "bytes": 102,
+              "sha256": "583d8015a200d74d753c37164a0ecadb232d0d0d556b7c1de50ef94d38dd08c7"
+            }
+          },
+          "seconds": 0.419
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "latency_probe_test",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/harness/test_http_probe.py"
+          ],
+          "exit_code": 0,
+          "log": "012-validate.log",
+          "completed": true,
+          "pid": 3657156,
+          "diagnostics": {
+            "bytes": 100,
+            "retained_bytes": 100,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "012-validate.log",
+              "bytes": 100,
+              "sha256": "92b90d4df4bc32e641cb2a99a2a60791c38c8f8d8b14d7d85f24305a818a4cf1"
+            }
+          },
+          "seconds": 1.141
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "fuze_sources",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/query/logical/fuze_sources.py"
+          ],
+          "exit_code": 0,
+          "log": "013-validate.log",
+          "completed": true,
+          "pid": 3657501,
+          "diagnostics": {
+            "bytes": 62,
+            "retained_bytes": 62,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "013-validate.log",
+              "bytes": 62,
+              "sha256": "b3d4f0f32063c23dabe79914f05a768b7602f5744ea7db5b70e57721f09e1d9f"
+            }
+          },
+          "seconds": 0.053
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "fuze_types",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/query/logical/fuze_types.py"
+          ],
+          "exit_code": 0,
+          "log": "014-validate.log",
+          "completed": true,
+          "pid": 3657526,
+          "diagnostics": {
+            "bytes": 51,
+            "retained_bytes": 51,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "014-validate.log",
+              "bytes": 51,
+              "sha256": "1931f85beac187cf36d74f74d6ebbb1a033dd2898c7b67b9ce4eefd074cc8bda"
+            }
+          },
+          "seconds": 0.05
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "table_schema",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/catalog/tables/table_schema.py"
+          ],
+          "exit_code": 0,
+          "log": "015-validate.log",
+          "completed": true,
+          "pid": 3657546,
+          "diagnostics": {
+            "bytes": 57,
+            "retained_bytes": 57,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "015-validate.log",
+              "bytes": 57,
+              "sha256": "1c40375df3bb3e41d6cf804f30931b4ab3e47e9378b66382e8e519f8f1af789b"
+            }
+          },
+          "seconds": 0.255
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "column_codecs",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/storage/codecs/column_codecs.py"
+          ],
+          "exit_code": 0,
+          "log": "016-validate.log",
+          "completed": true,
+          "pid": 3657624,
+          "diagnostics": {
+            "bytes": 100,
+            "retained_bytes": 100,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "016-validate.log",
+              "bytes": 100,
+              "sha256": "16a1b8e355d5d0dec293d1da9fe2e2a73b18a1556e8d15cad10a291394841833"
+            }
+          },
+          "seconds": 0.076
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "relational",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/query/execution/relational.py"
+          ],
+          "exit_code": 0,
+          "log": "017-validate.log",
+          "completed": true,
+          "pid": 3657625,
+          "diagnostics": {
+            "bytes": 91,
+            "retained_bytes": 91,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "017-validate.log",
+              "bytes": 91,
+              "sha256": "34b71e572d38f5f093e2b291798ff11a69263f7a294680c88f64a99e081c52fe"
+            }
+          },
+          "seconds": 0.174
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "table_storage",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/storage/local/table_storage.py"
+          ],
+          "exit_code": 0,
+          "log": "018-validate.log",
+          "completed": true,
+          "pid": 3657646,
+          "diagnostics": {
+            "bytes": 135,
+            "retained_bytes": 135,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "018-validate.log",
+              "bytes": 135,
+              "sha256": "28e0f60e5e55bb1d03555af2d7f7fc84d2248ce8af8615e8ddb8e03f6553abb2"
+            }
+          },
+          "seconds": 0.066
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "table_catalog",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/catalog/tables/table_catalog.py"
+          ],
+          "exit_code": 0,
+          "log": "019-validate.log",
+          "completed": true,
+          "pid": 3657757,
+          "diagnostics": {
+            "bytes": 75,
+            "retained_bytes": 75,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "019-validate.log",
+              "bytes": 75,
+              "sha256": "e5a28fa8a05c22157f67cb6aacc8b96ad3f644a64939c2bcd2dd65a58da525ec"
+            }
+          },
+          "seconds": 0.064
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "sdk_layout",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/sdk_layout.py"
+          ],
+          "exit_code": 0,
+          "log": "020-validate.log",
+          "completed": true,
+          "pid": 3657769,
+          "diagnostics": {
+            "bytes": 84,
+            "retained_bytes": 84,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "020-validate.log",
+              "bytes": 84,
+              "sha256": "05914b1f2c81160031d1eb49cf02cf322d3c013f6c6d48b2646b81edb618cd07"
+            }
+          },
+          "seconds": 1.103
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "service-harness",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/harness/test_services.py"
+          ],
+          "exit_code": 0,
+          "log": "021-validate.log",
+          "completed": true,
+          "pid": 3658078,
+          "diagnostics": {
+            "bytes": 103,
+            "retained_bytes": 103,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "021-validate.log",
+              "bytes": 103,
+              "sha256": "6e59c5d29c2c30c239f35b3332df60a366306a6b90d3ae5afcd965490e0f2ece"
+            }
+          },
+          "seconds": 0.346
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "ursula-listeners",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/harness/test_ursula.py"
+          ],
+          "exit_code": 0,
+          "log": "022-validate.log",
+          "completed": true,
+          "pid": 3658217,
+          "diagnostics": {
+            "bytes": 101,
+            "retained_bytes": 101,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "022-validate.log",
+              "bytes": 101,
+              "sha256": "d8783bc21383f2c207b58aca900f8517087ff8beaac4f248818a43566c04ff4a"
+            }
+          },
+          "seconds": 1.04
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "process-harness",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/harness/test_processes.py"
+          ],
+          "exit_code": 0,
+          "log": "023-validate.log",
+          "completed": true,
+          "pid": 3658691,
+          "diagnostics": {
+            "bytes": 100,
+            "retained_bytes": 100,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "023-validate.log",
+              "bytes": 100,
+              "sha256": "8b73b1549fcaa324f1b5fb99644d0ee3a45de964f6a4b6e5dcf756c47e9d6783"
+            }
+          },
+          "seconds": 0.246
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "phase-recording",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/harness/test_phases.py"
+          ],
+          "exit_code": 0,
+          "log": "024-validate.log",
+          "completed": true,
+          "pid": 3658800,
+          "diagnostics": {
+            "bytes": 102,
+            "retained_bytes": 102,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "024-validate.log",
+              "bytes": 102,
+              "sha256": "8d3f34d8211775a028ccfd3b5f37a339812714ac728a7138e1620c735b3aad53"
+            }
+          },
+          "seconds": 0.247
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "native-artifact-controls",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/harness/test_native_artifacts.py"
+          ],
+          "exit_code": 0,
+          "log": "025-validate.log",
+          "completed": true,
+          "pid": 3658861,
+          "diagnostics": {
+            "bytes": 103,
+            "retained_bytes": 103,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "025-validate.log",
+              "bytes": 103,
+              "sha256": "c8c77a6a3d9a9b53b383d4af0927a6ef4d9a83285bf0dacf0765ce19d32b13df"
+            }
+          },
+          "seconds": 0.397
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "installation-harness",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/harness/test_local_installation.py"
+          ],
+          "exit_code": 0,
+          "log": "026-validate.log",
+          "completed": true,
+          "pid": 3658939,
+          "diagnostics": {
+            "bytes": 100,
+            "retained_bytes": 100,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "026-validate.log",
+              "bytes": 100,
+              "sha256": "8b73b1549fcaa324f1b5fb99644d0ee3a45de964f6a4b6e5dcf756c47e9d6783"
+            }
+          },
+          "seconds": 0.314
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "package-scheduling",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/test_packages.py"
+          ],
+          "exit_code": 0,
+          "log": "027-validate.log",
+          "completed": true,
+          "pid": 3659013,
+          "diagnostics": {
+            "bytes": 102,
+            "retained_bytes": 102,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "027-validate.log",
+              "bytes": 102,
+              "sha256": "d7e60d4ff5b8424dee9addfd6053635b8155f8fbf528f92ca4336daa7febff2a"
+            }
+          },
+          "seconds": 0.783
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "ci_runner",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/ci_runner.py"
+          ],
+          "exit_code": 0,
+          "log": "028-validate.log",
+          "completed": true,
+          "pid": 3659387,
+          "diagnostics": {
+            "bytes": 90,
+            "retained_bytes": 90,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "028-validate.log",
+              "bytes": 90,
+              "sha256": "a175008cc3ab96374c257e558e9de4def575cc53dffb55f4f0204e3dbccc8545"
+            }
+          },
+          "seconds": 6.201
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "ci-selection",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/test_selection.py"
+          ],
+          "exit_code": 0,
+          "log": "029-validate.log",
+          "completed": true,
+          "pid": 3662258,
+          "diagnostics": {
+            "bytes": 105,
+            "retained_bytes": 105,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "029-validate.log",
+              "bytes": 105,
+              "sha256": "58b9abb3416c1d4a058b53fb42debd1a2bf9750b0d80351b2b838b661fdb4ea3"
+            }
+          },
+          "seconds": 1.192
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "reference_launcher_state",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/interfaces/deployment/reference_launcher_state.py"
+          ],
+          "exit_code": 0,
+          "log": "030-validate.log",
+          "completed": true,
+          "pid": 3662658,
+          "diagnostics": {
+            "bytes": 114,
+            "retained_bytes": 114,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "030-validate.log",
+              "bytes": 114,
+              "sha256": "845bf2218f103dc953858efccc475b16d7ddf07c9d98ab23404efda3e4a9e0c0"
+            }
+          },
+          "seconds": 0.187
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "verification-catalog",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/launch.py",
+            "tests/verification/check.py"
+          ],
+          "exit_code": 0,
+          "log": "031-validate.log",
+          "completed": true,
+          "pid": 3662735,
+          "diagnostics": {
+            "bytes": 105,
+            "retained_bytes": 105,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "031-validate.log",
+              "bytes": 105,
+              "sha256": "b7d0092537256c7a0fe55a9c2e40ac99513d7555af31195ed6220d137ab52f2a"
+            }
+          },
+          "seconds": 0.144
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "verification-task-coverage",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/test_task_coverage.py"
+          ],
+          "exit_code": 0,
+          "log": "032-validate.log",
+          "completed": true,
+          "pid": 3662758,
+          "diagnostics": {
+            "bytes": 104,
+            "retained_bytes": 104,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "032-validate.log",
+              "bytes": 104,
+              "sha256": "6046464914a5f03cbd2b8b3ff7085e6c53dd1065f0dffca2ea04abcc5009ee61"
+            }
+          },
+          "seconds": 0.167
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "diagnostic-inventory",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "just",
+            "test::diagnostic-inventory"
+          ],
+          "exit_code": 0,
+          "log": "033-validate.log",
+          "completed": true,
+          "pid": 3662924,
+          "diagnostics": {
+            "bytes": 309,
+            "retained_bytes": 309,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "033-validate.log",
+              "bytes": 309,
+              "sha256": "54e1e78b6e598a279b6cfa3bf6b7edcc1ffb3f9f10191ab5b35353c8e2cc4563"
+            }
+          },
+          "seconds": 2.143
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "diagnostic-mappings",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "just",
+            "test::diagnostic-mappings"
+          ],
+          "exit_code": 0,
+          "log": "034-validate.log",
+          "completed": true,
+          "pid": 3663541,
+          "diagnostics": {
+            "bytes": 1026,
+            "retained_bytes": 1026,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "034-validate.log",
+              "bytes": 1026,
+              "sha256": "11bba97be441a501ff4445119f9786cf859b63dcb55f5a81236472d72767e567"
+            }
+          },
+          "seconds": 5.922
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "zig-format",
+      "phase": "format",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "zig",
+            "fmt",
+            "--check",
+            "build.zig",
+            "build",
+            "bindings/build.zig",
+            "bindings/build.zig.zon",
+            "sdks/zig",
+            "packages/zig",
+            "apps",
+            "examples",
+            "tests"
+          ],
+          "exit_code": 0,
+          "log": "035-validate.log",
+          "completed": true,
+          "pid": 3665452,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "035-validate.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 0.349
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "test-launcher",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/test_launch.py"
+          ],
+          "exit_code": 0,
+          "log": "036-validate.log",
+          "completed": true,
+          "pid": 3665667,
+          "diagnostics": {
+            "bytes": 98,
+            "retained_bytes": 98,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "036-validate.log",
+              "bytes": 98,
+              "sha256": "2f4b0a266c6f4a3f71fef6652b2d61dc0603a7eb196d6960ca5e41c3bf9210a6"
+            }
+          },
+          "seconds": 0.677
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "check-runner",
+      "phase": "tooling",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/test_checks.py"
+          ],
+          "exit_code": 0,
+          "log": "037-validate.log",
+          "completed": true,
+          "pid": 3665887,
+          "diagnostics": {
+            "bytes": 180,
+            "retained_bytes": 180,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "037-validate.log",
+              "bytes": 180,
+              "sha256": "d8d82b696e75fc33352134cd5da805337447204d083d9c24b5ff56bb470625e9"
+            }
+          },
+          "seconds": 0.342
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "docs",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "python3",
+            "-B",
+            "tests/runner/docs.py"
+          ],
+          "exit_code": 0,
+          "log": "038-validate.log",
+          "completed": true,
+          "pid": 3665990,
+          "diagnostics": {
+            "bytes": 56,
+            "retained_bytes": 56,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "038-validate.log",
+              "bytes": 56,
+              "sha256": "00e4bf4b964ad2b4fc98b458a37e6e245ee01c7519cef0fbed85798ea4c6d847"
+            }
+          },
+          "seconds": 0.959
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    },
+    {
+      "id": "whitespace",
+      "phase": "static",
+      "stages": [
+        {
+          "stage": "validate",
+          "command": [
+            "git",
+            "diff",
+            "--check"
+          ],
+          "exit_code": 0,
+          "log": "039-validate.log",
+          "completed": true,
+          "pid": 3666332,
+          "diagnostics": {
+            "bytes": 0,
+            "retained_bytes": 0,
+            "omitted_bytes": 0,
+            "artifact": {
+              "path": "039-validate.log",
+              "bytes": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "seconds": 0.006
+        }
+      ],
+      "completed": true,
+      "expected_stages": [
+        "validate"
+      ]
+    }
+  ],
+  "active": null
+}

@@ -1,0 +1,117 @@
+[
+  {
+    "lane": "formal",
+    "task": "test::model",
+    "log": "001.log",
+    "command": [
+      "just",
+      "test::model"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 3477,
+    "diagnostics": {
+      "bytes": 170,
+      "retained_bytes": 170,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "001.log",
+        "bytes": 170,
+        "sha256": "d2794c7452e3d883eeeda307260c8a29d19bb48ca64d153e330d3506bbc3684e"
+      }
+    },
+    "seconds": 108.31
+  },
+  {
+    "lane": "formal",
+    "task": "test::wal-model",
+    "log": "002.log",
+    "command": [
+      "just",
+      "test::wal-model"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 3681,
+    "diagnostics": {
+      "bytes": 244,
+      "retained_bytes": 244,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "002.log",
+        "bytes": 244,
+        "sha256": "1d617b7f998ad99b49ce93ff52791e441296fdb4459072ee6ab08cff658fc8e2"
+      }
+    },
+    "seconds": 12.58
+  },
+  {
+    "lane": "formal",
+    "task": "test::model-delivery",
+    "log": "003.log",
+    "command": [
+      "just",
+      "test::model-delivery"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 3875,
+    "diagnostics": {
+      "bytes": 1295,
+      "retained_bytes": 1295,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "003.log",
+        "bytes": 1295,
+        "sha256": "12fe9af98974c8b879914d6796119622bea6439a507a7f18e4d06e0617eb18d7"
+      }
+    },
+    "seconds": 0.89
+  },
+  {
+    "lane": "formal",
+    "task": "test::console-model",
+    "log": "004.log",
+    "command": [
+      "just",
+      "test::console-model"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 3910,
+    "diagnostics": {
+      "bytes": 219,
+      "retained_bytes": 219,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "004.log",
+        "bytes": 219,
+        "sha256": "c10c45b5e8b44030a6bf5304d76874d2b5525794f4a7a0fa37961da39aa58fbc"
+      }
+    },
+    "seconds": 27.31
+  },
+  {
+    "lane": "formal",
+    "task": "test::sql-rewrites",
+    "log": "005.log",
+    "command": [
+      "just",
+      "test::sql-rewrites"
+    ],
+    "exit_code": 0,
+    "completed": true,
+    "pid": 4190,
+    "diagnostics": {
+      "bytes": 443,
+      "retained_bytes": 443,
+      "omitted_bytes": 0,
+      "artifact": {
+        "path": "005.log",
+        "bytes": 443,
+        "sha256": "0ef3c80e6658c33b6289cf31cdfd53a39c737d4da6e8adda842ee28dd3967c59"
+      }
+    },
+    "seconds": 1.13
+  }
+]

@@ -107,8 +107,16 @@ ordered task lists and lane allocation, including the browser continuation.
 Missing or foreign inventory identities leave the measured costs visible but
 cannot meet a budget. The reporter reads the measured revision's inventory as
 data and records its own source separately; it executes no code from that run.
-An unavailable source inventory leaves the result inconclusive. The retained
-33-task budget does not qualify the expanded inventory.
+An unavailable source inventory leaves the result inconclusive.
+[CI budgets](ci-budgets.json) identify the calibrated inventory and separate warm
+and cold thresholds; the earlier 33-task limits retain their historical source.
+The command reports `budget_met`; a cost overrun alone does not fail the required
+correctness gate. These thresholds allow regression headroom and are distinct
+from faster feedback targets. A matching inventory hash confirms registration,
+not identical internal assertions or workload sizes. Review source, toolchain
+and workload changes before attributing a timing difference. The
+[calibration account](../../docs/history/qualification/verification.md#test-ownership-and-development-workflow--2026-10-27)
+records the measurements and their limits.
 Warm cache classification requires every configured GitHub cache to restore its
 matching key. Formal explicitly uses upstream Nix substitutes in both modes and
 has only a Zig GitHub cache; its policy is recorded separately. An undeclared

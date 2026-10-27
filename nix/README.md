@@ -439,9 +439,8 @@ expanding the other lanes or serializing their checks.
 The [hosted workflow](../.github/workflows/ci.yml) gives core 90 minutes,
 experience (including browser proofs) 120 minutes, growth and interfaces 150 minutes each, and each bindings
 lane 360 minutes. Launchers have 30 minutes, or 45 for explicit cold calibration. These are
-finite failure limits, not measured feedback budgets. The earlier warm/cold
-budget records remain historical; a larger cap does not qualify a slower run or
-change any accepted operation's deadline.
+finite failure limits, not measured feedback budgets. A larger cap does not
+qualify a slower run or change any accepted operation's deadline.
 
 All lanes reuse a compiler/dependency cache keyed by the locked toolchain and
 Zig manifests. Only `bindings-1` writes it, including the C++ standard library.
@@ -481,16 +480,22 @@ outside successful temporary clones in `.cache/ci/clean/`.
 wall time and total runner time must be measured after deployment; local timings
 and smaller closures alone do not establish the final speedup.
 
-The retained fifteen-minute warm feedback budget describes the historical
-33-task inventory and its 12m37s five-lane run. It does not qualify the expanded
-suite. [CI budgets](../tests/runner/ci-budgets.json) identify their measured
-inventory; `just ci::cost RUN_ID` collects completed hosted evidence.
+[CI budgets](../tests/runner/ci-budgets.json) bind the measured task/lane/browser
+inventory to separate warm and cold thresholds. `just ci cost RUN_ID` collects
+completed hosted evidence and reports whether it meets that budget; exceeding a
+cost threshold alone does not fail the required correctness gate. The
+[calibration account](../docs/history/qualification/verification.md#test-ownership-and-development-workflow--2026-10-27)
+retains three warm samples, one successful explicit cache miss, the unsuccessful
+attempts and measurement limits. The older 33-task qualification remains
+historical. Recalibrate materially changed workloads rather than treating the
+same task names as proof of equal work.
+
 Manual `cache_mode=cold` runs disable GitHub dependency restores/saves while
-retaining upstream Nix substitutes. The recorded fourteen-minute source build
-consumes almost the entire warm feedback budget before application checks;
-dependency-cache misses need a separately calibrated rebuild budget. A faster runner or prebuilt pinned dependency
-closure needs measured qualification. `TRANSIT_CI_RUNNER` can select a configured
-runner; it defaults to `ubuntu-24.04` and does not provision a paid runner.
+retaining upstream Nix substitutes. The cold threshold accounts for rebuilding
+the pinned environment; one sample does not establish cold-run variance. Faster
+runners or a prebuilt dependency closure require measured qualification.
+`TRANSIT_CI_RUNNER` selects a configured runner, defaults to `ubuntu-24.04`, and
+does not provision a paid runner.
 
 ## Updating tools
 
