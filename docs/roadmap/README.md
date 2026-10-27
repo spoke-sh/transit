@@ -80,7 +80,7 @@ combines that evidence at one revision.
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
 | 1 | [Data identities, declarations and commit contracts](01-declarative-data-lifecycle.md) | Completed ([#108](https://github.com/spoke-sh/transit/issues/108)) | Neutral data/definition identities, lifecycle operations, atomic-domain/isolation decisions and snapshot contracts before dependent formats |
-| 2 | [Local durable storage, `.tseg` segments and bounded queries](02-storage-and-query-performance.md) | In Progress ([#109](https://github.com/spoke-sh/transit/issues/109)) | Durable native local WAL/object storage across all owners, bounded segments/readers, logical history, codecs/collations and safe local publication |
+| 2 | [Local durable storage, `.tseg` segments and bounded queries](02-storage-and-query-performance.md) | Completed ([#109](https://github.com/spoke-sh/transit/issues/109)) | Durable native local WAL/object storage across all owners, bounded segments/readers, logical history, codecs/collations and safe local publication |
 | 3 | [Executable data lifecycles and live storage/SQL cutover](03-live-storage-and-sql-cutover.md) | In Progress ([#110](https://github.com/spoke-sh/transit/issues/110)) | Installed direct Table and named KV/Document/computation lifecycles, lazy `.tseg` schema projection, local storage/SQL wiring and exact restart recovery |
 | 4 | [SQL statement results and client consumption](04-statement-results-and-consumption.md) | Planned | Shared command/result lifecycle, bounded batches/readers, verified completion and explicit transaction attribution |
 | 5 | [Transactions, consistent snapshots and atomic composition](05-transactions-and-atomic-composition.md) | Planned | Consistent reads, supported multi-object SQL/SDK transactions, savepoints, durable commit recovery and transactional outbox |
@@ -582,7 +582,7 @@ requirements; no original tracker closes merely because its work was split.
    storage boundary instead of cycling every row through the `4 × 256B` metadata /
    `128 KiB` block actor-turn loop (`open_view -> commit_turn`), reserving
    `Station` actor turns for stateful process behavior and effect orchestration.
-2. **Replace B-tree-over-JSON-streams with a four-tier storage hierarchy and `.tseg` segments ([Milestone 2](02-storage-and-query-performance.md) — In Progress).**
+2. **Replace B-tree-over-JSON-streams with a four-tier storage hierarchy and `.tseg` segments ([Milestone 2](02-storage-and-query-performance.md) — Completed).**
    Split storage into two swappable primitives: **`TransitLog`** (the sequenced
    `TWAL1` write-ahead log and live data-activation delta bus, backed by a native
    Zig local WAL by default in `transit server`, or by Ursula, Kafka or Pulsar in

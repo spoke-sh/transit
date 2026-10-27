@@ -169,9 +169,17 @@ verifies 2,048 and 8,192 rows with 16 KiB values under a fixed 128 MiB process
 address-space ceiling. The larger fixture retains 193,003,856 file bytes; cold
 fresh-process readback verifies every value without changing storage. Setup's
 tracked peak is 67,015,751 bytes at both sizes, and readback's is 312,449 bytes.
-This exceeds the process ceiling and configured caches, not host RAM. The
-separate native matrix fails its default 1,800-second setup guard; it is not a
-completed native growth proof.
+This exceeds the process ceiling and configured caches, not host RAM.
+
+The [native growth matrix](../../history/qualification/storage.md#native-growth-with-an-explicit-extended-time-guard)
+also verifies 512 and 2,048 turns with the same executable and 128 MiB limit. The
+larger fixture retains **346,805,395 file bytes**; setup peak virtual memory is
+11,216 KiB and cold-readback peak is 10,300 KiB. Its setup takes 6,489 seconds,
+followed by 11.90 seconds of fresh-process cold readback checking every KV value,
+block, consumed input and emitted output without changing stored bytes. This
+profile uses an explicit **7,200-second child guard**. The earlier default
+1,800-second attempt remains failed; the completed memory proof does not establish
+that time budget or a latency SLO.
 
 The earlier disk-owner matrix below preserves its original source and outcomes;
 changes between these runs are not controlled performance comparisons.

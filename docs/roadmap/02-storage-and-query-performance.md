@@ -1,6 +1,6 @@
 # 2. Local durable storage, `.tseg` segments and bounded queries
 
-[Roadmap](README.md) · [Tracker #109](https://github.com/spoke-sh/transit/issues/109) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress
+[Roadmap](README.md) · [Tracker #109](https://github.com/spoke-sh/transit/issues/109) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Completed
 
 Replace the current B-tree-over-HTTP-stream-pages storage bottleneck with a
 four-tier storage hierarchy over two pluggable primitives (**`TransitLog`** and
@@ -14,7 +14,54 @@ measurements; the [storage reference](../handbook/reference/storage.md) and
 [storage internals](../handbook/internals/storage-runtime.md) document the current
 boundary and target architecture.
 
+## Final local foundation acceptance — 2026-10-27
+
+The local foundation acceptance criteria are met. Milestone 2 is **Completed**
+on this implementation; merge makes this the main-branch delivery record.
+
+This review supersedes the then-open delivery columns and incremental notes
+below. Their dates, source revisions and failures remain historical evidence.
+The delivered scope is the local durable foundation and selected segment/query
+profiles. The existing installed lifecycle/SQL obligations remain in milestone
+3, transaction composition in milestone 5, broader indexes in milestone 8,
+concurrent group-commit evaluation in milestone 10 and distributed providers/
+concurrent writers in milestone 15. This review transfers no new unfinished
+foundation criterion. #109 and #124 retain their broader combined obligations.
+
+| Acceptance area | Delivered behavior and executed evidence |
+| --- | --- |
+| [Local acceptance, fencing and object publication](../history/qualification/storage.md#local-storage-process-death-boundaries--2026-10-26) (#111–#115) | One WAL acceptance boundary preserves exact receipts and uncertain outcomes. Rolling WAL recovery, durable fences, complete history, independent-process object CAS, partial disk writes, injected I/O/NoSpaceLeft and process-death schedules exercise the local boundary. Finite TLA+ WAL safety checking exhausts 201,771 states and rejects six removed-guard mutants; it is not a proof of Zig refinement or device power-loss behavior. |
+| [Native owners](../history/qualification/storage.md#document-conflicts-tombstones-and-retained-revisions-on-disk--2026-10-26) (#126) | Control/policy, process mailboxes/turns, KV roots, captured blocks, standalone payload ownership and effect outcomes survive the qualified disk recovery paths. Document conflicts, tombstones and retained revisions pass the external schedule on both local storage and disk Ursula, including lost replies, replacement, retirement and current denial. |
+| [Table/catalog history and maintenance](../history/qualification/storage.md#retained-direct-data-graph-and-physical-collection--2026-10-27) (#115–#127) | Paged accepted roots preserve keyless identities, exact interpretation, original operation evidence and pins over unflushed changes. Archive/checkpoint, explicit history expiry, compaction and bounded physical collection preserve accepted state and retained obligations across restart. Complete A→B→A history remains distinct from endpoint differences; physical compaction emits no user mutation. |
+| [Direct and native collection](../history/qualification/storage.md#retained-direct-data-graph-and-physical-collection--2026-10-27) (#114/#116/#127) | Durable allocation/reuse inventories, pre-fence owner cuts, complete dependency traversal, bounded paged marks/work and exact deletion protect newly reused and retained objects. Sync failures, corrupt/incomplete metadata, quota refusal, clock/grace gates and process death preserve restartable progress. Installed automatic scheduling remains with milestone 3. |
+| [Bounded reads and writes](../history/qualification/storage.md#local-bounded-growth-requalification--2026-10-27) (#116/#128) | Paged Table metadata and ordered keys, bounded candidate builders, shared range readers, projection/filtering and disk-backed relational state replace full-history materialization. Fixed operation/cache/spill budgets are separate from retained cardinality. Both complete growth matrices pass under a fixed 128 MiB process ceiling: 8,192 Table rows retain 193,003,856 bytes, and 2,048 native turns retain 346,805,395 bytes. Cold fresh-process readback verifies all values and unchanged storage. |
+| [Codecs, states and collations](../history/qualification/query.md#collated-text-relational-execution-and-owned-results--2026-10-26) (#118/#128) | Independent encoded/decoded and pruned/unpruned controls preserve five-state provenance and selected physical-codec semantics. Nullable TEXT comparison, filtering, joins, grouping, order, checkpoints and exchanges carry UTF8_BINARY, ASCII_CI or CP037 semantics. ICU rejects explicitly. The native symbol-table codec does not claim upstream FSST interchange. |
+| [Shared buffers](../history/qualification/storage.md#shared-segment-arrow-value-ownership--2026-10-26) (#128) | Qualified aligned plain arrays retain their verified group through slices and Arrow C export. Other layouts use bounded decoding. Cancellation and allocation-failure checks preserve returned buffers and release incomplete work. Five-state export retains the existing IPC mapping; arbitrary foreign import is not implied. |
+| [Current-v1 cutover](../handbook/reference/versioning.md) (#112/#123) | The coordinated definition `e374e6f34d0a317e1fedcde79a548b45e124f1751a3bc62494aadcb7e69988d5` replaces the prior stored/query interpretation. Native, host, browser, schema and signing artifacts migrate together. Missing/foreign definitions reject; there is no legacy decoder or silent reset. |
+| [Measurements](../history/qualification/storage.md#disk-owner-recovery-and-read-matrix--2026-10-27) (#76/#124) | Current disk matrices contain 768 recovery/read and 384 ingestion/readback samples with independent values, cache observations, raw records and allocation/RSS/I/O attribution. Every arm has 31 recorded observations after a discarded warmup. Narrow retained ranges reduce requested segment bytes; checkpointing reduces logical Table recovery while physical WAL validation remains. Native inventory-WAL work is counted separately. |
+| [Common-revision checks](../history/qualification/storage.md#local-foundation-repository-qualification--2026-10-27) | Workspace `just check all` and committed-HEAD `just ci clean --check all` pass at `15c35f005`; this includes native disk/process faults, 18 contract checks, diagnostics, Board and the documentation build. Full Table/native growth uses the same frozen executable at its recorded sources. Subsequent edits are documentation only. Earlier focused results keep their actual sources; this is not a claim that all seven hosted lanes ran at one source. |
+
+The actual index/filter profile is explicit: live primary-key access traverses
+an immutable paged Table directory and bounded row groups; the bounded segment
+footer retains a sorted key array. No universal two-read/O(1) bound is claimed.
+The fixed 64-bit membership filter is measured against 4/16/64/256 distinct keys
+and an otherwise identical unpruned control. It avoids payload work for the
+low-distinct-count fixtures and saturates for 256 distinct values; adaptive
+sizing and a universal false-positive bound are not implemented claims.
+
+The native 1,800-second setup attempt remains failed. The [complete native
+profile](../history/qualification/storage.md#native-growth-with-an-explicit-extended-time-guard)
+uses an explicit 7,200-second guard and takes 6,489 seconds to build the larger
+fixture, preserving data sizes, independent verification and the 128 MiB ceiling.
+It establishes the memory/growth criterion, without meeting the original time
+budget or an unstated latency target. The [effect-owner evidence](../history/qualification/storage.md#local-recorded-effect-outcomes-after-trim--2026-10-26)
+and [ingestion matrix](../history/qualification/storage.md#disk-ingestion-and-commit-matrix--2026-10-27)
+retain their separate sources and execution boundaries.
+
 ## Reopened assessment — 2026-10-22
+
+This dated assessment describes the reopening baseline; the final acceptance
+review above owns the current delivery status.
 
 Source review of local snapshot `a0a8a3ed`
 found useful standalone work from
@@ -73,7 +120,7 @@ local slice, then complete the [installed cutover](03-live-storage-and-sql-cutov
 The sequencing review transfers #117/#121 implementation and distributed runtime
 qualification to [milestone 15](15-storage-providers-and-concurrency.md).
 #109 remains the umbrella for its original outstanding local and provider scope;
-this milestone remains In Progress. Local cross-process CAS, fencing at its
+this milestone remained In Progress at that assessment. Local cross-process CAS, fencing at its
 supported authority boundary and all local recovery obligations remain here.
 The target architecture and completion criteria below incorporate the authorized
 transcript review.
@@ -86,6 +133,9 @@ conversion, latency or complexity guarantees are not acceptance assumptions.
 ## Shared durable system and commit profiles
 
 ### Current implementation assessment — 2026-10-25
+
+This dated baseline and its remaining-work column precede the completed review
+above. They retain their original source and scope.
 
 Baseline: merged tree `b720c488` (identical to implementation `4dc0d3ba`).
 Issues #109, #113–#118, #123–#128 and #76 were refreshed for this assessment.
@@ -117,6 +167,10 @@ formats, and qualify installed performance/recovery with milestone 3. This is an
 implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
+
+These increment notes preserve the state at each delivery point. Their then-open
+items are superseded by the final acceptance review, without relabelling earlier
+failed or incomplete runs.
 
 - The external Document recovery schedule now passes on local WAL/objects and
   disk-backed Ursula with conflicts, tombstones, retained revisions, lost replies,
@@ -521,6 +575,13 @@ under other workloads, or that current ingestion latency meets an unstated targe
 The remaining completion evidence below must pass for the synchronous profile.
 
 ## Target architecture
+
+The completed local access layout uses the paged Table-wide primary-key directory
+and bounded segment footer described in the acceptance review. This is the
+measured replacement for the earlier embedded-B-tree/two-read proposal below;
+that original representation and universal complexity claim are not delivery
+claims. The fixed membership-filter profile and measured saturation are explicit
+in the same review and the public performance owner.
 
 The architecture below includes future backend choices to keep the shared
 interfaces coherent. This milestone qualifies the native local profile and

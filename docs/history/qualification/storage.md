@@ -47,9 +47,9 @@ expectation automatically regenerated. The later complete run includes this fix.
 The evidence-only follow-up `e99b6ae6d` changes three documentation files. Its
 link check, content tests, strict types/format/lint and complete production site
 build pass (`/var/tmp/transit-m2-completion-measurement-docs.log`). Runtime code
-and contracts are identical to `15c35f005`. Native growth qualification remains
-a separate gate; this repository-check record does not convert its earlier
-timeout into a pass.
+and contracts are identical to `15c35f005`. Native growth qualification is recorded
+[separately below](#native-growth-with-an-explicit-extended-time-guard); this
+repository-check record does not convert its earlier timeout into a pass.
 
 ## Retained direct-data graph and physical collection — 2026-10-27
 
@@ -269,6 +269,72 @@ guard. Its report is `.cache/storage-growth-native-completion.json` and log is
 does not exceed 128 MiB; neither that partial result nor the complete Table
 matrix establishes native growth beyond the ceiling. The failure must remain
 distinct from any measurement under a different execution guard.
+
+### Native growth with an explicit extended time guard
+
+The complete native matrix **passes** at clean source `e99b6ae6d`, using the same
+frozen ReleaseSafe executable as the Table growth matrix above. It retains the
+512/2,048-turn fixtures, 16 KiB blocks, one resident index page and enforced
+**128 MiB child address-space ceiling**. The explicit `--timeout 7200` changes
+only the per-child time guard. It does not make the earlier 1,800-second profile
+pass or establish a latency SLO. The signed engine operations use a deterministic
+fixture clock (`unix_ms = 100`); this is not installed scheduling or wall-clock
+deadline qualification.
+
+| Observation | 512 turns | 2,048 turns |
+| --- | ---: | ---: |
+| Retained file bytes | 74,157,775 | 346,805,395 |
+| Allocated disk bytes | 417,820,672 | 1,958,170,624 |
+| File count | 121,188 | 570,288 |
+| Init-loop seconds | 1,174.068 | 6,489.274 |
+| Cold readback process seconds | 2.750 | 11.895 |
+| Cold physical open / logical recovery / read seconds | 0.694 / 0.004 / 2.030 | 3.245 / 0.010 / 8.588 |
+| Setup peak virtual / resident KiB | 11,216 / 8,704 | 11,216 / 8,828 |
+| Readback peak virtual / resident KiB | 10,260 / 7,756 | 10,300 / 7,796 |
+| Largest tracked setup / readback phase peaks, bytes | 25,486 / 26,870 | 25,480 / 26,908 |
+| Accepted position | 1,543 | 6,151 |
+
+Independent verification checks every KV value and block, consumed inputs and
+emitted outputs. Sums are 2,219,264 and 35,615,744; the value digests are
+`3ef5d651cccdb41d305d27e2644dadd78400d9e664ab158c6b7ab339a8a793f1` and
+`57bd73bf47d5f712bb8b0021bd86352af393bb3adfe0f48a09b007af6a84a213`.
+All 102,005/478,067 fixture file pages are observed nonresident before readback,
+on the first conditioning attempt at each size. Conditioning takes 24.472/114.260
+seconds outside the child read timers. Complete file hashes and allocation remain
+unchanged afterwards. The larger fixture exceeds the enforced process ceiling
+in retained file lengths, independently of its allocated filesystem blocks.
+
+The init loops append 1,542/6,150 authority records (4,626/18,450 syncs) and
+24,228/114,048 allocation records (72,684/342,144 syncs), alongside the same
+number of immutable object puts. Cold physical startup validates 1,543/6,151
+authority and 24,235/114,055 allocation records. Recovery and reads append to
+neither log and publish no objects. Tracked owner allocations, image memory and
+filesystem bytes have distinct boundaries. The Python fixture/oracle and kernel
+page cache are outside the child ceiling. These single observations establish
+the selected finite growth profile, not a percentile, host-RAM or throughput
+bound. Low-rate process/frontier inspection occurs during setup only; the
+monitor does not touch fixture files during cold conditioning or readback.
+
+Reproduce inside the pinned shell with
+`just test::storage-growth --owner native --timeout 7200 --output .cache/storage-growth-native-long.json`.
+The report is `.cache/storage-growth-native-long-completion.json`, SHA-256
+`f482549ead8a938e55016477566c019b23958e9ea24c826e104027c65d31e26d`;
+the log is `/var/tmp/transit-m2-growth-native-long-completion.log`. The complete
+command exits zero and removes its private fixtures only after verification.
+The driver now retains failed fixtures and their frozen executable; this does
+not recover the files deleted by the earlier failed driver's cleanup.
+
+The executable SHA-256 is
+`e458dbcf62a125667697cccd8776c4d3ae47d90a9bff54c54ed577e94072e359`;
+the growth/common-driver hashes are
+`6c0ffd8b03f4f759f12164d0346f9d1901d8f32f10415d185e8cb32f407fe786` /
+`128ef906f2251a5c48341cffcbad76fe92cf63622ff883189183f97addea9b18`.
+The probe hash is
+`8e8cb93f6037975bc6ac4e006f4d548a224a72e9232b2493dccc274ced974a4b`,
+and the lock hash is
+`865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264`.
+The pinned compiler is `0.17.0-dev.2267+48abf1a34`, CPU affinity is 0, and the
+physical fixture directory is on `/var/tmp` ext4 on the same shared host.
 
 ## Segment membership selectivity — 2026-10-27
 

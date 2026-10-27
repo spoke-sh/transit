@@ -28,7 +28,10 @@ Native fixtures contain 16 and 64 accepted turns. Each turn commits one KV value
 one immutable 1,024-byte block, input progress and one recorded output to a second
 process. Reopen checks consumed inputs/output counts and reads every KV value and
 block through signed queries with block verification. Both arms use one resident
-page. The fixture explicitly permits history trimming; the checkpoint arm
+page and a deterministic fixture authority clock (`unix_ms = 100`). Measured
+durations use the monotonic host clock; these fixtures do not qualify installed
+wall-clock deadline behavior. The fixture explicitly permits history trimming;
+the checkpoint arm
 accepts a native checkpoint and advances the physical log's authorized read
 floor. Whole segments below that floor can be removed; a segment straddling the
 floor retains its bytes and startup validation. Its current
@@ -158,8 +161,12 @@ larger than host RAM. Shared-host contention remains visible in recorded load.
 
 ## Growth under a process memory ceiling
 
+The [recorded full matrices](../../../docs/history/qualification/storage.md#local-bounded-growth-requalification--2026-10-27)
+use separate owner runs and the explicit native time guard below.
+
 ```sh
-nix develop --command just test::storage-growth --output .cache/storage-growth.json
+nix develop --command just test::storage-growth --owner table --output .cache/storage-growth-table.json
+nix develop --command just test::storage-growth --owner native --timeout 7200 --output .cache/storage-growth-native.json
 ```
 
 The growth task builds a separate ReleaseSafe executable with 16 KiB payloads.
