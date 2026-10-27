@@ -5073,6 +5073,13 @@
             "inspect_status"
           ]
         },
+        "RelationalExchangeCreditBudget": {
+          "code": "query.exchange_credit_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
         "RelationalExchangePending": {
           "code": "query.exchange_pending",
           "category": "lifecycle",
@@ -7407,6 +7414,14 @@
           ],
           "transport_status": 409
         },
+        "RelationalExchangeCreditBudget": {
+          "code": "query.exchange_credit_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 400
+        },
         "RelationalExchangePending": {
           "code": "query.exchange_pending",
           "category": "lifecycle",
@@ -8901,6 +8916,14 @@
             "inspect_status"
           ],
           "transport_status": 9
+        },
+        "RelationalExchangeCreditBudget": {
+          "code": "query.exchange_credit_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ],
+          "transport_status": 8
         },
         "RelationalExchangePending": {
           "code": "query.exchange_pending",
@@ -12242,6 +12265,13 @@
               "execution",
               "provided"
             ]
+          ]
+        },
+        "RelationalExchangeCreditBudget": {
+          "code": "query.exchange_credit_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
           ]
         },
         "RelationalExchangePending": {
