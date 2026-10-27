@@ -15,7 +15,7 @@ import threading
 import time
 
 from performance.console.console_latency import digest, override
-from harness.http_probe import Probe
+from harness import http_probe
 from harness.processes import children
 from interfaces.installation.server import Fixture
 from storage.providers.pages import metrics, sample_process
@@ -224,7 +224,8 @@ def main():
     for name in ('cli', 'node', 'host'):
         parser.add_argument(name)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--repeat', type=int, default=3, choices=range(1, 1001))
+    parser.add_argument('--repeat', type=int, default=3, choices=range(1001),
+                        help='mutation repetitions; zero selects only read controls after setup')
     parser.add_argument('--schema-profile', choices=('narrow', 'wide', 'nested'), default='narrow')
     parser.add_argument('--rows', type=int, default=0, choices=range(100001))
     parser.add_argument('--age', type=int, default=0, choices=range(100001), help='extra retained mutations at fixed row cardinality')
@@ -239,6 +240,8 @@ def main():
                         help='independently verified point/range/full/empty read controls after mutations')
     parser.add_argument('--client', help='persistent public Zig caller executable (no console rendering)')
     args = parser.parse_args()
+    if args.repeat == 0 and args.read_repeat == 0:
+        parser.error('select mutation repetitions or read controls')
     if args.client and args.schema_profile != 'narrow':
         parser.error('wide/nested profiles require the typed console verifier')
     if args.read_repeat and not 8 <= args.rows <= 120:
@@ -250,6 +253,8 @@ def main():
               'caller': 'client' if args.client else 'console',
               'source_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'source_dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'])),
+              'driver_sha256': digest(__file__),
+              'probe_sha256': digest(http_probe.__file__),
               'clock': 'monotonic_ns', 'percentiles': 'empirical nearest rank; p95 requires 20, p99 requires 100 samples per case'}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     def save():
@@ -304,7 +309,7 @@ def main():
                 assert fixture.process.poll() is None, 'fixture exited during startup'
                 assert time.monotonic() < deadline, 'measurement gate timeout'
                 time.sleep(.02)
-            probes['native'] = Probe(f'http://127.0.0.1:{real_port}', fixture.config['ports']['node'], native=True)
+            probes['native'] = http_probe.Probe(f'http://127.0.0.1:{real_port}', fixture.config['ports']['node'], native=True)
             Path(str(gate) + '.ready').touch()
         fixture.ready()
         config = fixture.root / 'reader.json'
