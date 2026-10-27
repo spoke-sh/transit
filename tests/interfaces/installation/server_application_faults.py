@@ -16,7 +16,7 @@ import threading
 import time
 
 from harness.processes import children, joined
-from interfaces.installation.server import freeze_executables
+from harness.local_installation import freeze_executables
 from harness.services import free_port
 from interfaces.http.serving import compact
 

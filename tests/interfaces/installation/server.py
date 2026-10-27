@@ -11,76 +11,18 @@ import socket
 import struct
 import subprocess
 import sys
-import tempfile
 import time
-import urllib.error
-import urllib.request
 
-from harness.services import free_port
-from harness.processes import children, command, joined
+from harness.local_installation import LocalInstallation
+from harness.processes import children, command
 from interfaces.cli.table_console import TableConsole, atom, records, results as table_results
 
 
-def freeze_executables(fixture):
-    """Keep a source-built fixture independent of later workspace builds."""
-    directory = fixture.root / 'bin'
-    directory.mkdir(mode=0o700)
-    for key, name in [('node', 'transit-node'), ('query_host', 'transit-query-host'),
-                      ('board', 'transit-board'), ('sql_gateway', 'transit-sql-gateway')]:
-        destination = directory / name
-        shutil.copy2(fixture.config['executables'][key], destination)
-        fixture.config['executables'][key] = str(destination)
-
-
-class Fixture:
+class Fixture(LocalInstallation):
     def __init__(self, cli, node, host, parent="/var/tmp"):
-        self.root = Path(tempfile.mkdtemp(prefix="transit-server-proof-", dir=parent))
-        # Keep retained artifact identity stable if another build updates zig-out.
-        self.cli = str(self.root / "transit")
-        shutil.copy2(Path(cli).resolve(), self.cli)
-        self.reserved_ports = set()
-        ports = [self.reserve_port() for _ in range(3)]
-        self.config = {"version": 1, "installation": str(self.root / "installation"), "realm": 73,
-            "ports": dict(zip(("node", "gateway"), ports[:2])),
-            "sql": {"health_port": ports[2]},
-            "executables": {"node": str(Path(node).resolve()), "query_host": str(Path(host).resolve()),
-                "sql_gateway": os.environ.get("TEST_TRANSIT_SQL_GATEWAY_BINARY", str(Path(cli).resolve().parent / "transit-sql-gateway")),
-                "board": os.environ.get("TEST_TRANSIT_BOARD_BINARY", str(Path(cli).resolve().parent / "transit-board"))}}
-        self.path = self.root / "transit.yaml"
-        self.path.write_text(json.dumps(self.config))
-        self.no_ui = True
-        self.process = None
-        self.logs = []
+        super().__init__(cli, node, host, parent=parent)
         self.activation = None
         self.markers = set()
-        self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        self.url = f"http://127.0.0.1:{self.config['ports']['gateway']}"
-
-    def reserve_port(self):
-        # Closing an ephemeral bind can let the OS return that same port again.
-        # Keep every role in this fixture distinct, including later SQL roles.
-        while True:
-            port = free_port()
-            if port not in self.reserved_ports:
-                self.reserved_ports.add(port)
-                return port
-
-    @property
-    def installation(self):
-        return self.root / "installation"
-
-    def record(self):
-        return json.loads((self.installation / "installation.json").read_text())
-
-    def start(self):
-        assert self.process is None
-        log = (self.root / f"manager-{len(self.logs)}.stderr").open("wb")
-        self.logs.append(log)
-        args = [self.cli, "server", "--config", str(self.path)]
-        if self.no_ui:
-            args.append("--no-ui")
-        self.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=log,
-            cwd=self.root, env={"PATH": "/unavailable", "LANG": "C"})
 
     def ready(self, timeout=180):
         deadline = time.monotonic() + timeout
@@ -119,20 +61,6 @@ class Fixture:
                 return report
         raise TimeoutError(f"Server readiness at {self.root}")
 
-    def stop(self, kill=False):
-        if self.process is None:
-            return
-        owned = children(self.process.pid)
-        running = self.process.poll() is None
-        if running:
-            self.process.kill() if kill else self.process.terminate()
-        self.process.wait(timeout=20)
-        if running and not kill:
-            assert self.process.returncode == 0, Path(self.logs[-1].name).read_text()
-        joined(owned)
-        self.process.stdout.close()
-        self.process = None
-
     def refusal(self, message):
         args = [self.cli, "server", "--config", str(self.path)]
         if self.no_ui:
@@ -140,7 +68,6 @@ class Fixture:
         result = subprocess.run(args, capture_output=True, text=True, timeout=30, env={"PATH": "/unavailable"})
         assert result.returncode != 0 and message in result.stderr, result
         assert not result.stdout, result
-
     def console_config(self):
         # Public rendezvous is sufficient; never read a client signing key.
         import hashlib
@@ -150,7 +77,6 @@ class Fixture:
         rendezvous = json.loads((runtime / (digest[:32] + '.json')).read_text())
         return dict(version=1, endpoint='unix:'+rendezvous['socket'],
                     account=rendezvous['account'], database=rendezvous['database'], authentication='peer')
-
     def console(self, text, expected=0, *, request_timeout_ms=None, timeout=80):
         args = [self.cli, "console", "--no-rc", "--format", "json"]
         if request_timeout_ms is not None:
@@ -165,7 +91,6 @@ class Fixture:
         if expected:
             return result
         return table_results(json.loads(line) for line in result.stdout.splitlines())
-
     def sql_session(self, action, **kwargs):
         from interfaces.sql_sessions.local import Client
         client = Client(self.console_config(), self.record()['definition']).open()
@@ -173,7 +98,6 @@ class Fixture:
             return client.call(action, **kwargs)
         finally:
             client.close()
-
     def sql_operations(self):
         after, entries = 0, []
         while True:
@@ -182,7 +106,6 @@ class Fixture:
             if page['next'] is None:
                 return entries
             after = page['next']
-
     def revoke_table_writes(self):
         # Current native domain grants own Table permissions. The old catalog
         # policy record is no longer an authorization source.
@@ -220,16 +143,10 @@ class Fixture:
                 return
             assert status['status'] == 'preparing' and time.monotonic() < deadline, status
             command(dict(advance=change))
-
     def kill_role(self, match):
         candidates = [pid for pid in children(self.process.pid) if match in command(pid) and (match != "/transit-node " or "--maintain" not in command(pid))]
         assert len(candidates) == 1, [(pid, command(pid)) for pid in children(self.process.pid)]
         os.kill(candidates[0], signal.SIGKILL)
-
-    def cleanup(self):
-        self.stop()
-        for log in self.logs:
-            log.close()
 
 
 def run(cli, node, host):

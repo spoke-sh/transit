@@ -11,6 +11,8 @@ assertions in domain scenarios and provider setup in explicitly named fixtures.
 | [abi_support.py](abi_support.py) | Generated native ABI dispatch, bounded handle ownership and exact saved bytes for cross-component fixtures |
 | [operation_helpers.py](operation_helpers.py) | Explicit private operation-driver location; never substitute the installed CLI |
 | [recovery_fixture.py](recovery_fixture.py) | Preserve owned failed state after joining its supplied provider fixtures |
+| [local_installation.py](local_installation.py) | Private native-local installation configuration, frozen executable copies, manager startup and joined cleanup |
+| [test_local_installation.py](test_local_installation.py) | Real child startup/exit, private state, restart and immutable executable-copy controls |
 | [operations/RecoveryFiles.zig](operations/RecoveryFiles.zig) | Private recovery-file I/O for domain-owned native operation scenarios |
 
 Test drivers on the `tests/` import path use `harness.services` for generic
@@ -19,6 +21,12 @@ The [storage conformance driver](../storage/providers/storage.py) owns its disk 
 the [direct Table driver](../storage/tables/direct_table_service.py) owns local Table scenarios.
 Sharing port/readiness helpers does not give either driver the other's backend
 or durability claim.
+
+The installed [server fixture](../interfaces/installation/server.py) extends the
+local installation mechanics with assertions about readiness, renewed activation,
+current authorization and SQL outcomes. The harness does not decide those
+outcomes or share a mutable installation between independent scenarios. A caller
+owns whether successful state is removed or failed state retained after cleanup.
 
 `free_port()` finds an available loopback port and closes the temporary socket;
 it does not reserve that port until a service binds it. `wait_ready()` requires

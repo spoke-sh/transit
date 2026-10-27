@@ -14,7 +14,8 @@ import sys
 import time
 
 from harness.processes import children
-from interfaces.installation.server import Fixture, freeze_executables
+from interfaces.installation.server import Fixture
+from harness.local_installation import freeze_executables
 from interfaces.installation.server_sql import wait_status
 from interfaces.sql_sessions.native import Client
 from interfaces.cli.table_console import TableConsole

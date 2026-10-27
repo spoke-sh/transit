@@ -190,6 +190,16 @@
         ]
       },
       {
+        "id": "installation-harness",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/harness/test_local_installation.py"
+        ]
+      },
+      {
         "id": "ci_runner",
         "phase": "static",
         "command": [

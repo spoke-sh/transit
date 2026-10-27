@@ -13,7 +13,8 @@ import sys
 import time
 
 from harness.processes import children, command
-from interfaces.installation.server import Fixture, freeze_executables
+from interfaces.installation.server import Fixture
+from harness.local_installation import freeze_executables
 from harness.services import free_port
 
 
