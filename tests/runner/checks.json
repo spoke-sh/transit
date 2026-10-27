@@ -190,6 +190,16 @@
         ]
       },
       {
+        "id": "native-artifact-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/harness/test_native_artifacts.py"
+        ]
+      },
+      {
         "id": "installation-harness",
         "phase": "tooling",
         "command": [

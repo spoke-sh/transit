@@ -3,6 +3,7 @@ const std = @import("std");
 const Runtime = @import("runtime.zig").Context;
 
 pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, context: Runtime) void {
+    @import("native_fixtures.zig").register(b, target, optimize, context);
     const http_server = context.http_server;
     const serving_http = context.serving_http;
     const application = context.application;
