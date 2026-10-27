@@ -208,6 +208,39 @@ missing roots and invalid successors. The
 records execution and the separate resource-growth schedule; these checks do
 not establish distributed ownership or a latency guarantee.
 
+The same local ownership assumptions permit bounded Table history hints.
+[`TablePartition.recoverSince`](../../../packages/zig/transit-storage/src/TablePartition.zig)
+rechecks a previously validated root/chain against its accepted WAL or archive
+boundary, then validates every newer transition. The latest accepted recovery
+capsule and current top-level roots are still read and verified. A newer
+checkpoint supersedes an older hint through the normal checkpoint-publication
+proof, so legitimately released older anchors need not remain available merely
+for a cache entry. An unchanged Table replays zero successor records; that does
+not eliminate declaration, boundary or index-root reads.
+
+`LocalTableHost` retains at most 64 owned Table hints, one per serialized lock
+stripe, for object-scoped requests and automatic flushing. Name resolution and
+directory scans still open Tables without these hints. Collision discards only
+volatile history evidence. The next open either validates a matching hint or
+performs ordinary recovery; no pin, pending statement or durable Table is evicted.
+An uncertain append cannot export a hint, and the service clears the selected
+slot after a failed request, including denied final disclosure. Replacement
+discards all hints. Permission checks remain independent and current.
+
+The [`Table live recovery prefix` tests](../../../packages/zig/transit-storage/src/table_partition_test.zig)
+compare suffix replay with the accepted root, reload a changed declaration, reject
+forged boundaries and shortened history, and exercise checkpoint supersession
+and missing capsules on disk. The
+[catalog hint test](../../../packages/zig/transit-catalog/src/direct_catalog_test.zig)
+forces eviction and name changes; the
+[native policy schedule](../../../apps/transit-node/local_catalog_policy_test.zig)
+checks revocation after buffering with a warm hint. These are component and
+composition checks, not a measured end-to-end speedup. Increasing page capacity
+alone would not remove repeated history validation; retaining complete Table
+owners could additionally reuse pages but requires separate allocator, lifetime
+and memory accounting. Prefix reuse deliberately retains no request allocator
+or provider handle.
+
 ### Optimistic current reads and retained cuts
 
 Can a caller read one row or traverse a stable Table without creating durable

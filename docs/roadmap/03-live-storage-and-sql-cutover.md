@@ -607,6 +607,32 @@ qualified together. Result batching belongs to milestone 4, but completing it
 does not discharge these storage/recovery costs. Preserve current authorization,
 retained cuts, exact outcomes and pin cleanup while reducing repeated work.
 
+**P5 continuation evidence — 2026-10-27:** ReleaseSafe runtime binaries from
+`8b19eaebb` are frozen under ignored local qualification output. The persistent
+console mutation run (`--repeat 3 --rows 8 --read-repeat 3`) completed six
+measured mutations at roughly 8.7–10.7 seconds, then its three-row INSERT reached
+the 30-second submission deadline with `SqlOutcomeUnknown`. A separate
+instrumented run with one repetition failed at the same case. Both original
+installations and request identities remain retained; neither run passes the
+mutation or recovery gate. The probe now classifies direct `/table/v1` calls
+without retaining their payloads. One successful instrumented INSERT observed
+1,307 total fixture requests, including background work, and 16 native turns.
+Direct Table history replay and the SQL account ledger's 128-byte reference
+upload are distinct costs; cumulative overlapping request durations cannot be
+added to infer statement latency. Diagnose that failed original operation and
+attribute ledger, storage-lock and read-pin costs before claiming the issue fixed.
+
+An independent read-only measurement after eight seed rows (plus the fixed
+zero-key row) completed all 15 exact-value controls. Three observations per case
+gave medians of 696 ms point, 983 ms range, 1,024 ms full, 736 ms empty and 707 ms
+LIMIT zero. These describe this physical-disk fixture, not tail percentiles or
+a product latency guarantee. `30ccc4f45` adds bounded same-owner Table history
+hints with boundary validation and request-failure invalidation. Eleven focused
+storage checks, four selected catalog checks and the four native policy/maintenance
+checks pass, including the 1,165-step retained-graph collection. Its matched live
+comparison, complete owner/cache resource gate and final qualification remain
+open. This is a component delivery within P5.2, not completion of P5.
+
 #### P6 — Publish one authorized storage view and configuration surface
 
 Owners: shared protocol/catalog/client operations, server settings, CLI/SQL
