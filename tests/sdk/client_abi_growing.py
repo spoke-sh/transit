@@ -12,10 +12,12 @@ import threading
 
 from interfaces.inspection.inspection import System
 from harness.services import free_port, wait_ready
+from harness.phases import phase
 
 
 class GrowingSystem(System):
     resident_pages = 1
+    @phase("provision", "growing-authority")
     def __enter__(self):
         self.store.__enter__()
         try:

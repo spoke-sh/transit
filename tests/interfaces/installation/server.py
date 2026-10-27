@@ -14,6 +14,7 @@ import sys
 import time
 
 from harness.local_installation import LocalInstallation
+from harness.phases import phase
 from harness.processes import children, command
 from interfaces.cli.table_console import TableConsole, atom, records, results as table_results
 
@@ -24,6 +25,7 @@ class Fixture(LocalInstallation):
         self.activation = None
         self.markers = set()
 
+    @phase("readiness", "local-installation")
     def ready(self, timeout=180):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:

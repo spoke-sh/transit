@@ -15,6 +15,7 @@ assertions in domain scenarios and provider setup in explicitly named fixtures.
 | [test_local_installation.py](test_local_installation.py) | Real child startup/exit, private state, restart and immutable executable-copy controls |
 | [native_artifacts.py](native_artifacts.py) | Resolve complete native client/authority sets through Zig's build cache, with source, profile, target, definition and output identities |
 | [test_native_artifacts.py](test_native_artifacts.py) | Reject changed source, wrong profiles/definitions and failed or partial native publications |
+| [phases.py](phases.py), [test_phases.py](test_phases.py) | Automatic nested preparation/lifetime timings, including failed and interrupted work |
 | [operations/RecoveryFiles.zig](operations/RecoveryFiles.zig) | Private recovery-file I/O for domain-owned native operation scenarios |
 
 Test drivers on the `tests/` import path use `harness.services` for generic
@@ -29,6 +30,25 @@ local installation mechanics with assertions about readiness, renewed activation
 current authorization and SQL outcomes. The harness does not decide those
 outcomes or share a mutable installation between independent scenarios. A caller
 owns whether successful state is removed or failed state retained after cleanup.
+
+Phase records live under ignored `.cache/checks/phases/`, with a source record
+per process and a unique record per operation. Native preparation records input
+identity, build-graph work and output verification; the graph phase includes
+cache lookup and output collection, so it is not a pure compilation metric.
+SDK tasks separately record packaging. Shared raw-client, Station and exchange
+schedules record total time, consumer installation, authority/provider provisioning
+and owned teardown. Local installation records executable copying, process start,
+readiness and teardown separately; process start alone is not readiness.
+
+Timings are inclusive, and nested records name their parent. Do not add a parent
+duration to its children or describe the residual as pure CPU time. Uninstrumented
+work remains part of its enclosing schedule. Records begin incomplete; failures
+retain their exception type and interrupted records never acquire completion.
+Timing labels contain code owners, not credentials, request arguments or payloads.
+Failure to write a timing artifact emits an explicit incomplete-evidence diagnostic
+and preserves fixture behavior and cleanup. Such a run cannot qualify phase costs,
+even if its semantic checks succeed. These observations do not change deadlines,
+reuse installations or establish a benchmark comparison by themselves.
 
 `free_port()` finds an available loopback port and closes the temporary socket;
 it does not reserve that port until a service binds it. `wait_ready()` requires

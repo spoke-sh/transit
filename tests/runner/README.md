@@ -67,6 +67,9 @@ to the latest invocation; rerunning does not overwrite earlier results. Records
 include source revision/dirty state, pinned lockfile hash, resolved tool paths,
 commands, outcomes and stage timings. They begin incomplete and checkpoint before
 each command. Missing completion and failed stages cannot pass.
+Preparation and fixture lifetime observations are kept separately under
+`.cache/checks/phases/`; see [phase boundaries and limits](../harness/README.md).
+Hosted uploads and clean-source retention include these records.
 
 Command output streams to the console and a diagnostic log. Each log retains up
 to 16 MiB of original output, keeping its beginning and end with an explicit

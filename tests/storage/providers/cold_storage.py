@@ -15,6 +15,7 @@ import urllib.request
 import urllib.error
 import xml.etree.ElementTree as ET
 from harness.services import free_port
+from harness.phases import phase
 
 
 def minio_binary():
@@ -46,6 +47,7 @@ class ColdStore:
         self.log = None
         self.identity = None
 
+    @phase("provision", "minio")
     def __enter__(self):
         try:
             self.log = (Path(self.directory.name) / 'minio.log').open('w+b')
@@ -179,6 +181,7 @@ hot_size_low = "4MiB"
         return sum(1 for pattern in ('*/*/chunks/*/xl.meta', '*/_packs/*/*/xl.meta')
                    for path in root.glob(pattern) if path.is_file())
 
+    @phase("teardown", "minio")
     def stop(self):
         """Join the owned native process without removing its disk evidence."""
         if self.process is not None:

@@ -9,8 +9,10 @@ import urllib.request
 
 from harness.services import free_port
 from harness.processes import children, joined
+from harness.phases import phase
 
 
+@phase("artifact-copy", "local-installation")
 def freeze_executables(fixture):
     """Keep a source-built fixture independent of later workspace builds."""
     directory = fixture.root / 'bin'
@@ -60,6 +62,7 @@ class LocalInstallation:
     def record(self):
         return json.loads((self.installation / "installation.json").read_text())
 
+    @phase("process-start", "local-installation")
     def start(self):
         assert self.process is None
         log = (self.root / f"manager-{len(self.logs)}.stderr").open("wb")
@@ -70,6 +73,7 @@ class LocalInstallation:
         self.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=log,
             cwd=self.root, env={"PATH": "/unavailable", "LANG": "C"})
 
+    @phase("teardown", "local-installation")
     def stop(self, kill=False):
         if self.process is None:
             return
@@ -88,4 +92,3 @@ class LocalInstallation:
         self.stop()
         for log in self.logs:
             log.close()
-

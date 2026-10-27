@@ -9,8 +9,10 @@ import subprocess
 import tempfile
 import threading
 import time
+from harness.phases import phase
 
 
+@phase("schedule", "sdk-exchange")
 def run(node, cli, raw_library, worker, install, label, *, public_release=False, public_followup=False, protocol="http", fault=None, preparation_failure=False):
     assert protocol in ("http", "grpc")
     rpc = protocol == "grpc"
@@ -31,7 +33,8 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
         body, response_body = payload(body), payload(response_body)
     with tempfile.TemporaryDirectory(prefix=f'transit-{protocol}-consumer-') as directory, fixture as system:
         target = Path(directory)
-        consumer = install(target)
+        with phase("consumer-install", "sdk-exchange"):
+            consumer = install(target)
         native = Native(raw_library)
         admin = native.client(system.url, timeout_ms=10000)
         private = bytes.fromhex(system.seed.read_text().strip())

@@ -7,7 +7,9 @@ from pathlib import Path
 import tempfile
 import threading
 import time
+from harness.phases import phase
 
+@phase("schedule", "sdk-raw-client")
 def run(node, cli, raw_library, install, label, evidence=None):
     report = dict(completed=False, label=label, history=[], started=time.monotonic())
     try:
@@ -27,7 +29,8 @@ def _run(node, cli, raw_library, install, label, report):
     from sdk.sdk_scenarios import check
     with tempfile.TemporaryDirectory(prefix='transit-client-consumer-') as temporary, GrowingSystem(node, cli) as system:
         consumer_root = Path(temporary)
-        invoke_consumer = install(consumer_root)
+        with phase("consumer-install", "sdk-raw-client"):
+            invoke_consumer = install(consumer_root)
         native = Native(raw_library)
         admin = native.client(system.url)
         root_seed = bytes.fromhex(system.seed.read_text().strip())

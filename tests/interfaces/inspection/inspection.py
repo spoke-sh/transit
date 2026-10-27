@@ -11,6 +11,7 @@ import urllib.error
 import urllib.request
 from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
+from harness.phases import phase
 
 
 def available_post(post, path, signed):
@@ -41,6 +42,7 @@ class System:
         self.allow_history_trim = allow_history_trim
         self.request_timeout_ms = request_timeout_ms
 
+    @phase("provision", "inspection-authority")
     def __enter__(self):
         self.store.__enter__()
         self.root = self.store.root
@@ -59,6 +61,7 @@ class System:
         wait_ready(self.store.http, self.authority, self.url + "/health")
         return self
 
+    @phase("teardown", "inspection-authority")
     def __exit__(self, *exc):
         for child in reversed(self.children):
             if child.poll() is None:

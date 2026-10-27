@@ -14,6 +14,7 @@ import tempfile
 import threading
 import time
 from typing import Callable
+from harness.phases import phase
 
 
 @dataclass
@@ -26,6 +27,7 @@ class Consumer:
     arrow_adapter: bool = True
 
 
+@phase("schedule", "sdk-station")
 def run(node, cli, raw_library, install, label, *, decode_block_repetitions=1, failures_only=False):
     from storage.providers.cold_storage import ColdStore
     # Retained framework/application history needs cold storage. The fixture
@@ -47,7 +49,8 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
     fixture.resident_pages = 64
     with tempfile.TemporaryDirectory(prefix='transit-station-consumer-') as temporary, fixture as system:
         target = Path(temporary)
-        consumer = install(target)
+        with phase("consumer-install", "sdk-station"):
+            consumer = install(target)
         env = consumer.environment
         codec_fixture = target / 'codecs.json'
         shutil.copyfile(root / 'tests/sdk/sdk-codecs-v1.json', codec_fixture)

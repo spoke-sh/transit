@@ -14,7 +14,8 @@ import sys
 import tempfile
 import time
 
-from runner.capture import provenance, write_json
+from harness.phases import Recorder
+from runner.capture import provenance, run, write_json
 from runner.paths import ROOT
 
 EXPECTED = {
@@ -76,19 +77,25 @@ def validate(record, *, source, optimize, family, definition):
 
 
 def prepare(family, optimize, root=ROOT):
+    attempt = Recorder(root)
     started = time.monotonic()
-    source = source_identity(root)
+    with attempt.phase("input-identity", family):
+        source = source_identity(root)
     inputs_done = time.monotonic()
     compiler = shutil.which("zig")
     assert compiler, "Enter the pinned Nix development environment"
     command = [compiler, "build", f"fixture-{family}", f"-Doptimize={optimize}", "-Dsdk-examples=false"]
-    result = subprocess.run(command, cwd=root, stdout=subprocess.PIPE, check=True, text=True)
+    with attempt.phase("build-graph", family) as row:
+        result = run(command, cwd=root, log=attempt.directory / "build.log", result=row, capture_stdout=True)
+        result.check_returncode()
     built = time.monotonic()
-    record = json.loads(result.stdout)
-    assert source_identity(root) == source, "Native inputs changed during compilation; no record published"
-    record.update(source_sha256=source, **provenance(root), command=command)
-    definition = json.loads((root / "packages/zig/transit-client/abi-v1.json").read_text())["definition"]
-    prefix = validate(record, source=source, optimize=optimize, family=family, definition=definition)
+    with attempt.phase("output-verification", family):
+        record = json.loads(result.stdout)
+        assert source_identity(root) == source, "Native inputs changed during compilation; no record published"
+        record.update(source_sha256=source, **provenance(root), command=command,
+                      phase_directory=str(attempt.directory))
+        definition = json.loads((root / "packages/zig/transit-client/abi-v1.json").read_text())["definition"]
+        prefix = validate(record, source=source, optimize=optimize, family=family, definition=definition)
     record["phases"] = {"input_identity_seconds": inputs_done - started,
                         "build_graph_seconds": built - inputs_done,
                         "output_verification_seconds": time.monotonic() - built}
