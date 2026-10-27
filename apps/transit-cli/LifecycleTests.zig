@@ -7,6 +7,7 @@ test {
     _ = @import("Settings.zig");
     _ = @import("Show.zig");
     _ = @import("Results.zig");
+    _ = @import("ResultJson.zig");
     _ = @import("Output.zig");
     _ = @import("Style.zig");
     _ = @import("server/Gateway.zig");

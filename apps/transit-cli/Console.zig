@@ -21,6 +21,7 @@ pub const Config = struct {
     instance: ?api.Instance = null,
     request_timeout_ms: u32 = 30000,
     format: Options.Format = .table,
+    display_rows: ?u32 = null,
     fn native(self: Config) sdk.Client.Config {
         var result: sdk.Client.Config = undefined;
         inline for (@typeInfo(sdk.Client.Config).@"struct".field_names) |field| @field(result, field) = @field(self, field);
@@ -59,6 +60,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         break :blk value;
     } else try localConfig(init, a, diagnostic);
     if (config.version != 1) return diagnostic.invalidField("version", "must be 1", null);
+    if (config.display_rows == 0) return diagnostic.invalidField("display_rows", "must be positive or null", null);
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 270000) return diagnostic.invalidField("request_timeout_ms", "must be between 1 and 270000", null);
     var client = sdk.Client.init(init.gpa, init.io, config.native()) catch |err| return diagnostic.invalidFieldCause(err, if (err == error.InvalidSqlEndpoint) "endpoint / authentication" else "ca_file", if (err == error.InvalidSqlEndpoint) "invalid SQL endpoint or authentication policy" else if (err == error.FileNotFound) "cannot load CA certificates: file not found" else "cannot load CA certificates", null);
     defer client.deinit();
@@ -144,6 +146,14 @@ pub const Console = struct {
         var encoder: std.json.Stringify = .{ .writer = self.out, .options = .{ .escape_unicode = true } };
         try api.Json.write(value, &encoder);
         try self.out.writeByte('\n');
+    }
+    fn resultJson(self: *Console, value: anytype) !void {
+        var buffer: [4096]u8 = undefined;
+        var stream = @import("Output.zig").Stream.init(self.init.io, self.out, &buffer);
+        var encoder: std.json.Stringify = .{ .writer = &stream.interface, .options = .{ .escape_unicode = true } };
+        try @import("ResultJson.zig").write(value, &encoder);
+        try stream.interface.writeByte('\n');
+        try stream.flush();
     }
     fn checked(self: *Console, reply: api.Response) !void {
         if (reply.result != .err) return;
@@ -245,184 +255,143 @@ pub const Console = struct {
             },
         }
     }
+    fn cancellationRequested(_: *anyopaque) sdk.Executor.Cancellation.Request {
+        return if (Signals.terminating()) .terminate else if (Signals.interrupted()) .cancel else .none;
+    }
+    fn cancellationAcknowledged(_: *anyopaque) void {
+        if (!Signals.terminating()) Signals.clear();
+    }
+    fn phaseChanged(context: *anyopaque, phase: sdk.Executor.Phase) void {
+        const timing: *@import("Timing.zig") = @ptrCast(@alignCast(context));
+        timing.enter(switch (phase) {
+            .prepare => .prepare,
+            .submit => .submit,
+            .wait => .wait,
+            .fetch => .fetch,
+        });
+    }
     fn query(self: *Console, text: []const u8, parameters: ?Input.Parameters) !void {
         var timing = @import("Timing.zig").start(self.init, self.preferences.timing);
         timing.interactive = false;
-        defer {
-            if (timing.finish()) |report| self.diagnostic.timing = report;
-        }
-        var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
-        defer arena.deinit();
-        const a = arena.allocator();
-        var values: []const []const u8 = &.{};
-        if (parameters) |bindings| {
-            const metadata = try self.call(.{ .prepare = .{ .sql = text } });
-            defer metadata.deinit();
-            try self.checked(metadata.value);
-            if (metadata.value.result != .described) return error.InvalidSqlResponse;
-            const described = metadata.value.result.described;
-            defer {
-                if (self.client.call(.{ .release = described.statement })) |reply| reply.deinit() else |_| {}
-            }
-            if (described.parameters.len != bindings.len) return error.ParameterCountMismatch;
-            const encoded = try a.alloc([]const u8, bindings.len);
-            for (bindings, described.parameters, encoded) |binding, descriptor, *out| {
-                const kind = try api.Codec.decodeSchema(a, descriptor);
-                out.* = try api.Codec.parameter(a, try q.Values.scalar(a, binding, kind), kind);
-            }
-            values = encoded;
-        }
-        var token: api.Token = undefined;
-        try self.init.io.randomSecure(&token);
-        var pending = sdk.Pending.init(self.control, token);
-        timing.enter(.submit);
-        var reply = self.call(.{ .execute = .{ .sql = text, .parameters = values, .token = token } }) catch |err| {
-            timing.enter(.wait);
-            return self.finishPending(&pending, err == error.ConsoleInterrupted);
+        defer if (timing.finish()) |report| {
+            self.diagnostic.timing = report;
         };
-        defer reply.deinit();
-        if (reply.value.result == .operation) {
-            try pending.observe(reply.value.result.operation);
-            timing.enter(.wait);
-            return self.finishPending(&pending, false);
-        }
-        if (reply.value.result == .err and (reply.value.result.err.retry == .control or reply.value.result.err.retry == .same_token)) {
-            if (reply.value.result.err.operation) |value| try pending.observe(value);
-            timing.enter(.wait);
-            return self.finishPending(&pending, false);
-        }
-        try self.checked(reply.value);
-        if (reply.value.result == .completion) {
-            if (self.session.format == .json) return self.json(reply.value.result);
-            const value = reply.value.result.completion;
-            switch (value.kind) {
-                .insert, .update, .delete => return self.out.print("{d} rows changed; {d} matched\n", .{ value.changed, value.matched }),
-                else => return self.out.writeAll("Statement completed.\n"),
-            }
-        }
-        return self.consume(&reply, &timing);
-    }
-    fn consume(self: *Console, reply: *std.json.Parsed(api.Response), timing: *@import("Timing.zig")) !void {
-        if (reply.value.result != .batch) return error.InvalidSqlResponse;
-        const cursor = reply.value.result.batch.cursor;
-        if (self.session.format == .json) {
-            var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
-            defer arena.deinit();
-            const schema = try api.Codec.decodeSchema(arena.allocator(), reply.value.result.batch.schema);
-            try self.json(.{ .profile = "sql_session_v1", .schema = q.fuze.LogicalJson.TypeEnvelope{ .definition = q.fuze.Types.definition, .type = schema }, .complete_coverage = false });
-        }
+        var executor: sdk.Executor = .{
+            .client = self.client,
+            .control = self.control,
+            .config = self.config.native(),
+            .password = self.password,
+            .cancellation = .{ .context = self, .requested = cancellationRequested, .acknowledge = cancellationAcknowledged },
+            .observer = .{ .context = &timing, .changed = phaseChanged },
+        };
         defer {
-            if (!self.query_interrupted) {
-                const prior = self.control.timeout_ms;
-                self.control.timeout_ms = @min(prior, 1000);
-                defer self.control.timeout_ms = prior;
-                if (self.control.call(.{ .close_result = cursor })) |closed| closed.deinit() else |_| {}
-            }
+            self.query_interrupted = self.query_interrupted or executor.interrupted;
+            self.session_lost = self.session_lost or executor.session_lost;
+            self.access_lost = self.access_lost or executor.access_lost;
         }
-        var rows: u64 = 0;
-        errdefer {
-            if (self.diagnostic.summary == null) self.diagnostic.summary = "Query result is incomplete";
-            self.diagnostic.next = "The rows already displayed are only a partial result.";
+        const outcome = executor.execute(text, parameters, .{}) catch |err| return if (err == error.ResultCancelled) error.ConsoleInterrupted else err;
+        defer outcome.deinit();
+        switch (outcome.value) {
+            .command => |completion| {
+                timing.enter(.render);
+                try self.command(completion);
+                if (executor.interrupted and self.batch) return self.diagnostic.fail(error.ConsoleInterrupted, "Statement completed before interruption; remaining input was not executed", null);
+            },
+            .rows => |*result| self.consume(result, &timing) catch |err| return if (err == error.ResultCancelled) error.ConsoleInterrupted else err,
+            .unresolved => |unknown| {
+                self.diagnostic.summary = if (unknown.reason == .denied) "Permissions prevented confirming the statement outcome" else "Could not confirm whether the statement completed";
+                self.diagnostic.next = "Running it again may apply changes twice.";
+                if (self.session.format == .json) try self.resultJson(.{ .unresolved = unknown });
+                return if (executor.interrupted) error.ConsoleInterrupted else error.SqlOutcomeUnknown;
+            },
+            .failure => |failure| {
+                self.diagnostic.envelope = failure.diagnostic;
+                self.diagnostic.summary = try std.fmt.allocPrint(self.init.arena.allocator(), "SQL service: {s} ({s})", .{ failure.code, failure.sqlstate });
+                return error.SqlServiceError;
+            },
         }
-        while (true) {
-            const batch = reply.value.result.batch;
-            timing.enter(.render);
-            if (batch.rows.len != 0 or rows == 0) try self.render(batch);
-            rows += batch.rows.len;
-            if (batch.complete) break;
-            timing.enter(.fetch);
-            const next = try self.call(.{ .fetch = .{ .cursor = cursor, .batch = batch.batch + 1 } });
-            reply.deinit();
-            reply.* = next;
-            try self.checked(reply.value);
-            if (reply.value.result != .batch) return error.InvalidSqlResponse;
-        }
-        if (self.session.format == .json) try self.json(.{ .complete_coverage = true, .rows = rows, .basis = reply.value.result.batch.basis }) else try self.out.print("{d} rows; complete coverage\n", .{rows});
     }
-    fn render(self: *Console, batch: api.Batch) !void {
-        var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
-        defer arena.deinit();
-        const a = arena.allocator();
-        const schema = try api.Codec.decodeSchema(a, batch.schema);
-        if (schema != .structure or batch.rows.len > api.max_rows) return error.InvalidSqlResponse;
-        const rows = try a.alloc([]const q.fuze.Types.Values.Cell, batch.rows.len);
-        for (batch.rows, rows) |encoded, *row| {
-            if (encoded.len != schema.structure.len) return error.InvalidSqlResponse;
-            const cells = try a.alloc(q.fuze.Types.Values.Cell, encoded.len);
-            for (encoded, schema.structure, cells) |value, field, *cell| cell.* = try api.Codec.decodeCell(a, field, value);
-            row.* = cells;
-            if (self.session.format == .json) try @import("Results.zig").logicalRow(a, self.out, schema, cells);
+    fn command(self: *Console, completion: sdk.results.CommandCompletion) !void {
+        self.diagnostic.envelope = completion.diagnostic;
+        if (self.session.format == .json) try self.resultJson(.{ .completion = completion });
+        switch (completion.outcome) {
+            .rejected => return self.diagnostic.fail(error.SqlOperationRejected, "Statement was rejected", null),
+            .cancelled => return self.diagnostic.fail(error.ConsoleInterrupted, "Statement was cancelled", null),
+            .partial => return self.diagnostic.fail(error.SqlOperationPartial, "Statement completed only partially", "Inspect the affected data or settings before making further changes."),
+            .applied, .unchanged => {},
         }
         if (self.session.format == .table) {
-            if (rows.len == 0) try @import("Results.zig").logicalTable(a, self.out, schema, &.{});
-            var offset: usize = 0;
-            while (offset < rows.len) : (offset += 8) try @import("Results.zig").logicalTable(a, self.out, schema, rows[offset..@min(offset + 8, rows.len)]);
+            try self.out.writeAll("Statement completed.");
+            if (completion.counts) |counts| try self.out.print(" Matched {d}; changed {d}.", .{ counts.matched, counts.changed });
+            if (completion.pending_restart) try self.out.writeAll(" Some settings require a server restart.");
+            try self.out.writeByte('\n');
         }
-        try @import("Output.zig").write(self.init, self.out, "");
+    }
+    fn consume(self: *Console, result: *sdk.results.ResultSet, timing: *@import("Timing.zig")) !void {
+        var displayed: u64 = 0;
+        const limit: u64 = if (self.config.display_rows) |rows| rows else std.math.maxInt(u64);
+        var buffer: [8192]u8 = undefined;
+        var stream = @import("Output.zig").Stream.init(self.init.io, self.out, &buffer);
+        const out = &stream.interface;
+        errdefer {
+            if (result.failure()) |failure| self.diagnostic.envelope = failure.diagnostic;
+            if (self.diagnostic.summary == null) self.diagnostic.summary = "Query result is incomplete";
+            self.diagnostic.next = "The rows already displayed are only a partial result.";
+            if (self.session.format == .json) self.resultJson(.{ .complete_coverage = false, .displayed_rows = displayed, .completion = result.completion() }) catch {};
+        }
+        var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
+        defer arena.deinit();
+        var table: ?@import("Results.zig").Table = null;
+        defer if (table) |*value| value.deinit();
+        if (self.session.format == .json) {
+            try self.resultJson(.{ .profile = "sql_result_v1", .schema = q.fuze.LogicalJson.TypeEnvelope{ .definition = q.fuze.Types.definition, .type = result.schema }, .observation = result.observation, .complete_coverage = false });
+        } else {
+            timing.enter(.fetch);
+            const window = try sdk.results.Window.read(self.init.gpa, result, .{ .rows = @intCast(@min(32, limit)), .bytes = 256 * 1024 });
+            defer window.deinit();
+            timing.enter(.render);
+            table = try @import("Results.zig").Table.init(self.init.gpa, result.schema, window.rows);
+            try table.?.begin(out);
+            for (window.rows) |row| {
+                try table.?.write(out, row);
+                displayed += 1;
+            }
+            try stream.flush();
+        }
+        while (displayed < limit) {
+            timing.enter(.fetch);
+            const row = try result.nextRow() orelse break;
+            timing.enter(.render);
+            if (table) |*value| try value.write(out, row) else {
+                _ = arena.reset(.retain_capacity);
+                try @import("Results.zig").logicalRow(arena.allocator(), out, result.schema, row);
+            }
+            displayed += 1;
+            try stream.flush();
+        }
+        if (displayed == limit and result.progress.consumption != .exhausted) {
+            try result.close();
+            if (table) |*value| {
+                try value.end(out);
+                try out.print("{d} rows displayed; display limit reached; incomplete coverage\n", .{displayed});
+                if (result.completion()) |complete| try out.print("Verified result count: {d} rows\n", .{complete.rows});
+                try stream.flush();
+            } else try self.resultJson(.{ .complete_coverage = false, .displayed_rows = displayed, .display_limit = true, .completion = result.completion() });
+            return;
+        }
+        timing.enter(.render);
+        const complete = result.completion() orelse return error.SqlResultIncomplete;
+        if (table) |*value| {
+            try value.end(out);
+            try out.print("{d} rows; complete coverage\n", .{complete.rows});
+            try stream.flush();
+        } else try self.resultJson(.{ .complete_coverage = true, .rows = complete.rows, .displayed_rows = displayed, .observation = result.observation });
     }
     fn stopRead(self: *Console) void {
         const prior = self.control.timeout_ms;
         self.control.timeout_ms = @min(prior, 250);
         defer self.control.timeout_ms = prior;
         if (self.control.call(.{ .cancel = .{ .query = @splat(0) } })) |reply| reply.deinit() else |_| {}
-    }
-    fn awaitPending(self: *Console, pending: *sdk.Pending, cancel: bool) anyerror!api.Operation {
-        const Event = union(enum) { reply: anyerror!api.Operation, signal: anyerror!void };
-        var events: [2]Event = undefined;
-        var selection: std.Io.Select(Event) = .init(self.init.io, &events);
-        defer selection.cancelDiscard();
-        try selection.concurrent(.signal, poll, .{self.init.io});
-        try selection.concurrent(.reply, sdk.Pending.settle, .{ pending, self.control, self.config.native(), self.password, cancel });
-        switch (try selection.await()) {
-            .reply => |reply| return reply,
-            .signal => |result| {
-                try result;
-                selection.cancelDiscard();
-                self.query_interrupted = true;
-                if (Signals.terminating() or cancel) return error.SqlOutcomeUnknown;
-                Signals.clear();
-                return self.awaitPending(pending, true);
-            },
-        }
-    }
-    fn finishPending(self: *Console, pending: *sdk.Pending, cancel: bool) !void {
-        defer self.session_lost = self.session_lost or pending.session_lost;
-        const value = self.awaitPending(pending, cancel) catch |err| {
-            self.access_lost = self.access_lost or err == error.SqlObservationDenied;
-            self.diagnostic.envelope = null;
-            self.diagnostic.summary = if (err == error.SqlObservationDenied) "Permissions prevented confirming the statement outcome" else "Could not confirm whether the statement completed";
-            self.diagnostic.next = "Running it again may apply changes twice.";
-            return if (self.query_interrupted) error.ConsoleInterrupted else error.SqlOutcomeUnknown;
-        };
-        self.diagnostic.envelope = value.diagnostic;
-        switch (value.outcome orelse return error.SqlOutcomeUnknown) {
-            .rejected => {
-                self.diagnostic.summary = "Statement was rejected";
-                return error.SqlOperationRejected;
-            },
-            .cancelled => {
-                self.diagnostic.summary = "Statement was cancelled";
-                return error.ConsoleInterrupted;
-            },
-            .partial => {
-                self.diagnostic.summary = "Statement completed only partially";
-                self.diagnostic.next = "Inspect the affected data or settings before making further changes.";
-                return error.SqlOperationPartial;
-            },
-            .applied, .unchanged => {},
-        }
-        if (self.session.format == .json) {
-            try self.json(.{ .completion = .{ .outcome = value.outcome.?, .matched = value.matched, .changed = value.changed, .pending_restart = value.configuration_phase == .pending_restart } });
-        } else {
-            try self.out.writeAll("Statement completed.");
-            if (value.matched != 0 or value.changed != 0) try self.out.print(" Matched {d}; changed {d}.", .{ value.matched, value.changed });
-            if (value.configuration_phase == .pending_restart) try self.out.writeAll(" Some settings require a server restart.");
-            try self.out.writeByte('\n');
-        }
-        if (self.query_interrupted and self.batch) {
-            try @import("Output.zig").write(self.init, self.out, "");
-            return self.diagnostic.fail(error.ConsoleInterrupted, "Statement completed before interruption; remaining input was not executed", null);
-        }
     }
     fn dispatch(self: *Console, text: []const u8, a: std.mem.Allocator) !void {
         if (@import("ExternalEditor.zig").isCommand(text)) {

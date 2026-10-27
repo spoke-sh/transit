@@ -5,7 +5,8 @@ pub const fuze = @import("transit_fuze");
 pub const native = @import("transit_protocol").Growth;
 pub const Authentication = @import("Authentication.zig");
 pub const Codec = @import("Codec.zig");
-pub const Completion = enum { select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, set, show, discard_all };
+pub const results = @import("transit_sql_results");
+pub const Completion = results.Command;
 pub const Id = [32]u8;
 pub const Instance = [16]u8;
 pub const Token = [16]u8;
@@ -77,31 +78,47 @@ pub const Action = union(enum) {
     operations: struct { after: u64 = 0 },
     assist: struct { text: []const u8, cursor: u32 },
 };
-pub const OperationId = struct { account: Account, id: u64, kind: enum { table, configuration, captured } = .table };
+pub const OperationId = results.Operation;
 pub const Target = union(enum) { query: Id, operation: OperationId, token: Token };
 pub const Error = struct { code: []const u8, sqlstate: [5]u8, message: []const u8, retry: enum { never, control, same_token, same_batch }, operation: ?Operation = null, diagnostic: ?@import("transit_protocol").Diagnostic = null };
 pub const Operation = struct {
     identity: OperationId,
+    command: ?results.Command,
     token: Token,
     phase: enum { reserved, uploading, ready, active, terminal, abandoned },
     blocked: bool = false,
     cancellation_requested: bool = false,
-    outcome: ?enum { applied, unchanged, rejected, cancelled, partial } = null,
+    outcome: ?results.Outcome = null,
     matched: u64 = 0,
     changed: u64 = 0,
     owner_operation: ?[16]u8 = null,
     configuration_phase: ?enum { applying, applied, pending_restart, rejected, partial } = null,
     diagnostic: ?@import("transit_protocol").Diagnostic = null,
+    pub fn validate(self: Operation) !void {
+        if (self.identity.id == 0 or ((self.phase == .terminal) != (self.outcome != null))) return error.InvalidSqlOperation;
+        if (self.phase == .terminal) {
+            _ = try self.completion();
+        } else if (self.matched != 0 or self.changed != 0) return error.InvalidSqlOperation;
+        if ((self.phase == .ready or self.phase == .active) and self.command == null) return error.InvalidSqlOperation;
+    }
+    pub fn completion(self: Operation) !results.CommandCompletion {
+        if (self.phase != .terminal or self.outcome == null or self.command == null) return error.SqlOutcomeUnknown;
+        const value: results.CommandCompletion = .{
+            .kind = self.command.?,
+            .outcome = self.outcome.?,
+            .counts = if (self.identity.kind == .table) .{ .matched = self.matched, .changed = self.changed } else null,
+            .operation = self.identity,
+            .pending_restart = self.configuration_phase == .pending_restart,
+            .diagnostic = self.diagnostic,
+        };
+        try value.validate();
+        return value;
+    }
 };
 /// A command without returned rows has no result schema. The field is required;
 /// null is distinct from a row-returning statement with an empty result.
 pub const Description = struct { statement: Id, schema: ?[]const u8, parameters: []const []const u8, mutation: bool };
-pub const Basis = union(enum) {
-    source: struct { kind: fuze.Unified.SourceKind, resource: u64, position: union(enum) { native_revision: u64, table: [32]u8 }, contract: [32]u8, schema: [32]u8 },
-    table: struct { object: @import("transit_protocol").DataLifecycle.Object, interpretation: @import("transit_protocol").DataLifecycle.Definition, accepted: @import("transit_protocol").DataLifecycle.Position, changed_lsn: u64, pin: @import("transit_protocol").DataLifecycle.Content, commitment: [32]u8, schema: [32]u8 },
-    independent_table_snapshots: []const fuze.Relational.Cut,
-};
-pub const Batch = struct { cursor: Id, batch: u64, schema: []const u8, rows: []const []const []const u8, complete: bool, basis: ?Basis = null };
+pub const Batch = struct { cursor: Id, batch: u64, schema: []const u8, rows: []const []const []const u8, complete: bool, completion: ?results.Completion, observation: results.Observation.Value };
 pub const Response = struct {
     version: u8,
     definition: native.Definition,
@@ -115,7 +132,7 @@ pub const Response = struct {
         batch: Batch,
         operation: Operation,
         operations: struct { entries: []const Operation, next: ?u64 },
-        completion: struct { kind: Completion, matched: u64 = 0, changed: u64 = 0 },
+        completion: results.CommandCompletion,
         assistance: struct { coverage: enum { complete, limited }, status: enum { ready, inside_text, unsupported }, profile: enum { unified_v1, catalog_v1, configuration_v1, direct_table_v1 }, resource: u64, contract: [32]u8, resource_revision: ?u64, policy_revision: []const u8, range: ?fuze.SqlInput.Range, items: []const struct { text: []const u8, kind: enum { keyword, source, column, symbol, literal, meta }, detail: []const u8 } },
         closed,
         err: Error,
@@ -167,6 +184,16 @@ pub fn parse(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) 
     errdefer parsed.deinit();
     if (parsed.value.version != 1 or parsed.value.definition != native.current_definition) return error.IncompatibleSqlDefinition;
     if (T == Request) try parsed.value.validate();
+    if (T == Response) switch (parsed.value.result) {
+        .operation => |value| try value.validate(),
+        .operations => |page| for (page.entries) |value| try value.validate(),
+        .completion => |value| try value.validate(),
+        .batch => |value| {
+            if (value.complete != (value.completion != null) or value.rows.len > max_rows or (value.rows.len == 0 and !value.complete)) return error.InvalidResultChunk;
+        },
+        .err => |value| if (value.operation) |operation| try operation.validate(),
+        else => {},
+    };
     return parsed;
 }
 test "session JSON round trips fixed identities and void actions canonically" {
@@ -178,4 +205,41 @@ test "session JSON round trips fixed identities and void actions canonically" {
     defer restored.deinit();
     try std.testing.expectEqualDeep(request, restored.value);
     try std.testing.expect(std.mem.indexOf(u8, bytes, "\"touch\":{}") != null);
+}
+
+test "result cutover rejects missing evidence and old command shapes" {
+    const t = std.testing;
+    const a = t.allocator;
+    const response: Response = .{ .version = 1, .definition = native.current_definition, .instance = @splat(2), .result = .{ .batch = .{
+        .cursor = @splat(6),
+        .batch = 0,
+        .schema = "",
+        .rows = &.{},
+        .complete = true,
+        .completion = .{ .rows = 0 },
+        .observation = .{ .metadata = .{ .kind = .probe, .consistency = .session, .namespace = null, .definitions = &.{}, .configuration_revision = null, .session_settings = null } },
+    } } };
+    const bytes = try Json.valueAlloc(a, response);
+    defer a.free(bytes);
+    inline for (.{ "completion", "observation" }) |field| {
+        const value = try std.json.parseFromSlice(std.json.Value, a, bytes, .{});
+        defer value.deinit();
+        const batch = value.value.object.getPtr("result").?.object.getPtr("batch").?;
+        try t.expect(batch.object.swapRemove(field));
+        const absent = try std.json.Stringify.valueAlloc(a, value.value, .{});
+        defer a.free(absent);
+        try t.expectError(error.MissingField, parse(Response, a, absent));
+    }
+    const foreign_value = try std.json.parseFromSlice(std.json.Value, a, bytes, .{});
+    defer foreign_value.deinit();
+    foreign_value.value.object.getPtr("definition").?.* = .{ .string = "47c035195248bf570ed52323112b2a32622ee69714ffb7719124218e034b1b2b" };
+    const foreign = try std.json.Stringify.valueAlloc(a, foreign_value.value, .{});
+    defer a.free(foreign);
+    try t.expectError(error.InvalidJsonShape, parse(Response, a, foreign));
+    const invalid = try Json.valueAlloc(a, .{ .version = 1, .definition = native.current_definition, .instance = @as(Instance, @splat(2)), .result = .{ .completion = .{ .kind = "insert", .matched = 1, .changed = 1 } } });
+    defer a.free(invalid);
+    if (parse(Response, a, invalid)) |accepted| {
+        accepted.deinit();
+        return error.AcceptedObsoleteCompletion;
+    } else |_| {}
 }

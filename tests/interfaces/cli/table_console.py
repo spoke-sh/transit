@@ -3,7 +3,7 @@ from interfaces.cli.console import Console
 
 
 def result(first, read):
-    if first.get('profile') != 'sql_session_v1':
+    if first.get('profile') != 'sql_result_v1':
         return first
     assert not first['complete_coverage'], first
     rows = []
@@ -14,8 +14,10 @@ def result(first, read):
             rows.append(value['row']['value']['structure'])
             continue
         assert value['complete_coverage'], value
-        assert value['rows'] == len(rows), (rows, value)
-        return dict(schema=first['schema'], rows=rows, complete=dict(rows=str(value['rows']), basis=value['basis']))
+        assert isinstance(value['rows'], str) and value['rows'] == str(len(rows)), (rows, value)
+        assert value['displayed_rows'] == str(len(rows))
+        assert value['observation'] == first['observation']
+        return dict(schema=first['schema'], rows=rows, complete=dict(rows=str(value['rows']), observation=value['observation']))
 
 
 def results(envelopes):

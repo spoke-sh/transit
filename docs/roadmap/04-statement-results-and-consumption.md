@@ -255,6 +255,31 @@ These limits belong to different layers. This milestone decouples their
 implementation and makes exhaustion explicit; raising constants alone is not
 its performance deliverable.
 
+### Representation and performance refinement
+
+The result model must admit both row and columnar consumption. Row iteration is
+an ergonomic view, not a requirement to materialize every columnar input as
+row objects. Add a bounded batch view with explicit owner/borrower lifetimes;
+reuse Fuze column/value buffers where their type, state and lifetime contracts
+permit it. Prove identical semantic observations through row and column consumers
+and quantify any materialization needed by each adapter.
+
+Keep logical type, physical value encoding and transport compression independent.
+The initial native adapter's canonical-cell hex/JSON carriage has measurable
+expansion and decoding allocations; bounded batching alone does not resolve those
+costs. Inventory and measure encode/decode passes, copied bytes, allocations,
+resident high-water marks, framing and repeated schema/observation overhead.
+Evaluate binary batch carriage and schema-once framing against this baseline.
+Compression/decompression belongs to the representation adapter, with explicit
+encoded and decoded bounds and measured CPU/latency tradeoffs. Do not introduce
+a second permanent legacy result protocol or double compression.
+
+Arrow integration uses the same logical result lifecycle and preserves all five
+cell states and exact types. Distinguish local borrowed/C Data buffers, IPC batches
+and Flight transport. Existing rich logical IPC segment limits and the narrower
+Flight profile remain explicit; neither is a limit on the semantic batch model.
+A readable Arrow end marker cannot replace verified Transit completion evidence.
+
 ### Scope and concurrent ownership
 
 | Area | Milestone 4 responsibility | Boundary |

@@ -9,7 +9,7 @@ pub const ResultSet = @import("ResultSet.zig");
 pub const Window = @import("Window.zig");
 pub const Progress = @import("Progress.zig");
 pub const Observation = @import("Observation.zig");
-pub const Command = enum { select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, set, show, discard_all, reset, reload, capture };
+pub const Command = enum { empty, select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, set, show, discard_all, reset, reload, capture };
 pub const Outcome = enum { applied, unchanged, rejected, cancelled, partial };
 pub const Operation = struct { account: [32]u8, id: u64, kind: enum { table, configuration, captured } = .table };
 pub const Counts = struct {
@@ -29,8 +29,24 @@ pub const CommandCompletion = struct {
     diagnostic: ?protocol.Diagnostic,
     pub fn validate(self: CommandCompletion) !void {
         if (self.counts) |counts| try counts.validate();
+        const counted = switch (self.kind) {
+            .insert, .update, .delete, .create_table, .alter_table, .drop_table, .create_schema, .alter_schema, .drop_schema => true,
+            .select, .show => return error.InvalidCommandCompletion,
+            else => false,
+        };
+        if (counted != (self.counts != null)) return error.InvalidCommandCompletion;
         if (self.pending_restart and self.kind != .reload) return error.InvalidCommandCompletion;
-        if (self.operation) |operation| if (operation.id == 0) return error.InvalidCommandCompletion;
+        if (self.pending_restart and self.outcome != .applied) return error.InvalidCommandCompletion;
+        if (self.outcome == .partial and self.kind != .reload) return error.InvalidCommandCompletion;
+        if (self.counts) |counts| switch (self.kind) {
+            .insert, .update, .delete => {},
+            else => if (counts.matched != 0 or counts.changed != 0) return error.InvalidCommandCounts,
+        };
+        if (self.operation) |operation| {
+            if (operation.id == 0) return error.InvalidCommandCompletion;
+            const expected: @FieldType(Operation, "kind") = if (counted) .table else if (self.kind == .reload) .configuration else if (self.kind == .capture) .captured else return error.InvalidCommandCompletion;
+            if (operation.kind != expected) return error.InvalidCommandCompletion;
+        } else if (counted or self.kind == .reload or self.kind == .capture) return error.InvalidCommandCompletion;
     }
 };
 /// Only a verified terminal outcome supplies this count. It is not a scan count.
@@ -46,6 +62,19 @@ pub const Failure = struct {
     pub fn denied(self: Failure) bool {
         return std.mem.eql(u8, &self.sqlstate, "42501") or std.mem.eql(u8, &self.sqlstate, "28000");
     }
+};
+pub const Unresolved = struct {
+    account: [32]u8,
+    instance: [16]u8,
+    token: [16]u8,
+    operation: ?Operation,
+    reason: enum { unavailable, interrupted, denied, identity_changed },
+};
+pub const StatementOutcome = union(enum) {
+    command: CommandCompletion,
+    rows: ResultSet,
+    unresolved: Unresolved,
+    failure: Failure,
 };
 /// A bounded logical copy retains variable-width and nested cell ownership.
 /// The caller owns the arena/budget and resets it when the retained view ends.

@@ -5,7 +5,8 @@ The [result library](../packages/zig/transit-sql-results/README.md) owns the sha
 value types and deterministic progress rules. It has no SQL transport dependency.
 The [native session contract](SQL_SESSION_V1.md) and
 [database gateway contract](SQL_GATEWAY_V1.md) own concrete communication mappings.
-A semantic primitive alone does not establish an integrated caller capability.
+The [shared client](../packages/zig/transit-sql-client/README.md) implements statement
+submission and logical consumption for the console.
 
 ## Statements, results and observations
 

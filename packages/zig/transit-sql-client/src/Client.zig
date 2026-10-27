@@ -97,6 +97,10 @@ pub fn open(self: *Self, config: Config, password: ?[]const u8) !void {
 /// No request is automatically replayed, including after a pooled socket dies.
 /// Mutation uncertainty remains attached to the caller's original token.
 pub fn call(self: *Self, action: api.Action) !std.json.Parsed(api.Response) {
+    return self.callAllocated(action, self.allocator);
+}
+/// Responses and transient message storage use the caller's bounded allocator.
+pub fn callAllocated(self: *Self, action: api.Action, allocator: std.mem.Allocator) !std.json.Parsed(api.Response) {
     // The host gives idle HTTP headers one second. Replace a quiescent
     // transport before dispatch, without replaying any request or new session.
     if (self.last_call) |last| if (last.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= 500) {
@@ -112,14 +116,14 @@ pub fn call(self: *Self, action: api.Action) !std.json.Parsed(api.Response) {
     errdefer self.last_call = .{ .nanoseconds = 0 };
     const input: api.Request = .{ .version = 1, .definition = api.native.current_definition, .instance = self.instance, .session = self.session, .action = action };
     try input.validate();
-    const body = try api.Json.valueAlloc(self.allocator, input);
+    const body = try api.Json.valueAlloc(allocator, input);
     defer {
         std.crypto.secureZero(u8, body);
-        self.allocator.free(body);
+        allocator.free(body);
     }
     if (body.len > api.max_message_bytes) return error.SqlMessageTooLarge;
-    const buffer = try self.allocator.alloc(u8, api.max_message_bytes);
-    defer self.allocator.free(buffer);
+    const buffer = try allocator.alloc(u8, api.max_message_bytes);
+    defer allocator.free(buffer);
     var output: std.Io.Writer = .fixed(buffer);
     const Result = union(enum) { result: anyerror!void, timeout: anyerror!void };
     var results: [2]Result = undefined;
@@ -136,7 +140,7 @@ pub fn call(self: *Self, action: api.Action) !std.json.Parsed(api.Response) {
     }
     selected.cancelDiscard();
     self.last_call = std.Io.Clock.awake.now(self.io);
-    const response = try api.parse(api.Response, self.allocator, output.buffered());
+    const response = try api.parse(api.Response, allocator, output.buffered());
     errdefer response.deinit();
     if (self.instance) |instance| {
         if (!std.mem.eql(u8, &instance, &response.value.instance)) return error.SqlInstanceChanged;

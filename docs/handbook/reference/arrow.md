@@ -69,10 +69,12 @@ cell states at language boundaries. A readable IPC prefix is not a verified
 complete query. Result manifests, ordered segment coverage and digests remain
 necessary; preserve the source basis with the result.
 
-The [Transit console](../../../apps/transit-cli/docs/console.md) renders verified
-native Arrow batches directly in its default table mode, with typed headings and
-numeric alignment. It releases each page after presentation. JSON mode emits
-the lossless foreign-value page envelope.
+The [Transit console](../../../apps/transit-cli/docs/console.md) consumes logical
+statement results through the shared SQL client. Its table presentation does not
+expose storage pages or Arrow segment boundaries. Native session cells currently
+use canonical logical bytes in a bounded hex/JSON envelope; captured query owners
+can decode their retained Arrow segments beneath that boundary. JSON presentation
+uses exact typed row envelopes and a verified logical-result footer.
 
 The shared Zig Arrow implementation and pinned dependencies live under
 [Fuze](../../../packages/zig/transit-fuze/README.md). Public language wrappers own

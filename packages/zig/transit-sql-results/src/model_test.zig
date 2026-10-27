@@ -59,7 +59,7 @@ test "incomplete prefixes, identity changes and incorrect terminal counts reject
         try t.expectError(error.InvalidResultTransition, failed.finish(identity, .{ .rows = 1 }));
     }
 }
-test "negative controls catch duplicate delivery and completion before exhaustion" {
+test "progress guards reject duplicate delivery and preserve received terminal evidence" {
     var state: r.Progress = .{ .identity = identity };
     try state.receive(identity, 1);
     try state.finish(identity, .{ .rows = 1 });

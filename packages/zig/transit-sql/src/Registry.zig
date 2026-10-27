@@ -27,6 +27,9 @@ const Cursor = struct {
     arena: std.heap.ArenaAllocator,
     batch_arena: std.heap.ArenaAllocator,
     batch: api.Batch = undefined,
+    rows: u64 = 0,
+    observation: ?g.results.Observation.Value = null,
+    disclosure: g.BatchDisclosure = .{},
 };
 pub const Slot = struct {
     present: bool = false,
@@ -394,7 +397,7 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
         .fetch => |value| {
             const cursor = if (slot.cursor) |*current| current else return error.SqlResultIncomplete;
             if (!std.mem.eql(u8, &cursor.id, &value.cursor)) return error.SqlResultIncomplete;
-            try host.validate(cursor.prepared);
+            try cursor.disclosure.validate(host, cursor.prepared);
             if (value.batch == cursor.batch.batch) return .{ .batch = cursor.batch };
             if (cursor.batch.complete or value.batch != cursor.batch.batch + 1) return error.InvalidSqlCursor;
             return .{ .batch = try self.batch(slot, value.batch) };
@@ -458,6 +461,10 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
         };
     }
     try host.bind(prepared, values);
+    if (prepared.empty()) {
+        try host.validate(prepared);
+        return .{ .completion = .{ .kind = .empty, .outcome = .unchanged, .counts = null, .operation = null, .pending_restart = false, .diagnostic = null } };
+    }
     if (input.captured and prepared.* == .source) {
         slot.acceptance_possible = true;
         return .{ .operation = try g.CapturedOperations.admit(host, &prepared.source, values, input.token orelse return error.SqlAdmissionTokenRequired, digest.?) };
@@ -475,7 +482,8 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
             return .{ .operation = try host.fresh(g.AccountRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, item.id }) };
         }
         const result = try host.write(prepared, values);
-        return .{ .completion = .{ .kind = result.kind, .matched = result.count, .changed = result.changed } };
+        try host.validate(prepared);
+        return .{ .completion = .{ .kind = result.kind, .outcome = .applied, .counts = null, .operation = null, .pending_restart = false, .diagnostic = null } };
     }
     var id: api.Id = undefined;
     try self.io.randomSecure(&id);
@@ -516,8 +524,16 @@ fn batch(self: *Self, slot: *Slot, ordinal: u64) !api.Batch {
         count += 1;
     }
     complete = result.complete;
-    cursor.batch = .{ .cursor = cursor.id, .batch = ordinal, .schema = try api.Codec.schema(allocator, fields), .rows = rows[0..count], .complete = complete, .basis = try cursor.read.?.basis(allocator) };
-    try host.validate(cursor.prepared);
+    cursor.rows = try std.math.add(u64, cursor.rows, count);
+    const observation = try cursor.read.?.observation(allocator);
+    if (cursor.observation) |prior| {
+        const previous = try g.results.Observation.fingerprint(allocator, prior);
+        const current = try g.results.Observation.fingerprint(allocator, observation);
+        if (!std.mem.eql(u8, &previous, &current)) return error.ResultIdentityChanged;
+    } else cursor.observation = try cursor.read.?.observation(cursor.arena.allocator());
+    cursor.batch = .{ .cursor = cursor.id, .batch = ordinal, .schema = try api.Codec.schema(allocator, fields), .rows = rows[0..count], .complete = complete, .completion = if (complete) .{ .rows = cursor.rows } else null, .observation = cursor.observation.? };
+    cursor.disclosure = cursor.read.?.disclosure;
+    try cursor.disclosure.validate(host, cursor.prepared);
     if (complete) {
         host.closeRead(cursor.read.?);
         cursor.read = null;

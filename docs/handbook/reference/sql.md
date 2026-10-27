@@ -36,6 +36,23 @@ the selected interface. Grammar-only connection, source and sink families
 report that their submitted syntax has not been validated. An incomplete `SHOW`
 requires a catalog name; it is not evidence that a named catalog is unsupported.
 
+## Statement outcomes
+
+A statement returns a typed command completion or a logical result set. Command
+kind and matched/changed counts come from the operation owner. A timeout or lost
+write observation leaves the original attempt unresolved; submitting it again
+can duplicate changes. SELECT, SHOW, DESCRIBE and EXPLAIN share one result
+lifecycle: schema, typed row occurrences, observation and verified terminal row
+count. Physical batches do not create additional results. Empty results require
+verified zero-row completion; EOF, cancellation and display limits cannot prove it.
+
+Data observations identify source cuts or exact Table cuts; independent Table
+vectors do not become an atomic snapshot. Metadata identifies catalog/settings
+or plan observations and known definitions without inventing a data cut. The
+[shared SQL client](../../../packages/zig/transit-sql-client/README.md) owns bounded
+consumption and settlement. See the [result contract](../../../contracts/SQL_RESULTS_V1.md)
+for counts, lifetimes and failure semantics.
+
 ## Find an operation
 
 | Task                                                    | Reference                                                                                                                                                                                                                                                                                |

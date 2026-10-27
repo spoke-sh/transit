@@ -11,6 +11,8 @@ execution. A version number alone does not establish compatibility.
 The native, PostgreSQL and MySQL adapters use the shared SQL execution package.
 The database wire contracts remain
 in [SQL gateways](SQL_GATEWAY_V1.md).
+The [logical result contract](SQL_RESULTS_V1.md) defines statement outcomes and
+consumption independently of this carriage.
 
 ## Transport and authentication
 
@@ -119,19 +121,42 @@ NULL, missing, type errors and conflicts retain their logical distinction.
 The schema descriptor and cell codecs validate their existing recursion, child
 and byte bounds. Unknown tags or noncanonical hexadecimal reject.
 
-An interactive execute returns its schema, cursor and initial batch numbered
+An interactive row-returning execute returns its schema, cursor and initial batch numbered
 zero. Fetch requests name the next desired batch. Requesting the last returned
 batch repeats its exact retained data after a fresh authorization check.
 Requesting its successor acknowledges that batch and advances the same iterator;
 all other ordinals reject. At most one unacknowledged batch is retained per
 cursor. A duplicate concurrent fetch cannot advance the iterator twice.
-The final batch remains repeatable until closed or expired.
-Each data result carries its source basis: an explicit source cut, a retained
+The final batch remains repeatable until closed or expired. Every batch requires
+an `observation` and nullable `completion`. `complete` is true exactly when
+`completion` is present. Completion contains the cumulative unsigned 64-bit
+logical row count; checked arithmetic rejects overflow. Repetition does not add
+to this count. The client compares it with uniquely received rows before exposing
+successful completion. Empty terminal batches are valid after earlier data and
+do not begin another result. Missing completion, EOF and closure never establish
+exhaustion. A known final data batch carries completion directly.
+
+Each data result carries an `observation.data` basis: an explicit source cut, a retained
 Table cut, or an ordered independent-Table snapshot vector. A Table basis binds
 its catalog/branch/object, exact definition, physical and logical frontiers,
 retained pin content, source commitment and schema. Independent Table cuts do
-not establish a common catalog-wide snapshot; repeated aliases share one pin. Settings and inspection results
-have no retained data basis. A basis identifies observed data; it grants no access.
+not establish a common catalog-wide snapshot; repeated aliases share one pin.
+`observation.metadata` distinguishes catalog, settings, prepared plan and probe
+observations. DESCRIBE and EXPLAIN identify their exact prepared definitions;
+source inspection identifies its declared source contract and schema. Paged
+catalog relations declare independent observations, with no invented global cut.
+Settings identify the observed configuration revision, when a page was read, and
+the session-settings commitment. A metadata descriptor is not a retained data
+snapshot. Observation and schema remain identical throughout a cursor, including
+repeats and terminal responses. A basis identifies observed data; it grants no access.
+
+Command replies carry `CommandCompletion`: typed command kind, domain outcome,
+applicable matched/changed counts, original operation identity where applicable,
+pending-restart state and an authorized diagnostic. Session SET, RESET and empty
+statements have no durable operation or row counts. Empty statements complete
+unchanged without fabricating a zero-column relation. Durable Table/schema
+commands expose their original owner's counts, including authoritative zero
+counts for declarations. Configuration and captured commands have no row counts.
 
 Lost/expired session or cursor state reports an incomplete result. The server
 never reopens a snapshot or silently skips to a new cut. A new session cannot
@@ -164,6 +189,13 @@ the recovery worker act only on the original published intent reference. Complet
 content staging, reference publication, committed dispatch eligibility, direct
 admission and terminal evidence are separate boundaries. A private native control
 receipt alone does not establish Table acceptance.
+
+Operation status requires a nullable `command` field. Table commands derive it
+from the retained typed intent once published; it is absent while that intent is
+unavailable. A terminal operation supplies it. Configuration and captured owners
+report `reload` and `capture`. Neither a client nor a renderer reparses SQL to
+guess the command kind. Terminal status projects to the same command completion
+whether observed immediately, through the original token, or after replacement.
 
 Operation identity includes the persistent server instance in the envelope,
 account identity, owner kind and durable ID. `status` accepts a known operation
@@ -231,6 +263,9 @@ are checked before protected metadata, each result batch (including repeats and
 empty results), and terminal counts. The service clears protected buffered state
 when validation fails. Knowledge of a handle does not transfer account authority.
 Session expiry does not retire the account or expire durable history.
+Metadata batches retain bounded authority subjects for their catalog rows and
+configuration-origin fields. Their checks run again after materialization and
+before repetition; the enclosing session grant alone is insufficient.
 
 Messages are at most 4 MiB, SQL at most 64 KiB, batches at most 1 MiB of encoded
 logical payload and 32 rows, and parameters at most 65. Prepared handles, active
@@ -238,6 +273,13 @@ sessions, per-account sessions, handshakes, in-flight data/control requests,
 resident memory, spill, execution time and idle leases have explicit bounds.
 Durable quotas reserve space before admission and do not bound collection size
 with resident arrays. Pressure cannot delete accepted operations.
+
+The server batch builder has independent row/byte limits and copies borrowed
+source rows before another pull can reset scratch memory. It can span storage
+pages or execution vectors. A row that does not fit the remaining byte budget
+stays with its bounded source state for the next batch. A row too large for an
+empty batch fails explicitly. Builder rows, retained source state, replay data
+and serialization all remain charged to the session's resident allocator.
 Each captured operation reserves 1 MiB of retained ledger content, with at most
 1024 finite publication attempts; incomplete proposals consume that reservation.
 This is an operation bound, not a bound on account history. Source declarations

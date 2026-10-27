@@ -19,7 +19,7 @@ const Name = struct {
 };
 /// Host.Prepared supplies parameters/fields/mutation/empty. Host methods prepare,
 /// destroy, validate, bind, openRead, closeRead, write, begin/end and diagnostic
-/// keep database/probe policy out of the protocol. Read.nextBatch borrows at most
+/// keep database/probe policy out of the protocol. Read.nextBatch owns at most
 /// the requested rows until its next call/close. No batch crosses Execute.
 /// write returns an attributed Backend completion and count.
 pub fn Engine(comptime Host: type, comptime Transport: type) type {
@@ -184,7 +184,7 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
                 try batch.validate(requested);
                 // Check the current account/statement after materialization and
                 // before any row in this bounded batch enters the transport.
-                try self.host.validate(prepared);
+                try portal.read.?.validateDisclosure();
                 for (batch.rows[0..batch.len]) |cells| {
                     try self.send(try self.backend.row(fields, &portal.formats, cells.?));
                     portal.rows += 1;

@@ -17,6 +17,7 @@ pub const Metadata = struct {
     definitions: []const d.Definition,
     configuration_revision: ?u64,
     session_settings: ?[32]u8,
+    source: ?struct { resource: u64, contract: [32]u8, schema: [32]u8 } = null,
 };
 pub const Value = union(enum) { data: Data, metadata: Metadata };
 pub fn fingerprint(allocator: std.mem.Allocator, value: Value) ![32]u8 {

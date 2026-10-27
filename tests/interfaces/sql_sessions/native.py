@@ -23,6 +23,7 @@ class Client:
         self.root, self.port = root, port
         self.instance = self.session = self.account = None
         self.last = 0
+        self.results = {}
         self.definition = json.loads((root / 'sql-gateway.json').read_text())['definition']
         self.transport()
 
@@ -66,6 +67,29 @@ class Client:
             assert result['err']['code'] == error, result
         else:
             assert not isinstance(result, dict) or 'err' not in result, result
+        if 'batch' in result:
+            batch = result['batch']
+            assert batch['complete'] == (batch['completion'] is not None), batch
+            assert batch['rows'] or batch['complete'], batch
+            assert len(batch['rows']) <= 32
+            identity = tuple(batch['cursor'])
+            previous = self.results.get(identity)
+            if previous is None:
+                assert batch['batch'] == 0, batch
+                received = len(batch['rows'])
+            else:
+                prior, received = previous
+                assert batch['schema'] == prior['schema'] and batch['observation'] == prior['observation']
+                if batch['batch'] == prior['batch']:
+                    assert batch == prior
+                else:
+                    assert not prior['complete'] and batch['batch'] == prior['batch'] + 1
+                    received += len(batch['rows'])
+            if batch['complete']:
+                assert batch['completion']['rows'] == received, (batch, received)
+            self.results[identity] = (batch, received)
+        if 'operation' in result and result['operation']['phase'] == 'terminal':
+            assert result['operation']['command'] is not None, result
         return result
 
     def open(self, source=None, *, password='proof-password', error=None):
@@ -201,9 +225,14 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     first.call(dict(fetch=dict(cursor=one['cursor'], batch=one['batch'])), error='SqlResultIncomplete')
     desc = first.execute('DESCRIBE native_sessions')['batch']
     assert desc['rows'] and len(desc['rows'][0]) == 9
+    assert desc['observation']['metadata']['kind'] == 'catalog'
+    assert len(desc['observation']['metadata']['definitions']) == 1
+    assert desc['complete'] and desc['completion']['rows'] == 2
     first.call(dict(close_result=desc['cursor']))
     explain = first.execute('EXPLAIN SELECT id FROM native_sessions')['batch']
     assert explain['rows']
+    assert explain['observation']['metadata']['kind'] == 'plan'
+    assert explain['complete'] and explain['completion']['rows'] == 1
     first.call(dict(close_result=explain['cursor']))
     with ThreadPoolExecutor(max_workers=2) as pool:
         replies = list(pool.map(lambda c: c.concurrent_read(), (first, second)))
@@ -262,14 +291,14 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         if refusals:
             print(json.dumps(dict(profile='native_sql_source_capacity', source=name, refused_reads=refusals)), flush=True)
         assert batch['rows'] == [[(b'\x03' + count.to_bytes(8, 'little')).hex()]], batch
-        assert batch['basis']['source']['kind'] == name
+        assert batch['observation']['data']['source']['kind'] == name
         selected.call(dict(close_result=batch['cursor']))
         if name == 'table':
             configured = next(source for source in json.loads((root/'sql-gateway.json').read_text())['accounts'][0]['sources'] if source['name'] == name)
             assert configured['connection']['resource'] != configured['workspace']['source']['resource']
             orphan = Client(root, port).open(name)
             held = orphan.concurrent_read('SELECT value FROM items')['batch']
-            assert held['rows'] and not held['complete'] and held['basis']['source']['kind'] == 'table'
+            assert held['rows'] and not held['complete'] and held['observation']['data']['source']['kind'] == 'table'
             pins = [path for path in root.glob('read-pins-*/*.pin')
                     if json.loads(path.read_text())['table']['connection']['principal'] == configured['connection']['principal']]
             assert len(pins) == 1, pins
@@ -325,7 +354,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         rows = []
         while True:
             assert selected.call(dict(fetch=dict(cursor=result['cursor'], batch=result['batch'])))['batch'] == result
-            assert result['basis']['source']['kind'] == name
+            assert result['observation']['data']['source']['kind'] == name
             rows.extend(result['rows'])
             if result['complete']:
                 break

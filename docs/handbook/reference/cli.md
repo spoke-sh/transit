@@ -79,6 +79,14 @@ or submits an operation.
 
 ### Result formatting and errors
 
+Each SQL row result has one schema, observation and verified completion. Table
+mode renders one table across fetch batches using a bounded width sample. JSON
+uses `sql_result_v1` with exact typed cells and decimal-string counts. The optional
+connection setting `display_rows` limits presentation, closes the result and
+reports incomplete coverage if undisplayed rows remain or completion is unknown.
+Commands expose typed completion and authoritative counts; unresolved writes
+preserve their original identity. See [result presentation](../../../apps/transit-cli/docs/console.md).
+
 `transit console --format table|json` selects SQL results on stdout. Errors and
 timing remain human-readable on stderr, including invocation and configuration
 failures before a session opens. Server operational logs use `logging.format`

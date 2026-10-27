@@ -70,7 +70,7 @@ class Console:
                             if output is not None:
                                 raise ValueError('unexpected multiple result pages')
                             value = json.loads(line)
-                            if query_frames or value.get('profile') == 'sql_session_v1':
+                            if query_frames or value.get('profile') == 'sql_result_v1':
                                 query_frames.append(value)
                                 if len(query_frames) > 130:
                                     raise ValueError('benchmark query row budget exceeded')
@@ -359,7 +359,7 @@ def main():
             else:
                 outcome = result['completion']
                 assert outcome['outcome'] in ('applied', 'unchanged') and outcome['pending_restart'] is False, result
-                assert (outcome['matched'], outcome['changed']) == (affected, changed), result
+                assert (outcome['counts']['matched'], outcome['counts']['changed']) == (str(affected), str(changed)), result
             if case:
                 if native:
                     measurement['completion_timeline'] = completion_timeline(native.trace()['retained'], started, completed)

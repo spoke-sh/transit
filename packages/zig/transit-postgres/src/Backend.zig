@@ -149,8 +149,10 @@ pub fn complete(self: *Self, kind: Completion, count: u64) ![]const u8 {
         .alter_table => "ALTER TABLE",
         .drop_table => "DROP TABLE",
         .set => "SET",
+        .reset => "RESET",
         .show => "SHOW",
         .discard_all => "DISCARD ALL",
+        .empty, .reload, .capture => return error.UnsupportedWireCompletion,
     };
     try self.string(value, buffer.len);
     return self.finish();

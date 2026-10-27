@@ -83,13 +83,14 @@ pub const Read = struct {
     input: g.ReadBatch = .{},
     input_index: usize = 0,
     started: bool = false,
+    disclosure: g.BatchDisclosure = .{},
     pins: [f.Relational.max_sources]?g.ReadPins.Record = @splat(null),
     batch: ?q.DirectTableQuery.Batch = null,
     output: ?f.RelationalExecution.Output = null,
     probe_cells: [3]f.Types.Values.Cell = undefined,
     emitted: bool = false,
     emitted_rows: u64 = 0,
-    pub fn basis(self: *Read, allocator: std.mem.Allocator) !?g.session_protocol.Basis {
+    pub fn dataBasis(self: *Read, allocator: std.mem.Allocator) !?g.results.Observation.Data {
         return switch (self.value) {
             .single => |*query| blk: {
                 const scan = &query.execution.scan;
@@ -102,16 +103,59 @@ pub const Read = struct {
             else => null,
         };
     }
-    fn sourceBasis(value: q.Basis) g.session_protocol.Basis {
+    pub fn observation(self: *Read, allocator: std.mem.Allocator) !g.results.Observation.Value {
+        if (try self.dataBasis(allocator)) |data| return .{ .data = data };
+        if (self.value == .captured or self.value == .source or self.value == .single or self.value == .relational) return error.MissingResultObservation;
+        var metadata: g.results.Observation.Metadata = .{ .kind = .probe, .consistency = .session, .namespace = self.host.namespace, .definitions = &.{}, .configuration_revision = null, .session_settings = null };
+        switch (self.value) {
+            .inspection => |inspection| {
+                const prepared = inspection.prepared;
+                metadata.kind = prepared.kind;
+                metadata.consistency = .exact_definitions;
+                if (prepared.metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.interpretation.interpretation});
+                if (prepared.statement) |statement| {
+                    if (statement.plan == .select) metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{statement.plan.select.binding.interpretation.interpretation}) else if (statement.plan == .relational) {
+                        const definitions = try allocator.alloc(p.DataLifecycle.Definition, statement.plan.relational.bindings.len);
+                        for (statement.plan.relational.bindings, definitions) |binding, *definition| definition.* = binding.interpretation.interpretation;
+                        metadata.definitions = definitions;
+                    }
+                }
+                if (prepared.source) {
+                    const definition = self.host.source.?.definition;
+                    var fields: [q.SourceDefinition.max_columns]f.Types.Field = undefined;
+                    const schema = try definition.schema(&fields);
+                    metadata.source = .{ .resource = definition.resource, .contract = try definition.fingerprint(), .schema = try schema.fingerprint() };
+                }
+            },
+            .settings => |settings| {
+                metadata.kind = if (settings.plan.statement == .catalog) .catalog else .settings;
+                metadata.consistency = if (settings.plan.statement == .catalog) .independent_observations else .session;
+                if (settings.settings) |reader| metadata.configuration_revision = reader.observed_revision;
+                const bytes = try p.Json.valueAlloc(allocator, self.host.settings_session);
+                defer allocator.free(bytes);
+                var digest: [32]u8 = undefined;
+                std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+                metadata.session_settings = digest;
+            },
+            .probe => {},
+            else => unreachable,
+        }
+        return .{ .metadata = metadata };
+    }
+    fn sourceBasis(value: q.Basis) g.results.Observation.Data {
         return .{ .source = .{ .kind = value.cut.kind, .resource = value.cut.resource, .position = switch (value.cut.position) {
             .native_revision => |revision| .{ .native_revision = revision },
             .table => |commitment| .{ .table = commitment },
         }, .contract = value.contract, .schema = value.schema } };
     }
+    pub fn validateDisclosure(self: *Read) !void {
+        try self.disclosure.validate(self.host, self.prepared);
+    }
     pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
         try self.host.deadline.check(self.host.io);
         try self.host.current();
         try self.builder.reset(maximum, g.results.BatchBuilder.max_bytes);
+        self.disclosure = .{};
         var complete = false;
         while (self.builder.len < maximum) {
             if (self.input_index == self.input.len) {
@@ -130,12 +174,16 @@ pub const Read = struct {
                 }
             }
             if (!try self.builder.append(self.prepared.fields(), self.input.rows[self.input_index].?)) break;
+            if (self.value == .settings) try self.disclosure.append(self.value.settings.subject);
             self.input_index += 1;
         }
         complete = complete or (self.started and self.input.complete and self.input_index == self.input.len);
         // Source pulls may reset scratch and run for many rows. Authority is
         // current at this disclosure, not merely when the first row was read.
-        try self.host.validate(self.prepared);
+        if (self.value == .settings) {
+            if (self.value.settings.settings) |settings| self.disclosure.origins = settings.origins orelse false;
+        }
+        try self.disclosure.validate(self.host, self.prepared);
         self.emitted_rows = try std.math.add(u64, self.emitted_rows, self.builder.len);
         return .{ .rows = self.builder.rows, .len = self.builder.len, .complete = complete };
     }
@@ -475,7 +523,7 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
     try self.validate(prepared);
     if (prepared.* == .settings) {
         try Settings.mutate(self, &prepared.settings);
-        return .{ .kind = .set, .count = 0, .changed = 0 };
+        return .{ .kind = if (prepared.settings.plan.statement == .reset) .reset else .set, .count = 0, .changed = 0 };
     }
     if (prepared.* == .probe) {
         if (prepared.probe.kind != .set) return error.ExpectedGatewayWrite;
@@ -507,7 +555,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
     // their status-class error. Do not apply that cause to unrelated failures.
     const cause = if ((err == error.Conflict or err == error.Rejected) and rejected == .TableDefinitionChanged) error.TableDefinitionChanged else err;
     const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and rejected == .HttpCapacity) .{ "53000".*, "Native request capacity exhausted; inspect admitted writes before retrying SQL" } else if (err == error.Conflict and rejected == .Conflict) .{ "55000".*, "Current state changed; inspect admitted work before retrying SQL" } else switch (cause) {
-        error.CatalogDenied, error.AccessDenied, error.GatewayDatabaseDenied => .{ "42501".*, "Current permission denied" },
+        error.CatalogDenied, error.AccessDenied, error.GatewayDatabaseDenied, error.ConfigurationDenied => .{ "42501".*, "Current permission denied" },
         error.GatewayCredentialChanged, error.InvalidAuthentication => .{ "28000".*, "Credential changed or disabled" },
         error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled, error.StatementTimedOut => .{ "57014".*, "Request wait ended; admitted work requires outcome inspection" },
         error.SettingOutOfRange, error.InvalidSettingValue, error.InvalidSettingUnit => .{ "22023".*, "Setting value exceeds its type or administrator ceiling" },
@@ -523,7 +571,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.WireValueOutOfRange => .{ "22003".*, "Value is out of range" },
         error.CatalogIdentityConflict, error.CatalogDefinitionChanged, error.TableDefinitionChanged => .{ "55000".*, "Prepared source changed; prepare again" },
         error.GatewayOwnerUnavailable, error.StaleGatewayCoordinator => .{ "55000".*, "Gateway owner is not ready; inspect admitted writes before retrying SQL" },
-        error.TooManyWireStatements, error.TooManyWirePortals, error.OutOfMemory => .{ "54000".*, "Session capacity exceeded" },
+        error.TooManyWireStatements, error.TooManyWirePortals, error.OutOfMemory, error.ResultRowTooLarge, error.SqlBatchTooLarge, error.InvalidResultBudget => .{ "54000".*, "Session capacity exceeded" },
         error.CellTooLarge => .{ "54000".*, "Bound scalar exceeds the 4096-byte limit" },
         error.UnknownWireStatement, error.UnknownWirePortal => .{ "26000".*, "Unknown prepared statement or portal" },
         error.DuplicateWireStatement, error.DuplicateWirePortal => .{ "42P05".*, "Prepared name already exists" },

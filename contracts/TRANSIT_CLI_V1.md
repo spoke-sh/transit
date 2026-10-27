@@ -373,16 +373,31 @@ service invalidates temporary handles, while accepted operations remain durable.
 Reconnection never silently reopens a result snapshot. Current authorization gates
 metadata, every fetched batch (including retries), operation status and results.
 
-JSON output starts with `profile: sql_session_v1`, logical schema and
-`complete_coverage: false`; each typed row remains provisional. The final record
-contains `complete_coverage: true`, the emitted row count and source basis.
-Missing completion means incomplete output. Native logical encoding preserves
-wide integers, float bits, nested values and distinct cell states. Human table
-output shows bounded batches with column names/types, escaped values and explicit
-truncation. The console does not accumulate the full result. Its operation wait
-checks a 270-second budget; transport, execution, memory and output deadlines
-remain independent. The [console guide](../apps/transit-cli/docs/console.md) owns
-configuration examples and presentation limits.
+JSON output starts with `profile: sql_result_v1`, logical schema, observation and
+`complete_coverage: false`. Typed row envelopes follow. A verified final record
+contains `complete_coverage: true`, `rows`, `displayed_rows` and the same observation.
+Counts and other integers of 64 bits or wider use decimal strings. Typed cells
+preserve wide integers, float bits, nested values and all five cell states.
+Command output has a `completion` envelope with typed kind, outcome, applicable
+counts and owner attribution. Unresolved writes carry their original correlation
+in an `unresolved` envelope; they are not success or rejection.
+
+Table output uses one header and fixed column widths for the logical result.
+Sampling owns at most 32 rows within 256 KiB; cells use escaped previews, with
+visible truncation and widths of at most 80 bytes. Remaining rows stream without
+accumulating the result. Connection setting `display_rows` is null by default
+(unlimited display) or a positive unsigned 32-bit row limit. Reaching that limit
+closes the reader without draining it. An incomplete display reports its displayed
+count, the limit and any already verified completion separately; it never prints
+a successful coverage footer. Exact-limit exhaustion with known completion is
+complete. Output failure, interruption and missing terminal evidence leave an
+incomplete prefix and a nonzero exit status; an intentional display limit is a
+successful local presentation choice with explicitly incomplete coverage.
+
+Submission, settlement and consumption belong to the shared SQL client. Its
+operation wait checks a 270-second budget; transport, execution, memory and output
+deadlines remain independent. The [console guide](../apps/transit-cli/docs/console.md)
+owns configuration examples and presentation limits.
 
 Timing is off by default. `.timer on` reports monotonic wall milliseconds after
 SQL attempts, including failures, to stderr. The timing line follows

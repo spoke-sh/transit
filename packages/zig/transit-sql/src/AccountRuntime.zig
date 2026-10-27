@@ -460,10 +460,12 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
     _ = try table.require(.{ .namespace = null, .target = null, .access = .database });
     var outcome: ?g.Terminal = null;
     var diagnostic: ?p.Diagnostic = null;
+    var command: ?g.results.Command = null;
     if (item.phase == .ready or item.phase == .active or item.phase == .terminal) {
         const bytes = try g.Upload.read(allocator, self.ledger.publication(id), &source, 1, g.IntentReference.max_bytes);
         defer allocator.free(bytes);
         const intent = try g.IntentReference.decode(allocator, bytes);
+        command = intent.commandKind();
         const observed = try intent.operation(table.*, .inspect, 1);
         defer observed.deinit();
         if (item.phase == .terminal) {
@@ -475,6 +477,7 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
     }
     return .{
         .identity = .{ .account = self.ledger.configuration.account, .id = id },
+        .command = command,
         .token = item.nonce,
         .phase = switch (item.phase) {
             inline else => |phase| @field(@FieldType(g.session_protocol.Operation, "phase"), @tagName(phase)),

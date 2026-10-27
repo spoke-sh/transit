@@ -53,6 +53,7 @@ pub const Read = struct {
     tables: ?@FieldType(q.catalog.DirectTableProtocol.Result, "list") = null,
     schemas: ?@FieldType(q.catalog.DirectTableProtocol.Result, "namespaces") = null,
     pages: u64 = 0,
+    subject: ?g.BatchDisclosure.Subject = null,
     pub fn init(host: *Host, prepared: *Prepared) !Read {
         var self: Read = .{ .host = host, .plan = &prepared.plan, .arena = .init(host.allocator) };
         errdefer self.deinit();
@@ -70,6 +71,7 @@ pub const Read = struct {
     }
     pub fn next(self: *Read) !?[]const f.Types.Values.Cell {
         try self.host.deadline.check(self.host.io);
+        self.subject = null;
         if (self.settings) |*settings| return self.host.freshOn(.settings, q.SettingsReader.next, .{settings});
         _ = self.arena.reset(.retain_capacity);
         const a = self.arena.allocator();
@@ -92,6 +94,7 @@ pub const Read = struct {
                         if (err == error.AccessDenied or err == error.CatalogDenied) continue;
                         return err;
                     };
+                    self.subject = .{ .database = database.binding };
                     return try q.SettingsSql.cells(a, .{ .name = database.name });
                 }
                 return null;
@@ -103,6 +106,7 @@ pub const Read = struct {
                         self.index += 1;
                         if (slot) |entry| {
                             _ = try self.host.table.require(.{ .namespace = self.host.namespace, .target = entry.interpretation, .access = .inspect });
+                            self.subject = .{ .table = entry.interpretation };
                             return try q.SettingsSql.cells(a, .{ .name = try a.dupe(u8, entry.name.slice()) });
                         }
                     };
@@ -115,6 +119,7 @@ pub const Read = struct {
                             const current = try self.host.table.call(.{ .namespace = entry.id });
                             defer current.deinit();
                             if (current.value.result.namespace == null or !std.meta.eql(entry, current.value.result.namespace.?)) return error.CatalogIdentityConflict;
+                            self.subject = .{ .namespace = entry };
                             return try q.SettingsSql.cells(a, .{ .name = try a.dupe(u8, entry.name.slice()) });
                         }
                     };

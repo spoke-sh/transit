@@ -41,6 +41,7 @@ password_file: ./sql-password
 ca_file: ./database-ca.pem
 request_timeout_ms: 30000
 format: table
+display_rows: null
 ```
 
 ```sh
@@ -222,13 +223,28 @@ observation or failed authorization cannot establish that a write failed.
 Unconfirmed outcomes explicitly warn that running the statement again may apply
 changes twice.
 
-JSON emits a `sql_session_v1` schema header even for an empty result, one typed
-`row` envelope at a time, then a final `complete_coverage` record with exact row
-count and source basis. Missing, null, type error, conflict and ordinary values
-remain distinct. Integers and decimal coefficients remain exact. Only the final
-marker proves complete coverage; interruption leaves an incomplete prefix.
-Table mode uses escaped, bounded cell previews. The console releases each batch
-before fetching the next and never accumulates an entire result.
+JSON emits a `sql_result_v1` header with schema and observation even for an empty
+result, one typed `row` envelope at a time, then verified `complete_coverage`,
+`rows` and `displayed_rows`. Counts and other 64-bit or wider integers are decimal
+strings. Missing, null, type error, conflict and ordinary values remain distinct;
+integer values and decimal coefficients remain exact. A missing final marker or
+`complete_coverage: false` means the output is a prefix.
+
+Table mode uses one header and fixed column widths across the entire result. It
+samples at most 32 rows within 256 KiB, uses escaped cell previews with visible
+truncation, and streams the remaining rows. Columns are at most 80 bytes wide.
+The connection's optional `display_rows` is null by default, or a positive 32-bit
+row limit. A limit closes the reader without draining it and prints incomplete
+coverage, the displayed count and any already known result count separately. It
+returns success for that intentional display choice. Only verified exhaustion
+prints complete coverage; failure or interruption returns nonzero.
+
+Command JSON contains `completion` with typed kind/outcome, applicable
+`counts.matched`/`counts.changed` and original operation attribution. An unresolved
+write instead contains `unresolved` with its original correlation; the human
+console does not require a separate job workflow to obtain a statement outcome.
+The shared client owns settlement, batching and cleanup. The console does not
+accumulate the full result or treat a fetch batch as a separate table.
 
 `.timer on` reports client-observed submission, waiting, fetching and rendering
 time. It is not a server engine or pure network measurement. `.show` prints aligned

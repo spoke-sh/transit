@@ -35,7 +35,7 @@ def peer(*, structured=False, lease_ms=30000, assist=None, execute=None, instanc
                 assert assist is not None, 'Unexpected metadata request'
                 result = assist(value)
             elif action == 'touch':
-                result = dict(completion=dict(kind="show", matched=0, changed=0))
+                result = dict(closed={})
             else:
                 assert action == 'execute', action
                 if execute is not None:

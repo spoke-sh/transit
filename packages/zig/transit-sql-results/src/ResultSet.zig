@@ -9,6 +9,7 @@ pub const Source = struct {
     next: *const fn (*anyopaque) anyerror!Chunk,
     close: *const fn (*anyopaque) anyerror!void,
     deinit: *const fn (*anyopaque) void,
+    failure: ?*const fn (*anyopaque) ?r.Failure = null,
 };
 schema: r.Types.Type,
 observation: r.Observation.Value,
@@ -39,6 +40,25 @@ pub fn close(self: *Self) !void {
 pub fn completion(self: Self) ?r.Completion {
     return self.progress.completion();
 }
+pub fn failure(self: Self) ?r.Failure {
+    return if (self.source.failure) |read| read(self.source.context) else null;
+}
+/// Accept a source-owned initial or subsequent chunk atomically. Native adapters
+/// expose already received terminal evidence before the first delivery.
+pub fn receive(self: *Self, chunk: Chunk) !void {
+    if (self.closed or self.index != self.chunk.len) return error.InvalidResultTransition;
+    if (chunk.rows.len == 0 and chunk.completion == null) return error.InvalidResultChunk;
+    for (chunk.rows) |row| {
+        if (row.len != self.schema.structure.len) return error.InvalidResultRow;
+        for (row, self.schema.structure) |cell, field| try cell.validate(field, .{});
+    }
+    var state = self.progress;
+    if (chunk.rows.len != 0) try state.receive(state.identity, chunk.rows.len);
+    if (chunk.completion) |terminal| try state.finish(state.identity, terminal);
+    self.progress = state;
+    self.chunk = chunk.rows;
+    self.index = 0;
+}
 /// The returned row is borrowed until the next advance or closure. Merely
 /// peeking does not deliver it; bounded windows can leave a non-fitting row here.
 pub fn peekRow(self: *Self) !?r.Row {
@@ -57,15 +77,7 @@ pub fn peekRow(self: *Self) !?r.Row {
         self.progress.fail(err == error.Canceled or err == error.ResultCancelled);
         return err;
     };
-    if (chunk.rows.len == 0 and chunk.completion == null) return error.InvalidResultChunk;
-    for (chunk.rows) |row| {
-        if (row.len != self.schema.structure.len) return error.InvalidResultRow;
-        for (row, self.schema.structure) |cell, field| try cell.validate(field, .{});
-    }
-    if (chunk.rows.len != 0) try self.progress.receive(self.progress.identity, chunk.rows.len);
-    if (chunk.completion) |terminal| try self.progress.finish(self.progress.identity, terminal);
-    self.chunk = chunk.rows;
-    self.index = 0;
+    try self.receive(chunk);
     if (chunk.rows.len == 0) {
         try self.close();
         return null;

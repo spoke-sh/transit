@@ -8,6 +8,77 @@ pub fn logicalRow(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: q.f
     try std.json.Stringify.value(.{ .row = try q.fuze.LogicalJson.foreignCell(allocator, .{ .value = .{ .structure = cells } }, schema), .complete_coverage = false }, .{ .escape_unicode = true }, out);
     try out.writeByte('\n');
 }
+/// One logical table with fixed widths from a bounded initial sample. Later
+/// rows reuse bounded scratch and clip visibly instead of changing the layout.
+pub const Table = struct {
+    header: std.heap.ArenaAllocator,
+    scratch: std.heap.ArenaAllocator,
+    schema: q.fuze.Types.Type,
+    widths: [128]usize = @splat(3),
+    names: [128][]const u8 = undefined,
+    types: [128][]const u8 = undefined,
+    alignment: [128]Alignment = @splat(.left),
+    pub const maximum_width = 80;
+    pub fn init(allocator: std.mem.Allocator, schema: q.fuze.Types.Type, sample: []const []const q.fuze.Types.Values.Cell) !Table {
+        try schema.validate(.{});
+        if (schema != .structure or schema.structure.len > 128 or sample.len > 64) return error.InvalidArrowResult;
+        var self: Table = .{ .header = .init(allocator), .scratch = .init(allocator), .schema = schema };
+        errdefer self.deinit();
+        const a = self.header.allocator();
+        for (schema.structure, 0..) |field, i| {
+            self.names[i] = try escaped(a, field.name);
+            var buffer: [256]u8 = undefined;
+            var text: std.Io.Writer = .fixed(&buffer);
+            q.fuze.LogicalDisplay.typeName(&text, field.type) catch |err| {
+                if (err != error.WriteFailed) return err;
+            };
+            self.types[i] = try a.dupe(u8, text.buffered());
+            self.widths[i] = @min(maximum_width, @max(3, @max(self.names[i].len, self.types[i].len)));
+            if (q.fuze.Types.Semantics.integer(field.type) != null or field.type == .decimal or field.type == .float32 or field.type == .float64) self.alignment[i] = .right;
+        }
+        for (sample) |cells| {
+            if (cells.len != schema.structure.len) return error.InvalidArrowResult;
+            _ = self.scratch.reset(.retain_capacity);
+            for (cells, schema.structure, 0..) |cell, field, i| {
+                const text = try q.fuze.LogicalDisplay.preview(self.scratch.allocator(), cell, field.type);
+                self.widths[i] = @min(maximum_width, @max(self.widths[i], text.len));
+            }
+        }
+        return self;
+    }
+    pub fn deinit(self: *Table) void {
+        self.scratch.deinit();
+        self.header.deinit();
+    }
+    fn clipped(self: *Table, text: []const u8, width: usize) ![]const u8 {
+        if (text.len <= width) return text;
+        var length = width - 3;
+        while (length != 0 and text[length] & 0xc0 == 0x80) length -= 1;
+        return std.fmt.allocPrint(self.scratch.allocator(), "{s}...", .{text[0..length]});
+    }
+    pub fn begin(self: *Table, out: *std.Io.Writer) !void {
+        const count = self.schema.structure.len;
+        var labels: [128][]const u8 = undefined;
+        const centered: [128]Alignment = @splat(.center);
+        _ = self.scratch.reset(.retain_capacity);
+        try border(out, self.widths[0..count], "┌", "┬", "┐");
+        for (self.names[0..count], self.widths[0..count], labels[0..count]) |name, width, *label| label.* = try self.clipped(name, width);
+        try row(out, labels[0..count], self.widths[0..count], centered[0..count]);
+        for (self.types[0..count], self.widths[0..count], labels[0..count]) |name, width, *label| label.* = try self.clipped(name, width);
+        try row(out, labels[0..count], self.widths[0..count], centered[0..count]);
+        try border(out, self.widths[0..count], "├", "┼", "┤");
+    }
+    pub fn write(self: *Table, out: *std.Io.Writer, cells: []const q.fuze.Types.Values.Cell) !void {
+        if (cells.len != self.schema.structure.len) return error.InvalidArrowResult;
+        _ = self.scratch.reset(.retain_capacity);
+        var values: [128][]const u8 = undefined;
+        for (cells, self.schema.structure, self.widths[0..cells.len], values[0..cells.len]) |cell, field, width, *text| text.* = try self.clipped(try q.fuze.LogicalDisplay.preview(self.scratch.allocator(), cell, field.type), width);
+        try row(out, values[0..cells.len], self.widths[0..cells.len], self.alignment[0..cells.len]);
+    }
+    pub fn end(self: *Table, out: *std.Io.Writer) !void {
+        try border(out, self.widths[0..self.schema.structure.len], "└", "┴", "┘");
+    }
+};
 pub fn logicalTable(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: q.fuze.Types.Type, values: []const []const q.fuze.Types.Values.Cell) !void {
     try schema.validate(.{});
     if (schema != .structure or schema.structure.len > q.fuze.TableSchema.max_columns or values.len > 8) return error.InvalidArrowResult;
