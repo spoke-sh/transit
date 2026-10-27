@@ -153,6 +153,8 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     // The signed dispatcher schedule below includes current revocation after
     // response buffering; a retained catalog prefix must not cache permission.
     service.recovery_state = &recovered;
+    var table_recovered: ?c.storage.TablePartition.RecoveryState = null;
+    service.options.table_recovery = &table_recovered;
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
@@ -266,8 +268,12 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
         }
     };
     var revoke_id = native_table;
+    const warmed = try dispatch(&service, .{ .snapshot = snapshot });
+    warmed.deinit();
+    try t.expect(table_recovered != null);
     service.before_reply = .{ .context = &revoke_id, .run = Revoke.run };
     try t.expectError(error.Forbidden, dispatch(&service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } }));
+    try t.expect(table_recovered == null);
     service.before_reply = null;
     _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = owner_role } });
     for ([_]w.Binary{ present_key, absent_key }) |lookup_key| {

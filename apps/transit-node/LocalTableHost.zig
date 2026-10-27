@@ -22,6 +22,9 @@ recovery: c.DirectCatalog.RecoveryState,
 recovery_mutex: std.Io.Mutex = .init,
 directory: std.Io.RwLock = .init,
 tables: [64]std.Io.Mutex = @splat(.init),
+/// Disposable prefix per lock stripe. Collision causes full Table recovery;
+/// the array bounds resident hints, never the durable Table population.
+table_recovery: [64]?c.storage.TablePartition.RecoveryState = @splat(null),
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *backend.DataAuthority.Engine) !Self {
     try config.catalog.validate();
@@ -90,7 +93,9 @@ pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, a
         defer self.recovery_mutex.unlock(io);
         if (recovered.root.next_lsn > self.recovery.root.next_lsn) self.recovery = recovered;
     }
-    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = self.options, .recovery_state = &recovered };
+    var options = self.options;
+    if (mutex != null) options.table_recovery = &self.table_recovery[@intCast(target(request.action).? % self.tables.len)];
+    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered };
     return service.execute(arena, request, output);
 }
 

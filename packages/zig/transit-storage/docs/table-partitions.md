@@ -6,6 +6,15 @@ content hash binds the `DataLifecycle.Definition`; the row-schema fingerprint is
 separate. `recover` must succeed before any operation or read. Opening an existing
 partition loads its accepted declaration, including schema, properties and
 retirement; the constructor template cannot replace persisted interpretation.
+Within the same exclusive physical storage owner, `recoveryState` exports a
+fixed-size validated root/chain hint. A request-local Table can use `recoverSince`
+to recheck that accepted boundary and replay its successors. A newer accepted
+checkpoint supersedes an older hint; checkpoint capsules and current top-level
+roots remain verified. Hints contain no authority or retained pin, must not be
+persisted or supplied by callers, and cannot bypass full recovery after physical
+owner replacement. An uncertain append prevents exporting a hint. Corruption in
+an earlier already-validated byte is detected when that byte is next accessed,
+or during cold recovery; prefix reuse does not continuously scrub history.
 The [direct catalog](../../transit-catalog/README.md) composes this component
 with name publication and native authorization. A configured local node exposes
 the signed [direct Table service](../../../../contracts/DIRECT_TABLE_V1.md),

@@ -9,6 +9,103 @@ const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64
 const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
 const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
 
+test "Table live recovery prefix replays successors and reloads the accepted declaration" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    for (1..9) |id| {
+        const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = @intCast(id) } } };
+        _ = try table.apply(binding(&table, id), &.{change(&cell, id)}, .point, access.guard());
+    }
+    const prior = try table.recoveryState();
+    const renamed = ddlBinding(&table, 20, .rename);
+    _ = try table.changeDefinition(renamed, .{ .rename = "renamed" }, access.guard());
+    const expected = table.root;
+    // A request-local owner starts from the original creation template. The
+    // hint never substitutes that template for the accepted new declaration.
+    var opened = try P.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+    defer opened.deinit();
+    try opened.recoverSince(prior);
+    try t.expectEqualDeep(expected, opened.root);
+    try t.expectEqual(@as(u64, 8), opened.recovery_work.reused_lsn);
+    try t.expectEqual(@as(u64, 1), opened.recovery_work.replayed_frames);
+    try t.expectEqualStrings("renamed", opened.declaration.definition.properties);
+    try opened.recoverSince(try opened.recoveryState());
+    try t.expectEqual(@as(u64, 0), opened.recovery_work.replayed_frames);
+    var key_bytes: [4096]u8 = undefined;
+    var row = (try opened.get(t.allocator, try key(8, &key_bytes), access.guard())).?;
+    defer row.deinit();
+    try t.expectEqual(@as(i128, 8), row.row().cells[0].value.atom.signed);
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.PermissionDenied, opened.get(t.allocator, try key(8, &key_bytes), access.guard()));
+    try t.expectError(error.PermissionDenied, opened.observe(renamed, access.guard()));
+}
+
+test "Table live recovery prefix rejects substituted boundaries and shortened history" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    _ = try table.apply(binding(&table, 1), &.{}, .point, access.guard());
+    const prior = try table.recoveryState();
+    for (0..4) |fault| {
+        var forged = prior;
+        switch (fault) {
+            0 => forged.chain[0] ^= 1,
+            1 => forged.root.changed_lsn = 0,
+            2 => forged.root.partition += 1,
+            3 => forged.root.interpretation.object.object += 1,
+            else => unreachable,
+        }
+        try t.expectError(error.InvalidTableHistory, table.recoverSince(forged));
+        try t.expectError(error.TableRecoveryRequired, table.recoveryState());
+    }
+    wal.partitions.items[0].next_lsn = 0;
+    try t.expectError(error.TableHistoryMissing, table.recoverSince(prior));
+    wal.partitions.items[0].next_lsn = 1;
+    try table.recoverSince(prior);
+    try t.expectEqualDeep(prior, try table.recoveryState());
+}
+
+test "Table live recovery prefix yields to newer disk checkpoints and verifies their capsules" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    _ = try table.apply(binding(&table, 1), &.{change(&cell, 1)}, .point, access.guard());
+    const prior = try table.recoveryState();
+    _ = try table.flush(access.guard());
+    const cut: p.DataLifecycle.Position = .{ .partition = 17, .next_lsn = table.root.next_lsn };
+    while (!(try table.archive(cut, .{}, access.guard())).complete) {}
+    _ = try table.trimArchived(access.guard());
+    const checkpoint = try table.checkpoint(.{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+    const expected = table.root;
+    try table.recoverSince(prior);
+    try t.expectEqualDeep(expected, table.root);
+    try t.expectEqual(@as(u64, 0), table.recovery_work.reused_lsn);
+    try t.expectEqual(@as(u64, 1), table.recovery_work.replayed_frames);
+    const newer = try table.recoveryState();
+    try table.recoverSince(newer);
+    try t.expectEqual(@as(u64, 0), table.recovery_work.replayed_frames);
+    var name: [96]u8 = undefined;
+    try objects.objectStore().delete(try s.TableRecovery.key(checkpoint.content, &name));
+    try t.expectError(error.TableRecoveryMissing, table.recoverSince(newer));
+    try t.expectError(error.TableRecoveryRequired, table.recoveryState());
+}
+
 test "Table compact evidence recovers receipts and pending work without original payload frames on disk" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -2265,10 +2362,12 @@ test "an uncertain storage append blocks Table observations until recovery and e
     var access: Access = .{};
     const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
     const original = binding(&table, 1);
+    const prior = try table.recoveryState();
     try t.expectError(error.StorageOutcomeUnknown, table.apply(original, &.{change(&cell, 1)}, .point, access.guard()));
+    try t.expectError(error.TableRecoveryRequired, table.recoveryState());
     try t.expectError(error.TableRecoveryRequired, table.observe(original, access.guard()));
     try t.expectError(error.TableRecoveryRequired, table.flush(access.guard()));
-    try table.recover();
+    try table.recoverSince(prior);
     try t.expectEqual(@as(u64, 1), (try table.apply(original, &.{change(&cell, 1)}, .point, access.guard())).affected);
     try t.expectEqual(@as(u64, 1), try wal.log().tail(17));
 }

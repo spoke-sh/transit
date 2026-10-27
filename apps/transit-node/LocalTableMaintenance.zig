@@ -53,6 +53,8 @@ fn unit(self: *Self, allocator: std.mem.Allocator, engine: *backend.DataAuthorit
     const lock = &self.host.tables[@intCast(object % self.host.tables.len)];
     try lock.lock(io);
     defer lock.unlock(io);
+    catalog.options.table_recovery = &self.host.table_recovery[@intCast(object % self.host.tables.len)];
+    errdefer catalog.options.table_recovery.?.* = null;
     var view = (try catalog.maintenanceOpen(allocator, object, authority.guard())) orelse return false;
     defer view.deinit();
     if (view.table.root.retired or view.table.root.next_lsn == 0) return false;

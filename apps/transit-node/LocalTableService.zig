@@ -23,6 +23,11 @@ before_reply: ?struct { context: *anyopaque, run: *const fn (*anyopaque, *backen
 /// All borrowed result fields live in the request arena until the buffered
 /// response is sent. The final fence can discard it after a revocation race.
 pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request, output: []u8) ![]const u8 {
+    // An uncertain append, failed recovery or failed disclosure cannot leave a
+    // warm Table hint behind. Full replay remains the next request's fallback.
+    errdefer if (self.options.table_recovery) |slot| {
+        slot.* = null;
+    };
     const allocator = arena.allocator();
     try request.validate(allocator);
     if (!request.connection.matches(self.configuration)) return error.CatalogDenied;

@@ -22,7 +22,14 @@ pub const RecoveryState = Store.RecoveryState;
 pub const Request = r.Request;
 pub const Intent = r.Intent;
 pub const Properties = r.Properties;
-pub const Options = struct { resident_pages: usize = 16, index_work_bytes: usize = 64 * 1024 * 1024, table: P.Options = .{} };
+pub const Options = struct {
+    resident_pages: usize = 16,
+    index_work_bytes: usize = 64 * 1024 * 1024,
+    table: P.Options = .{},
+    /// Optional same-storage-owner hint, serialized by the embedding host.
+    /// No request allocations, permission or retained read are cached here.
+    table_recovery: ?*?P.RecoveryState = null,
+};
 
 /// The service implements these callbacks using the existing native authority.
 /// make_guard returns an independently owned context in the supplied request
@@ -41,7 +48,14 @@ pub const Policy = struct {
 pub const View = struct {
     table: P,
     properties: Properties,
+    recovery_state: ?*?P.RecoveryState = null,
     pub fn deinit(self: *View) void {
+        if (self.recovery_state) |slot| {
+            if (self.table.recoveryState()) |known| {
+                if (slot.* == null or slot.*.?.root.partition != known.root.partition or
+                    slot.*.?.root.next_lsn <= known.root.next_lsn) slot.* = known;
+            } else |_| slot.* = null;
+        }
         self.table.deinit();
         self.* = undefined;
     }
@@ -756,15 +770,23 @@ fn entry(self: *Self, object: u64) !?r.Entry {
 
 fn open(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: bool) !View {
     if (target.resource != null) return error.CatalogKindMismatch;
+    // Control allocation opens and ordinary data opens never share a hint.
+    const slot = if (control) null else self.options.table_recovery;
+    const prior = if (slot) |value| value.* else null;
+    if (slot) |value| value.* = null;
     var seed = try s.TableDeclaration.load(allocator, self.data_objects, target.seed orelse return error.CatalogRegistrationRequired);
     defer seed.deinit();
     var options = self.options.table;
     options.control = .{ .log = self.store.log, .objects = self.store.objects };
     var table = try P.init(allocator, target.partition, seed.definition, if (control) self.store.log else self.data_log, if (control) self.store.objects else self.data_objects, options);
     errdefer table.deinit();
-    try table.recover();
+    if (prior != null and prior.?.root.partition == target.partition and
+        std.meta.eql(prior.?.root.interpretation.object, seed.definition.object))
+        try table.recoverSince(prior.?)
+    else
+        try table.recover();
     const properties = try Properties.decode(allocator, table.declaration.definition.properties);
-    return .{ .table = table, .properties = properties };
+    return .{ .table = table, .properties = properties, .recovery_state = slot };
 }
 
 fn candidate(self: *Self, namespace: u64, name: a.Name) !?r.Name {
