@@ -100,6 +100,17 @@ pub fn deinit(self: *Self) void {
     self.* = undefined;
 }
 
+/// Observe all three serialized log owners without reading payloads or changing
+/// authority. The host must join every borrower before closing/reopening us.
+pub fn requiresRecovery(self: *Self) !bool {
+    try self.data_inventory.lock(self.io);
+    defer self.data_inventory.unlock(self.io);
+    try self.mutex.lock(self.io);
+    defer self.mutex.unlock(self.io);
+    return self.wal.requiresRecovery() or self.allocations.queue.requiresRecovery() or
+        self.data_allocations.queue.requiresRecovery();
+}
+
 fn countFiles(io: std.Io, directory: std.Io.Dir) !u64 {
     var total: u64 = 0;
     var iterator = directory.iterate();

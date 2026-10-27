@@ -1213,6 +1213,20 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     local_service.has_side_effects = true;
     local_service.stdio = .inherit;
     b.step("test-local-native-service", "Prove the local native node with public signed callers and reply faults").dependOn(&local_service.step);
+    const local_fault_node = b.addExecutable(.{ .name = "transit-local-owner-fault-node", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/storage/local/local_owner_fault_node.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{.{ .name = "transit_node", .module = node_artifact.root_module }},
+    }) });
+    const local_owner_recovery = b.addSystemCommand(&.{ "python3", "-B" });
+    local_owner_recovery.addFileArg(b.path("tests/runner/launch.py"));
+    local_owner_recovery.addFileArg(b.path("tests/storage/local/local_owner_recovery.py"));
+    local_owner_recovery.addArtifactArg(local_fault_node);
+    local_owner_recovery.has_side_effects = true;
+    local_owner_recovery.stdio = .inherit;
+    b.step("test-local-owner-recovery", "Resolve uncertain WAL writes by reopening the exclusive node owner").dependOn(&local_owner_recovery.step);
     const direct_table_client = b.addExecutable(.{ .name = "transit-direct-table-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/interfaces/native/direct_table_client.zig"),
         .target = target,

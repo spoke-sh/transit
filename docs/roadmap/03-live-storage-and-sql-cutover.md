@@ -250,11 +250,11 @@ Owners: [Local](../../apps/transit-node/Local.zig),
 [server lifecycle](../../apps/transit-cli/server/Server.zig),
 [launcher recovery](../../launchers/common.py).
 
-- [ ] P1.1 Document and enforce startup, exclusive directory ownership,
+- [x] P1.1 Document and enforce startup, exclusive directory ownership,
   readiness, cancellation/join and shutdown for native, catalog, Table and
   maintenance owners. Borrowed handles and request memory must not outlive their
   owners; no detached worker may use a closed WAL/object store.
-- [ ] P1.2 Implement bounded replacement after recovery-required refusal,
+- [x] P1.2 Implement bounded replacement after recovery-required refusal,
   covering temporary bootstrap and supervised runtime ownership. Stop admission,
   drain/join the old owner, reopen and validate its original directory, then
   resolve the exact saved request. Preserve principal/sequence/content, current
@@ -274,6 +274,14 @@ Owners: [Local](../../apps/transit-node/Local.zig),
 bootstrap request exactly once, the complete launcher schedule passes, payload
 recovery/reclamation passes on disk, and stop/restart preserves each durable
 owner without an external storage daemon. Close #173 only against those proofs.
+
+The owner/reopen slice passes `test-local-owner-recovery`, `test-local-native`
+and `test-local-native-service` in `ReleaseSafe`. The first injects lost sync
+outcomes in the real node on physical disk, checks exact original receipts and
+the three-reopen budget, then resolves the saved request after process restart.
+The existing service schedule also passes signed reads/turns, malformed reply,
+abrupt restart, local maintenance and current revocation on one CPU. P1's full
+launcher, payload and installed durable-owner gates remain open.
 
 #### P2 — Make point flushing automatic and inspectable
 

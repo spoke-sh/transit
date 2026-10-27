@@ -18,6 +18,23 @@ state. Missing, denied, corrupt or incompatible history fails immediately, and
 the listener opens only after recovery validates the retained authority. This
 attempt limit does not establish a deadline for an individual provider request.
 
+The local owner also detects uncertain writes in its native/Table WAL and the
+native/direct allocation journals. It stops the listener, cancels and joins all
+request and maintenance work, releases borrowed page caches, then closes the
+exclusive directory owner. Reopening validates that same retained history before
+serving again; it never bootstraps a replacement realm. There are at most three
+such reopens per node invocation, with 250, 500 and 750 ms backoffs. A fourth
+recovery-required event fails the process with `LocalWalReopenBudget`. Corrupt,
+missing or incompatible retained history fails immediately during reopening.
+
+This applies to temporary `--bootstrap` nodes as well as supervised nodes.
+Callers keep the original signed request and resolve its outcome after recovery;
+an unavailable response or disconnected socket does not establish rejection.
+The owner emits `storage.owner.reopen` without request contents. Native transient
+snapshot handles acquire a fresh epoch; durable Table pins remain in their
+accepted owner history. Joining the old work precedes reopening the directory,
+so no request can retain a usable handle into the closed owner.
+
 `--maintain` uses a dedicated realm-wide principal with admin, effect and
 delivery grants. Its bounded scans suggest ordinary signed transitions; current
 authorization and lifecycle rules still decide acceptance. It materializes known

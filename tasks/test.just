@@ -107,6 +107,10 @@ node-concurrency:
 local-native-service:
     zig build test-local-native-service
 
+# Real local owner reopen after physical disk sync outcomes are lost.
+local-owner-recovery:
+    zig build test-local-owner-recovery -Doptimize=ReleaseSafe
+
 # Verify direct catalog lifecycle against signed native registration and policy.
 local-catalog:
     zig build test-local-catalog
