@@ -105,8 +105,10 @@ completed ordinary lane. That first-lane time includes queue and preparation;
 it is not the time of the first assertion. Budget eligibility requires the same
 ordered task lists and lane allocation, including the browser continuation.
 Missing or foreign inventory identities leave the measured costs visible but
-cannot meet a budget. Run the reporter from the source whose inventory is being
-measured. The retained 33-task budget does not qualify the expanded inventory.
+cannot meet a budget. The reporter reads the measured revision's inventory as
+data and records its own source separately; it executes no code from that run.
+An unavailable source inventory leaves the result inconclusive. The retained
+33-task budget does not qualify the expanded inventory.
 Warm cache classification requires every configured GitHub cache to restore its
 matching key. Formal explicitly uses upstream Nix substitutes in both modes and
 has only a Zig GitHub cache; its policy is recorded separately. An undeclared

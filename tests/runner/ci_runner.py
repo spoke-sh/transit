@@ -1,5 +1,6 @@
 """CI must propagate failures and keep local/hosted task selection aligned."""
 import json
+import base64
 import os
 from pathlib import Path
 import subprocess
@@ -13,7 +14,7 @@ from ci import LANES, ROOT, SUITE
 from capture import verify
 from ci_select import matrix, select
 from ci_clean import profile
-from ci_cost import inventory_identity, summarize
+from ci_cost import inventory_identity, source_inventory, summarize
 from external_profiles import DISCOVERY
 from packages import discover
 from task_coverage import read_recipes
@@ -185,6 +186,23 @@ def main():
     changed['lanes']['browser'][0] = 'test::different-browser-scope'
     assert inventory_identity(changed)['sha256'] != inventory_identity()['sha256']
     assert not summarize(sample, full_jobs, full_log, dict(budgets, inventory=inventory_identity(changed)))['budget_met']
+    def source_api(path):
+        assert path == 'contents/tests/runner/suite.json?ref=measured-source'
+        return dict(encoding='base64', content=base64.b64encode(json.dumps(changed).encode()).decode())
+    historical = source_inventory('measured-source', source_api)
+    other_source = summarize(sample, full_jobs, full_log, budgets, suite=historical)
+    assert other_source['status'] == 'measured' and not other_source['budget_met']
+    assert other_source['inventory'] == inventory_identity(changed)
+    unavailable = summarize(sample, full_jobs, full_log, budgets, suite=None)
+    assert unavailable['status'] == 'inconclusive' and unavailable['inventory'] is None
+    assert not unavailable['budget_met'] and unavailable['budget'] is None
+    for invalid in (dict(SUITE, version=999), dict(SUITE, tiers={'ordinary': ['core', 'core']})):
+        try:
+            source_inventory('measured-source', lambda path: dict(encoding='base64', content=base64.b64encode(json.dumps(invalid).encode()).decode()))
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError('Foreign or duplicated source inventory qualified')
     assert not summarize(sample, full_jobs, '', budgets)['budget_met']
     assert not summarize(sample, [dict(job, conclusion='failure'), *full_jobs[1:]], full_log, budgets)['budget_met']
     assert not summarize(sample, [dict(job, completed_at=None), *full_jobs[1:]], full_log, budgets)['budget_met']

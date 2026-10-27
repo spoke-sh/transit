@@ -2,6 +2,7 @@
 from datetime import datetime
 from pathlib import Path
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -10,7 +11,6 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 SUITE = json.loads((ROOT / 'tests/runner/suite.json').read_text())
-ORDINARY_LANES = SUITE['tiers']['ordinary']
 
 
 def inventory_identity(suite=SUITE):
@@ -23,16 +23,36 @@ def inventory_identity(suite=SUITE):
                 ordinary_lanes=len(suite['tiers']['ordinary']), browser_tasks=len(lanes['browser']))
 
 
+def source_inventory(revision, api):
+    # Read data from the measured revision; never execute that revision's code.
+    # The workflow_run reporter deliberately runs trusted default-branch code.
+    document = api(f'contents/tests/runner/suite.json?ref={revision}')
+    assert document['encoding'] == 'base64', 'Unavailable source inventory bytes'
+    suite = json.loads(base64.b64decode(''.join(document['content'].split()), validate=True))
+    assert suite['version'] == 1, 'Unsupported source inventory'
+    ordinary = suite['tiers']['ordinary']
+    assert isinstance(ordinary, list) and ordinary and all(isinstance(name, str) for name in ordinary)
+    assert len(set(ordinary)) == len(ordinary) and 'browser' not in ordinary
+    tasks = []
+    for name in [*ordinary, 'browser']:
+        owned = suite['lanes'][name]
+        assert isinstance(owned, list) and owned and all(isinstance(task, str) for task in owned)
+        tasks.extend(owned)
+    assert len(set(tasks)) == len(tasks), 'Duplicated source task ownership'
+    return suite
+
+
 def seconds(start, end):
     return (datetime.fromisoformat(end.replace('Z', '+00:00')) - datetime.fromisoformat(start.replace('Z', '+00:00'))).total_seconds()
 
 
-def summarize(run, jobs, log, budgets):
+def summarize(run, jobs, log, budgets, suite=SUITE):
     lanes = []
+    ordinary_lanes = suite['tiers']['ordinary'] if suite is not None else []
     names = [job['name'] for job in jobs]
-    missing_lanes = sorted(name for name in ORDINARY_LANES if name not in names)
-    duplicate_lanes = sorted(name for name in ORDINARY_LANES if names.count(name) > 1)
-    full_inventory = not missing_lanes and not duplicate_lanes
+    missing_lanes = sorted(name for name in ordinary_lanes if name not in names)
+    duplicate_lanes = sorted(name for name in ordinary_lanes if names.count(name) > 1)
+    full_inventory = bool(ordinary_lanes) and not missing_lanes and not duplicate_lanes
     for job in jobs:
         if job['name'] in ('Selection and documentation', 'foundation-and-protocol'):
             continue
@@ -75,12 +95,12 @@ def summarize(run, jobs, log, budgets):
     cache_bytes = sum(row['cache']['restored_bytes'] or 0 for row in lanes) if cache_known else None
     modes = {row['cache']['mode'] for row in lanes}
     profile = next(iter(modes)) if len(modes) == 1 else 'mixed'
-    inventory = inventory_identity()
-    budget_matches = budgets.get('inventory') == inventory
+    inventory = inventory_identity(suite) if suite is not None else None
+    budget_matches = inventory is not None and budgets.get('inventory') == inventory
     limits = (budgets.get('cold') if profile == 'cold' else budgets if profile == 'warm' else None) if budget_matches else None
     recorded_limits = {key: limits[key] for key in ('feedback_seconds', 'aggregate_runner_seconds', 'restored_cache_bytes')} if limits else None
     qualified = full_inventory and complete and run['conclusion'] == 'success' and cache_known
-    completed_lanes = [job for job in jobs if job['name'] in ORDINARY_LANES
+    completed_lanes = [job for job in jobs if job['name'] in ordinary_lanes
                        and job['conclusion'] == 'success' and job.get('completed_at')]
     first = min(completed_lanes, key=lambda job: job['completed_at']) if completed_lanes else None
     return dict(version=1, run_id=run['id'], revision=run['head_sha'], url=run['html_url'],
@@ -104,6 +124,12 @@ def main():
     def api(path):
         return json.loads(subprocess.check_output(['gh', 'api', f'repos/{args.repo}/{path}'], text=True))
     run = api(f'actions/runs/{args.run}')
+    source_error = None
+    try:
+        suite = source_inventory(run['head_sha'], api)
+    except (subprocess.CalledProcessError, ValueError, AssertionError, KeyError, TypeError) as error:
+        suite = None
+        source_error = type(error).__name__
     response = api(f'actions/runs/{args.run}/attempts/{run["run_attempt"]}/jobs?per_page=100')
     if response['total_count'] != len(response['jobs']):
         raise ValueError('Job pagination is incomplete')
@@ -122,7 +148,9 @@ def main():
             logs.append(fetched.stdout)
     log = '\n'.join(logs)
     budgets = json.loads((ROOT / 'tests/runner/ci-budgets.json').read_text())
-    result = summarize(run, response['jobs'], log, budgets)
+    result = summarize(run, response['jobs'], log, budgets, suite=suite)
+    result['reporter_revision'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+    result['unavailable_source_inventory'] = source_error
     result['unavailable_job_logs'] = missing_logs
     if missing_logs:
         result.update(status='inconclusive', budget_met=False)
