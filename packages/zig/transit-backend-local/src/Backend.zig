@@ -112,14 +112,23 @@ pub fn deinit(self: *Self) void {
 /// Observe all three serialized log owners without reading payloads or changing
 /// authority. The host must join every borrower before closing/reopening us.
 pub fn requiresRecovery(self: *Self) !bool {
+    return try self.recoverySource() != null;
+}
+
+/// Fixed diagnostic categories. The shared main WAL owns both native and
+/// direct partitions; this observation does not attribute an individual append.
+pub const RecoverySource = enum { main_wal, native_inventory, data_inventory };
+pub fn recoverySource(self: *Self) !?RecoverySource {
     try self.data_inventory.lock(self.io);
     defer self.data_inventory.unlock(self.io);
     try self.native_inventory.lock(self.io);
     defer self.native_inventory.unlock(self.io);
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
-    return self.wal.requiresRecovery() or self.allocations.queue.requiresRecovery() or
-        self.data_allocations.queue.requiresRecovery();
+    if (self.wal.requiresRecovery()) return .main_wal;
+    if (self.allocations.queue.requiresRecovery()) return .native_inventory;
+    if (self.data_allocations.queue.requiresRecovery()) return .data_inventory;
+    return null;
 }
 
 fn countFiles(io: std.Io, directory: std.Io.Dir) !u64 {

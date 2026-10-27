@@ -122,9 +122,12 @@ fn runServices(init: std.process.Init, engine: *Engine, lanes: []Lane, config: C
         fn serve(process: std.process.Init, authority: *Engine, requests: []Lane, settings: Config, runtime: *telemetry.Runtime) anyerror!void {
             return server.Host(Self).serve(process, authority, requests, settings, runtime);
         }
-        fn watch(io: std.Io, owner: *backend.Backend) anyerror!void {
+        fn watch(io: std.Io, owner: *backend.Backend, runtime: *telemetry.Runtime) anyerror!void {
             while (true) {
-                if (try owner.requiresRecovery()) return error.LocalWalReopenRequired;
+                if (try owner.recoverySource()) |source| {
+                    runtime.event(.{ .name = "storage.owner.recovery_required", .level = .warn, .operation = @tagName(source), .error_type = "WalRecoveryRequired" });
+                    return error.LocalWalReopenRequired;
+                }
                 try io.sleep(.fromMilliseconds(100), .awake);
             }
         }
@@ -142,7 +145,7 @@ fn runServices(init: std.process.Init, engine: *Engine, lanes: []Lane, config: C
         try select.concurrent(.maintenance, Task.maintain, .{ init, owned, maintenance, diagnostics, extension });
     }
     try select.concurrent(.server, Task.serve, .{ init, engine, lanes, config, diagnostics });
-    try select.concurrent(.recovery, Task.watch, .{ init.io, engine.journal.backend });
+    try select.concurrent(.recovery, Task.watch, .{ init.io, engine.journal.backend, diagnostics });
     return switch (try select.await()) {
         .server => |result| result,
         .maintenance => |result| result,

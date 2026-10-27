@@ -263,6 +263,14 @@ Cache hits do not count as provider reads. Local payload bytes count serialized
 WAL entries and page/block envelopes; they do not count filesystem framing or
 individual system calls. Trimming includes its verification reads.
 
+Before joining borrowers for a local owner reopen, the
+`storage.owner.recovery_required` event identifies one observed poisoned log as
+`main_wal`, `native_inventory` or `data_inventory`. The main WAL contains both
+native and direct partitions; this event does not identify an individual failed
+append or establish its durable outcome. It reports a fixed category without
+paths, keys or payloads. `storage.owner.reopen` separately records the start of
+replacement after borrowers have joined.
+
 
 ## Physical storage budgets and maintenance
 
