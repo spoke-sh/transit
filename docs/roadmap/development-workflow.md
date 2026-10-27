@@ -509,13 +509,23 @@ The continuation after #185 contains these additional bounded changes:
 | Growth-lane scheduling | The completed 39-task comparison lane in [run 40434970935](https://github.com/spoke-sh/transit/actions/runs/40434970935) takes 97.0 minutes. Split its existing tasks into 20 storage/catalog/query checks and 19 SQL/transport checks; preserve all 103 ordinary tasks exactly once and the seven-job concurrency ceiling. Eight lanes now include the new `interfaces` owner. Per-task deadlines are unchanged. The extra job repeats preparation, so elapsed and aggregate cost must both be measured before qualification. |
 | Interoperability phases (`50555d3c1`) | The complete local ten-language ring passes. Its automatic records retain eight consumer-install phases and all ten pair phases, including failure/incomplete outcomes. This execution began at `50555d3c1` with concurrent worktree edits and is focused validation, not a clean full-run sample. |
 | Maintained-query launcher (`662a305cb`) | The hosted migration run exposed a direct Python invocation without the shared import root. The actual maintained-query schedule now passes backfill, node replacement and revocation checks. The fast import audit covers 121 literal Zig Python invocations and rejects both inline and `addFileArg` omissions. |
+| Migrated benchmark execution | The actual vector runner passes 80 samples at clean `04d37829a`; typed pipelines pass 320 samples and frozen-file vectors pass 324 at clean `7af0cd9ba`. All four page-layout variants execute their four structural workloads. The default console-latency driver also completes its four owned SQL queries. These validate migrated entry points and value/ownership checks; they do not recalibrate historical performance thresholds or establish isolated-host throughput. |
+| Mutation benchmark contract (`cf71149c9`) | The first real invocation fails on the obsolete console `operation` envelope. The driver now verifies the current `completion`, outcome and matched/changed counts; pipe-reader controls pass. Its default rerun verifies 17 samples, then fails an `update_absent` write after 30 seconds with `SqlOutcomeUnknown`. A separate wide-schema profile successfully drops/recreates the Table and verifies five samples, then also fails with `SqlOutcomeUnknown` on `delete_absent`. Both reports remain failed and their owned installations are retained. These are runtime-confirmation symptoms, not a passing latency sample or a proven match to the cause tracked in #124/#173; no timeout or data-path implementation is changed. |
 | Resource observations (`04d37829a`) | Lane checkpoints retain child CPU/block I/O, largest child RSS, workspace free bytes, Linux available memory and whole-host I/O pressure counters. Controls preserve failure/completion semantics. Boundary observations and largest-child RSS are not interval minima or aggregate peak memory. |
-| Expiry read evidence (`a58b96208`) | The external query profile passed lifecycle checks, then failed after the fixture killed/restarted the authority: a stale HTTP connection prevented the semantic expiry denial. Retry that identical read once; transport failure and disclosed results still fail. Four negative/identity controls and clean fast qualification pass; the real expiry rerun is pending. |
+| Expiry read evidence (`a58b96208`) | The external query profile passed lifecycle checks, then failed after the fixture killed/restarted the authority: a stale HTTP connection prevented the semantic expiry denial. Retry that identical read once; transport failure and disclosed results still fail. Four negative/identity controls, clean fast qualification and the actual 193-second disk-backed expiry/restart schedule pass. The query-profile continuation also removes obsolete `--source table` arguments from the current no-argument interactive-session task (`c78be2f79`). |
 
 The [continuation run](https://github.com/spoke-sh/transit/actions/runs/40441494668)
 and [repaired comparison run](https://github.com/spoke-sh/transit/actions/runs/40441691526)
-retain their own source and completion records. External discovery, application
-and query profiles are separate qualification runs, outside ordinary cost samples.
+retain their own source and completion records. External profiles are separate qualification runs, outside ordinary cost samples.
+The application profile passes both installed application-fault and runtime-upgrade
+stages in [run 40441787577](https://github.com/spoke-sh/transit/actions/runs/40441787577).
+The discovery profile passes all 13 property/model/simulation/fuzz/mutation stages
+in [run 40441786385](https://github.com/spoke-sh/transit/actions/runs/40441786385),
+retaining 2,172.3 seconds of stage execution at `8333fdfcd`. The reactive lifecycle profile passes in
+[run 40445518654](https://github.com/spoke-sh/transit/actions/runs/40445518654)
+at `04d37829a` (519.8 seconds). The local query profile passes all three stages
+at clean `c78be2f79`: lifecycle 67.2 seconds, real-time expiry/restart 193.6,
+and SQL sessions 401.5. The external SDK profile also passes at `87ce7b164`.
 The unchanged generic installed-server task still fails locally: earlier attempts
 reach SQL outcome uncertainty, and a fresh run exhausts bootstrap restarts after
 two-second native command timeouts. The original installations are preserved.

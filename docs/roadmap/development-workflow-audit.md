@@ -29,7 +29,10 @@ and reviewed indirect nesting are checked separately. The
 [shared modules](../../build/test_modules.zig) supply cross-domain type identity.
 
 Comparison with the frozen starting inventory preserves all 103 ordinary tasks,
-all lane memberships, external task lists and literal recipe nesting. The native
+external task lists and literal recipe nesting. The 39-task growth lane now has
+20 storage/catalog/query tasks and 19 SQL/transport tasks in `interfaces`; every
+ordinary task still runs exactly once, and other lane memberships are unchanged.
+Eight lanes share the existing seven-job concurrency ceiling. The native
 aggregate's indirect owner changes from `test::unit` to `check::native`, with all
 52 aggregate edges accounted for in the component/fixture/fault profiles. All 14
 original SDK scenario identities remain; proof paths follow their file moves and
