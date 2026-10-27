@@ -46,6 +46,8 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--table-rows', type=common.sizes, default=[2048, 8192])
     parser.add_argument('--native-rows', type=common.sizes, default=[512, 2048])
+    parser.add_argument('--owner', choices=('both', 'table', 'native'), default='both',
+                        help='Qualify one owner independently, preserving its full growth matrix')
     parser.add_argument('--memory-mib', type=int, default=128)
     parser.add_argument('--cpu', type=int, default=min(os.sched_getaffinity(0)))
     parser.add_argument('--timeout', type=float, default=1800)
@@ -59,7 +61,10 @@ def main():
     common.AS_LIMIT = args.memory_mib * 1024**2
     common.RECORD_BYTES = BODY_BYTES
     binary = args.binary.resolve()
+    owners = [(owner, sizes) for owner, sizes in [('table', args.table_rows), ('native', args.native_rows)]
+              if args.owner in ('both', owner)]
     report = dict(version=1, profile='memory growth smoke' if args.smoke else 'bounded local owner growth', status='running',
+                  owners=[owner for owner, _ in owners],
                   revision=common.git('rev-parse', 'HEAD'), dirty=bool(common.git('status', '--porcelain')),
                   binary_sha256=common.digest(binary), driver_sha256=common.digest(__file__),
                   common_driver_sha256=common.digest(common.__file__), probe_sha256=common.digest(common.ROOT / 'tests/performance/storage/storage_benchmark.zig'),
@@ -76,7 +81,7 @@ def main():
             shutil.copy2(binary, frozen)
             require(common.digest(frozen) == report['binary_sha256'], 'Executable changed while freezing it')
             report['filesystem'] = subprocess.check_output(['stat', '-f', '-c', '%T', str(root)], text=True).strip()
-            for owner, sizes in [('table', args.table_rows), ('native', args.native_rows)]:
+            for owner, sizes in owners:
                 exceeded = False
                 for rows in sizes:
                     directory = root / 'fixture'
@@ -101,7 +106,7 @@ def main():
                     finally:
                         shutil.rmtree(directory)
                 require(args.smoke or exceeded, f'{owner} data did not exceed the process ceiling')
-            require(len(report['fixtures']) == len(args.table_rows) + len(args.native_rows), 'Incomplete growth matrix')
+            require(len(report['fixtures']) == sum(len(sizes) for _, sizes in owners), 'Incomplete growth matrix')
             report['status'] = 'passed'
     except BaseException as error:
         report['status'] = 'failed'

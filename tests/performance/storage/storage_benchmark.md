@@ -172,9 +172,11 @@ readback. File hashes and physical allocation must remain unchanged afterwards;
 verification cannot append or publish objects. The report records complete phase
 allocation accounting, executable peak virtual memory/RSS, retained logical and
 allocated disk bytes, cache evidence and source/build identities. A complete
-normal run requires the larger retained fixture of **each owner** to exceed the
-process address-space ceiling. No latency percentile is derived from these
-single fixture observations.
+normal run requires the larger retained fixture of **each selected owner** to
+exceed the process address-space ceiling. Both owners run by default;
+`--owner native` or `--owner table` selects one complete growth matrix for
+independent diagnosis. A single-owner report does not qualify the other owner.
+No latency percentile is derived from these single fixture observations.
 
 `--table-rows 32 --native-rows 2 --smoke` validates the harness without asserting
 that the data exceed the ceiling. The report labels this profile explicitly.
