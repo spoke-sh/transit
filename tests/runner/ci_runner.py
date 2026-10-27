@@ -13,7 +13,7 @@ from ci import LANES, ROOT, SUITE
 from capture import verify
 from ci_select import matrix, select
 from ci_clean import profile
-from ci_cost import summarize
+from ci_cost import inventory_identity, summarize
 from external_profiles import DISCOVERY
 from packages import discover
 from task_coverage import read_recipes
@@ -158,7 +158,8 @@ def main():
     reclaim = next(step for step in fault_steps if step.get('name') == 'Reclaim unused hosted SDKs')
     assert reclaim['if'] == "runner.environment == 'github-hosted'"
     assert fault_steps.index(reclaim) < next(i for i, step in enumerate(fault_steps) if step.get('name') == 'Restore Nix store')
-    budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 300 * len(selected) + 1}
+    budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 300 * len(selected) + 1,
+               "inventory": inventory_identity()}
     sample = dict(id=1, head_sha='fixture', html_url='https://example.invalid', conclusion='success', created_at='2026-01-01T00:00:00Z')
     job = dict(name='core', conclusion='success', started_at='2026-01-01T00:00:01Z', completed_at='2026-01-01T00:00:10Z', steps=[])
     log = 'core\tCache hit for: nix-key\ncore\tCache Size: ~0 MB (100 B)\ncore\tCache hit for: zig-key\ncore\tCache Size: ~0 MB (200 B)\n'
@@ -168,6 +169,17 @@ def main():
     assert measured['budget_met'] and measured['restored_cache_bytes'] == 300 * len(selected)
     assert measured['feedback_seconds'] == 10 and measured['aggregate_runner_seconds'] == 9 * len(selected)
     assert not measured['missing_lanes'] and not measured['duplicate_lanes']
+    assert measured['first_completed_lane'] == dict(name=selected[0], seconds=10)
+    assert measured['budget_inventory_matches'] and measured['inventory']['ordinary_tasks'] == 103
+    for old_inventory in (None, dict(inventory_identity(), ordinary_tasks=33),
+                          dict(inventory_identity(), sha256='foreign')):
+        stale = summarize(sample, full_jobs, full_log, dict(budgets, inventory=old_inventory))
+        assert stale['status'] == 'measured' and not stale['budget_met']
+        assert stale['budget'] is None and not stale['budget_inventory_matches']
+    changed = json.loads(json.dumps(SUITE))
+    changed['lanes']['browser'][0] = 'test::different-browser-scope'
+    assert inventory_identity(changed)['sha256'] != inventory_identity()['sha256']
+    assert not summarize(sample, full_jobs, full_log, dict(budgets, inventory=inventory_identity(changed)))['budget_met']
     assert not summarize(sample, full_jobs, '', budgets)['budget_met']
     assert not summarize(sample, [dict(job, conclusion='failure'), *full_jobs[1:]], full_log, budgets)['budget_met']
     assert not summarize(sample, [dict(job, completed_at=None), *full_jobs[1:]], full_log, budgets)['budget_met']
@@ -177,7 +189,7 @@ def main():
     cold_budget = dict(feedback_seconds=20, aggregate_runner_seconds=10 * len(selected), restored_cache_bytes=0)
     cold = summarize(sample, full_jobs, cold_log, dict(budgets, cold=cold_budget))
     assert cold['budget_met'] and cold['budget'] == cold_budget and cold['cache_profile'] == 'cold'
-    assert measured['budget'] == budgets and measured['cache_profile'] == 'warm'
+    assert measured['budget'] == {key: value for key, value in budgets.items() if key != 'inventory'} and measured['cache_profile'] == 'warm'
     fallback_log = full_log.replace('Cache hit for: zig-key', 'Cache hit for restore-key: zig-key')
     fallback = summarize(sample, full_jobs, fallback_log, budgets)
     assert fallback['restored_cache_bytes'] == 300 * len(selected) and fallback['cache_profile'] == 'miss-or-partial'

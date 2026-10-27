@@ -100,6 +100,14 @@ includes other host work. Unsupported or unreadable host observations are null.
 These measurements cover lane execution, while hosted setup/cache costs come
 from job records. They do not establish isolated workload throughput.
 
+`just ci cost RUN_ID` reports job/setup/cache costs and the first successfully
+completed ordinary lane. That first-lane time includes queue and preparation;
+it is not the time of the first assertion. Budget eligibility requires the same
+ordered task lists and lane allocation, including the browser continuation.
+Missing or foreign inventory identities leave the measured costs visible but
+cannot meet a budget. Run the reporter from the source whose inventory is being
+measured. The retained 33-task budget does not qualify the expanded inventory.
+
 Clean qualification preserves these records and preparation logs before removing
 a successful clone. Failed clones remain private at the reported path. Local
 records remain until explicitly removed; hosted CI uploads run records and the

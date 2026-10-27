@@ -2,13 +2,25 @@
 from datetime import datetime
 from pathlib import Path
 import argparse
+import hashlib
 import json
 import os
 import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
-ORDINARY_LANES = json.loads((ROOT / 'tests/runner/suite.json').read_text())['tiers']['ordinary']
+SUITE = json.loads((ROOT / 'tests/runner/suite.json').read_text())
+ORDINARY_LANES = SUITE['tiers']['ordinary']
+
+
+def inventory_identity(suite=SUITE):
+    # Include the browser continuation required by the experience job. A budget
+    # for fewer tasks, or a different lane allocation, cannot qualify this suite.
+    lanes = {name: suite['lanes'][name] for name in [*suite['tiers']['ordinary'], 'browser']}
+    encoded = json.dumps(lanes, sort_keys=True, separators=(',', ':')).encode()
+    return dict(sha256=hashlib.sha256(encoded).hexdigest(),
+                ordinary_tasks=sum(len(suite['lanes'][name]) for name in suite['tiers']['ordinary']),
+                ordinary_lanes=len(suite['tiers']['ordinary']), browser_tasks=len(lanes['browser']))
 
 
 def seconds(start, end):
@@ -59,11 +71,18 @@ def summarize(run, jobs, log, budgets):
     cache_bytes = sum(row['cache']['restored_bytes'] or 0 for row in lanes) if cache_known else None
     modes = {row['cache']['mode'] for row in lanes}
     profile = next(iter(modes)) if len(modes) == 1 else 'mixed'
-    limits = budgets.get('cold') if profile == 'cold' else budgets if profile == 'warm' else None
+    inventory = inventory_identity()
+    budget_matches = budgets.get('inventory') == inventory
+    limits = (budgets.get('cold') if profile == 'cold' else budgets if profile == 'warm' else None) if budget_matches else None
     recorded_limits = {key: limits[key] for key in ('feedback_seconds', 'aggregate_runner_seconds', 'restored_cache_bytes')} if limits else None
     qualified = full_inventory and complete and run['conclusion'] == 'success' and cache_known
+    completed_lanes = [job for job in jobs if job['name'] in ORDINARY_LANES
+                       and job['conclusion'] == 'success' and job.get('completed_at')]
+    first = min(completed_lanes, key=lambda job: job['completed_at']) if completed_lanes else None
     return dict(version=1, run_id=run['id'], revision=run['head_sha'], url=run['html_url'],
                 run_attempt=run.get('run_attempt', 1), cache_profile=profile, budget=recorded_limits,
+                inventory=inventory, budget_inventory_matches=budget_matches,
+                first_completed_lane=dict(name=first['name'], seconds=seconds(run['created_at'], first['completed_at'])) if first else None,
                 conclusion=run['conclusion'], status='measured' if qualified else 'inconclusive',
                 missing_lanes=missing_lanes, duplicate_lanes=duplicate_lanes,
                 feedback_seconds=feedback, aggregate_runner_seconds=cost,
