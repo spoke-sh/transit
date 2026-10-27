@@ -249,7 +249,7 @@ still follows the ordinary uncertain-dispatch and exact-observation rules.
 `TablePartition.compact` takes an exclusive segment-ID boundary captured from an
 accepted `next_segment`. It rewrites live segment rows below that boundary into
 one new segment per call and publishes replacement point/physical locators with
-a `checkpoint` action. Stable identity/full-key indexes and every logical/control
+a `compaction` action. Stable identity/full-key indexes and every logical/control
 root remain unchanged. WAL rows and newer segments are excluded. The published
 segment ID is at or above the fixed boundary, so repeating the same pass after a
 lost reply or restart cannot select its own prior output. A bounded metadata
@@ -408,7 +408,44 @@ records before the checkpoint and descendant objects are verified when accessed;
 restart is not an eager historical integrity scan. Missing required evidence is
 an error, never a new operation, empty result or cursor advance. Data snapshots
 omit recovery references together with control directories. There is no automatic
-checkpoint scheduling or immutable Table-object collection.
+checkpoint scheduling or immutable Table-object collection in this component.
+
+### Resumable Table maintenance targets
+
+Every accepted Table root and saved snapshot root contains mandatory scalar
+`maintenance` state. Missing state rejects under the replacement current-v1
+definition. It records archive and compaction source activity, the completed
+source activity for each class, and nullable fixed targets. These fields select
+physical work; they grant neither access nor logical expiry or object deletion.
+Snapshots retain the values at their original cut and never schedule work.
+
+`archiveMaintenanceUnit(limits, guard)` accepts or advances one target. Its
+`through_lsn` is the exclusive Table frontier when work begins; `source_lsn`
+records the activity that selected it. The first accepted archive publication
+covering that cut fixes `checkpoint_lsn`. Completion requires accepted archive
+coverage and a recovery checkpoint covering that publication. A completed pass
+records its original source and clears the target. Foreground acceptances,
+pins/releases, logical history-floor changes, flushes and compaction advance the
+archive source; archive, recovery and work bookkeeping do not. A finite workload
+therefore settles without endlessly archiving its own progress records.
+
+`compactionMaintenanceUnit(limits, guard)` captures the current exclusive
+`next_segment` boundary and source activity. It relocates bounded groups below
+that fixed boundary, then accepts completion only after verifying that no live
+older segment remains. Recovery repeats that check. Logical changes and
+non-compaction segment publication can select another pass; compaction output
+cannot. Retirement completes unfinished compaction without rewriting retained
+rows. Later writes leave either active target unchanged and can select later
+work after the current pass completes.
+
+Each successful work call accepts at most one Table record. Starting and finishing
+targets use `maintenance` actions; physical relocation uses `compaction`, while
+ordinary flushing retains `checkpoint`. Acceptance and replay derive the exact
+maintenance state from the action. No separate progress file can publish it.
+Uncertain acceptance requires owner recovery; lost replies resume the accepted
+target. Current authorization is checked even when a call finds no work. The
+existing per-call archive, compaction, index and object budgets still apply;
+this component does not bound live scheduler concurrency or select its cadence.
 
 ## Ordered full-key index component
 

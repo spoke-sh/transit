@@ -70,6 +70,8 @@ and the catalog's retained dependency graph.
   snapshots and receipts, and respect a paged minimum of live history leases.
   Explicit bounded compaction merges live segment rows below a fixed boundary
   while retained roots keep their original physical references.
+  Accepted archive/checkpoint and compaction targets resume across replacement;
+  separate source frontiers prevent work bookkeeping from triggering itself.
   Mutation, rewrite and flush workspaces have an explicit allocation ceiling,
   separate from encoded row limits and index/cache budgets.
   Frozen row admission, rejection and cancellation share that Table WAL; row

@@ -264,14 +264,15 @@ pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaratio
 }
 
 fn emptyRoot(stored: Declaration.Stored, partition: u64) Root {
-    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .physical_schemas = null, .column_origins = null, .archive = .empty, .recovery = null, .history_floor = 0, .history_pins = null };
+    return .{ .interpretation = stored.interpretation, .declaration = stored.content, .schema_fingerprint = stored.schema_fingerprint, .retired = stored.retired, .next_segment = 1, .partition = partition, .operations = null, .pending = null, .identities = null, .ordered_rows = null, .physical_schemas = null, .column_origins = null, .archive = .empty, .recovery = null, .history_floor = 0, .history_pins = null, .maintenance = .empty };
 }
 
 fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !void {
     const after = record.root;
+    if (!std.meta.eql(after.maintenance, try @import("TableMaintenanceState.zig").transition(before, after, record.action))) return error.InvalidTableMaintenance;
     if ((record.action != .declaration or record.action.declaration.binding.action != .alter) and
         !std.meta.eql(before.column_origins, after.column_origins)) return error.InvalidTableHistory;
-    if (record.action != .mutation and record.action != .checkpoint and
+    if (record.action != .mutation and record.action != .checkpoint and record.action != .compaction and
         (record.action != .declaration or record.action.declaration.binding.action != .alter) and
         !std.meta.eql(before.physical_schemas, after.physical_schemas)) return error.InvalidTableHistory;
     if (record.action == .history_floor) {
@@ -326,12 +327,12 @@ fn requireTransition(before: Root, record: r.Record, operation: ?Operation) !voi
             if (before.next_lsn == 0 or !std.meta.eql(before.declared(), after.declared()) or before.changed_lsn != after.changed_lsn or
                 before.live_rows != after.live_rows or !std.meta.eql(before.receipts, after.receipts)) return error.InvalidTableHistory;
             if (!std.meta.eql(before.ordered_rows, after.ordered_rows)) return error.InvalidTableHistory;
-            if (record.action != .checkpoint and (!std.meta.eql(before.identities, after.identities) or !std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or before.next_segment != after.next_segment)) return error.InvalidTableHistory;
-            if (record.action == .checkpoint and (!std.meta.eql(before.pins, after.pins) or !std.meta.eql(before.identities, after.identities))) return error.InvalidTableHistory;
+            if (record.action != .checkpoint and record.action != .compaction and (!std.meta.eql(before.identities, after.identities) or !std.meta.eql(before.rows, after.rows) or !std.meta.eql(before.scan_rows, after.scan_rows) or before.next_segment != after.next_segment)) return error.InvalidTableHistory;
+            if ((record.action == .checkpoint or record.action == .compaction or record.action == .maintenance) and (!std.meta.eql(before.pins, after.pins) or !std.meta.eql(before.identities, after.identities))) return error.InvalidTableHistory;
             if (record.action == .operation) {
                 if (!std.meta.eql(before.pins, after.pins)) return error.InvalidTableHistory;
             } else if (!std.meta.eql(before.operations, after.operations) or !std.meta.eql(before.pending, after.pending)) return error.InvalidTableHistory;
-            if (before.retired and record.action != .release and record.action != .archive and record.action != .recovery and record.action != .history_floor) return error.InvalidTableHistory;
+            if (before.retired and record.action != .release and record.action != .archive and record.action != .recovery and record.action != .history_floor and record.action != .maintenance) return error.InvalidTableHistory;
         },
     }
 }
@@ -435,6 +436,7 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
         if (selected != null and (!std.meta.eql(record.root.recovery, selected) or
             (checkpoint_boundary and work.replayed_frames == 0 and record.action != .recovery))) return error.InvalidTableHistory;
         try requireTransition(next, record, try self.operationTransition(next, record));
+        try self.requireMaintenanceCompletion(next, record);
         try self.requireReceiptTransition(next, record);
         try self.requireHistoryRetentionTransition(next, record);
         chain = r.hash(frame.payload);
@@ -548,7 +550,7 @@ pub fn history(self: *Self, from: d.Position, through: d.Position, frames: u8, g
                 result.entries[result.count] = .{ .root = record.root, .receipt = try record.receipt(), .commitment = commitment };
                 result.count += 1;
             },
-            .operation, .checkpoint, .archive, .recovery, .history_floor, .pin, .release => {},
+            .operation, .checkpoint, .compaction, .maintenance, .archive, .recovery, .history_floor, .pin, .release => {},
         }
         previous = commitment;
         result.scanned += 1;
@@ -1426,9 +1428,12 @@ fn rewrite(self: *Self, allocator: std.mem.Allocator, next: *Root, transition: f
     if (count != self.root.live_rows) return error.InvalidTableHistory;
 }
 
-fn publish(self: *Self, record: r.Record, row_bytes: []const u8, guard: Guard) !void {
+fn publish(self: *Self, proposed: r.Record, row_bytes: []const u8, guard: Guard) !void {
+    var record = proposed;
+    record.root.maintenance = try @import("TableMaintenanceState.zig").transition(self.root, record.root, record.action);
     try record.validate(self.root.next_lsn);
     try requireTransition(self.root, record, try self.operationTransition(self.root, record));
+    try self.requireMaintenanceCompletion(self.root, record);
     try self.requireReceiptTransition(self.root, record);
     try self.requireHistoryRetentionTransition(self.root, record);
     if (self.root.next_lsn == 0) _ = try Declaration.stage(self.objects, &self.declaration);
@@ -1484,6 +1489,12 @@ fn requireBasis(self: *Self, basis: Root) !void {
 pub fn scan(self: *Self, basis: Root, after: ?pages.Key) !pages.Slice {
     try self.ready();
     try self.requireBasis(basis);
+    return self.scanDirectory(basis, after);
+}
+
+/// Decode an already validated root during replay as well as ordinary reads.
+/// This does not admit a caller or establish a public read basis.
+fn scanDirectory(self: *Self, basis: Root, after: ?pages.Key) !pages.Slice {
     var batch = try self.tree().scan(basis.scan_rows, after);
     for (&batch.entries) |*slot| if (slot.*) |*entry| {
         if (entry.value.len != r.Locator.scan_bytes) return error.InvalidTableRowReference;
@@ -1841,11 +1852,11 @@ fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, through: u64, ro
         after = batch.next orelse break;
     }
     if (rows.items.len == 0) return 0;
-    try self.publishSegmentRows(a, rows.items, guard);
+    try self.publishSegmentRows(a, rows.items, false, guard);
     return rows.items.len;
 }
 
-fn publishSegmentRows(self: *Self, allocator: std.mem.Allocator, rows: []const f.TableRow.Row, guard: Guard) !void {
+fn publishSegmentRows(self: *Self, allocator: std.mem.Allocator, rows: []const f.TableRow.Row, compaction: bool, guard: Guard) !void {
     try self.index.begin(self.options.index_work_bytes);
     defer self.index.end();
     var next = self.root;
@@ -1875,7 +1886,7 @@ fn publishSegmentRows(self: *Self, allocator: std.mem.Allocator, rows: []const f
         next.scan_rows = try self.tree().mutate(next.scan_rows, changes[0..count]);
         offset += count;
     }
-    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .checkpoint }, &.{}, guard);
+    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = if (compaction) .compaction else .checkpoint }, &.{}, guard);
     try self.reply();
 }
 
@@ -1980,7 +1991,7 @@ fn compactBounded(self: *Self, before_segment: u64, limits: CompactionLimits, me
         if (!complete) return error.TableCompactionBudget;
         return .{ .before_segment = before_segment, .rows = 0, .input_segments = 0, .encoded_bytes = 0, .resident_peak = memory.peak, .complete = true };
     }
-    try self.publishSegmentRows(a, rows.items, guard);
+    try self.publishSegmentRows(a, rows.items, true, guard);
     return .{ .before_segment = before_segment, .rows = rows.items.len, .input_segments = segments, .encoded_bytes = bytes, .resident_peak = memory.peak, .complete = complete };
 }
 
@@ -1990,6 +2001,79 @@ pub const ArchiveProgress = struct {
     encoded_bytes: usize,
     complete: bool,
 };
+
+fn requireMaintenanceCompletion(self: *Self, before: Root, record: r.Record) !void {
+    if (record.action != .maintenance or record.action.maintenance != .complete_compaction or before.retired) return;
+    const target = before.maintenance.compaction_target orelse return error.InvalidTableMaintenance;
+    const remaining = try self.scanDirectory(before, try pages.Key.init(&.{2}));
+    if (remaining.entries[0]) |entry| {
+        const locator = try r.Locator.decode(entry.value);
+        if (locator.kind != .segment or locator.lsn < target.before_segment) return error.InvalidTableMaintenance;
+    }
+}
+
+fn publishMaintenance(self: *Self, action: @import("TableMaintenanceState.zig").Action, guard: Guard) !void {
+    const ordinary_log = self.log;
+    defer self.log = ordinary_log;
+    if (self.options.control) |control| self.log = control.log;
+    var next = self.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    try self.publish(.{ .definition = p.Growth.current_definition, .previous = self.chain, .root = next, .action = .{ .maintenance = action } }, &.{}, guard);
+    try self.reply();
+}
+
+/// Accept or advance one fixed archive/checkpoint target. Each call publishes at
+/// most one record; a lost reply is resolved by recovering the accepted root.
+/// Bookkeeping alone never starts another pass after a finite workload settles.
+pub fn archiveMaintenanceUnit(self: *Self, limits: Archive.Limits, guard: Guard) !bool {
+    try self.ready();
+    try limits.validate();
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+    }
+    const target = self.root.maintenance.archive_target orelse {
+        if (self.root.maintenance.archive_source_lsn <= self.root.maintenance.archived_source_lsn) return false;
+        try self.publishMaintenance(.begin_archive, guard);
+        return true;
+    };
+    if (self.root.archive.through < target.through_lsn) {
+        _ = try self.archive(.{ .partition = self.root.partition, .next_lsn = target.through_lsn }, limits, guard);
+        return true;
+    }
+    const checkpoint_lsn = target.checkpoint_lsn orelse return error.InvalidTableMaintenance;
+    if (self.root.recovery == null or self.root.recovery.?.next_lsn < checkpoint_lsn) {
+        _ = try self.checkpoint(.{ .partition = self.root.partition, .next_lsn = checkpoint_lsn }, guard);
+        return true;
+    }
+    try self.publishMaintenance(.complete_archive, guard);
+    return true;
+}
+
+/// Accept or advance one fixed segment boundary. Later foreground writes can
+/// select another pass after this one completes; compaction output cannot.
+/// Retirement closes unfinished compaction without relocating retained rows.
+pub fn compactionMaintenanceUnit(self: *Self, limits: CompactionLimits, guard: Guard) !bool {
+    try self.ready();
+    try limits.validate();
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+    }
+    const target = self.root.maintenance.compaction_target orelse {
+        if (self.root.retired or self.root.next_segment <= 1 or
+            self.root.maintenance.compaction_source_lsn <= self.root.maintenance.compacted_source_lsn) return false;
+        try self.publishMaintenance(.begin_compaction, guard);
+        return true;
+    };
+    if (!self.root.retired) {
+        const progress = try self.compact(target.before_segment, limits, guard);
+        if (progress.rows != 0) return true;
+        if (!progress.complete) return error.InvalidTableMaintenance;
+    }
+    try self.publishMaintenance(.complete_compaction, guard);
+    return true;
+}
 
 /// Copy a bounded prefix towards a fixed accepted frontier. Publication changes
 /// physical placement only; receipts, history and row identities remain exact.

@@ -9,6 +9,159 @@ const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64
 const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
 const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
 
+test "Table maintenance targets survive disk reopen and lost replies then become idle" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var pin: P.SnapshotHandle = undefined;
+    var changed: u64 = 0;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        for (1..5) |id| {
+            const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = @intCast(id) } } };
+            _ = try table.apply(binding(&table, id), &.{change(&cell, id)}, .bulk, access.guard());
+        }
+        pin = try table.pin(.{ .scope = object.scope, .principal = 2, .operation = 1 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        try t.expect(try table.archiveMaintenanceUnit(.{ .frames = 2 }, access.guard()));
+        try t.expect(try table.compactionMaintenanceUnit(.{ .rows = 2 }, access.guard()));
+        const fixed = table.root.maintenance;
+        const five: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 5 } } };
+        _ = try table.apply(binding(&table, 5), &.{change(&five, 5)}, .bulk, access.guard());
+        changed = table.root.changed_lsn;
+        try t.expectEqualDeep(fixed.archive_target, table.root.maintenance.archive_target);
+        try t.expectEqualDeep(fixed.compaction_target, table.root.maintenance.compaction_target);
+    }
+    var idle: usize = 0;
+    var units: usize = 0;
+    var lost: usize = 0;
+    var settled: ?u64 = null;
+    while (idle < 8) : (units += 1) {
+        try t.expect(units < 200);
+        // Every unit uses a new physical owner, not a resident recovery hint.
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{ .segment_bytes = 4096 });
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        const before = table.root;
+        table.lose_reply = units % 3 == 0;
+        const result = if (units % 2 == 0)
+            table.archiveMaintenanceUnit(.{ .frames = 2 }, access.guard())
+        else
+            table.compactionMaintenanceUnit(.{ .rows = 2 }, access.guard());
+        const worked = result catch |err| blk: {
+            try t.expectEqual(error.LostAcknowledgement, err);
+            lost += 1;
+            break :blk true;
+        };
+        table.lose_reply = false;
+        try t.expect(table.root.next_lsn <= before.next_lsn + 1);
+        try t.expectEqual(changed, table.root.changed_lsn);
+        try t.expectEqual(@as(u64, 0), table.root.history_floor);
+        try t.expectEqual(@as(u64, 5), table.root.live_rows);
+        var encoded: [4096]u8 = undefined;
+        for (1..6) |id| {
+            var current = (try table.get(t.allocator, try key(id, &encoded), access.guard())).?;
+            defer current.deinit();
+            try t.expectEqual(@as(i128, @intCast(id)), current.row().cells[0].value.atom.signed);
+            var retained = try table.readSnapshot(t.allocator, pin, try key(id, &encoded), access.guard());
+            if (retained) |*row| {
+                defer row.deinit();
+                try t.expect(id < 5);
+                try t.expectEqual(@as(i128, @intCast(id)), row.row().cells[0].value.atom.signed);
+            } else try t.expectEqual(@as(usize, 5), id);
+        }
+        if (worked) {
+            idle = 0;
+            settled = null;
+        } else {
+            idle += 1;
+            if (settled) |at| try t.expectEqual(at, table.root.next_lsn) else settled = table.root.next_lsn;
+        }
+        if (idle == 8) {
+            const state = table.root.maintenance;
+            try t.expect(state.archive_target == null and state.compaction_target == null);
+            try t.expectEqual(state.archive_source_lsn, state.archived_source_lsn);
+            try t.expectEqual(state.compaction_source_lsn, state.compacted_source_lsn);
+            // Even an idle/terminal observation must check current authority.
+            access.deny_at = access.calls + 1;
+            try t.expectError(error.PermissionDenied, table.archiveMaintenanceUnit(.{}, access.guard()));
+            try t.expectError(error.PermissionDenied, table.compactionMaintenanceUnit(.{}, access.guard()));
+        }
+    }
+    try t.expect(lost != 0);
+}
+
+test "Table maintenance recovery rejects fabricated completion and missing persisted targets" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 7 } } };
+    _ = try table.apply(binding(&table, 1), &.{change(&cell, 1)}, .bulk, access.guard());
+    try t.expect(try table.compactionMaintenanceUnit(.{}, access.guard()));
+    const encoded = try std.json.Stringify.valueAlloc(t.allocator, table.root, .{});
+    defer t.allocator.free(encoded);
+    var parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, encoded, .{ .allocate = .alloc_always });
+    defer parsed.deinit();
+    try t.expect(parsed.value.object.swapRemove("maintenance"));
+    const missing = try std.json.Stringify.valueAlloc(t.allocator, parsed.value, .{});
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, std.json.parseFromSlice(P.Root, t.allocator, missing, .{}));
+    var forged: r.Record = .{ .definition = p.Growth.current_definition, .previous = table.chain, .root = table.root, .action = .{ .maintenance = .complete_compaction } };
+    forged.root.next_lsn += 1;
+    forged.root.maintenance = try @import("TableMaintenanceState.zig").transition(table.root, forged.root, forged.action);
+    const buffer = try t.allocator.alloc(u8, s.TransitLog.max_payload_bytes);
+    defer t.allocator.free(buffer);
+    _ = try wal.log().append(17, table.root.next_lsn, 1, 1, .manifest_checkpoint, try r.encode(forged, &.{}, buffer));
+    try t.expectError(error.InvalidTableMaintenance, table.recover());
+}
+
+test "Table maintenance finishes after retirement without relocating retained rows" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const cell: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 7 } } };
+    const original_binding = binding(&table, 1);
+    const original = try table.apply(original_binding, &.{change(&cell, 1)}, .bulk, access.guard());
+    try t.expect(try table.compactionMaintenanceUnit(.{}, access.guard()));
+    try t.expect(try table.archiveMaintenanceUnit(.{}, access.guard()));
+    const pin = try table.pin(.{ .scope = object.scope, .principal = 2, .operation = 1 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+    const retired = try table.changeDefinition(ddlBinding(&table, 2, .drop), .{ .drop = "" }, access.guard());
+    const physical = table.root.scan_rows;
+    var idle: usize = 0;
+    var units: usize = 0;
+    while (idle < 4) : (units += 1) {
+        try t.expect(units < 40);
+        try table.recover();
+        const worked = if (units % 2 == 0)
+            try table.compactionMaintenanceUnit(.{}, access.guard())
+        else
+            try table.archiveMaintenanceUnit(.{}, access.guard());
+        idle = if (worked) 0 else idle + 1;
+        try t.expectEqualDeep(physical, table.root.scan_rows);
+        try t.expectEqual(retired.position.next_lsn, table.root.changed_lsn);
+        try t.expectEqualDeep(original, (try table.observe(original_binding, access.guard())).?);
+        var encoded: [4096]u8 = undefined;
+        var row = (try table.readSnapshot(t.allocator, pin, try key(7, &encoded), access.guard())).?;
+        defer row.deinit();
+        try t.expectEqual(@as(i128, 7), row.row().cells[0].value.atom.signed);
+    }
+}
+
 test "Table live recovery prefix replays successors and reloads the accepted declaration" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();
@@ -243,12 +396,13 @@ test "Table compact evidence rejects missing corrupt foreign and substituted out
     // omits its own outcome. Recovery binds that entry to the exact transition.
     var next = table.root;
     next.next_lsn += 1;
-    const forged: r.Record = .{ .definition = p.Growth.current_definition, .previous = table.chain, .root = next, .action = .{ .mutation = .{
+    var forged: r.Record = .{ .definition = p.Growth.current_definition, .previous = table.chain, .root = next, .action = .{ .mutation = .{
         .binding = binding(&table, 2),
         .changes = @splat(3),
         .outcome = .{ .position = .{ .partition = 17, .next_lsn = next.next_lsn }, .matched = 0, .affected = 0, .live_rows = 0 },
         .ingestion = .point,
     } } };
+    forged.root.maintenance = try @import("TableMaintenanceState.zig").transition(table.root, forged.root, forged.action);
     var buffer: [r.header_bytes + r.max_metadata_bytes]u8 = undefined;
     _ = try wal.log().append(17, table.root.next_lsn, 1, 1, .row_delta, try r.encode(forged, &.{}, &buffer));
     try t.expectError(error.InvalidTableReceipt, table.recover());
@@ -690,6 +844,7 @@ test "Table recovery checkpoint rejects unbound roots chains and foreign capsule
         forged.recovery = try s.TableRecovery.stage(objects.objectStore(), basis);
         if (fault == 3) forged.changed_lsn = 0;
         if (fault == 4) forged.recovery.?.next_lsn += 1;
+        forged.maintenance = try @import("TableMaintenanceState.zig").transition(table.root, forged, @as(@FieldType(r.Record, "action"), if (fault == 5) .checkpoint else .recovery));
         const buffer = try t.allocator.alloc(u8, s.TransitLog.max_payload_bytes);
         defer t.allocator.free(buffer);
         const bytes = try r.encode(.{ .definition = p.Growth.current_definition, .previous = table.chain, .root = forged, .action = if (fault == 5) .checkpoint else .recovery }, &.{}, buffer);
@@ -1093,6 +1248,7 @@ test "Table recovery rejects archive coverage regression and substituted directo
             const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &table.index };
             forged.archive.directory = try tree.put(forged.archive.directory, try s.TableArchive.key(0), try s.TableArchive.stage(t.allocator, objects.objectStore(), batch.frames[0]));
         } else forged.archive = .empty;
+        forged.maintenance = try @import("TableMaintenanceState.zig").transition(table.root, forged, @as(@FieldType(r.Record, "action"), .checkpoint));
         const buffer = try t.allocator.alloc(u8, s.TransitLog.max_payload_bytes);
         defer t.allocator.free(buffer);
         const bytes = try r.encode(.{ .definition = p.Growth.current_definition, .previous = table.chain, .root = forged, .action = .checkpoint }, &.{}, buffer);
@@ -1445,6 +1601,7 @@ test "Table history floor uses a paged lease minimum and rejects unapproved reco
     var forged = table.root;
     forged.next_lsn += 1;
     forged.history_floor = cuts[2].next_lsn;
+    forged.maintenance = try @import("TableMaintenanceState.zig").transition(table.root, forged, @as(@FieldType(r.Record, "action"), .history_floor));
     const buffer = try t.allocator.alloc(u8, s.TransitLog.max_payload_bytes);
     defer t.allocator.free(buffer);
     const bytes = try r.encode(.{ .definition = p.Growth.current_definition, .previous = table.chain, .root = forged, .action = .history_floor }, &.{}, buffer);

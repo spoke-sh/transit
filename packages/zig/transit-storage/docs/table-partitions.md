@@ -549,6 +549,27 @@ the current directories: history leases retain their original anchor frame at
 Unflushed rows can require still earlier frames. This enumerator supplies no
 global root selection, durable work/marks, archive pruning or deletion authority.
 
+## Resume physical maintenance
+
+`archiveMaintenanceUnit(limits, guard)` and
+`compactionMaintenanceUnit(limits, guard)` accept or advance fixed work targets
+stored in the Table root. Each successful call publishes at most one record.
+After a lost reply or owner replacement, recover the Table and call the same
+work class again. New foreground writes cannot move an active target.
+
+Archive completion requires archive coverage and a recovery checkpoint covering
+the target's archive publication. Compaction completion checks that no live row
+still references a segment below its captured boundary. Retirement closes a
+compaction target without moving retained data. The accepted source and completed
+source frontiers exclude each class's own bookkeeping, allowing finite workloads
+to become idle. Even idle calls check current authorization.
+
+The [maintenance target contract](../../../../contracts/TRANSIT_STORAGE_V1.md#resumable-table-maintenance-targets)
+defines those frontiers and transitions. These APIs preserve logical change
+positions, receipts, pins and unlimited history. They do not trim the WAL,
+collect objects, expire history or supply an automatic scheduler. Their caller
+still owns scheduling, independent class cursors, aggregate memory and backoff.
+
 ## Compact live segments
 
 Capture the current `root.next_segment` and pass it as the fixed exclusive boundary
@@ -564,7 +585,7 @@ The current paged row directories determine liveness. Compaction merges small
 segments and omits their removed or replaced rows; the direct owner does not
 require a separate `.tdel` bitmap to make those rows invisible. It preserves row
 identities, full-key order, definitions, receipts, pending operations, pins,
-`live_rows` and `changed_lsn`. Its physical checkpoint uses the same acceptance
+`live_rows` and `changed_lsn`. Its `compaction` action uses the same acceptance
 path as flushing. Older retained roots continue to use their original segments.
 No segment or index object is deleted by this operation.
 

@@ -565,6 +565,24 @@ selected backend checks pass bounded native trimming and reopen. Automatic
 archive/checkpoint/compaction and collection remain unfinished; these scheduler
 and backend results do not close P4.1 or the aggregate resource gate.
 
+The Table component now records bounded archive and compaction targets in each
+accepted Table root. Archive work captures an exclusive physical cut and the
+foreground/relocation activity that triggered it. Completion requires accepted
+archive coverage and a recovery checkpoint covering that archive publication.
+Compaction captures an exclusive segment boundary and its original source
+activity. Later writes leave both targets fixed. Separate completed activity
+frontiers prevent archive/checkpoint bookkeeping and compaction output from
+restarting the same work forever. These scalar fields add no independent queue,
+visibility decision or retention authority. The shared current-v1 definition is
+replaced by `ef7cde665365ee22944e7e6161c32748ec7afbecaaa5dc4e25e4d40ecd47db62`,
+after integrating the binary SQL result contract from main, with regenerated
+contracts, bindings and independent signing/encoding fixtures.
+The four selected package checks pass disk reopen after every unit, lost replies,
+late writes, exact current/pinned rows, retirement and fabricated-completion
+rejection. All 18 contract checks pass. Live scheduler cursors, installed process
+death/convergence and aggregate resource qualification remain open; these
+component results do not close P4.
+
 #### P5 — Qualify and reduce the remaining live read and wait costs
 
 Owners: local Table service/catalog, direct query readers, shared SQL service,

@@ -13667,7 +13667,7 @@
           "deadline"
         ],
         "Definition": [
-          "c28797e8d36912bfca884567bf72256f7304e0e64ed278b90894d7e22b311914"
+          "ef7cde665365ee22944e7e6161c32748ec7afbecaaa5dc4e25e4d40ecd47db62"
         ],
         "Effect.phase": [
           "pending",
@@ -26775,6 +26775,30 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/TableMaintenanceState.zig": {
+      "errors": {
+        "InvalidTableMaintenance": 12
+      },
+      "outcomes": {
+        "Action": [
+          "begin_archive",
+          "complete_archive",
+          "begin_compaction",
+          "complete_compaction"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "transition()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": []
+    },
     "packages/zig/transit-storage/src/TableManifest.zig": {
       "errors": {
         "CorruptTableManifest": 1,
@@ -26819,6 +26843,7 @@
         "InvalidTableIdentity": 1,
         "InvalidTableInterpretation": 6,
         "InvalidTableKey": 3,
+        "InvalidTableMaintenance": 5,
         "InvalidTableOperation": 14,
         "InvalidTablePin": 9,
         "InvalidTableReadBudget": 3,
@@ -26910,6 +26935,7 @@
         "applyStatement()": "<inferred>",
         "applyWithinBudget()": "<inferred>",
         "archive()": "<inferred>",
+        "archiveMaintenanceUnit()": "<inferred>",
         "archivedThrough()": "<inferred>",
         "buildFailure()": "anyerror",
         "cancel()": "<inferred>",
@@ -26919,6 +26945,7 @@
         "checkpoint()": "<inferred>",
         "compact()": "<inferred>",
         "compactBounded()": "<inferred>",
+        "compactionMaintenanceUnit()": "<inferred>",
         "currentBasis()": "<inferred>",
         "expectations()": "<inferred>",
         "expireHistory()": "<inferred>",
@@ -26956,6 +26983,7 @@
         "pinState()": "<inferred>",
         "projectPhysicalRow()": "<inferred>",
         "publish()": "<inferred>",
+        "publishMaintenance()": "<inferred>",
         "publishSegmentRows()": "<inferred>",
         "rangeSnapshot()": "<inferred>",
         "readCurrent()": "<inferred>",
@@ -26973,6 +27001,7 @@
         "requireAdmissionBasis()": "<inferred>",
         "requireBasis()": "<inferred>",
         "requireHistoryRetentionTransition()": "<inferred>",
+        "requireMaintenanceCompletion()": "<inferred>",
         "requirePin()": "<inferred>",
         "requireReceiptTransition()": "<inferred>",
         "requireTransition()": "<inferred>",
@@ -26982,6 +27011,7 @@
         "rewrite()": "<inferred>",
         "scan()": "<inferred>",
         "scanCurrent()": "<inferred>",
+        "scanDirectory()": "<inferred>",
         "scanHistory()": "<inferred>",
         "scanRetainedRoot()": "<inferred>",
         "scanRootColumns()": "<inferred>",
@@ -27001,7 +27031,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 577,
+        "try": 600,
         "catch": 13
       },
       "imports": [
@@ -27013,6 +27043,7 @@
         "TableEvidence.zig",
         "TableInterpretations.zig",
         "TableKeyRange.zig",
+        "TableMaintenanceState.zig",
         "TablePartitionRecord.zig",
         "TableRecovery.zig",
         "TableSnapshot.zig",
@@ -27059,6 +27090,8 @@
           "declaration",
           "operation",
           "checkpoint",
+          "compaction",
+          "maintenance",
           "archive",
           "recovery",
           "history_floor",
@@ -27088,12 +27121,13 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 20,
         "catch": 0
       },
       "imports": [
         "TableArchive.zig",
         "TableDeclaration.zig",
+        "TableMaintenanceState.zig",
         "TableRecovery.zig",
         "TransitLog.zig",
         "TreeStore.zig",
