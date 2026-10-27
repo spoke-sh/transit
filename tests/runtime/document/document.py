@@ -205,6 +205,9 @@ def run(node, caller, backend="ursula"):
 
 
 if __name__ == "__main__":
+    # Nix's default temporary directory can be tmpfs. Both the Ursula WAL
+    # and its owned cold store must use the physical-disk fixture parent too.
+    tempfile.tempdir = "/var/tmp"
     if hasattr(os, "sched_getaffinity"):
         os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
     parser = argparse.ArgumentParser(description=__doc__)
