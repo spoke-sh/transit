@@ -1,7 +1,7 @@
 """Shared installed Document SDK schedule; Zig owns all merge/publication work."""
 from runner.paths import ROOT
 import argparse
-import importlib
+from sdk.consumer_registry import RUNNERS
 import json
 from pathlib import Path
 import select
@@ -133,9 +133,8 @@ def main():
     parser.add_argument('--language', choices=('python', 'node', 'rust', 'ruby', 'c', 'java', 'dotnet', 'beam'), action='append')
     args = parser.parse_args()
     for language in args.language or ('python', 'node', 'rust', 'ruby', 'c', 'java', 'dotnet', 'beam'):
-        module = importlib.import_module(f'sdk.consumers.{language}.{language}_station_sdk')
         artifacts = Path(args.artifacts) / ('wheels' if language == 'python' else language)
-        module.run(args.node, args.cli, args.library, artifacts, execute=run)
+        RUNNERS[language](args.node, args.cli, args.library, artifacts, execute=run)
 
 
 if __name__ == '__main__': main()

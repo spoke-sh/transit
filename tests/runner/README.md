@@ -16,6 +16,7 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | [ci-budgets.json](ci-budgets.json) | Measured CI cost limits and the inventory qualified by those observations |
 | [package-checks.md](package-checks.md) | Standalone package roots, real I/O boundaries and exporter/validator overlap |
 | [packages.py](packages.py), [test_packages.py](test_packages.py) | Bounded standalone compilation, per-package diagnostics and cancellation controls |
+| [imports.py](imports.py), [test_imports.py](test_imports.py) | Check local modules and declared exports, including imports inside rarely executed functions |
 | [test_checks.py](test_checks.py) | Real subprocess controls for generator/validator failures and incomplete evidence |
 | [ci.py](ci.py) | Execute the shared lane inventory with checkpointed task outcomes |
 | [ci_clean.py](ci_clean.py) | Qualify committed HEAD in a separate clone with scoped dependency preparation |
@@ -43,6 +44,15 @@ owner (`harness.services`, `runner.paths`) and use `runner.paths.ROOT` for
 repository coordinates. Avoid per-file parent-depth calculations and `sys.path`
 edits in domain drivers. The import root affects this interpreter only; child
 SDK consumers resolve their installed packages independently.
+
+The fast import audit reads tracked and non-ignored Python sources without
+executing them. It checks explicit local imports, namespace modules, relative
+imports and declared exports, including imports inside fault branches. Shared
+SDK schedules use an [explicit consumer registry](../sdk/consumer_registry.py).
+Computed module names require explicit registration. `imports.py --json` exposes
+the observed edges for dependency review. These are static declarations, not proof
+of runtime conditions, generated child scripts or installed package resolution;
+the actual scenario remains required.
 
 The layout check includes tracked and untracked, non-ignored test files. Put new
 work in a named owner with a README and AGENTS file. The completed directory

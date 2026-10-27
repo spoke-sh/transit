@@ -21,6 +21,24 @@
         ]
       },
       {
+        "id": "local-test-imports",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/imports.py"
+        ]
+      },
+      {
+        "id": "local-test-import-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_imports.py"
+        ]
+      },
+      {
         "id": "nix-format",
         "phase": "format",
         "command": [

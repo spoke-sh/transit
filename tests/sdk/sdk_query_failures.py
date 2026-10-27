@@ -1,12 +1,12 @@
 """Installed Station callbacks for all five authenticated negative query results."""
 import argparse
-import importlib
 import os
 from pathlib import Path
 
 import sdk.sdk_station_runner as sdk_station_runner
+from sdk.consumer_registry import RUNNERS
 
-FAMILIES = ('python', 'node', 'rust', 'ruby', 'c', 'java', 'dotnet', 'beam')
+FAMILIES = tuple(RUNNERS)
 
 
 def main():
@@ -23,7 +23,7 @@ def main():
     try:
         for family in args.family or FAMILIES:
             package = 'wheels' if family == 'python' else family
-            importlib.import_module(f'sdk.consumers.{family}.{family}_station_sdk').run(
+            RUNNERS[family](
                 str(args.node.resolve()), str(native / 'bin/transit-admin'),
                 str(native / 'lib/libtransit_client.so'), str(artifacts / package),
                 execute=sdk_station_runner.run)

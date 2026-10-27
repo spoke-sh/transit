@@ -10,6 +10,7 @@ beside their implementation in [sdks/](../../sdks/README.md).
 | Raw clients and incompatible native definitions | [Shared schedule](sdk_raw_client.py), [ABI](client_abi.py), [recovery](client_abi_growing.py), [port host](client_host.py) |
 | Station callbacks, saved work and lifetime ownership | [Station schedule](sdk_station_runner.py), [native growth](station_growing_abi.py), [query failures](sdk_query_failures.py) |
 | Installed language programs and their builders | [Consumer directory](consumers/README.md) |
+| Shared schedules' explicit language dispatch | [Consumer registry](consumer_registry.py) |
 | Query and direct catalog callers | [Unified consumers](sdk_unified.py), [catalog consumers](direct_sdk_catalog.py), [relational consumers](sdk_relational.py) |
 | HTTP/gRPC effects and Documents | [Exchange schedule](sdk_exchange_runner.py), [gRPC entry point](sdk_grpc_runner.py), [Document entry point](sdk_document_runner.py) |
 | Cross-language requests and real example binaries | [Interoperability ring](sdk_public_interop.py), [Zig consumer](sdk_zig.py) |

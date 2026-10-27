@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
 import os
 import platform
-import importlib
+from sdk.consumer_registry import RUNNERS
 import json
 from pathlib import Path
 import select
@@ -43,7 +43,7 @@ def run(node, cli, library, artifacts, report_path=None):
             clients.append((label, target, installer(target)))
         for language, folder in (('python', 'wheels'), ('node', 'node'), ('rust', 'rust'), ('ruby', 'ruby'),
                                  ('c', 'c'), ('java', 'java'), ('dotnet', 'dotnet'), ('beam', 'beam')):
-            importlib.import_module(f'sdk.consumers.{language}.{language}_station_sdk').run(node, cli, library, artifacts / folder, execute=install)
+            RUNNERS[language](node, cli, library, artifacts / folder, execute=install)
         installed_at = time.monotonic()
         fault = {'pid': None, 'lost': 0, 'reader': None, 'unavailable_reads': 0,
                  'drop_delivery': True, 'delivery_lost': 0}

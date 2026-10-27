@@ -28,3 +28,6 @@ nested retry processes, task recipes and the scenario catalog together. Execute
 the affected installed schedules, including incompatible-definition, lifetime
 and failure controls. Record automatic results through the runner; do not commit
 routine output or count skipped language coverage as passed.
+Register shared installed-language dispatch in `consumer_registry.py`; use
+explicit imports so the fast import audit can follow its owners. Do not construct
+test module names from strings to bypass dependency review.
