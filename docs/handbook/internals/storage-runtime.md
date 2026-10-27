@@ -35,7 +35,9 @@ The exclusive local backend uses one mutex for WAL access, accepted-head state
 and quota reservations. Direct-data object publication needs neither a new native
 root nor that mutex while its files are written and synced. Each disk object key
 has its own publication lock; readers capture an atomic descriptor and verify
-the requested content. Direct-data objects remain outside physical collection.
+the requested content. A separate shared creator fence protects direct-data
+publication against exclusive reclamation; neither path holds the native journal
+mutex through direct object I/O.
 The explicit native collector has a different creation/deletion boundary:
 `Backend.putNative` holds the journal mutex through allocation recording and
 object publication, and native reclamation holds the same mutex. This prevents
@@ -933,7 +935,7 @@ therefore appends each newer epoch's reuse and replaces a latest-per-key marker
 before creating or confirming the object. Exact metadata and key hashes bind the
 marker to the immutable content. An older allocation cannot remove that marker.
 Creation holds a shared reclamation fence through both inventory publication
-and object staging; an eventual collector must take the exclusive side before
+and object staging; the direct collector takes the exclusive side before
 checking the marker and removing bytes. This prevents a paused creator from
 finishing inside a deletion interval.
 
@@ -947,9 +949,8 @@ check reuse across a native fence, quota exhaustion, exact recount on reopen,
 creation sync failures and a paused creator alongside native progress. The
 [inventory tests](../../../packages/zig/transit-backend-local/src/data_allocations_test.zig)
 check bounded growth, corrupt metadata and interrupted reuse. Executed results
-belong to the [qualification record](../../history/qualification/storage.md#direct-data-allocation-and-content-reuse-inventory--2026-10-26). These prerequisites do
-not supply all-owner retained-root selection, marking, sweep authority or a
-physical Table collector; they also establish no ingestion performance bound.
+belong to the [qualification record](../../history/qualification/storage.md#direct-data-allocation-and-content-reuse-inventory--2026-10-26).
+Inventory tracking establishes no ingestion performance bound.
 
 The local owner's [cut cursor](../../../packages/zig/transit-backend-local/src/DataCuts.zig)
 discovers nonzero partitions and selects their last acceptance before a native
@@ -965,9 +966,82 @@ It validates transitions using earlier control directories and retains the full
 control chain. The [catalog root walk](../../../packages/zig/transit-catalog/src/DirectCatalogRoots.zig)
 therefore emits every accepted control root and action through a fixed cut,
 validates that chain, and checks its final root and digest. Selecting only its
-latest root could discard pages needed on restart. These cursors select inputs
-to graph traversal; physical collection additionally requires complete dependency
-marking, allocation reconciliation and the deletion fence.
+latest root could discard pages needed on restart.
+
+### Retained direct-data graph and physical collection
+
+What permits deleting a shared Table or catalog object after logical history
+expiry? The [graph owner](../../../packages/zig/transit-catalog/src/DirectStorageGraph.zig)
+interprets accepted catalog/Table records; the
+[local collection adapter](../../../packages/zig/transit-backend-local/src/DataCollection.zig)
+owns private progress, epochs, time fences and exact deletion. This separation
+keeps the backend independent of catalog semantics. The model assumes one local
+physical owner, validated accepted WAL records, immutable objects, native epoch
+checks on direct publication, and a trusted bounded-error clock. Distributed
+collection and filesystem rollback are outside this profile.
+
+Let `E` be the accepted collection epoch and `R` the selected owner cuts before
+`E`. Marking computes the retained closure of `R`: full catalog control history;
+current Table roots, selected recovery baseline/replay, unexpired data history,
+live snapshots/history anchors, declarations and original operation evidence.
+Each typed traversal context has a paged visited mark, separately from the
+physical key/metadata mark. Sharing bytes does not imply sharing interpretation.
+An unflushed row retains its exact frame, while a frame used only as a row
+container does not recursively retain its obsolete roots. Current archive
+placement resolves old row locators. After logical expiry, an archive directory
+entry alone does not own the frame's bytes.
+
+The mark frontier is a durable paged FIFO plus one owned active item. A checkpoint
+publishes those coordinates with all changed mark roots. A failed step discards
+its unpublished coordinates; any staged pages remain new-epoch allocations.
+Missing dependencies and quota failures cannot establish closure. Required
+history trimmed during traversal aborts the pass. Sweep starts only after every
+owner and queued dependency is complete, snapshot/request grace has elapsed, and
+native authority has persisted a later time floor.
+
+For an allocation older than `E`, deletion requires absence from the completed
+physical marks and membership in an explicitly collectible namespace. Permanent
+operation identity reservations, saved direct-intent references and unknown
+namespaces remain retained: accepted WAL roots cannot enumerate these independent
+lifetimes. A pending exact allocation is checkpointed before unlink. Under the
+exclusive creator lock, a different latest-marker epoch causes this queue intent
+to be skipped. A newer marker owns newer reuse; an older marker means the attempted
+newer marker was never published. Neither permits deleting another epoch's
+ownership. Completed FIFO consumption is authoritative after a lost reply, so a
+stale deletion checkpoint cannot repeat progress against a replacement intent.
+
+These rules explain safety under the stated assumptions. A later accepted root
+either depends on retained pre-cut data or newly staged/reused objects protected
+by epoch. An old paused publisher cannot accept across the native fence, and the
+exclusive creator lock prevents its physical publication from racing unlink.
+History expiry alone never authorizes deletion. An incomplete cut or mark set
+cannot silently reduce the retained closure. Progress additionally requires
+available quota for private indexes/work, successful I/O, an advancing trusted
+clock and repeated maintenance calls; unlimited history can prevent reclamation.
+
+Resident graph/index allocation is capped at 64 MiB per step, with one cached
+page and an 8 MiB per-transition index-work budget. A step advances at most four
+graph transitions, each emitting at most three children. The private checkpoint
+and work objects are bounded to 256 KiB and 128 KiB. Provider WAL buffers and
+fixed stack decoding buffers have separate bounds. Paged durable work avoids a
+retained-cardinality array but adds copy-on-write pages, FIFO traffic and syncs;
+later passes reclaim obsolete maintenance objects. A full in-memory graph would
+reduce that I/O but violate the cardinality-independent resident requirement.
+Directory enumeration and whole-segment streaming verification remain I/O costs,
+so the memory bound does not prove bounded latency or throughput improvement.
+
+The [disk Table schedule](../../../tests/storage/local/direct_collection.zig)
+checks expired archive removal, unflushed/segment snapshot retention, subsequent
+pin release, original receipts, pending work and cold reopen. The
+[component faults](../../../packages/zig/transit-backend-local/src/data_collection_test.zig)
+exercise trim abort, quota/corrupt progress, incomplete reuse and sync uncertainty.
+The shared [process-death harness](../../../tests/storage/local/local_native_collection_faults.py)
+has independent native/direct profiles. Reproduce with
+`just test::local-data-collection`; signed policy composition is covered by
+`just test::local-catalog`. These finite schedules do not prove arbitrary power
+loss, and automatic installed scheduling remains separate. Exact formats and
+retention roots are owned by the
+[storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#local-direct-data-collection).
 
 Standalone payloads have a separate question: after losing a creation reply,
 what evidence permits the publisher to declare the original bytes ready? The

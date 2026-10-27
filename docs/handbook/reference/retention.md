@@ -81,8 +81,13 @@ The [local native maintenance API](../../../packages/zig/transit-backend-local/d
 marks retained roots and live captured versions before deleting immutable pages
 and blocks. It requires an accepted epoch fence and a persisted time fence after
 snapshot/request grace. Allocation and deletion progress survive reopen. Native
-compaction preserves values and resource revisions; Table retention and automatic
-local collection scheduling have separate owners.
+compaction preserves values and resource revisions. The separate
+[direct-data collector](../../../packages/zig/transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
+retains complete catalog control history, Table recovery, unexpired history, live
+snapshots, original receipts and admitted work. It reclaims expired graph objects
+only after proving that none of those owners need them. Saved direct-intent
+references and permanent identity reservations remain retained. Automatic local
+collection scheduling remains separate from these component operations.
 
 Documents add an explicit merge epoch/history floor. Old replicas may need
 resynchronization after opted-in compaction; they cannot replay stale edits into

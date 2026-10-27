@@ -66,8 +66,8 @@ mutex. It does not compare the native progress position: an unrelated accepted
 input does not invalidate an otherwise current Table candidate. Direct owners
 still compare their own partition frontier. Table WAL trimming requires coverage
 published in the latest accepted Table archive record; it preserves the last WAL
-record and every archived logical record. Mutable data objects and Table-object
-collection are unavailable through this adapter.
+record and every required archived logical record. Objects are immutable;
+physical collection has a separate retained-graph owner.
 
 `DataCuts` walks the local nonzero partitions under an accepted native storage
 fence. It fixes each partition's observed tail, then reads one frame per step
@@ -119,6 +119,15 @@ schedule automatic local collection. `PayloadStore` implements explicit
 [standalone payload publication and retirement](docs/payloads.md) under the
 existing native declarations. These component operations are separate from
 installed node payload routes and automatic maintenance.
+
+`DataCollection.Collector(transit_catalog.DirectStorageGraph)` composes the local
+allocation/deletion mechanism with complete Table/catalog dependency traversal.
+It retains current data, unexpired history, live pins, recovery and original
+operation evidence. Explicit history expiry and pin release can make old objects
+eligible; a complete mark, native epoch/time fences and exact allocation identity
+are still required before removal. Paged private work and deletion progress
+resume after reopen. See [direct-data collection](docs/maintenance.md#direct-table-and-catalog-collection)
+for invocation, memory limits and permanent saved-intent ownership.
 
 Run `nix develop --command zig build test-local-native` from the repository root,
 or `zig build test` here inside the pinned development shell. The root unit task

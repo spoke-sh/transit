@@ -5,7 +5,7 @@ const ucs2length = lengthModule.default ?? lengthModule;
 export const SubjectProof = validate52;
 const schema19 = {"type":"object","additionalProperties":false,"properties":{"claim":{"$ref":"https://transit.invalid/generated-validator/5"},"signature":{"$ref":"https://transit.invalid/generated-validator/6"}},"required":["claim","signature"]};
 const schema20 = {"type":"object","additionalProperties":false,"properties":{"definition":{"$ref":"https://transit.invalid/generated-validator/0"},"realm":{"$ref":"https://transit.invalid/generated-validator/1"},"principal":{"$ref":"https://transit.invalid/generated-validator/1"},"credential_epoch":{"$ref":"https://transit.invalid/generated-validator/1"},"role":{"$ref":"https://transit.invalid/generated-validator/2"},"audience":{"$ref":"https://transit.invalid/generated-validator/1"},"context":{"$ref":"https://transit.invalid/generated-validator/4"}},"required":["definition","realm","principal","credential_epoch","role","audience","context"]};
-const schema21 = {"type":"string","enum":["eaf59de84b753ede2b5dc94abce538a75c2ba1e69c0cf4f025a47fa99f65735c"]};
+const schema21 = {"type":"string","enum":["35b9c09c9133c90a76f4a40c5ef461cb32053e2fab2063439a1f9da4e6e8f8e1"]};
 
 function validate54(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -21,7 +21,7 @@ if(typeof data !== "string"){
 validate54.errors = [{instancePath,schemaPath:"#/type",keyword:"type",params:{type: "string"}}];
 return false;
 }
-if(!(data === "eaf59de84b753ede2b5dc94abce538a75c2ba1e69c0cf4f025a47fa99f65735c")){
+if(!(data === "35b9c09c9133c90a76f4a40c5ef461cb32053e2fab2063439a1f9da4e6e8f8e1")){
 validate54.errors = [{instancePath,schemaPath:"#/enum",keyword:"enum",params:{allowedValues: schema21.enum}}];
 return false;
 }

@@ -2325,6 +2325,62 @@
         "transit_storage"
       ]
     },
+    "packages/zig/transit-backend-local/src/DataCollection.zig": {
+      "errors": {
+        "ActiveStorageCollection": 1,
+        "AllocationConflict": 1,
+        "ClockUnavailable": 1,
+        "CollectionTimeFenceRequired": 1,
+        "FileNotFound": 1,
+        "IncompleteHistory": 2,
+        "InvalidDataAllocation": 1,
+        "InvalidStorageCollection": 8,
+        "InvalidStorageGraph": 1,
+        "NoStorageFence": 3,
+        "OutOfMemory": 1,
+        "StorageMaintenanceBudget": 2,
+        "WalHistoryTrimmed": 1
+      },
+      "outcomes": {
+        "Collector().<return>.State.phase": [
+          "mark",
+          "wait",
+          "sweep",
+          "deleting",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Collector().<return>.current()": "<inferred>",
+        "Collector().<return>.mark()": "<inferred>",
+        "Collector().<return>.reclaim()": "<inferred>",
+        "Collector().<return>.reserve()": "<inferred>",
+        "Collector().<return>.save()": "<inferred>",
+        "Collector().<return>.start()": "<inferred>",
+        "Collector().<return>.step()": "<inferred>",
+        "Collector().<return>.sweep()": "<inferred>",
+        "Collector().<return>.trim()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 60,
+        "catch": 3
+      },
+      "imports": [
+        "Backend.zig",
+        "DataAllocations.zig",
+        "DataCuts.zig",
+        "DataMarkWork.zig",
+        "DataStore.zig",
+        "LocalFiles.zig",
+        "Store.zig",
+        "std",
+        "transit_core",
+        "transit_fuze",
+        "transit_storage"
+      ]
+    },
     "packages/zig/transit-backend-local/src/DataCuts.zig": {
       "errors": {
         "IncompleteHistory": 2,
@@ -2351,6 +2407,41 @@
       "imports": [
         "Backend.zig",
         "Store.zig",
+        "std",
+        "transit_core",
+        "transit_storage"
+      ]
+    },
+    "packages/zig/transit-backend-local/src/DataMarkWork.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidStorageCollection": 1,
+        "InvalidStorageGraph": 10,
+        "ObjectNotFound": 2,
+        "StorageMaintenanceBudget": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "State.validate()": "<inferred>",
+        "Workspace().<return>.enqueue()": "<inferred>",
+        "Workspace().<return>.mark()": "<inferred>",
+        "Workspace().<return>.marked()": "<inferred>",
+        "Workspace().<return>.take()": "<inferred>",
+        "Workspace().<return>.visited()": "<inferred>",
+        "encodedMetadata()": "<inferred>",
+        "key()": "<inferred>",
+        "metadata()": "<inferred>",
+        "objectKey()": "<inferred>",
+        "position()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 32,
+        "catch": 1
+      },
+      "imports": [
+        "Backend.zig",
         "std",
         "transit_core",
         "transit_storage"
@@ -2676,6 +2767,7 @@
       "imports": [
         "Backend.zig",
         "DataAuthority.zig",
+        "DataCollection.zig",
         "DataCuts.zig",
         "DataStore.zig",
         "PageStore.zig",
@@ -4197,6 +4289,61 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectStorageGraph.zig": {
+      "errors": {
+        "InvalidDataIndexObject": 1,
+        "InvalidDirectCatalogHistory": 1,
+        "InvalidTableStorageGraph": 10,
+        "MissingDataIndexObject": 1,
+        "StorageMaintenanceBudget": 1,
+        "TableHistoryMissing": 2,
+        "TableSegmentMissing": 1
+      },
+      "outcomes": {
+        "Role": [
+          "current",
+          "recovery",
+          "history",
+          "snapshot"
+        ],
+        "Work": [
+          "catalog_history",
+          "catalog_root",
+          "catalog_walk",
+          "catalog_intent",
+          "table_history",
+          "table_root",
+          "table_walk",
+          "declaration",
+          "evidence",
+          "intent",
+          "snapshot",
+          "wal",
+          "segment"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "fromFrame()": "<inferred>",
+        "markContent()": "<inferred>",
+        "markPage()": "<inferred>",
+        "requireOwner()": "<inferred>",
+        "scope()": "<inferred>",
+        "step()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 84,
+        "catch": 1
+      },
+      "imports": [
+        "DirectCatalogIntent.zig",
+        "DirectCatalogRecords.zig",
+        "DirectCatalogStore.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTableBinding.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
@@ -5319,6 +5466,7 @@
         "DirectReadDelegation.zig",
         "DirectResource.zig",
         "DirectResourceClient.zig",
+        "DirectStorageGraph.zig",
         "DirectTableBinding.zig",
         "DirectTableBridge.zig",
         "DirectTableClient.zig",
@@ -13133,7 +13281,7 @@
           "deadline"
         ],
         "Definition": [
-          "eaf59de84b753ede2b5dc94abce538a75c2ba1e69c0cf4f025a47fa99f65735c"
+          "@\"35b9c09c9133c90a76f4a40c5ef461cb32053e2fab2063439a1f9da4e6e8f8e1\""
         ],
         "Effect.phase": [
           "pending",
@@ -26215,7 +26363,9 @@
         "TableEvidence.zig",
         "TableManifest.zig",
         "TablePartition.zig",
+        "TablePartitionRecord.zig",
         "TableRecovery.zig",
+        "TableSnapshot.zig",
         "TableStorageRoots.zig",
         "TableStorageWalk.zig",
         "TransitLog.zig",

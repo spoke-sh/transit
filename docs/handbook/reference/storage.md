@@ -168,7 +168,11 @@ a durable intent. Direct Table and catalog guards also retain the epoch acquired
 before staging: an intervening storage fence rejects publication, while a fresh
 request can rebuild an unaccepted operation using the same identity. Receipt
 observation and reads continue to require current authorization. The local
-collector does not collect Table objects. Ursula uses the stream
+native page/block collector has a separate graph from the
+[direct-data collector](../../../packages/zig/transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection).
+Direct collection retains catalog history, Table recovery, unexpired data history,
+live pins and original operation evidence. It can reclaim obsolete shared objects
+after complete marking and the same epoch/time fences. Ursula uses the stream
 closure fences described above. Provider budgets,
 disk headroom and trusted clock assumptions are deployment responsibilities;
 an in-memory store test does not establish WAL or host power-loss behavior.

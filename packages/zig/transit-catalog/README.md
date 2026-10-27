@@ -30,6 +30,13 @@ emits its pages and original Table seed declarations. Object entries retain
 their catalog identity and allocation frontier; their seed remains a dependency
 even after a later Table definition becomes current.
 
+`DirectStorageGraph` supplies typed retained dependencies to the local backend's
+resumable collector. It joins these catalog roots with Table history/recovery,
+live snapshots, original receipts and intents. Durable work/marks and physical
+deletion stay in the backend; this graph grants no read or deletion authority
+on its own. See [direct-data collection](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
+for invocation, bounded work and permanently retained namespaces.
+
 `DirectResourceClient` uses the same directory for named native KV and Document
 objects. Its saved bindings separate admission, caller-authorized allocation,
 writer initialization and completed publication. The

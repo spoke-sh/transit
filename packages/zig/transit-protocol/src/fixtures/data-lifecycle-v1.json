@@ -1,6 +1,6 @@
 {
   "binding": {
-    "definition": "eaf59de84b753ede2b5dc94abce538a75c2ba1e69c0cf4f025a47fa99f65735c",
+    "definition": "35b9c09c9133c90a76f4a40c5ef461cb32053e2fab2063439a1f9da4e6e8f8e1",
     "identity": {
       "scope": {
         "realm": 1,
@@ -107,7 +107,7 @@
   },
   "commit": {
     "binding": {
-      "definition": "eaf59de84b753ede2b5dc94abce538a75c2ba1e69c0cf4f025a47fa99f65735c",
+      "definition": "35b9c09c9133c90a76f4a40c5ef461cb32053e2fab2063439a1f9da4e6e8f8e1",
       "identity": {
         "scope": {
           "realm": 1,
@@ -392,7 +392,7 @@
     }
   },
   "snapshot": {
-    "definition": "eaf59de84b753ede2b5dc94abce538a75c2ba1e69c0cf4f025a47fa99f65735c",
+    "definition": "35b9c09c9133c90a76f4a40c5ef461cb32053e2fab2063439a1f9da4e6e8f8e1",
     "owner": {
       "scope": {
         "realm": 1,
@@ -489,7 +489,7 @@
     "not_observed": {}
   },
   "resource_initialization": {
-    "definition": "eaf59de84b753ede2b5dc94abce538a75c2ba1e69c0cf4f025a47fa99f65735c",
+    "definition": "35b9c09c9133c90a76f4a40c5ef461cb32053e2fab2063439a1f9da4e6e8f8e1",
     "interpretation": {
       "object": {
         "scope": {

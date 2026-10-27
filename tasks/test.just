@@ -111,6 +111,11 @@ local-native-service:
 local-catalog:
     zig build test-local-catalog
 
+# Explicit Table expiry, retained snapshots and original receipts after collection.
+local-data-collection:
+    zig build test-local-data-collection
+    zig build test-local-data-collection-faults -Doptimize=ReleaseSafe
+
 # Real direct Table HTTP owner, typed caller, disk restart and uncertain replies.
 direct-table-service *args:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- {{args}}

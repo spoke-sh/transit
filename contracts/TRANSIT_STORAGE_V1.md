@@ -351,6 +351,14 @@ creates no logical changefeed event. Unlimited history is the default; advancing
 an explicit logical floor is a separate acceptance transition. Neither operation
 authorizes archive, segment or index-object collection by itself.
 
+The archive directory records historical placement, not perpetual ownership of
+every value. After explicit logical expiry, complete owner-graph collection may
+remove a frame below the floor only if no selected recovery baseline/replay,
+current or retained row locator, live history anchor or other retained root needs
+its bytes. Directory pages remain retained. A saved snapshot resolves row locators
+through the current accepted directory; its older archive coverage does not pin
+the entire old archive. Missing bytes for a required frame still fail closed.
+
 ### Table recovery checkpoints
 
 Every accepted root and saved snapshot root has a mandatory `recovery` field:
@@ -791,8 +799,7 @@ Direct creation holds a shared creation/reclamation fence through inventory
 recording and object publication. Private inventory updates serialize separately
 from the native journal mutex; only quota reservations and the accepted-epoch
 read take that mutex. Reclamation requires the exclusive creation fence before
-checking the latest marker. The local adapter does not yet expose direct-data
-collection. This stored-layout change replaces the shared current-v1 definition;
+checking the latest marker. This stored-layout change replaces the shared current-v1 definition;
 earlier directories reject instead of acquiring an empty inventory.
 
 `Storage.Limits` bounds candidate bytes and encoded-file allocation admission.
@@ -820,6 +827,62 @@ FIFO consume, not a transient counter, establishes completed inventory progress.
 Native compaction preserves logical values and captured roots through the core
 `storage_compact` operation. Standalone payload publication, Table collection and
 automatic installed maintenance retain separate owners.
+
+### Local direct-data collection
+
+`DataCollection.Collector(DirectStorageGraph)` uses the same exclusively owned
+backend and an accepted native `storage_fence`. It discovers nonzero durable
+partitions and fixes each owner's last acceptance before that epoch. Complete
+marking includes every catalog control root and accepted intent; current Table
+data, declarations, original receipts and operation intents; the selected recovery
+baseline and subsequent replay; unexpired history; live snapshots and history
+anchors. Snapshot/recovery metadata has its own retention and does not implicitly
+restore released old data graphs. An unflushed row locator retains its exact WAL
+or archive frame, without recursively owning that frame's obsolete roots.
+
+The definition-bound `.data-collection` checkpoint is a JSON body of at most
+256 KiB followed by its SHA-256. It stores the native cut, grace, owner cursor,
+separate paged physical/typed marks, paged FIFO roots and positions, active owned
+graph work, fixed allocation end and exact pending deletion. Replacement syncs
+the file and parent directory. A work item is at most 128 KiB: `TDWORK1` plus NUL,
+32 definition bytes and owned JSON; its immutable key is
+`data-maintenance/<sha256>.work`. Queue keys are eight-byte big-endian positions;
+values are eight-byte little-endian object lengths followed by SHA-256. Mark keys
+are SHA-256 of object keys, with the same 40-byte exact-metadata values. Typed
+visited keys hash their traversal context and carry empty values. All private
+indexes use `TreeStore`. Roots and active work publish in one checkpoint; staged
+objects alone cannot advance progress.
+
+A step performs at most four graph transitions, one allocation decision/deletion,
+or 64 empty FIFO advances. A graph transition emits at most three child items;
+page depth and decoding bounds remain independent of retained cardinality. The
+step allocator caps simultaneous graph/index allocations at 64 MiB, with an
+8 MiB per-transition index-work budget and one cached index page. Provider WAL
+buffers and fixed decoding/stack buffers have separate format bounds. Scanning
+partition directories or reading a bounded segment can still perform substantial
+I/O; these limits do not establish a latency bound.
+
+Incomplete marking never reaches sweep. Required history trimmed during discovery
+or traversal aborts the pass; corrupt/missing dependencies or quota refusal leave
+the last checkpoint for retry. Sweep requires the same snapshot/request grace and
+persisted native time floor as native collection. It protects all allocations at
+or after the cut epoch and any marked object. Permanent `data-operations/` identity
+reservations, saved `direct-intents/` staging references and unknown namespaces
+remain outside collection. Collectible namespaces are `data-index/`,
+`data-maintenance/`, `catalog-intents/`, `table-definitions/`, `table-evidence/`,
+`table-intents/`, `table-snapshots/`, `table-checkpoints/`, `table-history/` and
+`table-segments/`.
+
+Deletion holds the exclusive creator fence and inventory lock, checks the current
+native epoch/genesis, then removes only the pending allocation's exact immutable
+identity. A different latest-marker epoch skips that intent without deleting the
+marker: a newer marker owns a newer reuse; an older marker means this attempted
+reuse never published its marker. Descriptor, payload, checksums and matching
+marker are removed before FIFO consumption. A recovered consumed cursor wins over
+stale private deletion state. Repeating a pending deletion is idempotent, while
+byte/object counters can undercount lost acknowledgements. Quotas include marks,
+work and progress; quota pressure never authorizes expiry. Automatic installed
+scheduling and public progress operations are separate from this component API.
 
 ## Local standalone payloads
 

@@ -282,6 +282,9 @@
     ]
   },
   "nested_tasks": {
+    "check::native": [
+      "test::local-data-collection"
+    ],
     "test::sql-wire-gateway": [
       "test::sql-wire-encoding"
     ],

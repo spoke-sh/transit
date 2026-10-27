@@ -11,7 +11,9 @@ The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's
 Table component tests do not establish installed SQL execution, automatic flushing,
-automatic archive scheduling, immutable Table-object collection or multi-process Table commits.
+automatic archive scheduling or multi-process Table commits. Physical Table-object
+collection is composed by the [local backend](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
+and the catalog's retained dependency graph.
 
 ## Modules
 

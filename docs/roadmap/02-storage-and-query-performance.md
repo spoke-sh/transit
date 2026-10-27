@@ -118,20 +118,29 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Direct Table/catalog collection now composes pre-fence owner cuts, complete
+  retained dependency traversal, paged durable marks/work and exact physical
+  deletion. Explicit history expiry and pin release permit obsolete archive,
+  segment and index reclamation while recovery, original receipts and admitted
+  work survive. Disk reopen, quota/corrupt metadata, incomplete reuse and process
+  death schedules cover the local component boundary. This integrates the
+  prerequisites below for #114/#116/#127. Automatic installed scheduling remains
+  in milestone 3; final common-revision and growth/performance qualification
+  remain required before closing this milestone.
+
 - Local owner discovery walks every nonzero partition with bounded resident
   memory and fixes its last pre-fence acceptance without chasing later writes.
   Catalog root and directory cursors preserve the complete control chain and
   original Table seed declarations required by recovery. Focused disk/reopen,
-  missing-history and bounded-directory checks pass; integrating these cuts
-  with durable mark work and physical Table deletion remains open (#114/#116/#127).
+  missing-history and bounded-directory checks establish inputs for the integrated
+  direct collector (#114/#116/#127).
 
 - Direct-data creation records a durable bounded allocation/reuse FIFO and the
   latest per-key epoch before object publication. Newer content reuse protects
   its marker from older allocation entries. The separate inventory mutex keeps
   disk syncs outside the native journal lock, and quota includes its mandatory
   current-definition files. This advances the physical collection prerequisites
-  for #114/#116/#127; all-owner cuts, durable marks/work and Table-object deletion
-  remain open.
+  for #114/#116/#127 and is used by the integrated collector above.
 
 - The [ingestion/commit matrix](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-ingestion/README.md)
   completes 384 independently verified write/readback samples with median/p95

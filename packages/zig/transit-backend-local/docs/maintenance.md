@@ -1,4 +1,4 @@
-# Native physical maintenance
+# Local physical maintenance
 
 `StorageCollection` reclaims unreachable native pages and immutable blocks in
 one exclusively owned local directory. Accepted native state, retained history,
@@ -61,3 +61,42 @@ Run `nix develop --command zig build test-local-native` from the repository root
 The [proof ledger](../../../../docs/history/qualification/README.md) distinguishes executed disk cases
 from process-death and broader failure schedules. Automatic installed collection
 triggers and public progress observations remain separate from this component API.
+
+## Direct Table and catalog collection
+
+Compose `DataCollection.Collector(transit_catalog.DirectStorageGraph)` with the
+same local backend and native engine. Its `start`, `current` and `step` lifecycle
+uses accepted native epoch/time fences and the same grace interval described
+above. The storage package owns inventory and deletion; the catalog package owns
+the typed Table/catalog dependency graph. The backend does not depend on catalog.
+
+The graph retains complete catalog control history, current Table roots, the
+selected recovery baseline and replay, unexpired history, live snapshots,
+declarations, original receipts and admitted work. Unflushed snapshots retain
+their exact WAL/archive frames. Explicit `TablePartition.expireHistory` can make
+old history eligible; collection separately establishes whether remaining owners
+need it. Releasing a snapshot does not expire logical history. Unknown object
+namespaces, permanent operation identity reservations and saved direct-intent
+references stay retained.
+
+Four graph transitions, one inventory allocation or 64 empty inventory records
+bound a step. Graph/index allocations have a 64 MiB simultaneous limit, one cached
+page and an 8 MiB index-work budget per transition. Work items and progress are
+bounded to 128 KiB and 256 KiB respectively; paged queues/marks permit larger
+durable graphs. WAL buffers and fixed decoding buffers have separate bounds.
+Directory discovery and segment verification can require substantial I/O.
+
+An incomplete or corrupt graph cannot reach deletion. A racing required-history
+trim aborts the pass; repairable I/O or quota errors preserve its last checkpoint.
+After the grace and time fence, deletion holds the exclusive creation lock and
+rechecks the latest allocation marker. Newer reuse and unfinished reuse intents
+cannot delete another epoch's ownership. Exact pending identity and FIFO progress
+survive process death. Work/mark objects use the normal quota and can themselves
+be reclaimed by a later pass. An unfinished pass cannot be replaced by `start`.
+
+Run `just test::local-data-collection` from the pinned development shell for disk
+expiry, pinned reads, pending work, receipts and deletion process faults. The
+signed catalog-policy composition is included in `just test::local-catalog`.
+See the [storage contract](../../../../contracts/TRANSIT_STORAGE_V1.md#local-direct-data-collection)
+for private formats, permanent roots and failure semantics. Automatic installed
+triggers and public progress observations remain separate from these operations.

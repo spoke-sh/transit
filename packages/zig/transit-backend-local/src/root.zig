@@ -5,6 +5,7 @@ pub const PageStore = @import("PageStore.zig");
 pub const DataStore = @import("DataStore.zig");
 pub const DataAuthority = @import("DataAuthority.zig");
 pub const DataCuts = @import("DataCuts.zig");
+pub const DataCollection = @import("DataCollection.zig");
 pub const StorageCollection = @import("StorageCollection.zig");
 pub const PayloadStore = @import("PayloadStore.zig");
 
@@ -14,4 +15,6 @@ test {
     _ = @import("collection_test.zig");
     _ = @import("payload_test.zig");
     _ = @import("data_allocations_test.zig");
+    _ = @import("data_mark_work_test.zig");
+    _ = @import("data_collection_test.zig");
 }

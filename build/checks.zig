@@ -373,13 +373,21 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     }) }));
     b.step("test-local-catalog", "Verify direct catalog lifecycle against current local native policy").dependOn(&local_catalog_tests.step);
     components_step.dependOn(&local_catalog_tests.step);
+    const local_data_collection_tests = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/storage/local/direct_collection.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") } },
+    }) }));
+    b.step("test-local-data-collection", "Verify Table expiry and retained data across physical collection").dependOn(&local_data_collection_tests.step);
+    components_step.dependOn(&local_data_collection_tests.step);
     components_step.dependOn(&local_native_tests.step);
     b.step("test-local-native", "Verify native authority over local disk storage").dependOn(&local_native_tests.step);
     const local_collection_faults = b.addExecutable(.{ .name = "transit-local-native-collection-faults", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/storage/local/local_native_collection_faults.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") } },
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") } },
     }) });
     const local_collection_test = b.addSystemCommand(&.{ "python3", "-B" });
     local_collection_test.addFileArg(b.path("tests/runner/launch.py"));
@@ -389,6 +397,15 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     local_collection_test.stdio = .inherit;
     faults_step.dependOn(&local_collection_test.step);
     b.step("test-local-native-collection-faults", "Verify process death during native physical collection").dependOn(&local_collection_test.step);
+    const direct_collection_test = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_collection_test.addFileArg(b.path("tests/runner/launch.py"));
+    direct_collection_test.addFileArg(b.path("tests/storage/local/local_native_collection_faults.py"));
+    direct_collection_test.addArtifactArg(local_collection_faults);
+    direct_collection_test.addArg("direct");
+    direct_collection_test.has_side_effects = true;
+    direct_collection_test.stdio = .inherit;
+    faults_step.dependOn(&direct_collection_test.step);
+    b.step("test-local-data-collection-faults", "Verify process death during direct-data physical collection").dependOn(&direct_collection_test.step);
     const local_objects = b.addExecutable(.{ .name = "transit-local-objects-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/storage/local/local_objects.zig"),
         .target = target,
