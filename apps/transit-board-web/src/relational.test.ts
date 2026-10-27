@@ -148,4 +148,21 @@ describe("relational browser boundaries", () => {
     expect(bodies[0]).toBe(bodies[1]);
     expect(JSON.parse(bodies[1]!).query.page.reference.id).toBe(reference.id);
   });
+  it("reports persistent rate refusal after three identical close retries", async () => {
+    const bodies: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (_: unknown, init: RequestInit) => {
+        bodies.push(init.body as string);
+        return new Response(JSON.stringify({ err: "RateLimited", diagnostic: null }), {
+          status: 429,
+        });
+      }),
+    );
+    await expect(relationalQuery({ query: { close: reference } })).rejects.toMatchObject({
+      status: 429,
+    });
+    expect(bodies).toHaveLength(4);
+    expect(new Set(bodies).size).toBe(1);
+  });
 });

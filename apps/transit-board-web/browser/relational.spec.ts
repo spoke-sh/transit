@@ -10,7 +10,9 @@ test("explicit relational pages recover the same host and clear on current denia
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   let opens = 0,
-    acceptedLost = false;
+    acceptedLost = false,
+    refuseClose = false;
+  const closeAttempts: string[] = [];
   page.on("request", (request) => {
     if (
       request.url().endsWith("/api/v1/relational") &&
@@ -44,6 +46,13 @@ test("explicit relational pages recover the same host and clear on current denia
   await expect(page.getByRole("heading", { name: "Proposed plan · not executed" })).toBeVisible();
   expect(opens).toBe(0);
   await page.route("**/api/v1/relational", async (route) => {
+    if (refuseClose && route.request().postDataJSON().query?.close) {
+      closeAttempts.push(route.request().postData()!);
+      if (closeAttempts.length === 1) {
+        await route.fulfill({ status: 429, json: { err: "RateLimited", diagnostic: null } });
+        return;
+      }
+    }
     if (!acceptedLost && route.request().postDataJSON().query?.open) {
       const response = await route.fetch();
       if (response.status() === 200) {
@@ -102,14 +111,24 @@ test("explicit relational pages recover the same host and clear on current denia
   } finally {
     policy(true);
   }
+  // A pre-dispatch refusal must retain the exact close request through the
+  // client's bounded retry. Observe its final outcome, not the first attempt.
+  refuseClose = true;
   const closed = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/v1/relational") &&
       response.request().method() === "POST" &&
-      !!response.request().postDataJSON().query?.close,
+      !!response.request().postDataJSON().query?.close &&
+      response.status() !== 429,
   );
   await page.getByRole("button", { name: "Close relational query", exact: true }).click();
   expect((await closed).status()).toBe(200);
+  await expect(
+    page.getByRole("button", { name: "Inspect relational workspace", exact: true }),
+  ).toBeEnabled();
+  expect(closeAttempts.length).toBeGreaterThanOrEqual(2);
+  expect(closeAttempts.length).toBeLessThanOrEqual(4);
+  expect(new Set(closeAttempts).size).toBe(1);
   await expect(
     page.getByRole("button", { name: "Close relational query", exact: true }),
   ).toBeDisabled();
