@@ -2136,6 +2136,33 @@
         "check::native",
         "test::table-filtering"
       ]
+    },
+    {
+      "id": "STORAGE-09",
+      "claim": "Document publications, conflicts and deletion anchors recover with original receipts and retained revisions across local worker and node replacement",
+      "owner": "docs/handbook/reference/documents.md",
+      "implementation": [
+        "packages/zig/transit-station-document/src/Service.zig",
+        "packages/zig/transit-station-document/src/Document.zig",
+        "packages/zig/transit-backend-local/src/Backend.zig",
+        "tests/runtime/document/document.zig",
+        "tests/runtime/document/document.py"
+      ],
+      "profile": "Current native v1; local POSIX WAL/objects and separate disk Ursula control",
+      "tasks": [
+        "test::document-local",
+        "test::document"
+      ],
+      "scenarios": [
+        "Three SIGKILL worker/node boundaries during staged publication, accepted change and checkpoint recovery",
+        "Lost replies retain exact signed requests and byte-identical receipts",
+        "Two field assignments retain conflict identities; removed fields and deleted text anchors preserve current and historical values",
+        "One-page recovery and current read revocation deny both independent readers and a pending writer",
+        "Retired Document cleanup retains accepted-outcome evidence without repeating output"
+      ],
+      "limits": "Finite application workload and process-death schedules; no host power loss, provider failover, automatic lifecycle scheduling or whole-process growth bound. Local evidence inspects actual WAL/object files; Ursula separately replaces its disk provider.",
+      "model": null,
+      "qualification": "Executed sources and outcomes belong in docs/history/qualification/storage.md; registration alone does not establish a passing run."
     }
   ]
 }

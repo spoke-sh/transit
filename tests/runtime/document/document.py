@@ -1,6 +1,8 @@
 """Kill actual Document workers, node and owned disk store at durable boundaries."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import argparse
+from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
@@ -8,26 +10,39 @@ import subprocess
 import sys
 import threading
 import time
+import tempfile
+import urllib.request
 
 from harness.ursula import Fixture
 from harness.services import free_port, wait_ready
 from storage.providers.cold_storage import ColdStore
 
 
-def run(node, caller):
+def run(node, caller, backend="ursula"):
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
-    with ColdStore() as cold, Fixture(cold.config()) as fixture:
+    with ExitStack() as stack:
+        cold = fixture = None
+        if backend == "local":
+            root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="transit-document-local-", dir="/var/tmp")))
+            http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        else:
+            cold = stack.enter_context(ColdStore())
+            fixture = stack.enter_context(Fixture(cold.config()))
+            root, http = fixture.root, fixture.http
         public = json.loads(subprocess.check_output([caller, "public"], timeout=10))
         port = free_port()
         url = f"http://127.0.0.1:{port}"
-        config = fixture.root / "node.json"
+        config = root / "node.json"
         configuration = {"profile": "native_v1", "genesis": {
             "realm": 49, "root_key": public, "max_clock_error_ms": 10000,
             "allow_history_trim": True},
-            "ursula_url": fixture.url, "bucket": "document", "journal": "authority",
             "port": port, "resident_pages": 64, "request_timeout_ms": 30000}
+        if backend == "local":
+            configuration["local_directory"] = str(root / "native")
+        else:
+            configuration.update(ursula_url=fixture.url, bucket="document", journal="authority")
         config.write_text(json.dumps(configuration))
-        manifest = fixture.root / "document.json"
+        manifest = root / "document.json"
         faults, retries, failures = {}, set(), []
         observations = {"reads": 0, "max_value_bytes": 0, "turns": 0, "max_mutations": 0}
 
@@ -102,7 +117,7 @@ def run(node, caller):
         thread = threading.Thread(target=proxy.serve_forever, daemon=True)
         thread.start()
         proxy_url = f"http://127.0.0.1:{proxy.server_port}"
-        node_log = (fixture.root / "node.log").open("w+")
+        node_log = (root / "node.log").open("w+")
         authority = child = None
         timings = {}
         try:
@@ -111,7 +126,7 @@ def run(node, caller):
             def start():
                 process = subprocess.Popen([node, str(config)], stdout=node_log, stderr=subprocess.STDOUT)
                 try:
-                    wait_ready(fixture.http, process, url + "/health")
+                    wait_ready(http, process, url + "/health")
                 except BaseException:
                     process.kill()
                     process.wait(timeout=10)
@@ -147,8 +162,9 @@ def run(node, caller):
                     authority.kill()
                     authority.wait(timeout=10)
                     authority = None
-                    fixture.stop()
-                    fixture.start()
+                    if fixture is not None:
+                        fixture.stop()
+                        fixture.start()
                     configuration["resident_pages"] = 1 if phase == "checkpoint" else 64
                     config.write_text(json.dumps(configuration))
                     authority = start()
@@ -158,8 +174,17 @@ def run(node, caller):
             # ceiling (also checked on every write), not the retired byte size.
             assert 0 < observations["max_value_bytes"] <= 256
             assert observations["max_mutations"] == 4
-            assert cold.data_objects() > 0
-            print("Document evidence:", json.dumps({"recovery_resident_pages": 1, "hot_bytes": 8 * 1024 * 1024, "cold_objects": cold.data_objects(), "cold_bytes": cold.file_bytes(),
+            if cold is not None:
+                assert cold.data_objects() > 0
+                storage = {"hot_bytes": 8 * 1024 * 1024, "cold_objects": cold.data_objects(), "cold_bytes": cold.file_bytes()}
+            else:
+                wal = [path for path in (root / "native/wal").rglob("*") if path.is_file()]
+                objects = [path for path in (root / "native/objects").rglob("*") if path.is_file()]
+                assert wal and objects, "Local Document state did not create WAL and immutable objects"
+                storage = {"wal_files": len(wal), "wal_bytes": sum(path.stat().st_size for path in wal),
+                           "object_files": len(objects), "object_bytes": sum(path.stat().st_size for path in objects)}
+                assert storage["wal_bytes"] > 0 and storage["object_bytes"] > 0
+            print("Document evidence:", json.dumps({"backend": backend, "recovery_resident_pages": 1, **storage,
                   "killed_workers": 3, "exact_retries": sorted(retries),
                   "phase_seconds": timings, **observations}, sort_keys=True), flush=True)
         except BaseException:
@@ -182,4 +207,9 @@ def run(node, caller):
 if __name__ == "__main__":
     if hasattr(os, "sched_getaffinity"):
         os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
-    run(*sys.argv[1:])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("node")
+    parser.add_argument("caller")
+    parser.add_argument("--backend", choices=("ursula", "local"), default="ursula")
+    args = parser.parse_args()
+    run(args.node, args.caller, args.backend)

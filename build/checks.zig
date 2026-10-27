@@ -1428,6 +1428,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     document_test.addFileArg(b.path("tests/runtime/document/document.py"));
     document_test.addArtifactArg(node_artifact);
     document_test.addArtifactArg(document_proof);
+    document_test.addPassthruArgs();
     document_test.has_side_effects = true;
     document_test.stdio = .inherit;
     b.step("test-document", "Prove Document publication, checkpoint and disk recovery").dependOn(&document_test.step);

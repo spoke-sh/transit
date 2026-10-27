@@ -55,6 +55,7 @@
       "test::block-storage",
       "test::native-blocks",
       "test::storage-collection",
+      "test::document-local",
       "test::public-query",
       "test::publication",
       "test::table-query-writer",

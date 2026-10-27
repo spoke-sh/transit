@@ -434,6 +434,10 @@ growing-station *args:
 document:
     zig build test-document
 
+# Run the same worker/node crash schedule over the local WAL and immutable objects.
+document-local:
+    zig build test-document -Doptimize=ReleaseSafe -- --backend local
+
 # Run the real Document writer and two Zig editors through failure and resynchronization.
 document-remote:
     just examples::document
