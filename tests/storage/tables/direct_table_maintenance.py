@@ -44,15 +44,19 @@ def exercise(caller, endpoint, profile, root, restart):
     before = time.monotonic()
     restart(True)
     deadline = time.monotonic() + 60
+    small_tables_completed_first = False
     while True:
         observed = json.loads(call('inspect').stdout)
         for first, current in zip(original, observed):
             assert first['changed_lsn'] == current['changed_lsn']
             assert current['history_floor'] == 0
+        if observed[0]['pending']['rows'] > 0 and all(value['pending']['rows'] == 0 for value in observed[1:]):
+            small_tables_completed_first = True
         if all(value['pending']['complete'] and value['pending']['rows'] == 0 for value in observed):
             break
         assert time.monotonic() < deadline, observed
         time.sleep(.1)
+    assert small_tables_completed_first, 'An eligible large Table monopolized physical maintenance'
     elapsed = time.monotonic() - before
     segments = list((root / 'native').rglob('*.tseg'))
     assert len(segments) >= 3, segments

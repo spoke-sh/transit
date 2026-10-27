@@ -886,6 +886,55 @@ fn dependencyDispatch(engine: *Engine, config: D.Configuration, owner_role: u64)
     _ = try change(engine, .{ .revoke_privileges = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = owner_role, .privileges = p.permission(.admin) } });
 }
 
+const PhysicalPause = struct {
+    var real: *const std.Io.VTable = undefined;
+    var armed: std.atomic.Value(bool) = .init(false);
+    var entered: std.Io.Event = .unset;
+    var release: std.Io.Event = .unset;
+    fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+        if (armed.swap(false, .acq_rel)) {
+            entered.set(t.io);
+            try release.wait(t.io);
+        }
+        return real.fileSync(context, file);
+    }
+    fn wait(event: *std.Io.Event) !void {
+        const Result = union(enum) { ready: anyerror!void, timeout: anyerror!void };
+        var results: [2]Result = undefined;
+        var select: std.Io.Select(Result) = .init(t.io, &results);
+        defer select.cancelDiscard();
+        try select.concurrent(.timeout, std.Io.sleep, .{ t.io, .fromSeconds(10), .awake });
+        try select.concurrent(.ready, std.Io.Event.wait, .{ event, t.io });
+        switch (try select.await()) {
+            .ready => |result| try result,
+            .timeout => |result| {
+                try result;
+                return error.ProgressTimeout;
+            },
+        }
+    }
+    fn fence(owner: *backend.Backend, genesis: @FieldType(Engine, "genesis"), done: *std.Io.Event) !void {
+        defer done.set(t.io);
+        // Store.append owns the exclusive native publication fence. Acquiring
+        // it here would recursively lock the same non-reentrant boundary.
+        var pages = try backend.PageStore.init(owner, 1);
+        defer pages.deinit();
+        var journal: backend.Store = .{ .backend = owner };
+        var control = try Engine.open(&journal, &pages, genesis);
+        const Clock = struct {
+            now: u64,
+            fn read(raw: *anyopaque) !@import("transit_core").Time.Sample {
+                return .{ .unix_ms = @as(*@This(), @ptrCast(@alignCast(raw))).now };
+            }
+        };
+        var clock: Clock = .{ .now = control.head.time_floor_ms + 100 };
+        control.clock = .{ .context = &clock, .read = Clock.read };
+        // This publication must finish while the Table's private sync remains
+        // paused. The later flush must reject its old captured storage epoch.
+        _ = try command(&control, .{ .storage_fence = {} });
+    }
+};
+
 fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAuthority.Name, expected: c.storage.TablePartition.Evidence, retained: c.storage.TablePartition.SnapshotHandle) !void {
     const Work = @import("LocalTableMaintenance.zig");
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
@@ -908,6 +957,31 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     try t.expectError(error.StorageQuota, Work.step(&work, engine, settings, signed));
     try t.expectEqual(@as(?u64, expected.binding.target.object), work.cursor.after);
     owner.limits = limits;
+    {
+        // Revisit this Table within the already captured pass boundary.
+        work.cursor.after = expected.binding.target.object - 1;
+        PhysicalPause.armed.store(true, .release);
+        var flushing = try t.io.concurrent(Work.step, .{ @as(*anyopaque, &work), engine, settings, signed });
+        defer _ = flushing.cancel(t.io) catch {};
+        defer PhysicalPause.release.set(t.io);
+        PhysicalPause.wait(&PhysicalPause.entered) catch |err| {
+            std.debug.print("Physical flush did not reach private sync: {s}\n", .{@errorName(err)});
+            return err;
+        };
+        var done: std.Io.Event = .unset;
+        var control = try t.io.concurrent(PhysicalPause.fence, .{ owner, engine.genesis, &done });
+        defer _ = control.cancel(t.io) catch {};
+        PhysicalPause.wait(&done) catch |err| {
+            std.debug.print("Native fence did not finish during paused private sync: {s}\n", .{@errorName(err)});
+            return err;
+        };
+        try control.await(t.io);
+        try t.expect(!PhysicalPause.release.isSet());
+        PhysicalPause.release.set(t.io);
+        try t.expectError(error.StaleStorageEpoch, flushing.await(t.io));
+        const pending = try catalog.inspectStorage(expected.binding.target, 1, policy.policy());
+        try t.expect(pending.pending.rows == 1 and pending.changed_lsn == expected.outcome.position.next_lsn);
+    }
     const begin = std.Io.Clock.awake.now(t.io);
     var peak: usize = 0;
     var steps: usize = 0;
@@ -938,9 +1012,14 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
 }
 
 test "local catalog checks real native registrations, current ownership and exact request proof" {
+    PhysicalPause.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = PhysicalPause.sync;
+    var io = t.io;
+    io.vtable = &vtable;
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
-    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    var owner = try backend.Backend.open(t.allocator, io, tmp.dir, "native", .{});
     defer owner.deinit();
     var pages = try backend.PageStore.init(&owner, 1);
     defer pages.deinit();

@@ -328,7 +328,7 @@ the installed server configuration.
   the maintenance scheduler. Publish its exact replacement through the Table
   WAL, preserve the logical change frontier and return capacity to foreground
   work between units. This scheduler is direct runtime work, not Station actors.
-- [ ] P2.4 Preserve pending work through crash or uncertain publication. Reopen
+- [x] P2.4 Preserve pending work through crash or uncertain publication. Reopen
   when required and inspect accepted coverage before retrying; never infer
   completion from staged objects. Reserve control capacity and surface disk,
   quota or persistent failure without silently dropping accepted rows.
@@ -364,8 +364,13 @@ override. The remaining WAL row has accepted segment coverage 0.822 seconds
 after readiness; that observation is not a latency distribution. All existing
 CRUD/DDL, namespace, stale-preparation, stopped-worker, RESTRICT, restart and
 name-reuse checks pass in the same run. `transit server` now enables flushing;
-bare nodes still require explicit configuration. The paused-private-I/O/current
-storage-fence composition check remains under qualification before P2.4 closes.
+bare nodes still require explicit configuration. The paused-private-I/O check
+passes: a native storage-fence publication progresses while a Table's private
+object sync is paused, the stale flush fails before acceptance, and a later fair
+turn preserves and flushes the pending row. Original receipts and pins survive
+restart. The competing-Table schedule also observes both small Tables completing
+while the large Table still has pending rows; all 258 rows then have verified
+segment coverage and survive restart (10.285 seconds including owner restart).
 Shared storage observations and explicit fixed-cut units have passing focused
 denial, partial-count, later-write, original-receipt and lost-reply checks.
 An explicit flush executes one bounded unit and returns accepted coverage; it
