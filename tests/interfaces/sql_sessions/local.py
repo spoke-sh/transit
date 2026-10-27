@@ -9,6 +9,7 @@ class Client(NativeClient):
         self.config, self.definition = config, definition
         self.instance = self.session = self.account = None
         self.last = 0
+        self.results = {}
         self.transport()
 
     def transport(self):

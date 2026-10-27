@@ -6,7 +6,6 @@ pub const max_rows = 32;
 pub const max_bytes = 1024 * 1024;
 allocator: std.mem.Allocator,
 arena: std.heap.ArenaAllocator,
-scratch: ?[]u8 = null,
 rows: [max_rows]?r.Row = @splat(null),
 len: u8 = 0,
 bytes: usize = 0,
@@ -16,7 +15,6 @@ pub fn init(allocator: std.mem.Allocator) Self {
     return .{ .allocator = allocator, .arena = .init(allocator) };
 }
 pub fn deinit(self: *Self) void {
-    if (self.scratch) |scratch| self.allocator.free(scratch);
     self.arena.deinit();
     self.* = undefined;
 }
@@ -34,16 +32,13 @@ pub fn reset(self: *Self, row_limit: u8, byte_limit: usize) !void {
 pub fn append(self: *Self, fields: []const r.Types.Field, cells: r.Row) !bool {
     if (cells.len != fields.len) return error.InvalidResultRow;
     if (self.len == self.row_limit) return false;
-    if (self.scratch == null) self.scratch = try self.allocator.alloc(u8, max_bytes);
-    var bytes: usize = 0;
+    var scratch: [256]u8 = undefined;
+    var count: std.Io.Writer.Discarding = .init(&scratch);
     for (fields, cells) |field, cell| {
-        const encoded = r.Types.Codec.encodeBound(cell, field, self.scratch.?) catch |err| switch (err) {
-            error.NoSpaceLeft, error.WriteFailed => return error.ResultRowTooLarge,
-            else => return err,
-        };
-        bytes = std.math.add(usize, bytes, encoded.len) catch return error.ResultRowTooLarge;
-        if (bytes > self.byte_limit) return error.ResultRowTooLarge;
+        try r.Types.Codec.writeBound(cell, field, &count.writer);
+        if (count.fullCount() > self.byte_limit) return error.ResultRowTooLarge;
     }
+    const bytes: usize = @intCast(count.fullCount());
     if (bytes > self.byte_limit - self.bytes) return false;
     self.rows[self.len] = try r.copyRow(self.arena.allocator(), fields, cells);
     self.len += 1;
@@ -81,6 +76,6 @@ fn allocationSchedule(allocator: std.mem.Allocator) !void {
     try builder.reset(32, max_bytes);
     _ = try builder.append(&fields, &row);
 }
-test "batch allocation failures release all owned rows and scratch" {
+test "batch allocation failures release all owned rows" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationSchedule, .{});
 }

@@ -475,19 +475,19 @@ branch diff before its coordinated current-v1 cutover is ready to merge.
 
 ### P0 — Freeze the semantic model, contracts and baseline
 
-- [ ] Inventory all `Prepared` variants, native actions, durable operation owners,
+- [x] Inventory all `Prepared` variants, native actions, durable operation owners,
   callers and generated consumers. Record which operations return rows, commands,
   durable pending work or no statement result; include captured `result` access.
-- [ ] Define the transport-independent semantic contract, abstract transitions,
+- [x] Define the transport-independent semantic contract, abstract transitions,
   invariants and communication projection before choosing message layouts. Specify
   the dependency boundary and ordinary consumer API sketch. Review its transaction
   extension points without implementing transactions.
-- [ ] Put the realization of those semantics in
+- [x] Put the realization of those semantics in
   [SQL_SESSION_V1](../../contracts/SQL_SESSION_V1.md) and shared Zig types. Specify
   the PostgreSQL/MySQL mappings in
   [SQL_GATEWAY_V1](../../contracts/SQL_GATEWAY_V1.md). List any required retained
   record changes and the resources affected by the shared definition.
-- [ ] Resolve metadata observation evidence against `SessionSettings`,
+- [x] Resolve metadata observation evidence against `SessionSettings`,
   `SessionInspection` and their catalog/configuration owners. Agree the M3 P6
   extension seam and the M5 attribution/cursor hooks without adding those features.
 - [ ] Freeze independent fixtures for empty/multi-batch results, owner count
@@ -511,15 +511,15 @@ Owners: proposed `transit-sql-results`, `transit-sql-protocol` types/codec/schem
 
 - [x] Implement the transport-independent value/transition library with direct
   dependencies and package checks. Keep native SQL messages and I/O outside it.
-- [ ] Implement the independent semantic oracle and communication projection
+- [x] Implement the independent semantic oracle and communication projection
   checks against the actual transition owner, including generated schedules and
   negative controls. Register executable checks with the owning task inventory.
-- [ ] Project typed command outcomes from current authorized owner evidence and
+- [x] Project typed command outcomes from current authorized owner evidence and
   retain the command kind through delayed settlement, restart and token lookup.
-- [ ] Separate result description, batch transport and terminal completion in the
+- [x] Separate result description, batch transport and terminal completion in the
   shared types. Require correct result identity/schema/basis and cumulative count;
   validate overflow, row arity, illegal field combinations and premature terminal.
-- [ ] Preserve exact next-or-repeat acknowledgement, final-batch repetition and
+- [x] Preserve exact next-or-repeat acknowledgement, final-batch repetition and
   single-borrower serialization. Make terminal/resource-close transitions explicit
   so repeatability does not retain the executing reader or reopen a snapshot.
 - [ ] Add independent contract fixtures and deterministic transition tests for
@@ -538,13 +538,13 @@ its coordinated replacement with P5 before any affected slice is merged.
 Owners: `ReadBatch`, `Session.Read`, `Registry`, `SessionSettings`,
 `SessionInspection`, `SourceSession`, `CapturedOperations` and `ReadPins`.
 
-- [ ] Introduce the independent SQL batch builder and limits. Consume multiple
+- [x] Introduce the independent SQL batch builder and limits. Consume multiple
   source pulls when budgets permit; retain explicit ownership across scratch resets
   and source batch boundaries. Return terminal with the final data when known.
-- [ ] Split on row and byte limits without dropping the row that did not fit.
+- [x] Split on row and byte limits without dropping the row that did not fit.
   Enforce complete message and resident limits, including encoded expansion.
   Release partial allocations on all error paths.
-- [ ] Make metadata and relational paths use the same builder as single-Table,
+- [x] Make metadata and relational paths use the same builder as single-Table,
   source and captured reads. Preserve source-specific execution work budgets and
   diagnostics; adapters cannot convert a work-limit failure into exhaustion.
 - [ ] Validate authority after buffering in every native and wire disclosure path,
@@ -564,19 +564,19 @@ batch. Both data-bearing and empty terminal forms are valid.
 Owners: `transit-sql-client` public exports, new reader/submission modules as
 needed, `Client` and existing `Pending`.
 
-- [ ] Publish explicit ownership, allocator, borrower, deadline and error contracts.
+- [x] Publish explicit ownership, allocator, borrower, deadline and error contracts.
   Expose schema and observation evidence once, typed row/chunk iteration, terminal
   evidence and finite cleanup. Preserve a low-level call API for explicit controls.
-- [ ] Own decode validation and unique row accounting in the reader. Exercise
+- [x] Own decode validation and unique row accounting in the reader. Exercise
   nested/variable-width/five-state values, maximum-width integers/decimals,
   malformed peers, allocation failure and use across successive batches.
-- [ ] Retry only the retained fetch ordinal within the surviving session and
+- [x] Retry only the retained fetch ordinal within the surviving session and
   original budget. Never replay execute, replace a lost result with a new SELECT,
   or combine an old prefix with a reopened captured result.
-- [ ] Move reusable submission/settlement decisions out of Console while retaining
+- [x] Move reusable submission/settlement decisions out of Console while retaining
   `Pending` identity checks, deadlines and separately authenticated observation.
   Return typed command completion or explicit original-operation uncertainty.
-- [ ] Add bounded copying/materialization and early-close support; ensure failure,
+- [x] Add bounded copying/materialization and early-close support; ensure failure,
   client teardown and lost cleanup leave deterministic local ownership and bounded
   service cleanup/recovery. Specify slow-consumer lease renewal and expiry.
 
@@ -591,10 +591,10 @@ fetch reply is lost.
 Owners: CLI `Console`/`Results`, SQL gateway composition,
 `transit-postgres` and `transit-mysql`.
 
-- [ ] Replace console fetch/decode/status loops with shared semantic client calls;
+- [x] Replace console fetch/decode/status loops with shared semantic client calls;
   remove raw SQL response/cursor handling from presentation. Keep
   editor cancellation, timing, diagnostics and control transport behavior intact.
-- [ ] Implement one-table streaming rendering with bounded sampling and explicit
+- [x] Implement one-table streaming rendering with bounded sampling and explicit
   truncation. Preserve JSON value fidelity and truthful terminal coverage/counts.
   Exercise empty results and byte/row cutoffs between and within transport batches.
 - [ ] Migrate PostgreSQL command tags and portal suspension/resumption without
@@ -618,16 +618,16 @@ This is an integration obligation spanning P1–P4, not a deferred compatibility
 layer. Compatible internal refactors can land independently; changed public or
 stored semantics, their current definition and affected consumers ship together.
 
-- [ ] Replace the shared definition, regenerate SQL session schemas and binding
+- [x] Replace the shared definition, regenerate SQL session schemas and binding
   resources, refresh independent signed fixtures and remove superseded paths.
   Preserve missing/foreign definition and retained-format rejection before work.
-- [ ] Run the existing schema/contract generators from their owners, including
+- [x] Run the existing schema/contract generators from their owners, including
   `just contract::sql-session-generate`, and the other generators identified by
   the definition dependency inventory. Do not hand-edit derived schemas.
 - [ ] Reconcile with the latest M3 definition and reader/inspection changes,
   resolving both source and semantic conflicts. Prove no fallback decoding,
   silent data reset, fresh dispatch of retained work or manufactured completion.
-- [ ] Update current behavior in the SQL session/gateway contracts, query/SQL
+- [x] Update current behavior in the SQL session/gateway contracts, query/SQL
   references, client/service READMEs and CLI console guide. Add supported budgets,
   ownership examples, incomplete-result handling and exact recovery limits.
   Update consolidated Internals reasoning where it changes, following its standard.

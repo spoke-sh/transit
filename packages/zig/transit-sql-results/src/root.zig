@@ -4,6 +4,7 @@ pub const fuze = @import("transit_fuze");
 pub const protocol = @import("transit_protocol");
 pub const Types = fuze.Types;
 pub const Row = []const Types.Values.Cell;
+pub const Batch = @import("Batch.zig");
 pub const BatchBuilder = @import("BatchBuilder.zig");
 pub const ResultSet = @import("ResultSet.zig");
 pub const Window = @import("Window.zig");

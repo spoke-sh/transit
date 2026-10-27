@@ -43,13 +43,22 @@ outcomes require explicit handling. `execute` submits once. Its uncertainty resu
 retains the original account, instance, admission token and known operation; a
 missing observation never authorizes resubmission.
 
-A `ResultSet` exposes one logical schema and observation, `nextRow` or `nextChunk`,
-and verified `completion`. Chunks are borrowed efficiency units with no cursor,
+A `ResultSet` exposes one logical schema and observation, `nextRow` or `nextBatch`,
+and verified `completion`. Batches are borrowed row or column views with no cursor,
 ordinal or repeated schema. Rows include their nested/variable-width allocations;
 copy before advancing if retaining a value. Exhaustion closes the remote cursor.
 `close` stops early and is idempotent; `Outcome.deinit` closes and frees all local
 ownership even after a failure. Completion already received survives early close,
 while delivered count can remain lower than the verified result count.
+
+`nextBatch` exposes `results.Batch` with `len`, `cell(row, column)`, `columnAt`
+and non-copying `slice`. Column consumers can access compatible Fuze/Arrow value
+buffers without building row objects; `nextRow` supplies an allocation-free row
+view over the same values. Retain the source owner for all borrowed buffers.
+The native adapter decodes into contiguous column cells and one binary payload
+allocation per batch. Text, binary and JSON borrow that payload; recursive child
+metadata has separate bounded allocations. JSON parsing/hex carriage still have
+their own conversion costs and are not a zero-copy transport.
 
 `results.Window.read(allocator, result, .{ .rows = 32, .bytes = 262144 })` copies a
 bounded view. Deinitialize the window independently. A row or byte limit leaves

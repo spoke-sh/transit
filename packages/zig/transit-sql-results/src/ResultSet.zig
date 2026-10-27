@@ -3,7 +3,7 @@
 const std = @import("std");
 const r = @import("root.zig");
 const Self = @This();
-pub const Chunk = struct { rows: []const r.Row, completion: ?r.Completion };
+pub const Chunk = struct { values: r.Batch, completion: ?r.Completion };
 pub const Source = struct {
     context: *anyopaque,
     next: *const fn (*anyopaque) anyerror!Chunk,
@@ -15,12 +15,14 @@ schema: r.Types.Type,
 observation: r.Observation.Value,
 progress: r.Progress,
 source: Source,
-chunk: []const r.Row = &.{},
+chunk: r.Batch = .{},
+row_scratch: [(r.Types.Limits{}).nodes]r.Types.Values.Cell = undefined,
 index: usize = 0,
 closed: bool = false,
 
 /// Schema/observation and source context remain owned by source until deinit.
 pub fn init(schema: r.Types.Type, observation: r.Observation.Value, identity: r.Identity, source: Source) !Self {
+    try schema.validate(.{});
     if (schema != .structure or !std.mem.eql(u8, &try schema.fingerprint(), &identity.schema)) return error.InvalidResultSchema;
     return .{ .schema = schema, .observation = observation, .progress = .{ .identity = identity }, .source = source };
 }
@@ -32,7 +34,7 @@ pub fn deinit(self: *Self) void {
 pub fn close(self: *Self) !void {
     if (self.closed) return;
     self.closed = true;
-    self.chunk = &.{};
+    self.chunk = .{};
     self.index = 0;
     self.progress.release();
     try self.source.close(self.source.context);
@@ -47,42 +49,43 @@ pub fn failure(self: Self) ?r.Failure {
 /// expose already received terminal evidence before the first delivery.
 pub fn receive(self: *Self, chunk: Chunk) !void {
     if (self.closed or self.index != self.chunk.len) return error.InvalidResultTransition;
-    if (chunk.rows.len == 0 and chunk.completion == null) return error.InvalidResultChunk;
-    for (chunk.rows) |row| {
-        if (row.len != self.schema.structure.len) return error.InvalidResultRow;
-        for (row, self.schema.structure) |cell, field| try cell.validate(field, .{});
-    }
+    if (chunk.values.len == 0 and chunk.completion == null) return error.InvalidResultChunk;
+    try chunk.values.validate(self.schema.structure);
     var state = self.progress;
-    if (chunk.rows.len != 0) try state.receive(state.identity, chunk.rows.len);
+    if (chunk.values.len != 0) try state.receive(state.identity, chunk.values.len);
     if (chunk.completion) |terminal| try state.finish(state.identity, terminal);
     self.progress = state;
-    self.chunk = chunk.rows;
+    self.chunk = chunk.values;
     self.index = 0;
 }
 /// The returned row is borrowed until the next advance or closure. Merely
 /// peeking does not deliver it; bounded windows can leave a non-fitting row here.
-pub fn peekRow(self: *Self) !?r.Row {
-    if (self.closed) return if (self.progress.consumption == .exhausted) null else error.ResultClosed;
+fn ensureAvailable(self: *Self) !bool {
+    if (self.closed) return if (self.progress.consumption == .exhausted) false else error.ResultClosed;
     if (self.progress.consumption == .stopped) return error.ResultIncomplete;
     errdefer {
         self.progress.fail(false);
         self.close() catch {};
     }
-    if (self.index < self.chunk.len) return self.chunk[self.index];
+    if (self.index < self.chunk.len) return true;
     if (self.progress.consumption == .exhausted) {
         try self.close();
-        return null;
+        return false;
     }
     const chunk = self.source.next(self.source.context) catch |err| {
         self.progress.fail(err == error.Canceled or err == error.ResultCancelled);
         return err;
     };
     try self.receive(chunk);
-    if (chunk.rows.len == 0) {
+    if (chunk.values.len == 0) {
         try self.close();
-        return null;
+        return false;
     }
-    return chunk.rows[0];
+    return true;
+}
+pub fn peekRow(self: *Self) !?r.Row {
+    if (!try self.ensureAvailable()) return null;
+    return try self.chunk.rowInto(self.index, &self.row_scratch);
 }
 pub fn nextRow(self: *Self) !?r.Row {
     const row = try self.peekRow() orelse return null;
@@ -92,10 +95,10 @@ pub fn nextRow(self: *Self) !?r.Row {
 }
 /// Logical chunks are borrowed efficiency units; they carry no fetch ordinal,
 /// schema repetition or end-of-stream sentinel for the consumer to interpret.
-pub fn nextChunk(self: *Self) !?[]const r.Row {
-    _ = try self.peekRow() orelse return null;
-    const rows = self.chunk[self.index..];
-    try self.progress.deliver(rows.len);
+pub fn nextBatch(self: *Self) !?r.Batch {
+    if (!try self.ensureAvailable()) return null;
+    const batch = try self.chunk.slice(self.index, self.chunk.len - self.index);
+    try self.progress.deliver(batch.len);
     self.index = self.chunk.len;
-    return rows;
+    return batch;
 }

@@ -64,6 +64,13 @@ admit arbitrary external Arrow input. See the
 the [stored layout](../../../contracts/TRANSIT_STORAGE_V1.md#qualified-plain-value-buffers)
 for offsets, validity and canonical padding.
 
+The [SQL result library](../../../packages/zig/transit-sql-results/README.md) exposes
+borrowed row and column batch views over the same logical result. For admitted
+plain columns, its Arrow value view borrows the source buffers and preserves the slice offset;
+the full Transit column still supplies state/detail evidence. Row access populates
+only reusable descriptors. This local view does not widen native IPC import or
+Flight admission, and requires the source owner to remain alive.
+
 Decode bounded batches and validate full-width identities, lengths and semantic
 cell states at language boundaries. A readable IPC prefix is not a verified
 complete query. Result manifests, ordered segment coverage and digests remain

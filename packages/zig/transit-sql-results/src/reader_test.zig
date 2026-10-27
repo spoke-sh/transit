@@ -25,7 +25,7 @@ const Script = struct {
             self.rows[i] = &self.cells[i];
         }
         self.position += count;
-        return .{ .rows = self.rows[0..count], .completion = if (self.position == self.length and (!self.terminal_empty or count == 0)) .{ .rows = self.length } else null };
+        return .{ .values = .fromRows(self.rows[0..count]), .completion = if (self.position == self.length and (!self.terminal_empty or count == 0)) .{ .rows = self.length } else null };
     }
     fn close(context: *anyopaque) !void {
         const self: *Script = @ptrCast(@alignCast(context));

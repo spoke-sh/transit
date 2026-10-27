@@ -19220,6 +19220,7 @@
         "InvalidResultChunk": 1,
         "InvalidResultRow": 1,
         "InvalidResultTransition": 1,
+        "InvalidSqlEncoding": 1,
         "InvalidSqlResponse": 1,
         "ReadFailed": 2,
         "ResultCancelled": 1,
@@ -19260,7 +19261,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 32,
+        "try": 34,
         "catch": 1
       },
       "imports": [
@@ -19362,18 +19363,20 @@
       "error_returns": {
         "cell()": "<inferred>",
         "decodeCell()": "<inferred>",
+        "decodeCellBorrowing()": "<inferred>",
         "decodeParameter()": "<inferred>",
         "decodeSchema()": "<inferred>",
         "descriptor()": "<inferred>",
         "hex()": "<inferred>",
         "parameter()": "<inferred>",
         "schema()": "<inferred>",
-        "unhex()": "<inferred>"
+        "unhex()": "<inferred>",
+        "unhexInto()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
-        "catch": 1
+        "try": 12,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -19535,13 +19538,48 @@
         "transit_sql_protocol"
       ]
     },
+    "packages/zig/transit-sql-results/src/Batch.zig": {
+      "errors": {
+        "InvalidResultChunk": 2,
+        "InvalidResultColumn": 13,
+        "InvalidResultRow": 3,
+        "UnsupportedResultColumnLayout": 2
+      },
+      "outcomes": {
+        "Column": [
+          "cells",
+          "vector",
+          "plain"
+        ],
+        "Layout": [
+          "rows",
+          "columns"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Column.validate()": "<inferred>",
+        "ColumnView.arrowValues()": "<inferred>",
+        "columnAt()": "<inferred>",
+        "rowInto()": "<inferred>",
+        "slice()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-results/src/BatchBuilder.zig": {
       "errors": {
         "InvalidResultBudget": 1,
         "InvalidResultRow": 1,
-        "NoSpaceLeft": 1,
-        "ResultRowTooLarge": 3,
-        "WriteFailed": 1
+        "ResultRowTooLarge": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -19553,7 +19591,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 6,
-        "catch": 2
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -19643,7 +19681,6 @@
       "errors": {
         "Canceled": 1,
         "InvalidResultChunk": 1,
-        "InvalidResultRow": 1,
         "InvalidResultSchema": 1,
         "InvalidResultTransition": 1,
         "ResultCancelled": 1,
@@ -19656,15 +19693,16 @@
         "Source.close()": "anyerror",
         "Source.next()": "anyerror",
         "close()": "<inferred>",
+        "ensureAvailable()": "<inferred>",
         "init()": "<inferred>",
-        "nextChunk()": "<inferred>",
+        "nextBatch()": "<inferred>",
         "nextRow()": "<inferred>",
         "peekRow()": "<inferred>",
         "receive()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 12,
+        "try": 16,
         "catch": 3
       },
       "imports": [
@@ -19761,6 +19799,7 @@
         "catch": 0
       },
       "imports": [
+        "Batch.zig",
         "BatchBuilder.zig",
         "Observation.zig",
         "Progress.zig",

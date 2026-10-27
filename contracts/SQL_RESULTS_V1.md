@@ -100,6 +100,20 @@ client. Transport decoding, acknowledgement, retries, finite settlement and
 remote closure belong to the adapter. Semantic failure and uncertain outcomes
 remain visible; ordinary consumers do not implement raw response/status loops.
 
+Logical row occurrences do not require row-major storage. A bounded batch can
+borrow rows, column vectors or Arrow-compatible buffers without changing schema,
+observation or progress. Row iteration is a convenience view; it may populate
+reusable cell descriptors while borrowing variable payloads. Column/batch iteration
+must not require a full row transpose. Non-copying slices preserve offset and
+occurrence identity. Layout changes are not result boundaries.
+
+An Arrow view describes compatible value buffers. Transit state tags and
+error/conflict detail remain required for the complete logical cell. The nullable
+Arrow value child alone cannot distinguish missing, null, type error and conflict.
+Memory layout, physical value encoding and transport compression are independent
+of logical type and collation. Adapters enforce both encoded and decoded budgets;
+compression cannot change result truth, cardinality or cleanup rules.
+
 Borrowed rows/chunks remain valid for the reader's documented lifetime. Retaining
 nested or variable-width values requires an owned copy before the next pull can
 reset scratch memory. Copies use caller-bounded storage. Streaming and bounded

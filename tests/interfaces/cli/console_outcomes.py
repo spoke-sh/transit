@@ -115,7 +115,25 @@ def peer(mode, *, length=None, maximum=32, empty_terminal=False):
         server.shutdown(); server.server_close(); thread.join()
 
 
+def semantic_consumer_boundary(source):
+    # Scoped architecture guard, alongside the executable peer below. Explicit
+    # session controls and editor assistance remain outside this presentation path.
+    start, end = source.index('    fn query('), source.index('    fn stopRead(')
+    consumer = source[start:end]
+    for primitive in ('api.Response', 'api.Batch', 'api.Codec', 'sdk.Pending', '.fetch =', '.status =', '.execute =', '.cursor'):
+        assert primitive not in consumer, ('raw SQL carriage in ordinary consumer', primitive)
+
+
 def check(binary):
+    source = (ROOT/'apps/transit-cli/Console.zig').read_text()
+    semantic_consumer_boundary(source)
+    mutant = source.replace('    fn query(', '    fn query( // api.Batch', 1)
+    try:
+        semantic_consumer_boundary(mutant)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError('consumer boundary negative control was not detected')
     with tempfile.TemporaryDirectory(prefix='transit-outcomes-') as directory:
         root = Path(directory)
         config = root/'console.json'

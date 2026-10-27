@@ -22,7 +22,7 @@ schema: r.Types.Type,
 schema_bytes: []const u8,
 observation: r.Observation.Value,
 observation_hash: [32]u8,
-chunk: r.ResultSet.Chunk = .{ .rows = &.{}, .completion = null },
+chunk: r.ResultSet.Chunk = .{ .values = .{}, .completion = null },
 closed: bool = false,
 
 /// The first response is borrowed only for this call. The returned reader owns
@@ -60,19 +60,32 @@ fn decode(self: *Self, value: api.Batch) !void {
     const a = self.batch.allocator();
     const observation_hash = try r.Observation.fingerprint(a, value.observation);
     if (!std.mem.eql(u8, &observation_hash, &self.observation_hash)) return error.ResultIdentityChanged;
-    const rows = try a.alloc(r.Row, value.rows.len);
+    const row_count = value.rows.len;
+    const width = self.schema.structure.len;
     var bytes: usize = 0;
-    for (value.rows, rows) |encoded, *row| {
-        if (encoded.len != self.schema.structure.len) return error.InvalidResultRow;
-        const cells = try a.alloc(r.Types.Values.Cell, encoded.len);
-        for (encoded, self.schema.structure, cells) |text, field, *cell| {
+    for (value.rows) |encoded| {
+        if (encoded.len != width) return error.InvalidResultRow;
+        for (encoded) |text| {
+            if (text.len % 2 != 0) return error.InvalidSqlEncoding;
             bytes = try std.math.add(usize, bytes, text.len / 2);
             if (bytes > api.max_batch_bytes) return error.SqlBatchTooLarge;
-            cell.* = try api.Codec.decodeCell(a, field, text);
         }
-        row.* = cells;
     }
-    self.chunk = .{ .rows = rows, .completion = value.completion };
+    const columns = try a.alloc(r.Batch.Column, width);
+    const cells = try a.alloc(r.Types.Values.Cell, try std.math.mul(usize, row_count, width));
+    for (columns, 0..) |*column, i| column.* = .{ .cells = cells[i * row_count ..][0..row_count] };
+    // One binary payload allocation for the batch. Variable-width cells borrow
+    // it; only recursive metadata needs additional allocations during decoding.
+    const payload = try a.alloc(u8, bytes);
+    var offset: usize = 0;
+    for (value.rows, 0..) |encoded, row| {
+        for (encoded, self.schema.structure, 0..) |text, field, column| {
+            const size = text.len / 2;
+            cells[column * row_count + row] = try api.Codec.decodeCellBorrowing(a, field, text, payload[offset..][0..size]);
+            offset += size;
+        }
+    }
+    self.chunk = .{ .values = .fromColumns(columns, row_count), .completion = value.completion };
 }
 
 fn next(context: *anyopaque) !r.ResultSet.Chunk {
@@ -146,7 +159,7 @@ fn close(context: *anyopaque) !void {
     if (self.closed) return;
     self.closed = true;
     _ = self.batch.reset(.free_all);
-    self.chunk = .{ .rows = &.{}, .completion = null };
+    self.chunk = .{ .values = .{}, .completion = null };
     // Failure to observe remote cleanup cannot erase verified completion or
     // imply rollback. The service retains its bounded lease/recovery obligation.
     self.transport.close(self.transport.context, self.cursor);
@@ -289,4 +302,41 @@ fn allocationSchedule(allocator: std.mem.Allocator) !void {
 }
 test "all reader allocation failures release schema rows and transport ownership" {
     try t.checkAllAllocationFailures(t.allocator, allocationSchedule, .{});
+}
+
+test "native result residency stays bounded across a stream larger than its allocator" {
+    var memory: r.fuze.MemoryBudget = .{ .parent = t.allocator, .limit = 128 * 1024 };
+    var script: TestScript = .{ .length = 16384, .maximum = 32 };
+    var result = try script.open(memory.allocator());
+    var count: usize = 0;
+    while (try result.nextBatch()) |batch| {
+        try t.expectEqual(.columns, std.meta.activeTag(batch.layout));
+        const column = try batch.columnAt(0);
+        for (0..batch.len) |i| {
+            try t.expectEqual(count % 3, column.cell(i).value.atom.unsigned);
+            count += 1;
+        }
+    }
+    try t.expectEqual(script.length, count);
+    try t.expectEqual(script.length, result.completion().?.rows);
+    try t.expect(count * 17 > memory.limit);
+    try t.expect(memory.peak <= memory.limit);
+    result.deinit();
+    try t.expectEqual(0, memory.used);
+    try t.expectEqual(1, script.closed);
+}
+
+test "row convenience over a received column batch allocates no row objects" {
+    var allocator = t.FailingAllocator.init(t.allocator, .{});
+    var script: TestScript = .{ .length = 32, .maximum = 32 };
+    var result = try script.open(allocator.allocator());
+    defer result.deinit();
+    allocator.fail_index = allocator.alloc_index;
+    var count: usize = 0;
+    while (try result.nextRow()) |row| {
+        try t.expectEqual(count % 3, row[0].value.atom.unsigned);
+        count += 1;
+    }
+    try t.expectEqual(32, count);
+    try t.expect(!allocator.has_induced_failure);
 }

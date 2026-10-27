@@ -368,7 +368,12 @@ between two schedules. Nothing here proves honest computation by a remote server
 
 [Progress](../../../packages/zig/transit-sql-results/src/Progress.zig) checks the
 abstract transitions. [ResultSet](../../../packages/zig/transit-sql-results/src/ResultSet.zig)
-validates typed chunks before atomically advancing progress. The
+validates typed batches before atomically advancing progress. Its
+[batch view](../../../packages/zig/transit-sql-results/src/Batch.zig) separates
+row and column layout; row access needs only reusable descriptors while column
+access can preserve Fuze or Arrow-compatible buffers. The native decoder owns
+one cell matrix and one decoded payload per batch, borrowing variable bytes
+from that payload rather than allocating and copying each cell separately. The
 [native reader](../../../packages/zig/transit-sql-client/src/NativeResult.zig)
 projects decoded, identity-checked responses into those transitions and repeats
 only the same requested ordinal within the original deadline. It primes the first
