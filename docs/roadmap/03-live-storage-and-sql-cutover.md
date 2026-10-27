@@ -316,15 +316,15 @@ does not establish its cause.
 Owners: local Table host/service, `TablePartition`, shared storage settings and
 the installed server configuration.
 
-- [ ] P2.1 Discover eligible partitions through bounded persisted directories,
+- [x] P2.1 Discover eligible partitions through bounded persisted directories,
   including after restart and for Tables absent from a resident cache. Use a
   bounded worker set and fair resumable enumeration; do not allocate a queue or
   owner for every durable Table. Define lock order with catalog/policy changes.
-- [ ] P2.2 Implement configurable pending-byte/row and maximum-age triggers
+- [x] P2.2 Implement configurable pending-byte/row and maximum-age triggers
   with explicit work/time/memory limits. Select numeric defaults from P0/P2
   measurements and publish them before enabling the default. WAL acceptance
   remains the durability boundary; ordinary INSERT does not wait for a flush.
-- [ ] P2.3 Reuse one bounded `TablePartition.flush` unit per selected turn of
+- [x] P2.3 Reuse one bounded `TablePartition.flush` unit per selected turn of
   the maintenance scheduler. Publish its exact replacement through the Table
   WAL, preserve the logical change frontier and return capacity to foreground
   work between units. This scheduler is direct runtime work, not Station actors.
@@ -332,7 +332,7 @@ the installed server configuration.
   when required and inspect accepted coverage before retrying; never infer
   completion from staged objects. Reserve control capacity and surface disk,
   quota or persistent failure without silently dropping accepted rows.
-- [ ] P2.5 Expose the minimal shared observations from P0 and a deterministic
+- [x] P2.5 Expose the minimal shared observations from P0 and a deterministic
   qualified flush trigger/configuration for tests. An inspection starts no
   maintenance. A requested flush has a target cut and inspectable completion;
   continuing writes cannot make its completion criterion move forever.
@@ -358,7 +358,14 @@ does not measure the installed server's one-second interval. Original WAL pins
 and later segment-backed pins both survive another abrupt restart. The original
 failed preparation separately recovers with identical binaries and exact saved
 operation identities. The cause of that earlier preparation failure is unproved.
-Defaults remain disabled until the installed SQL and interference gate passes.
+The installed SQL schedule also passes WAL-only point readback, abrupt restart
+with flushing disabled, and automatic relocation after removing that explicit
+override. The remaining WAL row has accepted segment coverage 0.822 seconds
+after readiness; that observation is not a latency distribution. All existing
+CRUD/DDL, namespace, stale-preparation, stopped-worker, RESTRICT, restart and
+name-reuse checks pass in the same run. `transit server` now enables flushing;
+bare nodes still require explicit configuration. The paused-private-I/O/current
+storage-fence composition check remains under qualification before P2.4 closes.
 Shared storage observations and explicit fixed-cut units have passing focused
 denial, partial-count, later-write, original-receipt and lost-reply checks.
 An explicit flush executes one bounded unit and returns accepted coverage; it

@@ -225,7 +225,7 @@
       "kind": "boolean",
       "scope": "component",
       "change": "restart",
-      "default_json": "false",
+      "default_json": "true",
       "session_mutable": false,
       "nullable": false,
       "sensitive": false,
@@ -1219,7 +1219,7 @@
                     "description": "Schedule bounded relocation of current Table WAL rows to immutable segments",
                     "x-transit-owner": "node",
                     "x-transit-change": "restart",
-                    "default": false
+                    "default": true
                   },
                   "rows": {
                     "type": "integer",

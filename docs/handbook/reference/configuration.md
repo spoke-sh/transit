@@ -248,8 +248,9 @@ Changes require restart. `SHOW storage.limits.bytes` reports the configured quot
 not current filesystem usage.
 
 `storage.maintenance.flush.enabled` enables automatic local Table flushing and
-defaults to false. It requires the local node's configured Table host and
-maintenance principal. The other flush settings are:
+defaults to true in `transit server`. A bare node defaults it to false and
+requires both a configured Table host and maintenance principal when enabled.
+The other flush settings are:
 
 | Setting suffix | Default | Valid range | Meaning |
 | --- | --- | --- | --- |

@@ -44,8 +44,9 @@ counts and per-row positions preserve skipped-row coverage, LIMIT and ordered
 failure attribution. Empty pages can carry continuations. The owner rechecks
 current rights for selected, empty and terminal pages.
 
-The local owner can flush current WAL rows automatically when Table maintenance
-is enabled in its [storage configuration](configuration.md#immutable-storage).
+The local server enables automatic flushing of current WAL rows by default.
+Its [storage configuration](configuration.md#immutable-storage) controls
+eligibility and per-turn work limits. Bare node deployments enable it explicitly.
 WAL acceptance remains the durability boundary; an INSERT does not wait for
 background flushing. Absence of a new `.tseg` after a point write does not imply
 that the write is missing. The signed direct `storage` operation reports exact
