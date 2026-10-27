@@ -9,6 +9,47 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Document conflicts, tombstones and retained revisions on disk — 2026-10-26
+
+The Document crash schedule in `f96727c0a` passes against the local backend;
+`d75f0ac7b` also places the matched Ursula control's WAL and cold store under
+`/var/tmp`. That path is on ext4 on this host; the development shell's `/tmp`
+is tmpfs. Both runs use ReleaseSafe, the same signed caller and fault schedule,
+and the unchanged phase deadlines. Production source is unchanged from
+`c15e6344b`.
+
+Each run kills and replaces three workers and their node, loses accepted replies
+at four publication/collection boundaries, and verifies the original exact
+receipts. Independent reads check two concurrent scalar values and their causal
+dots, a removed map entry, and a deleted sequence anchor whose successor remains
+visible. A retained earlier revision still exposes the original scalar, map entry
+and character. Checkpoint resynchronization, stale-generation rejection, revoked
+reads, retirement cleanup and the unchanged output count also pass. The final
+recovery uses one resident page. Both runs observe 5,530 reads and 519 turns, with
+at most four mutations per turn and 256 bytes per mutation value.
+
+| Observation | Local WAL/objects | Disk-backed Ursula |
+| --- | ---: | ---: |
+| Stage / accept / checkpoint / finish (seconds) | 5.228 / 34.750 / 185.688 / 426.340 | 2.972 / 20.374 / 33.585 / 45.701 |
+| Retained WAL or hot bytes | 3,202,272 | 8,388,608 |
+| Immutable object or cold bytes | 26,526,915 | 37,559,346 |
+| Object files or cold objects | 33,656 | 143 |
+
+Reproduce inside the pinned shell with `just test::document-local` and
+`zig build test-document -Doptimize=ReleaseSafe -- --backend ursula`.
+Raw logs are `/var/tmp/transit-m2-document-local2.log` and
+`/var/tmp/transit-m2-document-ursula.log`. The first local run, retained at
+`/var/tmp/transit-m2-document-local.log`, fails a fixture assertion that assumed
+the first sequence step returned a character. The corrected assertion explicitly
+traverses the deleted anchor before reading its successor; no runtime change or
+deadline increase resolves that failure.
+
+These are single executions of an external component recovery schedule, not
+latency percentiles, installed lifecycle qualification, host power-loss evidence
+or a claim that both backends have equivalent physical layouts. Current semantics
+remain in [Documents](../../handbook/reference/documents.md); the
+[runtime test owner](../../../tests/runtime/README.md) describes reproduction.
+
 ## Local recorded effect outcomes after trim — 2026-10-26
 
 The local-owner test source retained in `61848d307` adds two outcome schedules

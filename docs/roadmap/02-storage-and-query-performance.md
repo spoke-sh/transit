@@ -118,6 +118,16 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- The external Document recovery schedule now passes on local WAL/objects and
+  disk-backed Ursula with conflicts, tombstones, retained revisions, lost replies,
+  worker/node replacement, revocation and one-page recovery. Local effect-owner
+  tests preserve authorized attempts, unknown outcomes and terminal receipts
+  through checkpoint, trim and repeated reopen. The
+  [Document evidence](../history/qualification/storage.md#document-conflicts-tombstones-and-retained-revisions-on-disk--2026-10-26)
+  and [effect evidence](../history/qualification/storage.md#local-recorded-effect-outcomes-after-trim--2026-10-26)
+  qualify those #126 owner paths; final common-revision and native growth
+  qualification remain separate gates.
+
 - Nullable TEXT now participates in finite relational projection, filtering,
   equijoins, grouping, retained checkpoints, maintained revisions and exchange
   routing under the declared binary, ASCII case-insensitive or CP037 collation.
