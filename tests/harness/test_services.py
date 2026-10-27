@@ -9,10 +9,44 @@ from unittest.mock import patch
 import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from harness import services
 from harness.services import free_port, wait_ready
 
 
 class Services(unittest.TestCase):
+    def test_port_batch_is_distinct_and_releases_all_descriptors(self):
+        opened = []
+        original = services.socket.socket
+
+        def create():
+            result = original()
+            opened.append(result)
+            return result
+
+        with patch.object(services.socket, "socket", side_effect=create):
+            ports = services.free_ports(6)
+        self.assertEqual(len(set(ports)), 6)
+        self.assertTrue(all(port > 0 for port in ports))
+        self.assertTrue(all(listener.fileno() == -1 for listener in opened))
+
+    def test_failed_port_batch_closes_earlier_descriptors(self):
+        opened = []
+        original = services.socket.socket
+
+        def create():
+            if len(opened) == 2:
+                raise OSError("injected descriptor exhaustion")
+            result = original()
+            opened.append(result)
+            return result
+
+        with patch.object(services.socket, "socket", side_effect=create):
+            with self.assertRaisesRegex(OSError, "descriptor exhaustion"):
+                services.free_ports(6)
+        self.assertTrue(all(listener.fileno() == -1 for listener in opened))
+        with self.assertRaises(ValueError):
+            services.free_ports(0)
+
     @contextlib.contextmanager
     def server(self):
         with tempfile.TemporaryDirectory(prefix="transit-readiness-") as directory:

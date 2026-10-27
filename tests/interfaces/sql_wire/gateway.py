@@ -10,7 +10,7 @@ import tempfile
 import time
 import urllib.request
 
-from harness.services import free_port, wait_ready
+from harness.services import free_port, free_ports, wait_ready
 import psycopg
 import mysql.connector
 
@@ -21,8 +21,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
     with tempfile.TemporaryDirectory(prefix='transit-direct-sql-wire-') as directory:
         root = Path(directory)
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        session_port = free_port()
-        native_port, sql_port, mysql_port, health_port = free_port(), free_port(), free_port(), free_port()
+        session_port, native_port, sql_port, mysql_port, health_port, settings_port = free_ports(6)
         url = f'http://127.0.0.1:{native_port}'
         public = json.loads(subprocess.check_output([catalog, 'public'], timeout=10))
         node_config = root / 'node.json'
@@ -72,7 +71,6 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             assert len({entry['operation'] for entry in entries}) == len(entries)
             return entries
         settings_binding = None
-        settings_port = free_port()
         def configure():
             call(ledger, 'app-config', sql_port)
             configuration = json.loads((root/'sql-gateway.json').read_text())

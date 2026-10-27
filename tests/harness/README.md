@@ -51,7 +51,10 @@ even if its semantic checks succeed. These observations do not change deadlines,
 reuse installations or establish a benchmark comparison by themselves.
 
 `free_port()` finds an available loopback port and closes the temporary socket;
-it does not reserve that port until a service binds it. `wait_ready()` requires
+it does not reserve that port until a service binds it. Use `free_ports(count)`
+when one configuration needs distinct ports: it holds all discovery sockets
+until the batch is allocated, then releases them together. Those ports remain
+discovery results, not reservations against other processes. `wait_ready()` requires
 HTTP 200, observes early process exit, uses a 30-second deadline and bounds each
 request to 0.5 seconds. Callers own process termination and joining, including
 startup failure. Readiness does not establish durable acceptance or recovery.
