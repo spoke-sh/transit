@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import platform
@@ -54,6 +55,7 @@ def main():
     parser.add_argument('--smoke', action='store_true', help='Validate the harness without requiring data larger than the ceiling')
     args = parser.parse_args()
     require(32 <= args.memory_mib <= 2048 and args.cpu in os.sched_getaffinity(0), 'Invalid memory or CPU limit')
+    require(math.isfinite(args.timeout) and args.timeout > 0, 'Invalid child time guard')
     require(all(16 <= rows <= 1048576 and rows % 16 == 0 for rows in args.table_rows), 'Invalid Table sizes')
     require(all(0 < rows <= 1048576 for rows in args.native_rows), 'Invalid native sizes')
     for sizes in (args.table_rows, args.native_rows):
@@ -65,6 +67,8 @@ def main():
               if args.owner in ('both', owner)]
     report = dict(version=1, profile='memory growth smoke' if args.smoke else 'bounded local owner growth', status='running',
                   owners=[owner for owner, _ in owners],
+                  requested_fixtures=[dict(owner=owner, rows=rows) for owner, sizes in owners for rows in sizes],
+                  child_timeout_seconds=args.timeout,
                   revision=common.git('rev-parse', 'HEAD'), dirty=bool(common.git('status', '--porcelain')),
                   binary_sha256=common.digest(binary), driver_sha256=common.digest(__file__),
                   common_driver_sha256=common.digest(common.__file__), probe_sha256=common.digest(common.ROOT / 'tests/performance/storage/storage_benchmark.zig'),

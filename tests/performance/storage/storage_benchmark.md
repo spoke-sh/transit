@@ -177,6 +177,12 @@ exceed the process address-space ceiling. Both owners run by default;
 `--owner native` or `--owner table` selects one complete growth matrix for
 independent diagnosis. A single-owner report does not qualify the other owner.
 No latency percentile is derived from these single fixture observations.
+Reports retain the requested fixture matrix and per-child time guard, including
+incomplete runs. The default guard is 1,800 seconds per creation/readback process;
+`--timeout` selects a different finite execution profile. A completed run with a
+longer guard does not turn an earlier timeout into a pass or establish that the
+default execution budget was met. Value checks, fixture sizes and memory limits
+remain independently required.
 
 `--table-rows 32 --native-rows 2 --smoke` validates the harness without asserting
 that the data exceed the ceiling. The report labels this profile explicitly.
