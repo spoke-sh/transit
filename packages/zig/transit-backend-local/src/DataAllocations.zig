@@ -180,6 +180,11 @@ pub fn trim(self: *Self) !void {
     const head = try self.current();
     if (head.cursor != 0) try self.queue.log().trim(0, head.cursor);
 }
+/// One physical cleanup unit through the accepted consumed inventory prefix.
+pub fn trimUnit(self: *Self) !bool {
+    const head = try self.current();
+    return head.cursor == 0 or try self.queue.trimUnit(0, head.cursor);
+}
 /// The reclamation owner separately proves reachability and epoch safety while
 /// holding its creation mutex. A newer reuse must never lose its marker.
 pub fn remove(self: *Self, allocation: Allocation) !void {

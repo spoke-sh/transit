@@ -200,7 +200,24 @@ test "native collection retains history, fences delayed writers and resumes pend
     f.close();
     try f.open(tmp.dir, false);
     try t.expectEqual(concurrent, (try f.engine.process(concurrent)).pid);
-    try t.expect(!try f.step());
+    // The saved complete phase finishes graph reclamation, but an interrupted
+    // FIFO trim still resumes in bounded physical units after reopening.
+    var cleanup_units: usize = 0;
+    while (true) {
+        const disk = f.owner.allocations.queue.disk.?;
+        const entries = disk.trim_entries;
+        const frames = disk.trim_frames;
+        const segments = disk.trim_segments;
+        const progressed = try f.step();
+        try t.expect(disk.trim_entries - entries <= 32);
+        try t.expect(disk.trim_frames - frames <= 1);
+        try t.expect(disk.trim_segments - segments <= 1);
+        if (!progressed) break;
+        cleanup_units += 1;
+        try t.expect(cleanup_units < 2000);
+    }
+    try t.expect(cleanup_units > 1);
+    try t.expectEqual(concurrent, (try f.engine.process(concurrent)).pid);
 }
 
 test "native collection aborts an incomplete retained-root mark after authorized history trim" {

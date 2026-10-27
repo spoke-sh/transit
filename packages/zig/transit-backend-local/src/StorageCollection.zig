@@ -178,10 +178,10 @@ fn sweep(self: *Self, state: *State, pages: *PageStore) !void {
         state.phase = .deleting;
     }
 }
-fn trim(self: *Self) !void {
+fn trim(self: *Self) !bool {
     try self.backend.native_inventory.lock(self.backend.io);
     defer self.backend.native_inventory.unlock(self.backend.io);
-    try self.backend.allocations.trim();
+    return self.backend.allocations.trimUnit();
 }
 
 fn reserveInventory(self: *Self) !void {
@@ -200,10 +200,7 @@ pub fn step(self: *Self, engine: anytype, now: core.Time.Sample) !bool {
     var state = (try self.current()) orelse return false;
     if (!std.mem.eql(u8, &state.cut.genesis, &engine.head.genesis) or state.cut.storage_epoch > engine.head.storage_epoch) return error.InvalidStorageCollection;
     switch (state.phase) {
-        .complete => {
-            try self.trim();
-            return false;
-        },
+        .complete => return !try self.trim(),
         .mark => {
             try engine.page_store.begin(engine.head.storage_epoch, true);
             defer engine.page_store.discard();
@@ -244,6 +241,6 @@ pub fn step(self: *Self, engine: anytype, now: core.Time.Sample) !bool {
         },
     }
     try self.save(state);
-    if (state.phase == .complete) try self.trim();
+    if (state.phase == .complete) _ = try self.trim();
     return true;
 }

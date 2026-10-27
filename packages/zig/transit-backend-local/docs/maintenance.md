@@ -25,7 +25,16 @@ Repeated `step` calls with a trusted `Time.Sample` perform bounded work:
    removing any unreachable old allocation.
 4. Durably unpublish the descriptor, remove its immutable payload and checksums,
    remove the allocation marker and consume its FIFO entry. Repeating the intent
-   after uncertainty is safe. Trim the consumed FIFO prefix after completion.
+   after uncertainty is safe. Publish the consumed FIFO trim floor, then resume
+   physical log cleanup in bounded units after graph reclamation completes.
+
+The saved `complete` phase describes graph reclamation. Further `step` calls
+finish its inventory WAL cleanup, returning true while a cleanup unit remains
+and false when that floor is physically settled. A unit scans at most 32 directory
+entries or verifies one WAL frame and unlinks at most one segment. Reopening
+reconstructs cleanup from the accepted FIFO cursor; it never invents a new floor.
+Cold WAL recovery and directory validation have their own costs outside these
+cleanup-unit bounds.
 
 Native allocation intents enter their own segmented local WAL before any object
 content is created. An exact marker makes retries identifiable. An uncertain
@@ -94,6 +103,8 @@ page and an 8 MiB index-work budget per transition. Work items and progress are
 bounded to 128 KiB and 256 KiB respectively; paged queues/marks permit larger
 durable graphs. WAL buffers and fixed decoding buffers have separate bounds.
 Directory discovery and segment verification can require substantial I/O.
+After graph completion, inventory WAL cleanup uses the same bounded units and
+resumption behavior as native collection above.
 
 An incomplete or corrupt graph cannot reach deletion. A racing required-history
 trim aborts the pass; repairable I/O or quota errors preserve its last checkpoint.

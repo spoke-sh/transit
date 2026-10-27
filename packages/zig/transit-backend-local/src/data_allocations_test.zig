@@ -86,6 +86,50 @@ test "direct allocation inventory grows on disk within a fixed allocation budget
     try t.expect((try reopened.current()).tail > 386);
 }
 
+test "direct allocation cleanup resumes bounded units through its original consumed prefix" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    try tmp.dir.createDirPath(t.io, "data-allocations");
+    const kept = try allocation(1, "pages/retained.data");
+    {
+        var queue = try Allocations.open(t.allocator, t.io, tmp.dir);
+        defer queue.deinit();
+        queue.queue.disk.?.options.segment_bytes = 2048;
+        for (0..40) |i| {
+            var key: [64]u8 = undefined;
+            const item = try allocation(1, try std.fmt.bufPrint(&key, "pages/consumed-{d}.data", .{i}));
+            _ = try queue.record(item);
+            if ((try queue.at((try queue.current()).cursor)).item == null) try queue.consumeEmpty((try queue.current()).tail);
+            try queue.remove(item);
+            try queue.consume((try queue.current()).cursor, item, false);
+        }
+        _ = try queue.record(kept);
+        try t.expect(!try queue.trimUnit());
+        // The floor survived, but directory enumeration has not finished.
+    }
+    var queue = try Allocations.open(t.allocator, t.io, tmp.dir);
+    defer queue.deinit();
+    const cursor = (try queue.current()).cursor;
+    const disk = queue.queue.disk.?;
+    var units: usize = 0;
+    while (true) {
+        const entries = disk.trim_entries;
+        const frames = disk.trim_frames;
+        const segments = disk.trim_segments;
+        const complete = try queue.trimUnit();
+        try t.expect(disk.trim_entries - entries <= 32);
+        try t.expect(disk.trim_frames - frames <= 1);
+        try t.expect(disk.trim_segments - segments <= 1);
+        if (complete) break;
+        units += 1;
+        try t.expect(units < 300);
+    }
+    try t.expect(disk.trim_segments > 1 and units > 1);
+    try t.expectEqual(cursor, (try queue.current()).cursor);
+    try t.expectEqualDeep(kept, (try queue.latest(kept.name())).?);
+    try t.expectEqualDeep(kept, (try queue.at((try queue.current()).tail - 1)).item.?);
+}
+
 fn rehash(bytes: *[Allocations.record_bytes]u8) void {
     std.crypto.hash.sha2.Sha256.hash(bytes[0..480], bytes[480..512], .{});
 }
