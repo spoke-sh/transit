@@ -50,7 +50,7 @@ def main():
     profiles = dict(
         application=[['just', 'test::server-application-faults'], ['just', 'test::runtime-upgrade']],
         query=[['just', 'test::unified-lifecycle'], ['just', 'test::unified-expiry'],
-               ['just', 'test::interactive-query', '--source', 'table']],
+               ['just', 'test::interactive-query']],
         reactive=[['just', 'test::reactive-views-lifecycle']],
         discovery=DISCOVERY)
     started = time.monotonic()
