@@ -8,6 +8,7 @@ const Service = @import("LocalTableService.zig");
 const w = c.DirectTableProtocol;
 pub const Protocol = w;
 const Self = @This();
+const stripe_count = 64;
 pub const Config = struct {
     catalog: c.DirectCatalog.Configuration,
     registrar: struct { principal: u64, seed_file: []const u8, role: ?u64 = null },
@@ -21,10 +22,11 @@ options: c.DirectCatalog.Options,
 recovery: c.DirectCatalog.RecoveryState,
 recovery_mutex: std.Io.Mutex = .init,
 directory: std.Io.RwLock = .init,
-tables: [64]std.Io.Mutex = @splat(.init),
-/// Disposable prefix per lock stripe. Collision causes full Table recovery;
-/// the array bounds resident hints, never the durable Table population.
-table_recovery: [64]?c.storage.TablePartition.RecoveryState = @splat(null),
+tables: [stripe_count]std.Io.Mutex = @splat(.init),
+/// Disposable prefix per lock stripe. Name-only lookups borrow a stripe for
+/// their hint too; the resolved object/partition must still match at open.
+/// Collision causes full recovery, never a limit on durable Table population.
+table_recovery: [stripe_count]?c.storage.TablePartition.RecoveryState = @splat(null),
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *backend.DataAuthority.Engine) !Self {
     try config.catalog.validate();
@@ -78,11 +80,23 @@ fn target(action: w.Action) ?u64 {
         else => null,
     };
 }
+fn stripe(action: w.Action) ?usize {
+    if (target(action)) |object| return @intCast(object % stripe_count);
+    return switch (action) {
+        // A name lookup discloses an observed definition, not a mutation. It
+        // already tolerates concurrent row acceptance; this lock serializes
+        // only its disposable hint. Catalog changes still require directory's
+        // exclusive side, and DirectCatalog verifies identity and current rights.
+        .lookup => |value| @intCast(std.hash.Wyhash.hash(value.namespace, value.name) % stripe_count),
+        else => null,
+    };
+}
 pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, request: w.Request, output: []u8) ![]const u8 {
     const write = exclusive(request.action);
     if (write) try self.directory.lock(io) else try self.directory.lockShared(io);
     defer if (write) self.directory.unlock(io) else self.directory.unlockShared(io);
-    const mutex = if (!write) if (target(request.action)) |object| &self.tables[@intCast(object % self.tables.len)] else null else null;
+    const index = if (write) null else stripe(request.action);
+    const mutex = if (index) |slot| &self.tables[slot] else null;
     if (mutex) |lock| try lock.lock(io);
     defer if (mutex) |lock| lock.unlock(io);
     try self.recovery_mutex.lock(io);
@@ -94,7 +108,7 @@ pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, a
         if (recovered.root.next_lsn > self.recovery.root.next_lsn) self.recovery = recovered;
     }
     var options = self.options;
-    if (mutex != null) options.table_recovery = &self.table_recovery[@intCast(target(request.action).? % self.tables.len)];
+    if (index) |slot| options.table_recovery = &self.table_recovery[slot];
     var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered };
     return service.execute(arena, request, output);
 }

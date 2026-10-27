@@ -257,9 +257,14 @@ for a cache entry. An unchanged Table replays zero successor records; that does
 not eliminate declaration, boundary or index-root reads.
 
 `LocalTableHost` retains at most 64 owned Table hints, one per serialized lock
-stripe, for object-scoped requests and automatic flushing. Name resolution and
-directory scans still open Tables without these hints. Collision discards only
-volatile history evidence. The next open either validates a matching hint or
+stripe, for object-scoped requests, name resolution and automatic flushing.
+Name-only lookups hash the requested namespace/name into a stripe; this selects
+only a disposable hint, not the object's identity or rights. Catalog changes
+remain excluded by the directory lock. The actual resolved object and partition
+must match the hint before reuse. Name lookup can observe concurrent row
+acceptance as before; its stripe serializes the cache slot, while row mutations
+still use their object stripe. Directory scans open Tables without these hints.
+Collision discards only volatile history evidence. The next open either validates a matching hint or
 performs ordinary recovery; no pin, pending statement or durable Table is evicted.
 An uncertain append cannot export a hint, and the service clears the selected
 slot after a failed request, including denied final disclosure. Replacement
@@ -272,7 +277,8 @@ and missing capsules on disk. The
 [catalog hint test](../../../packages/zig/transit-catalog/src/direct_catalog_test.zig)
 forces eviction and name changes; the
 [native policy schedule](../../../apps/transit-node/local_catalog_policy_test.zig)
-checks revocation after buffering with a warm hint. These are component and
+checks revocation after buffering with a warm hint, and compares cold/warm name
+lookups through the host before replacing the native object's owner. These are component and
 composition checks, not a measured end-to-end speedup. Increasing page capacity
 alone would not remove repeated history validation; retaining complete Table
 owners could additionally reuse pages but requires separate allocator, lifetime

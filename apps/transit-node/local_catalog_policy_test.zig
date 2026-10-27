@@ -84,16 +84,16 @@ fn proofWithSeed(engine: *Engine, context: [32]u8, seed: u8) !a.Proof {
     return a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = 101, .credential_epoch = (try engine.principal(101)).credential_epoch, .role = null, .audience = 100, .context = context }, try key(seed));
 }
 
-fn dispatch(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action) !std.json.Parsed(c.DirectTableProtocol.Response) {
+fn dispatch(service: anytype, action: c.DirectTableProtocol.Action) !std.json.Parsed(c.DirectTableProtocol.Response) {
     return dispatchDelegated(service, action, null);
 }
-fn dispatchDelegated(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation) !std.json.Parsed(c.DirectTableProtocol.Response) {
+fn dispatchDelegated(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation) !std.json.Parsed(c.DirectTableProtocol.Response) {
     return dispatchBorrowed(service, action, delegation, null);
 }
-fn dispatchBorrowed(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow) !std.json.Parsed(c.DirectTableProtocol.Response) {
+fn dispatchBorrowed(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow) !std.json.Parsed(c.DirectTableProtocol.Response) {
     return dispatchWithSeed(service, action, delegation, borrow, 29);
 }
-fn dispatchWithSeed(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow, seed: u8) !std.json.Parsed(c.DirectTableProtocol.Response) {
+fn dispatchWithSeed(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow, seed: u8) !std.json.Parsed(c.DirectTableProtocol.Response) {
     const w = c.DirectTableProtocol;
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
@@ -137,6 +137,43 @@ fn dispatchWithSeed(service: *@import("LocalTableService.zig"), action: c.Direct
     }
     try t.expectEqualDeep(signed.claim.context, response.value.context);
     return response;
+}
+
+fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, native_table: u64, owner_role: u64) !void {
+    const Host = @import("LocalTableHost.zig");
+    const Adapter = struct {
+        host: *Host,
+        engine: *Engine,
+        configuration: D.Configuration,
+        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, request: c.DirectTableProtocol.Request, output: []u8) ![]const u8 {
+            return self.host.execute(self.engine.journal.backend.io, self.engine, arena, request, output);
+        }
+    };
+    var options = service.options;
+    options.table_recovery = null;
+    var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = options, .recovery = service.recovery_state.?.* };
+    var adapter: Adapter = .{ .host = &host, .engine = service.engine, .configuration = service.configuration };
+    const action: c.DirectTableProtocol.Action = .{ .lookup = .{ .namespace = 1, .name = name } };
+    const disk = service.engine.journal.backend.wal.disk.?;
+    const before = disk.read_frames;
+    const cold = try dispatch(&adapter, action);
+    defer cold.deinit();
+    const cold_frames = disk.read_frames - before;
+    const warmed = disk.read_frames;
+    const warm = try dispatch(&adapter, action);
+    defer warm.deinit();
+    const warm_frames = disk.read_frames - warmed;
+    try t.expectEqualDeep(cold.value, warm.value);
+    try t.expect(warm_frames < cold_frames);
+    // The name selects only a volatile slot. Its retained root cannot preserve
+    // disclosure rights after the actual native object's owner is replaced.
+    _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = 0 } });
+    try t.expectError(error.Forbidden, dispatch(&adapter, action));
+    _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = owner_role } });
+    const restored = try dispatch(&adapter, action);
+    defer restored.deinit();
+    try t.expectEqualDeep(cold.value.result, restored.value.result);
+    std.debug.print("Name lookup WAL frames: cold {d}, warm {d}; revocation rechecked.\n", .{ cold_frames, warm_frames });
 }
 
 fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !void {
@@ -260,6 +297,7 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     // rows if native ownership changes before the final disclosure fence.
     var store = try engine.authorization();
     const native_table = (try store.bound(config.authority.table_domain, try c.TableAuthority.binding(config.scope, .table, 10))).?.reference.id;
+    try hostLookup(&service, ddl.name, native_table, owner_role);
     try delegatedDispatch(&service, snapshot, historical.value.result.snapshot, owner_role, native_table);
     const Revoke = struct {
         fn run(context: *anyopaque, current: *Engine) !void {

@@ -115,8 +115,11 @@ listener. Point and bulk row bytes bypass native actor inputs and resource-block
 frames. Catalog DDL excludes concurrent row admission; independent Table requests
 share directory access and use 64 bounded lock stripes. A stripe collision can
 serialize otherwise independent Tables. No per-row catalog root is published.
-The service opens a bounded Table/catalog view for each request; recovery cost
-currently grows with retained history even though resident caches stay bounded.
+The service opens a bounded Table/catalog view for each request. Up to 64 Table
+history hints reuse previously verified prefixes for object requests, name
+lookups and automatic flushing. Every open verifies the accepted boundary and
+current roots, and every disclosure checks current rights. Collisions evict only
+volatile hints; cold recovery still depends on retained replay/checkpoint coverage.
 
 Direct requests accept at most 8 MiB and buffer at most 16 MiB of response, in
 addition to bounded schema/row conversion, index caches and private storage work.
