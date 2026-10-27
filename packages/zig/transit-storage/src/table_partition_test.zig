@@ -1466,6 +1466,72 @@ fn key(value: i128, buffer: []u8) ![]const u8 {
     return f.Collation.encodePrimaryKeySortKey(schema, &.{.{ .value = .{ .atom = .{ .signed = value } } }}, false, buffer);
 }
 
+test "bounded pending observation and fixed flush cut preserve later writes and old pins" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    var cells: [11]f.Types.Values.Cell = undefined;
+    var changes: [10]P.Change = undefined;
+    for (&cells, 0..) |*cell, i| cell.* = .{ .value = .{ .atom = .{ .signed = @intCast(i) } } };
+    for (&changes, 0..) |*item, i| item.* = change(&cells[i], i + 1);
+    const saved = binding(&table, 1);
+    _ = try table.apply(saved, &changes, .point, access.guard());
+    const cut = table.root.next_lsn;
+    const pin_owner: p.DataLifecycle.Operation = .{ .scope = object.scope, .principal = 4, .operation = 91 };
+    const handle = try table.pin(pin_owner, .{ .partition = 17, .next_lsn = cut }, access.guard());
+    const before = table.root;
+    const puts = objects.puts;
+    const partial = try table.pendingRows(3, access.guard());
+    try t.expectEqual(@as(u64, 3), partial.rows);
+    try t.expect(!partial.complete and partial.bytes > 0);
+    try t.expectEqual(@as(?u64, 0), partial.oldest_lsn);
+    const whole = try table.pendingRows(10, access.guard());
+    try t.expect(whole.complete and whole.rows == 10 and whole.bytes > partial.bytes);
+    try t.expectEqualDeep(before, table.root);
+    try t.expectEqual(puts, objects.puts);
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.pendingRows(10, access.guard()));
+    access.deny_at = std.math.maxInt(usize);
+    try t.expectError(error.InvalidTableReadBudget, table.pendingRows(0, access.guard()));
+    try t.expectError(error.InvalidTableReadBudget, table.pendingRows(P.max_changes + 1, access.guard()));
+    try t.expectEqual(@as(usize, 0), try table.flushThrough(0, access.guard()));
+    try t.expectError(error.InvalidTableBasis, table.flushThrough(table.root.next_lsn + 1, access.guard()));
+    const later_lsn = table.root.next_lsn;
+    _ = try table.apply(binding(&table, 2), &.{change(&cells[10], 11)}, .point, access.guard());
+    var key_bytes: [4096]u8 = undefined;
+    var deletion = binding(&table, 3);
+    deletion.action = .delete;
+    _ = try table.apply(deletion, &.{.{ .remove = try key(0, &key_bytes) }}, .point, access.guard());
+    const logical = table.root.changed_lsn;
+    table.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, table.flushThrough(cut, access.guard()));
+    table.lose_reply = false;
+    try table.recover();
+    const after_flush = try table.pendingRows(10, access.guard());
+    try t.expect(after_flush.complete and after_flush.rows == 1);
+    try t.expectEqual(@as(?u64, later_lsn), after_flush.oldest_lsn);
+    try t.expectEqual(logical, table.root.changed_lsn);
+    const accepted = table.root;
+    const accepted_puts = objects.puts;
+    try t.expectEqual(@as(usize, 0), try table.flushThrough(cut, access.guard()));
+    try t.expectEqualDeep(accepted, table.root);
+    try t.expectEqual(accepted_puts, objects.puts);
+    var older = (try table.readSnapshot(t.allocator, handle, try key(0, &key_bytes), access.guard())).?;
+    defer older.deinit();
+    try t.expect(older == .wal);
+    try t.expectEqual(@as(i128, 0), older.row().cells[0].value.atom.signed);
+    var moved = (try table.get(t.allocator, try key(1, &key_bytes), access.guard())).?;
+    defer moved.deinit();
+    try t.expect(moved == .segment);
+    try t.expectEqual(@as(usize, 1), try table.flush(access.guard()));
+    try t.expectEqualDeep(P.PendingRows{}, try table.pendingRows(10, access.guard()));
+    try t.expectEqual(@as(u64, 10), (try table.observe(saved, access.guard())).?.affected);
+}
+
 test "logical Table history is bounded, separates physical work and preserves accepted no-ops across restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

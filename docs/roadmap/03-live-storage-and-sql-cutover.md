@@ -286,7 +286,7 @@ outcomes in the real node on physical disk, checks exact original receipts and
 the three-reopen budget, then resolves the saved request after process restart.
 The existing service schedule also passes signed reads/turns, malformed reply,
 abrupt restart, local maintenance and current revocation on one CPU. P1's full
-launcher, payload and installed durable-owner gates remain open.
+installed durable-owner gate remains open.
 
 The payload slice adds authenticated local publication/verification/reads and
 current-authorized opted-in deletion through native maintenance. The installed
@@ -294,8 +294,16 @@ node route passes the independent signed HTTP schedule and shared Zig client
 read, including a discarded creation reply, restart, permanent attempt fence,
 current revocation and an unlimited-retention neighbor. The seven backend
 payload failure/integrity tests pass in `ReleaseSafe`; the protocol package
-passes 60 tests in `Debug`, and all 18 reflected contract checks pass. Full
-launcher/installed durable-owner qualification remains the P1.4 gate.
+passes 60 tests in `Debug`, and all 18 reflected contract checks pass. The full
+Station local launcher passes bootstrap, registry/call/Arrow exchange, worker
+replacement, upgrades and persistent restart without changing deadlines. The
+Document local recovery schedule passes with a one-page recovery cache.
+Committed-source fast qualification passes all 39 selected checks at
+`9cc0c99c6403`. One concurrent installed SQL run failed during authorization
+bootstrap, before SQL submission; its original installation subsequently resumed
+to readiness with identical binaries. Preserve that failure while diagnosing
+contention and qualifying the installed lifecycle. These results do not close
+P1.4 or establish the final common-revision acceptance gate.
 
 #### P2 — Make point flushing automatic and inspectable
 

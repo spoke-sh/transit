@@ -77,6 +77,36 @@ fn value(index: usize) p.Value {
     return p.Value.init(&buffer) catch unreachable;
 }
 
+test "last directory entry follows one verified path without retaining a growing walk" {
+    var store: Store = .{};
+    defer store.deinit();
+    const tree: p.Tree(Store) = .{ .store = &store };
+    try t.expect(try tree.lastEntry(null) == null);
+    try t.expectEqual(0, store.reads);
+    var root: ?p.Reference = null;
+    for (0..257) |i| root = try tree.put(root, key(i), value(i));
+    const writes = store.writes;
+    store.reads = 0;
+    const boundary = (try tree.lastEntry(root)).?;
+    try t.expectEqualDeep(p.Entry{ .key = key(256), .value = value(256) }, boundary);
+    const reads = store.reads;
+    try t.expect(reads > 1 and reads <= 9);
+    try t.expectEqual(writes, store.writes);
+    const next = try tree.put(root, key(1000), value(1000));
+    try t.expectEqualDeep(boundary, (try tree.lastEntry(root)).?);
+    try t.expectEqualDeep(key(1000), (try tree.lastEntry(next)).?.key);
+    for (0..reads) |offset| {
+        store.missing_at = store.reads + offset;
+        try t.expectError(error.PageUnavailable, tree.lastEntry(root));
+    }
+    store.missing_at = null;
+    store.corrupt = true;
+    try t.expectError(error.CorruptPage, tree.lastEntry(root));
+    store.corrupt = false;
+    const shortened = try tree.remove(root, key(256));
+    try t.expectEqualDeep(key(255), (try tree.lastEntry(shortened)).?.key);
+}
+
 test "independent leaf rewrites share bounded batches without publishing partial locators" {
     try leafBatches(8);
     try leafBatches(24);

@@ -255,6 +255,24 @@ pub fn BoundedTree(comptime Store: type, comptime budget: usize) type {
             }
             return error.InvalidPageHeight;
         }
+        /// Observe the largest key through one verified path. A maintenance
+        /// pass can retain this scalar boundary without pinning a directory or
+        /// letting later insertions extend its pass indefinitely.
+        pub fn lastEntry(self: Self, root: ?Reference) !?Entry {
+            var ref = root orelse return null;
+            var height: ?u8 = null;
+            for (0..max_height + 1) |_| {
+                const page = try self.load(ref, height);
+                switch (page.body) {
+                    .leaf => |entries| return entries[page.count - 1].?,
+                    .branch => |children| {
+                        ref = children[page.count - 1].?.reference;
+                        height = page.height - 1;
+                    },
+                }
+            }
+            return error.InvalidPageHeight;
+        }
         /// One bounded immutable observation, in caller order. Pending paths
         /// partition the requested keys, so at most page_entries references and
         /// one decoded page are resident; ancestors are not retained recursively.

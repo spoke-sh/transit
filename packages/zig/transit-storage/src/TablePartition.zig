@@ -1601,12 +1601,62 @@ fn stageSegment(self: *Self, allocator: std.mem.Allocator, schema: f.TableSchema
 /// Flush at most one bounded group of accepted WAL rows. The accepted row index
 /// itself is the paged manifest; replacing locators publishes no logical change.
 pub fn flush(self: *Self, guard: Guard) !usize {
-    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.build_resident_bytes };
-    defer self.build_resident_peak = memory.peak;
-    return self.flushWithinBudget(memory.allocator(), guard) catch |err| return buildFailure(&memory, err);
+    return self.flushThrough(self.root.next_lsn, guard);
 }
 
-fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, guard: Guard) !usize {
+/// The exclusive acceptance cut is fixed by the caller. Later writes, including
+/// replacements of older rows, cannot extend this physical-work obligation.
+/// Historical pins retain their own WAL dependencies after current rows move.
+pub fn flushThrough(self: *Self, through: u64, guard: Guard) !usize {
+    try self.ready();
+    if (through > self.root.next_lsn) return error.InvalidTableBasis;
+    var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.build_resident_bytes };
+    defer self.build_resident_peak = memory.peak;
+    return self.flushWithinBudget(memory.allocator(), through, guard) catch |err| return buildFailure(&memory, err);
+}
+
+pub const PendingRows = struct {
+    rows: u64 = 0,
+    bytes: u64 = 0,
+    /// A lower bound is never presented as an exact pending count.
+    complete: bool = true,
+    /// Physical WAL record containing the oldest current row, not a history
+    /// floor or the oldest row retained by a historical reader.
+    oldest_lsn: ?u64 = null,
+};
+
+/// Read only the bounded manifest prefix; no row decoding, staging or work
+/// request occurs. The owner serializes this observation with Table publication.
+pub fn pendingRows(self: *Self, limit: usize, guard: Guard) !PendingRows {
+    try self.ready();
+    if (limit == 0 or limit > max_changes) return error.InvalidTableReadBudget;
+    {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+    }
+    var result: PendingRows = .{};
+    var after: ?pages.Key = null;
+    observe: while (true) {
+        const batch = try self.scan(self.root, after);
+        for (batch.entries) |slot| if (slot) |entry| {
+            const locator = try r.Locator.decode(entry.value);
+            if (locator.kind != .wal) break :observe;
+            if (result.rows == limit) {
+                result.complete = false;
+                break :observe;
+            }
+            if (result.oldest_lsn == null) result.oldest_lsn = locator.lsn;
+            result.rows += 1;
+            result.bytes = try std.math.add(u64, result.bytes, locator.length);
+        };
+        after = batch.next orelse break;
+    }
+    _ = try guard.acquire(guard.context);
+    defer guard.release(guard.context);
+    return result;
+}
+
+fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, through: u64, guard: Guard) !usize {
     try self.ready();
     if (self.root.retired) return error.TableRetired;
     {
@@ -1625,7 +1675,7 @@ fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, guard: Guard) !u
             const locator = try r.Locator.decode(entry.value);
             // WAL locators sort before segment locators. Once this boundary is
             // reached there is no unflushed work later in the durable directory.
-            if (locator.kind != .wal) break :find;
+            if (locator.kind != .wal or locator.lsn >= through) break :find;
             if (locator.length > max_row_bytes - bytes or rows.items.len == max_changes) break :find;
             const row = try self.readRow(a, self.root, entry.key, entry.value);
             try rows.append(a, row.row());

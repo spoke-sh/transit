@@ -147,6 +147,72 @@ pub fn recoveryState(self: *Self) !RecoveryState {
     return self.store.recoveryState();
 }
 
+/// Disposable physical-work hints, never a retained read or permission. The
+/// pass boundary prevents continual high-ID creation from starving older Tables.
+/// Each step observes the current directory; additions behind it wait one pass.
+pub const MaintenanceCursor = struct { after: ?u64 = null, through: ?u64 = null };
+pub const MaintenanceSelection = struct { object: ?u64, pass_complete: bool };
+
+/// Internal operator traversal, not application metadata disclosure. The host
+/// supplies a current native maintenance guard and holds its directory lock.
+/// Inspect one entry per step, including unregistered and named native objects.
+/// No Table owner or list proportional to durable cardinality remains resident.
+pub fn maintenanceNext(self: *Self, cursor: *MaintenanceCursor, guard_value: P.Guard) !MaintenanceSelection {
+    try check(guard_value);
+    try self.store.refresh();
+    if (cursor.after) |after| if (cursor.through == null or after > cursor.through.?) return error.InvalidMaintenanceCursor;
+    var next = cursor.*;
+    if (next.through == null) {
+        if (try self.store.tree().lastEntry(self.store.root.objects)) |last| {
+            const value = try r.fromValue(r.Entry, self.allocator, last.value);
+            try self.validateEntry(value, last.key);
+            next.through = value.object;
+        }
+    }
+    var selected: ?u64 = null;
+    var complete = true;
+    if (self.store.root.initialized and next.through != null) {
+        const page = try self.store.tree().scan(self.store.root.objects, if (next.after) |after| try r.idKey(after) else null);
+        if (page.entries[0]) |item| {
+            const value = try r.fromValue(r.Entry, self.allocator, item.value);
+            try self.validateEntry(value, item.key);
+            if (value.object <= next.through.?) {
+                next.after = value.object;
+                complete = value.object == next.through.?;
+                if (value.resource == null and value.seed != null) selected = value.object;
+            }
+        }
+    }
+    try check(guard_value);
+    cursor.* = if (complete) .{} else next;
+    return .{ .object = selected, .pass_complete = complete };
+}
+
+fn validateEntry(self: *Self, value: r.Entry, key: pages.Key) !void {
+    try value.validate(self.config());
+    if (!std.meta.eql(key, try r.idKey(value.object)) or value.partition >= self.store.root.next_partition or (value.resource orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
+}
+
+/// The caller takes the selected Table's lock after directory discovery and
+/// retains both locks through the physical unit. Revalidate the current entry;
+/// the cursor contains no borrowed schema, stale owner, or authorization.
+pub fn maintenanceOpen(self: *Self, allocator: std.mem.Allocator, object: u64, guard_value: P.Guard) !?View {
+    try check(guard_value);
+    try self.requireInitialized();
+    const target = try self.entry(object) orelse {
+        try check(guard_value);
+        return null;
+    };
+    if (target.resource != null or target.seed == null) {
+        try check(guard_value);
+        return null;
+    }
+    var view = try self.open(allocator, target, false);
+    errdefer view.deinit();
+    try check(guard_value);
+    return view;
+}
+
 fn namedRecord(self: *Self, object: u64) !?Resource.Operation {
     const target = try self.entry(object) orelse return null;
     const at = target.resource orelse return null;

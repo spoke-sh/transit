@@ -333,6 +333,21 @@ Table WAL. It neither rewrites all manifests nor accumulates all historical rows
 in memory. Flush preserves the identity index. The logical-change frontier does not advance for flush or pin control
 records; accepted definition changes do advance it. Existing read roots still address their original row versions.
 
+`flushThrough(exclusive_frontier, guard)` restricts that unit to current WAL row
+locators strictly below a fixed accepted frontier. Later writes do not extend
+the target, and overwritten/deleted rows cease to be current obligations. A
+lost publication reply is resolved from the accepted root before repeating the
+same target. Historical pins retain independent WAL dependencies. This primitive
+does not itself persist a caller's work request.
+
+`pendingRows(limit, guard)` reads the current manifest prefix without decoding
+row values or staging objects. It returns the observed row count, encoded WAL
+row bytes, earliest current-row WAL position and an explicit completeness flag.
+The limit is 1–1,024 rows; incomplete counts are lower bounds. A scan validates at
+most one extra page to establish completion. Both entry and final disclosure
+recheck authority. Pending counts describe current rows, not retained history,
+physical device bytes or logical expiry eligibility.
+
 The segment encoder writes into its supplied output budget, including values
 larger than 4 KiB and column pages larger than 256 KiB. If any value lacks a
 complete sort key, that group's zone map cannot exclude values. It remains a

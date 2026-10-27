@@ -297,6 +297,85 @@ fn resolve(catalog: *D, access: *Access, name: []const u8) !?D.View {
     return catalog.resolve(t.allocator, 1, try a.Name.init(name), access.policy());
 }
 
+test "maintenance discovery bounds a growing catalog pass and rechecks current authority" {
+    const Physical = struct {
+        calls: usize = 0,
+        deny_at: ?usize = null,
+        held: bool = false,
+        fn acquire(raw: *anyopaque) !P.Guard.Fence {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            try t.expect(!self.held);
+            self.calls += 1;
+            if (self.calls == self.deny_at) return error.Forbidden;
+            self.held = true;
+            return .{ .writer_epoch = 1, .policy_epoch = 1 };
+        }
+        fn release(raw: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            std.debug.assert(self.held);
+            self.held = false;
+        }
+        fn guard(self: *@This()) P.Guard {
+            return .{ .context = self, .acquire = acquire, .release = release };
+        }
+        fn create(catalog: *D, access: *Access, object: u64) !void {
+            var buffer: [32]u8 = undefined;
+            const request = try creation(object, object, try std.fmt.bufPrint(&buffer, "table_{d}", .{object}));
+            _ = try catalog.admit(request, access.policy());
+            _ = try catalog.perform(request.binding, access.policy());
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    var physical: Physical = .{};
+    var cursor: D.MaintenanceCursor = .{};
+    try t.expectEqualDeep(D.MaintenanceSelection{ .object = null, .pass_complete = true }, try catalog.maintenanceNext(&cursor, physical.guard()));
+    try catalog.initialize(access.policy());
+    for (100..119) |object| try Physical.create(&catalog, &access, object);
+    try t.expect(@sizeOf(D.MaintenanceCursor) <= 32);
+    for (100..119) |object| {
+        const before = catalog.store.root;
+        const puts = objects.puts;
+        const selection = try catalog.maintenanceNext(&cursor, physical.guard());
+        try t.expectEqual(@as(?u64, object), selection.object);
+        try t.expectEqual(object == 118, selection.pass_complete);
+        var view = (try catalog.maintenanceOpen(t.allocator, object, physical.guard())).?;
+        defer view.deinit();
+        try t.expectEqual(object, view.table.root.interpretation.object.object);
+        try t.expectEqualDeep(before, catalog.store.root);
+        try t.expectEqual(puts, objects.puts);
+        // New high IDs never extend this pass. A low ID waits for the next
+        // pass rather than requiring an ever-growing resident pending queue.
+        try Physical.create(&catalog, &access, object + 1000);
+        if (object == 100) try Physical.create(&catalog, &access, 10);
+    }
+    try t.expectEqualDeep(D.MaintenanceCursor{}, cursor);
+    for ([_]usize{ 1, 2 }) |offset| {
+        physical.deny_at = physical.calls + offset;
+        try t.expectError(error.Forbidden, catalog.maintenanceNext(&cursor, physical.guard()));
+        try t.expectEqualDeep(D.MaintenanceCursor{}, cursor);
+    }
+    physical.deny_at = null;
+    try t.expectEqual(@as(?u64, 10), (try catalog.maintenanceNext(&cursor, physical.guard())).object);
+    try t.expectEqual(@as(?u64, 1118), cursor.through);
+    // Reconstruct from the accepted log, with no retained owner or cursor.
+    var restarted = try owner(&wal, &objects);
+    defer restarted.deinit();
+    var fresh: D.MaintenanceCursor = .{};
+    try t.expectEqual(@as(?u64, 10), (try restarted.maintenanceNext(&fresh, physical.guard())).object);
+    physical.deny_at = physical.calls + 2;
+    try t.expectError(error.Forbidden, restarted.maintenanceOpen(t.allocator, 10, physical.guard()));
+    physical.deny_at = null;
+    cursor = .{ .after = 10 };
+    try t.expectError(error.InvalidMaintenanceCursor, catalog.maintenanceNext(&cursor, physical.guard()));
+    try t.expect(!physical.held);
+}
+
 // This seeded schedule uses volatile log/object adapters. It exercises the real
 // catalog state machine and reconstruction, not disk or provider durability.
 test "simulation: direct catalog admission, publication and original receipts under current policy" {
