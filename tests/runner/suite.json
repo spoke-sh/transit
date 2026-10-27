@@ -58,7 +58,9 @@
       "test::public-query",
       "test::publication",
       "test::table-query-writer",
-      "test::catalog",
+      "test::catalog"
+    ],
+    "interfaces": [
       "test::sql-gateway",
       "test::sql-wire-gateway",
       "test::sql-sessions",
@@ -133,6 +135,7 @@
       "formal",
       "core",
       "growth",
+      "interfaces",
       "experience",
       "launchers",
       "bindings-1",
@@ -142,6 +145,7 @@
       "formal",
       "core",
       "growth",
+      "interfaces",
       "experience",
       "launchers",
       "bindings-1",
@@ -319,6 +323,10 @@
       "shell": "default",
       "prepare": []
     },
+    "interfaces": {
+      "shell": "default",
+      "prepare": []
+    },
     "experience": {
       "shell": "ci-experience",
       "prepare": [
@@ -422,7 +430,11 @@
     },
     "growth": {
       "cache": "core",
-      "timeout": 300
+      "timeout": 150
+    },
+    "interfaces": {
+      "cache": "core",
+      "timeout": 150
     },
     "experience": {
       "cache": "experience",

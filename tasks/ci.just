@@ -35,6 +35,10 @@ formal:
 growth:
     python3 -B tests/runner/ci.py growth
 
+# SQL protocols, relational callers and HTTP/gRPC interfaces.
+interfaces:
+    python3 -B tests/runner/ci.py interfaces
+
 # Frontend, instrumentation, Board and persistent native launcher proofs.
 experience:
     python3 -B tests/runner/ci.py experience

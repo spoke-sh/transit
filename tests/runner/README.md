@@ -149,8 +149,13 @@ complete successful runs before enabling it. Directory location alone is not
 evidence that no other caller exists. CI records the proposal with the executed
 tasks; the runner rejects plans for another commit, unowned/omitted tasks or a
 different policy. A scoped successful result cannot qualify a full-suite budget.
-Hosted work keeps the existing seven-job ceiling; each lane remains sequential,
-with isolated mutable state and one cache writer per selected toolchain closure.
+Hosted work schedules eight lanes within the existing seven-job ceiling; each
+lane remains sequential, with isolated mutable state and one cache writer per
+selected toolchain closure. Storage/catalog/query tasks belong to `growth`;
+SQL protocol/relational and HTTP/gRPC tasks belong to `interfaces`. These split
+the former 39-task growth lane at existing task boundaries. Formal feedback stays
+early. The additional job repeats its shell/cache and native preparation; cost
+comparisons must include that work as well as elapsed-time changes.
 
 `just bindings::runtime-boundary` checks Nix input selection, then builds and
 exercises the actual packaged runtime and SQL gateway without test or SDK source.
