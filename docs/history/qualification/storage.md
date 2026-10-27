@@ -9,6 +9,51 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Local bounded-growth requalification — 2026-10-27
+
+The complete Table growth matrix passes at clean source `d75f0ac7b`, using
+ReleaseSafe, 16 KiB values, one resident index page, a 512 KiB encoded cache and
+a separate 128 KiB decoded allowance. Both setup and cold readback run under
+the unchanged **128 MiB process address-space ceiling** and 1,800-second child
+guard. The report is `.cache/storage-growth-table-completion.json`; the log is
+`/var/tmp/transit-m2-growth-table-completion.log`. Reproduce inside the pinned
+shell with `just test::storage-growth --owner table --output .cache/storage-growth-table.json`.
+
+| Observation | 2,048 rows | 8,192 rows |
+| --- | ---: | ---: |
+| Retained file bytes | 44,906,256 | 193,003,856 |
+| Allocated disk bytes | 114,282,496 | 507,817,984 |
+| File count | 26,125 | 120,998 |
+| Setup seconds | 54.156 | 1,065.057 |
+| Cold physical open / logical recovery / read seconds | 0.008 / 0.100 / 0.821 | 0.043 / 0.677 / 3.888 |
+| Setup peak virtual / resident KiB | 76,916 / 34,232 | 76,916 / 34,232 |
+| Readback peak virtual / resident KiB | 11,692 / 7,796 | 11,692 / 7,796 |
+
+Both sizes have the same tracked setup allocation peak, **67,015,751 bytes**;
+readback peaks at **312,449 bytes**. The larger fixture exceeds the child memory
+ceiling in retained file lengths, not just filesystem block allocation. Every
+value, payload digest, original receipt and retained snapshot size verifies;
+file hashes and allocation remain unchanged. The driver and kernel page cache
+are outside the child ceiling. The standalone Table fixture does not include
+the installed adapter's native authority or allocation-inventory costs. The
+filesystem is ext4 (`stat -f` reports the ext family as `ext2/ext3`). These single
+observations are not latency percentiles, an installed benchmark or a claim
+that the data exceed host RAM.
+
+The frozen executable SHA-256 is
+`e458dbcf62a125667697cccd8776c4d3ae47d90a9bff54c54ed577e94072e359`;
+the report retains compiler, driver, probe, lock and fixture hashes. Its compiler
+is `0.17.0-dev.2267+48abf1a34`. Later changes through `261bfaca2` add tests and
+documentation, without changing this runtime or probe.
+
+The separate native run at `c15e6344b` remains **failed**: 512 turns complete
+with 74,165,126 retained bytes, but the 2,048-turn setup exceeds its 1,800-second
+guard. Its report is `.cache/storage-growth-native-completion.json` and log is
+`/var/tmp/transit-m2-growth-native-completion.log`. The smaller native fixture
+does not exceed 128 MiB; neither that partial result nor the complete Table
+matrix establishes native growth beyond the ceiling. The failure must remain
+distinct from any measurement under a different execution guard.
+
 ## Segment membership selectivity — 2026-10-27
 
 The range-reader control in `be360c2f0` holds the row count at 256 and varies
