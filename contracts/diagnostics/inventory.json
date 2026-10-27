@@ -2245,11 +2245,12 @@
         "put()": "<inferred>",
         "putNative()": "<inferred>",
         "read()": "<inferred>",
+        "requiresRecovery()": "<inferred>",
         "reserve()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 53,
+        "try": 55,
         "catch": 2
       },
       "imports": [
@@ -2625,14 +2626,14 @@
     },
     "packages/zig/transit-backend-local/src/PayloadStore.zig": {
       "errors": {
-        "InvalidPayload": 2,
+        "InvalidPayload": 3,
         "InvalidPayloadOwner": 1,
-        "MissingStorageObject": 1,
+        "MissingStorageObject": 2,
         "PayloadCreationAttempted": 1,
         "PayloadIdentityMismatch": 1,
         "PayloadIntegrity": 3,
-        "PayloadPhase": 2,
-        "PayloadUnavailable": 3,
+        "PayloadPhase": 3,
+        "PayloadUnavailable": 4,
         "UnknownPayload": 1
       },
       "outcomes": {},
@@ -2641,7 +2642,10 @@
         "acquire()": "<inferred>",
         "create()": "<inferred>",
         "createPayloadOnce()": "<inferred>",
+        "guard.check()": "anyerror",
         "marker()": "<inferred>",
+        "read()": "<inferred>",
+        "readPayload()": "<inferred>",
         "reclaim()": "<inferred>",
         "reclaimPayload()": "<inferred>",
         "requireMarker()": "<inferred>",
@@ -2649,10 +2653,10 @@
         "verify()": "<inferred>",
         "verifyPayload()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 26,
-        "catch": 4
+        "try": 30,
+        "catch": 5
       },
       "imports": [
         "Backend.zig",
@@ -6340,6 +6344,7 @@
         "Client.callOwned()": "<inferred>",
         "Client.concurrentBefore()": "<inferred>",
         "Client.exchange()": "<inferred>",
+        "Client.payload()": "<inferred>",
         "Client.perform()": "anyerror",
         "Client.query()": "<inferred>",
         "Client.queryBlocks()": "<inferred>",
@@ -6351,7 +6356,7 @@
       },
       "open_error_set_uses": 7,
       "propagation": {
-        "try": 25,
+        "try": 28,
         "catch": 10
       },
       "imports": [
@@ -13668,6 +13673,44 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/NativePayload.zig": {
+      "errors": {
+        "InvalidAuthorizationCredential": 1,
+        "InvalidPayload": 5,
+        "InvalidPayloadResponse": 6,
+        "PayloadIntegrity": 1
+      },
+      "outcomes": {
+        "Operation.kind": [
+          "create",
+          "verify",
+          "read"
+        ],
+        "Response.outcome": [
+          "created",
+          "verify_required",
+          "verified",
+          "read"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Operation.context()": "<inferred>",
+        "Operation.subject()": "<inferred>",
+        "Operation.validate()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "Response.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/RecursiveSchema.zig": {
       "errors": {},
       "outcomes": {},
@@ -14053,6 +14096,7 @@
         "IndexLifecycle.zig",
         "Json.zig",
         "Lifecycle.zig",
+        "NativePayload.zig",
         "Runtime.zig",
         "Schema.zig",
         "State.zig",
