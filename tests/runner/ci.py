@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import time
 import platform
+import subprocess
 
 from capture import directory, provenance, run, write_json
 
@@ -15,13 +16,32 @@ if SUITE["version"] != 1:
 LANES = SUITE["lanes"]
 
 
+def selected_tasks(lane, selection):
+    from ci_select import select
+
+    plan = json.loads(Path(selection).read_text())
+    assert plan["version"] == 2, "Unknown CI selection format"
+    revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    assert plan["checkout_sha"] == revision, "Selection belongs to a different source revision"
+    expected = select(plan["paths"], plan["comparison"]["event"], suite=SUITE)
+    assert all(plan[key] == value for key, value in expected.items()), "CI selection differs from the current dependency policy"
+    lanes = plan["lanes"] | plan["additional_lanes"]
+    assert lane in lanes and lanes[lane], "Lane has no selected checks"
+    return lanes[lane], plan
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("lane", choices=("all", *SUITE["tiers"], *LANES))
+    parser.add_argument("--selection", default=os.getenv("TRANSIT_CI_SELECTION_PATH"))
     args = parser.parse_args()
     tier = "ordinary" if args.lane == "all" else args.lane
     lanes = SUITE["tiers"].get(tier, [tier])
+    tasks = {lane: LANES[lane] for lane in lanes}
+    selection = None
+    if args.selection:
+        assert args.lane in LANES, "Scoped selection requires one named lane"
+        tasks[args.lane], selection = selected_tasks(args.lane, args.selection)
     results = []
     destination = ROOT / ".cache/ci" / f"{args.lane}.json"
     artifacts = directory(destination)
@@ -32,7 +52,8 @@ def main():
                 "run_directory": str(artifacts.relative_to(destination.parent)),
                 "started_unix": time.time(),
                 "tier": args.lane,
-                "expected_tasks": [task for lane in lanes for task in LANES[lane]],
+                "expected_tasks": [task for lane in lanes for task in tasks[lane]],
+                "selection": selection,
                 "run_id": os.getenv("GITHUB_RUN_ID"),
                 "run_attempt": os.getenv("GITHUB_RUN_ATTEMPT"),
                 "machine": {
@@ -55,7 +76,7 @@ def main():
     checkpoint()
     try:
         for lane in lanes:
-            for task in LANES[lane]:
+            for task in tasks[lane]:
                 print(f"::group::{lane}: just {task}" if os.getenv("GITHUB_ACTIONS")
                       else f"CI {lane}: just {task}", flush=True)
                 started = time.monotonic()

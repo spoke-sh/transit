@@ -11,7 +11,7 @@ import time
 import yaml
 from ci import LANES, ROOT, SUITE
 from capture import verify
-from ci_select import select
+from ci_select import matrix, select
 from ci_clean import profile
 from ci_cost import summarize
 from external_profiles import DISCOVERY
@@ -103,9 +103,15 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
 
 
 def main():
+    # Fixture runners must not inherit the hosted job's source-bound selection.
+    os.environ.pop("TRANSIT_CI_SELECTION_PATH", None)
     clean_runner()
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
-    selected = [row["lane"] for row in workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]]
+    strategy = workflow["jobs"]["checks"]["strategy"]
+    assert strategy["matrix"] == "${{ fromJSON(needs.plan.outputs.matrix) }}"
+    assert strategy["max-parallel"] == SUITE["selection"]["max_parallel"]
+    workers = matrix({task for lane in SUITE["tiers"]["ordinary"] for task in LANES[lane]})
+    selected = [row["lane"] for row in workers]
     assert selected == SUITE["tiers"]["ordinary"]
     assert SUITE["tiers"]["bindings"] == ["bindings-1", "bindings-2"]
     assert set(SUITE["tiers"]["bindings"]) <= set(selected)
@@ -127,18 +133,18 @@ def main():
     assert ".cache/native-artifacts/" in artifacts["with"]["path"].splitlines()
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
-    assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"
+    assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.documentation == 'true'"
+    assert workflow["jobs"]["checks"]["if"] == "needs.plan.outputs.checks == 'true'"
     assert "transit-docs::check" in LANES["experience"]
-    matrix = workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]
-    for row in matrix:
+    for row in workers:
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
     assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": []}
     assert LANES["formal"] == ["test::model", "test::wal-model", "test::model-delivery",
                                "test::console-model", "test::sql-rewrites"]
     assert ".cache/verification/wal-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/console-model/" in artifacts["with"]["path"].splitlines()
-    for cache in {row["cache"] for row in matrix}:
-        assert sum(row["cache_writer"] for row in matrix if row["cache"] == cache) == 1
+    for cache in {row["cache"] for row in workers}:
+        assert sum(row["cache_writer"] for row in workers if row["cache"] == cache) == 1
     events = workflow.get("on", workflow.get(True))
     assert events["push"]["branches"] == ["main"]
     assert {"pull_request", "merge_group", "workflow_dispatch"} <= events.keys()
@@ -244,16 +250,19 @@ def main():
     # Exercise the actual shell gate: skipped, cancelled and missing evidence
     # cannot pass merely because a dependent job did not execute.
     gate_script = gate["steps"][0]["run"]
-    for plan in ("success", "failure", "cancelled", "skipped", ""):
-        for full in ("true", "false", ""):
+    for checks, documentation in (("true", "false"), ("false", "true"), ("true", "true"),
+                                  ("false", "false"), ("", "true"), ("true", "")):
+        for plan in ("success", "failure", "cancelled", "skipped", ""):
             for result in ("success", "failure", "cancelled", "skipped", ""):
                 for docs in ("success", "failure", "cancelled", "skipped", ""):
                     passed = subprocess.run(["bash", "-e", "-c", gate_script], env=os.environ | {
-                        "PLAN": plan, "FULL": full, "RESULT": result, "DOCS": docs,
+                        "PLAN": plan, "CHECKS": checks, "DOCUMENTATION": documentation,
+                        "RESULT": result, "DOCS": docs,
                     }).returncode == 0
-                    assert passed == (plan == "success" and (full, result, docs) in {
-                        ("true", "success", "skipped"), ("false", "skipped", "success"),
-                    }), (plan, full, result, docs)
+                    assert passed == (plan == "success" and (checks, documentation) != ("false", "false")
+                                      and (checks, result) in {("true", "success"), ("false", "skipped")}
+                                      and (documentation, docs) in {("true", "success"), ("false", "skipped")}), (
+                                          plan, checks, documentation, result, docs)
     tasks = [task for lane in selected for task in LANES[lane]]
     assert len(tasks) == len(set(tasks)), "a proof is duplicated across lanes"
     assert {"test::packages-build", "test::compute"} <= set(LANES["core"])

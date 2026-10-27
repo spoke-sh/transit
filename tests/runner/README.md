@@ -20,7 +20,7 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | [test_checks.py](test_checks.py) | Real subprocess controls for generator/validator failures and incomplete evidence |
 | [ci.py](ci.py) | Execute the shared lane inventory with checkpointed task outcomes |
 | [ci_clean.py](ci_clean.py) | Qualify committed HEAD in a separate clone with scoped dependency preparation |
-| [ci_select.py](ci_select.py) | Conservative changed-path selection; unknown or shared inputs select full CI |
+| [ci_select.py](ci_select.py), [test_selection.py](test_selection.py) | Reviewed dependency selection, source-bound plans and conservative fallback controls |
 | [ci_cost.py](ci_cost.py) | Read hosted setup, execution and cache costs without treating missing lanes as success |
 | [ci_runner.py](ci_runner.py) | Selection, inventory, aggregate gate, interruption and clean-run regression controls |
 | [external_profiles.py](external_profiles.py) | Execute explicit deployment profiles and discovery campaigns with separate completion records |
@@ -111,6 +111,36 @@ affected real clean check/lane. [CI commands](../../tasks/ci.just) and
 and scenario definitions; this directory owns how their required tasks execute.
 The [task coverage checker](task_coverage.py) verifies direct
 recipe nesting and required tier ownership before expensive qualification.
+
+`just ci select BASE HEAD` reports the changed inputs, transitive consumer groups,
+proposed tasks and enforced lanes from `suite.json`. Selection currently runs in
+shadow mode: formal-model and Go SDK changes produce a scoped proposal while CI
+still executes the full ordinary inventory. Documentation-only routing remains
+active. Main, release, merge-group and manually dispatched qualification stay full.
+Both ends of a rename are inputs; a missing comparison revision fails planning.
+
+The reviewed graph is deliberately small. The Authority, WAL, Console and Delivery
+specifications feed their model drivers and formal tasks. The Go module feeds its
+archive builder, then the installed Go consumer and example in
+`bindings::go-sdk-test`. That task includes formatting, vet, race/cgo checks,
+foreign-definition rejection and the disk-backed raw-client recovery schedule.
+Changes to Go's generated ABI declarations also select `bindings::check` for
+generation drift; shared generators and authoritative contracts select full CI.
+The [task recipes](../../tasks/bindings.just), [native registration](../../build/checks.zig)
+and [consumer registry](../sdk/consumer_registry.py) are the audited callers; Go
+does not participate in the Station interoperability ring. Other SDKs and native
+packages still select full qualification. Shared harnesses, contracts, fixtures,
+active budgets, build/runner policy and unknown files also stay full.
+
+Adding a reviewed group requires its input owners, dependency edges, executable
+consumers and resource classes. Test changed dependencies, new/deleted inputs,
+rename endpoints and unknown paths, then compare the proposed task set with
+complete successful runs before enabling it. Directory location alone is not
+evidence that no other caller exists. CI records the proposal with the executed
+tasks; the runner rejects plans for another commit, unowned/omitted tasks or a
+different policy. A scoped successful result cannot qualify a full-suite budget.
+Hosted work keeps the existing seven-job ceiling; each lane remains sequential,
+with isolated mutable state and one cache writer per selected toolchain closure.
 
 `just bindings::runtime-boundary` checks Nix input selection, then builds and
 exercises the actual packaged runtime and SQL gateway without test or SDK source.

@@ -26,6 +26,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       full: ${{ steps.select.outputs.full }}
+      checks: ${{ steps.select.outputs.checks }}
+      documentation: ${{ steps.select.outputs.documentation }}
+      matrix: ${{ steps.select.outputs.matrix }}
+      selection: ${{ steps.select.outputs.selection }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -45,7 +49,7 @@ jobs:
   documentation:
     name: Documentation site
     needs: plan
-    if: needs.plan.outputs.full == 'false'
+    if: needs.plan.outputs.documentation == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -60,60 +64,29 @@ jobs:
   checks:
     name: ${{ matrix.lane }}
     needs: plan
-    if: needs.plan.outputs.full == 'true'
+    if: needs.plan.outputs.checks == 'true'
     runs-on: ${{ vars.TRANSIT_CI_RUNNER || 'ubuntu-24.04' }}
     # Expanded inventories need finite execution caps distinct from the older
     # measured feedback budgets. Task-local progress deadlines are unchanged.
     timeout-minutes: ${{ matrix.timeout || (inputs.cache_mode == 'cold' && 45 || 30) }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - lane: formal
-            shell: ci-formal
-            cache: formal
-            cache_writer: true
-            timeout: 15
-          - lane: core
-            shell: default
-            cache: core
-            cache_writer: true
-            # Hosted builds used 54.6 minutes for the first 23 of 28 tasks.
-            # Keep task-local deadlines; allow the remaining inventory to run.
-            timeout: 90
-          - lane: growth
-            shell: default
-            cache: core
-            cache_writer: false
-            # Includes the full database client/recovery proof and retained-state regressions.
-            timeout: 300
-          - lane: experience
-            shell: ci-experience
-            cache: experience
-            cache_writer: true
-            # Includes all seven browser tasks, with real connector and view recovery.
-            # Separate completed task observations already exceed one hour.
-            timeout: 120
-          - lane: launchers
-            shell: ci-experience
-            cache: experience
-            cache_writer: false
-          - lane: bindings-1
-            shell: ci-bindings
-            cache: bindings
-            cache_writer: true
-            timeout: 360
-          - lane: bindings-2
-            shell: ci-bindings
-            cache: bindings
-            cache_writer: false
-            timeout: 360
+      # Preserve the previous seven-job ceiling while scoped PRs select fewer.
+      max-parallel: 7
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     env:
       ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.cache/ci-zig
+      TRANSIT_CI_SELECTION_PATH: .cache/ci/selection.json
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Retain the source-bound check selection
+        env:
+          SELECTION: ${{ needs.plan.outputs.selection }}
+        run: |
+          mkdir -p .cache/ci
+          printf '%s\n' "$SELECTION" > .cache/ci/selection.json
       - name: Record dependency cache mode
         env:
           MODE: ${{ inputs.cache_mode || 'reuse' }}
@@ -248,12 +221,18 @@ jobs:
       - name: Require every selected check
         env:
           PLAN: ${{ needs.plan.result }}
-          FULL: ${{ needs.plan.outputs.full }}
+          CHECKS: ${{ needs.plan.outputs.checks }}
+          DOCUMENTATION: ${{ needs.plan.outputs.documentation }}
           RESULT: ${{ needs.checks.result }}
           DOCS: ${{ needs.documentation.result }}
         run: |
           test "$PLAN" = success
-          case "$FULL:$RESULT:$DOCS" in
-            true:success:skipped|false:skipped:success) ;;
+          case "$CHECKS:$RESULT" in
+            true:success|false:skipped) ;;
             *) exit 1 ;;
           esac
+          case "$DOCUMENTATION:$DOCS" in
+            true:success|false:skipped) ;;
+            *) exit 1 ;;
+          esac
+          test "$CHECKS:$DOCUMENTATION" != false:false

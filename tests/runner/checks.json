@@ -256,6 +256,15 @@
         ]
       },
       {
+        "id": "ci-selection",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_selection.py"
+        ]
+      },
+      {
         "id": "reference_launcher_state",
         "phase": "static",
         "command": [
