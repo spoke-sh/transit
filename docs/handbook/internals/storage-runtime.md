@@ -951,6 +951,24 @@ belong to the [qualification record](../../history/qualification/storage.md#dire
 not supply all-owner retained-root selection, marking, sweep authority or a
 physical Table collector; they also establish no ingestion performance bound.
 
+The local owner's [cut cursor](../../../packages/zig/transit-backend-local/src/DataCuts.zig)
+discovers nonzero partitions and selects their last acceptance before a native
+storage fence. Its numeric directory cursor retains no filename array. Each
+partition's initially observed tail bounds the backward walk, so later appends
+cannot extend it. A trim that removes a required frame stops this traversal;
+absence cannot establish completed marking. Direct publication's native epoch
+check prevents a newly discovered or delayed owner from accepting older work
+after the fence. Directory scanning still costs work proportional to its files.
+
+Catalog recovery has a different retained-root rule from Table history expiry.
+It validates transitions using earlier control directories and retains the full
+control chain. The [catalog root walk](../../../packages/zig/transit-catalog/src/DirectCatalogRoots.zig)
+therefore emits every accepted control root and action through a fixed cut,
+validates that chain, and checks its final root and digest. Selecting only its
+latest root could discard pages needed on restart. These cursors select inputs
+to graph traversal; physical collection additionally requires complete dependency
+marking, allocation reconciliation and the deletion fence.
+
 Standalone payloads have a separate question: after losing a creation reply,
 what evidence permits the publisher to declare the original bytes ready? The
 [local payload adapter](../../../packages/zig/transit-backend-local/src/PayloadStore.zig)

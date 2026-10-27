@@ -3773,6 +3773,29 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectCatalogRoots.zig": {
+      "errors": {
+        "CatalogHistoryMissing": 1,
+        "InvalidDirectCatalogHistory": 5
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>",
+        "next()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "DirectCatalogRecords.zig",
+        "DirectCatalogStore.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectCatalogStore.zig": {
       "errors": {
         "CatalogHistoryMissing": 9,
@@ -3792,6 +3815,7 @@
         "assertion()": "<inferred>",
         "assertionAt()": "<inferred>",
         "decode()": "<inferred>",
+        "decodeFrame()": "<inferred>",
         "dependency()": "<inferred>",
         "dependencyAt()": "<inferred>",
         "dependencyTransition()": "<inferred>",
@@ -3820,8 +3844,40 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 130,
+        "try": 131,
         "catch": 1
+      },
+      "imports": [
+        "DirectCatalogRecords.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectCatalogWalk.zig": {
+      "errors": {
+        "InvalidDirectCatalogEntry": 3,
+        "InvalidDirectCatalogHistory": 11
+      },
+      "outcomes": {
+        "Edge": [
+          "page",
+          "declaration"
+        ],
+        "Kind": [
+          "pages_only",
+          "objects"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>",
+        "next()": "<inferred>",
+        "skip()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 0
       },
       "imports": [
         "DirectCatalogRecords.zig",
@@ -5255,6 +5311,8 @@
         "DirectCatalogInspection.zig",
         "DirectCatalogResources.zig",
         "DirectCatalogRetention.zig",
+        "DirectCatalogRoots.zig",
+        "DirectCatalogWalk.zig",
         "DirectDependency.zig",
         "DirectNamespace.zig",
         "DirectReadAuthority.zig",

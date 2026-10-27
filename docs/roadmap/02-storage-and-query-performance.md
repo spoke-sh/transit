@@ -118,6 +118,13 @@ implementation sequence, not a transfer or reduction of outstanding criteria.
 
 ### Implemented increments after the baseline
 
+- Local owner discovery walks every nonzero partition with bounded resident
+  memory and fixes its last pre-fence acceptance without chasing later writes.
+  Catalog root and directory cursors preserve the complete control chain and
+  original Table seed declarations required by recovery. Focused disk/reopen,
+  missing-history and bounded-directory checks pass; integrating these cuts
+  with durable mark work and physical Table deletion remains open (#114/#116/#127).
+
 - Direct-data creation records a durable bounded allocation/reuse FIFO and the
   latest per-key epoch before object publication. Newer content reuse protects
   its marker from older allocation entries. The separate inventory mutex keeps

@@ -985,6 +985,155 @@ const ObservedCatalogLog = struct {
     }
 };
 
+test "catalog retained roots visit complete control history at a fixed cut" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const request = try creation(7, 1, "retained");
+    _ = try catalog.admit(request, access.policy());
+    _ = try catalog.perform(request.binding, access.policy());
+    for (10..20) |id| {
+        const pending = try creation(id, id, "cancelled");
+        _ = try catalog.admit(pending, access.policy());
+        _ = try catalog.cancel(pending.binding, access.policy());
+    }
+    const cut = try catalog.recoveryState();
+    var roots = try c.DirectCatalogRoots.init(cut);
+    var observed: ObservedCatalogLog = .{ .inner = wal.log() };
+    var records: u64 = 0;
+    var earlier_objects: bool = false;
+    while (try roots.next(t.allocator, observed.log())) |record| {
+        records += 1;
+        try t.expectEqual(records, record.root.next_lsn);
+        if (record.root.objects) |reference| {
+            _ = try catalog.store.index.load(reference);
+            if (!std.meta.eql(record.root.objects, cut.root.objects)) earlier_objects = true;
+        }
+        if (records == 2) {
+            // The cursor owns its chain/root, survives serialization, and does
+            // not absorb a later accepted control transition into its old cut.
+            const bytes = try std.json.Stringify.valueAlloc(t.allocator, roots, .{});
+            defer t.allocator.free(bytes);
+            const parsed = try std.json.parseFromSlice(c.DirectCatalogRoots, t.allocator, bytes, .{});
+            defer parsed.deinit();
+            roots = parsed.value;
+            _ = try catalog.admit(try creation(30, 30, "later"), access.policy());
+        }
+    }
+    try t.expectEqual(cut.root.next_lsn, records);
+    try t.expectEqual(records, observed.reads);
+    try t.expect(earlier_objects);
+    try t.expect(catalog.store.root.next_lsn > roots.next_lsn);
+    try t.expect(try roots.next(t.allocator, observed.log()) == null);
+}
+
+test "catalog retained roots reject changed cuts and missing history without cursor progress" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const cut = try catalog.recoveryState();
+    for (0..3) |scenario| {
+        var changed = cut;
+        switch (scenario) {
+            0 => changed.chain[0] ^= 1,
+            1 => changed.root.next_partition += 1,
+            else => changed.root.configuration.scope.catalog += 1,
+        }
+        var roots = try c.DirectCatalogRoots.init(changed);
+        const before = roots;
+        try t.expectError(error.InvalidDirectCatalogHistory, roots.next(t.allocator, wal.log()));
+        try t.expectEqualDeep(before, roots);
+    }
+    var absent = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer absent.deinit();
+    var roots = try c.DirectCatalogRoots.init(cut);
+    const before = roots;
+    try t.expectError(error.CatalogHistoryMissing, roots.next(t.allocator, absent.log()));
+    try t.expectEqualDeep(before, roots);
+    try wal.log().trim(cut.root.configuration.partition, 1);
+    try t.expectError(error.WalHistoryTrimmed, roots.next(t.allocator, wal.log()));
+    try t.expectEqualDeep(before, roots);
+}
+
+test "catalog directory walk retains seed declarations across bounded page paths" {
+    const r = @import("DirectCatalogRecords.zig");
+    const ObservedIndex = struct {
+        index: *s.TreeStore,
+        loads: usize = 0,
+        pub fn load(self: *@This(), reference: s.TreeStore.pages.Reference) !s.TreeStore.pages.Page {
+            self.loads += 1;
+            return self.index.load(reference);
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const request = try creation(7, 1, "seed");
+    _ = try catalog.admit(request, access.policy());
+    _ = try catalog.perform(request.binding, access.policy());
+    var basis = catalog.store.root;
+    var reference = basis.objects.?;
+    try catalog.store.index.begin(64 * 1024 * 1024);
+    defer catalog.store.index.end();
+    for (100..173) |id| {
+        const entry: r.Entry = .{ .object = id, .partition = id, .seed = null, .resource = null };
+        reference = try catalog.store.tree().put(reference, try r.idKey(id), try r.pageValue(entry));
+    }
+    basis.next_partition = 173;
+    var index: ObservedIndex = .{ .index = &catalog.store.index };
+    var walk = try c.DirectCatalogWalk.init(basis, .{ .reference = reference, .kind = .objects });
+    try t.expect(@sizeOf(c.DirectCatalogWalk) < 8 * 1024);
+    var seeds: usize = 0;
+    var page_count: usize = 0;
+    while (true) {
+        const before = index.loads;
+        const edge = try walk.next(t.allocator, &index);
+        try t.expect(index.loads - before <= c.DirectCatalogWalk.max_depth + 1);
+        switch (edge orelse break) {
+            .page => page_count += 1,
+            .declaration => |seed| {
+                var declaration = try s.TableDeclaration.load(t.allocator, objects.objectStore(), seed);
+                defer declaration.deinit();
+                try t.expectEqual(@as(u64, 7), seed.interpretation.object.object);
+                seeds += 1;
+            },
+        }
+    }
+    try t.expectEqual(@as(usize, 1), seeds);
+    try t.expect(page_count > 8);
+    var skip = try c.DirectCatalogWalk.init(basis, .{ .reference = reference, .kind = .objects });
+    try t.expectError(error.InvalidDirectCatalogHistory, skip.skip());
+    try t.expect((try skip.next(t.allocator, &index)).? == .page);
+    try skip.skip();
+    try t.expect(try skip.next(t.allocator, &index) == null);
+
+    // A typed object directory must not reinterpret a mismatched object key.
+    const foreign: r.Entry = .{ .object = 99, .partition = 99, .seed = null, .resource = null };
+    const invalid = try catalog.store.tree().put(null, try r.idKey(98), try r.pageValue(foreign));
+    var corrupt = try c.DirectCatalogWalk.init(basis, .{ .reference = invalid, .kind = .objects });
+    try t.expect((try corrupt.next(t.allocator, &index)).? == .page);
+    const before = corrupt;
+    try t.expectError(error.InvalidDirectCatalogEntry, corrupt.next(t.allocator, &index));
+    try t.expectEqualDeep(before, corrupt);
+}
+
 test "direct catalog recovery reuses a validated prefix and recovers an uncertain successor" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
