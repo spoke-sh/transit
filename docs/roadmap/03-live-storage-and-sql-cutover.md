@@ -201,7 +201,8 @@ contract. Coordinate any shared-definition replacement and regenerated resources
 across the two branches; neither branch may retain a parallel legacy definition.
 
 Remaining work here includes P0's baseline diagnosis, P1.4's broader resource
-matrix, P4's automatic archive/checkpoint/compaction/collection, P5's measured
+matrix, P1.5's retained Station Table boundary and cleanup, P4's automatic
+archive/checkpoint/compaction/collection, P5's measured
 reader/recovery reuse and waiting, P6's storage views and P8's
 full common-revision qualification. Unfinished bounded WAL cleanup is a follow-up
 to the early PR. Coordinate P5 reader lifetime and P6 SQL inspection changes with
@@ -329,6 +330,19 @@ Owners: [Local](../../apps/transit-node/Local.zig),
   captured blocks and effect records in the installed local profile after owner
   replacement. Replay dispatches no external effect. Keep the existing native
   one-KV-resource turn boundary and direct Table acceptance separate.
+- [ ] P1.5 Audit and resolve the retained Station Table implementation and its
+  public bindings. The general actor-backed catalog/service and query-host Table
+  role are removed, but `TableCreation`, `TableWrite`, `TableStatement`,
+  `TableReader`, `TableData` and `TablePages` still implement application-private
+  Tables within native turns, including through `TableBridge` SDK bindings.
+  Inventory actual consumers, remove obsolete query/cache adapters, and specify
+  migration/removal of superseded Table storage and caller surfaces. Catalog
+  Tables must have one direct data owner. Any retained application-private KV
+  helper needs an explicit application-state purpose and must not become another
+  general Table engine. Preserve or explicitly replace the existing atomic
+  turn/input/output contract before migrating callers; two separate commits
+  cannot silently replace one atomic turn. Move affected contracts, SDKs,
+  examples, tests and documentation together under the current-v1 policy.
 
 **Gate:** deterministic recovery-required injection completes the original
 bootstrap request exactly once, the complete launcher schedule passes, payload
@@ -549,7 +563,12 @@ Owners: local Table service/catalog, direct query readers, shared SQL service,
   constructs request-owned catalogs; `DirectCatalog.open` initializes and
   recovers a Table for each open. Measure replay, immutable directory/footer
   reads, cache lifetime, credential exchanges, serialization and result delivery
-  separately from WAL sync and application coordination.
+  separately from WAL sync and application coordination. Include SQL read-pin
+  acquisition/closure and their gateway recovery-file and directory syncs;
+  ordinary SELECT is not currently a disk-write-free observation. Count Table
+  opens, replayed frames, native requests and syncs per completed statement,
+  including repeated reads of unchanged data. Separate persistent-console
+  statement time from process/session startup and compare Debug/ReleaseSafe.
 - [ ] P5.2 Reuse verified immutable data and validated owner/recovery state where
   measurements justify it, under a bounded resident owner/cache pool. Bind every
   entry to its exact root/definition/epoch and invalidate on uncertainty or
@@ -576,6 +595,17 @@ Owners: local Table service/catalog, direct query readers, shared SQL service,
 sizes above caches, and measured reduction in the selected live amplification
 and latency costs. Report regressions and uncertain samples. A component cache
 benchmark or shorter polling interval alone cannot pass this gate.
+
+**Post-integration priority — 2026-10-27:** after merging PR #188, the user
+reports slow single-row INSERT and roughly 0.5-second queries against `items`.
+These are user observations, not an attributed benchmark. Start P5.1's ordinary
+console SELECT/INSERT measurements before extending maintenance. Source review
+at merge `5962c10d2` confirms per-open Table recovery and SQL's durable read-pin
+journal; determine their measured contribution before choosing the optimization.
+The remaining P4 recovery checkpoints and P5 bounded owner/cache reuse must be
+qualified together. Result batching belongs to milestone 4, but completing it
+does not discharge these storage/recovery costs. Preserve current authorization,
+retained cuts, exact outcomes and pin cleanup while reducing repeated work.
 
 #### P6 — Publish one authorized storage view and configuration surface
 
