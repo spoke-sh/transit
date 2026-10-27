@@ -331,7 +331,7 @@ packages:
 
 # Compile each manifest independently; optional bounded parallelism (1..4).
 [positional-arguments]
-packages-build jobs="1":
+packages-build jobs="2":
     python3 -B tests/runner/packages.py --jobs "$1"
 
 # Run the upstream compute tests absent from the root library suite.

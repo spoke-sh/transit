@@ -401,7 +401,7 @@ this plan is not another chronological test transcript.
   verify concurrent callers cannot observe partial or mismatched artifact sets.
 - [ ] P10.5 Record compilation, installation, packaging, provisioning, scenario
   execution and teardown separately, including failures and incomplete work.
-- [ ] P10.6 Measure bounded concurrency for independent package checks while
+- [x] P10.6 Measure bounded concurrency for independent package checks while
   retaining each package's own manifest boundary and controlling resource use.
 - [x] P10.7 Evaluate local documentation cache reuse with clean production checks
   retained. Verify generated references/search/specification invalidation before
@@ -504,6 +504,7 @@ The continuation after #185 contains these additional bounded changes:
 | Distinct fixture ports (`1f93ccf22`) | Six independent port discoveries reproduced a duplicate in one configuration. Batch discovery holds sockets until all six distinct ports are obtained. Real allocation/failure-cleanup controls and the complete SQL wire gateway task pass. This establishes a fixture defect, not the cause of the earlier hosted initialization failure whose configuration was unavailable. |
 | Terminal logging (`8333fdfcd`) | A separate terminal slot prevents queue contention from discarding the service's final event, retaining filtering, record bounds and the 200 ms flush attempt. Debug/ReleaseSafe package tests, blocked/closed stderr controls and the complete service-logging task pass. The original Board binary loses three events in 268 immediate-failure invocations; the repaired binary passes 1,500. The same runtime repair is applied to comparison source `40e70d202`. |
 | Documentation cache decision | Two successful local production builds at `1f93ccf22` with only telemetry changes in the worktree take 64.5 seconds after clearing generated state and 10.8 seconds with that state retained. This is one local pair, not Nix cold/warm qualification. Keep clean production checks: generated-reference/search/specification invalidation is not established for retained state, and a new invalidation mechanism is outside this bounded delivery. Existing development-server hot reload remains the local editing path. |
+| Bounded package compilation | Fresh checkouts of `8333fdfcd`, each without workspace build outputs and restricted to CPUs 0–3, pass all 34 manifests. One worker takes 293.8 seconds; two take 153.1 seconds. Child CPU totals are 426.9/422.1 seconds; largest child RSS is 544,280/544,396 KiB, not aggregate concurrent RSS. Nix and Zig dependency caches are retained; this is one local fresh-workspace pair, not dependency-cache-miss qualification or variance measurement. Adopt two workers by default, retaining explicit one-to-four selection and unchanged sequential package-test execution. Hosted full-run comparison remains separate. |
 
 The [continuation run](https://github.com/spoke-sh/transit/actions/runs/40441494668)
 and [repaired comparison run](https://github.com/spoke-sh/transit/actions/runs/40441691526)
