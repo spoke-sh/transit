@@ -288,6 +288,15 @@ pub fn hasPending(self: *Self) bool {
     for (self.entries.items) |entry| if (entry.record.journal.pending != null) return true;
     return false;
 }
+/// A local console needs its enrolled account and published rendezvous, not
+/// merely a core gateway or another account's running SQL listener.
+pub fn localReady(self: *const Self) bool {
+    if (self.status != .accepting or self.local == null) return false;
+    for (self.entries.items) |entry| {
+        if (std.mem.eql(u8, entry.record.name, Settings.local_account.name)) return entry.record.initialized and entry.state == .bound;
+    }
+    return false;
+}
 fn advance(self: *Self, allocator: std.mem.Allocator) !void {
     if (self.failures >= 3) return;
     if (!self.setup_complete) {

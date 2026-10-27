@@ -236,7 +236,8 @@ fn cycle(self: *Self) !void {
         .ui = if (self.ui) "ready" else "disabled",
         .sql = if (sql) |manager| try manager.report(allocator) else null,
     }, .{});
-    self.diagnostics.event(.{ .name = "server.ready", .message = "Server is ready", .endpoint = installation.record.endpoint, .location = config.installation });
+    var announced_ready = !config.sql.native.local or (sql != null and sql.?.localReady());
+    if (announced_ready) self.announceReady() else self.diagnostics.event(.{ .name = "server.core_ready", .message = "Core services are ready; waiting for local SQL", .endpoint = installation.record.endpoint, .location = config.installation });
     if (self.ui) self.diagnostics.event(.{ .name = "board.ready", .message = "Board is ready", .endpoint = config.board.?.public_origin });
     // Readiness receipts belong to stdout consumers; interactive users see the
     // same lifecycle events as every other executable on stderr.
@@ -252,6 +253,10 @@ fn cycle(self: *Self) !void {
         if (sql) |manager| {
             self.active_role = .sql;
             try manager.tick();
+            if (!announced_ready and manager.localReady()) {
+                self.announceReady();
+                announced_ready = true;
+            }
         }
         if (sql == null or !sql.?.hasPending()) {
             if (applications) |manager| try manager.tick();
@@ -286,6 +291,9 @@ fn cycle(self: *Self) !void {
         }
         try self.init.io.sleep(.fromMilliseconds(100), .awake);
     }
+}
+fn announceReady(self: *Self) void {
+    self.diagnostics.event(.{ .name = "server.ready", .message = "Server is ready", .endpoint = self.installation.record.endpoint, .location = self.installation.config.installation });
 }
 fn node(self: *Self, allocator: std.mem.Allocator) !void {
     const installation = self.installation;

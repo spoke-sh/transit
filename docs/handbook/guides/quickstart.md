@@ -40,9 +40,10 @@ For this walkthrough, use the defaults and keep ports 19101–19108 available.
 
 Wait for the readable `server.ready` and `board.ready` log events, then open the
 Board endpoint shown (`http://127.0.0.1:19107` with defaults). Redirected or piped
-stdout retains a JSON ready record for scripts; operational logs go to stderr.
-Wait for SQL to report that listeners are accepting connections before opening
-a console. Core readiness and SQL readiness are separate observations.
+stdout retains a JSON core ready record for scripts; operational logs go to stderr.
+With the default local SQL connection, `server.ready` waits for console discovery
+and the initialized local account. Optional database listeners and other accounts
+still have their own SQL readiness observations.
 All listeners bind loopback; this is a trusted single-user
 installation, not an OS sandbox. Credentials and data stay in the installation
 directory. The [server guide](../../../apps/transit-cli/docs/server.md) explains

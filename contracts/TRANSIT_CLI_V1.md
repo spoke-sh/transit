@@ -170,6 +170,12 @@ restart budgets/backoff. Loss of required storage or authority withdraws gateway
 readiness and stops dependent workers before recovering the same durable history.
 Exhausted recovery fails the installation visibly and reaps its owned children.
 
+With local SQL enabled, the human `server.ready` announcement additionally
+requires the initialized, currently bound local account and published console
+rendezvous. `server.core_ready` can announce core availability earlier. The JSON
+core ready record and SQL status remain separate observations; a SQL failure does
+not remove the core administration path or authorize renewed grants.
+
 Every growing worker replacement acquires a fresh exact generation. The local
 catalog/query workers rotate their keys. SQL account workers retain their
 enrolled identities and require current grants; replacement never regrants them.

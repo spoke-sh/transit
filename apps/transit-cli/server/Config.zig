@@ -183,7 +183,7 @@ pub fn identities(self: Self, init: std.process.Init, executable: []const u8, di
     result.cli = try checkedDigest(init, executable, diagnostic);
     inline for (@typeInfo(Executables).@"struct".field_names) |name| {
         diagnostic.field = "executables." ++ name;
-        @field(result, name) = self.roleDigest(init, executable, @field(RuntimeRole.Role, name)) catch |err| {
+        @field(result, name) = self.roleDigest(init, result.cli, @field(RuntimeRole.Role, name)) catch |err| {
             diagnostic.setFailure(err, "cannot validate the configured executable", "Use the matching transit executable or an explicit matching standalone role.");
             return error.InvalidConfiguration;
         };
@@ -199,9 +199,11 @@ pub fn command(self: Self, allocator: std.mem.Allocator, executable: []const u8,
 /// The retained artifact identity binds role and invocation mode as well as the
 /// shared definition and actual executable bytes. Equal files in different roles
 /// or a changed external/embedded selection cannot silently reuse installation.
-pub fn roleDigest(self: Self, init: std.process.Init, executable: []const u8, comptime role: RuntimeRole.Role) ![32]u8 {
+pub fn roleDigest(self: Self, init: std.process.Init, executable_digest: [32]u8, comptime role: RuntimeRole.Role) ![32]u8 {
     const external = @field(self.executables, @tagName(role));
-    const bytes = try digest(init, external orelse executable);
+    // All embedded roles share the exact CLI bytes already validated during
+    // this observation. Hash that file once, then bind each role separately.
+    const bytes = if (external) |path| try digest(init, path) else executable_digest;
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.local.role.v1\x00");
     hash.update(&@import("transit_query").protocol.Growth.definition_bytes);

@@ -77,12 +77,16 @@ payloads or credentials. SQL waiting for its first health check reports `startin
 previously ready SQL service reports `unavailable`. A failed native authority
 observation can report `busy` or `unavailable` with its cause even during startup;
 recovery retains the same pending work and requires a fresh readiness check.
-Unchanged status and connection hints are suppressed. The SQL status file remains the complete observed account
-state. Core readiness does not imply that optional SQL listeners already accept
+Unchanged status and connection hints are suppressed. With local SQL enabled,
+`server.core_ready` announces the available core services; `server.ready` waits
+for the initialized local account and SQL rendezvous so `transit console` can
+connect. SQL refusal leaves the core administration path available and reports
+its own failure without announcing local readiness. The SQL status file remains
+the complete observed account state. Core readiness does not imply that optional SQL listeners already accept
 connections; wait for `sql.status` with `operation="accepting"` or inspect the file.
 
 On a terminal, readiness appears in stderr logs. Redirected or piped stdout
-retains the JSON ready-record stream for scripts, independently of log format
+retains the JSON core ready-record stream for scripts, independently of log format
 and level. Command/input errors are human-readable; operational logs use `logging.format`. Log filtering or a
 failed sink can hide a readiness notice, so automation uses stdout or probes.
 

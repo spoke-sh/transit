@@ -27,11 +27,21 @@ SQL_ENDPOINT, SESSION_ACTIONS = SESSION_PEER.__enter__()
 atexit.register(SESSION_PEER.__exit__, None, None, None)
 ISOLATED = tempfile.TemporaryDirectory(prefix='transit-cli-environment-')
 ENV['HOME'] = ISOLATED.name
-# Dependency absence is a controlled fixture, independent of developer tools.
+# Runtime PATH absence is controlled independently of developer tools. The
+# require-existing gate makes default resolution observable without provisioning.
 NO_TOOLS = Path(ISOLATED.name) / 'no-tools'
 NO_TOOLS.mkdir()
 ISOLATED_CLI = NO_TOOLS / 'transit'
 shutil.copy2(CLI, ISOLATED_CLI)
+with socket.socket() as node, socket.socket() as gateway, socket.socket() as apps, socket.socket() as board, socket.socket() as health:
+    listeners = (node, gateway, apps, board, health)
+    for listener in listeners:
+        listener.bind(('127.0.0.1', 0))
+    isolated_ports = [str(listener.getsockname()[1]) for listener in listeners]
+NO_TOOLS_ENV = ENV | dict(PATH=str(NO_TOOLS), TRANSIT_STARTUP__REQUIRE_EXISTING='true',
+    TRANSIT_PORTS__NODE=isolated_ports[0], TRANSIT_PORTS__GATEWAY=isolated_ports[1],
+    TRANSIT_APPLICATIONS__PORT=isolated_ports[2], TRANSIT_BOARD__PORT=isolated_ports[3],
+    TRANSIT_SQL__HEALTH_PORT=isolated_ports[4])
 
 
 def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=None, binary=None, stdout_contains=()):
@@ -64,8 +74,8 @@ def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=N
 
 
 for command in ('server',):
-    invoke([command], contains=('cannot find transit-node beside transit or on PATH',),
-           env=ENV | {'PATH': str(NO_TOOLS)}, binary=str(ISOLATED_CLI))
+    invoke([command], 1, contains=('startup requires an existing installation',),
+           env=NO_TOOLS_ENV, binary=str(ISOLATED_CLI))
     for value in ([], ['--initialize'], ['']):
         invoke([command, '--config', *value], stderr='error: --config requires a file path\n')
     invoke([command, '--config', 'one', '--config', 'two'], stderr='error: --config can only be specified once\n')
@@ -118,8 +128,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         path.write_text(text)
         invoke(['server', '--config', path], contains=(explanation, 'server.json'))
     path.write_text('{}')
-    invoke(['server', '--config', path], contains=('cannot find transit-node beside transit or on PATH',),
-           env=ENV | {'PATH': str(NO_TOOLS)}, binary=str(ISOLATED_CLI))
+    invoke(['server', '--config', path], 1, contains=('startup requires an existing installation',),
+           env=NO_TOOLS_ENV, binary=str(ISOLATED_CLI))
     path.write_text('{\n  "version": !\n}')
     invoke(['server', '--config', path], contains=('server.json":2:14',))
     path.write_bytes(b' ' * 65537)
@@ -203,8 +213,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     shown = invoke(['console'], 0, env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)), data=b'.show\n')
     assert parse_show(shown.stdout)['endpoint'] == SQL_ENDPOINT
     invoke(['console', '--config', root/'override.json'], contains=('override.json',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
-    invoke(['server'], contains=('cannot find transit-node beside transit or on PATH',),
-           env=dict(ENV, PATH=str(NO_TOOLS), TRANSIT_CONSOLE_CONFIG=str(path)), binary=str(ISOLATED_CLI))
+    invoke(['server'], 1, contains=('startup requires an existing installation',),
+           env=NO_TOOLS_ENV | dict(TRANSIT_CONSOLE_CONFIG=str(path)), binary=str(ISOLATED_CLI))
     invoke(['console', '--no-rc', '--config', path, '-c', 'SELECT typo FROM items'], 1, ('Unknown column',))
     for data in (b"SELECT * FROM items WHERE value = 'private-must-not-appear", b'SELECT * /* private-must-not-appear'):
         before = len(SESSION_ACTIONS)

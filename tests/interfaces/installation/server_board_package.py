@@ -57,6 +57,12 @@ def defaults(binary):
                     assert line, (root/'stderr').read_text()
                     report = json.loads(line)
                     assert report['ready'] and report['ui'] == 'ready'
+                    # The machine record describes core readiness. The human
+                    # ready announcement also waits for local console discovery,
+                    # within the same startup budget (no additional wait window).
+                    while 'server.ready Server is ready' not in (root/'stderr').read_text():
+                        assert process.poll() is None and time.monotonic() < deadline, (root/'stderr').read_text()
+                        time.sleep(.1)
                     assert report['installation'] == str(root/'.transit') and 'console_config' not in report
                     assert not (root/'.transit/console.json').exists() and not (root/'.transit/console.yaml').exists()
                     assert report['gateway_url'] == f"http://127.0.0.1:{ports['gateway']}"
