@@ -17,8 +17,9 @@ After a small stream consumes part of a flush batch, the next stream can use the
 remaining bytes. The upstream planner could repeatedly discard that next chunk
 and reach hot-storage admission pressure. The derivation runs the upstream
 `ursula-stream` tests, including a sustained two-stream regression, and exports
-the corrected binary through `nix build .#ursula`, the development shells and
-the local bundle. `flake.lock`, upstream source/Cargo hashes, the Rust toolchain
+the corrected binary through `nix build .#ursula` and the development shells for
+provider-specific deployments and checks. The default local runtime uses its
+native storage backend. `flake.lock`, upstream source/Cargo hashes, the Rust toolchain
 and `ursulactl` remain deliberately unchanged. The patch asserts its reviewed
 upstream version; an overlay upgrade requires reviewing and removing or rebasing
 it. Official container images do not contain this local correction.

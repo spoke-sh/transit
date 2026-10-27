@@ -4,10 +4,11 @@
 
 Complete the installed local system over the delivered `TransitLog`,
 `TransitObjectStore`, paged `TablePartition` and bounded `.tseg` reader. Direct
-Table acceptance and SQL reads already use that foundation. Remaining delivery
-integrates automatic physical maintenance, compatible lazy schema projection,
-native payload routes, recovery, observable storage state and local packaging,
-then qualifies the complete public caller path and its costs.
+Table acceptance and SQL reads use that foundation. The early integration adds
+automatic point flushing, compatible lazy schema projection, native payload
+routes, owner recovery and single-executable local packaging. Remaining delivery
+completes the other maintenance classes, observable storage state, resource
+integration and measured qualification of the complete public caller path.
 
 Extend the [declarative data lifecycle](01-declarative-data-lifecycle.md) and
 [four-tier storage hierarchy](02-storage-and-query-performance.md). The
@@ -143,7 +144,7 @@ and packaging are substantive work, not final documentation chores.
 | P4 | Automatic archive/checkpoint, compaction and safe collection | P1–P3 | #122, #116, #126, #127 |
 | P5 | Measured live reader reuse, bounded access and event-driven waiting | P0 baseline; P2–P4 final regression inputs | #122, #128, #76 |
 | P6 | Shared public storage inspection, configuration and Board projection | P2–P5 contracts | #122, #123 |
-| P7 | Single executable local composition | P1 ownership; P6 configuration | #122 |
+| P7 | Single executable local composition | P1 ownership; existing configuration owner; P6 inspection follows | #122 |
 | P8 | Installed common-revision qualification, documentation and closure | P1–P7 | #110, #122, #123, #124, #76 |
 
 Review progress at three concrete checkpoints: after P2, demonstrate installed
@@ -169,11 +170,11 @@ statement-result handoff.
 
 The handoff gate is:
 
-- [ ] One copied `transit` executable starts with `transit server`, including
+- [x] One copied `transit` executable starts with `transit server`, including
   default Board assets and internal runtime roles, without sibling Transit
   binaries or external storage services. `transit console` discovers it and
   executes Table DDL/DML and reads through the new default storage owner.
-- [ ] The same ordinary commands preserve accepted rows through restart;
+- [x] The same ordinary commands preserve accepted rows through restart;
   `--no-ui`, opt-in database listeners and owned-role shutdown/recovery retain
   their existing behavior. Qualify the copied executable with unavailable PATH.
 - [x] Installed direct SQL accepts and reads WAL-only rows while the application
@@ -186,7 +187,7 @@ The handoff gate is:
   agree; missing or incompatible retained formats remain refusals.
 - [x] Native collector composition retains the new schema dependencies and
   preserves current-policy, quota and paused-I/O/control-progress checks.
-- [ ] Complete the early PR's committed-source checks and report remaining
+- [x] Complete the early PR's committed-source checks and report remaining
   qualification explicitly in its description.
 
 Milestone 4 owns `transit-sql` statement outcomes and batches,
@@ -608,19 +609,19 @@ interfaces. Inspection itself changes none of those states.
 Owners: [runtime build](../../build/runtime.zig), app entry modules, CLI
 process supervision/configuration and source-bundle fixtures.
 
-- [ ] P7.1 Factor reusable role entry points into explicit build modules with
+- [x] P7.1 Factor reusable role entry points into explicit build modules with
   direct dependencies. Compose them in `transit`; do not copy implementations,
   embed/extract child executable blobs or introduce another storage owner.
-- [ ] P7.2 Self-spawn the selected internal roles with existing process
+- [x] P7.2 Self-spawn the selected internal roles with existing process
   isolation, signals, readiness and bounded shutdown. Retain the one exclusive
   WAL owner. SQL and query workers use public direct operations, even when the
   executable bytes are shared.
-- [ ] P7.3 Bind installation/configuration identity to role plus executable
+- [x] P7.3 Bind installation/configuration identity to role plus executable
   definition/hash. Migrate incompatible bootstrap/configuration artifacts using
   the current-v1 policy; never silently reuse an incompatible installation.
   Keep explicit standalone deployment roles as the same implementation, not a
   fallback decoder or legacy data path.
-- [ ] P7.4 Run the default profile and `--no-ui` with only `transit` installed
+- [x] P7.4 Run the default profile and `--no-ui` with only `transit` installed
   in an isolated directory and without ambient Transit/Ursula/MinIO executables.
   Prove console, Board, opt-in PostgreSQL/MySQL, role death/restart and orderly
   shutdown. Downstream application binaries remain explicit external inputs.
@@ -629,6 +630,48 @@ process supervision/configuration and source-bundle fixtures.
 including embedded Board assets when enabled, without sibling runtime artifacts
 or external storage daemons. Its accepted history and authorization behavior
 match the qualified standalone-role composition.
+
+At runtime source `40b9894a1`, both the ReleaseSafe source executable and the
+Nix `transit-local` package pass the copied-binary schedule on physical disk.
+Bare `transit server` starts default Board and the internal roles with no
+configuration file, sibling runtime executables or usable runtime PATH. Bare
+`transit console` creates and mutates a Table, applies lazy ADD/default changes,
+and reads the original ADD-time value. Automatic flushing produces `.tseg`
+objects; exact values and installation identity survive restart and equivalent
+default/YAML/environment configurations. Board assets, role death, manager death,
+`--no-ui`, re-enablement and orderly child shutdown pass. Switching a retained
+role from built-in to explicit invocation is refused even with identical bytes.
+
+The packaged local SQL schedule passes both real PostgreSQL/MySQL CLIs,
+plaintext/trust bootstrap, optional and required TLS, password-policy checks and
+persistent revocation. An injected lost owner-binding response followed by
+SIGKILL recovers the exact accepted publication and usable login. The default
+human readiness event now waits for local console discovery; machine core
+readiness remains separately observable. CLI lifecycle checks pass 33/33 and
+command diagnostics pass 193 cases in Debug without increasing deadlines.
+The separate packaged SQL recovery schedule passes verified TLS Unicode/NULL
+readback, explicit writer/reader grants, single-listener modes, password rotation,
+native fencing and revocation. A lost response recovers by its original operation
+identity with both database listeners disabled and no PEM access; expired trust
+refuses new admission while preserving recovery, then explicit TLS replacement
+restores admission (126.23 seconds for this schedule, not a latency distribution).
+The package contains only `bin/transit`; explicit standalone deployment roles
+remain available from their owning packages over the same implementation modules.
+
+This packaging cutover replaces the P3 definition with
+`47c035195248bf570ed52323112b2a32622ee69714ffb7719124218e034b1b2b`.
+Generated contracts, ABI resources and signed fixtures move together;
+incompatible retained installations are refused without conversion or reset.
+Clean committed-source checks pass all 39 fast checks at `40b9894a1` and all
+18 contract checks at `fd675f492`; the latter already uses this definition.
+The committed-source runtime boundary passes its 23 input-invalidation controls,
+evaluation controls, actual Nix runtime/gateway builds without tests or SDK
+sources, executable entry points and disabled/missing-check refusals. The
+handbook's formatting, strict types, nine content tests and production link build
+also pass. Full SDK, browser and ordinary CI inventories have not been rerun for
+this early integration checkpoint.
+Earlier P1–P3 checks retain their recorded revisions and limits. These P7 results
+do not qualify the unfinished P4–P6 work or complete P8's combined inventory.
 
 #### P8 — Qualify, document and close the milestone
 

@@ -93,10 +93,12 @@ enrolled `local_owner` account records its initial binding automatically; it
 never restores revoked access. Password accounts require `password_file`;
 trust accounts omit it. MySQL password authentication requires TLS.
 
-`executables.sql_gateway` identifies the matching gateway artifact in the local
-bundle. The installation fingerprints that artifact even while both protocols
-are disabled, so enabling a listener does not change its immutable artifact
-identity. Listener settings do not grant native, catalog or data access. The
+The SQL gateway runs from the installed `transit` executable by default.
+`executables.sql_gateway` selects an explicit matching standalone artifact;
+missing or null selects the built-in role. The installation fingerprints the
+role, invocation mode, shared definition and executable bytes even while both
+protocols are disabled, so enabling a listener does not change that identity.
+Listener settings do not grant native, catalog or data access. The
 [local database guide](../../../apps/transit-cli/docs/sql.md) describes enrollment,
 trust and retained-worker lifecycle. `sql.command_ms` bounds each SQL statement
 and defaults to 30 seconds, with a maximum of 270 seconds. A session statement
@@ -229,9 +231,10 @@ allows that caller to receive sanitized coordinates for its own validation
 failure; values and unknown field names are omitted. Historical coordinates
 require provenance. Registered sensitive values are always redacted.
 
-Artifact paths can change only to executables matching the installation's
-recorded hashes. Reload validates them before accepting the candidate; a mismatch
-rejects the candidate. Startup preserves the same identity protection. Storage
+Explicit artifact paths can change only to executables matching the installation's
+recorded hashes. Switching between built-in and standalone roles changes artifact
+identity even if the bytes match. Reload validates identities before accepting
+the candidate; a mismatch rejects it. Startup preserves the same identity protection. Storage
 errors never initialize or clear the installation. A completed installation
 requires its retained configuration checkpoint before any child starts; missing
 state is not replaced with defaults. Keep the checkpoint and history together
