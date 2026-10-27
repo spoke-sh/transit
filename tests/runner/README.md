@@ -90,6 +90,16 @@ inputs have recorded byte counts and SHA-256 identities. To check a retained
 invocation, run `python3 -B tests/runner/capture.py PATH_TO_RUN_DIRECTORY`.
 Missing or changed artifacts and incomplete runs fail this check.
 
+CI lane metadata includes initial and current resource observations at task
+checkpoints. Child CPU and block-I/O counters are cumulative for children waited
+by the runner. Maximum child RSS is the largest child high-water mark, not the
+sum of concurrent resident memory (KiB on Linux, bytes on macOS). Linux available
+memory and workspace free space are boundary snapshots, not interval minima.
+Linux I/O pressure totals are whole-host cumulative stall seconds; their delta
+includes other host work. Unsupported or unreadable host observations are null.
+These measurements cover lane execution, while hosted setup/cache costs come
+from job records. They do not establish isolated workload throughput.
+
 Clean qualification preserves these records and preparation logs before removing
 a successful clone. Failed clones remain private at the reported path. Local
 records remain until explicitly removed; hosted CI uploads run records and the

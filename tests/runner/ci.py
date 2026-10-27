@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import time
 import platform
+import resource
+import shutil
 import subprocess
 
 from capture import directory, provenance, run, write_json
@@ -14,6 +16,32 @@ SUITE = json.loads((ROOT / "tests/runner/suite.json").read_text())
 if SUITE["version"] != 1:
     raise ValueError("Unsupported verification suite version")
 LANES = SUITE["lanes"]
+
+
+def resource_observation():
+    usage = resource.getrusage(resource.RUSAGE_CHILDREN)
+    result = {
+        "child_user_seconds": usage.ru_utime, "child_system_seconds": usage.ru_stime,
+        "max_child_rss_platform_units": usage.ru_maxrss,
+        "child_input_blocks": usage.ru_inblock, "child_output_blocks": usage.ru_oublock,
+    }
+    try:
+        result["workspace_free_bytes"] = shutil.disk_usage(ROOT).free
+    except OSError:
+        result["workspace_free_bytes"] = None
+    try:
+        memory = dict(line.split(':', 1) for line in Path('/proc/meminfo').read_text().splitlines())
+        result["host_available_memory_bytes"] = int(memory['MemAvailable'].split()[0]) * 1024
+    except (OSError, KeyError, ValueError):
+        result["host_available_memory_bytes"] = None
+    try:
+        result["host_io_pressure_total_seconds"] = {
+            fields[0]: int(dict(item.split('=', 1) for item in fields[1:])['total']) / 1_000_000
+            for fields in map(str.split, Path('/proc/pressure/io').read_text().splitlines())
+        }
+    except (OSError, KeyError, ValueError):
+        result["host_io_pressure_total_seconds"] = None
+    return result
 
 
 def selected_tasks(lane, selection):
@@ -56,6 +84,7 @@ def main():
                 "selection": selection,
                 "run_id": os.getenv("GITHUB_RUN_ID"),
                 "run_attempt": os.getenv("GITHUB_RUN_ATTEMPT"),
+                "resources_initial": resource_observation(),
                 "machine": {
                     'platform': platform.platform(), 'logical_cpus': os.cpu_count(),
                     'affinity': sorted(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else None,
@@ -68,7 +97,8 @@ def main():
         # it. Atomic file replacement never publishes a partially encoded JSON.
         metadata.update(completed=completed, active_task=active_task,
                         seconds=round(time.monotonic() - started_suite, 2),
-                        checkpoint_unix=time.time(), result_count=len(results))
+                        checkpoint_unix=time.time(), result_count=len(results),
+                        resources_current=resource_observation())
         for path, value in ((destination, results), (destination.with_suffix(".meta.json"), metadata),
                             (artifacts / "results.json", results), (artifacts / "meta.json", metadata)):
             write_json(path, value)

@@ -331,6 +331,10 @@ def main():
             assert [row["task"] for row in evidence] == expected
             assert metadata["completed"] and metadata["expected_tasks"] == expected
             assert metadata["result_count"] == len(expected)
+            initial, current = metadata['resources_initial'], metadata['resources_current']
+            assert current['child_user_seconds'] >= initial['child_user_seconds']
+            assert current['child_system_seconds'] >= initial['child_system_seconds']
+            assert current['max_child_rss_platform_units'] >= initial['max_child_rss_platform_units'] > 0
             assert all(row["exit_code"] == 0 for row in evidence)
             verify(path / ".cache/ci" / metadata["run_directory"])
     # Kill the real runner while its second task is active. Neither SIGTERM nor
