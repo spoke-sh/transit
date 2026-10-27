@@ -215,7 +215,7 @@ runs do not count. The calibrated cold budget is **under 35 minutes** and
 **135 aggregate runner minutes**, with GitHub dependency restores disabled.
 Its complete baseline took 31m09s and 111m51s. Restored-byte measurements cover
 GitHub cache archives, not upstream Nix substitute traffic. The
-measurement record (archived)
+[measurement record](https://github.com/spoke-sh/transit/blob/c9b24cd6ea01a36a82b47e610d281c3b04a7a691/tests/verification/results/m10-ci-2026-09-25.json)
 preserves all qualifying samples and the excluded failures/regression.
 
 M11 adds installed public SDK schedules and the ten-edge language ring to the

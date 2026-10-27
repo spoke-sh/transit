@@ -25,6 +25,6 @@
   },
   "qualified_baseline": {
     "ordinary_tasks": 33,
-    "evidence": "results/m10-ci-2026-09-25.json"
+    "evidence": "https://github.com/spoke-sh/transit/blob/c9b24cd6ea01a36a82b47e610d281c3b04a7a691/tests/verification/results/m10-ci-2026-09-25.json"
   }
 }
