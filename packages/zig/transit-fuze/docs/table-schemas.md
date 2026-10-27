@@ -77,6 +77,26 @@ preserves existing values by ID, initializes new columns and performs checked
 exact numeric casts. Keep the input schema, change and supplied column scratch
 alive. Storage owns source capture, complete iteration, indexes, publication and
 recovery; successful pure validation does not complete ALTER.
+`Transition.canProject` identifies the narrower lazy edit matrix: non-key
+rename/drop, nullable or constant-default ADD, and insertion-default changes.
+Key renames and changes to types, physical attributes or constraints retain the
+existing validation/rewrite path. Classification does not change live storage.
+
+`TableSchemaProjection` maps a retained physical schema directly to a requested
+logical schema by stable column ID. Its caller supplies the frozen ADD-time value
+for every column absent from the physical schema; later insertion defaults do
+not substitute for that evidence. Object/key identity and the type, nullability,
+codec, collation and character limit of surviving columns must agree. Missing
+initial values, reused IDs and inconsistent same-revision definitions reject.
+The mapping has at most 128 entries and does not traverse schema ancestry.
+
+`row` validates the complete physical row, including dropped columns, then
+validates its logical result. SQL NULL stays NULL; nested missing members stay
+missing; invalid, type-error and conflict cells retain their existing rejection
+semantics. Schemas, initial values and returned cells are borrowed. Output scratch
+must not overlap input cells, and callers must detach values before releasing
+their owners. Storage still owns retained definitions, current authorization,
+publication and the choice between projection and a validated physical rewrite.
 
 `SqlTypes.resolve` normalizes selected scalar SQL names and validates their
 parameters. Its [alias table](../../../../contracts/TABLE_SCHEMA_V1.md#scalar-sql-type-name-resolver)

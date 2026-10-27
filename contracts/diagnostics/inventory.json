@@ -10693,12 +10693,14 @@
     },
     "packages/zig/transit-fuze/src/TableEvolution.zig": {
       "errors": {
+        "IncompatibleSchemaProjection": 1,
         "InvalidColumnCount": 1,
-        "InvalidSchemaTransition": 1,
+        "InvalidSchemaTransition": 2,
+        "MissingRequiredField": 1,
         "PrimaryKeyColumnRequired": 1,
         "ReusedColumnIdentity": 1,
         "RowBufferTooSmall": 1,
-        "UnknownColumn": 1,
+        "UnknownColumn": 2,
         "UnsupportedSchemaConversion": 2
       },
       "outcomes": {
@@ -10719,6 +10721,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Transition.canProject()": "<inferred>",
         "Transition.row()": "<inferred>",
         "Transition.rowDetailed()": "<inferred>",
         "apply()": "<inferred>",
@@ -10727,11 +10730,12 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
-        "catch": 2
+        "try": 26,
+        "catch": 4
       },
       "imports": [
         "TableSchema.zig",
+        "TableSchemaProjection.zig",
         "Types.zig",
         "std"
       ]
@@ -10929,6 +10933,39 @@
         "Types.zig",
         "std",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-fuze/src/TableSchemaProjection.zig": {
+      "errors": {
+        "DuplicateSchemaInitialValue": 1,
+        "IncompatibleSchemaProjection": 3,
+        "MissingSchemaInitialValue": 1,
+        "ReusedColumnIdentity": 1,
+        "RowBufferTooSmall": 1,
+        "UnexpectedSchemaInitialValue": 1,
+        "UnknownColumn": 2
+      },
+      "outcomes": {
+        "Source": [
+          "physical",
+          "initial"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "compatibleColumn()": "<inferred>",
+        "init()": "<inferred>",
+        "row()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 10,
+        "catch": 1
+      },
+      "imports": [
+        "TableSchema.zig",
+        "Types.zig",
+        "std"
       ]
     },
     "packages/zig/transit-fuze/src/TableSelect.zig": {
@@ -11923,6 +11960,7 @@
         "TableRow.zig",
         "TableSchema.zig",
         "TableSchemaJson.zig",
+        "TableSchemaProjection.zig",
         "TableSelect.zig",
         "TableWitness.zig",
         "Types.zig",

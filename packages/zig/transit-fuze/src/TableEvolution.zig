@@ -19,6 +19,34 @@ pub const Transition = struct {
     after: s.Schema,
     work: Work,
     rebuild_key: bool,
+    /// Narrow lazy-edit matrix. This only classifies interpretation; the owner
+    /// must persist original ADD values and all referenced physical schemas.
+    /// Other edits retain their complete validation/rewrite requirement.
+    pub fn canProject(self: Transition) !bool {
+        if (self.before.object != self.after.object or self.after.revision != try std.math.add(u64, self.before.revision, 1)) return error.InvalidSchemaTransition;
+        if (self.rebuild_key) return false;
+        for (self.before.primary_key) |id| {
+            const before = self.before.columns[try self.before.index(id)];
+            const after = self.after.columns[try self.after.index(id)];
+            if (!std.mem.eql(u8, before.name, after.name)) return false;
+        }
+        const Projection = @import("TableSchemaProjection.zig");
+        var initials: [s.max_columns]Projection.Initial = undefined;
+        var count: usize = 0;
+        for (self.after.columns) |column| {
+            _ = self.before.index(column.id) catch |err| {
+                if (err != error.UnknownColumn) return err;
+                initials[count] = .{ .column = column.id, .value = column.initial() };
+                count += 1;
+                continue;
+            };
+        }
+        _ = Projection.init(self.before, self.after, initials[0..count]) catch |err| switch (err) {
+            error.IncompatibleSchemaProjection, error.MissingRequiredField => return false,
+            else => return err,
+        };
+        return true;
+    }
     /// Scratch and returned cells borrow before/after schemas and source values.
     /// Publish only after every source row has passed under a frozen source cut.
     pub fn row(self: Transition, values: []const Cell, output: []Cell) ![]const Cell {

@@ -404,6 +404,15 @@ the interactive path, measured through storage counters. Mixed old/new physical
 data returns exact values under both retained and current interpretations.
 Unsupported edits have explicit unchanged bounds or refusal, not partial DDL.
 
+The pure `TableSchemaProjection` foundation maps exact physical/logical schemas
+by stable column ID and requires explicit frozen initial values. Focused checks
+cover original and intermediate physical rows, repeated default changes, dropped
+column name reuse, NULL, incompatible layouts and validation of dropped values.
+`TableEvolution.canProject` classifies the approved narrow edit matrix. This is
+not yet wired into the live Table owner: retained interpretation metadata,
+collector dependencies, the mandatory definition cutover and installed mixed-row
+qualification remain open before any P3 item can close.
+
 #### P4 — Schedule archival, checkpoints, compaction and collection
 
 Owners: [GrowingMaintenance](../../apps/transit-node/GrowingMaintenance.zig),

@@ -10,6 +10,23 @@ const before: s.Schema = .{ .object = 1, .revision = 1, .next_column = 3, .colum
 fn number(value: i128) Cell {
     return .{ .value = .{ .atom = .{ .signed = value } } };
 }
+test "lazy schema evolution admits only independently projectable edits" {
+    var columns: [s.max_columns]s.Column = undefined;
+    for ([_]evolution.Change{
+        .{ .rename = .{ .column = 2, .name = "renamed" } },
+        .{ .default = .{ .column = 2, .value = number(9) } },
+        .{ .drop = 2 },
+        .{ .add = .{ .name = "optional", .type = .utf8 } },
+        .{ .add = .{ .name = "filled", .type = .int64, .nullable = false, .default = number(7) } },
+    }) |change| try e.expect(try (try evolution.apply(before, change, &columns)).canProject());
+    for ([_]evolution.Change{
+        .{ .rename = .{ .column = 1, .name = "new_key_name" } },
+        .{ .type = .{ .column = 2, .type = .int32 } },
+        .{ .physical = .{ .column = 2, .encoding = .rle } },
+        .{ .nullable = .{ .column = 2, .value = false } },
+        .{ .add = .{ .name = "required", .type = .int64, .nullable = false } },
+    }) |change| try e.expect(!try (try evolution.apply(before, change, &columns)).canProject());
+}
 test "failed schema conversion identifies the actual stable column without rebinding names" {
     var columns: [s.max_columns]s.Column = undefined;
     var output: [3]Cell = undefined;
