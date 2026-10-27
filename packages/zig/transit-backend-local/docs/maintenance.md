@@ -60,9 +60,14 @@ while independent direct data advances.
 
 `storage_compact` uses the native engine's bounded relocation operation. It
 preserves logical values and resource revisions. An opted-in `checkpoint` and
-`Store.maintain` can release earlier native log history, while current captured
+`Store.maintainUnit` can release earlier native log history, while current captured
 versions independently protect their old roots. Compaction itself expires no
-history and emits no application mutation.
+history and emits no application mutation. Each native trim unit validates the
+accepted checkpoint and performs the bounded WAL cleanup described above;
+`complete` reports physical completion through that target. `Store.maintain`
+drains those units for synchronous component callers. The live node yields to
+lifecycle scans and other physical work between units instead of draining them
+inside one maintenance turn.
 
 Allocation records, private mark pages, FIFO progress and metadata publication
 consume the owner's encoded-file quota. Eligible maintenance uses the control

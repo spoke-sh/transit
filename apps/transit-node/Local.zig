@@ -178,6 +178,10 @@ pub fn trace(engine: *Engine, parent: ?telemetry.Context) void {
     engine.page_store.observe.parent = parent;
 }
 
+pub fn maintain(engine: *Engine, authorized: core.growing.Head) !bool {
+    return (try engine.journal.maintainUnit(authorized)).complete;
+}
+
 pub fn collect(_: *Engine, _: Maintenance.Config, _: core.Ed25519.KeyPair, _: *core.protocol.Growth.Request) !bool {
     // The backend exposes explicit native collection; this runtime does not
     // schedule it. Logical lifecycle progress is not physical reclamation.

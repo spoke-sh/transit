@@ -170,6 +170,11 @@ pub fn trace(engine: *Engine, parent: ?telemetry.Context) void {
     engine.page_store.authority.parent_context = parent;
 }
 
+pub fn maintain(engine: *Engine, authorized: core.growing.Head) !bool {
+    try engine.journal.maintain(authorized);
+    return true;
+}
+
 pub fn collect(engine: *Engine, config: Maintenance.Config, key: core.Ed25519.KeyPair, request: *g.Request) !bool {
     var collection = adapter.StorageCollection.init(engine.journal.journal);
     const saved = try collection.current();

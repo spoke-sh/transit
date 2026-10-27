@@ -186,7 +186,13 @@ page cache, and shares the local owner's serialized publication boundary with
 request lanes. Shutdown joins both tasks before closing storage. Local
 `--maintain` rejects: a second process cannot acquire the directory while the
 node owns it. Authorized accepted-floor trimming survives restart; unlimited
-retention and the history-trim opt-in are unchanged. Local immutable objects
+retention and the history-trim opt-in are unchanged. Each local native trim turn
+performs at most 32 directory entries or one verified WAL frame, and removes at
+most one segment. The scheduler retains its selected checkpoint target until
+cleanup completes. Lifecycle scans alternate with physical work; native trim,
+collection and Table work rotate through a bounded pass that skips idle classes.
+A failed class advances the rotation before its next attempt. Incomplete cleanup
+therefore cannot occupy every maintenance turn. Local immutable objects
 remain retained, and `storage.maintenance.compact: true` rejects. Standalone
 payloads have their own opted-in retirement lifecycle: local maintenance confirms
 physical removal under the current native authority fence before publishing

@@ -216,6 +216,68 @@ test "native publication survives a lost reply and restart without repeating acc
     try t.expectEqual(@as(u64, 1), (try engine.process(1)).pid);
 }
 
+test "native history cleanup yields bounded units and preserves accepted roots after reopen" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var accepted: u64 = undefined;
+    {
+        var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+        defer owner.deinit();
+        owner.wal.disk.?.options.segment_bytes = 1024;
+        var pages = try backend.PageStore.init(&owner, 1);
+        defer pages.deinit();
+        var journal: backend.Store = .{ .backend = &owner };
+        var engine = try Engine.bootstrap(&journal, &pages, try genesis());
+        var clock_context: u8 = 0;
+        engine.clock = .{ .context = &clock_context, .read = clock };
+        for (0..8) |_| _ = try submit(&engine, .{ .spawn = .{} });
+        _ = try submit(&engine, .{ .checkpoint = {} });
+        const target = engine.head;
+        accepted = target.position;
+        var invalid = target;
+        invalid.history_floor = target.position;
+        try t.expectError(error.NoCheckpointIntent, journal.maintainUnit(invalid));
+        invalid = target;
+        invalid.genesis[0] ^= 1;
+        try t.expectError(error.NoCheckpointIntent, journal.maintainUnit(invalid));
+        var units: usize = 0;
+        while (true) {
+            const disk = owner.wal.disk.?;
+            const entries = disk.trim_entries;
+            const frames = disk.trim_frames;
+            const segments = disk.trim_segments;
+            const progress = try journal.maintainUnit(target);
+            try t.expect(disk.trim_entries - entries <= 32);
+            try t.expect(disk.trim_frames - frames <= 1);
+            try t.expect(disk.trim_segments - segments <= 1);
+            try t.expectError(error.HistoryReclaimed, journal.read(0));
+            if (units == 0) {
+                // Independent data can accept between physical native units.
+                var data: backend.DataStore = .{ .backend = &owner };
+                _ = try data.log().append(17, 0, target.storage_epoch, target.authorization.revision + 1, .row_delta, "between cleanup units");
+            }
+            units += 1;
+            try t.expect(units <= 64);
+            if (progress.complete) break;
+        }
+        try t.expect(units > 1);
+        try t.expectEqual(target.position, try journal.tail());
+        try t.expectEqual(@as(u64, 1), (try engine.process(1)).pid);
+    }
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    var engine = try Engine.open(&journal, &pages, try genesis());
+    try t.expectEqual(accepted, engine.head.position);
+    try t.expectEqual(@as(u64, 1), (try engine.process(1)).pid);
+    var data: backend.DataStore = .{ .backend = &owner };
+    var retained = try data.log().read(t.allocator, 17, 0, 1);
+    defer retained.deinit();
+    try t.expectEqualStrings("between cleanup units", retained.frames[0].payload);
+}
+
 test "local native submissions sequence private staging without blocking direct data" {
     const Gate = struct {
         var real: *const std.Io.VTable = undefined;

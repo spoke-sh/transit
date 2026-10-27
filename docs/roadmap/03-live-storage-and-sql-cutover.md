@@ -554,6 +554,17 @@ six-minute reader grace, and publishes the required native time fence before
 deletion. Cold owner replay/directory costs remain explicit P5 work; bounded
 cleanup alone cannot establish the complete P4 resource gate.
 
+The local native owner now yields between accepted-floor WAL cleanup units and
+rotates trim, collection and Table work independently of lifecycle scans. The
+target remains fixed until physical cleanup completes; failed or unfinished trim
+cannot consume every storage turn. The installed signed service schedule passes
+trim, restart and current revocation. Five local catalog/maintenance checks pass,
+including a deliberately unfinished trim, an injected trim failure, fair progress
+of the other classes, and the existing retained-graph and flush checks. Four
+selected backend checks pass bounded native trimming and reopen. Automatic
+archive/checkpoint/compaction and collection remain unfinished; these scheduler
+and backend results do not close P4.1 or the aggregate resource gate.
+
 #### P5 — Qualify and reduce the remaining live read and wait costs
 
 Owners: local Table service/catalog, direct query readers, shared SQL service,
@@ -655,6 +666,31 @@ deadline on the second cycle's single-row UPDATE. Its eight successful measured
 samples remain approximately 8.3–10.6 seconds. This is not a resolved live latency
 or completion gate. `6e649fc69` also includes direct catalog/Table WAL and object
 attempts in request diagnostics; earlier provider counters omitted that work.
+
+`5f96afeb1` also reuses validated Table history for name lookup through the same
+fixed-size host hint slots. Current authorization remains independent: the
+policy check observes eight WAL frames for the cold lookup and three for the
+warm lookup, then denies disclosure after revocation. Two fresh, unproxied
+installed runs each pass 100 independent persistent-console read controls
+(20 per case), comparing node `601c2db6d` with `5f96afeb1` while other roles stay
+at `8b19eaebb`. Point median/p95 changes from 1,159/1,397 ms to 669/784 ms; full
+scan from 1,370/1,635 ms to 857/996 ms. Range, empty and LIMIT-zero medians also
+improve. These shared-host, node-only measurements are encouraging but do not
+establish final same-source packaging or tail guarantees.
+
+The complete-native-submission sequencer removes the competing private staging
+seen in the earlier diagnostic, but does not resolve mutation latency. Its
+three-repetition uninstrumented run reaches another submission deadline on the
+second cycle's single-row INSERT. After preserving that installation, reopening
+with its original binaries finds all 15 original operations terminal; the final
+INSERT is applied with one matched/changed row. Independent readback verifies
+the exact ten expected rows without a replacement write. A separate instrumented
+two-repetition run completes all 14 mutations and 15 read controls with no native
+conditional conflicts, but some mutations take 23–39 seconds. Neither successful
+recovery nor the diagnostic run erases the original deadline failure. An
+instrumented read-only control also failed during bootstrap before measurement;
+its proxy obstructed the launcher's subsequent port preflight. That failed
+control remains retained separately from the successful unproxied comparison.
 
 #### P6 — Publish one authorized storage view and configuration surface
 
