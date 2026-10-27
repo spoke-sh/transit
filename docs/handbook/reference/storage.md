@@ -178,8 +178,10 @@ disk headroom and trusted clock assumptions are deployment responsibilities;
 an in-memory store test does not establish WAL or host power-loss behavior.
 The local backend also exposes explicit [standalone payload operations](../../../packages/zig/transit-backend-local/docs/payloads.md).
 They verify the accepted declaration, preserve uncertain creation and require
-opted-in native retirement before physical deletion. Installed local payload
-routes remain separate from these component operations.
+opted-in native retirement before physical deletion. The installed local node's
+[payload route](../../../contracts/SERVICE_V1.md#standalone-payload-bytes) exposes
+authenticated creation, original-attempt verification and ready-byte reads.
+Its maintenance principal reconciles opted-in deletion through the same owner.
 See [retention](retention.md) and [deployment](deployment.md).
 
 The [backend package](../../../packages/zig/transit-backend-ursula/README.md) and

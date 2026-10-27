@@ -35,6 +35,13 @@ names and resource associations. Reads and replay also require current rights.
 A worker replacement changes its ownership generation; restoring an old snapshot
 or credential file cannot recreate authority.
 
+Standalone immutable payloads use accepted declarations plus the local owner's
+`POST /v1/payload` byte service. Publication and verification require the recorded
+publisher's current `publish` privilege; reads require current `inspect` rights
+for the process. After uncertain creation, verify the original attempt before
+publishing native readiness. Never create the bytes again to guess their outcome.
+See [payload envelopes and lifecycle](../../../contracts/SERVICE_V1.md#standalone-payload-bytes).
+
 ## Implementing another language client
 
 The neutral boundary already has generated declarations and independent signing

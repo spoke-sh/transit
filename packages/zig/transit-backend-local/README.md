@@ -122,8 +122,9 @@ for invocation, ownership, quotas and recovery. Table objects and standalone
 payloads retain separate ownership; this collector does not delete them or
 schedule automatic local collection. `PayloadStore` implements explicit
 [standalone payload publication and retirement](docs/payloads.md) under the
-existing native declarations. These component operations are separate from
-installed node payload routes and automatic maintenance.
+existing native declarations. The local node composes them into authenticated
+payload publication/read operations and opted-in maintenance deletion, with
+current service authorization rechecked under the physical owner's fence.
 
 `DataCollection.Collector(transit_catalog.DirectStorageGraph)` composes the local
 allocation/deletion mechanism with complete Table/catalog dependency traversal.

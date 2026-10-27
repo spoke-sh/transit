@@ -10,6 +10,9 @@ pub const Engine = core.growing.Engine(@import("Store.zig"), @import("PageStore.
 const marker_bytes = 136;
 engine: *Engine,
 observe: @import("Diagnostics.zig") = .{},
+/// Service admission is rechecked under the same fence as physical I/O.
+/// Trusted component callers may omit it; the adapter itself grants no rights.
+guard: ?struct { context: *anyopaque, check: *const fn (*anyopaque, *Engine) anyerror!void } = null,
 
 fn backend(self: *Self) *Backend {
     return self.engine.journal.backend;
@@ -20,6 +23,7 @@ fn acquire(self: *Self, expected: g.Payload) !void {
     try owner.authority.lockShared(owner.io);
     errdefer owner.authority.unlockShared(owner.io);
     try self.engine.refresh();
+    if (self.guard) |guard| try guard.check(guard.context, self.engine);
     var state = try self.engine.state();
     const current = (try state.get(g.Payload, core.growing.address(.payload, expected.id))) orelse return error.UnknownPayload;
     if (!std.meta.eql(current, expected)) return error.PayloadIdentityMismatch;
@@ -123,6 +127,27 @@ fn verify(self: *Self, value: g.Payload) !void {
 /// marker remains permanently; payload_deleted is a separate native publication.
 pub fn reclaimPayload(self: *Self, value: g.Payload) !void {
     return self.observe.run(self.backend().io, "payload.delete", reclaim, .{ self, value });
+}
+
+/// Read only ready bytes into caller-owned bounded memory. Current service
+/// admission and physical integrity remain checked on every disclosure.
+pub fn readPayload(self: *Self, value: g.Payload, output: []u8) ![]const u8 {
+    return self.observe.run(self.backend().io, "payload.read", read, .{ self, value, output });
+}
+fn read(self: *Self, value: g.Payload, output: []u8) ![]const u8 {
+    if (value.phase != .ready) return error.PayloadPhase;
+    if (output.len < value.bytes) return error.InvalidPayload;
+    try self.acquire(value);
+    defer self.release();
+    try self.requireMarker(value, false);
+    var name: [64]u8 = undefined;
+    const bytes = self.backend().read(key(value, &name), output) catch |err| switch (err) {
+        error.MissingStorageObject => return error.PayloadUnavailable,
+        else => return err,
+    };
+    try validate(value, bytes);
+    self.observe.metrics.response_bytes +|= bytes.len;
+    return bytes;
 }
 fn reclaim(self: *Self, value: g.Payload) !void {
     if (value.phase != .retiring or !value.allow_delete or value.retired_at == null) return error.PayloadPhase;

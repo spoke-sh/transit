@@ -41,8 +41,13 @@ uses bounded buffers, including a 64 KiB payload buffer and the object store's
 chunk-validation scratch. An engine and its page cache belong to one request
 lane; independent lanes share the backend's publication and allocation locks.
 
-These operations are available through the Zig component. Installed local node
-payload publication and reclamation are separate runtime integration work.
+`readPayload` copies ready bytes into the caller's bounded buffer, verifies the
+marker and content, and releases the publication fence before transport. A service
+guard runs under that fence for every physical operation; direct component callers
+remain trusted. The installed local node provides the
+[authenticated payload route](../../../../contracts/SERVICE_V1.md#standalone-payload-bytes).
+Its maintenance task rechecks current deletion authority under the same fence,
+confirms physical removal, then publishes the separate native deletion evidence.
 The [proof ledger](../../../../docs/history/qualification/README.md) records the executed disk,
 concurrency, corruption and sync-failure cases. The
 [native contract](../../../../contracts/TRANSIT_V1.md#payloads-and-working-catalog-collection)

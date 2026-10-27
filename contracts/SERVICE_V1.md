@@ -12,12 +12,14 @@ cutover policy. Clients, workers and services use matching builds.
 | `POST /v1/command` | `CommandEnvelope { request, signature, blocks? }` | `Receipt { position }` |
 | `POST /v1/query` | `SignedQuery { query, signature }` | `Response { version, definition, realm, position, principal_sequence, body }` |
 | `POST /v1/blocks` | `SignedQuery` selecting `block_entries` or `snapshot_read` | `{ response: Response, blocks: BASE64 }` |
+| `POST /v1/payload` (local owner) | `PayloadRequest { operation, proof, body }` | `PayloadResponse { definition, realm, payload, outcome, body }` |
 | `GET /health` | No body or credential | `{ ready: true, profile: "native_v1" }` after authority refresh |
 
 The [generated schema](transit-v1.schema.json) owns complete fields, defaults,
 union tags and bounds. Request and query versions are 1. Mutations use a positive
 principal sequence; queries have no mutation sequence. Other routes return 404.
-There are no alternate command, view, inspection, state or courier envelopes.
+The payload route publishes/verifies/reads standalone immutable bytes. Its
+declaration, readiness and retirement transitions use `/v1/command`.
 
 Signatures use Ed25519 over SHA-256 of the domain followed by canonical typed
 JSON. The domains are `transit.request.v1` and `transit.query.v1`, each followed
@@ -83,6 +85,48 @@ ID as `command: { deliver: OUTPUT_ID }`, retaining the exact signed command whil
 its outcome is uncertain. Current `send` permission separately determines
 successful admission versus recorded denial. Destination inputs own their value
 and authenticated origin independently of later output-catalog collection.
+
+## Standalone payload bytes
+
+The local owner serves `POST /v1/payload`; Ursula nodes return 404. An operation
+has fields, in order, `kind` (`create`, `verify`, `read`), `payload` (`pid`,
+`payload`) and `content` (null, or `bytes` then `sha256`). Creation requires the
+exact length/digest from an accepted `declare_payload`; verify/read require
+null content. `body` is canonical padded base64: the exact creation bytes, or an
+empty string for verify/read. Payloads are nonempty and at most 65,536 bytes.
+The envelope has the same 256 KiB HTTP body bound as native commands.
+
+`proof` is the current [authorization subject proof](AUTHORIZATION_V1.md).
+Its audience is the payload's PID. Its context is SHA-256 of the ASCII domain
+`transit.native.payload.v1`, one NUL, the 32 shared-definition bytes, and the
+canonical typed JSON operation. The claim binds realm, principal, credential
+epoch, selected role, audience and context; its existing subject signature
+authenticates that claim. Native process-scoped `publish` rights and the recorded
+publisher identity authorize creation and verification. Current `inspect` rights
+authorize ready-byte reads. PID restrictions and explicit role selection apply.
+The local owner holds its native authority fence through the final permission,
+declaration and physical-I/O checks. An accepted declaration grants no read or
+write authority by itself.
+
+`create` attempts immutable publication once behind a permanent marker. Success
+returns `outcome: created`; an already recorded attempt returns
+`verify_required` and performs no PUT. After any uncertain result, the caller
+keeps the original declaration and uses `verify`. Verification establishes
+physical durability of those original bytes and returns `verified`; missing
+bytes remain unavailable. Neither operation publishes `payload_ready`.
+The publisher submits that separate native command after confirmed publication
+or verification. The readiness record is the publisher's attestation; reads
+still validate the physical content. A `read` returns `outcome: read`, the accepted ready declaration
+and its exact bytes. Other outcomes have an empty response body. Responses bind
+the current definition, realm and original payload identity; clients validate
+the read length and digest before disclosure.
+
+The route never creates a native declaration, advances a principal sequence,
+retires a payload or dispatches an effect. Native maintenance confirms physical
+deletion under an accepted opted-in retirement intent before publishing
+`payload_deleted`. Failed or uncertain deletion leaves that intent unresolved;
+the permanent creation marker remains. Logical readiness/retirement and physical
+I/O retain their separate acceptance boundaries.
 
 ## Errors and transport
 

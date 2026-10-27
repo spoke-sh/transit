@@ -63,7 +63,7 @@ fn step(comptime Provider: type, engine: *Provider.Engine, config: Config, key: 
             const prepared = try engine.prepare(signed);
             var state = try engine.state();
             const payload = (try state.get(g.Payload, core.growing.address(.payload, value.payload_deleted.payload))) orelse return error.UnknownPayload;
-            try Provider.reclaimPayload(engine, payload);
+            try Provider.reclaimPayload(engine, payload, signed);
             // Conflict or lost acknowledgement leaves the original durable
             // retirement intent for a later bounded scan and confirmed 404.
             _ = try engine.commit(prepared);

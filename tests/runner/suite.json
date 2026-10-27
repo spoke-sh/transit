@@ -49,6 +49,7 @@
       "test::growing",
       "test::growing-service",
       "test::local-owner-recovery",
+      "test::local-payload-service",
       "test::local-catalog",
       "test::direct-table-service",
       "test::direct-catalog-abi",

@@ -27,6 +27,7 @@ diagnostics. `profile` is `native_v1`, including when omitted.
 | --- | --- |
 | `POST /v1/command` | Signed mutation or reconciliation of an accepted receipt |
 | `POST /v1/query` | Signed process, delivery, inspection, resource and snapshot reads |
+| `POST /v1/payload` | Authenticated standalone byte publication, original verification and reads on the local owner |
 | `POST /table/v1` | Signed direct Table operations when the local `table` owner is configured |
 | `GET /health` | Refresh storage and report role readiness |
 

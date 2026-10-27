@@ -185,7 +185,10 @@ request lanes. Shutdown joins both tasks before closing storage. Local
 node owns it. Authorized accepted-floor trimming survives restart; unlimited
 retention and the history-trim opt-in are unchanged. Local immutable objects
 remain retained, and `storage.maintenance.compact: true` rejects. Standalone
-payload reclamation reports unavailable without recording a deletion outcome.
+payloads have their own opted-in retirement lifecycle: local maintenance confirms
+physical removal under the current native authority fence before publishing
+deletion evidence. It retains the permanent creation-attempt marker. Payloads
+without deletion opt-in remain retained even after process retirement.
 
 The process rotates through processes, resources and indexed pending effects/
 outputs, inspecting one record from a bounded page per step. Its disposable

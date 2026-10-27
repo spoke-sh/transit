@@ -158,16 +158,16 @@ the first end-to-end test at the end of the milestone.
   inventory. Reproduce a small installed physical-disk lifecycle and performance
   control before changing runtime behavior. Keep uncertainty under its original
   saved identity; a failed baseline is diagnostic evidence, not a timing sample.
-- [ ] P0.2 Resolve D1–D4 in this owner and #110/#122. Reconcile milestone 2's
+- [x] P0.2 Resolve D1–D4 in this owner and #110/#122. Reconcile milestone 2's
   acceptance with component issues and obsolete milestone-number references.
   Preserve historical evidence; distinguish remaining local obligations from
   explicitly transferred provider/transaction/index work.
-- [ ] P0.3 Specify the maintenance contract before wiring it: eligible work,
+- [x] P0.3 Specify the maintenance contract before wiring it: eligible work,
   Table discovery, fairness, trigger accounting, per-step and aggregate budgets,
   backpressure, retry/recovery, shutdown and public progress. Define current
   privileges for configuration, requested maintenance and read-only observation.
   Use existing storage/catalog policy owners, not an independent admin service.
-- [ ] P0.4 Define accurate observations: accepted physical position, logical
+- [x] P0.4 Define accurate observations: accepted physical position, logical
   change position, oldest live WAL dependency/flush coverage, pending rows/bytes,
   archive/recovery coverage, logical history floor, retained pins, collection
   phase and bounded failure information. Do not invent one contiguous
@@ -185,6 +185,11 @@ the first end-to-end test at the end of the milestone.
 **Gate:** one owner/proof matrix, a reproducible baseline and resolved format,
 projection, packaging and maintenance contracts. Required paths have concrete
 acceptance assertions before implementation; unavailable evidence is labelled.
+
+The issue reconciliation closes foundation trackers #113–#115 against merged
+PR #187 and its final local acceptance/evidence. #116 remains open with explicit
+P2/P4/P5/P6/P8 installed-runtime work. Group commit, broader indexes and remote
+providers retain the already assigned later milestones; this changes no scope.
 
 **Frozen baseline (27 October 2026):** runtime source
 `c2d665e5ec7e4095f70f5b0c0d92a17e8497d8f6`, `ReleaseSafe`, pinned Zig
@@ -260,7 +265,7 @@ Owners: [Local](../../apps/transit-node/Local.zig),
   resolve the exact saved request. Preserve principal/sequence/content, current
   authorization and fencing. Corruption/incompatibility must remain errors;
   exhausted recovery must report an unresolved outcome, not reinitialize.
-- [ ] P1.3 Compose accepted standalone payload declaration, authenticated byte
+- [x] P1.3 Compose accepted standalone payload declaration, authenticated byte
   publication/read, original verification after uncertainty, readiness and
   opted-in reclamation. Reuse the component's one-attempt marker and reserved
   namespace; do not repeat a PUT merely because its reply or bytes are missing.
@@ -282,6 +287,15 @@ the three-reopen budget, then resolves the saved request after process restart.
 The existing service schedule also passes signed reads/turns, malformed reply,
 abrupt restart, local maintenance and current revocation on one CPU. P1's full
 launcher, payload and installed durable-owner gates remain open.
+
+The payload slice adds authenticated local publication/verification/reads and
+current-authorized opted-in deletion through native maintenance. The installed
+node route passes the independent signed HTTP schedule and shared Zig client
+read, including a discarded creation reply, restart, permanent attempt fence,
+current revocation and an unlimited-retention neighbor. The seven backend
+payload failure/integrity tests pass in `ReleaseSafe`; the protocol package
+passes 60 tests in `Debug`, and all 18 reflected contract checks pass. Full
+launcher/installed durable-owner qualification remains the P1.4 gate.
 
 #### P2 — Make point flushing automatic and inspectable
 

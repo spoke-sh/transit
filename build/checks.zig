@@ -1227,6 +1227,14 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     local_owner_recovery.has_side_effects = true;
     local_owner_recovery.stdio = .inherit;
     b.step("test-local-owner-recovery", "Resolve uncertain WAL writes by reopening the exclusive node owner").dependOn(&local_owner_recovery.step);
+    const local_payload_service = b.addSystemCommand(&.{ "python3", "-B" });
+    local_payload_service.addFileArg(b.path("tests/runner/launch.py"));
+    local_payload_service.addFileArg(b.path("tests/storage/local/local_payload_service.py"));
+    local_payload_service.addArtifactArg(node_artifact);
+    local_payload_service.addArtifactArg(growing_client);
+    local_payload_service.has_side_effects = true;
+    local_payload_service.stdio = .inherit;
+    b.step("test-local-payload-service", "Qualify authenticated local standalone payload lifecycle").dependOn(&local_payload_service.step);
     const direct_table_client = b.addExecutable(.{ .name = "transit-direct-table-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/interfaces/native/direct_table_client.zig"),
         .target = target,

@@ -173,6 +173,55 @@ pub fn collect(_: *Engine, _: Maintenance.Config, _: core.Ed25519.KeyPair, _: *c
     return false;
 }
 
-pub fn reclaimPayload(_: *Engine, _: core.protocol.Growth.Payload) !void {
-    return error.LocalPayloadReclamationUnavailable;
+pub fn reclaimPayload(engine: *Engine, value: core.protocol.Growth.Payload, signed: core.protocol.Growth.SignedRequest) !void {
+    const Admission = struct {
+        signed: core.protocol.Growth.SignedRequest,
+        fn check(context: *anyopaque, authority: *Engine) !void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            try authority.authorizePayloadRetirement(self.signed);
+        }
+    };
+    var admission: Admission = .{ .signed = signed };
+    var store: backend.PayloadStore = .{ .engine = engine, .guard = .{ .context = &admission, .check = Admission.check } };
+    try store.reclaimPayload(value);
+}
+
+pub fn payload(engine: *Engine, request: *const core.protocol.NativePayload.Request, response: *core.protocol.NativePayload.Response) !void {
+    try request.validate();
+    const Admission = struct {
+        request: *const core.protocol.NativePayload.Request,
+        fn check(context: *anyopaque, authority: *Engine) !void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            _ = try authority.authorizePayload(self.request.operation, self.request.proof);
+        }
+    };
+    // This first observation selects an exact declaration. The adapter checks
+    // both current authorization and that declaration again under its I/O fence.
+    const value = try engine.authorizePayload(request.operation, request.proof);
+    var admission: Admission = .{ .request = request };
+    var store: backend.PayloadStore = .{ .engine = engine, .observe = engine.journal.observe, .guard = .{ .context = &admission, .check = Admission.check } };
+    store.observe.metrics = .{};
+    defer inline for (@typeInfo(@TypeOf(store.observe.metrics)).@"struct".field_names) |name| {
+        @field(engine.journal.observe.metrics, name) +|= @field(store.observe.metrics, name);
+    };
+    response.* = .{ .definition = core.protocol.Growth.current_definition, .realm = engine.genesis.realm, .payload = value, .outcome = undefined, .body = .{} };
+    switch (request.operation.kind) {
+        .create => {
+            store.createPayloadOnce(value, request.body.slice()) catch |err| {
+                if (err != error.PayloadCreationAttempted) return err;
+                response.outcome = .verify_required;
+                return;
+            };
+            response.outcome = .created;
+        },
+        .verify => {
+            try store.verifyPayload(value);
+            response.outcome = .verified;
+        },
+        .read => {
+            const bytes = try store.readPayload(value, response.body.data[0..core.protocol.max_payload_bytes]);
+            response.body.len = @intCast(bytes.len);
+            response.outcome = .read;
+        },
+    }
 }

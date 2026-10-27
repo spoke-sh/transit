@@ -197,7 +197,8 @@ pub fn collect(engine: *Engine, config: Maintenance.Config, key: core.Ed25519.Ke
     return false;
 }
 
-pub fn reclaimPayload(engine: *Engine, payload: g.Payload) !void {
+pub fn reclaimPayload(engine: *Engine, payload: g.Payload, signed: g.SignedRequest) !void {
+    try engine.authorizePayloadRetirement(signed);
     var payloads: adapter.PayloadStore = .{ .journal = &engine.journal.journal };
     try payloads.reclaimPayload(payload);
 }

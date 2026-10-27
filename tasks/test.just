@@ -111,6 +111,10 @@ local-native-service:
 local-owner-recovery:
     zig build test-local-owner-recovery -Doptimize=ReleaseSafe
 
+# Authenticated standalone payload bytes, recovery and native maintenance.
+local-payload-service:
+    zig build test-local-payload-service -Doptimize=ReleaseSafe
+
 # Verify direct catalog lifecycle against signed native registration and policy.
 local-catalog:
     zig build test-local-catalog

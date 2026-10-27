@@ -292,6 +292,11 @@ are limited to 64 KiB and finite process lifetimes reject standalone payloads.
 Only that publisher can record `payload_ready`. Deletion requires creation-time
 `allow_delete`, process retirement, `retire_payload` and confirmed
 `payload_deleted` evidence. Physical I/O belongs to the backend payload store.
+The local [payload service](SERVICE_V1.md#standalone-payload-bytes) authenticates
+byte creation, original-attempt verification and reads under the same current
+native privileges. Only a confirmed publication/verification justifies the
+publisher's separate readiness command; parsing a request or finding an attempt
+marker is insufficient.
 
 `spawn.allow_collection` or `create.process.allow_collection` opts into working
 catalog collection before admission; the default is false. `collect` identifies

@@ -4,6 +4,7 @@ pub const version = 1;
 pub const Value = @import("Value.zig");
 pub const Storage = @import("Storage.zig");
 pub const Blocks = @import("Blocks.zig");
+pub const NativePayload = @import("NativePayload.zig");
 pub const Ed25519 = std.crypto.sign.Ed25519;
 pub const Json = @import("Json.zig");
 pub const Schema = @import("Schema.zig");
@@ -58,6 +59,7 @@ test {
     _ = Growth;
     _ = Value;
     _ = Blocks;
+    _ = NativePayload;
     _ = Diagnostic;
     _ = EffectDiagnostic;
     _ = Authorization;
