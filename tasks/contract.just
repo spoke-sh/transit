@@ -22,8 +22,8 @@ generate:
     mv "$generated/diagnostic-v1.schema.json" contracts/diagnostic-v1.schema.json
     mv "$generated/data-lifecycle-v1.schema.json" contracts/data-lifecycle-v1.schema.json
     mv "$generated/index-lifecycle-v1.schema.json" contracts/index-lifecycle-v1.schema.json
-    python3 -B tests/index_lifecycle_contract.py --write < contracts/index-lifecycle-v1.schema.json
-    python3 -B tests/work_items_contract.py --write
+    python3 -B tests/runner/launch.py tests/catalog/tables/index_lifecycle_contract.py --write < contracts/index-lifecycle-v1.schema.json
+    python3 -B tests/runner/launch.py tests/runtime/application/work_items_contract.py --write
     zig build application-installation-fixture > contracts/application-installation-v1.fixture.json
 
 # Regenerate the C ABI resource and header from exported Zig function types.
@@ -48,23 +48,23 @@ logical-check:
     zig build logical-contract | python3 -B packages/zig/transit-fuze/generate.py
 
 direct-table-generate:
-    zig build direct-table-contract | python3 -B tests/direct_table_contract.py --write
+    zig build direct-table-contract | python3 -B tests/runner/launch.py tests/catalog/tables/direct_table_contract.py --write
 
 direct-table-check:
-    zig build direct-table-contract | python3 -B tests/direct_table_contract.py
+    zig build direct-table-contract | python3 -B tests/runner/launch.py tests/catalog/tables/direct_table_contract.py
 
 configuration-generate:
-    zig build configuration-contract | python3 -B tests/configuration_contract.py --write
-    zig build settings-reference | python3 -B tests/configuration_reference.py --write
+    zig build configuration-contract | python3 -B tests/runner/launch.py tests/interfaces/installation/configuration_contract.py --write
+    zig build settings-reference | python3 -B tests/runner/launch.py tests/interfaces/installation/configuration_reference.py --write
 
 configuration-check:
-    zig build configuration-contract | python3 -B tests/configuration_contract.py
-    zig build settings-reference | python3 -B tests/configuration_reference.py
+    zig build configuration-contract | python3 -B tests/runner/launch.py tests/interfaces/installation/configuration_contract.py
+    zig build settings-reference | python3 -B tests/runner/launch.py tests/interfaces/installation/configuration_reference.py
 
 sql-session-generate:
-    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/sql_sessions/contracts.py --schema --write
-    python3 -B tests/sql_sessions/contracts.py --write
+    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/runner/launch.py tests/interfaces/sql_sessions/contracts.py --schema --write
+    python3 -B tests/runner/launch.py tests/interfaces/sql_sessions/contracts.py --write
 
 sql-session-check:
-    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/sql_sessions/contracts.py --schema
-    python3 -B tests/sql_sessions/contracts.py
+    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/runner/launch.py tests/interfaces/sql_sessions/contracts.py --schema
+    python3 -B tests/runner/launch.py tests/interfaces/sql_sessions/contracts.py

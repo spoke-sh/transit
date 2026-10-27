@@ -21,9 +21,9 @@ IO.write(:io_lib.format(~c"~tp.~n", [term]))
 '''
 
 
-def build(output, names, native_prefix=None):
+def build(output, names, native_prefix):
     output = Path(output).resolve()
-    native_prefix = Path(native_prefix).resolve() if native_prefix else ROOT / 'zig-out'
+    native_prefix = Path(native_prefix).resolve()
     output.mkdir(parents=True, exist_ok=True)
     environment = dict(os.environ, ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
     with tempfile.TemporaryDirectory(prefix='transit-beam-build-') as temporary:
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output')
     parser.add_argument('names', nargs='*')
-    parser.add_argument('--native-prefix')
+    parser.add_argument('--native-prefix', required=True)
     args = parser.parse_args()
     build(args.output, args.names or ['transit-native-client', 'transit-client', 'transit-client-elixir', 'transit-native-station', 'transit-station-sdk', 'transit-station-elixir',
                                       'examples/station-sdk/erlang', 'examples/station-sdk/elixir'], args.native_prefix)

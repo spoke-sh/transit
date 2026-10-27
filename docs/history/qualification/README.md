@@ -21,7 +21,7 @@ failure or establish its cause. Current behavior belongs to the handbook.
 
 The [migration map](migration.json) maps every previous proof heading from
 `tests/README.md` to its topic owner and records original section hashes at
-source `0e6586bba5a2d9e8b0aa3b11ba422cb623c6c467`. The migration changes relative links only; raw
-artifacts remain in their original locations. Use topic records for accepted
+source `0e6586bba5a2d9e8b0aa3b11ba422cb623c6c467`. The initial migration changed relative links only. Archived generated artifacts
+remain accessible through immutable source-revision links and recorded hashes. Use topic records for accepted
 qualification evidence, issues for active investigations, and the roadmap for
 delivery status. Do not append chronological agent handoffs to this index.

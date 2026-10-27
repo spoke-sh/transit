@@ -89,8 +89,9 @@ public static class UnifiedQuery
         }
         internal override JsonObject Definition() {
             var rowType=new Logical.Structure(Schema.Columns.Select(c=>new Logical.Field(c.Name,c.Type,c.Nullable,false)).ToArray());
+            JsonArray collations=new(); foreach(var column in Schema.Columns)collations.Add(Logical.EnumName(column.Collation));
             return V.Obj(("table",V.Obj(("scope",Scope.Wire()),("owner",Audience),("branch",Turn.Decimal(Branch)),("namespace",Namespace),("object",Turn.Decimal(Schema.ObjectId)),
-                ("interpretation",Interpretation.Wire()),("row_type",Logical.TypeWire(rowType)))));
+                ("interpretation",Interpretation.Wire()),("row_type",Logical.TypeWire(rowType)),("collations",collations))));
         }
     }
     public sealed record Tables {
@@ -158,9 +159,11 @@ public static class UnifiedQuery
     public sealed record Budgets(ulong Pages,ulong Segments,ulong ResultBytes) { internal JsonObject Wire() => V.Obj(("pages",Turn.Decimal(Positive(Pages))),("segments",Turn.Decimal(Positive(Segments))),("result_bytes",Turn.Decimal(Positive(ResultBytes)))); }
     public sealed record Bundle {
         public Bytes Bytes { get; }
-        public Bundle(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if(bytes.Length==0 || bytes.Length>25614) throw new ArgumentException("Expected finite query bundle"); Bytes=bytes; }
+        public Bundle(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if(bytes.Length==0 || bytes.Length>Catalog.Limit("query_bundle_bytes")) throw new ArgumentException("Expected finite query bundle"); Bytes=bytes; }
         public static async Task<Bundle> PrepareAsync(Source source,Plan plan,Budgets budgets,string? nativeDirectory=null) {
-            var v=await LocalAsync(V.Obj(("prepare",V.Obj(("source",source.Wire()),("plan",plan.Wire()),("limits",budgets.Wire())))),nativeDirectory).ConfigureAwait(false); return new(Encoded(V.Object(v["prepared"])["bytes"],25614));
+            var declaration=source.Wire(); var parameters=plan.Wire();
+            if(source is TableSource)parameters["collations"]=declaration["source"]!["table"]!["collations"]!.DeepClone();
+            var v=await LocalAsync(V.Obj(("prepare",V.Obj(("source",declaration),("plan",parameters),("limits",budgets.Wire())))),nativeDirectory).ConfigureAwait(false); return new(Encoded(V.Object(v["prepared"])["bytes"],Catalog.Limit("query_bundle_bytes")));
         }
     }
     public sealed record Prepared {
@@ -331,12 +334,12 @@ public static class UnifiedQuery
                 values=new();foreach(var scalar in parameters)values.Add(Wire(scalar));
             }
             var action=V.Obj(("compile",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",ColumnName(name)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)),("parameters",values))));
-            return worker.Invoke(b=>new Bundle(Encoded(V.Object(b.UnifiedQuery(action)["compiled"])["bundle"],25614)),cancellation);
+            return worker.Invoke(b=>new Bundle(Encoded(V.Object(b.UnifiedQuery(action)["compiled"])["bundle"],Catalog.Limit("query_bundle_bytes"))),cancellation);
         }
         /// <summary>Seal new work before persistence; recover saved bundles unchanged.</summary>
         public Task<Bundle> AuthorizeBundleAsync(Bundle bundle,Capture? capture=null,CancellationToken cancellation=default) {
             var action=V.Obj(("authorize",V.Obj(("bundle",Hex(bundle.Bytes)),("capture",capture?.Wire()))));
-            return worker.Invoke(b=>new Bundle(Encoded(b.UnifiedQuery(action)["authorized"],25614)),cancellation);
+            return worker.Invoke(b=>new Bundle(Encoded(b.UnifiedQuery(action)["authorized"],Catalog.Limit("query_bundle_bytes"))),cancellation);
         }
         public Task<Prepared> PrepareCleanupAsync(ulong ns,Bundle originalBundle,CancellationToken cancellation=default) {
             var action=V.Obj(("cleanup",V.Obj(("namespace",Turn.Decimal(Positive(ns))),("bundle",Hex(originalBundle.Bytes)))));

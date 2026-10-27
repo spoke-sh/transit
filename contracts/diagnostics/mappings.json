@@ -3677,8 +3677,8 @@
       "id": "file-caller",
       "profile": "Local file capture, framing, discovery, logical types, value conversion, execution and output",
       "owners": [
-        "tests/operations/FileCapture.zig",
-        "tests/operations/FileQuery.zig",
+        "tests/query/files/operations/FileCapture.zig",
+        "tests/query/files/operations/FileQuery.zig",
         "packages/zig/transit-fuze/src/FileFraming.zig",
         "packages/zig/transit-fuze/src/FileQuery.zig",
         "packages/zig/transit-fuze/src/LogicalQuery.zig",
@@ -3698,8 +3698,8 @@
         "packages/zig/transit-fuze/src/VectorCpu.zig"
       ],
       "exclude": [],
-      "registry": "tests/operations/FileCodes.zig",
-      "projection": "tests/operations/FileDiagnostic.zig",
+      "registry": "tests/interfaces/cli/operations/FileCodes.zig",
+      "projection": "tests/interfaces/cli/operations/FileDiagnostic.zig",
       "shared_codes": true,
       "stage": "Input, decode, compile, execute or output from the actual boundary",
       "outcome": "not_applicable; completion false, no durable command",
@@ -3710,15 +3710,15 @@
       "propagation": "SQL compiler detail has priority at the private file caller's compilation boundary. Unknown callback/OS failures remain internal unless capture storage context establishes unavailability.",
       "tests": [
         {
-          "source": "tests/operations/FileDiagnosticTests.zig",
+          "source": "tests/interfaces/cli/operations/FileDiagnosticTests.zig",
           "name": "file registry projects every known cause without fabricating completion or saved work"
         },
         {
-          "source": "tests/operations/FileDiagnosticTests.zig",
+          "source": "tests/interfaces/cli/operations/FileDiagnosticTests.zig",
           "name": "file unknown callbacks and storage context preserve original failure and incomplete output"
         },
         {
-          "source": "tests/operations/FileDiagnosticTests.zig",
+          "source": "tests/interfaces/cli/operations/FileDiagnosticTests.zig",
           "name": "file I/O context retains OS causes and distinguishes schema reads and gzip framing"
         }
       ],

@@ -6,10 +6,6 @@ set working-directory := ".."
 _default:
     @just --list test
 
-# Run unit and protocol checks without a service.
-unit:
-    zig build test
-
 # Verified segment metadata/page ranges and the disk-backed direct Table reader.
 storage-segments:
     cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg -Dtest-filter="column" -Dtest-filter="bound borrowing" --summary all
@@ -26,7 +22,7 @@ storage-benchmark *args:
     #!/usr/bin/env bash
     set -euo pipefail
     zig build storage-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/storage_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
+    python3 -B tests/runner/launch.py tests/performance/storage/storage_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
 
 # Matched WAL/bulk ingestion, native turn commit and independent reopen readback.
 [positional-arguments]
@@ -35,7 +31,7 @@ storage-ingest-benchmark *args:
     #!/usr/bin/env bash
     set -euo pipefail
     zig build storage-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/storage_ingest_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
+    python3 -B tests/runner/launch.py tests/performance/storage/storage_ingest_benchmark.py zig-out/bin/transit-storage-benchmark "$@"
 
 # Table/native growth with 16 KiB values and a hard process memory ceiling.
 [positional-arguments]
@@ -44,7 +40,7 @@ storage-growth *args:
     #!/usr/bin/env bash
     set -euo pipefail
     zig build storage-benchmark -Doptimize=ReleaseSafe -Dstorage-benchmark-body-bytes=16384 --prefix .cache/storage-growth
-    python3 -B tests/storage_growth.py .cache/storage-growth/bin/transit-storage-benchmark "$@"
+    python3 -B tests/runner/launch.py tests/storage/local/storage_growth.py .cache/storage-growth/bin/transit-storage-benchmark "$@"
 
 # Accepted Table archives, retained reads, current authority and interrupted trim.
 table-archives:
@@ -160,15 +156,15 @@ native-blocks:
 
 # Independent pinned database clients, TLS/authentication and prepared cycles.
 sql-wire-reference:
-    nix develop .#sql-wire --command python3 -B tests/sql_wire/reference.py
+    nix develop .#sql-wire --command python3 -B tests/runner/launch.py tests/interfaces/sql_wire/reference.py
 
 sql-wire-tls:
     nix develop .#sql-wire --command bash -euc 'cd packages/zig/transit-tls-server; zig build test probe --prefix ../../../zig-out/sql-wire-tls'
-    nix develop .#sql-wire --command python3 -B tests/sql_wire/tls.py zig-out/sql-wire-tls/bin/transit-tls-server-probe
+    nix develop .#sql-wire --command python3 -B tests/runner/launch.py tests/interfaces/sql_wire/tls.py zig-out/sql-wire-tls/bin/transit-tls-server-probe
 
 # Shared byte/credential primitives; independent Python oracle and Zig owners.
 sql-wire-contracts:
-    python3 -B tests/sql_wire/contracts.py
+    python3 -B tests/runner/launch.py tests/interfaces/sql_wire/contracts.py
     cd packages/zig/transit-sql-protocol && zig build test
     cd packages/zig/transit-sql-client && zig build test
     cd packages/zig/transit-sql && zig build test
@@ -230,7 +226,7 @@ simulation *args:
 
 # Committed HEAD only: qualify delivery oracles against compiling core mutants.
 simulation-mutations:
-    python3 -B tests/verification/mutations.py --simulation
+    python3 -B tests/runner/launch.py tests/verification/mutations/mutations.py --simulation
 
 # Small saved storage fault regression corpus.
 resource-simulation-smoke:
@@ -238,7 +234,7 @@ resource-simulation-smoke:
 
 # Compiling core mutations for atomic resource/input publication.
 resource-simulation-mutations:
-    python3 -B tests/verification/mutations.py --resource
+    python3 -B tests/runner/launch.py tests/verification/mutations/mutations.py --resource
 
 # Numbered page/journal faults, captured roots and checkpoint recovery.
 resource-simulation *args:
@@ -263,7 +259,7 @@ model *args:
 
 # Local WAL durability ordering, bounded exhaustive safety and six negative controls.
 wal-model *args:
-    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/verification/wal_model.py {{args}}
+    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/wal_model.py {{args}}
 
 # Finite editor model, every exported edge replayed against production Zig,
 # removed-guard controls and borrower release under explicit fairness.
@@ -279,7 +275,7 @@ model-delivery:
 
 # Committed HEAD only: omit selected real guards in isolated clones.
 mutations:
-    python3 -B tests/verification/mutations.py
+    python3 -B tests/runner/launch.py tests/verification/mutations/mutations.py
 
 # Qualify finite IPC schemas/values against an independent Arrow reader.
 arrow:
@@ -294,7 +290,7 @@ client-abi:
 station:
     zig build transit-admin example-station-ledger transit-delivery transit-station-controller
     zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/station.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/example-station-ledger zig-out/bin/transit-delivery zig-out/bin/transit-station-controller
+    python3 -B tests/runner/launch.py tests/runtime/station/station.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/example-station-ledger zig-out/bin/transit-delivery zig-out/bin/transit-station-controller
 
 # Check each library using its own declared dependencies.
 packages:
@@ -333,42 +329,10 @@ packages:
     cd packages/zig/transit-client && zig build test
     cd packages/zig/transit-runtime-substrate && zig build test
 
-# Compile each library independently; root unit checks own shared test execution.
-packages-build:
-    cd packages/zig/transit-config && zig build check
-    cd packages/zig/transit-flight && zig build check
-    cd packages/zig/transit-station-flight && zig build check
-    cd packages/zig/transit-serving-http && zig build check
-    cd packages/zig/transit-http-server && zig build check
-    cd packages/zig/transit-station-app && zig build check
-    cd packages/zig/transit-serving && zig build check
-    cd packages/zig/transit-station-document && zig build check
-    cd packages/zig/transit-station-grpc && zig build check
-    cd packages/zig/transit-grpc && zig build check
-    cd packages/zig/transit-tls && zig build check
-    cd packages/zig/transit-tls-server && zig build check
-    cd packages/zig/transit-sql-protocol && zig build check
-    cd packages/zig/transit-sql-client && zig build check
-    cd packages/zig/transit-sql && zig build check
-    cd packages/zig/transit-postgres && zig build check
-    cd packages/zig/transit-mysql && zig build check
-    cd packages/zig/transit-station-bindings && zig build check
-    cd packages/zig/transit-exchange && zig build check
-    cd packages/zig/transit-station-http && zig build check
-    cd packages/zig/transit-query && zig build check
-    cd packages/zig/transit-catalog && zig build check
-    cd packages/zig/transit-station && zig build check
-    cd packages/zig/transit-storage && zig build check
-    cd packages/zig/transit-fuze && zig build check
-    cd packages/zig/transit-observability && zig build check
-    cd packages/zig/telemetry && zig build check
-    cd packages/zig/transit-board-api && zig build check
-    cd packages/zig/transit-protocol && zig build check
-    cd packages/zig/transit-core && zig build check
-    cd packages/zig/transit-backend-ursula && zig build check
-    cd packages/zig/transit-backend-local && zig build check
-    cd packages/zig/transit-client && zig build check
-    cd packages/zig/transit-runtime-substrate && zig build check
+# Compile each manifest independently; optional bounded parallelism (1..4).
+[positional-arguments]
+packages-build jobs="1":
+    python3 -B tests/runner/packages.py --jobs "$1"
 
 # Run the upstream compute tests absent from the root library suite.
 compute:
@@ -385,12 +349,12 @@ service:
 # Signed policy staging, current checks and restart against disk-backed Ursula.
 authorization:
     zig build transit-node transit-admin
-    python3 -B tests/authorization_native.py zig-out/bin/transit-node zig-out/bin/transit-admin --report .cache/verification/authorization-native.json
+    python3 -B tests/runner/launch.py tests/catalog/authorization/authorization_native.py zig-out/bin/transit-node zig-out/bin/transit-admin --report .cache/verification/authorization-native.json
 
 # Public administration CLI and neutral C/host lifecycle, with disk restart.
 authorization-cli:
     zig build test-operation-fixture transit-node transit-admin transit client-abi transit-client-host
-    python3 -B tests/authorization_cli.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
+    python3 -B tests/runner/launch.py tests/interfaces/cli/authorization_cli.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
 
 # Current Table roles, SQL defaults, filtered metadata and retained-cut denial.
 authorization-tables:
@@ -399,7 +363,7 @@ authorization-tables:
 # Restricted serving snapshots and exact control recovery under current roles.
 authorization-serving:
     zig build transit-node transit-admin transit-station-host serving-example -Doptimize=ReleaseSafe
-    python3 -B tests/authorization_serving.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-station-host zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
+    python3 -B tests/runner/launch.py tests/interfaces/http/authorization_serving.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-station-host zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
 
 # Exercise independent Zig callers against the same generic authority.
 callers:
@@ -408,12 +372,12 @@ callers:
 # Linux/Docker: fill an owned ext4 image while keeping a physical control reserve.
 capacity:
     zig build capacity-proof
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-capacity-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/runner/launch.py tests/storage/retention/capacity.py zig-out/bin/transit-capacity-proof
 
 # Linux/Docker: retain growing pages/backlog through real ENOSPC and reserve use.
 growing-capacity:
     zig build growing-capacity-proof -Doptimize=ReleaseSafe
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-growing-capacity-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/runner/launch.py tests/storage/retention/capacity.py zig-out/bin/transit-growing-capacity-proof
 
 # Exercise bounded discovery and retained inspection through the public client.
 inspection:
@@ -491,11 +455,11 @@ observability:
 
 # Render and validate the Transit Helm chart without a cluster.
 deployments:
-    python3 -B tests/deployments.py
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/deployments.py
 
 # Verify checkout-local Kubernetes selection without contacting a cluster.
 dev-environment:
-    python3 -B tests/dev_environment.py
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/dev_environment.py
 
 # Prove the inspection plugin's CLI, subprocess and credential boundaries offline.
 kubectl-transit:
@@ -507,16 +471,16 @@ runtime-upgrade:
 
 # Generate/check the reference grammar and compare its covered AST with Postgres.
 sql-grammar:
-    nix shell .#sql-tools --command python3 -B tests/sql/grammar.py
+    nix shell .#sql-tools --command python3 -B tests/runner/launch.py tests/query/sql/grammar.py
 
 # Independent application grammar/model and actual compiler round-trip.
 application-grammar:
     zig build transit-app
-    nix shell .#sql-tools --command python3 -B tests/application_grammar.py
+    nix shell .#sql-tools --command python3 -B tests/runner/launch.py tests/interfaces/installation/application_grammar.py
 
 # Type-check the named rewrite theorems and reject incomplete proofs.
 sql-rewrites:
-    nix shell --inputs-from . nixpkgs#lean4 --command python3 -B tests/sql/rewrites.py
+    nix shell --inputs-from . nixpkgs#lean4 --command python3 -B tests/runner/launch.py tests/query/sql/rewrites.py
 
 # Full reference/production AST, real plan and paged Arrow execution proof.
 sql:
@@ -536,7 +500,7 @@ table-dml-sql:
 
 # Private fixture retention and direct dependency/resource lifecycle recovery.
 catalog:
-    python3 -B tests/catalog_fixture.py
+    python3 -B tests/runner/launch.py tests/catalog/tables/catalog_fixture.py
     just test::direct-dependencies
     just test::direct-named-resources
 
@@ -559,11 +523,11 @@ relational-exchanges:
 # Real ext4 ENOSPC during captured checkpoints and accepted exchange work.
 relational-capacity:
     zig build relational-capacity-proof -Doptimize=ReleaseSafe
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash nixpkgs#patchelf --command python3 -B tests/relational_capacity.py zig-out/bin/transit-node zig-out/bin/transit-direct-table-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash nixpkgs#patchelf --command python3 -B tests/runner/launch.py tests/query/execution/relational_capacity.py zig-out/bin/transit-node zig-out/bin/transit-direct-table-proof
 
 # Immutable named definitions, explicit activation and revision recovery on disk.
 named-relational:
-    python3 -B tests/named_relational_records.py
+    python3 -B tests/runner/launch.py tests/query/execution/named_relational_records.py
     zig build test-named-relational -Doptimize=ReleaseSafe
 
 # Direct Table capture and separately authorized native query progress.
@@ -573,13 +537,13 @@ table-query-writer:
 # Record pure compiler/engine costs separately from interactive source I/O.
 sql-benchmark *args:
     zig build sql-benchmark -Doptimize=safe
-    python3 -B tests/sql/benchmark.py zig-out/bin/transit-sql-benchmark {{args}}
+    python3 -B tests/runner/launch.py tests/performance/declarative/sql.py zig-out/bin/transit-sql-benchmark {{args}}
 
 # Correctness-checked component measurements and explicit full-suite blockers.
 [positional-arguments]
 declarative-benchmark *args:
     zig build declarative-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/benchmarks/run.py zig-out/bin/transit-declarative-benchmark "$@"
+    python3 -B tests/runner/launch.py tests/performance/declarative/run.py zig-out/bin/transit-declarative-benchmark "$@"
 
 # Real signed query shell, growing workers, exact retry and current read rights.
 public-query:
@@ -640,11 +604,11 @@ cli-diagnostics:
 
 # Review changes to public failure owners, outcomes, imports and checked grammar.
 diagnostic-inventory:
-    python3 -B tests/diagnostic_inventory.py
+    python3 -B tests/runner/launch.py tests/interfaces/cli/diagnostic_inventory.py
 
 # Check closed compiler mappings and explicit boundary exceptions independently of inventory recording.
 diagnostic-mappings:
-    python3 -B tests/diagnostic_mappings.py
+    python3 -B tests/runner/launch.py tests/interfaces/cli/diagnostic_mappings.py
 
 # Compiler-inferred finite/open sets and unknown-callback recovery evidence.
 diagnostic-errors:
@@ -657,17 +621,17 @@ diagnostic-outcomes:
 # Reference parser alternatives and reviewed public compiler diagnostics.
 diagnostic-grammar:
     zig build diagnostic-grammar
-    nix shell .#sql-tools --command python3 -B tests/diagnostic_grammar.py zig-out/bin/transit-diagnostic-grammar
+    nix shell .#sql-tools --command python3 -B tests/runner/launch.py tests/interfaces/cli/diagnostic_grammar.py zig-out/bin/transit-diagnostic-grammar
 
 # Measure the default local empty Table with consistently optimized executables.
 console-latency *args:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
-    python3 -B tests/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
+    python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
 # Owned durable writes; requires --output, supports independent history/row controls.
 mutation-latency *args:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
-    python3 -B tests/mutation_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
+    python3 -B tests/runner/launch.py tests/performance/mutations/mutation_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
 # Native-session snapshot execution, typed values and retained source basis.
 interactive-query:
@@ -710,12 +674,12 @@ server-sql-faults:
 server-sql-package:
     nix build .#transit-local --out-link .cache/transit-sql-package
     zig build test-operation-fixture -Doptimize=ReleaseSafe
-    python3 -B tests/server_sql.py --bundle .cache/transit-sql-package
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_sql.py --bundle .cache/transit-sql-package
 
 # Linux/Docker: real ENOSPC inside one newly allocated ext4 image.
 server-capacity:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/runner/launch.py tests/interfaces/installation/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host
 
 # Current grant changes/cancellation after a durable segment staging decision.
 unified-lifecycle source="kv":
@@ -760,7 +724,7 @@ reactive-placement profile="compose":
 # Rebuild descriptions and check the pinned offline specifications and drift.
 reactive-descriptions:
     zig build serving-api -Doptimize=ReleaseSafe
-    python3 -B tests/reactive_descriptions.py zig-out/bin/transit-serving-api
+    python3 -B tests/runner/launch.py tests/interfaces/reactive/reactive_descriptions.py zig-out/bin/transit-serving-api
 
 # Qualify the shared Zig caller and private host adapter over real TLS and disk.
 reactive-client:
@@ -768,7 +732,7 @@ reactive-client:
 
 # Real shared requester, fair finite refresh and current grant recovery.
 reactive-refresh:
-    python3 -B tests/serving_submission.py
+    python3 -B tests/runner/launch.py tests/interfaces/http/serving_submission.py
     nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true -Dserving-reactive-refresh=true
 
 # Real Board/counter browser consumers against the durable refresh owner.
@@ -818,30 +782,30 @@ work-items-placement profile="compose":
 server-applications:
     zig build test-operation-fixture transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
-    python3 -B tests/server_applications.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_applications.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Lost native and migration replies, current revocation and management admission.
 server-application-faults:
     zig build test-operation-fixture transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
-    python3 -B tests/server_application_faults.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_application_faults.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Accepted application input across real ENOSPC in an owned ext4 image.
 server-application-capacity:
     zig build test-operation-fixture transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/runner/launch.py tests/interfaces/installation/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Default embedded Board, retained inspection grants and local UI recovery.
 server-board:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
-    python3 -B tests/server_board.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host zig-out/bin/transit-board examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_board.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host zig-out/bin/transit-board examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Downstream-consumable closure and manifest, with no source-runtime dependencies.
 server-board-package:
     nix build .#transit-local --out-link .cache/transit-board-package
-    python3 -B tests/server_board_package.py .cache/transit-board-package
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_board_package.py .cache/transit-board-package
 
 # Deterministic shared-client and courier schedules.
 scheduler-simulation *args:
@@ -849,7 +813,7 @@ scheduler-simulation *args:
 
 # Defects in the actual shared Session and courier code must be observed.
 scheduler-simulation-mutations:
-    python3 -B tests/verification/mutations.py --scheduler
+    python3 -B tests/runner/launch.py tests/verification/mutations/mutations.py --scheduler
 
 # Seeded checks over real Document, Exchange, query/reactive, runtime and catalog code.
 domain-simulation *args:
@@ -857,41 +821,41 @@ domain-simulation *args:
 
 # Qualify each component oracle using a compiling defect in its real owner.
 domain-simulation-mutations:
-    python3 -B tests/verification/mutations.py --domain
+    python3 -B tests/runner/launch.py tests/verification/mutations/mutations.py --domain
 
 # External OS/network faults over owned binaries and actual disk Ursula.
 vortex *args:
-    python3 -B tests/verification/vortex_proxy.py
+    python3 -B tests/runner/launch.py tests/runtime/delivery/vortex_proxy.py
     zig build test-vortex -- {{args}}
 
 # Installed Python/Node, local application, query or browser/reactive faults.
 vortex-profile profile:
-    python3 -B tests/verification/external_profiles.py --profile {{quote(profile)}}
+    python3 -B tests/runner/external_profiles.py --profile {{quote(profile)}}
 
 # Independent logical type fixtures, allocation failures and exact codecs.
 fuze-types:
-    python3 -B tests/fuze_types.py
+    python3 -B tests/runner/launch.py tests/query/logical/fuze_types.py
     zig test packages/zig/transit-fuze/src/Types.zig
 
 # General Table schema identities, row constraints and independent byte oracle.
 table-schema:
-    python3 -B tests/column_codecs.py
-    python3 -B tests/table_schema.py
-    python3 -B tests/table_storage.py
-    python3 -B tests/table_catalog.py
+    python3 -B tests/runner/launch.py tests/storage/codecs/column_codecs.py
+    python3 -B tests/runner/launch.py tests/catalog/tables/table_schema.py
+    python3 -B tests/runner/launch.py tests/storage/local/table_storage.py
+    python3 -B tests/runner/launch.py tests/catalog/tables/table_catalog.py
     zig test packages/zig/transit-fuze/src/TableRow.zig
     zig test packages/zig/transit-fuze/src/TableEvolution.zig
     zig test packages/zig/transit-fuze/src/SqlTypes.zig
 
 # Relational contracts, bounded executor and independent finite semantics.
 relational:
-    python3 -B tests/relational.py
+    python3 -B tests/runner/launch.py tests/query/execution/relational.py
     zig test packages/zig/transit-fuze/src/Relational.zig
     cd packages/zig/transit-fuze && zig build test-relational -Doptimize=ReleaseSafe
 
 # Independent CSV/JSONL records, schema binding, denial and allocation schedules.
 fuze-sources:
-    python3 -B tests/fuze_sources.py
+    python3 -B tests/runner/launch.py tests/query/logical/fuze_sources.py
     zig test packages/zig/transit-fuze/src/FileSource.zig
 
 # Real file/stdin/gzip query host, independent codecs and constrained process memory.
@@ -905,7 +869,7 @@ logical-arrow:
 # Exact logical values across owned C buffers and bounded local host messages.
 logical-codec:
     zig build station-abi transit-station-host
-    python3 -B tests/fuze_logical_codec.py zig-out/lib/libtransit_station.so zig-out/bin/transit-station-host
+    python3 -B tests/runner/launch.py tests/query/logical/fuze_logical_codec.py zig-out/lib/libtransit_station.so zig-out/bin/transit-station-host
 
 # Run in nix develop .#benchmarks; reports require an explicit output path.
 [positional-arguments]
@@ -913,23 +877,23 @@ file-benchmark *args:
     #!/usr/bin/env bash
     set -euo pipefail
     zig build file-benchmark -Doptimize=ReleaseSafe
-    "${TRANSIT_FUZE_BENCH_PYTHON:?Enter nix develop .#benchmarks}" -B tests/fuze_benchmarks/run.py zig-out/bin/transit-file-benchmark "$@"
+    "${TRANSIT_FUZE_BENCH_PYTHON:?Enter nix develop .#benchmarks}" -B tests/runner/launch.py tests/performance/query/run.py zig-out/bin/transit-file-benchmark "$@"
 
 # Isolated immutable-tree prototypes; never opens native installation state.
 page-layout *args:
-    python3 -B tests/page_layout.py {{args}}
+    python3 -B tests/runner/launch.py tests/performance/storage/page_layout.py {{args}}
 
 # Experimental fixed-width kernel/owned-row comparison with independent answers.
 vector-benchmark output:
     zig build vector-benchmark file-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/fuze_benchmarks/vector.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}
+    python3 -B tests/runner/launch.py tests/performance/query/vector.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}
 
 # Real frozen-file pipeline sweep; preserves complete decoding and verification.
 vector-files output:
     zig build file-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/fuze_benchmarks/vector_files.py zig-out/bin/transit-file-benchmark --output {{quote(output)}}
+    python3 -B tests/runner/launch.py tests/performance/query/vector_files.py zig-out/bin/transit-file-benchmark --output {{quote(output)}}
 
 # Typed pipeline matrix; one warmup and nine measured paired repetitions.
 vector-pipelines output:
     zig build vector-benchmark -Doptimize=ReleaseSafe
-    python3 -B tests/fuze_benchmarks/pipelines.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}
+    python3 -B tests/runner/launch.py tests/performance/query/pipelines.py zig-out/bin/transit-fuze-vector-benchmark --engines scalar batch --output {{quote(output)}}

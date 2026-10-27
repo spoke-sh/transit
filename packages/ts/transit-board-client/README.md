@@ -62,7 +62,7 @@ Dependencies are installed with `vp` from the root pnpm workspace. Generated
 models/schemas/validators are committed; the generator deliberately supports only
 the JSON Schema vocabulary emitted by the shared Zig writer and fails on unknown
 types. Unit/runtime and real-browser checks live with Board web; API fixtures and
-independent Python consumers live in `tests/board.py`.
+independent Python consumers live in `tests/interfaces/board/board.py`.
 
 ## Growing atlas and queries
 
@@ -86,7 +86,7 @@ alignment and canonical full-width unsigned decimal strings after generated
 schema validation. The response never includes raw values or captured bodies.
 Consumers must clear displayed records on read errors and recheck authority when
 returning to a hidden view. The actual generated validator is also exercised
-against real HTTP captures by `tests/board_records_client.mjs`.
+against real HTTP captures by `tests/interfaces/board/board_records_client.mjs`.
 
 `httpMetadata(resource, exchange, signal?)` fetches the explicitly selected
 exchange's allowlisted HTTP metadata. Exchange IDs, policy IDs/revisions, times
@@ -104,7 +104,7 @@ TypeScript. Frozen submission tokens remain opaque strings and stay in memory
 for an exact retry; the transport retries only pre-dispatch rate refusals.
 
 The real generated validator is exercised against service responses by
-`tests/board_query.py`; the actual browser proof checks exact integers,
+`tests/interfaces/board/board_query.py`; the actual browser proof checks exact integers,
 Canvas/Browse state and clearing after live revocation. No browser seed,
 automatic replacement submission or persistent result storage exists.
 

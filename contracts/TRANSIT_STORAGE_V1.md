@@ -671,7 +671,7 @@ that order. Empty objects still require both files and exact zero lengths.
 Failure cannot establish durable publication. This operation resolves readable
 but uncertain immutable publication before a higher-level owner records readiness.
 
-The [process fixture](../tests/local_objects.py), run by the root unit task,
+The [process fixture](../tests/storage/local/local_objects.py), run by the root unit task,
 checks competing conditional/immutable publication through separate processes.
 The [disk component cases](../packages/zig/transit-storage/src/disk_objects_test.zig)
 cover bounded allocation, verified ranges, stale observations, definition rejection

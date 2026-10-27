@@ -150,7 +150,7 @@ as a proof of Zig or the deployed system. CRDT merge laws remain future work.
 
 The [Trading workload model](workloads/TRADING.md) supplies downstream demand scenarios
 for market capture, context, execution and research. Its arithmetic is not
-benchmark evidence. The [experiment matrix](../../tests/verification/scale.json)
+benchmark evidence. The [experiment matrix](../../tests/performance/scale/scale.json)
 keeps small reproducible growth runs distinct from those application envelopes.
 
 Define a workload matrix before promising throughput or a supported system size.
@@ -207,7 +207,7 @@ The M10 warm feedback budget is **under 15 minutes**, with **60 runner minutes**
 and **12 GiB** restored per full run. These budgets follow the accepted 12m37s /
 53m27s five-lane measurement. Under ten minutes remains an improvement target,
 with under five as a stretch; further runner optimization is deferred. These are CI budgets, not service
-SLOs; [ci-budgets.json](../../tests/verification/ci-budgets.json) records their
+SLOs; [ci-budgets.json](../../tests/runner/ci-budgets.json) records their
 measurement rules. Require three complete warm samples for ordinary feedback
 and one explicit cache-miss baseline for exceptional rebuild cost. The latter
 is a calibration, not a cold-run variance claim. Failed, cancelled or incomplete
@@ -215,11 +215,11 @@ runs do not count. The calibrated cold budget is **under 35 minutes** and
 **135 aggregate runner minutes**, with GitHub dependency restores disabled.
 Its complete baseline took 31m09s and 111m51s. Restored-byte measurements cover
 GitHub cache archives, not upstream Nix substitute traffic. The
-measurement record (archived)
+[measurement record](https://github.com/spoke-sh/transit/blob/c9b24cd6ea01a36a82b47e610d281c3b04a7a691/tests/verification/results/m10-ci-2026-09-25.json)
 preserves all qualifying samples and the excluded failures/regression.
 
 M11 adds installed public SDK schedules and the ten-edge language ring to the
-bindings lane. Its [local cost record](../../tests/verification/results/m11-sdk-2026-09-26.json)
+bindings lane. Its [local cost record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m11-sdk-2026-09-26.json)
 covers consumer installation and public interoperability only. The M10 samples
 above do not establish a budget pass for this larger inventory; new hosted cost
 measurement and further runner optimization remain deferred.

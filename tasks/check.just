@@ -8,11 +8,16 @@ _default:
 
 # Formatting, tooling, independent Python oracles and docs; no runtime build.
 fast:
-    python3 -B tests/tooling/checks.py fast
+    python3 -B tests/runner/checks.py fast
 
 # Reflected schemas, signing fixtures and generated language resource drift.
 contracts:
     zig build check-contracts
+
+# Native scopes: all, components (includes filesystem), fixtures, or process faults.
+[positional-arguments]
+native scope="all":
+    python3 -B tests/runner/checks.py "native-$1"
 
 # Foundation checks shared by local qualification and the core CI lane.
 core: fast
@@ -21,7 +26,7 @@ core: fast
     just test::diagnostic-grammar
     nix flake check
     just check contracts
-    just test::unit
+    just check::native
     just test::cli-diagnostics
     just test::console-history
     git diff --check

@@ -54,29 +54,40 @@ does not include the frontend toolchain. Compilation uses fixed-output source
 downloads for the three external Zig dependencies, verifies their Zig package
 identities and builds with an offline system package directory. No ambient Zig
 package cache or source checkout artifact is required. Runtime source excludes
-`sdks/` and the language SDK examples; builds pass `-Dsdk-examples=false`.
+`tests/`, `sdks/` and the language SDK examples; builds pass `-Dchecks=false`.
+The [build graphs](../build/README.md) register runtime artifacts once and share
+them with development checks when those checks are enabled.
 The fixed-output frontend dependency-store hash follows the selected runtime
 workspace, including importer moves. The handbook lives outside the runtime
 source, so its move from `apps/transit-docs` to `docs/handbook` changes that store
 without changing package versions or toolchain pins. The boundary check builds
-both native runtime and SQL gateway derivations from that SDK-free source.
+both native runtime and SQL gateway derivations from that source.
 
 [build-sources.nix](build-sources.nix) separates three build inputs. The frontend
 dependency fetch uses the runtime workspace's package manifests, lockfile and
 workspace configuration. Board assets use browser application/library source,
 the asset embedder and the embedded OpenAPI contract. Native runtime and gateway
-builds retain their source, fixtures and build graph. Changing native code or a
+builds retain their implementation inputs and build graph. Changing native code or a
 test driver does not invalidate the Board asset build; editing browser source
 does not invalidate the dependency fetch. Package-manager inputs remain shared.
 
-These build-only snapshots omit `README.md`, `AGENTS.md` and retained records in
-`tests/verification/results/`. The repository keeps those documents and evidence;
-documentation checks continue to validate them. Executable test inputs, formal
-models, suite catalogs and live benchmark budgets remain included. New inputs
-must be added to their owning source set when the build starts consuming them.
+These build-only snapshots omit `README.md` and `AGENTS.md`. The runtime source
+also excludes the entire test tree. Fixtures, formal models, suite catalogs and
+live benchmark budgets remain executable inputs to development/CI checks, but
+changing them does not rebuild packaged runtime binaries. The repository keeps
+its documentation and test sources; their owning checks still validate them.
+Add newly consumed runtime inputs to the owning source set explicitly.
 `just bindings::runtime-boundary` runs source-invalidation controls before the
 actual offline package builds, so cached results cannot substitute for changed
-source. See the [tooling index](../tests/tooling/README.md) for the controls.
+source. See the [tooling index](../tests/runner/README.md) for the controls.
+
+Clean-run setup bypasses Nix's mutable evaluation cache so a concurrent package
+build cannot hold it behind an evaluation-database lock. Dependency downloads,
+store substitutes and compiler caches remain enabled. The
+[evaluation control](../tests/runner/test_nix_evaluation.py) holds locks only in a
+private cache and verifies that bypassing it produces the same evaluated fixture
+value; it also checks normal evaluation after releasing the locks. Actual clean
+qualification still enters the pinned project shell.
 
 On Linux x86_64, `nix build .#transit-local` adds the matching SQL gateway to
 the Transit closure. Native local storage runs inside the node. The bundle
@@ -383,7 +394,7 @@ and `just ci::bindings-1` / `just ci::bindings-2` (native boundary and languages
 experience in hosted CI as `just ci::browser`; local `just ci::complete` includes
 that additional inventory explicitly. `just ci all` runs the seven ordinary inventories
 sequentially in the pinned bindings shell; `just check all` uses the ordinary
-developer tools. [The task inventory](../tests/verification/suite.json) owns the
+developer tools. [The task inventory](../tests/runner/suite.json) owns the
 exact checks in each lane.
 
 The formal lane uses `nix develop .#ci-formal`, with only the pinned Zig, Python,
@@ -440,7 +451,7 @@ CI runs for PRs, main pushes, version tags, merge queues and manual dispatch.
 Feature branch pushes no longer duplicate the PR run. A cheap planning job checks
 documentation and selects full qualification unless a PR changes only navigation
 README/AGENTS files, handbook sources/tooling, Markdown under `docs/`, the historical
-qualification migration map, or inert records under `tests/verification/results/`.
+qualification migration map, or inert records under `tests/evidence/`.
 Contracts (including their README files), live fixtures/budgets, models, unknown
 paths, renames from code, and shared infrastructure select every lane. Other
 `results/` directories can contain executable budgets and remain full. Missing Git
@@ -463,7 +474,7 @@ and smaller closures alone do not establish the final speedup.
 
 The accepted warm feedback budget is under fifteen minutes, based on the
 12m37s five-lane run; under ten remains an improvement target, five a stretch.
-[CI budgets](../tests/verification/ci-budgets.json) also track provisional runner
+[CI budgets](../tests/runner/ci-budgets.json) also track provisional runner
 and restore costs; `just ci::cost RUN_ID` collects completed hosted evidence.
 Manual `cache_mode=cold` runs disable GitHub dependency restores/saves while
 retaining upstream Nix substitutes. The recorded fourteen-minute source build
@@ -533,7 +544,7 @@ The separate weekly/manual fault workflow expands model/property exploration and
 runs actual guard mutations through `just test::vortex-profile discovery`. It
 restores the ordinary core Nix cache without adding another cache writer. Its
 exploration stage/job limits are distinct from ordinary CI feedback budgets;
-the [harness guide](../tests/verification/README.md#external-fault-testing) owns
+the [harness guide](../tests/harness/fault-profiles.md) owns
 the commands, limits and failure reporting.
 The separate dedicated reference workflow runs weekly and on demand; absent
 runner capacity is outstanding evidence, not a passing deployment proof.

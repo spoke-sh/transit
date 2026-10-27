@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "actions": [
+    { "kind": "send" },
+    { "kind": "grant", "permissions": 0 },
+    { "kind": "prepare" },
+    { "kind": "grant" },
+    { "kind": "prepare" },
+    { "kind": "commit" },
+    { "kind": "grant", "permissions": 0 },
+    { "kind": "retry" },
+    { "kind": "grant" },
+    { "kind": "retry" }
+  ]
+}

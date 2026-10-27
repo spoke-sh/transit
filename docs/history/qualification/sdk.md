@@ -571,7 +571,7 @@ A failed or incomplete lane does not qualify the complete inventory.
 
 ## Installed interactive relational SDKs
 
-[Exact implementation revision, artifact hashes, logs and retained attempts](../../../tests/verification/results/relational-sdks-2026-10-12.json)
+[Exact implementation revision, artifact hashes, logs and retained attempts](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/relational-sdks-2026-10-12.json)
 record TypeScript and Python sync/async consumers installed outside the checkout.
 `just bindings::relational-node` and `just bindings::relational-python` build
 their matching native artifacts and run the signed disk-backed caller fixture.
@@ -3878,7 +3878,7 @@ The subsequent committed-HEAD run at `9953b670` passed its unmodified baseline
 and detected **all nine** independently compiled domain defects, including the
 four general catalog defects (create permission, inspection permission, changed
 original completion position, and mixed-revision pagination). The
-[recorded mutation results](../../../tests/verification/results/general-table-catalog-mutations-2026-10-06.json)
+[recorded mutation results](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/general-table-catalog-mutations-2026-10-06.json)
 retain revision and per-defect status/timing. Full baseline, failure traces and
 minimized reports remain in `.cache/verification/domain-simulation-mutations`;
 the command log is `general-catalog-simulation-mutants1.log` in the same campaign.
@@ -5434,7 +5434,7 @@ native rerun is required.
 
 ### General Table performance qualification checkpoint
 
-The [2026-10-07 campaign](../../../tests/mutation_latency/results/2026-10-07/README.md) retains
+The [2026-10-07 campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-07/README.md) retains
 ten original compressed reports, source/binary identities, controls, distributions
 and failed attempts. The matched baseline/general runs each complete 140 cases;
 wide and nested runs each complete 21 cases with exact typed readback. The
@@ -5501,7 +5501,7 @@ serializer error-return boundaries.
 service schedule: independent signing vectors, native waits, bounded ingress,
 current denial, worker fencing, disk recovery, checkpoint/trim, retirement and
 effect replay without redispatch. A fresh committed clean run remains required.
-The [clean development record](../../../tests/verification/results/m46-clean-development-2026-10-07.json)
+The [clean development record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m46-clean-development-2026-10-07.json)
 retains both incomplete runs' revisions, task outcomes, host metadata and raw-log
 hashes; neither is labeled complete.
 `general-definition-byte-arrays-check1.log` passes the full `just check`, including
@@ -5560,7 +5560,7 @@ exact rows/parameters, bounded frames, zero durable writes, cancellation, curren
 denial and incomplete-result checks also pass. This functional/request-count
 proof overlaps root checks and clean CI; its 25.26-second elapsed time is not an
 ordinary latency comparison.
-The [accepted interactive record](../../../tests/verification/results/m46-accepted-interactive-2026-10-07.json)
+The [accepted interactive record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m46-accepted-interactive-2026-10-07.json)
 retains all 26 measured statements, controls, binary/harness hashes and raw-log
 digest, separately from the original failed-budget evidence.
 `general-accepted-budgets-check1.log` passes the full root `just check`, including
@@ -5607,7 +5607,7 @@ The clean experience lane at `72d9a6e3` passes all seven tasks. Its Station
 launcher proof recovers current reads after 293 injected refusals and one courier
 replacement, finishes the query, then verifies cleanup and persistent restart.
 The clean launcher lane at `d4c4362f` separately passes both tasks. The
-[consumer checkpoint record](../../../tests/verification/results/m46-consumer-checkpoints-2026-10-07.json)
+[consumer checkpoint record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/m46-consumer-checkpoints-2026-10-07.json)
 retains each revision, task result and raw-log digest. These lanes and focused
 passes do not constitute complete ordinary clean qualification.
 
@@ -5920,7 +5920,7 @@ limit. The 8 MiB hot cache, 64 authority pages, fault/recovery checks and exact
 result assertions remain unchanged. Stage timings record progress without
 additional authority requests or payload logging.
 
-The [source/artifact record and compressed logs](../../../tests/verification/results/sdk-query-profile-2026-10-26/report.json)
+The [source/artifact record and compressed logs](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/sdk-query-profile-2026-10-26/report.json)
 retain the failure and passing control. This is a sequential profile comparison,
 not a latency benchmark or a fix to Debug-node throughput. It covers the common
 Python Station runner, not the later connector/catalog/relational schedules or

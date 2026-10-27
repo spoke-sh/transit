@@ -1,7 +1,7 @@
 # Public Station SDK examples
 
 M11's public service/requester examples use the shared application formats below.
-The format and [fixtures](../../tests/verification/sdk-codecs-v1.json) are defined
+The format and [fixtures](../../tests/sdk/sdk-codecs-v1.json) are defined
 before language codecs. Implementations, installation commands and executable
 qualification are added with each SDK; this contract alone is not a runnable
 example or proof of support.

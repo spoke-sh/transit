@@ -57,7 +57,8 @@ module Transit
           end)
           { 'version' => 1, 'resource' => resource.resource, 'source' => { 'table' => {
             'scope' => scope.wire, 'owner' => audience, 'branch' => branch.to_s, 'namespace' => namespace, 'object' => schema.object.to_s,
-            'interpretation' => interpretation.wire, 'row_type' => Logical.type_wire(row_type) } } }
+            'interpretation' => interpretation.wire, 'row_type' => Logical.type_wire(row_type),
+            'collations' => schema.columns.map { |column| column.collation.to_s } } } }
         end
       end
       Tables = Data.define(:url, :scope, :branch, :audience) do
@@ -159,12 +160,14 @@ module Transit
         def wire = { 'pages' => pages.to_s, 'segments' => segments.to_s, 'result_bytes' => result_bytes.to_s }
       end
       Bundle = Data.define(:data) do
-        def initialize(data:) = super(data: Internal.bytes(data, 25614).freeze)
+        def initialize(data:) = super(data: Internal.bytes(data, Catalog::LIMITS.fetch('query_bundle_bytes')).freeze)
         def self.prepare(source, plan, budgets, native_host: nil)
           Values.source!(source)
           raise ArgumentError, 'Expected plan and budgets' unless plan.is_a?(Plan) && budgets.is_a?(Budgets)
-          result = Values.codec({ 'prepare' => { 'source' => source.wire, 'plan' => plan.wire, 'limits' => budgets.wire } }, native_host).fetch('prepared')
-          new(data: Internal.unhex(result.fetch('bytes'), 25614))
+          declaration, parameters = source.wire, plan.wire
+          parameters['collations'] = declaration.fetch('source').fetch('table').fetch('collations') if source.is_a?(TableSource)
+          result = Values.codec({ 'prepare' => { 'source' => declaration, 'plan' => parameters, 'limits' => budgets.wire } }, native_host).fetch('prepared')
+          new(data: Internal.unhex(result.fetch('bytes'), Catalog::LIMITS.fetch('query_bundle_bytes')))
         end
         def inspect = '#<Transit::Station::Unified::Bundle>'
       end
@@ -418,13 +421,13 @@ module Transit
           end
           result = call({ 'compile' => { 'scope' => { 'source' => source.wire, 'name' => Values.name(name),
             'limits' => budgets.wire }, 'sql' => Internal.text(sql, 4096), 'parameters' => values } })
-          Bundle.new(data: Internal.unhex(result.fetch('compiled').fetch('bundle'), 25614))
+          Bundle.new(data: Internal.unhex(result.fetch('compiled').fetch('bundle'), Catalog::LIMITS.fetch('query_bundle_bytes')))
         end
         # Seal new work before persistence. Saved bundles keep their original proof.
         def authorize_bundle(bundle, capture: nil)
           raise ArgumentError, 'Expected Bundle' unless bundle.is_a?(Bundle)
           raise ArgumentError, 'Expected explicit Table capture' unless capture.nil? || capture.is_a?(Capture)
-          Bundle.new(data: Internal.unhex(call({ 'authorize' => { 'bundle' => bundle.data.unpack1('H*'), 'capture' => capture&.wire } }).fetch('authorized'), 25614))
+          Bundle.new(data: Internal.unhex(call({ 'authorize' => { 'bundle' => bundle.data.unpack1('H*'), 'capture' => capture&.wire } }).fetch('authorized'), Catalog::LIMITS.fetch('query_bundle_bytes')))
         end
         def prepare_cleanup(namespace, bundle)
           raise ArgumentError, 'Expected original Bundle' unless bundle.is_a?(Bundle)

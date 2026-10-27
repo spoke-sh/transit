@@ -4,14 +4,14 @@ import json
 from pathlib import Path
 import re
 
-from task_coverage import read_recipes, validate_ownership, validate_required_tiers
+from runner.paths import ROOT
+from runner.task_coverage import read_recipes, validate_ownership, validate_required_tiers
 
-ROOT = Path(__file__).resolve().parents[2]
 DIRECTORY = Path(__file__).resolve().parent
 
 
-def read(name):
-    value = json.loads((DIRECTORY / name).read_text())
+def read(name, directory=DIRECTORY):
+    value = json.loads((directory / name).read_text())
     assert value["version"] == 1, f"unsupported {name}"
     return value
 
@@ -72,7 +72,7 @@ def validate(suite, invariants, limits, sdk, recipes):
     schema = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())
     # Definition cutovers also change the raw SDK's canonical signing vectors.
     # Catch an edited request with a stale digest before building native callers.
-    for case in read('sdk-operations-v1.json')['cases']:
+    for case in read('sdk-operations-v1.json', ROOT / 'tests/sdk')['cases']:
         document = json.loads(case['canonical'])
         assert document['definition'] == schema['x-transit']['definition'], case['name']
         assert json.dumps(document, separators=(',', ':')) == case['canonical'], case['name']
@@ -91,7 +91,10 @@ def validate(suite, invariants, limits, sdk, recipes):
 
 
 def main():
-    suite, invariants, limits, sdk = [read(name) for name in ("suite.json", "invariants.json", "limits.json", "sdk.json")]
+    suite = json.loads((ROOT / "tests/runner/suite.json").read_text())
+    assert suite["version"] == 1, "unsupported suite.json"
+    invariants, limits = [read(name) for name in ("invariants.json", "limits.json")]
+    sdk = read("sdk.json", ROOT / "tests/sdk")
     recipes = read_recipes(ROOT)
     validate(suite, invariants, limits, sdk, recipes)
     # Fail closed on lost ownership or silently changed implementation ceilings.

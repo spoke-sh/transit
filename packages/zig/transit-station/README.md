@@ -68,7 +68,7 @@ disconnection does not cancel a durable call.
 See the [wire/layout contract](../../../contracts/STATION_V1.md) and the
 [Station ledger example](../../../examples/station-ledger/README.md).
 Run `just test::station` for the real-service recovery proof and
-`just test::unit` for the private proposal checks.
+`just check::native` for the private proposal checks.
 
 ### Captured turn reads
 

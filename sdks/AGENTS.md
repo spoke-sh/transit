@@ -22,6 +22,6 @@ source/definition/target/build profiles. A source-tree import or warm local
 installation is not a substitute. Do not reuse Debug and ReleaseSafe artifacts
 interchangeably or share mutable installation directories between concurrent
 suites. Register shared observations in the
-[SDK scenarios](../tests/verification/sdk.json) and preserve per-language owners
-in the [suite inventory](../tests/verification/suite.json). Changes to a shared
+[SDK scenarios](../tests/sdk/sdk.json) and preserve per-language owners
+in the [suite inventory](../tests/runner/suite.json). Changes to a shared
 boundary need all affected callers; language-only changes use their own scope.

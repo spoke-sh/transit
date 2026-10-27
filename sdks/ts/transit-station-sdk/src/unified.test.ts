@@ -61,6 +61,7 @@ test("lookup preserves direct interpretation, schema and full-width frontier", a
                 { name: "値", type: { binary: {} }, nullable: true, optional: false },
               ],
             },
+            collations: ["none", "none"],
           },
         },
       },
@@ -80,6 +81,40 @@ test("lookup preserves direct interpretation, schema and full-width frontier", a
   inconsistent.table.source.source.table.row_type.structure[0]!.name = "substituted";
   await withHost(inconsistent, async (client) => {
     await assert.rejects(client.lookupTable("people"), IncompatibleNative);
+  });
+  for (const collations of [undefined, [], ["none"], ["none", "ascii_ci"]]) {
+    const mismatched = structuredClone(response);
+    Object.assign(mismatched.table.source.source.table, { collations });
+    await withHost(mismatched, async (client) => {
+      // Missing required fields fail schema admission before value conversion.
+      await assert.rejects(
+        client.lookupTable("people"),
+        collations === undefined ? ReadFailed : IncompatibleNative,
+      );
+    });
+  }
+  const collated = structuredClone(response);
+  Object.assign(collated.table.schema.columns[1]!, {
+    type: { utf8: {} },
+    collation: "ascii_ci",
+  });
+  Object.assign(collated.table.source.source.table.row_type.structure[1]!, { type: { utf8: {} } });
+  collated.table.source.source.table.collations[1] = "ascii_ci";
+  await withHost(collated, async (client, requests) => {
+    const found = await client.lookupTable("people");
+    assert.ok(found);
+    assert.equal(found.source.schema.columns[1]!.collation, "ascii_ci");
+    // Reuse the looked-up declaration in a real adapter request; the fake host
+    // verifies serialization only and deliberately cannot compile a query.
+    await assert.rejects(
+      client.compileSql(found.source, "people", "SELECT * FROM people", budgets),
+      IncompatibleNative,
+    );
+    const submitted = (await requests()).find((v: any) => v.unified_query?.compile) as any;
+    assert.deepEqual(submitted.unified_query.compile.scope.source.source.table.collations, [
+      "none",
+      "ascii_ci",
+    ]);
   });
 });
 
@@ -200,6 +235,7 @@ test("SQL preparation freezes full-width atoms and direct interpretation before 
     assert.equal(table.object, "17");
     assert.equal(table.interpretation.revision, "3");
     assert.deepEqual(table.interpretation.digest, Array(32).fill(0xab));
+    assert.deepEqual(table.collations, ["none", "none"]);
     assert.deepEqual(
       table.row_type.structure.map((v: any) => [v.name, v.type, v.nullable]),
       [
@@ -303,7 +339,7 @@ for await (const line of createInterface({input: process.stdin})) {
   const action=JSON.parse(line); let value;
   if ('hello' in action) value={host_version:1,station_version:1,transit_version:1};
   else if ('growing_capabilities' in action) value={definition:${JSON.stringify(contract.definition)}};
-  else if ('capabilities' in action.unified_query) value={capabilities:{version:1,source:1,plan:1,result:1,bundle_bytes:25614,part_bytes:128,segment_bytes:65536,batch_rows:8,columns:128,kv:true,table:true,document:true}};
+  else if ('capabilities' in action.unified_query) value={capabilities:{version:1,source:1,plan:1,result:1,bundle_bytes:25743,part_bytes:128,segment_bytes:65536,batch_rows:8,columns:128,kv:true,table:true,document:true}};
   else value=${JSON.stringify(response)};
   console.log(JSON.stringify({status:0,value}));
 }

@@ -66,7 +66,7 @@ current caller policy, duplicate identity and settlement before result publicati
 Native GR* codecs preserve RPC status separately from unknown/not-dispatched
 outcomes; they do not infer success from an absent status.
 
-Run `just test::unit` for the package and independent Python contract fixture.
+Run `just check::native` for the package and independent Python contract fixture.
 The fixture covers original Unicode/binary protobuf, duplicate/binary metadata,
 secret references, empty messages and full-width namespace/revision identities.
 Transport qualification and dependency provenance live in the transport package;

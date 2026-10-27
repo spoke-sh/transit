@@ -1,3 +1,4 @@
+import contract from "./contract.json" with { type: "json" };
 import {
   AdmissionReceipt,
   Credential,
@@ -12,7 +13,7 @@ import { Bridge, QueryBridge } from "./bridge.ts";
 import { hex, unhex } from "./framing.ts";
 import { wide, nativeWide, ReadVersion } from "./values.ts";
 import { DocumentReference } from "./document.ts";
-import { Scope, Schema, schemaValue } from "./catalog.ts";
+import { Scope, Schema, schemaValue, schemaWire } from "./catalog.ts";
 import { encodeType, decodeType, encodeAtom, decodeCell } from "./logical-values.ts";
 import type { Descriptor, Atom, Cell as LogicalCell, Field } from "./logical-values.ts";
 import type { Aggregate, Comparison } from "./query.ts";
@@ -268,6 +269,7 @@ function sourceWire(source: Source): WireSource {
                 optional: false,
               })),
             }),
+            collations: schemaWire(source.schema).columns.map((column) => column.collation),
           },
         },
       };
@@ -385,7 +387,7 @@ async function codec(
 export class Bundle {
   readonly #data: Uint8Array;
   constructor(data: Uint8Array) {
-    this.#data = owned(data, 25614);
+    this.#data = owned(data, contract.limits.query_bundle_bytes);
     Object.freeze(this);
   }
   get data(): Uint8Array {
@@ -397,11 +399,14 @@ export class Bundle {
     budgets: Budgets,
     nativeHost?: string,
   ): Promise<Bundle> {
+    const declaration = sourceWire(source);
+    const parameters = planWire(plan);
+    if ("table" in declaration.source) parameters.collations = declaration.source.table.collations;
     const value = await codec(
       {
         prepare: {
-          source: sourceWire(source),
-          plan: planWire(plan),
+          source: declaration,
+          plan: parameters,
           limits: {
             pages: positive(budgets.pages),
             segments: positive(budgets.segments),
@@ -412,7 +417,7 @@ export class Bundle {
       nativeHost,
     );
     if (!("prepared" in value)) throw new IncompatibleNative("Expected prepared bundle");
-    return new Bundle(unhex(value.prepared.bytes, 25614));
+    return new Bundle(unhex(value.prepared.bytes, contract.limits.query_bundle_bytes));
   }
 }
 /** Local decoding does not establish current source access or result completeness. */
@@ -933,9 +938,10 @@ export class Client {
     if (
       !("table" in expected) ||
       JSON.stringify(encodeType(decodeType(expected.table.row_type))) !==
-        JSON.stringify(encodeType(decodeType(direct.row_type)))
+        JSON.stringify(encodeType(decodeType(direct.row_type))) ||
+      JSON.stringify(expected.table.collations) !== JSON.stringify(direct.collations)
     )
-      throw new IncompatibleNative("Inconsistent direct Table row type");
+      throw new IncompatibleNative("Inconsistent direct Table row type or collations");
     return new TableDefinition(
       source,
       nativeWide(found.expected.partition),
@@ -1028,7 +1034,7 @@ export class Client {
       },
     });
     if (!("compiled" in value)) throw new IncompatibleNative("Expected compiled SQL bundle");
-    return new Bundle(unhex(value.compiled.bundle, 25614));
+    return new Bundle(unhex(value.compiled.bundle, contract.limits.query_bundle_bytes));
   }
   /** Seal new work once before saving its bytes or fingerprint. Recover saved work unchanged. */
   async authorizeBundle(bundle: Bundle, capture?: Capture): Promise<Bundle> {
@@ -1037,7 +1043,7 @@ export class Client {
       throw new TypeError("Expected explicit Table capture");
     const value = await this.bridge.call({
       authorize: {
-        bundle: hex(bundle.data, 25614),
+        bundle: hex(bundle.data, contract.limits.query_bundle_bytes),
         capture:
           capture === undefined
             ? null
@@ -1052,13 +1058,16 @@ export class Client {
       },
     });
     if (!("authorized" in value)) throw new IncompatibleNative("Expected authorized query bundle");
-    return new Bundle(unhex(value.authorized, 25614));
+    return new Bundle(unhex(value.authorized, contract.limits.query_bundle_bytes));
   }
   /** Fresh terminal cleanup authority preserves the original execution proof and cut. */
   async prepareCleanup(namespace: bigint, bundle: Bundle): Promise<Prepared> {
     if (!(bundle instanceof Bundle)) throw new TypeError("Expected original query bundle");
     const value = await this.bridge.call({
-      cleanup: { namespace: positive(namespace), bundle: hex(bundle.data, 25614) },
+      cleanup: {
+        namespace: positive(namespace),
+        bundle: hex(bundle.data, contract.limits.query_bundle_bytes),
+      },
     });
     if (!("prepared" in value) || value.prepared === null)
       throw new IncompatibleNative("Expected cleanup command");
@@ -1067,7 +1076,10 @@ export class Client {
   async prepareNext(namespace: bigint, bundle: Bundle): Promise<Prepared | undefined> {
     if (!(bundle instanceof Bundle)) throw new TypeError("Expected query bundle");
     const value = await this.bridge.call({
-      next: { namespace: positive(namespace), bundle: hex(bundle.data, 25614) },
+      next: {
+        namespace: positive(namespace),
+        bundle: hex(bundle.data, contract.limits.query_bundle_bytes),
+      },
     });
     if (!("prepared" in value)) throw new IncompatibleNative("Expected prepared command");
     return value.prepared === null ? undefined : new Prepared(value.prepared);

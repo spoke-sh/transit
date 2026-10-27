@@ -37,7 +37,7 @@ Start from [performance](../handbook/reference/performance.md),
 [query mechanisms](../handbook/internals/query-engine.md),
 [storage mechanisms](../handbook/internals/storage-runtime.md),
 [execution](../handbook/internals/execution-model.md) and the
-[benchmark tooling](../../tests/benchmarks/README.md).
+[benchmark tooling](../../tests/performance/declarative/README.md).
 The current component benchmark inventory does not execute complete TPC suites.
 
 ## Delivery sequence

@@ -54,29 +54,29 @@ reset *args:
 
 # Create only provider infrastructure (used by isolated recovery proofs).
 infra-up:
-    python3 -B tests/reference.py up
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/reference.py up
 
 # Destroy the entire owned cluster and registry, including every installation.
 infra-down:
-    python3 -B tests/reference.py down
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/reference.py down
 
 # Build images needed by the separate destructive recovery/isolation proof.
 images:
-    python3 -B tests/reference.py images
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/reference.py images
 
 # Kill test workers/controllers in a separate proof installation.
 test:
-    python3 -B tests/reference_workload.py
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/reference_workload.py
 
 # Qualify persistent startup, targeted updates and same-PID image upgrades separately.
 test-launcher:
-    python3 -B tests/reference_launcher.py
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/reference_launcher.py
 
 # Kill a real Station worker in a separately named three-Actor installation.
 test-station:
-    python3 -B tests/station_launchers.py reference
+    python3 -B tests/runner/launch.py tests/runtime/station/station_launchers.py reference
 
 # Inspect a temporary namespace without restarting existing workloads.
 test-plugin:
     zig build kubectl-transit
-    python3 -B tests/kubectl_transit_cluster.py zig-out/bin/kubectl-transit
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/kubectl_transit_cluster.py zig-out/bin/kubectl-transit

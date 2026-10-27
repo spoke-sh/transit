@@ -30,7 +30,7 @@ available storage/control capacity and connector assumptions.
 
 ## Negative controls and implementation correspondence
 
-[model.py](../model.py) also removes the tail, generation, permission and closure
+[model.py](model.py) also removes the tail, generation, permission and closure
 guard independently. Every variant must produce an invariant violation, not a
 parser/build error. The pinned TLC emits text counterexamples; the runner
 extracts the explicit `last` action from each state, converts scheduler-slot
@@ -72,10 +72,10 @@ submission, and cleared private projections after protected failure. Logical
 request obsolescence is independent of the wrapping draft generation counter.
 The counter itself is outside the finite model.
 
-The [runner](../console_model.py) checks all reachable states, exports the complete
+The [runner](console_model.py) checks all reachable states, exports the complete
 TLC graph and rejects incomplete state/edge counts. It finds a shortest path to
 every state and replays every outgoing edge against the actual Zig reducer via
-[the private trace adapter](../../console_state.zig). It compares projected text,
+[the private trace adapter](console_state.zig). It compares projected text,
 cursors, filter, history match/failure, modes and emitted effects. Unknown fields,
 actions and incomplete replay fail. The adapter supplies synthetic edits and
 history results; it neither interprets the requested I/O effects nor executes SQL.
@@ -95,7 +95,7 @@ execution is outside that progress result. It establishes no wall-clock bound.
 The graph check and edge replay do not prove all Zig histories, arbitrary text,
 undo journals, allocation/arena lifetimes, terminal decoding/rendering, network
 behavior or a refinement theorem. The
-[terminal suite](../../console_editing.py) covers the actual effect interpreter
+[terminal suite](../../interfaces/cli/console_editing.py) covers the actual effect interpreter
 and display. The [mechanism account](../../../docs/handbook/internals/service-interfaces.md#console-interaction-transitions)
 explains ownership and integration assumptions. Executed counts and commands
 belong to the [proof ledger](../../../docs/history/qualification/README.md).
@@ -148,7 +148,7 @@ claimed under indefinitely repeated faults. Deadlock checking is disabled at
 intentional finite terminal states; there is no liveness theorem or fairness
 assumption. Fail-closed rejected recovery is not evidence of availability.
 
-[wal_model.py](../wal_model.py) removes six obligations independently: append
+[wal_model.py](wal_model.py) removes six obligations independently: append
 file sync, epoch admission, trim-floor publication, equal-floor cleanup retry,
 recovered-frame sync and recovered-directory sync. Each must violate its named
 invariant and yield a complete explicit action trace. These are model mutations,
@@ -161,7 +161,7 @@ The correspondence is reviewed at operation boundaries in
 `MetaDirSync` describe `atomic`; `Delete`/`DeleteSync` describe prefix removal.
 Independent [disk regressions](../../../packages/zig/transit-storage/src/disk_wal_test.zig)
 check failures at the recovered-frame and observed-directory barriers, and
-[process-death schedules](../../local_storage_faults.py) cover interrupted trim.
+[process-death schedules](../../storage/local/local_storage_faults.py) cover interrupted trim.
 These tests are not automatic replay of every TLC transition or a refinement
 proof. The model does not cover object descriptors, multiple owners, replication,
 retention policy, arbitrary corruption or arbitrary-size executions. Executed

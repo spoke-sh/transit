@@ -54,8 +54,8 @@ reset:
 
 # Prove persistence, duplicate-safe provisioning, fencing and missing-store refusal.
 test:
-    python3 -B tests/launchers.py compose
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/launchers.py compose
 
 # Qualify Station's container topology and persistent message/query recovery.
 test-station:
-    python3 -B tests/station_launchers.py compose
+    python3 -B tests/runner/launch.py tests/runtime/station/station_launchers.py compose

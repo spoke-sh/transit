@@ -53,7 +53,7 @@ An owner may close/unsubscribe its session after read-policy revocation; these
 controls only release its own live work and disclose no source data.
 
 Independent Python/OpenSSL fixtures pin every control, full-width IDs, cursors
-and scoped signatures (`python3 -B tests/reactive_fixtures.py` from the root).
+and scoped signatures (`python3 -B tests/interfaces/reactive/reactive_fixtures.py` from the root).
 Deterministic tests cover competing attachments, stale subscription controls,
 renewal/expiry races, retained growth, aggregate quota and failed reads. These
 checks do not advertise SSE/WebSocket or prove deployed recovery.
@@ -81,7 +81,7 @@ up to three times; loss of coverage is explicit reset or interruption.
 [AsyncAPI 3.0](api/asyncapi.json), sharing operation metadata with discovery.
 `just test::reactive-descriptions` checks pinned official schemas and drift.
 Regenerate with `zig build serving-api -Doptimize=ReleaseSafe` then
-`python3 -B tests/reactive_descriptions.py zig-out/bin/transit-serving-api --write`.
+`python3 -B tests/interfaces/reactive/reactive_descriptions.py zig-out/bin/transit-serving-api --write`.
 The independent peer trace can additionally be checked with `--trace PATH`.
 Read proofs require the current contract definition and are authenticated through
 native authority. Fixed byte arrays and version constants are validated before

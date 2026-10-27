@@ -109,7 +109,7 @@ class KVSource:
     prefix: bytes
     key: Decoder
     value: Decoder
-    def _wire(self) -> object:
+    def _wire(self) -> dict[str, Any]:
         return {'version': 1, 'resource': self.resource.resource, 'source': {'kv': {
             'prefix': owned_bytes(self.prefix, 32).hex(), 'key': self.key._wire(), 'value': self.value._wire()}}}
 
@@ -151,11 +151,12 @@ class TableSource:
         _wide(self.branch, 'branch', 1)
     @property
     def resource(self) -> ResourceRef: return self.scope.resource
-    def _wire(self) -> object:
+    def _wire(self) -> dict[str, Any]:
         row_type = logical.StructureType(tuple(logical.Field(c.name, c.type, c.nullable, False) for c in self.schema.columns))
         return {'version': 1, 'resource': self.resource.resource, 'source': {'table': {
             'scope': self.scope._wire(), 'owner': self.audience, 'branch': str(self.branch), 'namespace': self.namespace,
-            'object': str(self.schema.object_id), 'interpretation': self.interpretation._wire(), 'row_type': logical.type_wire(row_type)}}}
+            'object': str(self.schema.object_id), 'interpretation': self.interpretation._wire(), 'row_type': logical.type_wire(row_type),
+            'collations': [c._wire()['collation'] for c in self.schema.columns]}}}
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,7 +246,7 @@ class DocumentSource:
     expand: tuple[str, ...] | None = None
     @property
     def resource(self) -> ResourceRef: return self.reference.resource
-    def _wire(self) -> object:
+    def _wire(self) -> dict[str, Any]:
         ref = self.reference
         return {'version': 1, 'resource': self.resource.resource, 'source': {'document': {
             'reference': {'resource': self.resource.resource, 'document': str(ref.document), 'epoch': str(ref.epoch),
@@ -308,7 +309,7 @@ class Plan:
     limit: int | None = None
     aggregate: Aggregate = Aggregate.ROWS
     output_names: tuple[str | None, ...] | None = None
-    def _wire(self) -> object:
+    def _wire(self) -> dict[str, Any]:
         if not isinstance(self.aggregate, Aggregate): raise TypeError('Expected a query aggregate')
         if self.predicate is not None and not isinstance(self.predicate, (IsState, Compare, PredicateProgram)):
             raise TypeError('Expected a query predicate')
@@ -359,10 +360,12 @@ def decode_arrow(columns: tuple[Column, ...], ipc: bytes, rows: int, *,
 class Bundle:
     """Validated canonical bytes; preparing this value does not admit work."""
     data: bytes = field(repr=False)
-    def __post_init__(self) -> None: object.__setattr__(self, 'data', owned_bytes(self.data, 25614))
+    def __post_init__(self) -> None: object.__setattr__(self, 'data', owned_bytes(self.data, catalog.LIMITS['query_bundle_bytes']))
     @classmethod
     def prepare(cls, source: Source, plan: Plan, budgets: Budgets, *, native_directory: Path | None = None) -> Bundle:
-        result = _codec({'prepare': {'source': source._wire(), 'plan': plan._wire(), 'limits': budgets._wire()}}, native_directory)
+        declaration, parameters = source._wire(), plan._wire()
+        if isinstance(source, TableSource): parameters['collations'] = declaration['source']['table']['collations']
+        result = _codec({'prepare': {'source': declaration, 'plan': parameters, 'limits': budgets._wire()}}, native_directory)
         return cls(bytes.fromhex(result['prepared']['bytes']))
 
 

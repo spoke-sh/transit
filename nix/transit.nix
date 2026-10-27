@@ -115,7 +115,7 @@ stdenv.mkDerivation {
   '';
   buildPhase = ''
     runHook preBuild
-    zig build transit transit-node transit-query-host transit-board -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dsdk-examples=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
+    zig build transit transit-node transit-query-host transit-board -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
     runHook postBuild
   '';
   doInstallCheck = true;

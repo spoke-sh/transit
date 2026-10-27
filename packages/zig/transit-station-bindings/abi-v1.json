@@ -7,7 +7,8 @@
     "handler_table_result_bytes": 262144,
     "catalog_line_bytes": 16810056,
     "catalog_action_bytes": 16793672,
-    "catalog_intent_bytes": 8388644
+    "catalog_intent_bytes": 8388644,
+    "query_bundle_bytes": 25743
   },
   "statuses": {
     "ok": 0,

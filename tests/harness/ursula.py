@@ -7,6 +7,7 @@ import tempfile
 import urllib.request
 
 from .services import free_port, wait_ready
+from .phases import phase
 
 
 class Fixture:
@@ -41,6 +42,7 @@ path = "{self.root / 'wal'}"
         self.server = None
         self.log = (self.root / "ursula.log").open("w+")
 
+    @phase("provision", "ursula")
     def start(self):
         assert self.server is None
         self.server = subprocess.Popen(
@@ -49,6 +51,7 @@ path = "{self.root / 'wal'}"
         )
         wait_ready(self.http, self.server, self.url + "/__ursula/ready")
 
+    @phase("teardown", "ursula")
     def stop(self):
         if self.server is not None:
             if self.server.poll() is None:
@@ -72,4 +75,3 @@ path = "{self.root / 'wal'}"
             sys.stderr.write(self.log.read()[-12000:])
         self.log.close()
         self.directory.cleanup()
-

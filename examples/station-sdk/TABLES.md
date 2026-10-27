@@ -14,7 +14,7 @@ The [Python](python/transit_sdk_examples/query.py),
 [Erlang](erlang/src/transit_example_table_service.erl), [Elixir](elixir/lib/handlers.ex),
 [Ruby](ruby/lib/transit/sdk_examples.rb), [C](c/src/handlers.c) and
 [C++](cpp/include/transit/sdk_examples.hpp) implementations execute this
-contract. The [neutral fixtures](../../tests/verification/sdk-table-work-v1.json)
+contract. The [neutral fixtures](../../tests/sdk/sdk-table-work-v1.json)
 define application records independently of any host encoder. They do not assert
 that every language's example has migrated or passed its runtime proof.
 

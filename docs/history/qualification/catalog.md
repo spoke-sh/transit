@@ -19,7 +19,7 @@ empty intervals, UTF-8 prefixes and embedded zero bytes. Other cases check owned
 literal bytes, signed floating zero, a key outside the first column, unsupported
 collations/physical bounds, and fallback for general/order-sensitive plans.
 
-The [service schedule](../../../tests/direct_table_count_ranges.zig) uses the real local node
+The [service schedule](../../../tests/query/tables/direct_table_count_ranges.zig) uses the real local node
 with one resident authority page. A 17-row bulk-written Table has different key
 and identity orders. Each selected interval is compared with a forced full scan
 of the same pin and an independent expected count. Intervals span zero, one,
@@ -796,7 +796,7 @@ checks remain incomplete while the older consumers are migrated.
 
 ## Catalog prefix reuse — 2026-10-26
 
-The [retained records](../../../tests/verification/results/catalog-prefix-2026-10-26/report.json)
+The [retained records](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/catalog-prefix-2026-10-26/report.json)
 include source-patch attribution, task logs and the failed hosted baseline.
 Hosted run `40278906228` passes nineteen growth tasks at `e4b4955cb`, then
 `test::catalog` fails when its 139-resource writer reaches the unchanged
@@ -1216,7 +1216,7 @@ replays its relevant catalog/Table history with bounded resident memory.
 
 The scoped changeset cutover uses definition
 `3f918c9828cf632c52018e094e23cf4384d2c2fe288009aeea4c9aef1b696bb3`.
-Its [CLI/ABI/host report](../../../tests/verification/results/authorization-changesets-2026-10-14.json)
+Its [CLI/ABI/host report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-changesets-2026-10-14.json)
 records **10.941 s** on dirty `6ab83ad0`. The expanded administration proof adds
 two-intent partial publication, an unread second-begin reply recovered after a
 node/store restart, repeated terminal observation, signed-document tamper
@@ -1238,7 +1238,7 @@ its required grantee, both the rerun and current-definition run pass.
 
 The schema and administration cutover uses definition
 `3dccf1d571d3e126c9b2d0c4f5f7fe474b3b69ec93bfbcd169808ccb2e9b990a`.
-The [CLI/ABI/host report](../../../tests/verification/results/authorization-cli-schema-2026-10-14.json)
+The [CLI/ABI/host report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-cli-schema-2026-10-14.json)
 records `just test::authorization-cli` passing in **4.094 s** on dirty `56dec28c`.
 It checks read-only preparation, private non-replacing artifacts, exact retries
 across one node/store restart, bounded checkpointed apply, receipt recovery,
@@ -1246,7 +1246,7 @@ stale proposal preservation, foreign/missing definition rejection and the same
 saved record across the installed CLI, C ABI and host port. This establishes
 the shared administration boundary, not ergonomic language SDK support.
 
-The [schema Table report](../../../tests/verification/results/authorization-tables-schema-2026-10-14.json)
+The [schema Table report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-tables-schema-2026-10-14.json)
 records the expanded `just test::authorization-tables` passing in **253.639 s**
 on the same dirty revision. In addition to restricted-reader isolation and the
 existing restart/revocation schedule, it checks CLI/service agreement on SQL
@@ -1263,11 +1263,11 @@ passes **410 public cases** and **594 grammar obligations**, and the mapping
 check covers 11 public boundaries. The focused client run passes **24/24 tests**,
 including post-submit ABI allocation failure preserving an unknown outcome.
 The repository `just test::unit` task and the current-definition
-[native restart proof](../../../tests/verification/results/authorization-native-schema-2026-10-14.json)
+[native restart proof](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-native-schema-2026-10-14.json)
 also pass. Changesets, remaining subject transports, adapters, SDK workflows and
 clean CI remain separate delivery gates.
 
-The [serving authorization report](../../../tests/verification/results/authorization-serving-2026-10-14.json)
+The [serving authorization report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-serving-2026-10-14.json)
 records `just test::authorization-serving` passing in **445.170 s** on dirty
 `ff45edb6`, retaining the definition and six executable hashes. An ordinary LOGIN
 caller selects a NOLOGIN role through SET-only membership. It prepares and
@@ -1303,7 +1303,7 @@ SELECT privilege. The first ReleaseSafe disk run exposed that missing check;
 its rerun and maintained-query qualification remain separate from these unit
 results.
 
-The [application authorization report](../../../tests/verification/results/authorization-work-items-2026-10-14.json)
+The [application authorization report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-work-items-2026-10-14.json)
 records `just test::server-applications` passing in **937.687 s** on dirty
 `ea0a1ec6`, under definition `d70f7dc0…`. Explicit operator provisioning persists
 14 authorization changes before submission and verifies exact repeat recovery.
@@ -1317,7 +1317,7 @@ report retains the five executable hashes. The root unit/build check passes
 The added regression leaves registration-blocked input unresolved for the host
 handshake, instead of committing an application failure.
 
-The [native Table report](../../../tests/verification/results/authorization-native-tables-2026-10-14.json)
+The [native Table report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-native-tables-2026-10-14.json)
 records `just test::typed-tables --cold` passing in **698.059 s** on the same
 source/definition. It covers lost send/turn replies, exact CLI recovery, all
 **28 logical descriptors**, prepared parameters, held-snapshot renewal,
@@ -1327,7 +1327,7 @@ remain authorization-bound. Cancellation accepts either durable cancellation
 or a write already committed before cancellation. Installed SDKs, maintained
 relations, physical exchange and SQL wire gateways are not exercised by this run.
 
-The subsequent [maintained Table report](../../../tests/verification/results/authorization-maintained-2026-10-14.json)
+The subsequent [maintained Table report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-maintained-2026-10-14.json)
 records `just test::typed-tables --cold --maintained` passing in **3,448.170 s**
 on dirty `791f6216` with the earlier definition retained in the report. Its
 maintained schedule takes **2,686.078 s**, publishes **26 revisions** (eight
@@ -1373,7 +1373,7 @@ rotation, Board inspection and stop/start; its courier recovery observes a
 not latency guarantees. Compose/reference execution and the final clean-source
 check remain separate; executable hashes and total elapsed times were not captured.
 
-The [reactive authorization report](../../../tests/verification/results/authorization-reactive-2026-10-14.json)
+The [reactive authorization report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-reactive-2026-10-14.json)
 records the TLS/reactive refresh schedule passing in **162.64 s** on dirty
 `ca76ae7a`, definition `c7446846…34cccd`. It exercises two same-principal views,
 exact lost-follow retry, fair bounded admission, worker replacement and full-width
@@ -1382,7 +1382,7 @@ Table SELECT denies refresh and new admission. Retained denial diagnostics stay
 stable after restoration, and pause/close controls remain available. Executable
 hashes and overall build time were not captured.
 
-The [final-definition capacity report](../../../tests/verification/results/authorization-reactive-capacity-2026-10-15.json)
+The [final-definition capacity report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-reactive-capacity-2026-10-15.json)
 records two clean `f7e5dc98` refresh attempts failing at the same native
 maintenance send with explicit `HttpCapacity`. The fixture now retries the
 identical serialized command within its existing ten-second window. Explicit
@@ -1410,7 +1410,7 @@ and one actual native-capacity response recovered through an exact command retry
 These fixture measurements do not establish latency guarantees. Expiry remains
 an independent lifecycle outcome, and final committed-source checks are separate.
 
-The [Flight authorization report](../../../tests/verification/results/authorization-flight-2026-10-14.json)
+The [Flight authorization report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-flight-2026-10-14.json)
 records the real TLS PyArrow and ADBC C/Python suite passing with original-subject
 query bundles and role-bound tickets. Its 41-row finite statement/retry schedule
 takes **84.70 s**; schema, exact int64/null rows, empty results, counts, aliases,
@@ -1420,7 +1420,7 @@ infrastructure-reader profile, with native source/request resource access;
 selected-role ticket mismatch is a unit check and the fault/load schedule remains
 separate. Executable hashes and source/definition are in the report.
 
-The [final-definition Flight fault report](../../../tests/verification/results/authorization-flight-faults-2026-10-15.json)
+The [final-definition Flight fault report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-flight-faults-2026-10-15.json)
 records `just test::flight-faults` passing on dirty `24f2ba92` with definition
 `67f02f8b…2a15e`. Revoking native Table SELECT after a returned batch denies the
 remaining result while raw resource reads stay granted. Pooled authentication,
@@ -1433,7 +1433,7 @@ obsolete SQL syntax expectation and transient native capacity immediately after
 restart. Recovery now retries only UNAVAILABLE for the same retained reference,
 within 180 seconds, discarding any failed partial read.
 
-The [installed general Table report](../../../tests/verification/results/authorization-catalog-sdks-2026-10-14.json)
+The [installed general Table report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-catalog-sdks-2026-10-14.json)
 records all ten SDKs plus Python async completing Table creation, nested typed
 mutation, schema change, deletion, name reuse and saved original-outcome recovery
 in the native cold-storage schedule. It passes in **1,359.385 s**, with 1,190 turns,
@@ -1442,7 +1442,7 @@ parameter and captured-query restart checks also pass. This run uses the explici
 infrastructure-reader profile and the source/definition recorded in the report;
 restricted mediation remains a separate schedule.
 
-The subsequent [restricted SDK report](../../../tests/verification/results/authorization-restricted-sdks-2026-10-15.json)
+The subsequent [restricted SDK report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-restricted-sdks-2026-10-15.json)
 records all ten installed SDKs plus Python async passing in **683.248 s** on
 dirty `24f2ba92`, definition `67f02f8b…2a15e`. The caller selects a NOLOGIN data
 role through SET-only membership, has scoped native SEND and cannot read the
@@ -1464,14 +1464,14 @@ packaging. `just bindings::authorization` builds the packages and runs this
 schedule in the ordinary bindings lane; native CLI/ABI/host administration also
 runs in the ordinary core lane.
 
-The [final-definition administration report](../../../tests/verification/results/authorization-administration-2026-10-15.json)
+The [final-definition administration report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-administration-2026-10-15.json)
 records `just test::authorization-cli` passing in **10.965 s** on dirty
 `c740b001`, definition `67f02f8b…2a15e`. CLI, C ABI and host-port preparation,
 bounded apply, scoped changeset partial recovery and explicit removal pass across
 two authority/store restarts. Foreign/missing definitions reject, and stale saved
 records remain unchanged. The report retains the four executable/library hashes.
 
-The [installed Unified Table report](../../../tests/verification/results/authorization-unified-sdks-2026-10-14.json)
+The [installed Unified Table report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-unified-sdks-2026-10-14.json)
 records all ten SDKs plus native ABI, local port and Python async callers passing
 the signed native workflow in **699.08 s**, using the `d1b3aff0` implementation
 with uncommitted integration changes and the definition recorded in the report.
@@ -1582,7 +1582,7 @@ run validates values and compiled APIs, not live sealing or native recovery;
 the combined signed-authority schedule remains a separate gate. The bundle bound
 is 25,255 bytes, including its original-subject proof.
 
-The [relational service report](../../../tests/verification/results/authorization-tables-relational-service-2026-10-14.json)
+The [relational service report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-tables-relational-service-2026-10-14.json)
 records the expanded disk proof passing in **310.795 s** on dirty `f01c1064`.
 It uses explicit INT64 join keys, grants the second source, observes a successful
 join and complete empty join, then revokes that source and denies both queries.
@@ -1595,7 +1595,7 @@ The root test task also passes (321 executed tests, with remaining tasks cached)
 as do the 130-test query package, service-schema drift check and declared
 diagnostic mappings.
 
-The [mediated recovery report](../../../tests/verification/results/authorization-tables-mediated-recovery-2026-10-14.json)
+The [mediated recovery report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-tables-mediated-recovery-2026-10-14.json)
 records `just test::authorization-tables` passing in **288.766 s** on dirty
 `7ab3475c`, with the current-definition identifier and all five executable hashes.
 Restricted CLI callers have no native process inspection or raw-resource reads.
@@ -1617,7 +1617,7 @@ checks, not complete installed-workflow or clean-source CI evidence.
 
 `just test::authorization-tables` runs the actual node, signing CLI, catalog
 worker, courier and Table service over disk-backed Ursula. The
-[retained report](../../../tests/verification/results/authorization-tables-2026-10-14.json)
+[retained report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-tables-2026-10-14.json)
 records a passing 2026-10-14 run in **114.449 s**, on dirty `7eed560a`, under
 shared definition `3e49cab638f15a788cc7a47a378b1956f80ed47e5366d64134cb22f3cd332b51`.
 It records the four executable hashes. The fixture provisions roles, bindings,
@@ -1669,7 +1669,7 @@ installed workflows and the full check/clean-source run remain separate gates.
 After the fixture and witness corrections, `nix develop -c just test::unit`
 passes on the same dirty source. `just test::authorization-tables` also passes
 again in **120.834 s** with the new definition. Its
-[separate retained report](../../../tests/verification/results/authorization-tables-query-subject-2026-10-14.json)
+[separate retained report](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/authorization-tables-query-subject-2026-10-14.json)
 records the executable hashes and the same two-service/one-authority-store
 restart schedule. This rechecks the actual restricted Table boundary after the
 subject-reader refactor; it does not turn the injected durable-query cases into
@@ -3889,7 +3889,7 @@ A complete committed-source rerun is still required for acceptance.
 
 `nix develop --command just test::direct-table-service` passes with the existing
 one-page native cache and unchanged 180-second lifecycle subprocess deadline.
-The [baseline and corrected logs](../../../tests/verification/results/table-history-pages-2026-10-26/report.json)
+The [baseline and corrected logs](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/table-history-pages-2026-10-26/report.json)
 retain the preceding timeout during the second replay, after transaction four.
 The reader now uses the owner's existing eight-frame history page to cross
 physical maintenance. It consumes only the first logical acceptance and advances
@@ -3913,7 +3913,7 @@ WI1 command fixture: the Python drift check fails and the application unit suite
 reports 12 passes and one failure. Regenerating with
 `tests/work_items_contract.py --write` changes only that definition. The generator
 check and `zig build test-work-items-unit -Doptimize=ReleaseSafe` then pass;
-[recorded evidence](../../../tests/verification/results/work-item-definition-2026-10-26/report.json)
+[recorded evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/work-item-definition-2026-10-26/report.json)
 preserves both failures. Contract generation/checking now includes this fixture,
 so future definition changes regenerate it and detect drift before root unit
 execution. Existing foreign/missing-definition rejection remains unchanged.
@@ -3924,7 +3924,7 @@ Committed-HEAD `nix develop --command just ci-clean --lane experience` at
 `e550f4ed54ec4cd9a1c40cb4c568a64752861a16` passes five tasks, then fails
 `test::server-direct-tables`: its post-restart DELETE/DROP batch exceeds the
 unchanged 300-second console deadline during native authority unavailability
-and node replacement. The [retained evidence](../../../tests/verification/results/installed-table-closeout-2026-10-26/report.json)
+and node replacement. The [retained evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/installed-table-closeout-2026-10-26/report.json)
 includes the failed lane, manager logs and signed public inspection after
 restarting the original installation with unchanged binaries. DELETE operation
 647 is terminal and applied with one matched/changed row. Subsequent operation

@@ -4,7 +4,7 @@ Status: planning assumptions, recorded 2026-09-24 for [Verification](../../handb
 These calculations describe the intended downstream application. They are not
 measurements of Transit, a venue selection, or production service objectives.
 [Testing](../TESTING.md) owns qualification; the
-[experiment matrix](../../../tests/verification/scale.json) owns experiment sizes.
+[experiment matrix](../../../tests/performance/scale/scale.json) owns experiment sizes.
 
 The shared [workload priorities](../../handbook/reference/workloads.md),
 [performance characteristics and improvement plan](../../handbook/reference/performance.md)

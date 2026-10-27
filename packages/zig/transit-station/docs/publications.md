@@ -137,7 +137,7 @@ reference graph or provider-space reclamation guarantee.
 ## Qualification and integration limits
 
 Run `just test::publication` for real signed service, disk recovery, exact retry,
-current access, protected historical reads and cleanup. `just test::unit` covers
+current access, protected historical reads and cleanup. `just check::native` covers
 strict codecs, independent digest fixtures, quota/identity refusal and rollback.
 The [test guide](../../../../tests/README.md) records executed evidence and limits.
 

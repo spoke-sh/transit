@@ -286,4 +286,4 @@ test "independent UQS1 fixtures preserve all three source declarations" {
 }
 
 // Direct Table page, exact-interpretation and predicate checks run against the
-// public service in tests/direct_table_predicates.zig and direct_captured_query.zig.
+// public service in tests/query/tables/direct_table_predicates.zig and direct_captured_query.zig.

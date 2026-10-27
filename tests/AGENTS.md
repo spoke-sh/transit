@@ -9,21 +9,29 @@ installed-consumer checks, independent oracles and verification infrastructure.
 
 - Identify the invariant, public operation, backend and failure schedule before
   adding a driver. Extend the owning scenario instead of copying a whole fixture.
-- Follow the [suite inventory](verification/suite.json) and
+- Follow the [suite inventory](runner/suite.json) and
   [invariant catalog](verification/invariants.json). Register new runnable checks
   and their execution owner; distinguish nested checks from additional executions.
 - Keep direct Table/storage acceptance separate from Station/application turns.
   Preserve provider-specific coverage when migrating a generic local fixture.
-- Prefer the existing scoped directory. Root files awaiting migration remain
-  supported; do not create another root family when a real owner exists.
+- Put new files in the appropriate domain directory with README/AGENTS navigation.
+  Only README.md and AGENTS.md belong at the root. The
+  [layout policy](runner/layout.json) has no migration exceptions; keep it so.
 
 ## Fixtures and independent oracles
 
 Share process management, ports, fault injection, bounded waits and artifact
 capture. Keep expected values and semantic oracles independent of the production
 implementation. Do not make a test pass by using its actual result as its oracle.
+Use `python3 -B tests/runner/launch.py tests/OWNER/DRIVER.py` for migrated Python
+drivers. Import helpers by owner and repository coordinates from `runner.paths`;
+do not infer the repository from each driver's depth or export a test PYTHONPATH
+into installed consumers. Move all callers with an entry point.
 Use explicit binary paths and matching source/definition/profile identities.
 Separate immutable build artifacts from mutable installation state.
+Declare shared Zig fixture imports in the [build registry](../build/test_modules.zig)
+and supply owning package modules. Preserve shared type identity across domains;
+do not reach across directories with relative source imports.
 
 Each fixture owns and joins its processes. Preserve private failed installations
 when original-outcome investigation requires them. Exclude credentials from
@@ -46,6 +54,8 @@ Report exactly what ran and what did not; task registration is not executed proo
 Keep this README an index. Current behavior belongs in the handbook, reusable
 methods beside their test owner, qualification accounts in
 [history topics](../docs/history/qualification/README.md), and raw records under
-their evidence owner. Use issues/PRs for active investigations and handoffs.
+ignored runner output and CI artifacts. The [evidence owner](evidence/README.md)
+documents specifically retained reproducibility references. Use issues/PRs for
+active investigations and handoffs.
 Never append progress diaries or full command transcripts to `tests/README.md`.
 Preserve original outcomes, source attribution and hashes when moving records.

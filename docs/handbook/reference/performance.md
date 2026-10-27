@@ -44,7 +44,7 @@ than portable in the decoded comparison, and two/four workers show no consistent
 whole-pipeline gain. Those measurements support the portable, one-worker defaults
 on this host; they are not a universal hardware recommendation.
 
-The [reproducible measurement account](../../../tests/fuze_benchmarks/results/2026-10-13-pipelines/README.md)
+The [reproducible measurement account](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-10-13-pipelines/README.md)
 identifies exact source/build/fixture hashes, paired repetitions, failed trials,
 allocation boundaries and frozen numerical budgets. The host is shared; affinity
 does not isolate frequency, caches or memory bandwidth. Hardware performance
@@ -71,7 +71,7 @@ blocks and process progress after checkpoint, with essentially unchanged read
 costs: its history floor falls inside one retained WAL segment. No physical
 space reclamation is demonstrated. Maximum observed executable RSS is 8,968 KiB
 for Table and 6,868 KiB for native samples. These are observations, not limits.
-The [complete measurement account and raw samples](../../../tests/storage_benchmarks/2026-10-26-owners/README.md)
+The [complete measurement account and raw samples](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-owners/README.md)
 identify source hashes, all phases, memory/I/O boundaries and contention. These
 fixtures exceed owner caches, not host RAM; they do not measure installed SQL or
 ingestion/commit percentiles.
@@ -114,13 +114,13 @@ staging bytes and latency do not improve consistently. Both paths append once
 with three measured WAL syncs; final append medians are about 0.5–1.2% of total
 owner ingestion medians in these fixtures. A native turn's preparation includes
 input/view acceptance and private staging, so its timing is a separate workload.
-The [ingestion account and raw observations](../../../tests/storage_benchmarks/2026-10-26-ingestion/README.md)
+The [ingestion account and raw observations](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-ingestion/README.md)
 record both owners, exact source/build identities, allocation/RSS boundaries,
 cache conditioning and shared-host contention. Later Table evidence and native
 policy caching changes are outside this measurement; installed SQL and concurrent
 group commit are not measured.
 
-A [separate growth attempt](../../../tests/storage_benchmarks/2026-10-26-growth/README.md)
+A [separate growth attempt](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/storage_benchmarks/2026-10-26-growth/README.md)
 verifies 8,192 Table rows with 16 KiB values and 191,717,253 retained file bytes
 under a 134,217,728-byte process address-space ceiling. Fresh-process cold readback
 checks every value without changing storage. This exceeds the process ceiling,
@@ -419,7 +419,7 @@ access. Authority partitioning needs its own ordering and fencing design.
 
 ## Shared storage comparison
 
-The [integrated comparison](../../../tests/mutation_latency/results/2026-10-19/README.md)
+The [integrated comparison](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-19/README.md)
 measures baseline `ee88a131` against `29765ef0` with ReleaseSafe, pinned providers
 and sequential disk fixtures on the same shared host. Builds finish before
 timing. The complete reports preserve failures, source/binary hashes and
@@ -542,7 +542,7 @@ The [executed mutation evidence](../../history/qualification/performance.md#dura
 records observations and outstanding limits. No latency SLO follows from these
 shared-host samples. Empirical nearest-rank p95 requires at least 20 samples per
 case and p99 at least 100; smaller runs report null for those percentiles.
-The [general Table comparison](../../../tests/mutation_latency/results/2026-10-07/README.md)
+The [general Table comparison](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-07/README.md)
 records higher mutation latency and request amplification than the earlier
 fixed-column storage profile. It also measures wide/nested values and retained
 data with a concurrent reader. The record separates ordinary timings,
@@ -563,7 +563,7 @@ authority, recovery and resource bounds.
 Complete Table history adds one retained old-head record at each replacement.
 The earlier small-KV representation moved narrow INSERT and changing UPDATE from
 one turn to two, with three-row INSERT taking four turns. The
-[complete-history campaign](../../../tests/mutation_latency/results/2026-10-12/README.md)
+[complete-history campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-12/README.md)
 preserves that historical cost and its concurrent-load limits. Its elapsed times
 overlap maintenance qualification and do not isolate change-capture cost. The
 current block representation retains the predecessor in the same publication
@@ -609,10 +609,10 @@ control observes processed input about 5 ms after the turn receipt and completes
 about 9 ms after that observation. These overlapping proxy observations do not
 measure independent fsync costs. A concurrent-reader control completes 140 writes
 and 1,280 reads, with INSERT/UPDATE/DELETE p50 138/156/137 ms.
-The [raw controls](../../../tests/mutation_latency/results/2026-10-05/README.md)
+The [raw controls](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-05/README.md)
 retain exact source/binary provenance and shared-host limitations.
 
-The [finite offered-load fixture](../../../tests/growing_load.py) uses ReleaseSafe binaries.
+The [finite offered-load fixture](../../../tests/performance/load/growing_load.py) uses ReleaseSafe binaries.
 It schedules 48 requests independently, records generator queueing, separates
 admitted and refused attempts, and captures authority wait/work counters.
 Only accepted inputs are drained and checked after node/provider restart;
@@ -630,7 +630,7 @@ workers. Each completes 140 cases with independent row verification:
 | Frozen earlier implementation | 346 / 404 ms | 334 / 402 ms | 329 / 546 ms |
 | Shared candidates, scoped waits and compact pages | 135 / 154 ms | 152 / 179 ms | 143 / 148 ms |
 
-The [raw campaign and reproduction](../../../tests/mutation_latency/results/2026-10-04/README.md)
+The [raw campaign and reproduction](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/README.md)
 retain source/binary hashes, all seven cases, failed controls and instrumentation
 limits. The runs match provider and fixture settings, while shared-host load
 remains uncontrolled. They establish no p99 or latency SLO.
@@ -717,8 +717,8 @@ requirement. A fast read that skips these boundaries does not qualify the design
 ## Schema on demand measurements
 
 Local CSV/JSONL discovery, finite queries and explicit test-host capture have a
-[reproducible comparison matrix](../../../tests/fuze_benchmarks/README.md) and
-[recorded baseline and budgets](../../../tests/fuze_benchmarks/results/2026-09-30/README.md).
+[reproducible comparison matrix](../../../tests/performance/query/README.md) and
+[recorded baseline and budgets](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-09-30/README.md).
 DuckDB 1.5.2 (build `8a5851971f`) and PyArrow 23.0.0 are pinned development
 comparators; neither supplies Transit's execution engine or authorization.
 The [type and source reference](sql/types.md#schema-discovery-and-binding)
@@ -776,7 +776,7 @@ allocation requests/bytes and source-read work. A paired eight-query control use
 the same driver against the original six-scalar implementation; each median
 candidate/control ratio must remain at most 1.15. Exact limits, source report
 hashes, failures and reproduction commands live with the
-[baseline artifacts](../../../tests/fuze_benchmarks/results/2026-09-30/README.md).
+[baseline artifacts](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-09-30/README.md).
 Incomplete or changed-workload evidence cannot pass the checker.
 
 CSV scans retain bounded header/schema metadata and validate the current binding
@@ -791,7 +791,7 @@ Their full result, allocation, I/O-count, memory and six-type checks passed, but
 two complete repetitions failed different capture/discovery timing limits. Both
 optimizations were withdrawn without changing the budgets. File discovery and
 scanning retain the measured baseline's metadata algorithm. The
-[experiment record](../../../tests/fuze_benchmarks/results/2026-09-30/README.md#withdrawn-metadata-experiments)
+[experiment record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-09-30/README.md#withdrawn-metadata-experiments)
 retains both failures and the observed shared-host interference; it establishes
 no qualified optimization benefit or isolated cause for every timing change.
 
@@ -801,7 +801,7 @@ avoids rebuilding an unchanged output schema and repeating shape validation
 within one canonical encoding. Complete source/plan checks and alias collision
 checks remain. A subsequent nine-pair measurement at `a99a9c59` records ratios
 1.0003–1.1219 against the original control, within the unchanged 1.15 budget.
-The [post-merge record](../../../tests/fuze_benchmarks/results/2026-09-30/README.md#post-merge-specialized-path-regression)
+The [post-merge record](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-09-30/README.md#post-merge-specialized-path-regression)
 retains the failed trials and passing result. This evidence covers native
 six-type execution; it does not remeasure file or DuckDB performance.
 

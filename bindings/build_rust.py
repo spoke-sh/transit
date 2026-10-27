@@ -9,9 +9,9 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def build(output, names, native_prefix=None):
+def build(output, names, native_prefix):
     output = Path(output).resolve()
-    native_prefix = Path(native_prefix).resolve() if native_prefix else ROOT / 'zig-out'
+    native_prefix = Path(native_prefix).resolve()
     output.mkdir(parents=True, exist_ok=True)
     for name in names:
         source = ROOT / name if '/' in name else ROOT / 'sdks/rust' / name
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output')
     parser.add_argument('names', nargs='*')
-    parser.add_argument('--native-prefix')
+    parser.add_argument('--native-prefix', required=True)
     args = parser.parse_args()
     build(args.output, args.names or ['transit-native-client', 'transit-client',
         'transit-native-station', 'transit-station-sdk', 'examples/station-sdk/rust'], args.native_prefix)

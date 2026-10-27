@@ -60,7 +60,7 @@ From the repository root, use the pinned docs shell and locked dependencies:
 
 ```sh
 nix develop .#docs --command just transit-docs::install
-nix develop .#docs --command python3 -B tests/docs.py
+nix develop .#docs --command python3 -B tests/runner/docs.py
 nix develop .#docs --command just transit-docs::check
 ```
 

@@ -1,6 +1,7 @@
 """Package relocatable C/C++ SDK prefixes with standard pkg-config discovery."""
 import io
 import argparse
+import json
 from pathlib import Path
 import re
 import tarfile
@@ -9,12 +10,24 @@ ROOT = Path(__file__).resolve().parents[1]
 VERSION = '0.2.0'
 
 
-def build(output, native_prefix=None):
+def build(output, native_prefix, sdk_prefix):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    native_prefix = Path(native_prefix).resolve() if native_prefix else ROOT / 'zig-out'
+    native_prefix = Path(native_prefix).resolve()
     native = native_prefix / 'lib/libtransit_client.so'
-    sdk = ROOT / 'sdks/c/transit-client/zig-out/lib/libtransit_sdk_client.so'
+    sdk_prefix = Path(sdk_prefix).resolve()
+    native_build = json.loads((native_prefix / 'build.json').read_text())
+    sdk_build = json.loads((sdk_prefix / 'build.json').read_text())
+    for name in ('optimize', 'target', 'cpu', 'resolved_cpu', 'compiler'):
+        if native_build[name] != sdk_build[name]:
+            raise SystemExit(f'Mismatched native/C SDK build input: {name}')
+    if native_build['set'] != 'clients' or sdk_build['set'] != 'c-sdk':
+        raise SystemExit('Wrong native/C SDK artifact family')
+    for family in ('client', 'station'):
+        name = f'contracts/{family}.json'
+        if (native_prefix / name).read_bytes() != (sdk_prefix / name).read_bytes():
+            raise SystemExit('Mismatched native/C SDK contract definition')
+    sdk = sdk_prefix / 'lib/libtransit_sdk_client.so'
     if not native.is_file() or not sdk.is_file():
         raise SystemExit('Run just bindings::c-build to compile both SDK and native dependency')
     packages = {
@@ -24,11 +37,11 @@ def build(output, native_prefix=None):
         'transit-client-cpp': {},
         'transit-native-station-c': {'lib/libtransit_station.so': (native_prefix / 'lib/libtransit_station.so').read_bytes(),
             'include/transit_station.h': (ROOT / 'packages/zig/transit-station-bindings/include/transit_station.h').read_bytes()},
-        'transit-station-c': {'lib/libtransit_sdk_station.so': (ROOT / 'sdks/c/transit-station/zig-out/lib/libtransit_sdk_station.so').read_bytes()},
+        'transit-station-c': {'lib/libtransit_sdk_station.so': (sdk_prefix / 'lib/libtransit_sdk_station.so').read_bytes()},
         'transit-station-cpp': {},
-        'transit-sdk-examples-c': {'lib/libtransit_sdk_examples_c.a': (ROOT / 'examples/station-sdk/c/zig-out/lib/libtransit_sdk_examples_c.a').read_bytes(),
-            'bin/transit-c-counter': (ROOT / 'examples/station-sdk/c/zig-out/bin/transit-c-counter').read_bytes()},
-        'transit-sdk-examples-cpp': {'bin/transit-cpp-counter': (ROOT / 'examples/station-sdk/cpp/zig-out/bin/transit-cpp-counter').read_bytes()},
+        'transit-sdk-examples-c': {'lib/libtransit_sdk_examples_c.a': (sdk_prefix / 'lib/libtransit_sdk_examples_c.a').read_bytes(),
+            'bin/transit-c-counter': (sdk_prefix / 'bin/transit-c-counter').read_bytes()},
+        'transit-sdk-examples-cpp': {'bin/transit-cpp-counter': (sdk_prefix / 'bin/transit-cpp-counter').read_bytes()},
     }
     specifications = [
         ('transit-client-c', 'sdks/c/transit-client', 'transit_sdk_client', ['transit-native-client-c']),
@@ -70,6 +83,7 @@ def build(output, native_prefix=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output')
-    parser.add_argument('--native-prefix')
+    parser.add_argument('--native-prefix', required=True)
+    parser.add_argument('--sdk-prefix', required=True)
     args = parser.parse_args()
-    build(args.output, args.native_prefix)
+    build(args.output, args.native_prefix, args.sdk_prefix)

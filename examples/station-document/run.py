@@ -12,9 +12,9 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tests"))
-from client_abi_growing import GrowingSystem
-from cold_storage import ColdStore
-from document_contract import encode
+from sdk.client_abi_growing import GrowingSystem
+from storage.providers.cold_storage import ColdStore
+from runtime.document.document_contract import encode
 from harness.ursula import Fixture
 from harness.services import wait_ready
 
@@ -201,7 +201,7 @@ def run(*, board=False, browser=False):
             try:
                 assert worker("create")["revision"] == "0"
                 if board or browser:
-                    from document_board import DocumentBoard
+                    from interfaces.board.document_board import DocumentBoard
                     inspection = DocumentBoard(system, writer, command, query, write, binaries, browser)
                     assert inspection.request("/api/v1/capabilities")["documents"]
                 invoke([binaries["transit-station-document-worker"], system.root / "writer.json"], error="FreshOwnershipRequired")

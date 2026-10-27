@@ -713,7 +713,7 @@ failure releases the reservation while preserving the preceding pin. Conflicting
 operations on one pin fail explicitly. Stale releases cannot overwrite a newer
 reservation, and a fresh startup epoch prevents reuse after node restart.
 
-The [disk barrier proof](../../../tests/node_concurrency.py) holds a provider
+The [disk barrier proof](../../../tests/storage/providers/node_concurrency.py) holds a provider
 response while requiring an independent signed read and commit to complete
 before release. A second schedule holds old evidence across revocation; a third
 races identical signed writes and checks exact receipt reconciliation. The
@@ -789,7 +789,7 @@ record envelopes, retained schemas and current read failures. Run
 authority/storage schedules are recorded separately in the
 [proof ledger](../../history/qualification/README.md). These checks do not establish scan pruning,
 columnar storage, horizontal write scaling or a latency improvement. The
-[matched service campaign](../../../tests/mutation_latency/results/2026-10-19/README.md)
+[matched service campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-19/README.md)
 measures the combined implementation separately: narrow INSERT/UPDATE and
 range/full scans improve, while empty and LIMIT 0 console reads regress. Its
 single instrumented INSERT uses one accepted turn instead of two, with fewer
@@ -917,7 +917,7 @@ capacity must cover its progress and mark pages. File-length accounting remains
 conservative after uncertainty and does not measure filesystem blocks or inodes.
 
 The [native disk tests](../../../packages/zig/transit-backend-local/src/collection_test.zig)
-and [process-death harness](../../../tests/local_native_collection_faults.py)
+and [process-death harness](../../../tests/storage/local/local_native_collection_faults.py)
 check current and retained values, relocation, old creators, corrupt metadata,
 FIFO sync uncertainty and resumed deletion. Reproduction and executed outcomes
 are recorded in the [proof ledger](../../history/qualification/README.md). These finite controls
@@ -1000,7 +1000,7 @@ base64 framing. These are separate from compute vector widths, Arrow batches
 and application publication segments; the native mutation quota is unchanged.
 A current-definition cutover prevents old stored pages from being reinterpreted.
 
-The [layout experiment](../../../tests/mutation_latency/results/2026-10-04/page-layout.json)
+The [layout experiment](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/page-layout.json)
 counts actual operations in the production tree with an in-memory measurement
 store, 50 synthetic turns, retained roots, 64/1,024 rows and matching receipt
 populations. At 1,024 rows, compact 8/32 monolithic roots used 782 reads and 468
@@ -1021,13 +1021,13 @@ is 39.43/34.29/70.54 ms. Median lock wait rounds to zero in that idle control.
 These are overlapping phase measurements under proxies, not isolated disk-fsync
 costs or sums that predict the ordinary console latency. They favor reducing
 provider work before introducing concurrent authority execution. The
-[raw campaign](../../../tests/mutation_latency/results/2026-10-04/README.md)
+[raw campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/README.md)
 records the matched controls and failed attempts.
 
 An unproxied 280-case control with 120 retained rows samples slow requests
 separately. One request spends 1,891 of 1,900 ms in provider I/O across 86 attempts;
 another read waits 1,879 ms before doing 4 ms of work. The
-[bounded slow samples](../../../tests/mutation_latency/results/2026-10-04/slow-diagnostic-events.json)
+[bounded slow samples](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/slow-diagnostic-events.json)
 retain 64 of 77 events meeting a 500 ms wait/work threshold or reporting failure.
 They establish that long provider work can occupy serialized access and delay
 other requests. The threshold sample is not an all-request distribution, and
@@ -1058,7 +1058,7 @@ separation between planning and publication. This corrects avoidable starvation;
 it does not promise admission when incoming bytes exceed durable drain capacity.
 
 The local Nix package owns this correction. Official pinned container images
-remain a separate provider profile. The [campaign evidence](../../../tests/mutation_latency/results/2026-10-04/README.md)
+remain a separate provider profile. The [campaign evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/README.md)
 records diagnostic-only build patches and failed runs; a provider category never
 authorizes a fresh retry of an uncertain Transit command.
 
@@ -1100,7 +1100,7 @@ must distinguish offered load, admission, queue residence, individual receipts
 and uncertain batch outcomes. The current evidence does not establish a safe
 single-write improvement from group commit or horizontal authority execution.
 
-The [completion campaign](../../../tests/mutation_latency/results/2026-10-05/README.md)
+The [completion campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-05/README.md)
 separates these costs empirically. Bounded caller waits and leaf-frontier batches
 reduce console INSERT/UPDATE/DELETE medians from 142/153/138 ms to 113/130/112 ms
 in fresh 140-case controls. Separate instrumented controls reduce median provider
@@ -1238,7 +1238,7 @@ not deduplication of accepted work. Native `HttpCapacity` produces `busy`: the
 account observation is deferred, so readiness remains unconfirmed, but the
 supervisor retains the process and exact pending work. The specific rejection
 is preserved instead of being flattened to `AuthorityUnavailable`. The
-[logging proof](../../../tests/server_logging.py) fills native data admission,
+[logging proof](../../../tests/interfaces/installation/server_logging.py) fills native data admission,
 observes this state, and checks that recovery changes neither process IDs nor
 connection-hint counts. Initial health polling remains `starting`; losing previously
 observed health becomes `unavailable`, retaining the same timeout/recovery gates.
@@ -1252,11 +1252,11 @@ terminal renderer would be simpler but could stall supervision. A separate
 handwritten server formatter would reintroduce format drift. Sharing bounded
 rendering preserves those constraints at the cost of lossy operational logs.
 
-The executable [pipe fixture](../../../tests/telemetry.py) checks both formats
+The executable [pipe fixture](../../../tests/interfaces/inspection/telemetry.py) checks both formats
 under drained, blocked and closed pipes on one CPU. The
-[server fixture](../../../tests/server_logging.py) uses a real PTY, a piped server,
+[server fixture](../../../tests/interfaces/installation/server_logging.py) uses a real PTY, a piped server,
 disk-backed providers, SQL settings and standalone executable failures. The
-[correlation fixture](../../../tests/observability.py) checks span parentage and
+[correlation fixture](../../../tests/interfaces/inspection/observability.py) checks span parentage and
 exclusion of credentials/payloads. Reproduction commands use the pinned
 development shell and are recorded with the executed results below. The [proof ledger](../../history/qualification/interfaces.md#unified-service-logging)
 records actual executions. These schedules do not prove arbitrary sinks, panics,
@@ -1338,8 +1338,8 @@ unauthorized caller receiving protected metadata. The implementation owners are
 [Config](../../../apps/transit-cli/server/Config.zig), the
 [signed contract](../../../packages/zig/transit-config/src/Contract.zig), and the
 [session owner](../../../packages/zig/transit-query/src/SettingsSession.zig).
-The installed [server proof](../../../tests/server_configuration.py) and
-[TLS adapter proof](../../../tests/sql_wire/settings.py) exercise the public routes;
+The installed [server proof](../../../tests/interfaces/installation/server_configuration.py) and
+[TLS adapter proof](../../../tests/interfaces/sql_wire/settings.py) exercise the public routes;
 [executed evidence](../../history/qualification/README.md) distinguishes completed runs from
 planned checks. Reproduce with the pinned development shell and the server and database-wire
 recipes named in the proof ledger; both use disposable installation state.

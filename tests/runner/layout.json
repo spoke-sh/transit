@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "owners": [
+    "runner",
+    "harness",
+    "catalog",
+    "storage",
+    "query",
+    "runtime",
+    "interfaces",
+    "sdk",
+    "verification",
+    "fixtures",
+    "performance",
+    "evidence"
+  ],
+  "migration_exceptions": [],
+  "migration_map": "docs/roadmap/development-workflow-migration.json"
+}

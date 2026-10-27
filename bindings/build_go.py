@@ -17,10 +17,10 @@ def archive(path, files):
             output.addfile(info, io.BytesIO(data))
 
 
-def build(output, native_prefix=None):
+def build(output, native_prefix):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
-    native_prefix = Path(native_prefix).resolve() if native_prefix else ROOT / 'zig-out'
+    native_prefix = Path(native_prefix).resolve()
     library = native_prefix / 'lib/libtransit_client.so'
     if not library.is_file():
         raise SystemExit('Run just bindings::build before packaging Go artifacts')
@@ -36,6 +36,6 @@ def build(output, native_prefix=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output')
-    parser.add_argument('--native-prefix')
+    parser.add_argument('--native-prefix', required=True)
     args = parser.parse_args()
     build(args.output, args.native_prefix)

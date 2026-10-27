@@ -9,13 +9,13 @@ import time
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
-from serving import TLS, native_query
-from serving_tls import TLSProxy
+from interfaces.http.serving import TLS, native_query
+from interfaces.http.serving_tls import TLSProxy
 from harness.services import free_port
 
 
 def run(owner):
-    from reactive_views import run as browser_proof
+    from interfaces.reactive.reactive_views import run as browser_proof
     placement, work, keys = (owner[name] for name in ('placement', 'work', 'keys'))
     profile, owned = owner['profile'], owner['owned']
     public_ports = [free_port(), free_port()]

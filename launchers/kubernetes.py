@@ -16,7 +16,7 @@ from common import ROOT, Installation, run, wait_for, write
 from local import Local
 
 sys.path.insert(0, str(ROOT / "tests"))
-import reference as infrastructure
+import interfaces.deployment.reference as infrastructure
 
 
 class ReferenceInstallation(Installation):

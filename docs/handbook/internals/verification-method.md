@@ -46,7 +46,7 @@ operation or enable an optimizer transformation by implication.
 
 ## Simulation model and progress
 
-The [authority/delivery driver](../../../tests/delivery_simulation.zig) runs the actual
+The [authority/delivery driver](../../../tests/verification/simulation/storage/delivery_simulation.zig) runs the actual
 Zig engine for two producer PIDs and one destination. Eight test-only slots hold
 frozen signed requests and prepared decisions; event order controls when those
 decisions publish, retry or become stale. These slots model delayed work, not a
@@ -56,7 +56,7 @@ after acceptance. Its immutable page store does not model disk faults.
 
 After each event, the driver refreshes the live engine and compares its logical
 projection with a separately recovered engine, retaining the original live cache.
-The [independent oracle](../../../tests/verification/simulation.py) tracks mailbox
+The [independent oracle](../../../tests/verification/simulation/storage/simulation.py) tracks mailbox
 progress, ownership, current permissions, signed-operation identity, route order
 and output provenance without sharing the core's page tree or route indexes.
 A disagreement in either comparison refutes correspondence for that trace.
@@ -79,7 +79,7 @@ while its [liveness account](https://tigerbeetle.com/blog/2023-07-06-simulation-
 motivates stabilizing required dependencies before expecting progress. Transit's
 finite explicit scheduler is narrower than that cluster simulation.
 
-The [harness guide](../../../tests/verification/README.md#authority-and-delivery-simulation)
+The [harness guide](../../../tests/verification/simulation/storage/README.md)
 owns bounds, reproduction and negative controls. The
 [simulation evidence](../../history/qualification/verification.md#authority-and-delivery-simulation)
 records executed results; no timing here establishes deployed throughput or latency.
@@ -88,15 +88,15 @@ records executed results; no timing here establishes deployed throughput or late
 
 The question is whether interruption between immutable staging and authoritative
 publication can expose only part of a turn. The
-[resource driver](../../../tests/resource_simulation.zig) executes the real core with
+[resource driver](../../../tests/verification/simulation/resources/resource_simulation.zig) executes the real core with
 one resource writer, a single key, captured views and an output to the same PID.
-Its [provider model](../../../tests/simulation_store.zig) has an atomic journal,
+Its [provider model](../../../tests/verification/simulation/storage/simulation_store.zig) has an atomic journal,
 retained immutable pages and a two-slot volatile page cache. It includes the
 batched staging interface: an interrupted batch can retain orphan pages while
 returning no successful publication. Neither journal trimming nor eviction
 removes required immutable pages.
 
-The [independent oracle](../../../tests/verification/resource_simulation.py) extends
+The [independent oracle](../../../tests/verification/simulation/resources/resource_simulation.py) extends
 the existing logical resource model with captured values, output provenance and
 the accepted history floor. Rejected staging must leave all published projections
 unchanged. Lost journal acknowledgements retain accepted state and the original
@@ -118,13 +118,13 @@ focused experiment. Full traces, bounded minimized correspondence failures,
 source/compiler/binary/oracle identity and incomplete-run status are retained.
 Mutation checks omit actual resource writes or input progress to challenge the
 oracle. Physical WAL, page deletion/GC and arbitrary corruption remain outside
-this model. See the [harness guide](../../../tests/verification/README.md#resource-publication-simulation)
+this model. See the [harness guide](../../../tests/verification/simulation/resources/README.md)
 for reproducible commands and the [proof ledger](../../history/qualification/README.md) for executed
 results and costs.
 
 ## Shared-client scheduling
 
-The [scheduler driver](../../../tests/scheduler_simulation.zig) instantiates the
+The [scheduler driver](../../../tests/verification/simulation/scheduler/scheduler_simulation.zig) instantiates the
 production `SessionWithTransport` with a signed in-process transport and invokes
 the same courier step as the delivery executable. A worker event either captures
 a private proposal or submits its previously frozen request. Scheduling can
@@ -132,7 +132,7 @@ interleave other actors, policy/ownership changes or restart between those steps
 The transport distinguishes loss before a query/submit from loss after processing;
 it validates responses but does not implement HTTP or native client deadlines.
 
-The [checker](../../../tests/verification/scheduler_simulation.py) constructs admitted
+The [checker](../../../tests/verification/simulation/scheduler/scheduler_simulation.py) constructs admitted
 input sequences from trace commands independently of the core. Each consumed
 prefix must account for the original outputs; each delivered output must account
 for exactly one destination input with its original provenance. Denials cannot
@@ -154,7 +154,7 @@ caller/courier integration proof retains responsibility for the actual binaries.
 
 ## Reproducibility
 
-The [external supervisor](../../../tests/verification/vortex.py) tests whether those
+The [external supervisor](../../../tests/runtime/delivery/vortex.py) tests whether those
 boundaries compose in real processes. An HTTP peer records signed requests and
 actual replies while injecting loss or delay. The same accepted principal/sequence
 must have the same request digest and receipt. A killed worker may lose its local
@@ -174,7 +174,7 @@ atomic correspondence, not a linearizability proof for arbitrary concurrent read
 SIGKILL establishes process-crash recovery under the provider contract, not power
 loss, corrupt media or rollback restoration.
 
-The [profile runner](../../../tests/verification/external_profiles.py) keeps installed
+The [profile runner](../../../tests/runner/external_profiles.py) keeps installed
 SDK, application, query and browser/reactive experiments separate. Existing rigs
 own their public operations, assertions and cleanup; the runner records exact
 commands, deadlines, logs and stage completion. Python and Node drivers additionally
@@ -183,7 +183,7 @@ Installing their artifacts outside the repository challenges packaging assumptio
 that shared Zig simulation cannot reach. Provider adapter fixtures do not certify
 an actual Kubernetes placement. An interrupted or skipped profile remains incomplete.
 
-The [component runner](../../../tests/verification/domain_simulation.py) asks a
+The [component runner](../../../tests/verification/simulation/domains/domain_simulation.py) asks a
 narrower question: do independently stated contract properties survive reordered
 edits, discarded private turns and repeated recovery boundaries in each owner?
 It invokes filtered tests in the real Document, Exchange, serving and core packages.

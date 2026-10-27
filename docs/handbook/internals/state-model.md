@@ -103,7 +103,7 @@ The implementation is in
 [DirectCatalog](../../../packages/zig/transit-catalog/src/DirectCatalog.zig),
 [LocalCatalogPolicy](../../../apps/transit-node/LocalCatalogPolicy.zig) and
 [NamedResource](../../../packages/zig/transit-station-app/src/NamedResource.zig).
-The [public caller fault schedule](../../../tests/direct_table_service.py) drives
+The [public caller fault schedule](../../../tests/storage/tables/direct_table_service.py) drives
 separate catalog and native callers. Reproduction commands, executed results
 and their source basis belong in the [proof ledger](../../history/qualification/README.md).
 The bounded directory/recovery tests exercise a one-page resident cache. Those

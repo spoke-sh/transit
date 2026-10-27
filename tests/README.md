@@ -15,26 +15,28 @@ handoff log. A listed task establishes no passing result at the current revision
 | Area | Entry points |
 | --- | --- |
 | Formal models and implementation correspondence | [Model guide](verification/models/README.md), [verification guide](verification/README.md), [SQL rewrite specification](../contracts/sql/FuzeRewrite.lean) |
-| Invariants, bounds and SDK scenarios | [Invariant catalog](verification/invariants.json), [classified limits](verification/limits.json), [SDK scenarios](verification/sdk.json) |
-| CI selection, lanes and cost | [Task inventory](verification/suite.json), [runner](tooling/ci.py), [selection](tooling/ci_select.py), [cost reporting](tooling/ci_cost.py), [budgets](verification/ci-budgets.json) |
-| Local check orchestration | [Tooling index](tooling/README.md), [check inputs](tooling/checks.json), [check commands](../tasks/check.just) |
-| Local storage, WAL, segments and recovery | [Storage package](../packages/zig/transit-storage/README.md), [local backend](../packages/zig/transit-backend-local/README.md), [process-death schedules](local_storage_faults.py), [storage task recipes](../tasks/test.just) |
-| Catalog, Table and named-resource lifecycles | [Catalog package](../packages/zig/transit-catalog/README.md), [direct service schedules](direct_table_service.py), [installed Table checks](server_direct_tables.py) |
-| Query execution and relational computation | [Query package](../packages/zig/transit-query/README.md), [SQL oracle checks](sql/), [query test recipes](../tasks/test.just) |
-| Database protocols and sessions | [Wire checks](sql_wire/), [session checks](sql_sessions/), [installed SQL checks](server_sql_local.py) |
+| Invariants, bounds and SDK scenarios | [Invariant catalog](verification/invariants.json), [classified limits](verification/limits.json), [SDK scenarios](sdk/sdk.json) |
+| CI selection, lanes and cost | [Task inventory](runner/suite.json), [runner](runner/ci.py), [selection](runner/ci_select.py), [cost reporting](runner/ci_cost.py), [budgets](runner/ci-budgets.json) |
+| Local check orchestration | [Runner index](runner/README.md), [check inputs](runner/checks.json), [check commands](../tasks/check.just) |
+| Local storage, WAL, segments and recovery | [Storage package](../packages/zig/transit-storage/README.md), [local backend](../packages/zig/transit-backend-local/README.md), [process-death schedules](storage/local/local_storage_faults.py), [storage task recipes](../tasks/test.just) |
+| Catalog, Table and named-resource lifecycles | [Catalog package](../packages/zig/transit-catalog/README.md), [direct service schedules](storage/tables/direct_table_service.py), [installed Table checks](interfaces/installation/server_direct_tables.py) |
+| Query execution and relational computation | [Query package](../packages/zig/transit-query/README.md), [SQL oracle checks](query/sql), [query test recipes](../tasks/test.just) |
+| Database protocols and sessions | [Wire checks](interfaces/sql_wire/README.md), [session checks](interfaces/sql_sessions/README.md), [installed SQL checks](interfaces/installation/server_sql_local.py) |
 | Station, delivery, resources and effects | [Station package](../packages/zig/transit-station/README.md), [simulation guide](verification/README.md), [runtime test recipes](../tasks/test.just) |
-| SDKs and isolated installed consumers | [SDK guide](../sdks/README.md), [binding tasks](../tasks/bindings.just), [shared Station schedule](sdk_station_runner.py), [language interoperability](sdk_public_interop.py) |
+| SDKs and isolated installed consumers | [Installed checks](sdk/README.md), [SDK guide](../sdks/README.md), [binding tasks](../tasks/bindings.just) |
 | CLI, Board, serving and reactive interfaces | [CLI](../apps/transit-cli/README.md), [Board](../apps/transit-board/README.md), [Board tasks](../tasks/transit-board.just), [interface test recipes](../tasks/test.just) |
-| Flight and Arrow | [Flight checks](flight/README.md), [independent Arrow check](arrow.py) |
-| Installation, launchers and reference deployments | [Launchers](../launchers/README.md), [launcher tasks](../tasks/launchers.just), [installed server fixture](server.py) |
-| Shared fixtures and test support | [Service harness](harness/README.md), [data fixture rules](fixtures/AGENTS.md), [operation drivers](operations/), [fixture ownership rules](AGENTS.md#fixtures-and-independent-oracles) |
-| Performance experiments | [Declarative benchmarks](benchmarks/README.md), [Fuze benchmarks](fuze_benchmarks/README.md), [mutation measurements](mutation_latency/), [storage measurements](storage_benchmarks/) |
+| Flight and Arrow | [Flight checks](interfaces/flight/README.md), [independent Arrow check](query/arrow/arrow.py) |
+| Installation, launchers and reference deployments | [Launchers](../launchers/README.md), [launcher tasks](../tasks/launchers.just), [installed server fixture](interfaces/installation/server.py) |
+| Shared fixtures and test support | [Service harness](harness/README.md), [data fixture rules](fixtures/AGENTS.md), [native module composition](../build/README.md), [fixture ownership rules](AGENTS.md#fixtures-and-independent-oracles) |
+| Retained observations and original outcomes | [Evidence index](evidence/README.md), [integrity check](runner/layout.py) |
+| Performance experiments | [Workloads, runners and active budgets](performance/README.md) |
 
-Many cross-component drivers remain at this directory's root. Use the owning
-recipes above to find their exact binary inputs and environments. A filename
-alone does not identify its backend: `storage.py` runs Ursula conformance, while
-`local_storage_faults.py` exercises local WAL/object storage. Actors belong to
-application execution; direct Table data has its own acceptance owner.
+Use the owning recipes above to find exact binary inputs and environments.
+The [provider conformance driver](storage/providers/storage.py) runs Ursula,
+while [local fault schedules](storage/local/local_storage_faults.py) exercise
+local WAL/object storage. Actors belong to application execution; direct Table
+data has its own acceptance owner. Shared native modules have explicit
+[build imports](../build/test_modules.zig) across these domains.
 
 ## Choose checks
 
@@ -44,7 +46,7 @@ iteration; [tasks/README.md](../tasks/README.md) documents commands and dependen
 
 | Change | First checks | Additional qualification |
 | --- | --- | --- |
-| Documentation and archive links | `python3 -B tests/docs.py`, `git diff --check` | Site checks for published content; archive integrity for moved evidence |
+| Documentation and archive links | `python3 -B tests/runner/docs.py`, `git diff --check` | Site checks for published content; archive integrity for moved evidence |
 | Formal model or correspondence | Its task from the [model guide](verification/models/README.md) | Named negative controls and affected concrete implementation schedules |
 | Package implementation | Package tests and affected public contract fixtures | Domain caller, failure and recovery checks |
 | Shared protocol, ABI or definition | Owning generators/checks and independent fixtures | All affected consumers and incompatible-definition rejection |
@@ -53,12 +55,12 @@ iteration; [tasks/README.md](../tasks/README.md) documents commands and dependen
 | Build, fixture or CI infrastructure | Runner/tooling checks and affected real tasks | Committed-source clean qualification of affected lanes |
 
 `just check` lists validation scopes. Use `just check fast` for local static/oracle
-feedback and `just check all` for the broad repository check. The current `test::unit` target
+feedback and `just check all` for the broad repository check. The current `check::native` target
 also contains disk and process-death checks; it is not a pure in-memory unit
 profile. `just ci clean --lane NAME` runs one lane from committed HEAD without
 workspace build outputs. A successful lane is not the complete suite. Full
 qualification and explicit deployment requirements remain recorded in the
-[task inventory](verification/suite.json) and owning acceptance criteria.
+[task inventory](runner/suite.json) and owning acceptance criteria.
 
 ## Reproduce and preserve failures
 
@@ -70,7 +72,7 @@ out of logs and committed artifacts. A tmpfs run cannot establish physical-disk
 durability, and SIGKILL is not a power-loss experiment.
 
 Use [verification instructions](verification/AGENTS.md) for formal, simulation and
-mutation outcomes, and [evidence instructions](verification/results/AGENTS.md) for
+mutation outcomes, and [evidence instructions](evidence/AGENTS.md) for
 source-attributed artifacts. Failed, interrupted, skipped and inconclusive results
 remain distinct from passes.
 

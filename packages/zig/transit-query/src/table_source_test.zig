@@ -1,6 +1,6 @@
 //! Descriptor/policy tests use unpublished definitions and a reference store.
 //! Public retained traversal, key seeks and ALTER/DROP/name reuse are exercised
-//! by tests/direct_captured_query.zig against the signed direct service.
+//! by tests/query/execution/direct_captured_query.zig against the signed direct service.
 const std = @import("std");
 const e = std.testing;
 const q = @import("root.zig");

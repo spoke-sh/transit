@@ -1,0 +1,644 @@
+{
+  "version": 1,
+  "profiles": {
+    "fast": [
+      {
+        "id": "test-layout",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/layout.py"
+        ]
+      },
+      {
+        "id": "test-layout-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_layout.py"
+        ]
+      },
+      {
+        "id": "local-test-imports",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/imports.py"
+        ]
+      },
+      {
+        "id": "local-test-import-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_imports.py"
+        ]
+      },
+      {
+        "id": "nix-format",
+        "phase": "format",
+        "command": [
+          "nixfmt",
+          "--check",
+          "flake.nix",
+          {
+            "glob": "nix/*.nix"
+          }
+        ]
+      },
+      {
+        "id": "workflows",
+        "phase": "tooling",
+        "command": [
+          "actionlint",
+          {
+            "glob": ".github/workflows/*.yml"
+          }
+        ]
+      },
+      {
+        "id": "benchmarks-runner",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/performance/declarative/test_runner.py"
+        ]
+      },
+      {
+        "id": "fuze_benchmarks-runner",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/performance/query/test_runner.py"
+        ]
+      },
+      {
+        "id": "storage_benchmark_test",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/performance/storage/storage_benchmark_test.py"
+        ]
+      },
+      {
+        "id": "mutation_latency_test",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/performance/mutations/mutation_latency_test.py"
+        ]
+      },
+      {
+        "id": "latency_probe_test",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/harness/test_http_probe.py"
+        ]
+      },
+      {
+        "id": "fuze_sources",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/query/logical/fuze_sources.py"
+        ]
+      },
+      {
+        "id": "fuze_types",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/query/logical/fuze_types.py"
+        ]
+      },
+      {
+        "id": "table_schema",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/catalog/tables/table_schema.py"
+        ]
+      },
+      {
+        "id": "column_codecs",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/storage/codecs/column_codecs.py"
+        ]
+      },
+      {
+        "id": "relational",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/query/execution/relational.py"
+        ]
+      },
+      {
+        "id": "table_storage",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/storage/local/table_storage.py"
+        ]
+      },
+      {
+        "id": "table_catalog",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/catalog/tables/table_catalog.py"
+        ]
+      },
+      {
+        "id": "sdk_layout",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/sdk_layout.py"
+        ]
+      },
+      {
+        "id": "service-harness",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/harness/test_services.py"
+        ]
+      },
+      {
+        "id": "process-harness",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/harness/test_processes.py"
+        ]
+      },
+      {
+        "id": "phase-recording",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/harness/test_phases.py"
+        ]
+      },
+      {
+        "id": "native-artifact-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/harness/test_native_artifacts.py"
+        ]
+      },
+      {
+        "id": "installation-harness",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/harness/test_local_installation.py"
+        ]
+      },
+      {
+        "id": "package-scheduling",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_packages.py"
+        ]
+      },
+      {
+        "id": "ci_runner",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/ci_runner.py"
+        ]
+      },
+      {
+        "id": "reference_launcher_state",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/deployment/reference_launcher_state.py"
+        ]
+      },
+      {
+        "id": "verification-catalog",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/verification/check.py"
+        ]
+      },
+      {
+        "id": "verification-task-coverage",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_task_coverage.py"
+        ]
+      },
+      {
+        "id": "diagnostic-inventory",
+        "phase": "static",
+        "command": [
+          "just",
+          "test::diagnostic-inventory"
+        ]
+      },
+      {
+        "id": "diagnostic-mappings",
+        "phase": "static",
+        "command": [
+          "just",
+          "test::diagnostic-mappings"
+        ]
+      },
+      {
+        "id": "zig-format",
+        "phase": "format",
+        "command": [
+          "zig",
+          "fmt",
+          "--check",
+          "build.zig",
+          "build",
+          "bindings/build.zig",
+          "bindings/build.zig.zon",
+          "sdks/zig",
+          "packages/zig",
+          "apps",
+          "examples",
+          "tests"
+        ]
+      },
+      {
+        "id": "test-launcher",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_launch.py"
+        ]
+      },
+      {
+        "id": "check-runner",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_checks.py"
+        ]
+      },
+      {
+        "id": "docs",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/docs.py"
+        ]
+      },
+      {
+        "id": "whitespace",
+        "phase": "static",
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ]
+      }
+    ],
+    "contracts": [
+      {
+        "id": "native",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/native/contract.py"
+        ],
+        "generator": {
+          "name": "protocol",
+          "args": []
+        }
+      },
+      {
+        "id": "native-fixtures",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/native/native_fixtures.py"
+        ]
+      },
+      {
+        "id": "work-items",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/runtime/application/work_items_contract.py"
+        ]
+      },
+      {
+        "id": "installation",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/native/contract.py",
+          "--installation"
+        ],
+        "generator": {
+          "name": "installation",
+          "args": []
+        }
+      },
+      {
+        "id": "installation-fixture",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/installation/installation_contract.py"
+        ],
+        "generator": {
+          "name": "installation",
+          "args": [
+            "--fixture"
+          ]
+        }
+      },
+      {
+        "id": "diagnostics",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/cli/diagnostic_contract.py"
+        ],
+        "generator": {
+          "name": "protocol",
+          "args": [
+            "--diagnostic"
+          ]
+        }
+      },
+      {
+        "id": "data-lifecycle",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/native/contract.py",
+          "--data-lifecycle"
+        ],
+        "generator": {
+          "name": "protocol",
+          "args": [
+            "--data-lifecycle"
+          ]
+        }
+      },
+      {
+        "id": "index-lifecycle",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/catalog/tables/index_lifecycle_contract.py"
+        ],
+        "generator": {
+          "name": "protocol",
+          "args": [
+            "--index-lifecycle"
+          ]
+        }
+      },
+      {
+        "id": "client",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "packages/zig/transit-client/generate.py"
+        ],
+        "generator": {
+          "name": "client",
+          "args": []
+        }
+      },
+      {
+        "id": "station",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "packages/zig/transit-station-bindings/generate.py"
+        ],
+        "generator": {
+          "name": "station",
+          "args": []
+        }
+      },
+      {
+        "id": "logical",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "packages/zig/transit-fuze/generate.py"
+        ],
+        "generator": {
+          "name": "logical",
+          "args": []
+        }
+      },
+      {
+        "id": "direct-table",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/catalog/tables/direct_table_contract.py"
+        ],
+        "generator": {
+          "name": "direct-table",
+          "args": []
+        }
+      },
+      {
+        "id": "configuration",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/installation/configuration_contract.py"
+        ],
+        "generator": {
+          "name": "configuration",
+          "args": []
+        }
+      },
+      {
+        "id": "settings-reference",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/installation/configuration_reference.py"
+        ],
+        "generator": {
+          "name": "settings-reference",
+          "args": []
+        }
+      },
+      {
+        "id": "sql-session-schema",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/sql_sessions/contracts.py",
+          "--schema"
+        ],
+        "generator": {
+          "name": "sql-session",
+          "args": []
+        }
+      },
+      {
+        "id": "sql-session-fixtures",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/interfaces/sql_sessions/contracts.py"
+        ]
+      },
+      {
+        "id": "binding-resources",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "bindings/generate.py"
+        ]
+      },
+      {
+        "id": "binding-types",
+        "phase": "contract",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/sdk/binding_schema_types.py"
+        ]
+      }
+    ],
+    "native-all": [
+      {
+        "id": "native-all",
+        "phase": "compile-and-execute",
+        "command": [
+          "zig",
+          "build",
+          "test"
+        ]
+      }
+    ],
+    "native-components": [
+      {
+        "id": "native-components",
+        "phase": "compile-and-execute",
+        "command": [
+          "zig",
+          "build",
+          "test-components"
+        ]
+      }
+    ],
+    "native-fixtures": [
+      {
+        "id": "native-fixtures",
+        "phase": "compile-and-execute",
+        "command": [
+          "zig",
+          "build",
+          "test-fixtures"
+        ]
+      }
+    ],
+    "native-faults": [
+      {
+        "id": "native-faults",
+        "phase": "compile-and-execute",
+        "command": [
+          "zig",
+          "build",
+          "test-faults"
+        ]
+      }
+    ]
+  }
+}

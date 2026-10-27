@@ -159,7 +159,7 @@ signed service and real native hosts with independent progress storage, unflushe
 rows, worker/node replacement and corrupted successful pin/release replies.
 Its assertions distinguish the original cut from a renamed current definition,
 and result disclosure from access revocation. The
-[fixture](../../../tests/direct_captured_query.zig) also exercises cancellation
+[fixture](../../../tests/query/execution/direct_captured_query.zig) also exercises cancellation
 and separately authorized cleanup after credential rotation. Its scoped relational
 schedule covers a two-row self-join and two separate two-row Tables, including
 replacement between acquisitions and result revocation/restoration. Installed
@@ -220,14 +220,14 @@ The mechanism is falsified by any difference in ordered outputs, first failure,
 checkpoint bytes, current-denial behavior or resident accounting under rebatching
 and worker schedules. The [batch tests](../../../packages/zig/transit-fuze/src/batch_execution_test.zig),
 worker tests and existing independent relational/source/Arrow proofs exercise
-those observations. The [measurement guide](../../../tests/fuze_benchmarks/README.md)
+those observations. The [measurement guide](../../../tests/performance/query/README.md)
 separates decoded kernels from owned-row and real file pipelines. The
 [proof ledger](../../history/qualification/README.md) records which commands actually ran;
 synthetic gains do not establish storage-bound or universal query speedup.
 
 ### Measured alternatives and limits
 
-At `5b3d1ba6`, the [paired measurements](../../../tests/fuze_benchmarks/results/2026-10-13-pipelines/README.md)
+At `5b3d1ba6`, the [paired measurements](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/fuze_benchmarks/results/2026-10-13-pipelines/README.md)
 compare the frozen scalar semantic path, portable columns, guarded AVX2 and
 one/two/four host workers. Owned-row workloads improve substantially, but
 capture/decode and native controls change much less. Before temporary row-cache
@@ -379,7 +379,7 @@ The local [relational contract](../../../contracts/RELATIONAL_V1.md) now impleme
 plan/basis validation, shared SQL lowering and bounded execution for a finite int64
 profile. It uses stable Table row IDs rather than assuming primary keys identify
 every row: general Tables also allow duplicate rows without a declared key.
-Its [independent oracle](../../../tests/relational.py) materializes small relations
+Its [independent oracle](../../../tests/query/execution/relational.py) materializes small relations
 and compares the overlapping subset with SQLite; separate prefix arithmetic
 fixes the ordered-overflow counterexample below. The
 [intake evidence](../../history/qualification/query.md#relational-contract-and-oracle-intake)
@@ -602,7 +602,7 @@ earlier failure whose arithmetic would fit at a later basis.
 
 The [proof ledger](../../history/qualification/README.md) records executed schedules and their
 source definitions and reproduction commands. The
-[direct query runner](../../../tests/direct_captured_query.py) starts private
+[direct query runner](../../../tests/query/execution/direct_captured_query.py) starts private
 local nodes and drives the signed direct service with native computation progress; its
 maintained cases cover aliases and independent Tables. Pure source/vector record
 checks cover interpretation, full-width coordinates and malformed bytes.
@@ -1073,7 +1073,7 @@ preserves them through SDK conversion. The shared schema validator admits the
 type/codec/collation combination; the direct Table interface retains complete
 schema bytes. Carrying descriptors does not establish query support.
 
-The independent [fixture generator](../../../tests/column_codecs.py) uses
+The independent [fixture generator](../../../tests/storage/codecs/column_codecs.py) uses
 Python's CP037 codec for all 256 scalars and rational arithmetic for HFP.
 [Column tests](../../../packages/zig/transit-fuze/src/column_codec_test.zig)
 compare exact page bytes, every CP037 scalar pair, floating bit patterns and

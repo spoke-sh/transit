@@ -58,7 +58,7 @@ The port can run with `{"local_codec":true}`. It needs no authority URL, key or
 execution handle. Pure decoding does not establish current source availability
 or authorization; signed submission/result qualification is separate.
 
-`tests/unified_codec.py HOST LIBRARY ARROW_PRODUCER` checks both transports
+`tests/query/unified/unified_codec.py HOST LIBRARY ARROW_PRODUCER` checks both transports
 against independently encoded source/schema-bound bundles. The native producer
 supplies the canonical schema header, which the decoder requires exactly;
 PyArrow independently interprets its data and produces the test record batches. It covers all three sources, six

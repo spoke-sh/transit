@@ -41,5 +41,5 @@
         .transit_client = .{ .path = "packages/zig/transit-client" },
         .transit_runtime_substrate = .{ .path = "packages/zig/transit-runtime-substrate" },
     },
-    .paths = .{ "build.zig", "build.zig.zon", "packages", "sdks", "third_party", "apps", "tests", "examples" },
+    .paths = .{ "build", "build.zig", "build.zig.zon", "packages", "sdks", "third_party", "apps", "tests", "examples" },
 }

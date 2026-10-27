@@ -99,7 +99,7 @@ must itself be tested.
 The [client binding owner](../../../packages/zig/transit-client/docs/bindings.md) and
 [Station binding owner](../../../packages/zig/transit-station-bindings/README.md)
 define that boundary. [Station and binding evidence](../../history/qualification/catalog.md#m9-station-bindings-and-tables)
-and the [SDK verification inventory](../../../tests/verification/sdk.json) identify
+and the [SDK verification inventory](../../../tests/sdk/sdk.json) identify
 independent consumers, host scenarios and reproduction tasks. Shared implementation
 does not prove every host scheduler or platform correct.
 

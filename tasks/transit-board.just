@@ -22,7 +22,7 @@ generate:
     vp exec node packages/ts/transit-board-client/validators.mjs
     zig build serving-api
     zig-out/bin/transit-serving-api client > packages/zig/transit-serving/api/client.json
-    python3 -B tests/reactive_descriptions.py zig-out/bin/transit-serving-api --write
+    python3 -B tests/runner/launch.py tests/interfaces/reactive/reactive_descriptions.py zig-out/bin/transit-serving-api --write
     python3 -B packages/ts/transit-reactive-client/generate.py
     vp exec node packages/ts/transit-reactive-client/validators.mjs
     zig build transit-app
@@ -33,22 +33,22 @@ generate:
 
 # Check typed contract and generated browser-resource drift.
 contract:
-    vp exec node --test tests/validator_schema.mjs
+    vp exec node --test tests/interfaces/board/validator_schema.mjs
     python3 -B packages/ts/transit-diagnostics/generate.py --check
     vp exec node packages/ts/transit-diagnostics/validators.mjs --check
     zig build query-api
-    python3 -B tests/query_workspace_schema.py zig-out/bin/transit-query-api
+    python3 -B tests/runner/launch.py tests/interfaces/board/query_workspace_schema.py zig-out/bin/transit-query-api
     python3 -B packages/ts/transit-query-client/generate.py --check
     vp exec node packages/ts/transit-query-client/validators.mjs --check
-    zig build transit-board-contract | python3 -B tests/board_contract.py
+    zig build transit-board-contract | python3 -B tests/runner/launch.py tests/interfaces/board/board_contract.py
     python3 -B packages/ts/transit-board-client/generate.py --check
     vp exec node packages/ts/transit-board-client/validators.mjs --check
     zig build serving-api
-    python3 -B tests/reactive_client_contract.py zig-out/bin/transit-serving-api
+    python3 -B tests/runner/launch.py tests/interfaces/reactive/reactive_client_contract.py zig-out/bin/transit-serving-api
     python3 -B packages/ts/transit-reactive-client/generate.py --check
     vp exec node packages/ts/transit-reactive-client/validators.mjs --check
     zig build transit-app
-    python3 -B tests/application_schema.py zig-out/bin/transit-app
+    python3 -B tests/runner/launch.py tests/interfaces/installation/application_schema.py zig-out/bin/transit-app
     python3 -B packages/ts/transit-application/generate.py --check
     vp exec node packages/ts/transit-application/validators.mjs --check
     python3 -B examples/work-items/generate.py zig-out/bin/transit-app --check

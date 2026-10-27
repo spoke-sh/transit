@@ -132,7 +132,7 @@ the native routes. They omit keys, values, credentials and signed payloads. Thes
 validations do not authenticate an HTTP endpoint; use the same private/TLS trust
 boundary as the existing client.
 
-The [Zig proof caller](../../../../tests/growing_client.zig) uses the public
+The [Zig proof caller](../../../../tests/interfaces/native/growing_client.zig) uses the public
 package without a kernel or provider dependency. It exercises bounded reads and
 exact retry through HTTP recovery. Station, installed SDKs and provider-bound
 bootstrap have separate schedules and outcomes in the

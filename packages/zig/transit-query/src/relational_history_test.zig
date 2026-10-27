@@ -1,6 +1,6 @@
 //! Offline vector/cursor contracts. Runtime recovery, no-op, gap and current
-//! permission schedules run through tests/direct_maintained_query.zig and
-//! tests/direct_relational_failures.zig against the public direct service.
+//! permission schedules run through tests/query/execution/direct_maintained_query.zig and
+//! tests/query/execution/direct_relational_failures.zig against the public direct service.
 const std = @import("std");
 const t = std.testing;
 const q = @import("root.zig");

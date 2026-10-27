@@ -1,0 +1,414 @@
+{
+  "version": 1,
+  "lanes": {
+    "formal": [
+      "test::model",
+      "test::wal-model",
+      "test::model-delivery",
+      "test::console-model",
+      "test::sql-rewrites"
+    ],
+    "core": [
+      "check::core",
+      "test::properties",
+      "test::simulation",
+      "test::resource-simulation-smoke",
+      "test::scheduler-simulation",
+      "test::domain-simulation",
+      "test::vortex",
+      "test::codecs",
+      "test::dev-environment",
+      "test::kubectl-transit",
+      "test::deployments",
+      "test::telemetry",
+      "test::packages-build",
+      "bindings::zig-test",
+      "bindings::runtime-boundary",
+      "test::sql-wire-contracts",
+      "test::compute",
+      "test::client-abi",
+      "test::station",
+      "test::storage",
+      "test::service",
+      "test::authorization",
+      "test::authorization-cli",
+      "test::authorization-tables",
+      "test::runtime-upgrade",
+      "test::callers",
+      "test::inspection",
+      "test::state"
+    ],
+    "growth": [
+      "test::arrow",
+      "test::fuze-types",
+      "test::fuze-sources",
+      "test::file-query",
+      "test::logical-arrow",
+      "test::logical-codec",
+      "test::pages",
+      "test::growing",
+      "test::growing-service",
+      "test::local-catalog",
+      "test::direct-table-service",
+      "test::direct-catalog-abi",
+      "test::node-concurrency",
+      "test::block-storage",
+      "test::native-blocks",
+      "test::storage-collection",
+      "test::public-query",
+      "test::publication",
+      "test::table-query-writer",
+      "test::catalog",
+      "test::sql-gateway",
+      "test::sql-wire-gateway",
+      "test::sql-sessions",
+      "test::relational-callers",
+      "test::relational-maintenance",
+      "test::relational-exchanges",
+      "test::named-relational",
+      "test::http-transport",
+      "test::tls-alpn",
+      "test::grpc-libraries",
+      "test::grpc-codegen",
+      "test::grpc-transport",
+      "test::grpc-server",
+      "test::flight-metadata",
+      "test::grpc-worker",
+      "test::grpc-faults",
+      "test::http-worker",
+      "examples::http",
+      "examples::grpc"
+    ],
+    "experience": [
+      "transit-board::check",
+      "transit-docs::check",
+      "bindings::node-check",
+      "test::observability",
+      "test::server-logging",
+      "test::server-direct-tables",
+      "test::server-direct-faults",
+      "test::server-sql-lifetimes",
+      "test::server-sql",
+      "test::server-sql-local",
+      "transit-board::test",
+      "transit-board::query-test",
+      "launchers::local::test-station"
+    ],
+    "launchers": [
+      "test::build",
+      "launchers::local::test"
+    ],
+    "bindings-1": [
+      "bindings::check",
+      "bindings::native",
+      "bindings::python-test",
+      "bindings::node-sdk-test",
+      "bindings::logical-test",
+      "bindings::rust-sdk-test",
+      "bindings::ruby-sdk-test",
+      "bindings::sdk-interop",
+      "test::sql",
+      "bindings::grpc-faults",
+      "bindings::connector-preparation"
+    ],
+    "bindings-2": [
+      "bindings::go-sdk-test",
+      "bindings::c-sdk-test",
+      "bindings::java-sdk-test",
+      "bindings::dotnet-sdk-test",
+      "bindings::beam-sdk-test"
+    ],
+    "browser": [
+      "transit-board::browser",
+      "transit-board::query-browser",
+      "transit-board::http-browser",
+      "transit-board::grpc-browser",
+      "test::reactive-browser",
+      "test::reactive-views",
+      "test::reactive-views-lifecycle"
+    ]
+  },
+  "tiers": {
+    "ordinary": [
+      "formal",
+      "core",
+      "growth",
+      "experience",
+      "launchers",
+      "bindings-1",
+      "bindings-2"
+    ],
+    "complete": [
+      "formal",
+      "core",
+      "growth",
+      "experience",
+      "launchers",
+      "bindings-1",
+      "bindings-2",
+      "browser"
+    ],
+    "bindings": [
+      "bindings-1",
+      "bindings-2"
+    ]
+  },
+  "external_tasks": {
+    "reference": [
+      "launchers::reference::test",
+      "launchers::reference::test-launcher",
+      "launchers::reference::test-station",
+      "launchers::compose::test",
+      "launchers::compose::test-station",
+      "examples::http-compose",
+      "examples::http-reference",
+      "examples::grpc-compose",
+      "examples::grpc-reference",
+      "test::capacity",
+      "test::growing-capacity",
+      "test::pages-cold",
+      "test::scale",
+      "examples::document-compose",
+      "examples::document-reference",
+      "examples::query-compose",
+      "examples::query-reference",
+      "examples::serving-compose",
+      "examples::serving-reference",
+      "test::reactive-placement",
+      "test::reactive-views-placement",
+      "test::flight-placement",
+      "test::work-items-placement",
+      "test::server-capacity",
+      "test::server-application-capacity",
+      "test::relational-capacity"
+    ],
+    "discovery": [
+      "test::vortex-profile",
+      "test::mutations",
+      "test::simulation-mutations",
+      "test::resource-simulation-mutations",
+      "test::scheduler-simulation-mutations",
+      "test::domain-simulation-mutations"
+    ],
+    "focused": [
+      "test::local-storage-faults",
+      "test::table-archives",
+      "test::table-compaction",
+      "test::table-checkpoints",
+      "test::table-build-memory",
+      "test::table-filtering",
+      "test::storage-io-faults",
+      "test::authorization-serving",
+      "test::packages",
+      "test::growing-service-release",
+      "test::growing-station",
+      "test::growing-quota",
+      "test::query",
+      "test::growing-load",
+      "examples::http-bootstrap",
+      "test::sql-grammar",
+      "examples::grpc-bootstrap",
+      "transit-board::grpc-test",
+      "test::document",
+      "test::document-remote",
+      "bindings::document-native",
+      "bindings::document-python",
+      "bindings::document-node",
+      "bindings::document-ruby",
+      "bindings::document-rust",
+      "bindings::document-c",
+      "bindings::document-java",
+      "bindings::document-dotnet",
+      "bindings::document-beam",
+      "transit-board::document-test",
+      "test::unified-query",
+      "test::unified-counts",
+      "test::unified-codec",
+      "test::unified-ingress",
+      "test::unified-lifecycle",
+      "test::unified-expiry",
+      "examples::query",
+      "bindings::unified-all",
+      "test::serving-http",
+      "test::serving",
+      "test::serving-tls",
+      "test::serving-capacity",
+      "test::serving-lifetimes",
+      "test::serving-growth",
+      "test::reactive",
+      "test::reactive-limits",
+      "test::reactive-client",
+      "test::reactive-refresh",
+      "test::reactive-descriptions",
+      "test::flight",
+      "test::flight-faults",
+      "test::flight-outbound",
+      "test::application-grammar",
+      "test::application",
+      "test::application-browser",
+      "test::work-items",
+      "test::work-items-browser",
+      "test::console",
+      "test::server",
+      "test::server-faults",
+      "test::server-sql-faults",
+      "test::server-sql-package",
+      "test::server-applications",
+      "test::server-application-faults",
+      "test::server-board",
+      "test::server-board-package",
+      "transit-docs::browser",
+      "test::resource-simulation",
+      "bindings::catalog-python",
+      "bindings::catalog-node",
+      "bindings::catalog-rust",
+      "bindings::catalog-ruby",
+      "bindings::catalog-c",
+      "bindings::catalog-java",
+      "bindings::catalog-dotnet",
+      "bindings::catalog-beam",
+      "test::catalog-growth",
+      "bindings::rust-lifetime",
+      "test::grpc-control",
+      "bindings::query-failures",
+      "bindings::relational-node",
+      "bindings::relational-python",
+      "transit-board::relational-browser",
+      "bindings::authorization"
+    ]
+  },
+  "nested_tasks": {
+    "test::sql-wire-gateway": [
+      "test::sql-wire-encoding"
+    ],
+    "check::core": [
+      "check::fast",
+      "test::diagnostic-errors",
+      "test::diagnostic-outcomes",
+      "test::diagnostic-grammar",
+      "check::native",
+      "test::cli-diagnostics",
+      "check::contracts",
+      "test::console-history"
+    ],
+    "check::fast": [
+      "test::diagnostic-inventory",
+      "test::diagnostic-mappings"
+    ]
+  },
+  "environments": {
+    "formal": {
+      "shell": "ci-formal",
+      "prepare": []
+    },
+    "core": {
+      "shell": "default",
+      "prepare": [
+        [
+          "vp",
+          "install",
+          "--frozen-lockfile",
+          "--filter",
+          "transit",
+          "--filter",
+          "@transit/client"
+        ]
+      ]
+    },
+    "growth": {
+      "shell": "default",
+      "prepare": []
+    },
+    "experience": {
+      "shell": "ci-experience",
+      "prepare": [
+        [
+          "just",
+          "transit-board::install"
+        ]
+      ]
+    },
+    "launchers": {
+      "shell": "ci-experience",
+      "prepare": [
+        [
+          "just",
+          "transit-board::install"
+        ]
+      ]
+    },
+    "bindings-1": {
+      "shell": "ci-bindings",
+      "prepare": [
+        [
+          "vp",
+          "install",
+          "--frozen-lockfile",
+          "--filter",
+          "@transit/station",
+          "--filter",
+          "@transit/*"
+        ]
+      ]
+    },
+    "bindings-2": {
+      "shell": "ci-bindings",
+      "prepare": [
+        [
+          "vp",
+          "install",
+          "--frozen-lockfile",
+          "--filter",
+          "@transit/station",
+          "--filter",
+          "@transit/*"
+        ]
+      ]
+    },
+    "browser": {
+      "shell": "ci-experience",
+      "prepare": [
+        [
+          "just",
+          "transit-board::install"
+        ]
+      ]
+    }
+  },
+  "recipe_nested_tasks": {
+    "bindings::python-test": [
+      "bindings::direct-catalog-python"
+    ],
+    "bindings::node-sdk-test": [
+      "bindings::direct-catalog-node"
+    ],
+    "bindings::rust-sdk-test": [
+      "bindings::direct-catalog-rust"
+    ],
+    "bindings::ruby-sdk-test": [
+      "bindings::direct-catalog-ruby"
+    ],
+    "bindings::c-sdk-test": [
+      "bindings::direct-catalog-c"
+    ],
+    "bindings::java-sdk-test": [
+      "bindings::direct-catalog-java"
+    ],
+    "bindings::dotnet-sdk-test": [
+      "bindings::direct-catalog-dotnet"
+    ],
+    "bindings::beam-sdk-test": [
+      "bindings::direct-catalog-beam"
+    ],
+    "bindings::authorization": [
+      "bindings::direct-catalog-python",
+      "bindings::direct-catalog-node",
+      "bindings::direct-catalog-rust",
+      "bindings::direct-catalog-ruby",
+      "bindings::direct-catalog-c",
+      "bindings::direct-catalog-java",
+      "bindings::direct-catalog-dotnet",
+      "bindings::direct-catalog-beam"
+    ]
+  }
+}
