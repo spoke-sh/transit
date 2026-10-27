@@ -111,6 +111,12 @@ repeated aliases of one Table share a pin. Parameterized relational SQL is exclu
 checks independently of a database wire protocol. The supervised SQL application
 creates sessions over each account’s shared `AccountRuntime`. PostgreSQL and
 MySQL retain their protocol admission and scalar encoding rules in their adapters.
+`Read.nextBatch` owns up to 32 logical rows and 1 MiB of canonical cell bytes,
+independently of direct Table/Arrow page sizes. It fills across source pulls,
+copies nested values before scratch reuse, retains a row that does not fit the
+remaining byte budget and rejects a row that cannot fit an empty batch. Current
+rights are checked after buffering. Exhaustion can accompany data or a subsequent
+empty terminal batch; neither creates another result.
 Settings preparation and page reads use the settings transport's own rejection
 when deciding bounded recovery and reporting SQL errors. Transient page failures
 resume the retained continuation, including private ordered rows; current denial

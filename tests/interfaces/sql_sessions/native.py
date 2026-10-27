@@ -229,7 +229,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     assert duplicate['identity'] == reload['identity'] and duplicate['owner_operation'] == reload['owner_operation']
     second.call(dict(cancel=dict(operation=reload['identity'])), error='ConfigurationCancellationUnsupported')
     captured = []
-    for name, count in ((('kv', 41), ('document', 12), ('table', 9)) if sources is None else sources):
+    for name, count in ((('kv', 41), ('document', 12), ('table', 41)) if sources is None else sources):
         print(json.dumps(dict(profile='native_sql_source', source=name, phase='interactive')), flush=True)
         select_source(name)
         selected = Client(root, port).open(name)

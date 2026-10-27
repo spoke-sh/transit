@@ -1,4 +1,5 @@
 //! Shared SQL sessions and durable account execution over public native clients.
+pub const results = @import("transit_sql_results");
 pub const station = @import("transit_station");
 pub const query = @import("transit_query");
 pub const catalog = @import("transit_catalog");

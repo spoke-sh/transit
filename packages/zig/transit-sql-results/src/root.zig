@@ -4,6 +4,9 @@ pub const fuze = @import("transit_fuze");
 pub const protocol = @import("transit_protocol");
 pub const Types = fuze.Types;
 pub const Row = []const Types.Values.Cell;
+pub const BatchBuilder = @import("BatchBuilder.zig");
+pub const ResultSet = @import("ResultSet.zig");
+pub const Window = @import("Window.zig");
 pub const Progress = @import("Progress.zig");
 pub const Observation = @import("Observation.zig");
 pub const Command = enum { select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, set, show, discard_all, reset, reload, capture };
@@ -58,4 +61,5 @@ pub fn copyRow(arena: std.mem.Allocator, fields: []const Types.Field, row: Row) 
 test {
     std.testing.refAllDecls(@This());
     _ = @import("model_test.zig");
+    _ = @import("reader_test.zig");
 }

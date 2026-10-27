@@ -78,6 +78,11 @@ pub const Prepared = union(enum) {
 pub const Read = struct {
     host: *Self,
     value: union(enum) { single: q.DirectTableQuery, relational: *q.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read },
+    prepared: *Prepared,
+    builder: g.results.BatchBuilder,
+    input: g.ReadBatch = .{},
+    input_index: usize = 0,
+    started: bool = false,
     pins: [f.Relational.max_sources]?g.ReadPins.Record = @splat(null),
     batch: ?q.DirectTableQuery.Batch = null,
     output: ?f.RelationalExecution.Output = null,
@@ -104,9 +109,37 @@ pub const Read = struct {
         }, .contract = value.contract, .schema = value.schema } };
     }
     pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
-        if (maximum == 0 or maximum > g.ReadBatch.max_rows) return error.InvalidQueryBudget;
         try self.host.deadline.check(self.host.io);
         try self.host.current();
+        try self.builder.reset(maximum, g.results.BatchBuilder.max_bytes);
+        var complete = false;
+        while (self.builder.len < maximum) {
+            if (self.input_index == self.input.len) {
+                if (self.started and self.input.complete) {
+                    complete = true;
+                    break;
+                }
+                try self.host.deadline.check(self.host.io);
+                self.input = try self.pull(@min(maximum - self.builder.len, q.DirectTableQuery.Batch.max_rows));
+                try self.input.validate(@min(maximum - self.builder.len, q.DirectTableQuery.Batch.max_rows));
+                self.input_index = 0;
+                self.started = true;
+                if (self.input.len == 0) {
+                    complete = self.input.complete;
+                    break;
+                }
+            }
+            if (!try self.builder.append(self.prepared.fields(), self.input.rows[self.input_index].?)) break;
+            self.input_index += 1;
+        }
+        complete = complete or (self.started and self.input.complete and self.input_index == self.input.len);
+        // Source pulls may reset scratch and run for many rows. Authority is
+        // current at this disclosure, not merely when the first row was read.
+        try self.host.validate(self.prepared);
+        self.emitted_rows = try std.math.add(u64, self.emitted_rows, self.builder.len);
+        return .{ .rows = self.builder.rows, .len = self.builder.len, .complete = complete };
+    }
+    fn pull(self: *Read, maximum: u8) !g.ReadBatch {
         if (self.batch) |*batch| batch.deinit();
         self.batch = null;
         if (self.output) |*output| output.deinit();
@@ -124,7 +157,6 @@ pub const Read = struct {
                 return err;
             };
             result.len = self.batch.?.len;
-            self.emitted_rows += result.len;
             result.complete = self.batch.?.complete;
             for (self.batch.?.rows[0..result.len], result.rows[0..result.len]) |row, *cells| cells.* = row.?.cells;
             return result;
@@ -146,7 +178,11 @@ pub const Read = struct {
         };
         result.rows[0] = cells;
         result.len = @intFromBool(cells != null);
-        result.complete = cells == null;
+        result.complete = cells == null or switch (self.value) {
+            .inspection => |inspection| inspection.index == inspection.prepared.rows.len,
+            .probe => true,
+            else => false,
+        };
         return result;
     }
 };
@@ -358,7 +394,8 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     try self.validate(prepared);
     const read = try self.allocator.create(Read);
     errdefer self.allocator.destroy(read);
-    read.* = .{ .host = self, .value = undefined };
+    read.* = .{ .host = self, .value = undefined, .prepared = prepared, .builder = .init(self.allocator) };
+    errdefer read.builder.deinit();
     errdefer self.releasePins(read);
     switch (prepared.*) {
         .captured => |*captured| read.value = .{ .captured = try g.CapturedOperations.Read.init(self, captured) },
@@ -396,6 +433,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     return read;
 }
 pub fn closeRead(self: *Self, read: *Read) void {
+    read.builder.deinit();
     if (read.output) |*output| output.deinit();
     read.output = null;
     const rejection = self.wire.last_rejection;

@@ -517,6 +517,7 @@ fn batch(self: *Self, slot: *Slot, ordinal: u64) !api.Batch {
     }
     complete = result.complete;
     cursor.batch = .{ .cursor = cursor.id, .batch = ordinal, .schema = try api.Codec.schema(allocator, fields), .rows = rows[0..count], .complete = complete, .basis = try cursor.read.?.basis(allocator) };
+    try host.validate(cursor.prepared);
     if (complete) {
         host.closeRead(cursor.read.?);
         cursor.read = null;
