@@ -283,14 +283,14 @@ this plan is not another chronological test transcript.
 
 ### P9 — Honest test profiles and runtime build inputs
 
-- [ ] P9.1 Inventory the root test graph and package-embedded tests by component,
+- [x] P9.1 Inventory the root test graph and package-embedded tests by component,
   disk integration, process faults, external services and contract validation.
 - [x] P9.2 Establish truthful focused profiles, retaining the complete aggregate
   and assigning every moved check to required CI execution. Keep package-local
   checks discoverable without inventing redundant root task aliases.
 - [x] P9.3 Separate runtime and test build registration explicitly so runtime
   packaging can omit test source. Missing requested test inputs must still fail.
-- [ ] P9.4 Audit remaining exporter/validator duplication against exact commands,
+- [x] P9.4 Audit remaining exporter/validator duplication against exact commands,
   arguments, input definitions and validators before consolidating executions.
 - [x] P9.5 Qualify runtime/gateway packages from committed source without tests or
   SDKs; test invalidation for runtime, assets, manifests, fixtures and evidence.
@@ -299,14 +299,14 @@ this plan is not another chronological test transcript.
 
 ### P10 — Artifact reuse and phase measurements
 
-- [ ] P10.1 Record relevant source/input identity, compiler, target/CPU, options,
+- [x] P10.1 Record relevant source/input identity, compiler, target/CPU, options,
   optimization profile, ABI/definition and output hashes for shared artifact sets.
   Prefer existing Zig/Nix artifacts to a new general-purpose cache framework.
 - [ ] P10.2 Keep Debug and ReleaseSafe sets distinct. Pass immutable outputs to
   SDK builders and scenarios instead of depending on mutable `zig-out` contents.
 - [ ] P10.3 Avoid repeated native/package work only for matching inputs. Never
   reuse test outcomes, mutable installations or incomplete build publications.
-- [ ] P10.4 Add wrong-source/profile/definition and interrupted-build controls;
+- [x] P10.4 Add wrong-source/profile/definition and interrupted-build controls;
   verify concurrent callers cannot observe partial or mismatched artifact sets.
 - [ ] P10.5 Record compilation, installation, packaging, provisioning, scenario
   execution and teardown separately, including failures and incomplete work.
@@ -388,8 +388,8 @@ they are not automatically deferred to a later milestone or follow-up PR.
 | P6 | In Progress | 161 Python/Node/C interface drivers, inputs and guides move under native, CLI, Board, SQL, serving, installation and deployment owners. Import roots, generated fault wrappers, nested capacity invocations, Node imports, build/task callers and contract validators follow the move. Fast (30) and compiled contract (18) scopes pass locally. The remaining native fixtures now use 53 explicit shared modules across domain owners, including embedded gRPC descriptors and generated provider-root paths. Integration probes and all nine provider executables compile; gRPC generation and 3,411 diagnostic outcome projections pass. Real interface/fault qualification remains pending. |
 | P7 | In Progress | 51 catalog/query drivers and SQL guides now have domain ownership, with independent SQL helpers qualified explicitly and installed fault peers kept standalone. Fast checks pass. The actual SQL aggregate passes 174 compiler ASTs, 142 plans/Arrow results, 72 unified results, 280 DDL cases, 44 DML cases and parameter controls; independent grammar and all four Lean rewrite theorems pass. Native fixtures now use explicit cross-domain modules with shared type identities. The private operation driver compiles; live domain qualification remains pending. |
 | P8 | In Progress | 49 storage/runtime drivers and shared ABI/artifact helpers move to explicit owners. Backend choices, saved operation identities and schedules are preserved. The audit places Station provisioning, delivery receipt controls and query recovery assertions with their actual semantic owners. All 30 fast checks and 23 Nix input-selection controls pass. All 109 remaining Zig files move, provider-backed page/growth/collection tests are classified separately from local storage, and the structural page-layout experiment belongs to performance. The final root contains only the two indexes and 12 owners. The actual local direct Table schedule passes 1,942 typed calls, including retained history, current-policy denial, exact retry and three restarts. All redistributed native scopes now pass: 34 component roots (including physical-disk tests), 14 independent fixture/codec groups and four process-fault groups. Native fault schedules include 92 WAL/Table crash boundaries, 15 collection cases and three 12-race object-publication schedules. Remaining Ursula/application qualification is pending. |
-| P9 | In Progress | `f902b7a0a` separates runtime/test registration while retaining all 188 previous named steps. At committed `d326243ac`, actual Transit and SQL gateway packages build and run without test/SDK source, and disabled/missing checks reject; 23 source-invalidation controls pass. `61a63e235` partitions all 52 original aggregate edges into explicit component, fixture and fault scopes with automatic capture; all three scopes pass. Clean fast qualification passes at that commit. Full package/duplication auditing remains. |
-| P10 | In Progress | Clean setup previously waited 466.7 seconds behind a concurrent Nix evaluation-cache reader; `7207c6f61` bypasses that mutable cache while preserving store/compiler caches. The actual clean run at `61a63e235` spends 4.1 seconds entering the shell and 26.6 seconds on 30 checks; these are scoped observations under concurrent host work, not a whole-suite benchmark. `a7734ae8d` adds a passing real isolated cache-lock/value-preservation control. Remaining artifact and phase work is unchecked above. |
+| P9 | In Progress | `f902b7a0a` separates runtime/test registration while retaining all 188 previous named steps. At committed `d326243ac`, actual Transit and SQL gateway packages build and run without test/SDK source, and disabled/missing checks reject; 23 source-invalidation controls pass. `61a63e235` partitions all 52 original aggregate edges into explicit component, fixture and fault scopes with automatic capture; all three scopes pass. Clean fast qualification passes at that commit. The [package and contract audit](../../tests/runner/package-checks.md) records all 34 standalone package owners, seven not explicitly registered as root component tests, additional Query/Fuze roots, real I/O boundaries and retained exact validator overlap. |
+| P10 | In Progress | Clean setup previously waited 466.7 seconds behind a concurrent Nix evaluation-cache reader; `7207c6f61` bypasses that mutable cache while preserving store/compiler caches. The actual clean run at `61a63e235` spends 4.1 seconds entering the shell and 26.6 seconds on 30 checks; these are scoped observations under concurrent host work, not a whole-suite benchmark. `a7734ae8d` adds a passing real isolated cache-lock/value-preservation control. `400d2b140` resolves immutable native prefixes through Zig with source/profile/target/CPU/compiler/definition and output hashes. Wrong-input/output and interrupted-build controls pass; concurrent real callers resolve the same complete set with separate records. `b6ba94208` wires SDK tasks to explicit native inputs and separates Debug/ReleaseSafe package directories. All 32 fast checks pass from clean committed source; installed Python/Node logical codecs (111 vectors each) and Go vet/race/cgo checks pass against the new paths. Final language/fault qualification, package preparation reuse and phase measurement remain unchecked above. |
 | P11–P12 | Planned | Checklists above; no complete execution or performance qualification claimed |
 
 The final PR closes the work only when the proposed structure exists, every

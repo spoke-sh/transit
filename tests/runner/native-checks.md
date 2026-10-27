@@ -49,6 +49,8 @@ every library through its own manifest; `just test packages` executes each
 package's complete local target, including additional roots declared by that
 package. Neither target is an alias for the root aggregate. Inspect the package's
 build file and instructions before selecting a narrower test filter.
+The [package-root and contract audit](package-checks.md) lists all 34 package
+owners, roots missing from the explicit aggregate and retained validator overlap.
 
 Real Ursula, installed SDKs, browser sessions, reference deployments, capacity
 faults, formal models and deterministic simulation keep their existing owners in

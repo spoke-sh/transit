@@ -217,7 +217,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::packages` | Runs each library’s standalone test suite for focused package work |
 | `just test::serving-counter` | Typed counter queue, frozen deltas, lost turns, overflow and output-budget rollback |
 | `just test::serving`, `just test::serving-tls`, `just test::serving-capacity` | Signed application admission/recovery, actual nginx termination and bounded concurrent gateway reads; focused M19 proofs |
-| `just test::packages-build` | Compiles those test suites through each package’s own manifest; CI executes shared tests once through root unit checks |
+| `just test::packages-build` | Compiles each package's `check` target through its own manifest; [package and root test scopes differ](../tests/runner/package-checks.md) |
 | `just test::fuze-types`, `just test::fuze-sources` | Independent logical type and CSV/JSONL fixtures, exact codecs, frozen discovery, budgets, allocation and denial/cancellation checks |
 | `just test::table-schema` | Independent Table schema bytes, stable column identities, typed defaults, nullable omission and row constraints |
 | `just test::relational-sql` | Compare selected JOIN/GROUP BY syntax and Boolean instruction order across production Zig, independent ANTLR and PostgreSQL ASTs; included in `test::sql` |

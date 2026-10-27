@@ -14,6 +14,7 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | [suite.json](suite.json) | Required lanes, environments, task nesting and focused/external owners |
 | [task_coverage.py](task_coverage.py), [test_task_coverage.py](test_task_coverage.py) | Check task registration and required coverage against real Just recipes |
 | [ci-budgets.json](ci-budgets.json) | Measured CI cost limits and the inventory qualified by those observations |
+| [package-checks.md](package-checks.md) | Standalone package roots, real I/O boundaries and exporter/validator overlap |
 | [test_checks.py](test_checks.py) | Real subprocess controls for generator/validator failures and incomplete evidence |
 | [ci.py](ci.py) | Execute the shared lane inventory with checkpointed task outcomes |
 | [ci_clean.py](ci_clean.py) | Qualify committed HEAD in a separate clone with scoped dependency preparation |
