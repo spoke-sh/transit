@@ -189,8 +189,12 @@ older saved artifacts reject rather than being rebound to current data.
 
 `RelationalIndex` stores groups in an immutable AVL tree. An update copies a
 bounded search path and any rotated nodes, assigning fresh monotone record IDs.
-The previous root remains readable after a failed candidate write. Resident
-frames and candidate records depend on the 94-frame traversal bound, not the
+The previous root remains readable after a failed candidate read or write. The
+94-entry traversal stack holds references and directions; unwinding reloads and
+verifies each immutable parent instead of retaining its group payload. This adds
+one record read per parent, charged to the host's existing work budget, while
+only a fixed number of working nodes retain payloads. Resident
+frames and candidate records depend on the traversal bound, not the
 number of durable groups. A host budgets all retained record bytes, including
 old roots and unreachable staging records, separately from its active staging
 reservation. Neither this index nor pressure on that budget expires history.

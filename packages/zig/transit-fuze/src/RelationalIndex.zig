@@ -10,7 +10,7 @@ pub const max_height = 94;
 pub const max_record_bytes = 4 + 32 + 32 + 2 * 54 + 2 + r.max_groups * 9 + r.max_outputs * 25;
 pub const max_candidate_records = 3 * max_height + 1;
 const Node = struct { left: ?Reference = null, right: ?Reference = null, group: e.Group };
-pub const resident_bytes = @sizeOf(Self) + max_height * @sizeOf(Node) + 6 * @sizeOf(Node) + 2 * max_record_bytes;
+pub const resident_bytes = @sizeOf(Self) + max_height * (@sizeOf(Reference) + @sizeOf(bool)) + 6 * @sizeOf(Node) + 2 * max_record_bytes;
 pub const Reference = struct {
     id: u64,
     bytes: u32,
@@ -63,7 +63,9 @@ pub fn next(self: Self, store: anytype, after: ?e.Key) !?e.Group {
 }
 pub fn put(self: *Self, store: anytype, group: e.Group) !void {
     try self.checkGroup(group);
-    var parents: [max_height]Node = undefined;
+    // Immutable parents can be loaded again while unwinding. Retaining only
+    // references keeps variable-width group payloads out of the depth stack.
+    var parents: [max_height]Reference = undefined;
     var left: [max_height]bool = undefined;
     var depth: usize = 0;
     var cursor = self.root;
@@ -77,7 +79,7 @@ pub fn put(self: *Self, store: anytype, group: e.Group) !void {
             replacement.right = node.right;
             break;
         }
-        parents[depth] = node;
+        parents[depth] = reference;
         left[depth] = order == .lt;
         depth += 1;
         cursor = if (order == .lt) node.left else node.right;
@@ -85,7 +87,7 @@ pub fn put(self: *Self, store: anytype, group: e.Group) !void {
     var next_root = try self.save(store, replacement);
     while (depth != 0) {
         depth -= 1;
-        var parent = parents[depth];
+        var parent = try self.load(store, parents[depth]);
         if (left[depth]) parent.left = next_root else parent.right = next_root;
         next_root = try self.balance(store, parent);
     }

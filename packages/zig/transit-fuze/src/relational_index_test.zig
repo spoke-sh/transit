@@ -15,6 +15,8 @@ pub const Store = struct {
     attempts: usize = 0,
     fail: ?usize = null,
     missing: ?u64 = null,
+    reads: usize = 0,
+    fail_read: ?usize = null,
     pub fn save(self: *Store, bytes: []const u8) !u64 {
         if (self.fail == self.attempts) return error.StoreUnavailable;
         self.attempts += 1;
@@ -24,6 +26,8 @@ pub const Store = struct {
         return self.records.items.len;
     }
     pub fn read(self: *Store, id: u64, output: []u8) ![]const u8 {
+        if (self.fail_read == self.reads) return error.StoreUnavailable;
+        self.reads += 1;
         if (self.missing == id or id == 0 or id > self.records.items.len) return error.MissingRecord;
         const bytes = self.records.items[@intCast(id - 1)];
         @memcpy(output[0..bytes.len], bytes);
@@ -141,4 +145,36 @@ test "immutable groups reject missing corrupt foreign bound and malformed roots"
     bad.states[0].values = 1;
     try t.expectError(error.InvalidRelationalGroup, tree.put(&store, bad));
     try t.expectError(error.InvalidRelationalGroup, tree.get(&store, .{}));
+}
+
+test "immutable group parent reload failures leave the accepted tree unchanged" {
+    const cuts = try cut();
+    const bound: r.Bound = .{ .plan = plan, .cuts = &cuts };
+    var store: Store = .{};
+    defer store.deinit();
+    var tree = try Index.init(bound, null);
+    for (0..200) |i| try tree.put(&store, group(@intCast(i * 2), i));
+    const original = tree;
+    var failed_after_staging: usize = 0;
+    var failure: usize = 0;
+    while (true) : (failure += 1) {
+        tree = original;
+        const previous_writes = store.attempts;
+        store.fail_read = store.reads + failure;
+        tree.put(&store, group(175, 55)) catch |err| {
+            try t.expectEqual(error.StoreUnavailable, err);
+            store.fail_read = null;
+            if (store.attempts > previous_writes) failed_after_staging += 1;
+            try t.expectEqualDeep(original.root, tree.root);
+            try t.expect(try tree.get(&store, key(175)) == null);
+            try t.expectEqual(@as(u64, 88), (try tree.get(&store, key(176))).?.states[0].rows);
+            continue;
+        };
+        store.fail_read = null;
+        break;
+    }
+    try t.expect(failed_after_staging > 0);
+    try t.expect(failure <= 5 * Index.max_height);
+    try t.expectEqual(@as(u64, 55), (try tree.get(&store, key(175))).?.states[0].rows);
+    try t.expect(try original.get(&store, key(175)) == null);
 }

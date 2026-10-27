@@ -161,7 +161,10 @@ spill and complete-result publication. The
 [relational contract](../../../contracts/RELATIONAL_V1.md) defines capabilities,
 ownership, canonical order, budgets and remaining integration obligations.
 `RelationalIndex` supplies immutable group roots and bounded copy-on-write
-updates. `RelationalCheckpoint` encodes exact operator progress; execution restore
+updates. Its traversal stack holds references and directions, reloading verified
+immutable parents during an update instead of retaining their payloads across
+tree depth. The host charges those additional reads to its work budget; read or
+write failure preserves the original root. `RelationalCheckpoint` encodes exact operator progress; execution restore
 rechecks the bound source vector and current rights through its adapter. Hosts
 stage and atomically publish these records with input/output progress.
 `RelationalExchange` specifies canonical int64/null routing and source-qualified
