@@ -16,6 +16,11 @@ same module for shared type identity; do not duplicate a module to work around a
 import error. Supply actual package modules from the composing build. Preserve
 target, optimization profile and all required fixture inputs.
 
+Invoke Python domain drivers through `tests/runner/launch.py`, passing both
+launcher and driver with `addFileArg`. Runner entry points may execute directly.
+Keep these commands literal so the fast import/invocation audit can review them;
+an inline driver path must not bypass the common import root.
+
 When moving a source, update its registration, callers, manifest and source
 selection together. Compile affected probes, run their real parent schedules,
 then qualify committed source. A parsed graph or successful compile does not

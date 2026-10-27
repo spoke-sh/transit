@@ -1334,7 +1334,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     named_resources.has_side_effects = true;
     named_resources.stdio = .inherit;
     b.step("test-direct-named-resources", "Prove named KV and Document initialization and original receipt recovery across node loss").dependOn(&named_resources.step);
-    const direct_captured_query = b.addSystemCommand(&.{ "python3", "-B", "./tests/query/execution/direct_captured_query.py" });
+    const direct_captured_query = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_captured_query.addFileArg(b.path("tests/runner/launch.py"));
+    direct_captured_query.addFileArg(b.path("tests/query/execution/direct_captured_query.py"));
     direct_captured_query.addArtifactArg(node_artifact);
     direct_captured_query.addArtifactArg(direct_table_client);
     if (b.option(bool, "direct-query-example", "Run the finite SQL example through direct capture and restart recovery") orelse false) {
