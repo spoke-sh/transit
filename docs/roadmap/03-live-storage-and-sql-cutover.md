@@ -521,7 +521,11 @@ and the backend's native/direct/payload maintenance owners.
 - [ ] P4.1 Extend the live scheduler with independently bounded work classes
   for Table archive/recovery checkpoints/compaction and native/direct collection.
   Resume accepted progress after restart, including an unfinished collection;
-  do not start a replacement pass over an incomplete durable one.
+  do not start a replacement pass over an incomplete durable one. Record source
+  allocation activity separately from collection's own mark pages, retained-item
+  carries and FIFO progress. Persist the activity covered by a completed pass so
+  bookkeeping cannot trigger collection forever. Finish physical inventory WAL
+  cleanup before starting another eligible pass.
 - [ ] P4.2 Separate archive coverage, recovery checkpoint, physical WAL trim,
   explicit logical expiry and object deletion. Bind each to its current
   authority and exact roots. Unlimited history must still be queryable after
@@ -582,6 +586,20 @@ late writes, exact current/pinned rows, retirement and fabricated-completion
 rejection. All 18 contract checks pass. Live scheduler cursors, installed process
 death/convergence and aggregate resource qualification remain open; these
 component results do not close P4.
+
+The local owner now rotates separate flush, archive/checkpoint, archived WAL trim
+and compaction cursors under one private workspace budget. `transit server`
+enables these classes by default. The WAL persists completed physical cleanup
+separately from its authorized trim floor, avoiding repeated cleanup after
+rotating requests, descriptor eviction or restart. This configuration and WAL
+layout use shared definition
+`8ff47b20d7761074cdb7c086959a7d205b304477cee8f5d910f9502ab6717675`,
+including the merged binary SQL result semantics. Six selected WAL checks cover
+bounded work, convergence across 17 partitions, retained suffixes and uncertain
+completion publication; 18 contract checks, 14 SQL client checks, 14 SQL protocol
+checks and 40 fast checks pass. Live aggregate qualification and the expanded
+process-death schedules are pending. Automatic native/direct object collection,
+installed maintenance qualification and the aggregate P4 gates remain open.
 
 #### P5 — Qualify and reduce the remaining live read and wait costs
 

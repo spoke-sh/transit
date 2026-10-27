@@ -51,11 +51,12 @@ def run(binary):
     def metadata(directory):
         raw = (directory / "part-17.meta").read_bytes()
         assert len(raw) == 128 and raw[:8] == b"LWMT\x01\0\0\0"
-        assert raw[8:40] == definition and raw[80:96] == bytes(16)
+        assert raw[8:40] == definition and raw[88:96] == bytes(8)
         assert hashlib.sha256(raw[:96]).digest() == raw[96:]
-        partition, writer, policy, floor, frontier = struct.unpack_from("<5Q", raw, 40)
+        partition, writer, policy, floor, frontier, cleaned = struct.unpack_from("<6Q", raw, 40)
         assert partition == 17
-        return dict(writer=writer, policy=policy, floor=floor, frontier=frontier)
+        assert cleaned <= floor <= frontier
+        return dict(writer=writer, policy=policy, floor=floor, frontier=frontier, cleaned=cleaned)
 
     def rows(directory, floor, payloads):
         result = call(directory, "wal-inspect", str(floor))
@@ -69,8 +70,8 @@ def run(binary):
     points = {
         "append": ["write", "sync-1", "sync-2", "sync-3", "publish", "sync-4", "ack"],
         "fence": ["sync-1", "publish", "sync-2", "ack"],
-        "trim": ["sync-1", "publish", "sync-2", "delete-1", "delete-2", "sync-3", "ack"],
-        "trim-all": ["sync-1", "publish", "sync-2", "delete-1", "delete-2", "delete-3", "sync-3", "ack"],
+        "trim": ["sync-1", "publish", "sync-2", "delete-1", "delete-2", "sync-3", "sync-4", "sync-5", "publish-2", "sync-6", "ack"],
+        "trim-all": ["sync-1", "publish", "sync-2", "delete-1", "delete-2", "delete-3", "sync-3", "sync-4", "sync-5", "sync-6", "publish-2", "sync-7", "ack"],
     }
     with tempfile.TemporaryDirectory(prefix="transit-local-crashes-") as temporary:
         root = Path(temporary)
@@ -88,8 +89,11 @@ def run(binary):
                 floor = trim_floor if trimming and point != "sync-1" else 0
                 fenced = operation == "fence" and point != "sync-1"
                 published_append = operation == "append" and point in ("publish", "sync-4", "ack")
+                completed_trim = trimming and point in (
+                    "publish-2", "sync-7" if operation == "trim-all" else "sync-6", "ack")
                 assert meta == dict(writer=7 if fenced else 3, policy=9 if fenced else 5,
-                                    floor=floor, frontier=4 if published_append else 3), meta
+                                    floor=floor, frontier=4 if published_append else 3,
+                                    cleaned=trim_floor if completed_trim else 0), meta
                 rows(directory, floor, payloads)
                 if fenced:
                     assert call(directory, "wal-stale") == {"fenced": True}
@@ -97,6 +101,7 @@ def run(binary):
                     # Repeating the authorized boundary must finish interrupted
                     # physical removal even when its floor was already saved.
                     assert call(directory, f"wal-{operation}") == {"tail": 3}
+                    assert metadata(directory)["cleaned"] == trim_floor
                     for lsn in range(3):
                         assert (directory / f"part-17-{lsn}.twal").exists() == (lsn >= trim_floor), point
                     floor = trim_floor

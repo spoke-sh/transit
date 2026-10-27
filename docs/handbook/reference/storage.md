@@ -44,11 +44,14 @@ counts and per-row positions preserve skipped-row coverage, LIMIT and ordered
 failure attribution. Empty pages can carry continuations. The owner rechecks
 current rights for selected, empty and terminal pages.
 
-The local server enables automatic flushing of current WAL rows by default.
+The local server enables automatic flushing, history archiving with recovery
+checkpoints, archived WAL cleanup and segment compaction by default.
 Its [storage configuration](configuration.md#immutable-storage) controls
 eligibility and per-turn work limits. Bare node deployments enable it explicitly.
 WAL acceptance remains the durability boundary; an INSERT does not wait for
-background flushing. Absence of a new `.tseg` after a point write does not imply
+background maintenance. Archive and compaction targets stay fixed across later
+writes and restart; their progress records do not trigger the same work forever.
+Compaction preserves logical change positions and retained rows. Absence of a new `.tseg` after a point write does not imply
 that the write is missing. The signed direct `storage` operation reports exact
 acceptance and logical-change positions, bounded current WAL backlog and separate
 archive, recovery-checkpoint and history frontiers. Incomplete backlog counts

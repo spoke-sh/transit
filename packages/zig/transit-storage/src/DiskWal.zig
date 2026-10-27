@@ -18,6 +18,8 @@ const State = struct {
     policy: u64 = 1,
     floor: u64 = 0,
     next: u64 = 0,
+    /// Durable physical completion, distinct from the authorized trim floor.
+    cleaned_through: u64 = 0,
     segment: u64 = 0,
     offset: u64 = 0,
     /// Derived verified frame coordinates; never persisted or authoritative.
@@ -194,7 +196,7 @@ fn save(self: *Self, state: State) !void {
     var bytes: [128]u8 = @splat(0);
     bytes[0..8].* = "LWMT\x01\x00\x00\x00".*;
     bytes[8..40].* = definition();
-    inline for (.{ "partition", "writer", "policy", "floor", "next" }, 0..) |field, i| std.mem.writeInt(u64, bytes[40 + i * 8 ..][0..8], @field(state, field), .little);
+    inline for (.{ "partition", "writer", "policy", "floor", "next", "cleaned_through" }, 0..) |field, i| std.mem.writeInt(u64, bytes[40 + i * 8 ..][0..8], @field(state, field), .little);
     std.crypto.hash.sha2.Sha256.hash(bytes[0..96], bytes[96..128], .{});
     var name: [64]u8 = undefined;
     try self.atomic(metaName(state.partition, &name), &bytes);
@@ -211,13 +213,13 @@ fn metadata(self: *Self, id: u64) !?State {
     if (try file.length(self.io) != bytes.len or try file.readPositionalAll(self.io, &bytes, 0) != bytes.len) return error.CorruptWalMetadata;
     if (!std.mem.eql(u8, bytes[8..40], &definition())) return error.IncompatibleDefinition;
     if (!std.mem.eql(u8, bytes[0..8], "LWMT\x01\x00\x00\x00")) return error.CorruptWalMetadata;
-    for (bytes[80..96]) |byte| if (byte != 0) return error.CorruptWalMetadata;
+    for (bytes[88..96]) |byte| if (byte != 0) return error.CorruptWalMetadata;
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes[0..96], &digest, .{});
     if (!std.mem.eql(u8, &digest, bytes[96..128])) return error.CorruptWalMetadata;
     var state: State = .{ .partition = id };
-    inline for (.{ "partition", "writer", "policy", "floor", "next" }, 0..) |field, i| @field(state, field) = std.mem.readInt(u64, bytes[40 + i * 8 ..][0..8], .little);
-    if (state.partition != id or state.writer == 0 or state.policy == 0 or state.floor > state.next) return error.CorruptWalMetadata;
+    inline for (.{ "partition", "writer", "policy", "floor", "next", "cleaned_through" }, 0..) |field, i| @field(state, field) = std.mem.readInt(u64, bytes[40 + i * 8 ..][0..8], .little);
+    if (state.partition != id or state.writer == 0 or state.policy == 0 or state.floor > state.next or state.cleaned_through > state.floor) return error.CorruptWalMetadata;
     return state;
 }
 
@@ -565,6 +567,7 @@ pub fn trim(self: *Self, id: u64, before: u64) !void {
 pub fn trimUnit(self: *Self, id: u64, before: u64) !bool {
     const state = try self.load(id);
     if (before > state.next) return error.InvalidWalTrimBoundary;
+    if (before <= state.cleaned_through) return true;
     const floor = @max(before, state.floor);
     var next = state.*;
     next.floor = floor;
@@ -599,10 +602,27 @@ fn finishTrim(self: *Self) void {
     self.trim_work = null;
 }
 
+/// Persist completion before discarding its bounded cursor. Another partition's
+/// caller may have finished this unit; cache eviction must not lose that fact.
+fn completeTrim(self: *Self) !void {
+    const work = self.trim_work.?;
+    var state = (try self.metadata(work.partition)) orelse return error.WalHistoryMissing;
+    if (work.floor > state.floor) return error.CorruptWalMetadata;
+    if (work.floor > state.cleaned_through) {
+        state.cleaned_through = work.floor;
+        try self.save(state);
+        for (&self.cache) |*slot| if (slot.*) |*cached| {
+            if (cached.partition == work.partition) cached.cleaned_through = state.cleaned_through;
+        };
+    }
+    self.finishTrim();
+}
+
 /// Resume one disposable cursor: at most 32 directory entries or one verified
 /// frame (4 MiB payload maximum), and one unlink plus directory sync. No cursor
 /// authorizes deletion: the already synced, monotone floor supplies authority.
-/// A restart inventories the surviving prefix again. No persisted layout changes.
+/// Completion syncs one metadata replacement. Restart inventories an unfinished
+/// prefix again; a completed floor remains idle across descriptor eviction.
 pub fn continueTrim(self: *Self) !bool {
     try self.usable();
     errdefer self.finishTrim(); // Interrupted enumeration cannot omit entries.
@@ -612,7 +632,7 @@ pub fn continueTrim(self: *Self) !bool {
             const entry = (try iterator.next(self.io)) orelse {
                 work.iterator = null;
                 if (work.first == null) {
-                    self.finishTrim();
+                    try self.completeTrim();
                     return true;
                 }
                 work.expected = work.first.?;
@@ -641,7 +661,7 @@ pub fn continueTrim(self: *Self) !bool {
         if (state.partition == work.partition and state.segment == work.first.? and
             state.next > work.floor and state.offset == length)
         {
-            self.finishTrim();
+            try self.completeTrim();
             return true;
         }
     };
@@ -657,7 +677,7 @@ pub fn continueTrim(self: *Self) !bool {
     if (work.offset != length) {
         if (work.offset > length) return error.CorruptWalFrame;
         if (work.expected >= work.floor) {
-            self.finishTrim(); // This segment contains a retained suffix.
+            try self.completeTrim(); // This segment contains a retained suffix.
             return true;
         }
         return false;
@@ -670,7 +690,7 @@ pub fn continueTrim(self: *Self) !bool {
     try self.syncDirectory();
     self.trim_segments +|= 1;
     if (work.expected == work.floor) {
-        self.finishTrim();
+        try self.completeTrim();
         return true;
     }
     work.first = work.expected; // Contiguous verified LSN names the successor.

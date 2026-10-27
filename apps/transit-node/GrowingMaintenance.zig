@@ -137,6 +137,7 @@ fn boundedStep(comptime Provider: type, io: std.Io, engine: *Provider.Engine, co
     };
 }
 pub fn run(comptime Provider: type, init: std.process.Init, engine: *Provider.Engine, config: Config, diagnostics: *observations.telemetry.Runtime, extension: ?Extension(Provider)) !void {
+    try config.storage.validate();
     if (config.storage.collection_every_records == 0 or config.storage.collection_every_records > core.protocol.max_counter or config.principal > core.protocol.max_counter or config.interval_ms == 0 or config.interval_ms > 60000 or
         config.operation_timeout_ms == 0 or config.operation_timeout_ms > 60000 or
         (config.checkpoint_every_records != null and (config.checkpoint_every_records.? < 2 or !engine.genesis.allow_history_trim))) return error.InvalidMaintenanceConfig;

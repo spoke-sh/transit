@@ -261,7 +261,6 @@ The other flush settings are:
 | `work_rows` | 32 | 1–1,024 | Maximum current WAL rows relocated per turn |
 | `bytes` | 256 KiB | 1–9,007,199,254,740,991 bytes | Encoded current WAL row threshold |
 | `age_ms` | 5,000 ms | 1–60,000 ms | Maximum known pending age before eligibility |
-| `resident_bytes` | 128 MiB | 32–512 MiB | Aggregate private Table maintenance workspace |
 
 These settings use the `storage.maintenance.flush.` prefix and require restart.
 Either row/byte threshold or age makes a Table eligible. The owner keeps at most
@@ -269,10 +268,24 @@ Either row/byte threshold or age makes a Table eligible. The owner keeps at most
 eligible. A prior empty observation conservatively bounds when rows became
 pending. Age controls eligibility, not a completion deadline under competing
 Tables or unavailable storage. One executor alternates lifecycle work and
-physical work, visiting one persisted object entry per Table turn. A fixed pass
-boundary prevents new high-ID Tables from extending the pass indefinitely.
+physical work. Flush, archive/checkpoint, archived WAL cleanup and compaction
+have separate discovery cursors, each visiting one persisted object entry per
+unit. A fixed pass boundary prevents new high-ID Tables from extending a pass
+indefinitely. Disabled and idle classes are skipped within one finite rotation.
 
-The private workspace includes catalog/Table owners, read caches, index staging
+`storage.maintenance.archive.enabled` enables archive/checkpoint and archived WAL
+cleanup. `storage.maintenance.archive.work_frames` bounds an archive unit to
+1–8 accepted frames, default 4, within the component's encoded-byte bound.
+`storage.maintenance.compact` enables direct Table segment compaction;
+`storage.maintenance.compaction_rows` bounds each relocation to 1–1,024 rows,
+default 32. Archive and compaction default to enabled in `transit server` and
+disabled in a bare node. Both require a Table host and maintenance principal.
+They use fixed targets accepted in the Table WAL and resume those targets after
+restart. These settings require restart and do not change logical retention.
+
+`storage.maintenance.resident_bytes` limits shared private Table maintenance
+workspace to 32–512 MiB, default 128 MiB. It requires restart and includes
+catalog/Table owners, read caches, index staging
 and encoding. Native authority caches and bounded backend I/O buffers retain
 their separate limits. The node's maintenance operation deadline bounds each
 turn. Timeout, revocation, allocation budget or disk quota refusal leaves accepted
@@ -285,10 +298,12 @@ routine eligible turns do not consume the reserve while they fit the ordinary
 budget. Each reservation records which budget owns its bytes until collection
 releases them. Neither quota pressure nor reserve exhaustion expires data.
 
-The existing maintenance process begins another physical pass after
+The Ursula maintenance process begins another physical pass after
 `storage.maintenance.collection_every_records` allocation-ledger records
-(default 1,024). `storage.maintenance.compact` enables bounded relocation before
-collection and defaults to false. Retention remains independent: unlimited
+(default 1,024). Its `storage.maintenance.compact` setting enables bounded native
+block/page relocation before collection and defaults to false in bare node
+configuration. Local native/direct immutable-object collection uses explicit
+component operations; the node does not schedule it. Retention remains independent: unlimited
 history keeps its original roots, even after compaction. See
 [storage](storage.md#failure-and-maintenance) for ownership, recovery and the
 separate provider/disk costs excluded from these allocation counters.

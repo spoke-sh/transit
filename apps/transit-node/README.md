@@ -61,7 +61,8 @@ pending commands through their own bounded scheduling policy.
 With Ursula storage, run `--maintain` separately for authorized lifetime,
 collection and checkpoint work. With local storage, the `maintenance` setting
 runs lifecycle scans, accepted-floor trimming and configured automatic Table
-flushing inside the node's exclusive owner; a separate `--maintain` process rejects. Local immutable objects remain
+flushing, archiving/checkpointing and compaction inside the node's exclusive owner;
+a separate `--maintain` process rejects. Local immutable objects remain
 retained. The local launcher selects this backend. Configured Table operations
 use the separate direct Table owner; native process, KV and Document state retain
 their paged native commit boundary. The

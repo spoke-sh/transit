@@ -34,8 +34,8 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     defer parsed.deinit();
     const config = parsed.value;
     try config.storage.limits.validate();
-    try config.storage.maintenance.flush.validate();
-    if (config.storage.maintenance.flush.enabled) return error.TableMaintenanceUnavailable;
+    try config.storage.maintenance.validate();
+    if (config.storage.maintenance.flush.enabled or config.storage.maintenance.archive.enabled) return error.TableMaintenanceUnavailable;
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = config.ursula_url, .max_response_bytes = 256 * 1024 });
     defer client.deinit();

@@ -590,7 +590,8 @@ Each partition has `part-<partition>.meta` and rolling
 | `48..56`, `56..64` | Minimum writer and policy epochs |
 | `64..72` | Exclusive trimmed prefix |
 | `72..80` | Persisted exclusive accepted frontier |
-| `80..96` | Reserved zero bytes |
+| `80..88` | Exclusive physically cleaned prefix, no greater than the trim floor |
+| `88..96` | Reserved zero bytes |
 | `96..128` | SHA-256 over `0..96` |
 
 Append writes a bounded frame at the current segment offset, syncs the file and
@@ -626,12 +627,18 @@ It does not advance the floor or grant permission to remove retained frames.
 Trimming every frame preserves the next LSN and epochs.
 `LocalWal.trimUnit` publishes the same floor and performs at most 32 directory
 entries or one verified frame, followed by at most one segment unlink and sync.
+Completion atomically publishes and syncs the physically cleaned prefix in one
+metadata replacement. This frontier records work already authorized by the trim
+floor; it cannot advance that floor or authorize deletion. Repeating a completed
+request does no further cleanup or completion writes, including after descriptor
+eviction or restart. An interrupted completion publication requires reopen and
+may repeat already completed cleanup safely.
 It returns whether physical cleanup through that request is complete. Repeated
 units preserve an earlier partition's unfinished cursor; `resumeTrim` can advance
 that cursor without a new request. Directory changes restart unfinished minimum
 selection. A continuous writer can delay that selection; finite work converges.
 The cursor is volatile and bounded, with one independent directory handle per WAL
-owner. Restart reconstructs it from the accepted floor. New appends never reuse
+owner. Restart reconstructs unfinished work from the accepted floor. New appends never reuse
 an obsolete segment after a complete logical trim, even before unlink completes.
 When the resident verified append descriptor and current file length establish
 that the selected active segment contains retained frames, cleanup keeps it

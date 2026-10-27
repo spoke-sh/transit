@@ -11,6 +11,7 @@ const Fault = struct {
     var point: []const u8 = "none";
     var sync_count: usize = 0;
     var delete_count: usize = 0;
+    var publish_count: usize = 0;
 
     fn stop() noreturn {
         std.Io.File.stdout().writeStreamingAll(real, "{\"stopped\":true}\n") catch std.process.exit(91);
@@ -40,7 +41,8 @@ const Fault = struct {
     }
     fn rename(context: ?*anyopaque, old: std.Io.Dir, from: []const u8, new: std.Io.Dir, to: []const u8) std.Io.Dir.RenameError!void {
         try real.vtable.dirRename(context, old, from, new, to);
-        if (std.mem.eql(u8, point, "publish")) stop();
+        publish_count += 1;
+        if (std.mem.eql(u8, point, "publish") or numbered("publish", publish_count)) stop();
     }
     fn delete(context: ?*anyopaque, dir: std.Io.Dir, name: []const u8) std.Io.Dir.DeleteFileError!void {
         try real.vtable.dirDeleteFile(context, dir, name);
@@ -54,6 +56,7 @@ const Fault = struct {
         point = selected;
         sync_count = 0;
         delete_count = 0;
+        publish_count = 0;
     }
     fn acknowledged() void {
         if (std.mem.eql(u8, point, "ack")) stop();

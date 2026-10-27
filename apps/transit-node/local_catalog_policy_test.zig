@@ -989,14 +989,14 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     const Work = @import("LocalTableMaintenance.zig");
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
     var work: Work = .{ .host = &host };
-    const settings: p.Storage.Flush = .{ .enabled = true };
+    const settings: p.Storage.Maintenance = .{ .flush = .{ .enabled = true } };
     const request: g.Request = .{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .checkpoint };
     const signed = try g.sign(request, try key(17));
     var denied = request;
     denied.principal = 101;
-    const initial_cursor = work.cursor;
+    const initial_cursor = work.cursors.flush;
     try t.expectError(error.Forbidden, Work.step(&work, engine, settings, try g.sign(denied, try key(29))));
-    try t.expectEqualDeep(initial_cursor, work.cursor);
+    try t.expectEqualDeep(initial_cursor, work.cursors.flush);
     const clock = engine.clock;
     defer engine.clock = clock;
     engine.clock = null; // Physical flushing neither samples nor requires UTC.
@@ -1005,11 +1005,11 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     owner.limits.bytes = owner.allocated;
     defer owner.limits = limits;
     try t.expectError(error.StorageQuota, Work.step(&work, engine, settings, signed));
-    try t.expectEqual(@as(?u64, expected.binding.target.object), work.cursor.after);
+    try t.expectEqual(@as(?u64, expected.binding.target.object), work.cursors.flush.after);
     owner.limits = limits;
     {
         // Revisit this Table within the already captured pass boundary.
-        work.cursor.after = expected.binding.target.object - 1;
+        work.cursors.flush.after = expected.binding.target.object - 1;
         PhysicalPause.armed.store(true, .release);
         var flushing = try t.io.concurrent(Work.step, .{ @as(*anyopaque, &work), engine, settings, signed });
         defer _ = flushing.cancel(t.io) catch {};
@@ -1059,6 +1059,99 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     _ = try Work.step(&restarted, engine, settings, signed);
     try current.table.recover();
     try t.expectEqualDeep(after, current.table.root);
+}
+
+fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: c.storage.TablePartition.Evidence, retained: c.storage.TablePartition.SnapshotHandle) !void {
+    const Work = @import("LocalTableMaintenance.zig");
+    const P = c.storage.TablePartition;
+    const Guard = struct {
+        engine: *Engine,
+        signed: g.SignedRequest,
+        resource: u64,
+        fn acquire(raw: *anyopaque) !P.Guard.Fence {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            const owner = self.engine.journal.backend;
+            try owner.authority.lockShared(owner.io);
+            errdefer owner.authority.unlockShared(owner.io);
+            try self.engine.authorizeMaintenance(self.signed);
+            try self.engine.requireResourceLifetime(self.resource);
+            return .{ .writer_epoch = self.engine.head.storage_epoch, .policy_epoch = self.engine.head.authorization.revision + 1 };
+        }
+        fn release(raw: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            const owner = self.engine.journal.backend;
+            owner.authority.unlockShared(owner.io);
+        }
+    };
+    const request: g.Request = .{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .checkpoint };
+    const signed = try g.sign(request, try key(17));
+    var authority: Guard = .{ .engine = engine, .signed = signed, .resource = catalog.store.root.configuration.scope.resource };
+    const guard: P.Guard = .{ .context = &authority, .acquire = Guard.acquire, .release = Guard.release };
+    const Before = struct { object: u64, root: P.Root };
+    var before: std.ArrayList(Before) = .empty;
+    defer before.deinit(t.allocator);
+    var cursor: D.MaintenanceCursor = .{};
+    while (true) {
+        const entry = try catalog.maintenanceNext(&cursor, guard);
+        if (entry.object) |object| {
+            var view = (try catalog.maintenanceOpen(t.allocator, object, guard)).?;
+            defer view.deinit();
+            try before.append(t.allocator, .{ .object = object, .root = view.table.root });
+        }
+        if (entry.pass_complete) break;
+    }
+    try t.expect(before.items.len >= 4);
+    var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
+    var work: Work = .{ .host = &host };
+    const settings: p.Storage.Maintenance = .{
+        .flush = .{ .enabled = true, .rows = 1, .work_rows = 2 },
+        .archive = .{ .enabled = true, .work_frames = 2 },
+        .compact = true,
+        .compaction_rows = 2,
+    };
+    const clock = engine.clock;
+    defer engine.clock = clock;
+    engine.clock = null;
+    const begin = std.Io.Clock.awake.now(t.io);
+    var idle: usize = 0;
+    var units: usize = 0;
+    var peak: usize = 0;
+    while (idle < before.items.len * 4 + 8) : (units += 1) {
+        if (units == 4096) return error.FixtureBudget;
+        if (units == 17) {
+            // Lose scheduling/recovery hints once while accepted targets remain.
+            work = .{ .host = &host };
+            host.table_recovery = @splat(null);
+            idle = 0;
+        }
+        const progressed = Work.step(&work, engine, settings, signed) catch |err| {
+            std.debug.print("Table maintenance unit {d}, class {s}, object {?d}: {s}\n", .{ units, if (work.last_class) |value| @tagName(value) else "none", work.last_object, @errorName(err) });
+            return err;
+        };
+        peak = @max(peak, work.last_peak_bytes);
+        try t.expect(work.last_peak_bytes <= settings.resident_bytes);
+        idle = if (progressed) 0 else idle + 1;
+    }
+    for (before.items) |original| {
+        var view = (try catalog.maintenanceOpen(t.allocator, original.object, guard)).?;
+        defer view.deinit();
+        const root = view.table.root;
+        try t.expectEqualDeep(original.root.declared(), root.declared());
+        try t.expectEqual(original.root.changed_lsn, root.changed_lsn);
+        try t.expectEqual(original.root.live_rows, root.live_rows);
+        try t.expectEqual(original.root.history_floor, root.history_floor);
+        try t.expectEqualDeep(original.root.receipts, root.receipts);
+        try t.expectEqualDeep(original.root.pins, root.pins);
+        try t.expect(root.maintenance.archive_target == null and root.maintenance.compaction_target == null);
+        try t.expectEqual(root.maintenance.archive_source_lsn, root.maintenance.archived_source_lsn);
+        if (!root.retired and root.next_segment > 1) try t.expectEqual(root.maintenance.compaction_source_lsn, root.maintenance.compacted_source_lsn);
+        if (!root.retired) try t.expectEqual(@as(usize, 0), (try view.table.pendingRows(1, guard)).rows);
+    }
+    try t.expectEqualDeep(expected, (try catalog.rowStatus(expected.binding, policy.policy())).committed);
+    var old = try catalog.scanRows(t.allocator, expected.binding.target, retained, null, .{}, policy.policy());
+    defer old.deinit();
+    try t.expectEqual(@as(i128, 1), old.rows[0].?.row().cells[0].value.atom.signed);
+    std.debug.print("Local physical maintenance: {d} Tables, {d} units, {d} peak private bytes, {d} ms.\n", .{ before.items.len, units, peak, begin.durationTo(std.Io.Clock.awake.now(t.io)).toMilliseconds() });
 }
 
 test "local catalog checks real native registrations, current ownership and exact request proof" {
@@ -1192,6 +1285,10 @@ test "local catalog checks real native registrations, current ownership and exac
     defer historical.deinit();
     try t.expectEqualDeep(accepted.resulting, historical.root.declared());
     try physicalFlush(&engine, &catalog, &policy, intent.name, accepted, retained);
+    physicalMaintenance(&engine, &catalog, &policy, accepted, retained) catch |err| {
+        std.debug.print("Local maintenance integration: {s}\n", .{@errorName(err)});
+        return err;
+    };
     var another_principal = retained;
     another_principal.owner.principal = 0;
     try t.expectError(error.CatalogDenied, catalog.scanRows(t.allocator, request.binding.target, another_principal, null, .{}, policy.policy()));

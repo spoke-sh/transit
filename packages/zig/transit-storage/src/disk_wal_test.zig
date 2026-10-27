@@ -373,6 +373,110 @@ test "disk bounded trim resumes across rotated requests and restart without dele
     try t.expectError(error.StaleWriterEpoch, wal.log().append(2, 8, 1, 3, .row_delta, "old"));
 }
 
+test "disk bounded trim becomes idle across rotating partitions, cache eviction and reopen" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const options: Wal.DiskOptions = .{ .segment_bytes = 2 * Log.alignedFrameSize(8) };
+    const partitions = 17; // Exceeds the eight resident partition descriptors.
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        for (1..partitions + 1) |id| for (0..5) |lsn| {
+            _ = try wal.log().append(id, lsn, 2, 3, .row_delta, "retained");
+        };
+        var idle: usize = 0;
+        var units: usize = 0;
+        while (idle < partitions) : (units += 1) {
+            try t.expect(units < 1024);
+            const entries = wal.disk.?.trim_entries;
+            const frames = wal.disk.?.trim_frames;
+            const segments = wal.disk.?.trim_segments;
+            const complete = try wal.trimUnit(1 + units % partitions, 2);
+            idle = if (complete) idle + 1 else 0;
+            try t.expect(wal.disk.?.trim_entries - entries <= 32);
+            try t.expect(wal.disk.?.trim_frames - frames <= 1);
+            try t.expect(wal.disk.?.trim_segments - segments <= 1);
+        }
+        try t.expectEqual(@as(u64, partitions), wal.disk.?.trim_segments);
+        try t.expect(!try wal.resumeTrim());
+    }
+    var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+    defer wal.deinit();
+    const entries = wal.disk.?.trim_entries;
+    const frames = wal.disk.?.trim_frames;
+    const segments = wal.disk.?.trim_segments;
+    const syncs = wal.disk.?.syncs;
+    for (0..3) |_| for (1..partitions + 1) |id| {
+        // Cold descriptor recovery may inspect the directory. Physical cleanup
+        // must not restart a completed scan or republish its completion.
+        try t.expect(try wal.trimUnit(id, 2));
+        try t.expectError(error.WalHistoryTrimmed, wal.log().read(t.allocator, id, 1, 1));
+        var retained = try wal.log().read(t.allocator, id, 2, 3);
+        defer retained.deinit();
+        try t.expectEqual(@as(usize, 3), retained.frames.len);
+        for (retained.frames, 2..) |frame, lsn| {
+            try t.expectEqual(@as(u64, lsn), frame.header.lsn);
+            try t.expectEqualStrings("retained", frame.payload);
+        }
+    };
+    try t.expectEqual(entries, wal.disk.?.trim_entries);
+    try t.expectEqual(frames, wal.disk.?.trim_frames);
+    try t.expectEqual(segments, wal.disk.?.trim_segments);
+    try t.expectEqual(syncs, wal.disk.?.syncs);
+}
+
+test "disk bounded trim resumes after uncertain completion metadata sync" {
+    const Fault = struct {
+        var real: *const std.Io.VTable = undefined;
+        var remaining: usize = 0;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            try real.fileSync(context, file);
+            if (remaining != 0) {
+                remaining -= 1;
+                if (remaining == 0) return error.InputOutput;
+            }
+        }
+    };
+    Fault.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Fault.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    // After the unlink's directory sync, lose either the metadata file sync
+    // reply or the replacement's directory sync reply. Neither proves absence.
+    for ([_]usize{ 2, 3 }) |failure| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        const options: Wal.DiskOptions = .{ .segment_bytes = Log.alignedFrameSize(8) };
+        {
+            var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options);
+            defer wal.deinit();
+            for (0..3) |lsn| _ = try wal.log().append(1, lsn, 2, 3, .row_delta, "retained");
+            try t.expect(!try wal.trimUnit(1, 1));
+            Fault.remaining = failure;
+            try t.expectError(error.InputOutput, wal.trimUnit(1, 1));
+            try t.expectEqual(@as(usize, 0), Fault.remaining);
+            try t.expect(wal.requiresRecovery());
+            try t.expectError(error.WalRecoveryRequired, wal.trimUnit(1, 1));
+        }
+        var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        var units: usize = 0;
+        while (!try wal.trimUnit(1, 1)) : (units += 1) try t.expect(units < 16);
+        try t.expectError(error.WalHistoryTrimmed, wal.log().read(t.allocator, 1, 0, 1));
+        var retained = try wal.log().read(t.allocator, 1, 1, 2);
+        defer retained.deinit();
+        try t.expectEqual(@as(usize, 2), retained.frames.len);
+        for (retained.frames, 1..) |frame, lsn| {
+            try t.expectEqual(@as(u64, lsn), frame.header.lsn);
+            try t.expectEqualStrings("retained", frame.payload);
+        }
+        const syncs = wal.disk.?.syncs;
+        try t.expect(try wal.trimUnit(1, 1));
+        try t.expectEqual(syncs, wal.disk.?.syncs);
+    }
+}
+
 test "disk bounded trim preserves latest seeks and skips a retained active segment" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

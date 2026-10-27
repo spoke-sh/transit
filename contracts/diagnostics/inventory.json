@@ -13667,7 +13667,7 @@
           "deadline"
         ],
         "Definition": [
-          "ef7cde665365ee22944e7e6161c32748ec7afbecaaa5dc4e25e4d40ecd47db62"
+          "@\"8ff47b20d7761074cdb7c086959a7d205b304477cee8f5d910f9502ab6717675\""
         ],
         "Effect.phase": [
           "pending",
@@ -14155,17 +14155,19 @@
     },
     "packages/zig/transit-protocol/src/Storage.zig": {
       "errors": {
-        "InvalidStorageBudget": 2
+        "InvalidStorageBudget": 4
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Archive.validate()": "<inferred>",
         "Flush.validate()": "<inferred>",
-        "Limits.validate()": "<inferred>"
+        "Limits.validate()": "<inferred>",
+        "Maintenance.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 0,
+        "try": 2,
         "catch": 0
       },
       "imports": [
@@ -26291,7 +26293,7 @@
       "errors": {
         "Canceled": 3,
         "CorruptWalFrame": 9,
-        "CorruptWalMetadata": 5,
+        "CorruptWalMetadata": 6,
         "FileNotFound": 4,
         "IncompatibleDefinition": 3,
         "InvalidWalDirectory": 11,
@@ -26303,7 +26305,7 @@
         "StaleWriterEpoch": 1,
         "TruncatedWalFrame": 2,
         "WalEpochRegression": 1,
-        "WalHistoryMissing": 9,
+        "WalHistoryMissing": 10,
         "WalHistoryTrimmed": 1,
         "WalInUse": 1,
         "WalLsnConflict": 1,
@@ -26317,6 +26319,7 @@
       "error_returns": {
         "append()": "<inferred>",
         "atomic()": "<inferred>",
+        "completeTrim()": "<inferred>",
         "continueTrim()": "<inferred>",
         "fence()": "<inferred>",
         "frame()": "<inferred>",
@@ -26341,7 +26344,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 87,
+        "try": 93,
         "catch": 20
       },
       "imports": [
