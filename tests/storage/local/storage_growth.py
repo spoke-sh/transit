@@ -79,8 +79,11 @@ def main():
                   body_bytes=BODY_BYTES, fixtures=[])
     common.save(args.output, report)
     try:
-        with tempfile.TemporaryDirectory(prefix='transit-storage-growth-', dir='/var/tmp') as temporary:
+        with tempfile.TemporaryDirectory(prefix='transit-storage-growth-', dir='/var/tmp', delete=False) as temporary:
             root = Path(temporary)
+            # Preserve the exact executable and partial accepted history if any
+            # boundary fails. Only a complete proof authorizes normal cleanup.
+            report['working_directory'] = str(root)
             # Keep later developer builds from changing the running proof.
             frozen = root / 'probe'
             shutil.copy2(binary, frozen)
@@ -91,31 +94,32 @@ def main():
                 for rows in sizes:
                     directory = root / 'fixture'
                     directory.mkdir()
-                    try:
-                        setup = common.execute(frozen, owner, 'init', directory, rows, 'scan', args.cpu, args.timeout)
-                        validate(setup, owner, rows, 'init', common.AS_LIMIT)
-                        inventory = common.manifest(directory)
-                        pages = common.condition(directory, inventory['files'], 'cold')
-                        readback = common.execute(frozen, owner, 'verify-all' if owner == 'table' else 'measure', directory, rows, 'bulk' if owner == 'table' else 'scan', args.cpu, args.timeout)
-                        validate(readback, owner, rows, 'verify', common.AS_LIMIT)
-                        require(common.manifest(directory) == inventory, 'Readback changed accepted storage')
-                        exceeds = inventory['bytes'] > common.AS_LIMIT
-                        exceeded |= exceeds
-                        identity = hashlib.sha256(json.dumps(inventory['files'], sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-                        report['fixtures'].append(dict(owner=owner, rows=rows, inventory_sha256=identity,
-                                                       file_count=len(inventory['files']), retained_bytes=inventory['bytes'],
-                                                       allocated_bytes=inventory['allocated_bytes'], exceeds_address_space=exceeds,
-                                                       cold_input_pages=pages, setup=setup, readback=readback))
-                        common.save(args.output, report)
-                        print(f'{owner}/{rows}: verified growth, {inventory["bytes"]} retained bytes, {common.AS_LIMIT} process limit', flush=True)
-                    finally:
-                        shutil.rmtree(directory)
+                    setup = common.execute(frozen, owner, 'init', directory, rows, 'scan', args.cpu, args.timeout)
+                    validate(setup, owner, rows, 'init', common.AS_LIMIT)
+                    inventory = common.manifest(directory)
+                    pages = common.condition(directory, inventory['files'], 'cold')
+                    readback = common.execute(frozen, owner, 'verify-all' if owner == 'table' else 'measure', directory, rows, 'bulk' if owner == 'table' else 'scan', args.cpu, args.timeout)
+                    validate(readback, owner, rows, 'verify', common.AS_LIMIT)
+                    require(common.manifest(directory) == inventory, 'Readback changed accepted storage')
+                    exceeds = inventory['bytes'] > common.AS_LIMIT
+                    exceeded |= exceeds
+                    identity = hashlib.sha256(json.dumps(inventory['files'], sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+                    report['fixtures'].append(dict(owner=owner, rows=rows, inventory_sha256=identity,
+                                                   file_count=len(inventory['files']), retained_bytes=inventory['bytes'],
+                                                   allocated_bytes=inventory['allocated_bytes'], exceeds_address_space=exceeds,
+                                                   cold_input_pages=pages, setup=setup, readback=readback))
+                    common.save(args.output, report)
+                    print(f'{owner}/{rows}: verified growth, {inventory["bytes"]} retained bytes, {common.AS_LIMIT} process limit', flush=True)
+                    shutil.rmtree(directory)
                 require(args.smoke or exceeded, f'{owner} data did not exceed the process ceiling')
             require(len(report['fixtures']) == sum(len(sizes) for _, sizes in owners), 'Incomplete growth matrix')
+            shutil.rmtree(root)
             report['status'] = 'passed'
     except BaseException as error:
         report['status'] = 'failed'
         report['error'] = f'{type(error).__name__}: {error}'
+        if 'working_directory' in report and Path(report['working_directory']).exists():
+            report['retained_failure_directory'] = report['working_directory']
         raise
     finally:
         common.save(args.output, report)

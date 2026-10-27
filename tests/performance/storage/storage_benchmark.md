@@ -191,6 +191,12 @@ longer guard does not turn an earlier timeout into a pass or establish that the
 default execution budget was met. Value checks, fixture sizes and memory limits
 remain independently required.
 
+A failed growth run retains its working directory and frozen executable under
+`/var/tmp`; `retained_failure_directory` in the report identifies it. Inspect
+that exact fixture when diagnosing partial acceptance or recovery. Successful
+runs remove their private directory. Remove a failed fixture only after retaining
+the evidence needed for its diagnosis; a later passing run does not clean it up.
+
 `--table-rows 32 --native-rows 2 --smoke` validates the harness without asserting
 that the data exceed the ceiling. The report labels this profile explicitly.
 The initial 64 MiB smoke attempt failed during Table construction; the subsequent
