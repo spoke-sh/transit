@@ -692,6 +692,21 @@ instrumented read-only control also failed during bootstrap before measurement;
 its proxy obstructed the launcher's subsequent port preflight. That failed
 control remains retained separately from the successful unproxied comparison.
 
+The original failed `ff2d2e45e` mutation installation also resumes with its
+original binaries: all 16 saved operations are terminal, and the second-cycle
+UPDATE has one matched/changed row. Independent readback verifies key -1 at 200
+and keys 0–8 at 100, without submitting another UPDATE. Its original deadline
+failure remains part of the latency investigation.
+
+**Progress PR boundary:** the user requested another mergeable increment so
+statement-result work can build on the read-reuse, shorter journal locks,
+complete-submission sequencing, bounded cleanup and diagnostic improvements.
+This increment changes no shared definition, wire format or stored layout.
+Keep the milestone In Progress: automatic archive/checkpoint/compaction and
+collection, the Station Table boundary, broader resource integration, public
+storage inspection and final common-revision qualification remain required.
+Mutation timeouts are an explicit unresolved limit of this increment.
+
 #### P6 — Publish one authorized storage view and configuration surface
 
 Owners: shared protocol/catalog/client operations, server settings, CLI/SQL

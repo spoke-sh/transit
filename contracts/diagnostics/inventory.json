@@ -2264,7 +2264,13 @@
         "StorageObjectTooLarge": 1,
         "StorageQuota": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "RecoverySource": [
+          "main_wal",
+          "native_inventory",
+          "data_inventory"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "bindNativeOwner()": "<inferred>",
@@ -2274,12 +2280,13 @@
         "put()": "<inferred>",
         "putNative()": "<inferred>",
         "read()": "<inferred>",
+        "recoverySource()": "<inferred>",
         "requiresRecovery()": "<inferred>",
         "reserve()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
+        "try": 59,
         "catch": 2
       },
       "imports": [
@@ -2319,11 +2326,12 @@
         "open()": "<inferred>",
         "record()": "<inferred>",
         "remove()": "<inferred>",
-        "trim()": "<inferred>"
+        "trim()": "<inferred>",
+        "trimUnit()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 40,
         "catch": 1
       },
       "imports": [
@@ -2394,7 +2402,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 60,
+        "try": 59,
         "catch": 3
       },
       "imports": [
@@ -2511,11 +2519,13 @@
         "readImpl()": "<inferred>",
         "tail()": "<inferred>",
         "tailImpl()": "<inferred>",
-        "trim()": "<inferred>"
+        "trim()": "<inferred>",
+        "trimUnit()": "<inferred>",
+        "trimUnitImpl()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -2595,11 +2605,12 @@
         "read()": "<inferred>",
         "record()": "<inferred>",
         "remove()": "<inferred>",
-        "trim()": "<inferred>"
+        "trim()": "<inferred>",
+        "trimUnit()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 34,
+        "try": 36,
         "catch": 2
       },
       "imports": [
@@ -2727,6 +2738,7 @@
         "mark()": "<inferred>",
         "objectKey()": "<inferred>",
         "reclaim()": "<inferred>",
+        "reserve()": "<inferred>",
         "save()": "<inferred>",
         "scopeKey()": "<inferred>",
         "start()": "<inferred>",
@@ -2736,7 +2748,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 62,
+        "try": 66,
         "catch": 4
       },
       "imports": [
@@ -2765,9 +2777,11 @@
       "error_returns": {
         "appendControlled()": "<inferred>",
         "appendImpl()": "<inferred>",
+        "beginSubmission()": "<inferred>",
         "currentHeadLocked()": "<inferred>",
         "maintain()": "<inferred>",
         "maintainImpl()": "<inferred>",
+        "maintainUnit()": "<inferred>",
         "read()": "<inferred>",
         "readImpl()": "<inferred>",
         "tail()": "<inferred>",
@@ -2776,7 +2790,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 23,
         "catch": 2
       },
       "imports": [
@@ -3544,7 +3558,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 711,
+        "try": 712,
         "catch": 8
       },
       "imports": [
@@ -25508,11 +25522,11 @@
     "packages/zig/transit-storage/src/DiskWal.zig": {
       "errors": {
         "Canceled": 3,
-        "CorruptWalFrame": 6,
+        "CorruptWalFrame": 9,
         "CorruptWalMetadata": 5,
         "FileNotFound": 4,
         "IncompatibleDefinition": 3,
-        "InvalidWalDirectory": 10,
+        "InvalidWalDirectory": 11,
         "InvalidWalEpoch": 2,
         "InvalidWalHeader": 1,
         "InvalidWalLimits": 1,
@@ -25525,7 +25539,7 @@
         "WalHistoryTrimmed": 1,
         "WalInUse": 1,
         "WalLsnConflict": 1,
-        "WalLsnExhausted": 2,
+        "WalLsnExhausted": 3,
         "WalMetadataMissing": 3,
         "WalPayloadTooLarge": 1,
         "WalRecoveryRequired": 2
@@ -25535,6 +25549,7 @@
       "error_returns": {
         "append()": "<inferred>",
         "atomic()": "<inferred>",
+        "continueTrim()": "<inferred>",
         "fence()": "<inferred>",
         "frame()": "<inferred>",
         "inventory()": "<inferred>",
@@ -25553,12 +25568,13 @@
         "syncDirectory()": "<inferred>",
         "tail()": "<inferred>",
         "trim()": "<inferred>",
+        "trimUnit()": "<inferred>",
         "usable()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 80,
-        "catch": 19
+        "try": 87,
+        "catch": 20
       },
       "imports": [
         "TransitLog.zig",
@@ -25631,14 +25647,16 @@
         "LocalWal.openDiskWithOptions()": "<inferred>",
         "LocalWal.readErased()": "anyerror",
         "LocalWal.readFrames()": "<inferred>",
+        "LocalWal.resumeTrim()": "<inferred>",
         "LocalWal.tailErased()": "anyerror",
         "LocalWal.tailLsn()": "<inferred>",
         "LocalWal.trimErased()": "anyerror",
+        "LocalWal.trimUnit()": "<inferred>",
         "LocalWal.trimUpTo()": "<inferred>"
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 12,
+        "try": 14,
         "catch": 1
       },
       "imports": [
@@ -26029,7 +26047,7 @@
         "InvalidTableCompactionBudget": 1,
         "InvalidTableDeclaration": 1,
         "InvalidTableFlushBudget": 1,
-        "InvalidTableHistory": 46,
+        "InvalidTableHistory": 49,
         "InvalidTableIdentity": 1,
         "InvalidTableInterpretation": 6,
         "InvalidTableKey": 3,
@@ -26056,7 +26074,7 @@
         "TableHistoryConflict": 1,
         "TableHistoryCoverageRequired": 1,
         "TableHistoryExpired": 1,
-        "TableHistoryMissing": 7,
+        "TableHistoryMissing": 9,
         "TableHistoryPinned": 1,
         "TableHistoryRetentionRequired": 1,
         "TableKeyHashCollision": 4,
@@ -26180,6 +26198,8 @@
         "readSnapshot()": "<inferred>",
         "ready()": "<inferred>",
         "recover()": "<inferred>",
+        "recoverSince()": "<inferred>",
+        "recoveryState()": "<inferred>",
         "releaseSnapshot()": "<inferred>",
         "reply()": "<inferred>",
         "requireAdmissionBasis()": "<inferred>",
@@ -26213,7 +26233,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 572,
+        "try": 577,
         "catch": 13
       },
       "imports": [
