@@ -633,6 +633,29 @@ checks pass, including the 1,165-step retained-graph collection. Its matched liv
 comparison, complete owner/cache resource gate and final qualification remain
 open. This is a component delivery within P5.2, not completion of P5.
 
+The node-only comparison at `13d36a3bd`, with the other runtime roles frozen at
+`8b19eaebb`, passes the same 15 read controls. Medians are 589 ms point, 786 ms
+range, 776 ms full, 581 ms empty and 612 ms LIMIT zero. The slowest point sample
+regresses from 778 ms to 1,167 ms. These three-sample, shared-host observations
+establish neither tail improvement nor the final same-source packaging gate.
+
+The original failed baseline installation was preserved before reopening with
+its original binaries. Public operation inspection finds the three-row INSERT
+terminal with three matched/changed rows under its original identity; an
+independent SELECT verifies those rows and all nine earlier retained rows. No
+replacement INSERT was submitted. The original completion deadline remains a
+failure even though recovery identifies the accepted result.
+
+`ff2d2e45e` separates private native allocation/object syncs from the shared journal
+mutex. A paused-sync negative control failed before the fix and passes after it;
+ten selected backend checks pass, including collection joining a creator paused
+before object publication. The same three-repetition mutation schedule with that
+node passes its first three-row INSERT, but reaches another 30-second submission
+deadline on the second cycle's single-row UPDATE. Its eight successful measured
+samples remain approximately 8.3–10.6 seconds. This is not a resolved live latency
+or completion gate. `6e649fc69` also includes direct catalog/Table WAL and object
+attempts in request diagnostics; earlier provider counters omitted that work.
+
 #### P6 — Publish one authorized storage view and configuration surface
 
 Owners: shared protocol/catalog/client operations, server settings, CLI/SQL
