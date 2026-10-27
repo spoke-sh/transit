@@ -596,6 +596,10 @@ selection. A continuous writer can delay that selection; finite work converges.
 The cursor is volatile and bounded, with one independent directory handle per WAL
 owner. Restart reconstructs it from the accepted floor. New appends never reuse
 an obsolete segment after a complete logical trim, even before unlink completes.
+When the resident verified append descriptor and current file length establish
+that the selected active segment contains retained frames, cleanup keeps it
+without rescanning its prefix. Evicted descriptors use bounded frame verification;
+cleanup does not introduce a cold partition load just for that shortcut.
 An uncertain unlink or sync poisons the owner until reopen. The synchronous
 `Log.trim` operation drains these same units before returning.
 Retention authority must establish checkpoint, receipt, pin and
@@ -641,8 +645,11 @@ end-of-file coordinate. Every traversed frame's partition and LSN are checked.
 
 Recovery still validates the entire required retained history. Every returned
 frame is read and integrity/identity checked again; stale/missing/corrupt bytes
-cannot be supplied from a cached payload. Trim clears seek coordinates and
-descriptor eviction discards them. No format, frontier, fence, sync or uncertain
+cannot be supplied from a cached payload. Trim drops coordinates below its floor
+and discards end-of-file continuations when that floor advances. Coordinates for
+actual retained frames remain valid, including the latest-frame seek needed by
+allocation collectors between cleanup units. Descriptor eviction discards them.
+No format, frontier, fence, sync or uncertain
 append semantics change. Disk-owner counters `read_frames`, `read_bytes` and
 `directory_scans` distinguish frame-read work from recovery and directory walks;
 they do not count all filesystem metadata I/O or establish physical device reads.

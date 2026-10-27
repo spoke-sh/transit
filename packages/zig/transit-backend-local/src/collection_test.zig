@@ -284,6 +284,7 @@ test "native collection retains history, fences delayed writers and resumes pend
     // The saved complete phase finishes graph reclamation, but an interrupted
     // FIFO trim still resumes in bounded physical units after reopening.
     var cleanup_units: usize = 0;
+    const cleanup_frames = f.owner.allocations.queue.disk.?.trim_frames;
     while (true) {
         const disk = f.owner.allocations.queue.disk.?;
         const entries = disk.trim_entries;
@@ -297,7 +298,10 @@ test "native collection retains history, fences delayed writers and resumes pend
         cleanup_units += 1;
         try t.expect(cleanup_units < 2000);
     }
-    try t.expect(cleanup_units > 1);
+    try t.expect(cleanup_units != 0);
+    // This fixture's active inventory segment retains live carried entries.
+    // Its accepted descriptor proves it must stay; no prefix rescan is needed.
+    try t.expectEqual(cleanup_frames, f.owner.allocations.queue.disk.?.trim_frames);
     try t.expectEqual(concurrent, (try f.engine.process(concurrent)).pid);
 }
 

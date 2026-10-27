@@ -373,6 +373,46 @@ test "disk bounded trim resumes across rotated requests and restart without dele
     try t.expectError(error.StaleWriterEpoch, wal.log().append(2, 8, 1, 3, .row_delta, "old"));
 }
 
+test "disk bounded trim preserves latest seeks and skips a retained active segment" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    for (0..256) |lsn| _ = try wal.log().append(1, lsn, 2, 3, .row_delta, "retained");
+    for ([_]bool{ false, true }) |reopen| {
+        if (reopen) {
+            wal.deinit();
+            wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        }
+        const trimmed_frames = wal.disk.?.trim_frames;
+        var units: usize = 0;
+        while (true) {
+            const complete = try wal.trimUnit(1, 128);
+            units += 1;
+            // Allocation collectors consult the latest FIFO cursor between
+            // cleanup units. That observation must not rescan the whole file.
+            const read_frames = wal.disk.?.read_frames;
+            var latest = try wal.log().read(t.allocator, 1, 255, 1);
+            defer latest.deinit();
+            try t.expectEqual(@as(usize, 1), latest.frames.len);
+            try t.expectEqual(@as(u64, 255), latest.frames[0].header.lsn);
+            try t.expectEqualStrings("retained", latest.frames[0].payload);
+            try t.expectEqual(@as(u64, 1), wal.disk.?.read_frames - read_frames);
+            try t.expect(units <= 4);
+            if (complete) break;
+        }
+        // The accepted active segment contains the retained tail. It cannot be
+        // deleted, so cleanup need not walk its already verified prefix again.
+        try t.expectEqual(trimmed_frames, wal.disk.?.trim_frames);
+        try t.expectError(error.WalHistoryTrimmed, wal.log().read(t.allocator, 1, 127, 1));
+    }
+    const file = try tmp.dir.openFile(t.io, "wal/part-1-0.twal", .{ .mode = .read_write });
+    defer file.close(t.io);
+    try file.writePositionalAll(t.io, "x", 255 * Log.alignedFrameSize(8) + Log.header_bytes);
+    // A preserved seek hint still verifies the selected frame's bytes.
+    try t.expectError(error.CorruptWalFrame, wal.log().read(t.allocator, 1, 255, 1));
+}
+
 test "disk bounded trim lost unlink reply poisons the owner and resumes its original floor" {
     const Fault = struct {
         var real: std.Io = undefined;

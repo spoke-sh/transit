@@ -568,9 +568,17 @@ pub fn trimUnit(self: *Self, id: u64, before: u64) !bool {
     const floor = @max(before, state.floor);
     var next = state.*;
     next.floor = floor;
-    next.latest = null;
-    next.read_start = null;
-    next.read_next = null;
+    // An actual frame at/above the floor cannot belong to a removed segment.
+    // Keep those verified seeks: allocation collectors read their latest cursor
+    // between cleanup units, and clearing it would rescan the entire WAL each
+    // time. A continuation may instead name EOF in a removed prefix segment.
+    if (next.latest) |cursor| if (cursor.lsn < floor) {
+        next.latest = null;
+    };
+    if (next.read_start) |cursor| if (cursor.lsn < floor) {
+        next.read_start = null;
+    };
+    if (floor > state.floor) next.read_next = null;
     if (floor == next.next) {
         next.segment = next.next;
         next.offset = 0;
@@ -624,6 +632,19 @@ pub fn continueTrim(self: *Self) !bool {
     const file = try self.dir.openFile(self.io, filename, .{ .follow_symlinks = false });
     defer file.close(self.io);
     const length = try file.length(self.io);
+    // The current append segment is already verified by this exclusive owner.
+    // If it includes retained frames and its length still matches, it cannot
+    // be reclaimed. Avoid walking its prefix once per maintenance pass. A
+    // missing/evicted descriptor uses the ordinary bounded verification below;
+    // no cold recovery is introduced into this cleanup unit.
+    for (self.cache) |slot| if (slot) |state| {
+        if (state.partition == work.partition and state.segment == work.first.? and
+            state.next > work.floor and state.offset == length)
+        {
+            self.finishTrim();
+            return true;
+        }
+    };
     if (work.offset < length) {
         const bytes = try self.frame(file, work.offset, self.allocator);
         defer self.allocator.free(bytes);
