@@ -39,6 +39,8 @@ SDK tasks separately record packaging. Shared raw-client, Station and exchange
 schedules record total time, consumer installation, authority/provider provisioning
 and owned teardown. Local installation records executable copying, process start,
 readiness and teardown separately; process start alone is not readiness.
+The interoperability ring records each language installation and each pair's
+scenario separately, including failures before its final aggregate report exists.
 
 Timings are inclusive, and nested records name their parent. Do not add a parent
 duration to its children or describe the residual as pure CPU time. Uninstrumented
