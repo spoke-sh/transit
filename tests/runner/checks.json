@@ -309,6 +309,8 @@
           "--check",
           "build.zig",
           "build",
+          "bindings/build.zig",
+          "bindings/build.zig.zon",
           "sdks/zig",
           "packages/zig",
           "apps",

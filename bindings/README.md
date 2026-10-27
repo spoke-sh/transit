@@ -57,6 +57,13 @@ Debug and ReleaseSafe package directories are separate under
 client profiles; installed consumer schedules retain their existing profiles.
 The package directories are generated outputs, not cached test results.
 
+C/C++ packaging also requires `--sdk-prefix PATH`. The binding
+[build graph](build.zig) composes the public C SDKs and real C/C++ examples into
+one immutable prefix, retaining their own manifests and dependencies. It does
+not install into package-local `zig-out` directories. Packaging rejects mismatched
+native/SDK optimization, target, CPU, compiler and contract definitions. Existing
+C++ package checks and every installed consumer scenario still execute.
+
 | Task | Work |
 | --- | --- |
 | `just bindings::zig-test` | Shared module identity and isolated real Zig application build |

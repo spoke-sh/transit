@@ -8,21 +8,62 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from harness.native_artifacts import CONTRACTS, EXPECTED, describe, prepare, validate
+from harness.native_artifacts import CONTRACTS, EXPECTED, describe, prepare, validate, source_identity
+from runner.paths import ROOT
 
 
 class Artifacts(unittest.TestCase):
-    def fixture(self, root):
+    def fixture(self, root, family='authority'):
         prefix = root / 'outputs'
         prefix.mkdir()
-        for name in EXPECTED['authority'] | CONTRACTS:
+        for name in EXPECTED[family] | CONTRACTS:
             path = prefix / name
             path.parent.mkdir(exist_ok=True)
             path.write_text(json.dumps({'definition': 'ab' * 32}) if name in CONTRACTS else 'original binary')
         (prefix / 'build.json').write_text(json.dumps(dict(
-            version=1, set='authority', optimize='debug', target='x86_64-linux-gnu',
-            cpu='native', resolved_cpu='x86_64', compiler='fixture', artifacts=['bin/transit-node'])))
+            version=1, set=family, optimize='debug', target='x86_64-linux-gnu',
+            cpu='native', resolved_cpu='x86_64', compiler='fixture', artifacts=sorted(EXPECTED[family]))))
         return prefix
+
+    def test_c_packages_reject_mixed_profiles_and_changed_definitions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for family in ('clients', 'c-sdk'):
+                (root / family).mkdir()
+                self.fixture(root / family, family)
+            native, sdk = (root / family / 'outputs' for family in ('clients', 'c-sdk'))
+            metadata = sdk / 'build.json'
+            original = metadata.read_text()
+            for change, expected in [('profile', 'build input: optimize'), ('definition', 'contract definition')]:
+                with self.subTest(change=change):
+                    if change == 'profile':
+                        metadata.write_text(original.replace('"debug"', '"safe"'))
+                    else:
+                        metadata.write_text(original)
+                        (sdk / 'contracts/client.json').write_text('{"definition":"foreign"}')
+                    result = subprocess.run([sys.executable, str(ROOT / 'bindings/build_c.py'),
+                        str(root / 'packages'), '--native-prefix', str(native), '--sdk-prefix', str(sdk)],
+                        capture_output=True, text=True)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(expected, result.stderr)
+                    self.assertEqual(list((root / 'packages').iterdir()), [])
+
+    def test_c_artifact_identity_includes_sdk_and_example_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(['git', 'init', '--quiet', root], check=True)
+            common = root / 'build.zig'
+            common.write_text('// native graph')
+            baseline = source_identity(root, 'c-sdk')
+            native = source_identity(root, 'clients')
+            for name in ('bindings/build.zig', 'sdks/c/transit-client/src/client.cpp',
+                         'sdks/cpp/transit-client/include/client.hpp', 'examples/station-sdk/c/src/main.c'):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('// changed source')
+                self.assertNotEqual(source_identity(root, 'c-sdk'), baseline)
+                self.assertEqual(source_identity(root, 'clients'), native)
+                path.unlink()
 
     def test_source_profile_definition_and_changed_output_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

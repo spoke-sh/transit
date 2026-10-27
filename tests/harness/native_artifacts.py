@@ -23,6 +23,8 @@ EXPECTED = {
                 "bin/transit-client-host", "bin/transit-station-host", "bin/transit-admin",
                 "bin/transit-station-http-worker", "bin/transit-station-grpc-worker"},
     "authority": {"bin/transit-node"},
+    "c-sdk": {"lib/libtransit_sdk_client.so", "lib/libtransit_sdk_station.so",
+              "lib/libtransit_sdk_examples_c.a", "bin/transit-c-counter", "bin/transit-cpp-counter"},
 }
 CONTRACTS = {"contracts/client.json", "contracts/station.json"}
 PROFILES = {"Debug": "debug", "ReleaseSafe": "safe"}
@@ -48,13 +50,16 @@ def describe(prefix):
                       for name in sorted({*names, *CONTRACTS, "build.json"})}}
 
 
-def source_identity(root):
+def source_identity(root, family=None):
     # Conservatively include every non-ignored native/build input, including
     # newly added source. Documentation and unrelated run output are not inputs.
+    owners = ["build.zig", "build.zig.zon", "build", "packages/zig", "apps", "third_party",
+              "nix", "flake.nix", "flake.lock", "tests/harness/native_artifacts.py"]
+    if family == "c-sdk":
+        owners += ["bindings", "sdks/c", "sdks/cpp", "examples/station-sdk/c", "examples/station-sdk/cpp"]
     listed = subprocess.check_output([
         "git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--",
-        "build.zig", "build.zig.zon", "build", "packages/zig", "apps", "third_party",
-        "nix", "flake.nix", "flake.lock", "tests/harness/native_artifacts.py",
+        *owners,
     ], cwd=root).decode().split("\0")
     included = {}
     for name in sorted(set(listed) - {""}):
@@ -80,20 +85,22 @@ def prepare(family, optimize, root=ROOT):
     attempt = Recorder(root)
     started = time.monotonic()
     with attempt.phase("input-identity", family):
-        source = source_identity(root)
+        source = source_identity(root, family)
     inputs_done = time.monotonic()
     compiler = shutil.which("zig")
     assert compiler, "Enter the pinned Nix development environment"
-    command = [compiler, "build", f"fixture-{family}", f"-Doptimize={optimize}", "-Dsdk-examples=false"]
+    build_root = root / "bindings" if family == "c-sdk" else root
+    target = ["prefix"] if family == "c-sdk" else [f"fixture-{family}", "-Dsdk-examples=false"]
+    command = [compiler, "build", *target, f"-Doptimize={optimize}"]
     with attempt.phase("build-graph", family) as row:
-        result = run(command, cwd=root, log=attempt.directory / "build.log", result=row, capture_stdout=True)
+        result = run(command, cwd=build_root, log=attempt.directory / "build.log", result=row, capture_stdout=True)
         result.check_returncode()
     built = time.monotonic()
     with attempt.phase("output-verification", family):
         record = json.loads(result.stdout)
-        assert source_identity(root) == source, "Native inputs changed during compilation; no record published"
+        assert source_identity(root, family) == source, "Native inputs changed during compilation; no record published"
         record.update(source_sha256=source, **provenance(root), command=command,
-                      phase_directory=str(attempt.directory))
+                      phase_directory=str(attempt.directory), build_directory=str(build_root))
         definition = json.loads((root / "packages/zig/transit-client/abi-v1.json").read_text())["definition"]
         prefix = validate(record, source=source, optimize=optimize, family=family, definition=definition)
     record["phases"] = {"input_identity_seconds": inputs_done - started,

@@ -1,0 +1,15 @@
+.{
+    .name = .transit_binding_artifacts,
+    .fingerprint = 0x922288fd53061006,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{
+        .client = .{ .path = "../sdks/c/transit-client" },
+        .station = .{ .path = "../sdks/c/transit-station" },
+        .examples_c = .{ .path = "../examples/station-sdk/c" },
+        .examples_cpp = .{ .path = "../examples/station-sdk/cpp" },
+        .native_client = .{ .path = "../packages/zig/transit-client" },
+        .native_station = .{ .path = "../packages/zig/transit-station-bindings" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon" },
+}

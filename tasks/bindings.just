@@ -212,13 +212,10 @@ c-build:
     #!/usr/bin/env bash
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize Debug)
-    (cd sdks/c/transit-client && zig build)
+    sdk_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare c-sdk --optimize Debug)
     (cd sdks/cpp/transit-client && zig build check)
-    (cd sdks/c/transit-station && zig build)
     (cd sdks/cpp/transit-station-sdk && zig build check)
-    (cd examples/station-sdk/c && zig build)
-    (cd examples/station-sdk/cpp && zig build)
-    python3 -B tests/runner/launch.py tests/harness/phases.py packaging c -- python3 -B bindings/build_c.py .cache/bindings/Debug/c --native-prefix "$native_prefix"
+    python3 -B tests/runner/launch.py tests/harness/phases.py packaging c -- python3 -B bindings/build_c.py .cache/bindings/Debug/c --native-prefix "$native_prefix" --sdk-prefix "$sdk_prefix"
 
 # Compile installed public C and C++ consumers and run the shared raw schedule.
 c-sdk-test: c-build
@@ -552,12 +549,9 @@ direct-catalog-c:
     #!/usr/bin/env bash
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
-    (cd sdks/c/transit-client && zig build -Doptimize=ReleaseSafe)
-    (cd sdks/c/transit-station && zig build -Doptimize=ReleaseSafe)
+    sdk_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare c-sdk --optimize ReleaseSafe)
     (cd sdks/cpp/transit-station-sdk && zig build check -Doptimize=ReleaseSafe)
-    (cd examples/station-sdk/c && zig build -Doptimize=ReleaseSafe)
-    (cd examples/station-sdk/cpp && zig build -Doptimize=ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/harness/phases.py packaging c -- python3 -B bindings/build_c.py .cache/bindings/ReleaseSafe/c --native-prefix "$native_prefix"
+    python3 -B tests/runner/launch.py tests/harness/phases.py packaging c -- python3 -B bindings/build_c.py .cache/bindings/ReleaseSafe/c --native-prefix "$native_prefix" --sdk-prefix "$sdk_prefix"
     zig build test-direct-catalog-c -Doptimize=ReleaseSafe -Dsdk-packages=.cache/bindings/ReleaseSafe
 
 # Installed C11/C++17 catalog callers with owned values and saved recovery.
