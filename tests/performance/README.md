@@ -63,3 +63,14 @@ the same seeded data, optimization, driver and sampling options, preserve binary
 hashes, compare value digests, and record background load. Do not compare latency
 while concurrent heavy builds or proofs are running. These observations are not
 service guarantees or complete deployment memory measurements.
+
+`just test::sql-wire-encoding` also exercises the actual native result encoder and
+decoder, independently of SQL execution. It checks 10,000 scalar rows with binary
+payloads and NULL, compares one-row and full-batch controls, and reports frame
+bytes, encode/decode time, allocation calls and accounted peak memory. It verifies
+values against the generated occurrence index, confirms variable bytes borrow the
+frame, checks terminal counts and releases every accounted allocation after each
+batch. The decoder peak excludes its borrowed input frame; the report includes
+the largest frame separately. Allocation counts can vary when the underlying
+allocator grows an arena in place. These isolated costs exclude sockets, source
+execution, authority checks and storage.
