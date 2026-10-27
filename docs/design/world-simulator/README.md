@@ -4,8 +4,9 @@
 
 This design item explores a physics-grounded enterprise world simulator and
 spatial Agentic OS operator interface built as a downstream application suite
-on top of Transit. The simulator pairs a procedurally generated archipelago of
-computing and regional factions with real application code running over standard
+on top of Transit. The proposed world spans continental terrain, computing and
+regional factions, cities and inhabited facilities. It pairs those places with
+real application code intended to run over standard
 industry protocols (`TN3270/ISPF`, `FIX`, `X12 EDI`, `SOAP/XML`, `HTTP/REST`,
 `gRPC` and SQL), physical facility interiors populated with OpenUSD
 [`nvidia/simready-assets`](https://huggingface.co/datasets/nvidia/simready-assets),
@@ -27,7 +28,7 @@ It consumes Transit strictly through public client, SQL, [`Fuze`](../../handbook
 
 | Review | Focus | Status | Outcome or next decision |
 | --- | --- | --- | --- |
-| [D1](D1.md) | Macro cartographic OS with anchored web apps, computing/regional faction archeology, isometric `SimReady` facilities, first-person agent POV and manual takeover, strangler-fig modernization gameplay, and persistent MMO Mainnet rolling upgrades (`5120 × 3200` visual studies) | In review | Review the three-tier spatial zoom model (`Macro Map` $\rightarrow$ `Meso Isometric Facility` $\rightarrow$ `Micro Agent POV`), faction protocol/codec mapping, and Single-Player vs. MMO Mainnet verification goals |
+| [D1](D1.md) | Continental atlas, regional corridors, city strata, miniature facilities, agent POV, modernization comparisons and a persistent night world; original Argon Figures 1–6 plus Codex alternatives 1B–6B | In review | Reviewer requested a larger map-like world and retained miniature detail; review the five-scale camera progression, quieter styling and explicit observation/control distinction |
 
 Review status tracks the design conversation. The visual studies and local
 compositing prototype do not establish a shipped simulator binary, OpenUSD
@@ -44,7 +45,12 @@ this item is `D2.md`.
 
 ## Supporting material
 
-- [D1 visual studies and full-resolution `5120 × 3200` screens](D1.md#visual-studies),
+- [Codex map-scale visual alternatives, Figures 1B–6B](D1.md#map-scale-visual-alternatives),
+  [camera progression](D1.md#camera-progression-and-place-continuity) and
+  [exact generation prompts and asset manifest](d1-codex-prompts.json).
+  These are generated visual-styling concepts; the original local prototype
+  below continues to show Figures 1–6.
+- [Original D1 studies and `5120 × 3200` screens](D1.md#original-argon-studies),
   [interactive spatial prototype](d1.html), [screen logic](d1.js),
   [styles](d1.css), [synthetic world and faction fixture](d1-fixture.json),
   [generation and compositing specification](d1-prompts.json) and
