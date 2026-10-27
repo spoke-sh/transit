@@ -107,6 +107,14 @@ node-concurrency:
 local-native-service:
     zig build test-local-native-service
 
+# Real local owner reopen after physical disk sync outcomes are lost.
+local-owner-recovery:
+    zig build test-local-owner-recovery -Doptimize=ReleaseSafe
+
+# Authenticated standalone payload bytes, recovery and native maintenance.
+local-payload-service:
+    zig build test-local-payload-service -Doptimize=ReleaseSafe
+
 # Verify direct catalog lifecycle against signed native registration and policy.
 local-catalog:
     zig build test-local-catalog
@@ -119,6 +127,10 @@ local-data-collection:
 # Real direct Table HTTP owner, typed caller, disk restart and uncertain replies.
 direct-table-service *args:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- {{args}}
+
+# Automatic Table flushing on physical disk, with original and new retained cuts.
+direct-table-maintenance:
+    zig build test-direct-table-maintenance -Doptimize=ReleaseSafe
 
 # Focused shared host preparation, saved work and explicit direct operations.
 direct-table-callers:
@@ -671,7 +683,7 @@ server-sql:
     zig build test-server-sql -Doptimize=ReleaseSafe
 
 # Local trust/password authentication, all TLS modes and recorded owner bootstrap.
-# Exercise the default installed Transit binaries and adjacent discovery.
+# Exercise SQL protocols through the installed single Transit executable.
 server-sql-local:
     zig build test-server-sql-local -Doptimize=ReleaseSafe --prefix .cache/transit-sql-local
 
@@ -679,7 +691,7 @@ server-sql-local:
 server-sql-faults:
     zig build test-server-sql-faults -Doptimize=ReleaseSafe
 
-# Installed bundle and adjacent dependency discovery outside the checkout.
+# Installed single-executable SQL lifecycle outside the checkout.
 server-sql-package:
     nix build .#transit-local --out-link .cache/transit-sql-package
     zig build test-operation-fixture -Doptimize=ReleaseSafe
@@ -811,7 +823,11 @@ server-board:
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
     python3 -B tests/runner/launch.py tests/interfaces/installation/server_board.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host zig-out/bin/transit-board examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
-# Downstream-consumable closure and manifest, with no source-runtime dependencies.
+# Ordinary server/console and Board from one copied executable with unavailable PATH.
+server-single-executable:
+    zig build test-server-single-executable -Doptimize=ReleaseSafe
+
+# Downstream single-executable package, with no source-runtime dependencies.
 server-board-package:
     nix build .#transit-local --out-link .cache/transit-board-package
     python3 -B tests/runner/launch.py tests/interfaces/installation/server_board_package.py .cache/transit-board-package

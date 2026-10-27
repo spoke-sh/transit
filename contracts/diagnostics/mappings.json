@@ -50,6 +50,18 @@
       ],
       "exceptions": [
         {
+          "source": "packages/zig/transit-fuze/src/TableEvolution.zig",
+          "cause": "IncompatibleSchemaProjection",
+          "disposition": "control_flow",
+          "reason": "canProject consumes this sentinel to return false for edits requiring the existing validation/rewrite path. It does not classify a submitted SQL outcome or suppress a row-conversion failure.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/table_evolution_test.zig",
+              "name": "lazy schema evolution admits only independently projectable edits"
+            }
+          ]
+        },
+        {
           "source": "packages/zig/transit-fuze/src/TableDml.zig",
           "cause": "WriteFailed",
           "disposition": "control_flow",

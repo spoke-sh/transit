@@ -297,6 +297,160 @@ fn resolve(catalog: *D, access: *Access, name: []const u8) !?D.View {
     return catalog.resolve(t.allocator, 1, try a.Name.init(name), access.policy());
 }
 
+test "direct storage observations and original flush cuts survive later writes and lost publication replies" {
+    const Fixture = struct {
+        fn insert(catalog: *D, access: *Access, operation: u64, value: i64) !P.Evidence {
+            var view = (try resolve(catalog, access, "events")).?;
+            defer view.deinit();
+            const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = view.table.root.interpretation.object, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = @splat(3) };
+            const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = value } } }};
+            const request: s.TableDmlIntent.Request = .{ .binding = binding, .interpretation = view.table.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(binding.identity, 0), .cells = &cells }, .expect = .absent } }}, .ingestion = .point };
+            return (try catalog.applyRows(request, access.policy())).committed;
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try catalog.settle(create.binding, access.policy());
+    const first = try Fixture.insert(&catalog, &access, 2, 42);
+    const target: D.FlushTarget = .{ .object = create.binding.target, .through = first.outcome.position };
+    const pin = try catalog.pinRows(target.object, .{ .scope = scope, .principal = 1, .operation = 100 }, target.through, access.policy());
+    const later = try Fixture.insert(&catalog, &access, 3, 43);
+    const before = try catalog.inspectStorage(target.object, 2, access.policy());
+    try t.expectEqual(@as(u64, 2), before.pending.rows);
+    try t.expect(before.pending.complete);
+    const puts = objects.puts;
+    const partial = try catalog.inspectStorage(target.object, 1, access.policy());
+    try t.expectEqual(@as(u64, 1), partial.pending.rows);
+    try t.expect(!partial.pending.complete);
+    try t.expectEqual(before.position, partial.position);
+    try t.expectEqual(puts, objects.puts);
+    access.denied_metadata = 107;
+    try t.expectError(error.CatalogDenied, catalog.inspectStorage(target.object, 1, access.policy()));
+    try t.expectError(error.CatalogDenied, catalog.flushStorage(target, access.policy()));
+    access.denied_metadata = null;
+    access.deny_at = access.calls + 3; // Revoke after initial scope checks.
+    try t.expectError(error.CatalogDenied, catalog.flushStorage(target, access.policy()));
+    access.deny_at = std.math.maxInt(usize);
+    try t.expectEqualDeep(before, try catalog.inspectStorage(target.object, 2, access.policy()));
+    var wrong = target;
+    wrong.through.partition += 1;
+    try t.expectError(error.InvalidTableBasis, catalog.flushStorage(wrong, access.policy()));
+    wrong = target;
+    wrong.through.next_lsn = before.position.next_lsn + 1;
+    try t.expectError(error.InvalidTableBasis, catalog.flushStorage(wrong, access.policy()));
+    catalog.lose_table_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.flushStorage(target, access.policy()));
+    catalog.lose_table_reply = false;
+    // A fresh catalog reconstructs current Table acceptance. The saved cut
+    // remains complete even though the later row is still WAL-backed.
+    var recovered = try owner(&wal, &objects);
+    defer recovered.deinit();
+    const moved = try recovered.inspectStorage(target.object, 2, access.policy());
+    try t.expectEqual(@as(u64, 1), moved.pending.rows);
+    try t.expect(moved.pending.complete and moved.pending.oldest_lsn.? >= target.through.next_lsn);
+    try t.expectEqual(before.changed_lsn, moved.changed_lsn);
+    try t.expectEqual(before.live_rows, moved.live_rows);
+    const after_puts = objects.puts;
+    const repeated = try recovered.flushStorage(target, access.policy());
+    try t.expect(repeated.complete);
+    try t.expectEqualDeep(moved, repeated.observed);
+    try t.expectEqual(after_puts, objects.puts);
+    try t.expectEqualDeep(first, (try recovered.rowStatus(first.binding, access.policy())).committed);
+    try t.expectEqualDeep(later, (try recovered.rowStatus(later.binding, access.policy())).committed);
+    var original = try recovered.scanRows(t.allocator, target.object, pin, null, .{}, access.policy());
+    defer original.deinit();
+    try t.expectEqual(@as(u8, 1), original.count);
+    try t.expectEqual(@as(i128, 42), original.rows[0].?.row().cells[0].value.atom.signed);
+}
+
+test "maintenance discovery bounds a growing catalog pass and rechecks current authority" {
+    const Physical = struct {
+        calls: usize = 0,
+        deny_at: ?usize = null,
+        held: bool = false,
+        fn acquire(raw: *anyopaque) !P.Guard.Fence {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            try t.expect(!self.held);
+            self.calls += 1;
+            if (self.calls == self.deny_at) return error.Forbidden;
+            self.held = true;
+            return .{ .writer_epoch = 1, .policy_epoch = 1 };
+        }
+        fn release(raw: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            std.debug.assert(self.held);
+            self.held = false;
+        }
+        fn guard(self: *@This()) P.Guard {
+            return .{ .context = self, .acquire = acquire, .release = release };
+        }
+        fn create(catalog: *D, access: *Access, object: u64) !void {
+            var buffer: [32]u8 = undefined;
+            const request = try creation(object, object, try std.fmt.bufPrint(&buffer, "table_{d}", .{object}));
+            _ = try catalog.admit(request, access.policy());
+            _ = try catalog.perform(request.binding, access.policy());
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    var physical: Physical = .{};
+    var cursor: D.MaintenanceCursor = .{};
+    try t.expectEqualDeep(D.MaintenanceSelection{ .object = null, .pass_complete = true }, try catalog.maintenanceNext(&cursor, physical.guard()));
+    try catalog.initialize(access.policy());
+    for (100..119) |object| try Physical.create(&catalog, &access, object);
+    try t.expect(@sizeOf(D.MaintenanceCursor) <= 32);
+    for (100..119) |object| {
+        const before = catalog.store.root;
+        const puts = objects.puts;
+        const selection = try catalog.maintenanceNext(&cursor, physical.guard());
+        try t.expectEqual(@as(?u64, object), selection.object);
+        try t.expectEqual(object == 118, selection.pass_complete);
+        var view = (try catalog.maintenanceOpen(t.allocator, object, physical.guard())).?;
+        defer view.deinit();
+        try t.expectEqual(object, view.table.root.interpretation.object.object);
+        try t.expectEqualDeep(before, catalog.store.root);
+        try t.expectEqual(puts, objects.puts);
+        // New high IDs never extend this pass. A low ID waits for the next
+        // pass rather than requiring an ever-growing resident pending queue.
+        try Physical.create(&catalog, &access, object + 1000);
+        if (object == 100) try Physical.create(&catalog, &access, 10);
+    }
+    try t.expectEqualDeep(D.MaintenanceCursor{}, cursor);
+    for ([_]usize{ 1, 2 }) |offset| {
+        physical.deny_at = physical.calls + offset;
+        try t.expectError(error.Forbidden, catalog.maintenanceNext(&cursor, physical.guard()));
+        try t.expectEqualDeep(D.MaintenanceCursor{}, cursor);
+    }
+    physical.deny_at = null;
+    try t.expectEqual(@as(?u64, 10), (try catalog.maintenanceNext(&cursor, physical.guard())).object);
+    try t.expectEqual(@as(?u64, 1118), cursor.through);
+    // Reconstruct from the accepted log, with no retained owner or cursor.
+    var restarted = try owner(&wal, &objects);
+    defer restarted.deinit();
+    var fresh: D.MaintenanceCursor = .{};
+    try t.expectEqual(@as(?u64, 10), (try restarted.maintenanceNext(&fresh, physical.guard())).object);
+    physical.deny_at = physical.calls + 2;
+    try t.expectError(error.Forbidden, restarted.maintenanceOpen(t.allocator, 10, physical.guard()));
+    physical.deny_at = null;
+    cursor = .{ .after = 10 };
+    try t.expectError(error.InvalidMaintenanceCursor, catalog.maintenanceNext(&cursor, physical.guard()));
+    try t.expect(!physical.held);
+}
+
 // This seeded schedule uses volatile log/object adapters. It exercises the real
 // catalog state machine and reconstruction, not disk or provider durability.
 test "simulation: direct catalog admission, publication and original receipts under current policy" {

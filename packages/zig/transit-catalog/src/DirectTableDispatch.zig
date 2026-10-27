@@ -73,6 +73,8 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             return .initialized;
         },
         .describe => return .{ .description = catalog.store.root.configuration },
+        .storage => |value| return .{ .storage = try catalog.inspectStorage(value.object, value.pending_limit, policy) },
+        .flush => |value| return .{ .flush = try catalog.flushStorage(value, policy) },
         .read_authority => |object| return .{ .read_authority = try catalog.currentReadAuthority(object, policy) },
         .name_assertion => |value| return .{ .name_assertion = try catalog.assertName(value.binding, value.command, policy) },
         .namespace => |id| return .{ .namespace = try catalog.inspectNamespace(id, policy) },

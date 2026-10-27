@@ -2,9 +2,9 @@
 
 Start a local installation, define a task dataset, then inspect and change it
 from independent SQL sessions. The server supplies the catalog and execution
-services for this walkthrough. Use Linux x86_64 with the complete local bundle installed and
-`transit` available on `PATH` in both terminals. The bundle includes matching
-Transit, Board and SQL gateway executables. Native storage runs inside the node;
+services for this walkthrough. Use Linux x86_64 with `transit` available on
+`PATH` in both terminals. This single executable includes the node, query host,
+SQL gateway and Board with its frontend assets. Native storage runs inside the node;
 no external storage service or Docker is required at runtime.
 Check that the command is available:
 
@@ -23,7 +23,7 @@ your working directory. Keep that directory to resume the installation.
 
 ## Start with defaults
 
-The local bundle supplies executable paths and default ports. With no
+The executable supplies its runtime roles and default ports. With no
 configuration file, the server uses `./.transit` for private state. Create a
 working directory and start the server; it initializes new state automatically:
 
@@ -40,9 +40,10 @@ For this walkthrough, use the defaults and keep ports 19101–19108 available.
 
 Wait for the readable `server.ready` and `board.ready` log events, then open the
 Board endpoint shown (`http://127.0.0.1:19107` with defaults). Redirected or piped
-stdout retains a JSON ready record for scripts; operational logs go to stderr.
-Wait for SQL to report that listeners are accepting connections before opening
-a console. Core readiness and SQL readiness are separate observations.
+stdout retains a JSON core ready record for scripts; operational logs go to stderr.
+With the default local SQL connection, `server.ready` waits for console discovery
+and the initialized local account. Optional database listeners and other accounts
+still have their own SQL readiness observations.
 All listeners bind loopback; this is a trusted single-user
 installation, not an OS sandbox. Credentials and data stay in the installation
 directory. The [server guide](../../../apps/transit-cli/docs/server.md) explains

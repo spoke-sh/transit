@@ -180,6 +180,15 @@ pub fn main(init: std.process.Init) !void {
     var client = wire.Client.init(init.gpa, init.io, args[1]);
     defer client.deinit();
     client.timeout_ms = 10000;
+    if (std.mem.eql(u8, args[2], "payload")) {
+        const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.gpa, .limited(p.max_body));
+        defer init.gpa.free(bytes);
+        const parsed = try std.json.parseFromSlice(p.NativePayload.Request, init.gpa, bytes, .{});
+        defer parsed.deinit();
+        const response = try client.payload(&parsed.value);
+        try std.json.Stringify.value(response, .{}, &output.interface);
+        return output.interface.flush();
+    }
     var root: Caller = .{ .client = &client, .principal = 0, .key = root_key };
     var worker: Caller = .{ .client = &client, .principal = 65536, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) };
     if (std.mem.startsWith(u8, args[2], "maintenance-")) {

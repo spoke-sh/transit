@@ -93,10 +93,12 @@ enrolled `local_owner` account records its initial binding automatically; it
 never restores revoked access. Password accounts require `password_file`;
 trust accounts omit it. MySQL password authentication requires TLS.
 
-`executables.sql_gateway` identifies the matching gateway artifact in the local
-bundle. The installation fingerprints that artifact even while both protocols
-are disabled, so enabling a listener does not change its immutable artifact
-identity. Listener settings do not grant native, catalog or data access. The
+The SQL gateway runs from the installed `transit` executable by default.
+`executables.sql_gateway` selects an explicit matching standalone artifact;
+missing or null selects the built-in role. The installation fingerprints the
+role, invocation mode, shared definition and executable bytes even while both
+protocols are disabled, so enabling a listener does not change that identity.
+Listener settings do not grant native, catalog or data access. The
 [local database guide](../../../apps/transit-cli/docs/sql.md) describes enrollment,
 trust and retained-worker lifecycle. `sql.command_ms` bounds each SQL statement
 and defaults to 30 seconds, with a maximum of 270 seconds. A session statement
@@ -229,9 +231,10 @@ allows that caller to receive sanitized coordinates for its own validation
 failure; values and unknown field names are omitted. Historical coordinates
 require provenance. Registered sensitive values are always redacted.
 
-Artifact paths can change only to executables matching the installation's
-recorded hashes. Reload validates them before accepting the candidate; a mismatch
-rejects the candidate. Startup preserves the same identity protection. Storage
+Explicit artifact paths can change only to executables matching the installation's
+recorded hashes. Switching between built-in and standalone roles changes artifact
+identity even if the bytes match. Reload validates identities before accepting
+the candidate; a mismatch rejects it. Startup preserves the same identity protection. Storage
 errors never initialize or clear the installation. A completed installation
 requires its retained configuration checkpoint before any child starts; missing
 state is not replaced with defaults. Keep the checkpoint and history together
@@ -246,6 +249,35 @@ control/collection reserve and the private candidate buffer. Defaults are 8 GiB,
 64 MiB and 8 MiB. Byte quantities accept the same units as other byte settings.
 Changes require restart. `SHOW storage.limits.bytes` reports the configured quota,
 not current filesystem usage.
+
+`storage.maintenance.flush.enabled` enables automatic local Table flushing and
+defaults to true in `transit server`. A bare node defaults it to false and
+requires both a configured Table host and maintenance principal when enabled.
+The other flush settings are:
+
+| Setting suffix | Default | Valid range | Meaning |
+| --- | --- | --- | --- |
+| `rows` | 256 | 1–1,024 | Current WAL row threshold |
+| `work_rows` | 32 | 1–1,024 | Maximum current WAL rows relocated per turn |
+| `bytes` | 256 KiB | 1–9,007,199,254,740,991 bytes | Encoded current WAL row threshold |
+| `age_ms` | 5,000 ms | 1–60,000 ms | Maximum known pending age before eligibility |
+| `resident_bytes` | 128 MiB | 32–512 MiB | Aggregate private Table maintenance workspace |
+
+These settings use the `storage.maintenance.flush.` prefix and require restart.
+Either row/byte threshold or age makes a Table eligible. The owner keeps at most
+64 volatile age hints; unknown ages after restart or eviction are immediately
+eligible. A prior empty observation conservatively bounds when rows became
+pending. Age controls eligibility, not a completion deadline under competing
+Tables or unavailable storage. One executor alternates lifecycle work and
+physical work, visiting one persisted object entry per Table turn. A fixed pass
+boundary prevents new high-ID Tables from extending the pass indefinitely.
+
+The private workspace includes catalog/Table owners, read caches, index staging
+and encoding. Native authority caches and bounded backend I/O buffers retain
+their separate limits. The node's maintenance operation deadline bounds each
+turn. Timeout, revocation, allocation budget or disk quota refusal leaves accepted
+rows recoverable; subsequent turns advance through the other Tables. No flush
+setting expires history, releases a read pin or grants a privilege.
 
 All allocations use ordinary capacity when available. Eligible control and
 collection work can use the separate reserve when ordinary capacity is exhausted;

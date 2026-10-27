@@ -109,7 +109,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         break :assets source;
     };
     const asset_module = b.createModule(.{ .root_source_file = asset_source, .target = target, .optimize = optimize });
-    const board = b.addExecutable(.{ .name = "transit-board", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-board/main.zig"), .target = target, .optimize = optimize, .imports = &.{
+    const board = b.addExecutable(.{ .name = "transit-board", .root_module = b.addModule("transit_board_role", .{ .root_source_file = b.path("apps/transit-board/main.zig"), .target = target, .optimize = optimize, .imports = &.{
         .{ .name = "transit_station_app", .module = application.module("transit_station_app") },
         .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
         .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
@@ -141,7 +141,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     var station_host: *std.Build.Step.Compile = undefined;
     var client_host: *std.Build.Step.Compile = undefined;
     for ([_][]const u8{ "transit-node", "transit-admin", "transit-runtime-controller", "transit-delivery", "transit-station-controller", "transit-station-host", "transit-client-host" }) |name| {
-        const app = b.addExecutable(.{ .name = name, .root_module = b.createModule(.{
+        const app = b.addExecutable(.{ .name = name, .root_module = b.addModule(name, .{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
             .optimize = optimize,
@@ -206,7 +206,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("grpc-bindings", "Install offline RPC request helper generator").dependOn(&install_grpc_bindings.step);
     var transit_cli: *std.Build.Step.Compile = undefined;
     inline for (.{ .{ "transit-query-host", "transit-query-host" }, .{ "transit", "transit-cli" } }) |entry| {
-        const app = b.addExecutable(.{ .name = entry[0], .root_module = b.createModule(.{
+        const app = b.addExecutable(.{ .name = entry[0], .root_module = b.addModule(entry[0], .{
             .root_source_file = b.path("apps/" ++ entry[1] ++ "/main.zig"),
             .target = target,
             .optimize = optimize,
@@ -234,6 +234,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
         b.step(entry[0], "Install " ++ entry[0]).dependOn(&install.step);
     }
+    // One implementation module per role is shared by the standalone artifact
+    // and the local executable. Process isolation and acceptance owners stay
+    // unchanged; `transit` dispatches only the selected private role at startup.
+    transit_cli.root_module.addImport("transit_node_role", node_artifact.root_module);
+    transit_cli.root_module.addImport("transit_query_host_role", query_host.root_module);
+    transit_cli.root_module.addImport("transit_board_role", board.root_module);
+    transit_cli.root_module.addImport("transit_sql_gateway_role", sql_gateway_app.root_module);
     const flight_gateway = b.dependency("transit_flight_gateway", .{ .target = target, .optimize = optimize }).artifact("transit-flight-gateway");
     b.step("transit-flight-gateway", "Install the finite Flight gateway").dependOn(&b.addInstallArtifact(flight_gateway, .{}).step);
     const install_sql_gateway = b.addInstallArtifact(sql_gateway_app, .{});

@@ -2,9 +2,10 @@
 
 `transit server` creates a private installation when its directory is missing
 or empty, then runs it in the foreground. The same command opens an existing
-installation or resumes its recorded setup. Version 1 starts and supervises a
-separate `transit-board` process
-by default. Its frontend assets are bundled inside the Board executable. Add
+installation or resumes its recorded setup. The executable includes the node,
+query host, SQL gateway and Board. The server supervises them as separate
+processes launched from that same executable. Board runs by default, with its
+frontend assets embedded in `transit`. Add
 `--no-ui` for a headless invocation. The server runs on
 Linux x86_64 in a trusted single-user placement. Kubernetes/Substrate remains
 the reference isolation profile. Executed recovery and capacity evidence belongs
@@ -76,12 +77,16 @@ payloads or credentials. SQL waiting for its first health check reports `startin
 previously ready SQL service reports `unavailable`. A failed native authority
 observation can report `busy` or `unavailable` with its cause even during startup;
 recovery retains the same pending work and requires a fresh readiness check.
-Unchanged status and connection hints are suppressed. The SQL status file remains the complete observed account
-state. Core readiness does not imply that optional SQL listeners already accept
+Unchanged status and connection hints are suppressed. With local SQL enabled,
+`server.core_ready` announces the available core services; `server.ready` waits
+for the initialized local account and SQL rendezvous so `transit console` can
+connect. SQL refusal leaves the core administration path available and reports
+its own failure without announcing local readiness. The SQL status file remains
+the complete observed account state. Core readiness does not imply that optional SQL listeners already accept
 connections; wait for `sql.status` with `operation="accepting"` or inspect the file.
 
 On a terminal, readiness appears in stderr logs. Redirected or piped stdout
-retains the JSON ready-record stream for scripts, independently of log format
+retains the JSON core ready-record stream for scripts, independently of log format
 and level. Command/input errors are human-readable; operational logs use `logging.format`. Log filtering or a
 failed sink can hide a readiness notice, so automation uses stdout or probes.
 
@@ -91,19 +96,16 @@ The installed local bundle runs without a configuration file. Defaults select
 version 1, realm 1, an installation at `./.transit`, loopback ports 19104 and
 19105 for node and gateway, application management
 on 19106, and Board on 19107. Application quotas are eight applications and 32
-roles. For missing executable settings, lookup prepends the directory containing
-the physical `transit` executable to the inherited `PATH`. The default names are
-`transit-node`, `transit-query-host`, `transit-board` and `transit-sql-gateway`.
-Running `transit server` searches that executable’s directory first, then
-`PATH`. Symlink invocation uses the resolved executable directory. A missing
-artifact must be installed there or available on `PATH`; lookup reports its
-name. Explicit `executables` paths override lookup. The effective search is
-bounded to a 64 KiB `PATH` and 256 entries.
+roles. Missing or null `executables` settings select roles built into `transit`.
+Copying that one executable is sufficient; startup requires no sibling programs,
+executable manifest or runtime tools on `PATH`.
 
-The local bundle places all dependencies in its `bin` directory, so it needs no
-ambient tools. A manifest is still provided for downstream consumers, but server
-startup does not read it. Resolved absolute executable paths and hashes are
-recorded before starting children; restart retains the same identity checks.
+Explicit `executables` paths select matching standalone role binaries, resolved
+relative to the configuration file. The installation records the executable
+hash, role, invocation mode and shared contract definition before starting
+children. Restart requires those same identities. Changing between a built-in
+role and a standalone executable is an incompatible artifact change even when
+the files have identical bytes.
 
 With no `--config`, the server selects the **first existing** file:
 
@@ -186,7 +188,8 @@ Configuration rejects unknown fields and incompatible versions; ports must be di
 listeners bind `127.0.0.1`. The parent of `installation` must exist. Connectors,
 remote listeners and alternate source definitions remain unsupported.
 
-Version 1 requires a resolved `executables.board`, supplied by the bundle by default. Optional `board` settings default to
+Board uses the built-in role unless `executables.board` selects a standalone
+binary. Optional `board` settings default to
 `{"port":19107,"public_origin":"http://127.0.0.1:19107"}`. Override the port for
 multiple installations; omit the origin to derive it from that port, or specify
 the exact matching loopback origin. The printed `board_url` uses `127.0.0.1`;
@@ -209,8 +212,8 @@ separately. The local adapter enforces encoded-byte allocation limits and a
 control reserve; filesystem exhaustion can still reject or leave an operation
 uncertain. Neither physical pressure nor reserve exhaustion authorizes data loss.
 
-The selected dependency set is the matching Transit CLI, node, query host, Board
-and SQL gateway build. Native state persists in `data/native/wal` and
+The default dependency set is the single Transit executable. Explicit standalone
+overrides must use the matching build. Native state persists in `data/native/wal` and
 `data/native/objects` under the installation directory through the
 [local backend](../../../packages/zig/transit-backend-local/README.md). It uses
 no external storage service. Native page objects are `.data` files; selecting
@@ -479,8 +482,8 @@ UI re-enablement use the same compatible installation and retained history.
 
 Retain the installed local bundle for the lifetime of its installations.
 The [source installation guide](../../../nix/README.md#transit-cli-packages)
-explains package retention. Its manifest includes Board and all native
-providers; paths and executable hashes identify the selected bytes. Do not replace
+explains package retention. Role identities and executable hashes identify the
+selected bytes. Do not replace
 individual pinned paths during ordinary restart. Runtime execution needs no
 Node, Python, frontend dev server, source tree, Docker or ambient PATH lookup.
 

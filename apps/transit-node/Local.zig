@@ -5,6 +5,7 @@ const backend = @import("transit_backend_local");
 const telemetry = @import("transit_observability").telemetry;
 const server = @import("NativeServer.zig");
 const Maintenance = @import("GrowingMaintenance.zig");
+const TableMaintenance = @import("LocalTableMaintenance.zig");
 pub const TableHost = @import("LocalTableHost.zig");
 const Self = @This();
 pub const Store = backend.Store;
@@ -31,8 +32,31 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     defer parsed.deinit();
     const config = parsed.value;
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
+    try config.storage.maintenance.flush.validate();
+    if (config.storage.maintenance.flush.enabled and (config.table == null or config.maintenance == null)) return error.LocalTableMaintenanceRequiresOwner;
     if (mode.maintain) return error.LocalMaintenanceRequiresOwner;
     if (config.storage.maintenance.compact) return error.LocalCompactionUnavailable;
+    var reopens: u8 = 0;
+    while (true) {
+        runOwner(init, config, .{
+            .initialize = mode.initialize and reopens == 0,
+            .bootstrap = mode.bootstrap and reopens == 0,
+        }, diagnostics) catch |err| {
+            if (err != error.LocalWalReopenRequired) return err;
+            if (reopens == 3) return error.LocalWalReopenBudget;
+            reopens += 1;
+            // runOwner has joined requests/maintenance and released every
+            // borrowed handle before its exclusive directory lock is closed.
+            // A replacement opens existing history, never bootstrap/reset.
+            diagnostics.event(.{ .name = "storage.owner.reopen", .level = .warn, .operation = "open", .error_type = "WalRecoveryRequired" });
+            try init.io.sleep(.fromMilliseconds(@as(u32, reopens) * 250), .awake);
+            continue;
+        };
+        return;
+    }
+}
+
+fn runOwner(init: std.process.Init, config: Config, mode: anytype, diagnostics: *telemetry.Runtime) !void {
     var owner = try backend.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), config.local_directory, config.storage.limits);
     defer owner.deinit();
     var pages = try PageStore.init(&owner, config.resident_pages);
@@ -71,7 +95,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
         lane.table = if (table) |*value| value else null;
         initialized += 1;
     }
-    if (config.maintenance) |configured| {
+    if (config.maintenance != null) {
         // This lane shares only the exclusive physical owner. Its mutable
         // authority, cache and scanner are private to the maintenance task.
         var maintenance_pages = try PageStore.init(&owner, config.resident_pages);
@@ -81,28 +105,49 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
         var maintenance_engine = engine;
         maintenance_engine.journal = &maintenance_journal;
         maintenance_engine.page_store = &maintenance_pages;
-        var maintenance = configured;
-        maintenance.storage = config.storage.maintenance;
-        const Task = struct {
-            fn run(process: std.process.Init, owned: *Engine, settings: Maintenance.Config, runtime: *telemetry.Runtime) anyerror!void {
-                return Maintenance.run(Self, process, owned, settings, runtime);
-            }
-            fn serve(process: std.process.Init, authority: *Engine, requests: []Lane, settings: Config, runtime: *telemetry.Runtime) anyerror!void {
-                return server.Host(Self).serve(process, authority, requests, settings, runtime);
-            }
-        };
-        const Result = union(enum) { server: anyerror!void, maintenance: anyerror!void };
-        var results: [2]Result = undefined;
-        var select: std.Io.Select(Result) = .init(init.io, &results);
-        defer select.cancelDiscard(); // Join both tasks before releasing the owner.
-        try select.concurrent(.maintenance, Task.run, .{ init, &maintenance_engine, maintenance, diagnostics });
-        try select.concurrent(.server, Task.serve, .{ init, &engine, lanes, config, diagnostics });
-        return switch (try select.await()) {
-            .server => |result| result,
-            .maintenance => |result| result,
-        };
+        return runServices(init, &engine, lanes, config, &maintenance_engine, diagnostics);
     }
-    return server.Host(@This()).serve(init, &engine, lanes, config, diagnostics);
+    return runServices(init, &engine, lanes, config, null, diagnostics);
+}
+
+fn runServices(init: std.process.Init, engine: *Engine, lanes: []Lane, config: Config, maintenance_engine: ?*Engine, diagnostics: *telemetry.Runtime) !void {
+    var table_maintenance: ?TableMaintenance = if (lanes[0].table) |host| .{ .host = host } else null;
+    const Task = struct {
+        fn maintain(process: std.process.Init, owned: *Engine, settings: Maintenance.Config, runtime: *telemetry.Runtime, extension: ?Maintenance.Extension(Self)) anyerror!void {
+            return Maintenance.run(Self, process, owned, settings, runtime, extension);
+        }
+        fn maintainTable(raw: *anyopaque, owned: *Engine, settings: Maintenance.Config, signed: core.protocol.Growth.SignedRequest) anyerror!bool {
+            return TableMaintenance.step(raw, owned, settings.storage.flush, signed);
+        }
+        fn serve(process: std.process.Init, authority: *Engine, requests: []Lane, settings: Config, runtime: *telemetry.Runtime) anyerror!void {
+            return server.Host(Self).serve(process, authority, requests, settings, runtime);
+        }
+        fn watch(io: std.Io, owner: *backend.Backend) anyerror!void {
+            while (true) {
+                if (try owner.requiresRecovery()) return error.LocalWalReopenRequired;
+                try io.sleep(.fromMilliseconds(100), .awake);
+            }
+        }
+    };
+    const Result = union(enum) { server: anyerror!void, maintenance: anyerror!void, recovery: anyerror!void };
+    var results: [3]Result = undefined;
+    var select: std.Io.Select(Result) = .init(init.io, &results);
+    // Cancellation joins the HTTP listener and all request lanes, maintenance
+    // and the observer before runOwner releases any pages or physical storage.
+    defer select.cancelDiscard();
+    if (maintenance_engine) |owned| {
+        var maintenance = config.maintenance.?;
+        maintenance.storage = config.storage.maintenance;
+        const extension: ?Maintenance.Extension(Self) = if (table_maintenance) |*work| .{ .context = work, .step = Task.maintainTable } else null;
+        try select.concurrent(.maintenance, Task.maintain, .{ init, owned, maintenance, diagnostics, extension });
+    }
+    try select.concurrent(.server, Task.serve, .{ init, engine, lanes, config, diagnostics });
+    try select.concurrent(.recovery, Task.watch, .{ init.io, engine.journal.backend });
+    return switch (try select.await()) {
+        .server => |result| result,
+        .maintenance => |result| result,
+        .recovery => |result| result,
+    };
 }
 
 pub const Lane = struct {
@@ -136,6 +181,55 @@ pub fn collect(_: *Engine, _: Maintenance.Config, _: core.Ed25519.KeyPair, _: *c
     return false;
 }
 
-pub fn reclaimPayload(_: *Engine, _: core.protocol.Growth.Payload) !void {
-    return error.LocalPayloadReclamationUnavailable;
+pub fn reclaimPayload(engine: *Engine, value: core.protocol.Growth.Payload, signed: core.protocol.Growth.SignedRequest) !void {
+    const Admission = struct {
+        signed: core.protocol.Growth.SignedRequest,
+        fn check(context: *anyopaque, authority: *Engine) !void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            try authority.authorizePayloadRetirement(self.signed);
+        }
+    };
+    var admission: Admission = .{ .signed = signed };
+    var store: backend.PayloadStore = .{ .engine = engine, .guard = .{ .context = &admission, .check = Admission.check } };
+    try store.reclaimPayload(value);
+}
+
+pub fn payload(engine: *Engine, request: *const core.protocol.NativePayload.Request, response: *core.protocol.NativePayload.Response) !void {
+    try request.validate();
+    const Admission = struct {
+        request: *const core.protocol.NativePayload.Request,
+        fn check(context: *anyopaque, authority: *Engine) !void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            _ = try authority.authorizePayload(self.request.operation, self.request.proof);
+        }
+    };
+    // This first observation selects an exact declaration. The adapter checks
+    // both current authorization and that declaration again under its I/O fence.
+    const value = try engine.authorizePayload(request.operation, request.proof);
+    var admission: Admission = .{ .request = request };
+    var store: backend.PayloadStore = .{ .engine = engine, .observe = engine.journal.observe, .guard = .{ .context = &admission, .check = Admission.check } };
+    store.observe.metrics = .{};
+    defer inline for (@typeInfo(@TypeOf(store.observe.metrics)).@"struct".field_names) |name| {
+        @field(engine.journal.observe.metrics, name) +|= @field(store.observe.metrics, name);
+    };
+    response.* = .{ .definition = core.protocol.Growth.current_definition, .realm = engine.genesis.realm, .payload = value, .outcome = undefined, .body = .{} };
+    switch (request.operation.kind) {
+        .create => {
+            store.createPayloadOnce(value, request.body.slice()) catch |err| {
+                if (err != error.PayloadCreationAttempted) return err;
+                response.outcome = .verify_required;
+                return;
+            };
+            response.outcome = .created;
+        },
+        .verify => {
+            try store.verifyPayload(value);
+            response.outcome = .verified;
+        },
+        .read => {
+            const bytes = try store.readPayload(value, response.body.data[0..core.protocol.max_payload_bytes]);
+            response.body.len = @intCast(bytes.len);
+            response.outcome = .read;
+        },
+    }
 }

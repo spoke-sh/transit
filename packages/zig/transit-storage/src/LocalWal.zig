@@ -58,6 +58,12 @@ pub const LocalWal = struct {
         self.* = undefined;
     }
 
+    /// Caller serialization is the same as for log operations. Only closing
+    /// and reopening the disk owner can clear uncertain publication state.
+    pub fn requiresRecovery(self: *const LocalWal) bool {
+        return if (self.disk) |disk| disk.poisoned else false;
+    }
+
     pub fn log(self: *LocalWal) TransitLog.Log {
         return .{
             .context = self,

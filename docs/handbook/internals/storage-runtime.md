@@ -159,8 +159,10 @@ cuts. The [installed execution proof](../../history/qualification/runtime.md#ins
 and [direct CRUD/DDL proof](../../history/qualification/catalog.md#direct-table-crudddl-recovery--2026-10-23)
 record exact-retry, restart, revocation and name-replacement schedules and their
 reproduction commands. Those runs do not establish arbitrary power-loss safety,
-cloud storage placement or physical Table collection. Automatic point flushing,
-cache tiering and distributed OCC remain design work in the model below.
+cloud storage placement or physical Table collection. The current local server
+also schedules [bounded automatic point flushing](../reference/storage.md#direct-table-data);
+that later behavior is outside the scope of those historical runs. Cache tiering
+and distributed OCC remain design work in the model below.
 
 ### Reusing validated catalog history within a live owner
 

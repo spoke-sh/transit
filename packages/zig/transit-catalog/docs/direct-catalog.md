@@ -8,6 +8,25 @@ default launcher and shared SQL runtime use this direct owner. Captured and
 maintained query owners retain its sources through original-caller grants.
 This owner has no automatic execution scheduler.
 
+The internal `maintenanceNext` traversal inspects one current object entry per
+step under a host-supplied native maintenance guard. A pass fixes the largest
+accepted object ID at its start; later insertions beyond that boundary wait for
+the next pass. Its two scalar hints do not retain a directory snapshot or an
+owner per Table. Restart may discard them and start another pass. Unregistered
+and named native-resource entries consume a bounded step without opening a Table.
+The host holds shared directory access, acquires the selected Table's usual lock,
+then calls `maintenanceOpen` to revalidate the entry and recover its accepted
+owner. These internal methods recheck current authority before returning; they
+are not an application metadata or maintenance request endpoint.
+
+Public `storage` and `flush` actions use the same signed direct client and
+catalog permission checks. Inspection reports bounded current WAL backlog and
+separate accepted, logical-change, archive, checkpoint and history frontiers.
+Explicit flush executes one unit at a saved exclusive acceptance cut; repeating
+that cut recovers physical coverage without creating a separate work queue or
+logical mutation. See the [storage action contract](../../../../contracts/DIRECT_TABLE_V1.md#physical-storage-observations-and-fixed-flush-targets)
+for permission, partial counts and uncertain outcomes.
+
 The [direct request contract](../../../../contracts/DIRECT_TABLE_V1.md) defines
 signed declaration, row-operation and retained-read envelopes. Its node
 dispatcher calls this owner with current native policy and rechecks disclosed

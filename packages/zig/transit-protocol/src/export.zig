@@ -40,11 +40,12 @@ pub fn main(init: std.process.Init) !void {
             .{ .path = "/v1/command", .method = "POST", .request = "CommandEnvelope", .response = "Receipt", .failure = "ErrorResponse" },
             .{ .path = "/v1/query", .method = "POST", .request = "SignedQuery", .response = "Response", .failure = "ErrorResponse" },
             .{ .path = "/v1/blocks", .method = "POST", .request = "SignedQuery", .response = "BlockResponse", .failure = "ErrorResponse" },
+            .{ .path = "/v1/payload", .method = "POST", .request = "PayloadRequest", .response = "PayloadResponse", .failure = "ErrorResponse" },
         },
     });
     try out.objectField("$defs");
     try out.beginObject();
-    inline for (.{ "Request", "SignedRequest", "CommandEnvelope", "BlockResponse", "Query", "SignedQuery", "Response", "Receipt", "ErrorResponse" }, .{ g.Request, g.SignedRequest, g.CommandEnvelope, g.BlockRead.Response, g.Query, g.SignedQuery, g.Response, p.Receipt, p.ErrorResponse }) |name, T| {
+    inline for (.{ "Request", "SignedRequest", "CommandEnvelope", "BlockResponse", "Query", "SignedQuery", "Response", "Receipt", "ErrorResponse", "PayloadRequest", "PayloadResponse" }, .{ g.Request, g.SignedRequest, g.CommandEnvelope, g.BlockRead.Response, g.Query, g.SignedQuery, g.Response, p.Receipt, p.ErrorResponse, p.NativePayload.Request, p.NativePayload.Response }) |name, T| {
         try out.objectField(name);
         try p.Schema.write(T, &out, .{ .safe_integers = true });
     }

@@ -90,6 +90,12 @@ exclusive upper bound, so catalog namespace scans avoid unrelated leaves. Scans
 read one extra in-range entry to
 distinguish continuation from completion and return owned bytes at the supplied root.
 
+`lastEntry` follows one verified rightmost path and returns an owned key/value
+pair, or null for an empty root. Its work is bounded by tree height. Physical
+maintenance can keep the resulting scalar boundary for a finite pass through
+a changing directory; later insertions cannot extend that pass indefinitely.
+The boundary retains neither a root nor permission to read it.
+
 ## Persistence and publication obligations
 
 A provider must confirm immutable page persistence before returning from staging,

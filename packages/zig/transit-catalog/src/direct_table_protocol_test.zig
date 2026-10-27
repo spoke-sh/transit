@@ -5,6 +5,62 @@ const w = c.DirectTableProtocol;
 const p = c.protocol;
 
 const ResourceFixture = struct { request: w.Request, public_key: [32]u8, resource: c.DirectResource.Definition, digest: [32]u8 };
+
+test "direct storage responses bind physical coverage to the original Table and flush cut" {
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const connection: w.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .principal = 4, .role = null, .audience = 5 };
+    const object: p.DataLifecycle.Object = .{ .scope = connection.scope, .branch = 1, .object = 7 };
+    var declaration = try c.storage.TableDeclaration.prepare(alloc, .{ .object = object, .revision = 1, .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }} }, .properties = "" });
+    defer declaration.deinit();
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .storage = .{ .object = object, .pending_limit = 1 } } };
+    const context = try w.Request.context(input, alloc);
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
+    const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, key);
+    var request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .delegation = null, .proof = proof };
+    const observation: c.DirectCatalog.StorageObservation = .{ .interpretation = try declaration.stored(), .position = .{ .partition = 2, .next_lsn = 8 }, .changed_lsn = 7, .live_rows = 3, .pending = .{ .rows = 1, .bytes = 100, .complete = false, .oldest_lsn = 4 }, .archive_through = 2, .recovery_through = 3, .history_floor = 0 };
+    var response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .storage = observation } };
+    try c.DirectTableClient.validateResponse(alloc, request, response);
+    try t.expect(!request.transport().mutation and request.transport().control == null);
+    inline for (0..9) |case| {
+        var changed = response;
+        const value = &changed.result.storage;
+        switch (case) {
+            0 => value.interpretation.interpretation.object.object += 1,
+            1 => value.pending.rows = 2,
+            2 => value.pending.bytes = 0,
+            3 => value.pending.oldest_lsn = null,
+            4 => value.pending.oldest_lsn = 8,
+            5 => value.archive_through = 8,
+            6 => value.recovery_through = 0,
+            7 => value.history_floor = 9,
+            8 => value.live_rows = 1,
+            else => unreachable,
+        }
+        try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, changed));
+    }
+    const target: c.DirectCatalog.FlushTarget = .{ .object = object, .through = .{ .partition = 2, .next_lsn = 4 } };
+    request.action = .{ .flush = target };
+    request.proof.claim.context = try w.Request.context(request.input(), alloc);
+    request.proof = try p.Authorization.Proof.sign(request.proof.claim, key);
+    response.context = request.proof.claim.context;
+    response.subject.context = request.proof.claim.context;
+    response.result = .{ .flush = .{ .target = target, .observed = observation, .complete = true } };
+    try c.DirectTableClient.validateResponse(alloc, request, response);
+    try t.expect(request.transport().mutation and request.transport().control == null);
+    inline for (0..4) |case| {
+        var changed = response;
+        switch (case) {
+            0 => changed.result.flush.target.through.next_lsn += 1,
+            1 => changed.result.flush.complete = false,
+            2 => changed.result.flush.observed.position.partition += 1,
+            3 => changed.result.flush.observed.pending.oldest_lsn = 3,
+            else => unreachable,
+        }
+        try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, changed));
+    }
+}
 test "named resource consumes independent signed intent and exact definition digest" {
     const parsed = try p.Json.parseFromSlice(ResourceFixture, t.allocator, @embedFile("fixtures/direct-resource-v1.json"));
     defer parsed.deinit();

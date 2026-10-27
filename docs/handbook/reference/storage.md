@@ -44,10 +44,22 @@ counts and per-row positions preserve skipped-row coverage, LIMIT and ordered
 failure attribution. Empty pages can carry continuations. The owner rechecks
 current rights for selected, empty and terminal pages.
 
-The installed owner does not automatically flush point writes or expose physical
-Table garbage collection. Absence of a new `.tseg` after a point write does not
-imply that the write is missing: inspect its exact operation outcome and Table
-data position. The [Table reference](tables.md) and
+The local server enables automatic flushing of current WAL rows by default.
+Its [storage configuration](configuration.md#immutable-storage) controls
+eligibility and per-turn work limits. Bare node deployments enable it explicitly.
+WAL acceptance remains the durability boundary; an INSERT does not wait for
+background flushing. Absence of a new `.tseg` after a point write does not imply
+that the write is missing. The signed direct `storage` operation reports exact
+acceptance and logical-change positions, bounded current WAL backlog and separate
+archive, recovery-checkpoint and history frontiers. Incomplete backlog counts
+are labelled as lower bounds. Historical readers can still retain WAL bytes
+after current rows have moved to segments.
+
+The direct `flush` operation executes one bounded unit at an explicit saved
+acceptance cut. Its completion condition excludes later writes; repeating the
+same target after uncertainty resolves accepted physical coverage. Inspection
+does not initiate work. Automatic physical Table garbage collection remains a
+separate integration obligation. The [Table reference](tables.md) and
 [direct owner guide](../../../packages/zig/transit-catalog/docs/direct-catalog.md)
 describe the caller operations; native resource storage below has a separate
 acceptance and maintenance boundary.
@@ -178,8 +190,10 @@ disk headroom and trusted clock assumptions are deployment responsibilities;
 an in-memory store test does not establish WAL or host power-loss behavior.
 The local backend also exposes explicit [standalone payload operations](../../../packages/zig/transit-backend-local/docs/payloads.md).
 They verify the accepted declaration, preserve uncertain creation and require
-opted-in native retirement before physical deletion. Installed local payload
-routes remain separate from these component operations.
+opted-in native retirement before physical deletion. The installed local node's
+[payload route](../../../contracts/SERVICE_V1.md#standalone-payload-bytes) exposes
+authenticated creation, original-attempt verification and ready-byte reads.
+Its maintenance principal reconciles opted-in deletion through the same owner.
 See [retention](retention.md) and [deployment](deployment.md).
 
 The [backend package](../../../packages/zig/transit-backend-ursula/README.md) and

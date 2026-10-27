@@ -9,6 +9,7 @@ const d = p.DataLifecycle;
 const w = c.DirectTableProtocol;
 const t = std.testing;
 const Lifecycle = @import("fixture_direct_table_lifecycle");
+const Maintenance = @import("fixture_direct_table_maintenance");
 const Conditions = @import("fixture_direct_sql_conditions");
 const SqlPins = @import("fixture_direct_sql_read_recovery");
 const Captured = @import("fixture_direct_captured_query");
@@ -23,7 +24,7 @@ const Dependencies = @import("fixture_direct_dependencies");
 const NamedResources = @import("fixture_direct_named_resources");
 const sql_runtime = @import("transit_sql");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
-const Profile = struct { dependency_growth: ?Dependencies.GrowthState = null, resource_growth: ?NamedResources.GrowthState = null, selected_login: ?u64 = null, growth: ?Growth.State = null, definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null, named_resources: ?NamedResources.State = null };
+const Profile = struct { maintenance: ?Maintenance.State = null, dependency_growth: ?Dependencies.GrowthState = null, resource_growth: ?NamedResources.GrowthState = null, selected_login: ?u64 = null, growth: ?Growth.State = null, definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null, named_resources: ?NamedResources.State = null };
 const Admin = struct {
     client: *wire.Client,
     pub fn query(self: *@This(), kind: @FieldType(p.Authorization.Query, "kind")) !g.Response {
@@ -456,6 +457,17 @@ pub fn main(init: std.process.Init) !void {
             try Dependencies.uncertain(client, profile.dependencies.?.host_removal);
         } else if (std.mem.eql(u8, args[2], "dependency-final")) {
             try Dependencies.finish(client, profile.dependencies.?);
+        } else if (std.mem.eql(u8, args[2], "maintenance-prepare")) {
+            profile.maintenance = try Maintenance.prepare(init, client, profile.role);
+            try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "maintenance-inspect")) {
+            try Maintenance.inspect(client, profile.maintenance.?, &output.interface);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "maintenance-wal")) {
+            try Maintenance.verify(init, client, &profile.maintenance.?, false);
+        } else if (std.mem.eql(u8, args[2], "maintenance-flushed")) {
+            try Maintenance.verify(init, client, &profile.maintenance.?, true);
+            try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "write")) {
             try write(init, client, &profile);
             profile.delegation = try Delegation.prepare(client);

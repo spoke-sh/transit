@@ -13,6 +13,11 @@ and blocks are staged as verified immutable objects. A single conditional WAL
 append publishes the next catalog and policy roots. A lost reply remains
 uncertain; reopening and resubmitting the same signed operation recovers its
 existing receipt without repeating staging. Recovery does not execute effects.
+`requiresRecovery` observes uncertainty in all three owned WALs under their
+serialization locks. It does not clear the condition: the service must join
+borrowers, close the owner and validate the original directory on reopen.
+The [node lifecycle](../../../apps/transit-node/docs/operations.md) defines the
+bounded replacement policy and exhausted-outcome behavior.
 
 `PageStore` owns a configured cache of at most 4,096 pages. Durable page count
 does not determine cache size. Each operation has the shared candidate byte
@@ -117,8 +122,9 @@ for invocation, ownership, quotas and recovery. Table objects and standalone
 payloads retain separate ownership; this collector does not delete them or
 schedule automatic local collection. `PayloadStore` implements explicit
 [standalone payload publication and retirement](docs/payloads.md) under the
-existing native declarations. These component operations are separate from
-installed node payload routes and automatic maintenance.
+existing native declarations. The local node composes them into authenticated
+payload publication/read operations and opted-in maintenance deletion, with
+current service authorization rechecked under the physical owner's fence.
 
 `DataCollection.Collector(transit_catalog.DirectStorageGraph)` composes the local
 allocation/deletion mechanism with complete Table/catalog dependency traversal.

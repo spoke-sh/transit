@@ -41,6 +41,7 @@ pub const TableSchema = @import("TableSchema.zig");
 pub const TableWitness = @import("TableWitness.zig");
 pub const TableRow = @import("TableRow.zig");
 pub const TableEvolution = @import("TableEvolution.zig");
+pub const TableSchemaProjection = @import("TableSchemaProjection.zig");
 pub const SqlTypes = @import("SqlTypes.zig");
 pub const SqlTyped = @import("SqlTyped.zig");
 pub const TableDdl = @import("TableDdl.zig");
@@ -74,6 +75,7 @@ test {
     _ = TableSchema;
     _ = TableRow;
     _ = TableEvolution;
+    _ = TableSchemaProjection;
     _ = SqlTypes;
     _ = TableDdl;
     _ = AuthorizationSql;

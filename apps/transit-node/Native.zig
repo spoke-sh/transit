@@ -34,6 +34,8 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     defer parsed.deinit();
     const config = parsed.value;
     try config.storage.limits.validate();
+    try config.storage.maintenance.flush.validate();
+    if (config.storage.maintenance.flush.enabled) return error.TableMaintenanceUnavailable;
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = config.ursula_url, .max_response_bytes = 256 * 1024 });
     defer client.deinit();
@@ -77,7 +79,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     if (mode.maintain) {
         var maintenance = config.maintenance orelse return error.MissingMaintenanceConfig;
         maintenance.storage = config.storage.maintenance;
-        return Maintenance.run(@This(), init, &engine, maintenance, diagnostics);
+        return Maintenance.run(@This(), init, &engine, maintenance, diagnostics, null);
     }
     var snapshot_epoch: [16]u8 = undefined;
     try init.io.randomSecure(&snapshot_epoch);
@@ -197,7 +199,8 @@ pub fn collect(engine: *Engine, config: Maintenance.Config, key: core.Ed25519.Ke
     return false;
 }
 
-pub fn reclaimPayload(engine: *Engine, payload: g.Payload) !void {
+pub fn reclaimPayload(engine: *Engine, payload: g.Payload, signed: g.SignedRequest) !void {
+    try engine.authorizePayloadRetirement(signed);
     var payloads: adapter.PayloadStore = .{ .journal = &engine.journal.journal };
     try payloads.reclaimPayload(payload);
 }

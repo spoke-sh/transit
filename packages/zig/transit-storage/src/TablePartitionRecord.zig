@@ -27,6 +27,12 @@ pub const Root = struct {
     /// Complete collation-aware storage key -> primary-key hash. Required on
     /// disk; an older root cannot silently acquire an empty ordered directory.
     ordered_rows: ?pages.Reference,
+    /// Required physical schema -> exact declaration and live locator count.
+    /// Immutable historical roots retain their own mappings.
+    physical_schemas: ?pages.Reference,
+    /// Stable column ID -> immutable ADD-time declaration. Current insertion
+    /// defaults never supply values for older physical rows.
+    column_origins: ?pages.Reference,
     receipts: ?pages.Reference = null,
     pins: ?pages.Reference = null,
     /// Mandatory logical read boundary. Zero retains all accepted history.
@@ -55,6 +61,7 @@ pub const Root = struct {
             (self.live_rows == 0) != (self.rows == null) or
             (self.live_rows == 0) != (self.scan_rows == null) or
             (self.live_rows == 0) != (self.ordered_rows == null) or
+            (self.live_rows == 0) != (self.physical_schemas == null) or
             (self.live_rows == 0) != (self.identities == null)) return error.InvalidTableRoot;
     }
 };
@@ -187,29 +194,35 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8, lsn: u64) !Decode
 }
 
 pub const Locator = struct {
+    pub const encoded_bytes = 57;
+    pub const scan_bytes = 32 + encoded_bytes;
     kind: enum(u8) { wal = 1, segment = 2 },
+    schema_revision: u64,
     lsn: u64,
     offset: u32,
     length: u32,
     digest: [32]u8,
 
     pub fn encode(self: Locator) !pages.Value {
-        var bytes: [49]u8 = undefined;
+        if (self.schema_revision == 0) return error.InvalidTableRowReference;
+        var bytes: [encoded_bytes]u8 = undefined;
         bytes[0] = @backingInt(self.kind);
         std.mem.writeInt(u64, bytes[1..9], self.lsn, .little);
         std.mem.writeInt(u32, bytes[9..13], self.offset, .little);
         std.mem.writeInt(u32, bytes[13..17], self.length, .little);
         bytes[17..49].* = self.digest;
+        std.mem.writeInt(u64, bytes[49..57], self.schema_revision, .little);
         return pages.Value.init(&bytes);
     }
     pub fn decode(value: pages.Value) !Locator {
-        if (value.len != 49) return error.InvalidTableRowReference;
+        if (value.len != encoded_bytes or std.mem.readInt(u64, value.data[49..57], .little) == 0) return error.InvalidTableRowReference;
         return .{
             .kind = std.enums.fromInt(@FieldType(Locator, "kind"), value.data[0]) orelse return error.InvalidTableRowReference,
             .lsn = std.mem.readInt(u64, value.data[1..9], .little),
             .offset = std.mem.readInt(u32, value.data[9..13], .little),
             .length = std.mem.readInt(u32, value.data[13..17], .little),
             .digest = value.data[17..49].*,
+            .schema_revision = std.mem.readInt(u64, value.data[49..57], .little),
         };
     }
     pub fn scanKey(self: Locator) !pages.Key {
@@ -221,9 +234,9 @@ pub const Locator = struct {
     }
     pub fn scanValue(self: Locator, key: pages.Key) !pages.Value {
         if (key.len != 32) return error.InvalidTableKey;
-        var bytes: [81]u8 = undefined;
+        var bytes: [scan_bytes]u8 = undefined;
         bytes[0..32].* = key.data[0..32].*;
-        bytes[32..81].* = (try self.encode()).data[0..49].*;
+        bytes[32..scan_bytes].* = (try self.encode()).data[0..encoded_bytes].*;
         return pages.Value.init(&bytes);
     }
 };

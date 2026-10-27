@@ -10,14 +10,15 @@ import threading
 import urllib.request
 
 from harness.services import free_port, wait_ready
+from storage.tables import direct_table_maintenance
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("tables", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("tables", "maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
-    with tempfile.TemporaryDirectory(prefix="transit-direct-table-") as directory:
+    with (direct_table_maintenance.directory() if mode == "maintenance" else tempfile.TemporaryDirectory(prefix="transit-direct-table-")) as directory:
         root = Path(directory)
         profile = root / "profile.json"
         config = root / "node.json"
@@ -128,7 +129,7 @@ def run(node, caller, mode="tables", *artifacts):
                             data = json.dumps(parsed).encode()
                             fault["assertion_changed"] = True
                         pin = envelope["action"].get("pin")
-                        if mode not in ("growth", "prepared", "count-ranges", "collations", "projection", "authorization", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") and pin and envelope["delegation"] is None and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
+                        if mode not in ("maintenance", "growth", "prepared", "count-ranges", "collations", "projection", "authorization", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") and pin and envelope["delegation"] is None and pin["owner"]["operation"] != 90 and not fault["pin_changed"]:
                             assert response.status == 200, data
                             parsed = json.loads(data)
                             assert "pin" in parsed["result"]
@@ -214,6 +215,18 @@ def run(node, caller, mode="tables", *artifacts):
             thread = threading.Thread(target=proxy.serve_forever, daemon=True)
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
+            if mode == "maintenance":
+                def restart(flush):
+                    nonlocal authority
+                    authority.kill()
+                    authority.wait(timeout=15)
+                    authority = None
+                    settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 50, "operation_timeout_ms": 2000}
+                    settings["storage"] = {"maintenance": {"flush": {"enabled": flush}}}
+                    config.write_text(json.dumps(settings))
+                    authority = start()
+                direct_table_maintenance.exercise(caller, endpoint, profile, root, restart)
+                return
             if mode == "growth":
                 subprocess.run([caller, endpoint, "growth-write", str(profile)], check=True, timeout=600)
                 saved = profile.read_bytes()

@@ -193,6 +193,36 @@ pub fn Host(comptime Provider: type) type {
                 self.observation.written = true;
             }
 
+            fn payload(self: *Server, request: *std.http.Server.Request) !void {
+                if (comptime @hasDecl(Provider, "payload")) {
+                    const w = wire.protocol.NativePayload;
+                    if (request.head.method != .POST) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
+                    if (try http.header(request, "x-transit-wait") != null or try http.header(request, "x-transit-control") != null)
+                        return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+                    const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody });
+                    defer self.allocator.free(bytes);
+                    const parsed = std.json.parseFromSlice(w.Request, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+                    defer parsed.deinit();
+                    parsed.value.validate() catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+                    self.read_only = parsed.value.operation.kind != .create;
+                    self.uncertain_mutation = !self.read_only;
+                    self.observation.protocol_outcome = if (self.read_only) .read else .uncertain;
+                    self.observation.realm = parsed.value.proof.claim.realm;
+                    self.observation.pid = parsed.value.operation.payload.pid;
+                    self.observation.operation = switch (parsed.value.operation.kind) {
+                        .create => "payload.create",
+                        .verify => "payload.verify",
+                        .read => "payload.read",
+                    };
+                    const response = try self.allocator.create(w.Response);
+                    defer self.allocator.destroy(response);
+                    self.beginWork();
+                    Provider.payload(self.engine, &parsed.value, response) catch |err| return self.failure(request, err);
+                    self.observation.protocol_outcome = if (self.read_only) .read else .none;
+                    return self.json(request, .ok, response.*);
+                } else return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
+            }
+
             fn table(self: *Server, request: *std.http.Server.Request) !void {
                 if (comptime @hasDecl(Provider, "TableHost")) {
                     const w = Provider.TableHost.Protocol;
@@ -293,11 +323,12 @@ pub fn Host(comptime Provider: type) type {
             pub fn handle(self: *Server, request: *std.http.Server.Request) !void {
                 defer self.finishWork();
                 const route: []const u8 = route: {
-                    inline for (.{ "/health", "/v1/command", "/v1/query", "/v1/blocks", "/table/v1" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
+                    inline for (.{ "/health", "/v1/command", "/v1/query", "/v1/blocks", "/v1/payload", "/table/v1" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
                     break :route "unmatched";
                 };
                 self.observation.received(request, route, self.accept_trace_parent);
                 if (std.mem.eql(u8, route, "/table/v1")) return self.table(request);
+                if (std.mem.eql(u8, route, "/v1/payload")) return self.payload(request);
                 const control = if (try http.header(request, "x-transit-control")) |value| control: {
                     if (!std.mem.eql(u8, value, "snapshot")) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
                     break :control true;

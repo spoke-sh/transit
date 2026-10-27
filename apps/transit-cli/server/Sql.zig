@@ -194,7 +194,7 @@ fn beginInitialization(self: *Self, index: usize, allocator: std.mem.Allocator) 
         entry.record.initialization = .{ .prepared = prepared };
         try self.saveAccount(allocator, &entry.record);
     }
-    try self.bootstrap.start(installation.init, self.executable, try E.path(installation, allocator, "initialize.launch.json"), .{ .argv = &.{ installation.config.executables.sql_gateway, "--initialize", file }, .environment = &installation.config.logging.environment() }, false);
+    try self.bootstrap.start(installation.init, self.executable, try E.path(installation, allocator, "initialize.launch.json"), .{ .argv = try installation.config.command(allocator, self.executable, .sql_gateway, &.{ "--initialize", file }), .environment = &installation.config.logging.environment() }, false);
     self.bootstrapping = index;
     if (entry.record.initialization.?.receipt == null) {
         const receipt = try client.submit(entry.record.initialization.?.prepared);
@@ -239,7 +239,7 @@ fn startService(self: *Self, allocator: std.mem.Allocator) !void {
     if (accounts.items.len == 0) return;
     const file = try E.path(installation, allocator, "gateway.json");
     try Files.json(installation.init.io, allocator, file, try self.configuration(allocator, accounts.items, true));
-    try self.service.start(installation.init, self.executable, try E.path(installation, allocator, "gateway.launch.json"), .{ .argv = &.{ installation.config.executables.sql_gateway, file }, .environment = &installation.config.logging.environment() }, false);
+    try self.service.start(installation.init, self.executable, try E.path(installation, allocator, "gateway.launch.json"), .{ .argv = try installation.config.command(allocator, self.executable, .sql_gateway, &.{file}), .environment = &installation.config.logging.environment() }, false);
     self.service_count = accounts.items.len;
     self.service_started = std.Io.Clock.awake.now(installation.init.io);
     self.status = .starting;
@@ -286,6 +286,15 @@ pub fn hasPending(self: *Self) bool {
     if (self.meta.journal.pending != null) return true;
     if (self.provisioning) |record| if (record.journal.pending != null) return true;
     for (self.entries.items) |entry| if (entry.record.journal.pending != null) return true;
+    return false;
+}
+/// A local console needs its enrolled account and published rendezvous, not
+/// merely a core gateway or another account's running SQL listener.
+pub fn localReady(self: *const Self) bool {
+    if (self.status != .accepting or self.local == null) return false;
+    for (self.entries.items) |entry| {
+        if (std.mem.eql(u8, entry.record.name, Settings.local_account.name)) return entry.record.initialized and entry.state == .bound;
+    }
     return false;
 }
 fn advance(self: *Self, allocator: std.mem.Allocator) !void {

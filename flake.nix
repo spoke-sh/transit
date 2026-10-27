@@ -54,10 +54,7 @@
           inherit zig kubectl-transit;
           inherit transit minio;
           transit-sql-gateway = pkgs.callPackage ./nix/transit-sql-gateway.nix { inherit zig transit; };
-          transit-local = pkgs.callPackage ./nix/transit-local.nix {
-            inherit transit;
-            transit-sql-gateway = pkgs.callPackage ./nix/transit-sql-gateway.nix { inherit zig transit; };
-          };
+          transit-local = pkgs.callPackage ./nix/transit-local.nix { inherit transit; };
           inherit vite-plus;
         }
       );

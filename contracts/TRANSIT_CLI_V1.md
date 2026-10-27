@@ -123,20 +123,23 @@ implicit upgrades. Effect connectors remain unsupported optional
 roles. Board readiness, configuration and compatibility belong to the
 [server guide](../apps/transit-cli/docs/server.md#default-board-and-compatibility).
 
-The configuration names its installation directory and executable dependencies.
+The configuration names its installation directory. Missing or null role
+executable settings select the node, query host, SQL gateway and Board compiled
+into `transit`; Board's frontend assets are embedded. The supervisor starts each
+role in a separate process using private dispatch arguments, outside the public
+command interface. Explicit paths select matching standalone role executables.
+There is no adjacent-binary or PATH discovery. Each retained role artifact hash
+binds the shared definition, role name, embedded/external invocation mode and
+executable bytes. A changed mode or artifact rejects before activation.
 The persistent installation records a random installation identity, format and
 artifact identities, realm/root public key, storage locations, role identities,
 credential references and accepted provisioning receipts. Dependency checking
 happens before provisioning. Published release bundles are not available; a shell,
 Python, `just`, Process Compose and a source checkout are not runtime dependencies
-of the server. Ursula remains the pinned upstream binary.
-
-The selected local profile also runs an explicitly supplied native MinIO binary:
-pinned Ursula provides S3 cold storage, with no filesystem cold backend. Keeping
-the provider separate preserves its bounded hot/cache profile without introducing
-a new storage engine into the CLI. The source-built local bundle includes this
-dependency; distribution must retain its license alongside the selected Transit
-artifacts. Role limits and exact artifact
+of the server. The default local profile uses the node's exclusive local WAL and
+immutable object owner; it does not start Ursula or MinIO. Explicit Ursula
+deployments use the pinned upstream provider and its S3 cold storage configuration.
+Role limits and exact artifact
 versions belong in the [server guide](../apps/transit-cli/docs/server.md).
 
 Startup initializes a missing or genuinely empty installation directory by
@@ -166,6 +169,12 @@ actual role readiness within finite deadlines. Roles have bounded logs and
 restart budgets/backoff. Loss of required storage or authority withdraws gateway
 readiness and stops dependent workers before recovering the same durable history.
 Exhausted recovery fails the installation visibly and reaps its owned children.
+
+With local SQL enabled, the human `server.ready` announcement additionally
+requires the initialized, currently bound local account and published console
+rendezvous. `server.core_ready` can announce core availability earlier. The JSON
+core ready record and SQL status remain separate observations; a SQL failure does
+not remove the core administration path or authorize renewed grants.
 
 Every growing worker replacement acquires a fresh exact generation. The local
 catalog/query workers rotate their keys. SQL account workers retain their

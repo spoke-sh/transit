@@ -11,8 +11,8 @@ that data through authorized publication, query execution and durable processes
 (`Station`); connectors coordinate recorded external effects. The installed
 local runtime persists native history in write-ahead logs and immutable state in
 local objects. Its direct Table owner accepts data independently of actor turns,
-retains unflushed data for queries and publishes `.tseg` objects for bulk writes.
-Automatic point-write flushing, tiered caching and automatic incremental
+retains unflushed data for queries and publishes `.tseg` objects for bulk writes
+and automatic point-write flushing. Tiered caching and automatic incremental
 activation remain extensions to that installed path.
 
 Start with the data your application needs, what you want to compute from it,

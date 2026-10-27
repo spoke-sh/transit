@@ -117,8 +117,9 @@ Concrete batches contain at most 1024 changes within 4 MiB of framed work.
 Typed predicate UPDATE/DELETE plans select rows inside the Table owner under
 explicit work budgets. These data operations do not use actor mailbox frames or
 native turn-block quotas. Point writes can remain in retained WAL records;
-bulk ingestion publishes immutable `.tseg` objects. The installed owner does
-not automatically flush point writes. See the [storage boundary](storage.md#direct-table-data)
+bulk ingestion publishes immutable `.tseg` objects. The local server enables
+bounded automatic point flushing by default, based on pending rows, bytes and
+age. See the [storage boundary](storage.md#direct-table-data)
 for acceptance, retention and physical cleanup limits.
 
 Matched and changed row counts come from the committed outcome. An unchanged
@@ -148,7 +149,10 @@ empty head. [ALTER TABLE](sql/alter-table.md) supports column and Table renames,
 column addition/removal, defaults, nullability and selected exact type changes.
 Metadata-only changes and complete row/index rewrites have separate execution
 paths. Existing rows must satisfy every tightened constraint before publication.
-Changing a default does not rewrite earlier values.
+Compatible additions, non-key renames and drops project older physical rows by
+stable column identity. Changing a default does not rewrite earlier values or
+change a column's frozen ADD-time value. Flush and bounded compaction normalize
+selected rows later; retained readers keep their original schema and values.
 
 [DROP TABLE](sql/drop-table.md) removes the live name and retires its object.
 Historical references do not make a name live. The direct Table owner rejects

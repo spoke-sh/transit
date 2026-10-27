@@ -284,6 +284,43 @@ byte and the dependent's five big-endian object fields. Full edge records must
 match when a key already exists. Persisted catalog roots require both graph
 indices; old stored definitions reject rather than defaulting them to empty.
 
+### Physical storage observations and fixed flush targets
+
+`storage {object, pending_limit}` observes one Table under current database
+CONNECT, schema USAGE and Table metadata-inspection authority. `pending_limit`
+is 1–1,024. Its result identifies the current immutable interpretation,
+exclusive acceptance position, logical-change frontier, live row count, bounded
+pending WAL row count/encoded bytes/earliest position, archive frontier,
+recovery-checkpoint frontier and logical history floor. Pending counts carry a
+mandatory completeness flag; incomplete values are lower bounds. Row bytes are
+neither filesystem usage nor retained historical bytes. Inspection stages no
+objects, acquires no pin and starts no maintenance.
+
+`flush {object, through}` requires the Table's existing ALTER/ownership authority
+and executes at most one physical unit of 32 current WAL rows within the owner's
+allocation and request deadline. `through` is an explicit
+exclusive acceptance position in that Table's partition. Save the complete
+target before dispatch. Its result repeats that exact target, supplies a fresh
+storage observation and reports complete only when no current WAL row locator
+is below the target. Later writes do not extend it; overwritten or deleted rows
+cease to be current obligations. Old snapshots retain independent dependencies.
+The target cannot name another partition or a future frontier. Retired Tables
+refuse flush work.
+
+This operation publishes physical coverage through the existing Table WAL; it
+creates no logical mutation, request queue or separate operation receipt.
+Automatic maintenance can satisfy the same target. After timeout, lost reply,
+revocation at disclosure or restart, inspect current storage or repeat the
+original target under current rights. Do not choose a new frontier to recover
+the earlier attempt. One response may remain incomplete. A caller that wants
+all units explicitly executed repeats that fixed target until completion.
+
+These are signed direct actions with ordinary admission. Read delegations,
+borrowed-read grants and reserved-control hints authorize neither operation.
+The service rechecks current authority after buffering responses, including
+empty storage observations and already-completed flush targets. Board may use
+inspection through its read client; it receives no flush authority.
+
 ### Current observations
 
 `observe` accepts a namespace, exact interpretation (object, revision and digest)

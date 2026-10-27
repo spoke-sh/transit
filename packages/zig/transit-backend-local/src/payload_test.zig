@@ -45,6 +45,18 @@ test "local standalone payload acceptance, lost receipt, retirement and permanen
     _ = try f.submit(.{ .payload_ready = ref });
     const ready = try current(&f, id);
     try store.verifyPayload(ready);
+    var read_buffer: [core.protocol.max_payload_bytes]u8 = undefined;
+    try t.expectEqualStrings(bytes, try store.readPayload(ready, &read_buffer));
+    const Denied = struct {
+        fn check(_: *anyopaque, _: *local.PayloadStore.Engine) !void {
+            return error.Forbidden;
+        }
+    };
+    var context: u8 = 0;
+    store.guard = .{ .context = &context, .check = Denied.check };
+    try t.expectError(error.Forbidden, store.readPayload(ready, &read_buffer));
+    try t.expectError(error.Forbidden, store.verifyPayload(ready));
+    store.guard = null;
     try t.expectError(error.PayloadInUse, f.submit(.{ .retire_payload = ref }));
     try t.expectError(error.PayloadPhase, store.reclaimPayload(ready));
     _ = try f.submit(.{ .terminate = pid });

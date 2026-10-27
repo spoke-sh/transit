@@ -147,6 +147,72 @@ pub fn recoveryState(self: *Self) !RecoveryState {
     return self.store.recoveryState();
 }
 
+/// Disposable physical-work hints, never a retained read or permission. The
+/// pass boundary prevents continual high-ID creation from starving older Tables.
+/// Each step observes the current directory; additions behind it wait one pass.
+pub const MaintenanceCursor = struct { after: ?u64 = null, through: ?u64 = null };
+pub const MaintenanceSelection = struct { object: ?u64, pass_complete: bool };
+
+/// Internal operator traversal, not application metadata disclosure. The host
+/// supplies a current native maintenance guard and holds its directory lock.
+/// Inspect one entry per step, including unregistered and named native objects.
+/// No Table owner or list proportional to durable cardinality remains resident.
+pub fn maintenanceNext(self: *Self, cursor: *MaintenanceCursor, guard_value: P.Guard) !MaintenanceSelection {
+    try check(guard_value);
+    try self.store.refresh();
+    if (cursor.after) |after| if (cursor.through == null or after > cursor.through.?) return error.InvalidMaintenanceCursor;
+    var next = cursor.*;
+    if (next.through == null) {
+        if (try self.store.tree().lastEntry(self.store.root.objects)) |last| {
+            const value = try r.fromValue(r.Entry, self.allocator, last.value);
+            try self.validateEntry(value, last.key);
+            next.through = value.object;
+        }
+    }
+    var selected: ?u64 = null;
+    var complete = true;
+    if (self.store.root.initialized and next.through != null) {
+        const page = try self.store.tree().scan(self.store.root.objects, if (next.after) |after| try r.idKey(after) else null);
+        if (page.entries[0]) |item| {
+            const value = try r.fromValue(r.Entry, self.allocator, item.value);
+            try self.validateEntry(value, item.key);
+            if (value.object <= next.through.?) {
+                next.after = value.object;
+                complete = value.object == next.through.?;
+                if (value.resource == null and value.seed != null) selected = value.object;
+            }
+        }
+    }
+    try check(guard_value);
+    cursor.* = if (complete) .{} else next;
+    return .{ .object = selected, .pass_complete = complete };
+}
+
+fn validateEntry(self: *Self, value: r.Entry, key: pages.Key) !void {
+    try value.validate(self.config());
+    if (!std.meta.eql(key, try r.idKey(value.object)) or value.partition >= self.store.root.next_partition or (value.resource orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
+}
+
+/// The caller takes the selected Table's lock after directory discovery and
+/// retains both locks through the physical unit. Revalidate the current entry;
+/// the cursor contains no borrowed schema, stale owner, or authorization.
+pub fn maintenanceOpen(self: *Self, allocator: std.mem.Allocator, object: u64, guard_value: P.Guard) !?View {
+    try check(guard_value);
+    try self.requireInitialized();
+    const target = try self.entry(object) orelse {
+        try check(guard_value);
+        return null;
+    };
+    if (target.resource != null or target.seed == null) {
+        try check(guard_value);
+        return null;
+    }
+    var view = try self.open(allocator, target, false);
+    errdefer view.deinit();
+    try check(guard_value);
+    return view;
+}
+
 fn namedRecord(self: *Self, object: u64) !?Resource.Operation {
     const target = try self.entry(object) orelse return null;
     const at = target.resource orelse return null;
@@ -1735,6 +1801,70 @@ fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, perform, 
 }
 
 const SnapshotAccess = struct { view: View, current: P.Guard };
+pub const StorageObservation = struct {
+    interpretation: s.TableDeclaration.Stored,
+    position: d.Position,
+    changed_lsn: u64,
+    live_rows: u64,
+    pending: struct { rows: u64, bytes: u64, complete: bool, oldest_lsn: ?u64 },
+    archive_through: u64,
+    recovery_through: ?u64,
+    history_floor: u64,
+};
+pub const FlushTarget = struct { object: d.Object, through: d.Position };
+pub const FlushObservation = struct { target: FlushTarget, observed: StorageObservation, complete: bool };
+
+fn storageAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, policy: Policy, write: bool) !SnapshotAccess {
+    try self.requireInitialized();
+    try object.validate();
+    if (!std.meta.eql(object.scope, self.config().scope) or object.branch != self.config().branch) return error.CatalogDenied;
+    const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    if (target.seed == null) return error.CatalogDenied;
+    var view = try self.open(self.allocator, target, false);
+    errdefer view.deinit();
+    const current = try self.guard(allocator, policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), if (write) .alter else .inspect);
+    try check(current);
+    if (view.table.root.next_lsn == 0) return error.CatalogRegistrationRequired;
+    return .{ .view = view, .current = current };
+}
+fn storageState(view: *View, limit: u16, guard_value: P.Guard) !StorageObservation {
+    const backlog = try view.table.pendingRows(limit, guard_value);
+    const root = view.table.root;
+    return .{
+        .interpretation = root.declared(),
+        .position = .{ .partition = root.partition, .next_lsn = root.next_lsn },
+        .changed_lsn = root.changed_lsn,
+        .live_rows = root.live_rows,
+        .pending = .{ .rows = backlog.rows, .bytes = backlog.bytes, .complete = backlog.complete, .oldest_lsn = backlog.oldest_lsn },
+        .archive_through = root.archive.through,
+        .recovery_through = if (root.recovery) |known| known.next_lsn else null,
+        .history_floor = root.history_floor,
+    };
+}
+pub fn inspectStorage(self: *Self, object: d.Object, limit: u16, policy: Policy) !StorageObservation {
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    var selected = try self.storageAccess(arena.allocator(), object, policy, false);
+    defer selected.view.deinit();
+    return storageState(&selected.view, limit, selected.current);
+}
+/// Execute one bounded physical unit against the caller's saved exclusive cut.
+/// Repeating the same target after uncertainty observes accepted coverage; it
+/// does not enqueue another request or choose a new cut. Automatic scheduling
+/// can independently satisfy this target. No logical receipt or pin is created.
+pub fn flushStorage(self: *Self, target: FlushTarget, policy: Policy) !FlushObservation {
+    try target.through.validate();
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    var selected = try self.storageAccess(arena.allocator(), target.object, policy, true);
+    defer selected.view.deinit();
+    if (target.through.partition != selected.view.table.root.partition) return error.InvalidTableBasis;
+    selected.view.table.lose_reply = self.lose_table_reply;
+    _ = try selected.view.table.flushThroughRows(target.through.next_lsn, (p.Storage.Flush{}).work_rows, selected.current);
+    const observed = try storageState(&selected.view, 1, selected.current);
+    return .{ .target = target, .observed = observed, .complete = observed.pending.oldest_lsn == null or observed.pending.oldest_lsn.? >= target.through.next_lsn };
+}
+
 fn snapshotAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, owner: d.Operation, policy: Policy, control: bool) !SnapshotAccess {
     try owner.validate();
     if (!std.meta.eql(owner.scope, object.scope) or owner.principal != policy.subject.principal()) return error.CatalogDenied;

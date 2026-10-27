@@ -17,8 +17,9 @@ After a small stream consumes part of a flush batch, the next stream can use the
 remaining bytes. The upstream planner could repeatedly discard that next chunk
 and reach hot-storage admission pressure. The derivation runs the upstream
 `ursula-stream` tests, including a sustained two-stream regression, and exports
-the corrected binary through `nix build .#ursula`, the development shells and
-the local bundle. `flake.lock`, upstream source/Cargo hashes, the Rust toolchain
+the corrected binary through `nix build .#ursula` and the development shells for
+provider-specific deployments and checks. The default local runtime uses its
+native storage backend. `flake.lock`, upstream source/Cargo hashes, the Rust toolchain
 and `ursulactl` remain deliberately unchanged. The patch asserts its reviewed
 upstream version; an overlay upgrade requires reviewing and removing or rebasing
 it. Official container images do not contain this local correction.
@@ -89,14 +90,13 @@ private cache and verifies that bypassing it produces the same evaluated fixture
 value; it also checks normal evaluation after releasing the locks. Actual clean
 qualification still enters the pinned project shell.
 
-On Linux x86_64, `nix build .#transit-local` adds the matching SQL gateway to
-the Transit closure. Native local storage runs inside the node. The bundle
-places all executables together in `bin/`, so
-`transit server` finds dependencies beside itself before searching `PATH`. It
-also exposes a JSON executable map
-in `share/transit/local-executables.json` (including `board` and `sql_gateway`); downstream flakes can also use the
-`transit` and `transit-sql-gateway` passthru packages to construct explicit server
-configuration. It does not initialize storage or start processes during a build
+On Linux x86_64, `nix build .#transit-local` installs a single `bin/transit`.
+It includes the node, query host, SQL gateway and Board with embedded frontend
+assets. `transit server` launches its roles from that same executable without
+sibling binaries, an executable manifest or runtime tools on `PATH`. Native
+local storage runs inside the node. Downstream flakes can use the `transit`
+passthru package for explicitly selected standalone deployment roles.
+The package does not initialize storage or start processes during a build
 or shell entry. Run `transit server` for both first startup and subsequent starts.
 Optional `transit.yaml` settings overlay the current defaults;
 Board is enabled by default, with `--no-ui` for headless use. Retain the package

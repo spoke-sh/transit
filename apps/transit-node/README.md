@@ -27,6 +27,7 @@ diagnostics. `profile` is `native_v1`, including when omitted.
 | --- | --- |
 | `POST /v1/command` | Signed mutation or reconciliation of an accepted receipt |
 | `POST /v1/query` | Signed process, delivery, inspection, resource and snapshot reads |
+| `POST /v1/payload` | Authenticated standalone byte publication, original verification and reads on the local owner |
 | `POST /table/v1` | Signed direct Table operations when the local `table` owner is configured |
 | `GET /health` | Refresh storage and report role readiness |
 
@@ -59,8 +60,8 @@ pending commands through their own bounded scheduling policy.
 
 With Ursula storage, run `--maintain` separately for authorized lifetime,
 collection and checkpoint work. With local storage, the `maintenance` setting
-runs lifecycle scans and accepted-floor trimming inside the node's exclusive
-owner; a separate `--maintain` process rejects. Local immutable objects remain
+runs lifecycle scans, accepted-floor trimming and configured automatic Table
+flushing inside the node's exclusive owner; a separate `--maintain` process rejects. Local immutable objects remain
 retained. The local launcher selects this backend. Configured Table operations
 use the separate direct Table owner; native process, KV and Document state retain
 their paged native commit boundary. The

@@ -13,6 +13,8 @@ const Ordered = @import("OrderedKeyIndex.zig");
 const Evidence = @import("TableEvidence.zig");
 const Archive = @import("TableArchive.zig");
 const Snapshot = @import("TableSnapshot.zig");
+const Interpretations = @import("TableInterpretations.zig");
+const Declaration = @import("TableDeclaration.zig");
 const Self = @This();
 const key_chunk_bytes = @sizeOf(@FieldType(pages.Key, "data"));
 
@@ -28,7 +30,7 @@ pub const Context = struct {
     }
 };
 
-pub const Kind = enum { pages_only, rows, scan_rows, ordered_rows, receipts, operations, pins, archive };
+pub const Kind = enum { pages_only, rows, scan_rows, ordered_rows, physical_schemas, column_origins, receipts, operations, pins, archive };
 pub const Root = struct {
     reference: pages.Reference,
     kind: Kind,
@@ -47,6 +49,7 @@ pub const Edge = union(enum) {
     snapshot: Snapshot.Handle,
     evidence: struct { owner: d.Operation, content: d.Content, kind: enum { receipt, operation } },
     archive: struct { position: d.Position, content: d.Content },
+    declaration: Declaration.Stored,
 };
 const Frame = struct { reference: pages.Reference, height: ?u8 = null, child: u8 = 0, disclosed: bool = false };
 pub const max_depth = pages.max_height + 1;
@@ -98,14 +101,20 @@ fn owned(self: *const Self, entry: pages.Entry) !?Edge {
             return try self.locator(entry.value);
         },
         .scan_rows => {
-            if (entry.value.len != 81) return error.InvalidTableStorageGraph;
-            const value = try pages.Value.init(entry.value.data[32..81]);
+            if (entry.value.len != r.Locator.scan_bytes) return error.InvalidTableStorageGraph;
+            const value = try pages.Value.init(entry.value.data[32..r.Locator.scan_bytes]);
             if (!std.meta.eql(entry.key, try (try r.Locator.decode(value)).scanKey())) return error.InvalidTableStorageGraph;
             return try self.locator(value);
         },
         .ordered_rows => {
             const child = try Ordered.childIndex(entry, self.root.prefix_bytes) orelse return null;
             return .{ .index = .{ .reference = child, .kind = .ordered_rows, .prefix_bytes = self.root.prefix_bytes + entry.key.len } };
+        },
+        .physical_schemas, .column_origins => {
+            _ = try Interpretations.identity(entry.key);
+            const stored = if (self.root.kind == .physical_schemas) (try Interpretations.Physical.decode(entry.value)).declaration else try Interpretations.decode(entry.value);
+            if (!std.meta.eql(stored.interpretation.object, self.context.object)) return error.InvalidTableStorageGraph;
+            return .{ .declaration = stored };
         },
         .receipts, .operations => return .{ .evidence = .{
             .owner = try self.owner(entry.key),

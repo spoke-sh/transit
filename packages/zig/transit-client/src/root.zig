@@ -361,6 +361,14 @@ pub const Client = struct {
     pub fn query(self: *Client, selector: protocol.Growth.Query, key: protocol.Ed25519.KeyPair) !protocol.Growth.Response {
         return self.call(protocol.Growth.Response, "/v1/query", try protocol.Growth.signQuery(selector, key));
     }
+    /// No automatic creation retry: after uncertainty, retain the declaration
+    /// and issue a separately signed verify request for that same payload.
+    pub fn payload(self: *Client, request: *const protocol.NativePayload.Request) !protocol.NativePayload.Response {
+        try request.validate();
+        const response = try self.call(protocol.NativePayload.Response, "/v1/payload", request.*);
+        try response.validate(request);
+        return response;
+    }
 };
 
 /// Private seeds are read from an explicitly supplied file, never argv or logs.

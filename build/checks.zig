@@ -990,6 +990,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_server_test.has_side_effects = true;
     direct_server_test.stdio = .inherit;
     b.step("test-server-direct-tables", "Prove installed SQL uses the direct Table owner and exact bootstrap recovery").dependOn(&direct_server_test.step);
+    const single_server_test = b.addSystemCommand(&.{ "python3", "-B" });
+    single_server_test.addFileArg(b.path("tests/runner/launch.py"));
+    single_server_test.addFileArg(b.path("tests/interfaces/installation/server_board_package.py"));
+    single_server_test.addArtifactArg(transit_cli);
+    single_server_test.has_side_effects = true;
+    single_server_test.stdio = .inherit;
+    b.step("test-server-single-executable", "Prove default server, console and Board from one copied executable").dependOn(&single_server_test.step);
     const direct_fault_test = b.addSystemCommand(&.{ "python3", "-B" });
     direct_fault_test.addFileArg(b.path("tests/runner/launch.py"));
     direct_fault_test.addFileArg(b.path("tests/interfaces/installation/server_direct_faults.py"));
@@ -1019,7 +1026,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         run.addFileArg(b.path(proof[1]));
         if (comptime std.mem.eql(u8, proof[0], "test-server-sql-local")) {
             // Exercise the default installation users run from zig-out/bin,
-            // including adjacent executable discovery instead of cache artifacts.
+            // including built-in runtime roles from that one installed artifact.
             run.addArg("--source-install");
             run.addDirectoryArg2(.{ .relative = .{ .base = .install_prefix } }, .{});
             run.step.dependOn(b.getInstallStep());
@@ -1213,11 +1220,33 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     local_service.has_side_effects = true;
     local_service.stdio = .inherit;
     b.step("test-local-native-service", "Prove the local native node with public signed callers and reply faults").dependOn(&local_service.step);
+    const local_fault_node = b.addExecutable(.{ .name = "transit-local-owner-fault-node", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/storage/local/local_owner_fault_node.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{.{ .name = "transit_node", .module = node_artifact.root_module }},
+    }) });
+    const local_owner_recovery = b.addSystemCommand(&.{ "python3", "-B" });
+    local_owner_recovery.addFileArg(b.path("tests/runner/launch.py"));
+    local_owner_recovery.addFileArg(b.path("tests/storage/local/local_owner_recovery.py"));
+    local_owner_recovery.addArtifactArg(local_fault_node);
+    local_owner_recovery.has_side_effects = true;
+    local_owner_recovery.stdio = .inherit;
+    b.step("test-local-owner-recovery", "Resolve uncertain WAL writes by reopening the exclusive node owner").dependOn(&local_owner_recovery.step);
+    const local_payload_service = b.addSystemCommand(&.{ "python3", "-B" });
+    local_payload_service.addFileArg(b.path("tests/runner/launch.py"));
+    local_payload_service.addFileArg(b.path("tests/storage/local/local_payload_service.py"));
+    local_payload_service.addArtifactArg(node_artifact);
+    local_payload_service.addArtifactArg(growing_client);
+    local_payload_service.has_side_effects = true;
+    local_payload_service.stdio = .inherit;
+    b.step("test-local-payload-service", "Qualify authenticated local standalone payload lifecycle").dependOn(&local_payload_service.step);
     const direct_table_client = b.addExecutable(.{ .name = "transit-direct-table-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/interfaces/native/direct_table_client.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "fixture_direct_captured_query", .module = test_modules.get(.direct_captured_query) }, .{ .name = "fixture_direct_dependencies", .module = test_modules.get(.direct_dependencies) }, .{ .name = "fixture_direct_exchange_workers", .module = test_modules.get(.direct_exchange_workers) }, .{ .name = "fixture_direct_follow_query", .module = test_modules.get(.direct_follow_query) }, .{ .name = "fixture_direct_maintained_query", .module = test_modules.get(.direct_maintained_query) }, .{ .name = "fixture_direct_named_resources", .module = test_modules.get(.direct_named_resources) }, .{ .name = "fixture_direct_relational_capacity", .module = test_modules.get(.direct_relational_capacity) }, .{ .name = "fixture_direct_relational_exchanges", .module = test_modules.get(.direct_relational_exchanges) }, .{ .name = "fixture_direct_relational_failures", .module = test_modules.get(.direct_relational_failures) }, .{ .name = "fixture_direct_sql_conditions", .module = test_modules.get(.direct_sql_conditions) }, .{ .name = "fixture_direct_sql_read_recovery", .module = test_modules.get(.direct_sql_read_recovery) }, .{ .name = "fixture_direct_table_authorization", .module = test_modules.get(.direct_table_authorization) }, .{ .name = "fixture_direct_table_collations", .module = test_modules.get(.direct_table_collations) }, .{ .name = "fixture_direct_table_count_ranges", .module = test_modules.get(.direct_table_count_ranges) }, .{ .name = "fixture_direct_table_delegation", .module = test_modules.get(.direct_table_delegation) }, .{ .name = "fixture_direct_table_growth", .module = test_modules.get(.direct_table_growth) }, .{ .name = "fixture_direct_table_history", .module = test_modules.get(.direct_table_history) }, .{ .name = "fixture_direct_table_lifecycle", .module = test_modules.get(.direct_table_lifecycle) }, .{ .name = "fixture_direct_table_predicates", .module = test_modules.get(.direct_table_predicates) }, .{ .name = "fixture_direct_table_prepared", .module = test_modules.get(.direct_table_prepared) }, .{ .name = "fixture_direct_table_projection", .module = test_modules.get(.direct_table_projection) }, .{ .name = "fixture_direct_unified_boundaries", .module = test_modules.get(.direct_unified_boundaries) } },
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_sql", .module = sql_gateway.module("transit_sql") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "fixture_direct_captured_query", .module = test_modules.get(.direct_captured_query) }, .{ .name = "fixture_direct_dependencies", .module = test_modules.get(.direct_dependencies) }, .{ .name = "fixture_direct_exchange_workers", .module = test_modules.get(.direct_exchange_workers) }, .{ .name = "fixture_direct_follow_query", .module = test_modules.get(.direct_follow_query) }, .{ .name = "fixture_direct_maintained_query", .module = test_modules.get(.direct_maintained_query) }, .{ .name = "fixture_direct_named_resources", .module = test_modules.get(.direct_named_resources) }, .{ .name = "fixture_direct_relational_capacity", .module = test_modules.get(.direct_relational_capacity) }, .{ .name = "fixture_direct_relational_exchanges", .module = test_modules.get(.direct_relational_exchanges) }, .{ .name = "fixture_direct_relational_failures", .module = test_modules.get(.direct_relational_failures) }, .{ .name = "fixture_direct_sql_conditions", .module = test_modules.get(.direct_sql_conditions) }, .{ .name = "fixture_direct_sql_read_recovery", .module = test_modules.get(.direct_sql_read_recovery) }, .{ .name = "fixture_direct_table_authorization", .module = test_modules.get(.direct_table_authorization) }, .{ .name = "fixture_direct_table_collations", .module = test_modules.get(.direct_table_collations) }, .{ .name = "fixture_direct_table_count_ranges", .module = test_modules.get(.direct_table_count_ranges) }, .{ .name = "fixture_direct_table_delegation", .module = test_modules.get(.direct_table_delegation) }, .{ .name = "fixture_direct_table_growth", .module = test_modules.get(.direct_table_growth) }, .{ .name = "fixture_direct_table_history", .module = test_modules.get(.direct_table_history) }, .{ .name = "fixture_direct_table_lifecycle", .module = test_modules.get(.direct_table_lifecycle) }, .{ .name = "fixture_direct_table_maintenance", .module = test_modules.get(.direct_table_maintenance) }, .{ .name = "fixture_direct_table_predicates", .module = test_modules.get(.direct_table_predicates) }, .{ .name = "fixture_direct_table_prepared", .module = test_modules.get(.direct_table_prepared) }, .{ .name = "fixture_direct_table_projection", .module = test_modules.get(.direct_table_projection) }, .{ .name = "fixture_direct_unified_boundaries", .module = test_modules.get(.direct_unified_boundaries) } },
     }) });
     const direct_table_service = b.addSystemCommand(&.{ "python3", "-B" });
     direct_table_service.addFileArg(b.path("tests/runner/launch.py"));
@@ -1228,6 +1257,15 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_table_service.has_side_effects = true;
     direct_table_service.stdio = .inherit;
     b.step("test-direct-table-service", "Prove direct Table HTTP writes, snapshots and reply recovery over local disk").dependOn(&direct_table_service.step);
+    const direct_table_maintenance = b.addSystemCommand(&.{ "python3", "-B" });
+    direct_table_maintenance.addFileArg(b.path("tests/runner/launch.py"));
+    direct_table_maintenance.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
+    direct_table_maintenance.addArtifactArg(node_artifact);
+    direct_table_maintenance.addArtifactArg(direct_table_client);
+    direct_table_maintenance.addArg("maintenance");
+    direct_table_maintenance.has_side_effects = true;
+    direct_table_maintenance.stdio = .inherit;
+    b.step("test-direct-table-maintenance", "Prove automatic bounded Table flushing and original pins on physical disk").dependOn(&direct_table_maintenance.step);
     const direct_callers = b.addSystemCommand(&.{ "python3", "-B" });
     direct_callers.addFileArg(b.path("tests/runner/launch.py"));
     direct_callers.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));

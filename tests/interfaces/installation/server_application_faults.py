@@ -38,11 +38,11 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='e374e6f34d0a317e1fedcde79a548b45e124f1751a3bc62494aadcb7e69988d5', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='47c035195248bf570ed52323112b2a32622ee69714ffb7719124218e034b1b2b', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
     if 'send' in value:
         value['send'].setdefault('role', None)
-    body = dict(version=1, definition='e374e6f34d0a317e1fedcde79a548b45e124f1751a3bc62494aadcb7e69988d5', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='47c035195248bf570ed52323112b2a32622ee69714ffb7719124218e034b1b2b', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
@@ -93,7 +93,7 @@ def node(real, directory, args):
     """
     directory = Path(directory)
     if '--maintain' in args:
-        os.execv(real, [real, *args])
+        os.execv(real[0], [*real, *args])
     source = json.loads(Path(args[0]).read_text())
     external = source['port']
     source['port'] = free_port()
@@ -106,7 +106,7 @@ def node(real, directory, args):
             os._exit(1)
 
     with (directory / 'backend-node.stderr').open('ab') as diagnostics:
-        process = subprocess.Popen([real, str(backend), *args[1:]], preexec_fn=death, stderr=diagnostics)
+        process = subprocess.Popen([*real, str(backend), *args[1:]], preexec_fn=death, stderr=diagnostics)
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
@@ -233,7 +233,8 @@ def node(real, directory, args):
 
 
 def install_peer(fixture):
-    real = fixture.config['executables']['node']
+    configured = fixture.config.setdefault('executables', {}).get('node')
+    real = [configured] if configured else [fixture.cli, '__transit_role_v1', 'node']
     wrapper = fixture.root / 'fault-node'
     wrapper.write_text('#!' + sys.executable + '\nimport sys\nsys.path.insert(0, ' + repr(str(TESTS)) + ')\nfrom interfaces.installation.server_application_faults import node\nnode(' + repr(real) + ', ' + repr(str(fixture.root)) + ', sys.argv[1:])\n')
     wrapper.chmod(0o700)

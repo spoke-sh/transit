@@ -251,6 +251,29 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             try self.refresh();
             _ = try self.authenticate(signed);
         }
+        /// Physical payload I/O uses the same current native privileges and PID
+        /// restriction as its declaration. The physical owner fences this check
+        /// through publication/disclosure; a declaration alone grants no access.
+        pub fn authorizePayload(self: *Self, operation: p.NativePayload.Operation, proof: p.Authorization.Proof) !g.Payload {
+            try operation.subject(proof);
+            _ = try self.authenticateDomain(.{ .signed = proof }, operation.payload.pid);
+            const subject = try self.principal(proof.claim.principal);
+            const needed: p.Permission = if (operation.kind == .read) .inspect else .publish;
+            if (!try auth_ops.selectedNativeHas(self, subject, proof.claim.role, operation.payload.pid, needed)) return error.Forbidden;
+            const value = try @import("growing_payload.zig").get(self, operation.payload);
+            if (operation.kind != .read and value.publisher != proof.claim.principal) return error.Forbidden;
+            if (operation.content) |content| {
+                if (content.bytes != value.bytes or !std.mem.eql(u8, &content.sha256, &value.sha256)) return error.InvalidPayload;
+            }
+            return value;
+        }
+        /// Recheck the exact authorized deletion publication while the local
+        /// physical owner holds its native authority fence. This accepts no work.
+        pub fn authorizePayloadRetirement(self: *Self, signed: g.SignedRequest) !void {
+            if (signed.request.command != .payload_deleted) return error.Forbidden;
+            try self.refresh();
+            _ = try self.authenticate(signed);
+        }
         pub fn validateTime(self: *Self, now: core.Time.Sample) !void {
             const bound = self.genesis.max_clock_error_ms orelse return error.UnsupportedDeadline;
             if (now.error_ms > bound or now.unix_ms > p.max_counter) return error.UntrustedTime;
