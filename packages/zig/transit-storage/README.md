@@ -25,7 +25,10 @@ and the catalog's retained dependency graph.
   synced frontiers/fences/trim floors, bounded recovery, and a separate volatile
   memory fixture. Each cached partition retains only three volatile frame
   coordinates for latest/repeated/sequential reads; returned frames are verified
-  from disk. See the [persistence contract](../../../contracts/TRANSIT_STORAGE_V1.md#local-wal-persistence).
+  from disk. `trimUnit` separates accepted trim coverage from bounded physical
+  cleanup; repeated units or `resumeTrim` preserve progress while other work runs.
+  Synchronous `Log.trim` drains those units. Cold partition recovery remains a
+  separate cost. See the [persistence contract](../../../contracts/TRANSIT_STORAGE_V1.md#local-wal-persistence).
 - `TransitObjectStore.zig`: Pluggable immutable segment and conditional manifest
   object store interface (`putImmutable`, `putConditional` with `if_none_match` / `if_match`,
   `getRange`, `head`, `delete`).

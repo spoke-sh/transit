@@ -309,6 +309,110 @@ test "disk fence without append and complete trim preserve epochs and LSN identi
     try t.expectEqualStrings("successor", batch.frames[0].payload);
 }
 
+test "disk bounded trim resumes across rotated requests and restart without deleting a retained suffix" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const options: Wal.DiskOptions = .{ .segment_bytes = 3 * Log.alignedFrameSize(8) };
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        // Directory work exceeds one unit, with more partitions than the cache.
+        for (1..42) |id| for (0..7) |lsn| {
+            _ = try wal.log().append(id, lsn, 2, 3, .row_delta, "data");
+        };
+        const disk = wal.disk.?;
+        const entries = disk.trim_entries;
+        try t.expect(!try wal.trimUnit(1, 5));
+        try t.expect(disk.trim_entries - entries <= 32);
+        try t.expectEqual(@as(u64, 0), disk.trim_frames);
+        try t.expectError(error.WalHistoryTrimmed, wal.log().read(t.allocator, 1, 4, 1));
+        // A new directory entry invalidates the partial enumeration, preserving
+        // a complete minimum search even though the new partition is unrelated.
+        _ = try wal.log().append(43, 0, 2, 3, .row_delta, "new owner");
+        // A different request publishes its floor without replacing partition
+        // one's incomplete directory scan. The shared cursor keeps progressing.
+        var units: usize = 0;
+        while (disk.trim_segments == 0) : (units += 1) {
+            try t.expect(units < 50);
+            const before_entries = disk.trim_entries;
+            const frames = disk.trim_frames;
+            const segments = disk.trim_segments;
+            _ = try wal.trimUnit(2, 7);
+            try t.expect(disk.trim_entries - before_entries <= 32);
+            try t.expect(disk.trim_frames - frames <= 1);
+            try t.expect(disk.trim_segments - segments <= 1);
+        }
+        // Restart immediately after an unlink, before the retained-suffix check.
+        try t.expectError(error.FileNotFound, tmp.dir.openFile(t.io, "wal/part-1-0.twal", .{}));
+    }
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        // The fully trimmed partition still has obsolete files on disk. Its
+        // successor must start a new segment before cleanup resumes.
+        _ = try wal.log().append(2, 7, 2, 3, .row_delta, "new");
+        var units: usize = 0;
+        while (!try wal.trimUnit(1, 5)) : (units += 1) try t.expect(units < 50);
+        units = 0;
+        while (!try wal.trimUnit(2, 7)) : (units += 1) try t.expect(units < 50);
+        try t.expect(!try wal.resumeTrim());
+        var retained = try wal.log().read(t.allocator, 1, 5, 2);
+        defer retained.deinit();
+        try t.expectEqual(@as(usize, 2), retained.frames.len);
+        try t.expectEqual(@as(u64, 5), retained.frames[0].header.lsn);
+        var successor = try wal.log().read(t.allocator, 2, 7, 1);
+        defer successor.deinit();
+        try t.expectEqualStrings("new", successor.frames[0].payload);
+        const partial = try tmp.dir.openFile(t.io, "wal/part-1-3.twal", .{});
+        partial.close(t.io);
+    }
+    var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+    defer wal.deinit();
+    try t.expectEqual(@as(u64, 7), try wal.log().tail(1));
+    try t.expectEqual(@as(u64, 8), try wal.log().tail(2));
+    try t.expectError(error.StaleWriterEpoch, wal.log().append(2, 8, 1, 3, .row_delta, "old"));
+}
+
+test "disk bounded trim lost unlink reply poisons the owner and resumes its original floor" {
+    const Fault = struct {
+        var real: std.Io = undefined;
+        var armed: bool = false;
+        fn unlink(context: ?*anyopaque, dir: std.Io.Dir, name: []const u8) std.Io.Dir.DeleteFileError!void {
+            try real.vtable.dirDeleteFile(context, dir, name);
+            if (armed and std.mem.eql(u8, name, "part-1-0.twal")) {
+                armed = false;
+                return error.FileSystem;
+            }
+        }
+    };
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    Fault.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.dirDeleteFile = Fault.unlink;
+    var io = t.io;
+    io.vtable = &vtable;
+    const options: Wal.DiskOptions = .{ .segment_bytes = Log.alignedFrameSize(8) };
+    {
+        var wal = try Wal.openDiskWithOptions(t.allocator, io, tmp.dir, "wal", options);
+        defer wal.deinit();
+        for (0..3) |lsn| _ = try wal.log().append(1, lsn, 2, 3, .row_delta, "data");
+        try t.expect(!try wal.trimUnit(1, 2));
+        Fault.armed = true;
+        try t.expectError(error.FileSystem, wal.trimUnit(1, 2));
+        try t.expect(!Fault.armed and wal.requiresRecovery());
+        try t.expectError(error.WalRecoveryRequired, wal.log().append(1, 3, 2, 3, .row_delta, "unsafe"));
+    }
+    var wal = try Wal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", options);
+    defer wal.deinit();
+    try wal.log().trim(1, 2);
+    try t.expectError(error.WalHistoryTrimmed, wal.log().read(t.allocator, 1, 1, 1));
+    var retained = try wal.log().read(t.allocator, 1, 2, 1);
+    defer retained.deinit();
+    try t.expectEqualStrings("data", retained.frames[0].payload);
+    _ = try wal.log().append(1, 3, 2, 3, .row_delta, "safe");
+}
+
 fn appendRaw(dir: std.Io.Dir, name: []const u8, bytes: []const u8) !void {
     const file = try dir.openFile(t.io, name, .{ .mode = .read_write });
     defer file.close(t.io);

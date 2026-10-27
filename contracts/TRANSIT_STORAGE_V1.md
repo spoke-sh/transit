@@ -587,6 +587,17 @@ segment remains until a later trim. Repeating the persisted floor resumes prefix
 segment removal after interruption, including when the whole log is trimmed.
 It does not advance the floor or grant permission to remove retained frames.
 Trimming every frame preserves the next LSN and epochs.
+`LocalWal.trimUnit` publishes the same floor and performs at most 32 directory
+entries or one verified frame, followed by at most one segment unlink and sync.
+It returns whether physical cleanup through that request is complete. Repeated
+units preserve an earlier partition's unfinished cursor; `resumeTrim` can advance
+that cursor without a new request. Directory changes restart unfinished minimum
+selection. A continuous writer can delay that selection; finite work converges.
+The cursor is volatile and bounded, with one independent directory handle per WAL
+owner. Restart reconstructs it from the accepted floor. New appends never reuse
+an obsolete segment after a complete logical trim, even before unlink completes.
+An uncertain unlink or sync poisons the owner until reopen. The synchronous
+`Log.trim` operation drains these same units before returning.
 Retention authority must establish checkpoint, receipt, pin and
 logical-history coverage before calling trim. Disk pressure grants no permission
 to trim, and this backend does not implement that higher-level retention owner.
@@ -601,7 +612,8 @@ count in one constant-memory directory pass per loaded partition, then follows
 the contiguous decoded LSNs to each successor filename. It checks the visited
 count against the inventory so overlapping files cannot escape validation.
 This is not a persistent segment index: each uncached partition still scans the
-directory, and physical trimming may scan it repeatedly. No throughput claim
+directory. A cold partition lookup in `trimUnit` retains that recovery cost;
+its bounded physical cleanup does not establish a bounded cold lookup. No throughput claim
 follows from these bounds.
 
 The local owner's `nextPartition(after)` selects the least existing partition
