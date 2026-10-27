@@ -67,6 +67,11 @@ serialized size; response storage grows with received bytes up to its limit.
 A small exchange does not allocate its maximum wire budgets. This path preserves shared JSON
 array shapes, rejects redirects, and drains/frees a response that races a timeout.
 It performs one HTTP attempt; it does not retry uncertain work.
+Cancellation during response-body transfer joins the read and returns through
+the caller's deadline handling. Incomplete content-length or chunked framing
+cannot establish a receipt, even when the received prefix is valid JSON. Native
+and application-management POSTs share this transport handling; gzip/deflate
+response support and redirect rejection remain unchanged.
 
 Each client reuses heap response storage sized by its largest response type.
 Observation and deadline handling borrow one slot instead of copying bulk values

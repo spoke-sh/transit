@@ -393,7 +393,7 @@ pub const Client = struct {
         const buffer = try allocator.alloc(u8, max_bytes);
         defer allocator.free(buffer);
         var writer = std.Io.Writer.fixed(buffer);
-        const response = try self.http.fetch(.{ .location = .{ .url = url }, .method = .POST, .payload = body, .headers = .{ .content_type = .{ .override = "application/json" } }, .redirect_behavior = .not_allowed, .keep_alive = false, .response_writer = &writer });
+        const response = try @import("HttpPost.zig").send(&self.http, .{ .url = url, .body = body, .keep_alive = false, .output = &writer });
         if (response.status != .ok) {
             const failure = try std.json.parseFromSlice(struct { err: []const u8 }, allocator, writer.buffered(), .{});
             defer failure.deinit();

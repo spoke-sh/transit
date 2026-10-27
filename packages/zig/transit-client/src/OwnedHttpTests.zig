@@ -126,6 +126,101 @@ test "owned HTTP deadlines cancel in-flight reads without retaining response all
     try t.expect(client.last_rejection == null);
 }
 
+test "deadline during a partial HTTP body joins the read without a panic or receipt" {
+    const t = std.testing;
+    const Server = struct {
+        fn run(io: Io, listener: *Io.net.Server, sent: *std.atomic.Value(bool)) !void {
+            var stream = try listener.accept(io);
+            defer stream.close(io);
+            var input: [4096]u8 = undefined;
+            var output: [4096]u8 = undefined;
+            var reader = stream.reader(io, &input);
+            var writer = stream.writer(io, &output);
+            var server = std.http.Server.init(&reader.interface, &writer.interface);
+            var request = try server.receiveHead();
+            _ = try request.readerExpectNone(&.{}).discardRemaining();
+            // The JSON is complete but its HTTP frame is not. Cancellation must
+            // join the blocked body read and must never publish this prefix.
+            try writer.interface.print("HTTP/1.1 200 OK\r\nContent-Length: {d}\r\n\r\n{s}", .{ body.len + 1, body });
+            try writer.interface.flush();
+            sent.store(true, .release);
+            try io.sleep(.fromSeconds(5), .awake);
+        }
+    };
+    var threaded: Io.Threaded = .init(t.allocator, .{ .concurrent_limit = .limited(4) });
+    defer threaded.deinit();
+    const io = threaded.io();
+    var listener = try (try Io.net.IpAddress.parseIp4("127.0.0.1", 0)).listen(io, .{ .reuse_address = true });
+    defer listener.deinit(io);
+    const url = try std.fmt.allocPrint(t.allocator, "http://127.0.0.1:{d}", .{listener.socket.address.getPort()});
+    defer t.allocator.free(url);
+    var sent: std.atomic.Value(bool) = .init(false);
+    var peer = try io.concurrent(Server.run, .{ io, &listener, &sent });
+    defer _ = peer.cancel(io) catch {};
+    var client = wire.Client.init(t.allocator, io, url);
+    defer client.deinit();
+    client.timeout_ms = 250;
+    try t.expectError(error.AuthorityTimeout, client.callOwned(Payload, "/table/v1", .{ .nonce = [_]u8{ 97, 97 } }, .{}));
+    try t.expect(sent.load(.acquire));
+    try t.expect(client.last_rejection == null);
+}
+
+test "native receipts require complete HTTP framing and retain compressed response support" {
+    const t = std.testing;
+    const json = "{\"position\":7}";
+    // Independent gzip fixture produced by Python gzip.compress(json, mtime=0).
+    const gzip = "\x1f\x8b\x08\x00\x00\x00\x00\x00\x02\xff\xab\x56\x2a\xc8\x2f\xce\x2c\xc9\xcc\xcf\x53\xb2\x32\xaf\x05\x00\x06\xad\xf6\xd9\x0e\x00\x00\x00";
+    const Case = struct { response: []const u8, failure: ?anyerror = null };
+    const cases = [_]Case{
+        .{ .response = "HTTP/1.1 200 OK\r\nContent-Length: 15\r\n\r\n" ++ json, .failure = error.EndOfStream },
+        .{ .response = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\ne\r\n" ++ json ++ "\r\n", .failure = error.HttpChunkTruncated },
+        .{ .response = "HTTP/1.1 307 Temporary Redirect\r\nContent-Length: 0\r\nLocation: /other\r\n\r\n", .failure = error.TooManyHttpRedirects },
+        .{ .response = "HTTP/1.1 200 OK\r\nContent-Length: 14\r\n\r\n" ++ json },
+        .{ .response = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\ne\r\n" ++ json ++ "\r\n0\r\n\r\n" },
+        .{ .response = "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n" ++ json },
+        .{ .response = "HTTP/1.1 200 OK\r\nContent-Length: 34\r\nContent-Encoding: gzip\r\n\r\n" ++ gzip },
+    };
+    const Server = struct {
+        fn run(io: Io, listener: *Io.net.Server, response: []const u8) !void {
+            var stream = try listener.accept(io);
+            defer stream.close(io);
+            var input: [4096]u8 = undefined;
+            var output: [4096]u8 = undefined;
+            var reader = stream.reader(io, &input);
+            var writer = stream.writer(io, &output);
+            var server = std.http.Server.init(&reader.interface, &writer.interface);
+            var request = try server.receiveHead();
+            const received = try request.readerExpectNone(&.{}).allocRemaining(t.allocator, .limited(128));
+            defer t.allocator.free(received);
+            try t.expectEqualStrings("{\"nonce\":\"aa\"}", received);
+            try writer.interface.writeAll(response);
+            try writer.interface.flush();
+        }
+    };
+    var threaded: Io.Threaded = .init(t.allocator, .{ .concurrent_limit = .limited(4) });
+    defer threaded.deinit();
+    const io = threaded.io();
+    for (cases) |case| {
+        var listener = try (try Io.net.IpAddress.parseIp4("127.0.0.1", 0)).listen(io, .{ .reuse_address = true });
+        defer listener.deinit(io);
+        const url = try std.fmt.allocPrint(t.allocator, "http://127.0.0.1:{d}", .{listener.socket.address.getPort()});
+        defer t.allocator.free(url);
+        var peer = try io.concurrent(Server.run, .{ io, &listener, case.response });
+        defer _ = peer.cancel(io) catch {};
+        var client = wire.Client.init(t.allocator, io, url);
+        defer client.deinit();
+        const result = client.call(wire.Receipt, "/v1/command", .{ .nonce = [_]u8{ 97, 97 } });
+        if (case.failure) |failure| {
+            try t.expectError(failure, result);
+            try t.expect(client.last_status == null);
+        } else {
+            try t.expectEqual(@as(u64, 7), (try result).position);
+        }
+        try t.expect(client.last_rejection == null);
+        try peer.await(io);
+    }
+}
+
 test "owned HTTP rejects oversized serialization before contacting the endpoint" {
     const t = std.testing;
     var threaded: Io.Threaded = .init(t.allocator, .{ .concurrent_limit = .limited(4) });
