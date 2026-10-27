@@ -105,7 +105,7 @@ def select(paths, event="pull_request", *, suite=SUITE, mode=None):
     full = full or shadow
     lanes = {lane: [task for task in suite["lanes"][lane] if task in tasks]
              for lane in suite["tiers"]["ordinary"] if any(task in tasks for task in suite["lanes"][lane])}
-    return {"version": 2, "full": full, "docs": True,
+    return {"version": 1, "full": full, "docs": True,
             "checks": bool(tasks), "documentation": not full and (not code or len(code) < len(paths)),
             "reason": "shadow comparison" if shadow else "full qualification" if full else
                       "reviewed dependencies" if reviewed else "documentation only",

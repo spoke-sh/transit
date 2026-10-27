@@ -141,9 +141,13 @@ class Selection(unittest.TestCase):
             self.assertTrue(metadata["completed"])
             self.assertEqual(metadata["expected_tasks"], ["bindings::go-sdk-test"])
             self.assertEqual(metadata["selection"], original)
-            for kind in ("foreign-source", "omitted-task", "unknown-task", "duplicate-task"):
+            for kind in ("unknown-format", "missing-source", "foreign-source", "omitted-task", "unknown-task", "duplicate-task"):
                 tampered = copy.deepcopy(original)
-                if kind == "foreign-source":
+                if kind == "unknown-format":
+                    tampered["version"] = 2
+                elif kind == "missing-source":
+                    del tampered["checkout_sha"]
+                elif kind == "foreign-source":
                     tampered["checkout_sha"] = base
                 else:
                     tampered["lanes"]["bindings-2"] = {"omitted-task": [], "unknown-task": ["unknown::task"],

@@ -48,7 +48,7 @@ def selected_tasks(lane, selection):
     from ci_select import select
 
     plan = json.loads(Path(selection).read_text())
-    assert plan["version"] == 2, "Unknown CI selection format"
+    assert plan["version"] == 1, "Unknown CI selection format"
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     assert plan["checkout_sha"] == revision, "Selection belongs to a different source revision"
     expected = select(plan["paths"], plan["comparison"]["event"], suite=SUITE)
