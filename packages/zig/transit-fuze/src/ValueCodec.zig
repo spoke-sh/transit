@@ -6,16 +6,20 @@ const v = types.Values;
 const sem = types.Semantics;
 pub const max_bytes = 2 * 1024 * 1024;
 pub fn encode(cell: v.Cell, field: types.Field, output: []u8) ![]const u8 {
-    try cell.validate(field, .{});
     var writer: std.Io.Writer = .fixed(output[0..@min(output.len, max_bytes)]);
+    try write(cell, field, &writer);
+    return writer.buffered();
+}
+/// Stream the standalone envelope. The caller supplies the encoded byte bound.
+pub fn write(cell: v.Cell, field: types.Field, writer: *std.Io.Writer) !void {
+    try cell.validate(field, .{});
     try writer.writeAll("FVL1");
     var descriptor: [types.max_encoding_bytes]u8 = undefined;
     const encoded_type = try field.type.encode(&descriptor);
     try writer.writeInt(u16, @intCast(encoded_type.len), .little);
     try writer.writeAll(encoded_type);
     try writer.writeByte(@intFromBool(field.nullable) | (@as(u8, @intFromBool(field.optional)) << 1));
-    try writeCell(cell, field.type, &writer);
-    return writer.buffered();
+    try writeCell(cell, field.type, writer);
 }
 /// Canonical cell payload for an enclosing versioned schema-bound record. The
 /// enclosing decoder must verify its exact immutable descriptor before calling

@@ -11702,6 +11702,7 @@
         "readAtom()": "<inferred>",
         "readCell()": "anyerror",
         "readValue()": "anyerror",
+        "write()": "<inferred>",
         "writeAtom()": "<inferred>",
         "writeBound()": "<inferred>",
         "writeBytes()": "<inferred>",
@@ -11710,7 +11711,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 117,
+        "try": 118,
         "catch": 0
       },
       "imports": [
@@ -19356,7 +19357,8 @@
     },
     "packages/zig/transit-sql-protocol/src/Codec.zig": {
       "errors": {
-        "InvalidSqlEncoding": 3
+        "InvalidSqlEncoding": 3,
+        "SqlMessageTooLarge": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -19367,8 +19369,10 @@
         "decodeParameter()": "<inferred>",
         "decodeSchema()": "<inferred>",
         "descriptor()": "<inferred>",
+        "encodeHex()": "<inferred>",
         "hex()": "<inferred>",
         "parameter()": "<inferred>",
+        "parameterAllocations()": "<inferred>",
         "schema()": "<inferred>",
         "unhex()": "<inferred>",
         "unhexInto()": "<inferred>"

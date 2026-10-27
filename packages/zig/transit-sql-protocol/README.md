@@ -9,7 +9,10 @@ account runtime or socket dependency.
 and validate envelopes before handling an action. `Codec` carries canonical
 logical descriptors and cells without JSON numeric conversion. Authentication
 shares the SCRAM verifier with PostgreSQL and MySQL and adds a destination-bound
-native client exchange.
+native client exchange. Cell and parameter encoding sizes the canonical value
+first, then writes and expands hex in one exact-size allocation. Borrowing decode
+uses caller-owned binary storage for variable payloads and an arena for recursive
+metadata; both owners must outlive the decoded cell.
 
 Run `zig build test` in this directory. `zig build schema` writes the generated
 endpoint and message description to stdout. The independent Python wire oracle
