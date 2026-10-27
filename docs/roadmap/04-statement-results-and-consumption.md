@@ -1,6 +1,6 @@
 # 4. SQL statement results and client consumption
 
-[Roadmap](README.md) · **Status:** Planned
+[Roadmap](README.md) · **Status:** In Progress
 
 Let a caller execute a statement and inspect one authoritative command outcome
 or consume one logical typed result set, independently of storage pages, execution
@@ -77,10 +77,9 @@ result-reader delivery.
 
 Prepared on 2026-10-27 against `5962c10d2`, the merge of
 [PR #188](https://github.com/spoke-sh/transit/pull/188). This is the proposed
-implementation and qualification plan for review. The milestone remains
-**Planned**; the following APIs, changes and checks are not delivered by this
-planning update. Begin implementation by changing this milestone and its index
-row to **In Progress** together.
+implementation and qualification plan. Implementation began after user review
+on 2026-10-27. Unchecked delivery gates remain outstanding; proposed APIs and
+planned checks do not establish implemented or qualified behavior.
 
 ### Executable outcomes
 
@@ -485,7 +484,7 @@ Owners: proposed `transit-sql-results`, `transit-sql-protocol` types/codec/schem
 `transit-sql` preparation,
 `SessionOperations`, `Terminal`, `Registry` and retained records where necessary.
 
-- [ ] Implement the transport-independent value/transition library with direct
+- [x] Implement the transport-independent value/transition library with direct
   dependencies and package checks. Keep native SQL messages and I/O outside it.
 - [ ] Implement the independent semantic oracle and communication projection
   checks against the actual transition owner, including generated schedules and
