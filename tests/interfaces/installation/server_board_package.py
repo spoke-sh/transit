@@ -26,13 +26,14 @@ def defaults(binary):
     try:
         env = {'PATH': '/unavailable', 'HOME': directory, 'LANG': 'C'}
         # Keep this proof independent of an operator's running default server.
-        listeners = [socket.socket() for _ in range(7)]
+        listeners = [socket.socket() for _ in range(5)]
         for listener in listeners: listener.bind(('127.0.0.1', 0))
         selected = [listener.getsockname()[1] for listener in listeners]
         for listener in listeners: listener.close()
-        ports = dict(zip(('node', 'gateway'), selected[:5]))
+        ports = dict(zip(('node', 'gateway'), selected[:2]))
         env.update({f'TRANSIT_PORTS__{key.upper()}': str(value) for key, value in ports.items()})
-        env.update(TRANSIT_APPLICATIONS__PORT=str(selected[5]), TRANSIT_BOARD__PORT=str(selected[6]))
+        env.update(TRANSIT_APPLICATIONS__PORT=str(selected[2]), TRANSIT_BOARD__PORT=str(selected[3]),
+                   TRANSIT_SQL__HEALTH_PORT=str(selected[4]))
         tools = root/'bin'; tools.mkdir()
         cli = tools/'transit'
         shutil.copy2(binary, cli)
