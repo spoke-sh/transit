@@ -5,6 +5,8 @@ pub const fuze = @import("transit_fuze");
 pub const native = @import("transit_protocol").Growth;
 pub const Authentication = @import("Authentication.zig");
 pub const Codec = @import("Codec.zig");
+pub const ResultFrame = @import("ResultFrame.zig");
+pub const ResultColumns = @import("ResultColumns.zig");
 pub const results = @import("transit_sql_results");
 pub const Completion = results.Command;
 pub const Id = [32]u8;
@@ -19,7 +21,7 @@ pub const max_parameters = 65;
 pub const max_prepared = 32;
 pub const data_path = "/v1/sql/session";
 pub const control_path = "/v1/sql/control";
-pub const encoding = "transit.logical.v1.hex";
+pub const encoding = "transit.sql.result.v1.binary-columns";
 /// Every externally parsed envelope supplies both fields. No compatibility defaults.
 pub const Request = struct {
     version: u8,
@@ -118,7 +120,7 @@ pub const Operation = struct {
 /// A command without returned rows has no result schema. The field is required;
 /// null is distinct from a row-returning statement with an empty result.
 pub const Description = struct { statement: Id, schema: ?[]const u8, parameters: []const []const u8, mutation: bool };
-pub const Batch = struct { cursor: Id, batch: u64, schema: []const u8, rows: []const []const []const u8, complete: bool, completion: ?results.Completion, observation: results.Observation.Value };
+pub const Batch = ResultFrame;
 pub const Response = struct {
     version: u8,
     definition: native.Definition,
@@ -138,6 +140,72 @@ pub const Response = struct {
         err: Error,
     },
 };
+/// JSON is the small control plane. Binary result frames never have a JSON
+/// realization; this reflected union deliberately excludes the batch tag.
+pub const JsonResponse = struct {
+    const R = @FieldType(Response, "result");
+    version: u8,
+    definition: native.Definition,
+    instance: Instance,
+    result: union(enum) {
+        hello: @FieldType(R, "hello"),
+        challenge: @FieldType(R, "challenge"),
+        opened: @FieldType(R, "opened"),
+        context: @FieldType(R, "context"),
+        described: @FieldType(R, "described"),
+        operation: @FieldType(R, "operation"),
+        operations: @FieldType(R, "operations"),
+        completion: @FieldType(R, "completion"),
+        assistance: @FieldType(R, "assistance"),
+        closed,
+        err: Error,
+    },
+};
+pub fn encodeResponse(allocator: std.mem.Allocator, response: Response) ![]align(ResultFrame.alignment) u8 {
+    if (response.result == .batch) return ResultFrame.encode(allocator, response.result.batch);
+    const value: JsonResponse = .{ .version = response.version, .definition = response.definition, .instance = response.instance, .result = switch (response.result) {
+        .batch => unreachable,
+        inline else => |item, tag| @unionInit(@FieldType(JsonResponse, "result"), @tagName(tag), item),
+    } };
+    const json = try Json.valueAlloc(allocator, value);
+    defer allocator.free(json);
+    const bytes = try allocator.alignedAlloc(u8, .fromByteUnits(ResultFrame.alignment), json.len);
+    @memcpy(bytes, json);
+    return bytes;
+}
+pub fn validateResponse(response: Response) !void {
+    if (response.version != 1 or response.definition != native.current_definition) return error.IncompatibleSqlDefinition;
+    switch (response.result) {
+        .operation => |value| try value.validate(),
+        .operations => |page| for (page.entries) |value| try value.validate(),
+        .completion => |value| try value.validate(),
+        .batch => |value| {
+            if (!std.mem.eql(u8, &value.instance, &response.instance) or value.rows > max_rows or
+                (value.rows == 0 and value.completion == null)) return error.InvalidResultChunk;
+        },
+        .err => |value| if (value.operation) |operation| try operation.validate(),
+        else => {},
+    }
+}
+/// Input/arena are the caller's response owner. Column payloads borrow input.
+pub fn decodeResponse(arena: std.mem.Allocator, bytes: []align(ResultFrame.alignment) const u8, binary: bool) !Response {
+    if (binary) {
+        const batch = try ResultFrame.parseBorrowed(arena, bytes);
+        const response: Response = .{ .version = 1, .definition = native.current_definition, .instance = batch.instance, .result = .{ .batch = batch } };
+        try validateResponse(response);
+        return response;
+    }
+    try fuze.Types.Json.preflight(bytes, .{ .bytes = max_message_bytes, .depth = 16, .tokens = 65536, .fields = 256 });
+    const tree = try std.json.parseFromSlice(std.json.Value, arena, bytes, .{});
+    defer tree.deinit();
+    try Json.validateShape(JsonResponse, tree.value);
+    const decoded = try std.json.parseFromSliceLeaky(JsonResponse, arena, bytes, .{ .allocate = .alloc_always });
+    const response: Response = .{ .version = decoded.version, .definition = decoded.definition, .instance = decoded.instance, .result = switch (decoded.result) {
+        inline else => |item, tag| @unionInit(@FieldType(Response, "result"), @tagName(tag), item),
+    } };
+    try validateResponse(response);
+    return response;
+}
 fn name(value: []const u8) !void {
     if (value.len == 0 or value.len > 63 or !std.unicode.utf8ValidateSlice(value) or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidSqlName;
 }
@@ -180,20 +248,19 @@ pub fn authenticationBinding(allocator: std.mem.Allocator, instance: Instance, a
 }
 pub fn parse(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(T) {
     try fuze.Types.Json.preflight(bytes, .{ .bytes = max_message_bytes, .depth = 16, .tokens = 65536, .fields = 256 });
+    if (T == Response) {
+        const parsed = try Json.parseFromSliceOwned(JsonResponse, allocator, bytes);
+        errdefer parsed.deinit();
+        const response: Response = .{ .version = parsed.value.version, .definition = parsed.value.definition, .instance = parsed.value.instance, .result = switch (parsed.value.result) {
+            inline else => |item, tag| @unionInit(@FieldType(Response, "result"), @tagName(tag), item),
+        } };
+        try validateResponse(response);
+        return .{ .arena = parsed.arena, .value = response };
+    }
     const parsed = try Json.parseFromSliceOwned(T, allocator, bytes);
     errdefer parsed.deinit();
     if (parsed.value.version != 1 or parsed.value.definition != native.current_definition) return error.IncompatibleSqlDefinition;
     if (T == Request) try parsed.value.validate();
-    if (T == Response) switch (parsed.value.result) {
-        .operation => |value| try value.validate(),
-        .operations => |page| for (page.entries) |value| try value.validate(),
-        .completion => |value| try value.validate(),
-        .batch => |value| {
-            if (value.complete != (value.completion != null) or value.rows.len > max_rows or (value.rows.len == 0 and !value.complete)) return error.InvalidResultChunk;
-        },
-        .err => |value| if (value.operation) |operation| try operation.validate(),
-        else => {},
-    };
     return parsed;
 }
 test "session JSON round trips fixed identities and void actions canonically" {
@@ -207,29 +274,17 @@ test "session JSON round trips fixed identities and void actions canonically" {
     try std.testing.expect(std.mem.indexOf(u8, bytes, "\"touch\":{}") != null);
 }
 
-test "result cutover rejects missing evidence and old command shapes" {
+test "result cutover rejects JSON rows foreign definitions and old command shapes" {
     const t = std.testing;
     const a = t.allocator;
-    const response: Response = .{ .version = 1, .definition = native.current_definition, .instance = @splat(2), .result = .{ .batch = .{
-        .cursor = @splat(6),
-        .batch = 0,
-        .schema = "",
-        .rows = &.{},
-        .complete = true,
-        .completion = .{ .rows = 0 },
-        .observation = .{ .metadata = .{ .kind = .probe, .consistency = .session, .namespace = null, .definitions = &.{}, .configuration_revision = null, .session_settings = null } },
-    } } };
-    const bytes = try Json.valueAlloc(a, response);
+    const obsolete = try Json.valueAlloc(a, .{ .version = 1, .definition = native.current_definition, .instance = @as(Instance, @splat(2)), .result = .{ .batch = .{ .cursor = @as(Id, @splat(6)), .batch = 0, .schema = "", .rows = .{}, .complete = true, .completion = .{ .rows = 0 } } } });
+    defer a.free(obsolete);
+    if (parse(Response, a, obsolete)) |accepted| {
+        accepted.deinit();
+        return error.AcceptedJsonResult;
+    } else |_| {}
+    const bytes = try Json.valueAlloc(a, JsonResponse{ .version = 1, .definition = native.current_definition, .instance = @splat(2), .result = .closed });
     defer a.free(bytes);
-    inline for (.{ "completion", "observation" }) |field| {
-        const value = try std.json.parseFromSlice(std.json.Value, a, bytes, .{});
-        defer value.deinit();
-        const batch = value.value.object.getPtr("result").?.object.getPtr("batch").?;
-        try t.expect(batch.object.swapRemove(field));
-        const absent = try std.json.Stringify.valueAlloc(a, value.value, .{});
-        defer a.free(absent);
-        try t.expectError(error.MissingField, parse(Response, a, absent));
-    }
     const foreign_value = try std.json.parseFromSlice(std.json.Value, a, bytes, .{});
     defer foreign_value.deinit();
     foreign_value.value.object.getPtr("definition").?.* = .{ .string = "47c035195248bf570ed52323112b2a32622ee69714ffb7719124218e034b1b2b" };

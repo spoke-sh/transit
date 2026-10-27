@@ -52,6 +52,8 @@ def local_batches(config, definition, sql, *, expected_rows=None, historical=Fal
     import hashlib
     import http.client
     import socket
+    from interfaces.sql_sessions.result_frame import Decoder
+    decoder = Decoder()
     class Unix(http.client.HTTPConnection):
         def connect(self):
             self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -68,7 +70,7 @@ def local_batches(config, definition, sql, *, expected_rows=None, historical=Fal
         response = connection.getresponse()
         payload = response.read()
         assert response.status == 200, (response.status, payload[:256])
-        value = json.loads(payload)
+        value = json.loads(payload) if historical else decoder.response(payload, response.getheader('Content-Type'), definition)
         assert value['definition'] == definition, value
         if instance is None: instance = value['instance']
         assert value['instance'] == instance, value

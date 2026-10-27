@@ -28,6 +28,9 @@ const Cursor = struct {
     batch_arena: std.heap.ArenaAllocator,
     batch: api.Batch = undefined,
     rows: u64 = 0,
+    schema: ?[]const u8 = null,
+    schema_hash: [32]u8 = undefined,
+    observation_hash: [32]u8 = undefined,
     observation: ?g.results.Observation.Value = null,
     disclosure: g.BatchDisclosure = .{},
 };
@@ -162,13 +165,13 @@ pub fn sweep(self: *Self) void {
         slot.clear();
     }
 }
-fn response(self: *Self, allocator: std.mem.Allocator, result: @FieldType(api.Response, "result")) ![]u8 {
-    const bytes = try api.Json.valueAlloc(allocator, api.Response{ .version = 1, .definition = api.native.current_definition, .instance = self.instance, .result = result });
+fn response(self: *Self, allocator: std.mem.Allocator, result: @FieldType(api.Response, "result")) ![]align(api.ResultFrame.alignment) u8 {
+    const bytes = try api.encodeResponse(allocator, api.Response{ .version = 1, .definition = api.native.current_definition, .instance = self.instance, .result = result });
     errdefer allocator.free(bytes);
     if (bytes.len > api.max_message_bytes) return error.SqlMessageTooLarge;
     return bytes;
 }
-pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]u8 {
+pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]align(api.ResultFrame.alignment) u8 {
     return self.response(allocator, .{ .err = .{ .code = @errorName(err), .sqlstate = switch (err) {
         error.AuthenticationFailed, error.InvalidAuthentication => "28000".*,
         error.GatewayDenied, error.GatewayDatabaseDenied, error.GatewayCatalogDenied, error.CatalogDenied, error.AccessDenied, error.QueryDenied, error.GatewayCredentialChanged => "42501".*,
@@ -179,7 +182,7 @@ pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]u8 {
 }
 /// Encodes while the borrower lock remains held. The returned bytes belong to
 /// the request allocator and never borrow a result freed by another connection.
-pub fn request(self: *Self, allocator: std.mem.Allocator, input: api.Request, peer: Peer) ![]u8 {
+pub fn request(self: *Self, allocator: std.mem.Allocator, input: api.Request, peer: Peer) ![]align(api.ResultFrame.alignment) u8 {
     try input.validate();
     if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery" } } });
     if (!std.mem.eql(u8, &input.instance.?, &self.instance)) return error.SqlInstanceChanged;
@@ -236,14 +239,14 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, input: api.Request, pe
     };
     return self.response(allocator, result);
 }
-fn opened(self: *Self, allocator: std.mem.Allocator, account: usize, credential: g.Configuration.Credential, database: []const u8, source: ?[]const u8, proof: []const u8) ![]u8 {
+fn opened(self: *Self, allocator: std.mem.Allocator, account: usize, credential: g.Configuration.Credential, database: []const u8, source: ?[]const u8, proof: []const u8) ![]align(api.ResultFrame.alignment) u8 {
     const slot = try self.create(account, credential, database, .transit, true);
     defer slot.mutex.unlock(self.io);
     errdefer self.remove(slot);
     try slot.host.?.selectSource(source);
     return self.response(allocator, .{ .opened = .{ .session = slot.id, .account = self.configuration.accounts[account].ledger.account, .database = slot.host.?.database, .proof = proof } });
 }
-fn open(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api.Action, "open"), peer: Peer) ![]u8 {
+fn open(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api.Action, "open"), peer: Peer) ![]align(api.ResultFrame.alignment) u8 {
     self.sweep();
     if (!self.acquireAuthentication()) return error.GatewayConnectionCapacity;
     var retained = false;
@@ -293,7 +296,7 @@ fn databaseName(account: *const g.Configuration.Account, name: []const u8) ![]co
     for (account.databases) |database| if (std.mem.eql(u8, database.name, name)) return database.name;
     return error.GatewayDatabaseDenied;
 }
-fn authenticate(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api.Action, "authenticate")) ![]u8 {
+fn authenticate(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api.Action, "authenticate")) ![]align(api.ResultFrame.alignment) u8 {
     try self.mutex.lock(self.io);
     const found = for (&self.challenges) |*entry| {
         if (entry.*) |value| if (std.crypto.timing_safe.eql(api.Id, value.id, input.challenge)) {
@@ -398,8 +401,8 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
             const cursor = if (slot.cursor) |*current| current else return error.SqlResultIncomplete;
             if (!std.mem.eql(u8, &cursor.id, &value.cursor)) return error.SqlResultIncomplete;
             try cursor.disclosure.validate(host, cursor.prepared);
-            if (value.batch == cursor.batch.batch) return .{ .batch = cursor.batch };
-            if (cursor.batch.complete or value.batch != cursor.batch.batch + 1) return error.InvalidSqlCursor;
+            if (value.batch == cursor.batch.ordinal) return .{ .batch = cursor.batch };
+            if (cursor.batch.completion != null or value.batch != cursor.batch.ordinal + 1) return error.InvalidSqlCursor;
             return .{ .batch = try self.batch(slot, value.batch) };
         },
         .close_result => |id| {
@@ -497,44 +500,34 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
     return .{ .batch = try self.batch(slot, 0) };
 }
 fn batch(self: *Self, slot: *Slot, ordinal: u64) !api.Batch {
-    _ = self;
     const cursor = &slot.cursor.?;
     _ = cursor.batch_arena.reset(.free_all);
     const allocator = cursor.batch_arena.allocator();
     const host = slot.host.?;
     try host.validate(cursor.prepared);
     const fields = cursor.prepared.fields();
-    const rows = try allocator.alloc([]const []const u8, api.max_rows);
-    var count: usize = 0;
-    var used: usize = 0;
-    var complete = false;
-    // Fetch one bounded engine batch. Source ownership remains with the cursor;
-    // encoding copies it before the engine can reuse its output buffers.
-    const scratch = try host.allocator.alloc(u8, api.max_batch_bytes);
-    defer host.allocator.free(scratch);
     const result = try cursor.read.?.nextBatch(@min(api.max_rows, g.ReadBatch.max_rows));
-    for (result.rows[0..result.len]) |row| {
-        const cells = try allocator.alloc([]const u8, fields.len);
-        for (row.?, fields, cells) |cell, field, *encoded| {
-            encoded.* = try api.Codec.hex(allocator, try f.Types.Codec.encodeBound(cell, field, scratch));
-            used = try std.math.add(usize, used, encoded.*.len / 2);
-            if (used > api.max_batch_bytes) return error.SqlBatchTooLarge;
-        }
-        rows[count] = cells;
-        count += 1;
-    }
-    complete = result.complete;
-    cursor.rows = try std.math.add(u64, cursor.rows, count);
+    var rows: [api.max_rows]g.results.Row = undefined;
+    for (result.rows[0..result.len], rows[0..result.len]) |source, *row| row.* = source.?;
+    const columns = try api.ResultColumns.encode(host.allocator, allocator, fields, .fromRows(rows[0..result.len]));
+    cursor.rows = try std.math.add(u64, cursor.rows, result.len);
     const observation = try cursor.read.?.observation(allocator);
-    if (cursor.observation) |prior| {
-        const previous = try g.results.Observation.fingerprint(allocator, prior);
-        const current = try g.results.Observation.fingerprint(allocator, observation);
-        if (!std.mem.eql(u8, &previous, &current)) return error.ResultIdentityChanged;
-    } else cursor.observation = try cursor.read.?.observation(cursor.arena.allocator());
-    cursor.batch = .{ .cursor = cursor.id, .batch = ordinal, .schema = try api.Codec.schema(allocator, fields), .rows = rows[0..count], .complete = complete, .completion = if (complete) .{ .rows = cursor.rows } else null, .observation = cursor.observation.? };
+    const observation_hash = try g.results.Observation.fingerprint(allocator, observation);
+    if (cursor.observation != null) {
+        if (!std.mem.eql(u8, &cursor.observation_hash, &observation_hash)) return error.ResultIdentityChanged;
+    } else {
+        const retained = cursor.arena.allocator();
+        cursor.observation = try cursor.read.?.observation(retained);
+        cursor.observation_hash = observation_hash;
+        const schema: f.Types.Type = .{ .structure = fields };
+        var buffer: [f.Types.max_encoding_bytes]u8 = undefined;
+        cursor.schema = try retained.dupe(u8, try schema.encode(&buffer));
+        cursor.schema_hash = try schema.fingerprint();
+    }
+    cursor.batch = .{ .instance = self.instance, .cursor = cursor.id, .ordinal = ordinal, .schema = cursor.schema_hash, .observation = cursor.observation_hash, .description = if (ordinal == 0) .{ .schema = cursor.schema.?, .observation = cursor.observation.? } else null, .rows = result.len, .columns = columns, .completion = if (result.complete) .{ .rows = cursor.rows } else null };
     cursor.disclosure = cursor.read.?.disclosure;
     try cursor.disclosure.validate(host, cursor.prepared);
-    if (complete) {
+    if (result.complete) {
         host.closeRead(cursor.read.?);
         cursor.read = null;
     }
@@ -543,7 +536,7 @@ fn batch(self: *Self, slot: *Slot, ordinal: u64) !api.Batch {
 /// Controls use a separately owned transport, even while the session's read or
 /// admission request is stalled. Authentication is checked afresh before any
 /// atomic cancellation or protected operation observation.
-fn control(self: *Self, allocator: std.mem.Allocator, input: api.Request) ![]u8 {
+fn control(self: *Self, allocator: std.mem.Allocator, input: api.Request) ![]align(api.ResultFrame.alignment) u8 {
     try self.mutex.lock(self.io);
     const slot = self.locate(input.session.?) catch |err| {
         self.mutex.unlock(self.io);

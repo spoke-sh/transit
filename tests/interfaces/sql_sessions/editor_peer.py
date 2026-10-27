@@ -26,7 +26,7 @@ def peer(*, structured=False, lease_ms=30000, assist=None, execute=None, instanc
             action, value = next(iter(body['action'].items()))
             actions.append((action, value))
             if action == 'hello':
-                result = dict(hello=dict(encoding='transit.logical.v1.hex', session_lease_ms=lease_ms, maximum_message=4194304, maximum_batch=1048576, maximum_rows=32, capabilities=[]))
+                result = dict(hello=dict(encoding='transit.sql.result.v1.binary-columns', session_lease_ms=lease_ms, maximum_message=4194304, maximum_batch=1048576, maximum_rows=32, capabilities=[]))
             elif action == 'open':
                 result = dict(opened=dict(session=[3]*32, account=[4]*32, database='transit', proof=''))
             elif action == 'close':

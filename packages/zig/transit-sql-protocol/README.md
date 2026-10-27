@@ -5,14 +5,18 @@ Pure messages, logical codecs and SCRAM authentication for the
 public protocol definitions and Fuze logical types. It has no service, storage,
 account runtime or socket dependency.
 
-`Request` and `Response` own the reflected contract. Callers bound input memory
-and validate envelopes before handling an action. `Codec` carries canonical
-logical descriptors and cells without JSON numeric conversion. Authentication
-shares the SCRAM verifier with PostgreSQL and MySQL and adds a destination-bound
-native client exchange. Cell and parameter encoding sizes the canonical value
-first, then writes and expands hex in one exact-size allocation. Borrowing decode
-uses caller-owned binary storage for variable payloads and an arena for recursive
-metadata; both owners must outlive the decoded cell.
+`Request` and `JsonResponse` own the reflected JSON control contract. `Response`
+adds binary result frames through `ResultFrame`, which validates bounded aligned
+framing, initial descriptors and subsequent commitments. `ResultColumns` reuses
+Fuze's plain column codec: common scalar values borrow Arrow-compatible buffers;
+other types retain canonical logical cells and borrow variable payloads. The full
+five-state cell meaning remains available. The body owner must outlive its columns.
+
+`Codec` carries prepared descriptors and standalone parameters in JSON control
+messages. Parameter encoding sizes the canonical value first, then writes and
+expands hex in one exact-size allocation. Result payloads use binary framing.
+Authentication shares the SCRAM verifier with PostgreSQL and MySQL and adds a
+destination-bound native client exchange. No transport compression is admitted.
 
 Run `zig build test` in this directory. `zig build schema` writes the generated
 endpoint and message description to stdout. The independent Python wire oracle

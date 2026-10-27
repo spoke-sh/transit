@@ -55,10 +55,14 @@ while delivered count can remain lower than the verified result count.
 and non-copying `slice`. Column consumers can access compatible Fuze/Arrow value
 buffers without building row objects; `nextRow` supplies an allocation-free row
 view over the same values. Retain the source owner for all borrowed buffers.
-The native adapter decodes into contiguous column cells and one binary payload
-allocation per batch. Text, binary and JSON borrow that payload; recursive child
-metadata has separate bounded allocations. JSON parsing/hex carriage still have
-their own conversion costs and are not a zero-copy transport.
+The native adapter retains an exact-size aligned binary response body per batch.
+Common scalar columns borrow Arrow-compatible value buffers directly. Other
+logical types allocate cell/recursive descriptors while borrowing variable bytes
+from that body. Initial schema and observation metadata have separate lifetimes;
+subsequent batches carry their commitments. The next pull or close releases the
+previous body. Native result bodies are uncompressed; socket reception and server
+column construction still copy bytes. Prepared parameters use the bounded JSON
+control codec.
 
 `results.Window.read(allocator, result, .{ .rows = 32, .bytes = 262144 })` copies a
 bounded view. Deinitialize the window independently. A row or byte limit leaves

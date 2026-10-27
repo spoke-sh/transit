@@ -12,6 +12,7 @@ import subprocess
 import socket
 import shutil
 import time
+from interfaces.sql_sessions.result_frame import Decoder, ENCODING
 
 
 def mac(key, text):
@@ -24,6 +25,7 @@ class Client:
         self.instance = self.session = self.account = None
         self.last = 0
         self.results = {}
+        self.decoder = Decoder()
         self.definition = json.loads((root / 'sql-gateway.json').read_text())['definition']
         self.transport()
 
@@ -51,7 +53,7 @@ class Client:
                            request_bytes=len(content.encode()), response_bytes=len(raw), reused_tls=reused)
         assert response.status == 200, (response.status, raw)
         assert response.getheader('Cache-Control') == 'no-store'
-        value = json.loads(raw)
+        value = self.decoder.response(raw, response.getheader('Content-Type'), self.definition)
         assert value['definition'] == self.definition
         if self.instance is None:
             self.instance = value['instance']
@@ -93,7 +95,7 @@ class Client:
         return result
 
     def open(self, source=None, *, password='proof-password', error=None):
-        assert self.call('hello')['hello']['encoding'] == 'transit.logical.v1.hex'
+        assert self.call('hello')['hello']['encoding'] == ENCODING
         nonce = base64.b64encode(os.urandom(18)).decode()
         bare = f'n=,r={nonce}'
         challenge = self.call(dict(open=dict(account='proof', database='data', source=source, authentication='scram', first='n,,' + bare)))['challenge']

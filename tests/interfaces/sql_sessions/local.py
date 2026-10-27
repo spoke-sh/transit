@@ -2,6 +2,7 @@
 from http.client import HTTPConnection
 import socket
 from interfaces.sql_sessions.native import Client as NativeClient
+from interfaces.sql_sessions.result_frame import Decoder
 
 
 class Client(NativeClient):
@@ -10,6 +11,7 @@ class Client(NativeClient):
         self.instance = self.session = self.account = None
         self.last = 0
         self.results = {}
+        self.decoder = Decoder()
         self.transport()
 
     def transport(self):

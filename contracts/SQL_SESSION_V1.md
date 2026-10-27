@@ -22,6 +22,11 @@ no content encoding. `/v1/sql/session` admits data and authentication work;
 closure. The body action must match the selected lane. Duplicate security or
 framing headers, ambiguous framing, redirects, browser Origin and forwarded
 identity headers are rejected. Responses carry `Cache-Control: no-store`.
+Control responses use `application/json`. Result batches use
+`application/vnd.transit.sql-result` with the binary framing below. Both require
+an exact bounded Content-Length and identity content encoding. Content type
+selects the decoder; a JSON batch is invalid. Compression is not supported by
+this profile.
 There is no cookie authentication, automatic redirect or automatic SQL replay.
 Connection reuse is an optimization, never a session identity. Idle HTTP headers
 have a one-second deadline; clients replace a quiescent transport before sending
@@ -112,14 +117,62 @@ and do not change a session's configured namespace.
 
 ## Logical results and fetch acknowledgement
 
-The selected encoding is `transit.logical.v1.hex`. Schema fields contain
-lowercase hexadecimal of the existing FTY1 logical descriptor. Each row contains
-one lowercase hexadecimal canonical schema-bound cell per field. Parameters
-contain standalone FVL1 values with descriptors. Integer and decimal values do
-not pass through JSON floating-point conversion. Nested containers, binary,
-NULL, missing, type errors and conflicts retain their logical distinction.
-The schema descriptor and cell codecs validate their existing recursion, child
-and byte bounds. Unknown tags or noncanonical hexadecimal reject.
+The selected result encoding is `transit.sql.result.v1.binary-columns`. Result
+schemas carry raw FTY1 descriptors and values use binary columns. Integer and
+decimal values do not pass through JSON floating-point conversion. Nested
+containers, binary, NULL, missing, type errors and conflicts retain their logical
+distinction. Prepared metadata descriptors and standalone FVL1 parameters still
+use canonical lowercase hexadecimal in their JSON control messages. Their
+existing recursion, child and byte bounds apply.
+
+Every result body starts with this 192-byte header. Integers are unsigned,
+little-endian; byte identities retain their exact bytes.
+
+| Offset | Bytes | Meaning |
+| --- | --- | --- |
+| 0 | 4 | `TSR1` |
+| 4 | 32 | Shared current definition, decoded from its hex identifier |
+| 36 | 16 | Persistent server instance |
+| 52 | 32 | Result cursor |
+| 84 | 8 | Batch ordinal |
+| 92 | 4 | Logical rows in this batch |
+| 96 | 4 | Flags: 0 for data, 1 for verified terminal |
+| 100 | 8 | Cumulative terminal row count, zero unless terminal |
+| 108 | 32 | SHA-256 of the canonical FTY1 schema |
+| 140 | 32 | SHA-256 of the canonical observation JSON |
+| 172 | 4 | Schema byte length |
+| 176 | 4 | Observation byte length |
+| 180 | 4 | Column count |
+| 184 | 8 | Zero reserved bytes |
+
+Ordinal zero includes the schema immediately after the header, followed by
+canonical observation JSON. Subsequent ordinals set both lengths to zero and
+retain the two commitments. The reader validates the initial descriptors against
+those commitments before exposing rows. Schema is at most 16 KiB, observation at
+most 64 KiB. Observation JSON uses the shared type's declared field order and
+compact serialization. A descriptor commits meaning; it does not grant access
+or retain a source.
+
+The descriptors are followed by one eight-byte directory entry per column:
+absolute `u32` offset and `u32` byte length. Zero padding aligns the first column
+and each following column to 64 bytes relative to the body. Columns appear in
+schema order, without gaps other than canonical zero alignment padding. The last
+column's padding ends the body exactly. Each column is a current-definition
+plain TCP1 page, using the [physical column layout](TRANSIT_STORAGE_V1.md#qualified-plain-value-buffers)
+without acquiring storage identity. Its row count must match the frame. Common
+scalar types use aligned Arrow-compatible validity, offset and value buffers;
+other types use canonical schema-bound cells. State tags and error/conflict
+details are always retained. The decoder validates every lane and the logical
+field's optionality, nullability and type before disclosure.
+
+A nonempty batch has one column per schema field. An empty terminal batch has
+zero columns and retains the schema/observation commitments. At most 32 rows and
+1 MiB of canonical schema-bound cell bytes are admitted per batch, independent of
+physical framing. The full HTTP body remains bounded at 4 MiB. HTTP receivers
+allocate the body at 64-byte alignment; borrowed columns remain valid only while
+that response owner lives. There is no hex decoding or row matrix required for
+common scalar result columns. Receiving bytes from the socket and constructing
+server columns still involve copying; this is not an end-to-end zero-copy claim.
 
 An interactive row-returning execute returns its schema, cursor and initial batch numbered
 zero. Fetch requests name the next desired batch. Requesting the last returned
@@ -127,9 +180,9 @@ batch repeats its exact retained data after a fresh authorization check.
 Requesting its successor acknowledges that batch and advances the same iterator;
 all other ordinals reject. At most one unacknowledged batch is retained per
 cursor. A duplicate concurrent fetch cannot advance the iterator twice.
-The final batch remains repeatable until closed or expired. Every batch requires
-an `observation` and nullable `completion`. `complete` is true exactly when
-`completion` is present. Completion contains the cumulative unsigned 64-bit
+The final batch remains repeatable until closed or expired. Every batch carries
+the same observation commitment and an explicit terminal flag. The shared API
+projects that flag into nullable `completion`. Completion contains the cumulative unsigned 64-bit
 logical row count; checked arithmetic rejects overflow. Repetition does not add
 to this count. The client compares it with uniquely received rows before exposing
 successful completion. Empty terminal batches are valid after earlier data and

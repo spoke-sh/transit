@@ -14,78 +14,58 @@ parent: std.mem.Allocator,
 memory: r.fuze.MemoryBudget,
 header: std.heap.ArenaAllocator,
 batch: std.heap.ArenaAllocator,
+response: ?std.json.Parsed(api.Response) = null,
 transport: Transport,
 failure_value: ?r.Failure = null,
 cursor: api.Id,
 ordinal: u64 = 0,
 schema: r.Types.Type,
-schema_bytes: []const u8,
+schema_hash: [32]u8,
 observation: r.Observation.Value,
 observation_hash: [32]u8,
 chunk: r.ResultSet.Chunk = .{ .values = .{}, .completion = null },
 closed: bool = false,
 
-/// The first response is borrowed only for this call. The returned reader owns
-/// schema/observation and one decoded batch under its independent resident cap.
-pub fn open(allocator: std.mem.Allocator, executor: *sdk.Executor, first: api.Batch, resident_bytes: usize) !r.ResultSet {
+/// Takes ownership of the first response on success. Column payloads borrow
+/// its aligned body until the next pull or close; metadata has separate owners.
+pub fn open(allocator: std.mem.Allocator, executor: *sdk.Executor, first: std.json.Parsed(api.Response), resident_bytes: usize) !r.ResultSet {
     return openTransport(allocator, .{ .context = executor, .fetch = nativeFetch, .close = nativeClose }, first, resident_bytes);
 }
-fn openTransport(allocator: std.mem.Allocator, transport: Transport, first: api.Batch, resident_bytes: usize) !r.ResultSet {
-    if (resident_bytes == 0 or resident_bytes > 16 * 1024 * 1024 or first.batch != 0) return error.InvalidResultBudget;
+fn openTransport(allocator: std.mem.Allocator, transport: Transport, first: std.json.Parsed(api.Response), resident_bytes: usize) !r.ResultSet {
+    if (resident_bytes == 0 or resident_bytes > 16 * 1024 * 1024) return error.InvalidResultBudget;
+    if (first.value.result != .batch) return error.InvalidSqlResponse;
+    const frame = first.value.result.batch;
+    if (frame.ordinal != 0 or frame.description == null) return error.InvalidResultChunk;
     const self = try allocator.create(Self);
-    self.* = .{ .parent = allocator, .memory = .{ .parent = allocator, .limit = resident_bytes }, .header = undefined, .batch = undefined, .transport = transport, .cursor = first.cursor, .schema = undefined, .schema_bytes = undefined, .observation = undefined, .observation_hash = undefined };
+    self.* = .{ .parent = allocator, .memory = .{ .parent = allocator, .limit = resident_bytes }, .header = undefined, .batch = undefined, .transport = transport, .cursor = frame.cursor, .schema = undefined, .schema_hash = undefined, .observation = undefined, .observation_hash = undefined };
     self.header = .init(self.memory.allocator());
     self.batch = .init(self.memory.allocator());
     errdefer self.destroy();
     const a = self.header.allocator();
-    self.schema_bytes = try a.dupe(u8, first.schema);
-    self.schema = try api.Codec.decodeSchema(a, first.schema);
+    self.schema = try r.Types.decodeInto(a, frame.description.?.schema);
+    if (self.schema != .structure) return error.InvalidResultSchema;
+    self.schema_hash = try self.schema.fingerprint();
     // Round-trip through the shared canonical value owner to copy all nested
     // observation slices. This is bounded metadata, never a retained source pin.
-    const encoded = try api.Json.valueAlloc(a, first.observation);
+    const encoded = try api.Json.valueAlloc(a, frame.description.?.observation);
     const copied = try api.Json.parseFromSliceOwned(r.Observation.Value, a, encoded);
     self.observation = copied.value;
     self.observation_hash = try r.Observation.fingerprint(a, self.observation);
-    try self.decode(first);
-    var result = try r.ResultSet.init(self.schema, self.observation, .{ .result = first.cursor, .schema = try self.schema.fingerprint(), .observation = self.observation_hash }, .{ .context = self, .next = next, .close = close, .deinit = deinit, .failure = failure });
+    try self.decode(frame);
+    var result = try r.ResultSet.init(self.schema, self.observation, .{ .result = frame.cursor, .schema = self.schema_hash, .observation = self.observation_hash }, .{ .context = self, .next = next, .close = close, .deinit = deinit, .failure = failure });
     try result.receive(self.chunk);
+    self.response = first;
     return result;
 }
 
 fn decode(self: *Self, value: api.Batch) !void {
-    if (!std.mem.eql(u8, &value.cursor, &self.cursor) or value.batch != self.ordinal or
-        !std.mem.eql(u8, value.schema, self.schema_bytes)) return error.ResultIdentityChanged;
-    if (value.rows.len > api.max_rows or (value.complete != (value.completion != null)) or
-        (value.rows.len == 0 and !value.complete)) return error.InvalidResultChunk;
+    if (!std.mem.eql(u8, &value.cursor, &self.cursor) or value.ordinal != self.ordinal or
+        !std.mem.eql(u8, &value.schema, &self.schema_hash) or
+        !std.mem.eql(u8, &value.observation, &self.observation_hash)) return error.ResultIdentityChanged;
+    if (value.rows > api.max_rows or (value.rows == 0 and value.completion == null) or
+        ((self.ordinal == 0) != (value.description != null))) return error.InvalidResultChunk;
     const a = self.batch.allocator();
-    const observation_hash = try r.Observation.fingerprint(a, value.observation);
-    if (!std.mem.eql(u8, &observation_hash, &self.observation_hash)) return error.ResultIdentityChanged;
-    const row_count = value.rows.len;
-    const width = self.schema.structure.len;
-    var bytes: usize = 0;
-    for (value.rows) |encoded| {
-        if (encoded.len != width) return error.InvalidResultRow;
-        for (encoded) |text| {
-            if (text.len % 2 != 0) return error.InvalidSqlEncoding;
-            bytes = try std.math.add(usize, bytes, text.len / 2);
-            if (bytes > api.max_batch_bytes) return error.SqlBatchTooLarge;
-        }
-    }
-    const columns = try a.alloc(r.Batch.Column, width);
-    const cells = try a.alloc(r.Types.Values.Cell, try std.math.mul(usize, row_count, width));
-    for (columns, 0..) |*column, i| column.* = .{ .cells = cells[i * row_count ..][0..row_count] };
-    // One binary payload allocation for the batch. Variable-width cells borrow
-    // it; only recursive metadata needs additional allocations during decoding.
-    const payload = try a.alloc(u8, bytes);
-    var offset: usize = 0;
-    for (value.rows, 0..) |encoded, row| {
-        for (encoded, self.schema.structure, 0..) |text, field, column| {
-            const size = text.len / 2;
-            cells[column * row_count + row] = try api.Codec.decodeCellBorrowing(a, field, text, payload[offset..][0..size]);
-            offset += size;
-        }
-    }
-    self.chunk = .{ .values = .fromColumns(columns, row_count), .completion = value.completion };
+    self.chunk = .{ .values = try api.ResultColumns.decode(self.memory.allocator(), a, self.schema.structure, value.columns, value.rows), .completion = value.completion };
 }
 
 fn next(context: *anyopaque) !r.ResultSet.Chunk {
@@ -93,12 +73,14 @@ fn next(context: *anyopaque) !r.ResultSet.Chunk {
     if (self.closed) return error.ResultClosed;
     if (self.chunk.completion != null) return error.InvalidResultTransition;
     _ = self.batch.reset(.free_all);
+    self.releaseResponse();
     self.ordinal = try std.math.add(u64, self.ordinal, 1);
     const response = try self.transport.fetch(self.transport.context, self.memory.allocator(), self.cursor, self.ordinal);
-    defer response.deinit();
+    errdefer response.deinit();
     switch (response.value.result) {
         .batch => |value| {
             try self.decode(value);
+            self.response = response;
             return self.chunk;
         },
         .err => |value| {
@@ -159,6 +141,7 @@ fn close(context: *anyopaque) !void {
     if (self.closed) return;
     self.closed = true;
     _ = self.batch.reset(.free_all);
+    self.releaseResponse();
     self.chunk = .{ .values = .{}, .completion = null };
     // Failure to observe remote cleanup cannot erase verified completion or
     // imply rollback. The service retains its bounded lease/recovery obligation.
@@ -166,9 +149,14 @@ fn close(context: *anyopaque) !void {
 }
 fn destroy(self: *Self) void {
     self.batch.deinit();
+    self.releaseResponse();
     self.header.deinit();
     std.debug.assert(self.memory.used == 0);
     self.parent.destroy(self);
+}
+fn releaseResponse(self: *Self) void {
+    if (self.response) |response| response.deinit();
+    self.response = null;
 }
 fn deinit(context: *anyopaque) void {
     const self: *Self = @ptrCast(@alignCast(context));
@@ -187,31 +175,42 @@ const TestScript = struct {
     fn frame(self: *TestScript, allocator: std.mem.Allocator, ordinal: u64) !api.Batch {
         const fields = [_]r.Types.Field{.{ .name = "n", .type = .uint128 }};
         const count = @min(self.maximum, self.length - self.position);
-        const rows = try allocator.alloc([]const []const u8, count);
-        for (rows, 0..) |*row, i| {
-            var bytes: [17]u8 = undefined;
-            bytes[0] = 3;
-            // Encode the independent scalar fixture directly, without the
-            // production cell encoder; SQL duplicate values remain distinct.
-            const value = if (self.fault == .duplicate and ordinal != 0) 0 else (self.position + i) % 3;
-            std.mem.writeInt(u128, bytes[1..], value, .little);
-            const hex = std.fmt.bytesToHex(bytes, .lower);
-            row.* = try allocator.dupe([]const u8, &.{try allocator.dupe(u8, &hex)});
+        const pages = try allocator.alloc([]const u8, if (count == 0) 0 else 1);
+        if (count != 0) {
+            const bytes = try allocator.alignedAlloc(u8, .fromByteUnits(64), 41 + count * 22);
+            var writer: std.Io.Writer = .fixed(bytes);
+            // Independent TCP1 fixture: plain uint128 cells, written from the
+            // wire specification without the production column/cell encoder.
+            try writer.writeAll("TCP1");
+            try writer.writeAll(&api.native.definition_bytes);
+            try writer.writeByte(0);
+            try writer.writeInt(u32, @intCast(count), .little);
+            try writer.splatByteAll(0, count);
+            for (0..count) |i| {
+                try writer.writeInt(u32, 17, .little);
+                try writer.writeByte(3);
+                const value = if (self.fault == .duplicate and ordinal != 0) 0 else (self.position + i) % 3;
+                try writer.writeInt(u128, value, .little);
+            }
+            pages[0] = writer.buffered();
         }
         self.position += count;
         const complete = self.position == self.length and (!self.empty_terminal or count == 0);
-        var result: api.Batch = .{ .cursor = @splat(6), .batch = ordinal, .schema = try api.Codec.schema(allocator, &fields), .rows = rows, .complete = complete, .completion = if (complete) .{ .rows = self.length } else null, .observation = .{ .metadata = .{ .kind = .probe, .consistency = .session, .namespace = null, .definitions = &.{}, .configuration_revision = null, .session_settings = null } } };
+        const schema: r.Types.Type = .{ .structure = &fields };
+        const observation: r.Observation.Value = .{ .metadata = .{ .kind = .probe, .consistency = .session, .namespace = null, .definitions = &.{}, .configuration_revision = null, .session_settings = null } };
+        var schema_buffer: [r.Types.max_encoding_bytes]u8 = undefined;
+        var result: api.Batch = .{ .instance = @splat(2), .cursor = @splat(6), .ordinal = ordinal, .schema = try schema.fingerprint(), .observation = try r.Observation.fingerprint(allocator, observation), .description = if (ordinal == 0) .{ .schema = try allocator.dupe(u8, try schema.encode(&schema_buffer)), .observation = observation } else null, .rows = @intCast(count), .columns = pages, .completion = if (complete) .{ .rows = self.length } else null };
         if (ordinal != 0) switch (self.fault) {
             .identity => result.cursor[0] ^= 1,
-            .ordinal => result.batch += 1,
-            .schema => result.schema = try api.Codec.schema(allocator, &.{.{ .name = "other", .type = .uint128 }}),
-            .observation => result.observation.metadata.namespace = 7,
+            .ordinal => result.ordinal += 1,
+            .schema => result.schema[0] ^= 1,
+            .observation => result.observation[0] ^= 1,
             .count => if (result.completion) |*completion| {
                 completion.rows += 1;
             },
             .incomplete => {
-                result.rows = &.{};
-                result.complete = false;
+                result.rows = 0;
+                result.columns = &.{};
                 result.completion = null;
             },
             else => {},
@@ -224,20 +223,29 @@ const TestScript = struct {
         self.requests += 1;
         try t.expectEqual(self.requests, ordinal);
         if (self.fault == .disconnect) return error.ReadFailed;
-        var arena: std.heap.ArenaAllocator = .init(allocator);
-        defer arena.deinit();
-        const value: api.Response = .{ .version = 1, .definition = api.native.current_definition, .instance = @splat(2), .result = .{ .batch = try self.frame(arena.allocator(), ordinal) } };
-        const encoded = try api.Json.valueAlloc(arena.allocator(), value);
-        return api.parse(api.Response, allocator, encoded);
+        return self.response(allocator, ordinal);
+    }
+    fn response(self: *TestScript, allocator: std.mem.Allocator, ordinal: u64) !std.json.Parsed(api.Response) {
+        const arena = try allocator.create(std.heap.ArenaAllocator);
+        arena.* = .init(allocator);
+        errdefer {
+            arena.deinit();
+            allocator.destroy(arena);
+        }
+        const value = try self.frame(arena.allocator(), ordinal);
+        // The incomplete-prefix case deliberately violates frame shape and
+        // exercises reader admission, independently of the byte parser.
+        if (self.fault == .incomplete and ordinal != 0) return .{ .arena = arena, .value = .{ .version = 1, .definition = api.native.current_definition, .instance = value.instance, .result = .{ .batch = value } } };
+        const bytes = try api.ResultFrame.encode(arena.allocator(), value);
+        return .{ .arena = arena, .value = try api.decodeResponse(arena.allocator(), bytes, true) };
     }
     fn close(context: *anyopaque, _: api.Id) void {
         const self: *TestScript = @ptrCast(@alignCast(context));
         self.closed += 1;
     }
     fn open(self: *TestScript, allocator: std.mem.Allocator) !r.ResultSet {
-        var arena: std.heap.ArenaAllocator = .init(allocator);
-        defer arena.deinit();
-        const first = try self.frame(arena.allocator(), 0);
+        const first = try self.response(allocator, 0);
+        errdefer first.deinit();
         return openTransport(allocator, .{ .context = self, .fetch = TestScript.fetch, .close = TestScript.close }, first, 1024 * 1024);
     }
 };

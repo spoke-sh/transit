@@ -13483,7 +13483,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"82f5a05c43c1e7d5d39b7735460c0a03a24b92f95bd8ff133436bfa1b5707fc0\""
+          "c28797e8d36912bfca884567bf72256f7304e0e64ed278b90894d7e22b311914"
         ],
         "Effect.phase": [
           "pending",
@@ -19076,7 +19076,7 @@
         "Canceled": 1,
         "InvalidSqlClientConfiguration": 1,
         "InvalidSqlEndpoint": 5,
-        "InvalidSqlHttpResponse": 2,
+        "InvalidSqlHttpResponse": 5,
         "InvalidSqlResponse": 1,
         "ReadFailed": 1,
         "SqlInstanceChanged": 1,
@@ -19103,11 +19103,12 @@
         "local()": "<inferred>",
         "open()": "<inferred>",
         "perform()": "anyerror",
+        "responseBody()": "<inferred>",
         "sleep()": "<inferred>"
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 41,
+        "try": 44,
         "catch": 1
       },
       "imports": [
@@ -19218,16 +19219,14 @@
         "HttpConnectionClosing": 1,
         "HttpRequestTruncated": 1,
         "InvalidResultBudget": 1,
-        "InvalidResultChunk": 1,
-        "InvalidResultRow": 1,
+        "InvalidResultChunk": 2,
+        "InvalidResultSchema": 1,
         "InvalidResultTransition": 1,
-        "InvalidSqlEncoding": 1,
-        "InvalidSqlResponse": 1,
+        "InvalidSqlResponse": 2,
         "ReadFailed": 2,
         "ResultCancelled": 1,
         "ResultClosed": 1,
-        "ResultIdentityChanged": 2,
-        "SqlBatchTooLarge": 1,
+        "ResultIdentityChanged": 1,
         "SqlObservationDenied": 1,
         "SqlRequestTimeout": 2,
         "SqlResultIncomplete": 1,
@@ -19251,6 +19250,7 @@
         "TestScript.fetch()": "<inferred>",
         "TestScript.frame()": "<inferred>",
         "TestScript.open()": "<inferred>",
+        "TestScript.response()": "<inferred>",
         "Transport.fetch()": "anyerror",
         "allocationSchedule()": "<inferred>",
         "close()": "<inferred>",
@@ -19262,7 +19262,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 34,
+        "try": 38,
         "catch": 1
       },
       "imports": [
@@ -19363,9 +19363,6 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "cell()": "<inferred>",
-        "decodeCell()": "<inferred>",
-        "decodeCellBorrowing()": "<inferred>",
         "decodeParameter()": "<inferred>",
         "decodeSchema()": "<inferred>",
         "descriptor()": "<inferred>",
@@ -19379,7 +19376,54 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 10,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-protocol/src/ResultColumns.zig": {
+      "errors": {
+        "InvalidResultChunk": 2,
+        "InvalidResultColumn": 4,
+        "SqlBatchTooLarge": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "countCell()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 15,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-protocol/src/ResultFrame.zig": {
+      "errors": {
+        "IncompatibleSqlDefinition": 1,
+        "InvalidResultFrame": 12,
+        "SqlMessageTooLarge": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "encode()": "<inferred>",
+        "parseBorrowed()": "<inferred>",
+        "rounded()": "<inferred>",
+        "shape()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
         "catch": 0
       },
       "imports": [
@@ -19389,7 +19433,7 @@
     },
     "packages/zig/transit-sql-protocol/src/root.zig": {
       "errors": {
-        "IncompatibleSqlDefinition": 2,
+        "IncompatibleSqlDefinition": 3,
         "InvalidAuthentication": 1,
         "InvalidResultChunk": 1,
         "InvalidScramMessage": 2,
@@ -19436,6 +19480,19 @@
           "control",
           "same_token",
           "same_batch"
+        ],
+        "JsonResponse.result": [
+          "hello",
+          "challenge",
+          "opened",
+          "context",
+          "described",
+          "operation",
+          "operations",
+          "completion",
+          "assistance",
+          "closed",
+          "err"
         ],
         "Operation.configuration_phase": [
           "applying",
@@ -19506,19 +19563,24 @@
         "Operation.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
         "authenticationBinding()": "<inferred>",
+        "decodeResponse()": "<inferred>",
+        "encodeResponse()": "<inferred>",
         "fingerprint()": "<inferred>",
         "name()": "<inferred>",
         "parse()": "<inferred>",
-        "sql()": "<inferred>"
+        "sql()": "<inferred>",
+        "validateResponse()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 28,
         "catch": 0
       },
       "imports": [
         "Authentication.zig",
         "Codec.zig",
+        "ResultColumns.zig",
+        "ResultFrame.zig",
         "std",
         "transit_fuze",
         "transit_protocol",
@@ -19534,7 +19596,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 20,
         "catch": 0
       },
       "imports": [
@@ -20620,7 +20682,6 @@
         "QueryDenied": 3,
         "ResultIdentityChanged": 1,
         "SqlAdmissionTokenRequired": 3,
-        "SqlBatchTooLarge": 1,
         "SqlInstanceChanged": 1,
         "SqlMessageTooLarge": 1,
         "SqlOperationBindingChanged": 2,
@@ -20662,7 +20723,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 125,
+        "try": 121,
         "catch": 6
       },
       "imports": [

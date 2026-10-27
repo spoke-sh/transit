@@ -15,6 +15,37 @@ retry, raw decoding and settlement polling belong below that interface. Faster
 batching and a single rendered table support this goal; they do not complete the
 milestone without that abstraction.
 
+## Progress integration boundary
+
+The implementation is being published as a progress PR before milestone closure,
+so milestone 3 can integrate against concrete shared interfaces. The boundary is
+`transit-sql-results` for logical schemas, row/column batches, observation evidence
+and terminal progress; `transit-sql-client.Executor` owns submission/settlement and
+returns the common result reader. Ordinary consumers do not operate native fetch
+or status state machines. Service read variants fill independently bounded SQL
+batches while retaining their owning source cuts and current disclosure checks.
+
+Native result carriage uses binary columns and supplies schema/observation once,
+with immutable commitments thereafter. It reuses Fuze's plain TCP1 representation
+and compatible Arrow value buffers. This is a shared-definition hard cutover;
+matching services, clients, generated resources and fresh compatible fixtures
+must move together. It does not reinterpret earlier retained installations.
+Prepared metadata and parameters remain in bounded JSON control messages.
+
+Milestone 3 should preserve the `Read` ownership/disclosure boundary and supply
+its source evidence through `Observation`, without exposing storage page sizes to
+consumers or replacing independent cuts with an atomic-snapshot claim. Changes to
+source buffers must keep borrowed values alive until copying/encoding completes.
+SQL binary frames are transient representations and acquire no storage authority.
+
+The progress PR does not close this milestone. Remaining work includes the full
+combined-revision clean qualification, installed lifecycle/fault reruns and the
+paired seeded performance report. The retained installed ALTER operation from an
+earlier failed run remains an unresolved original attempt, not a passing outcome.
+Storage changes integrated from milestone 3 must be attributed separately in the
+final performance comparison. Compression remains an experiment; the implemented
+native result profile admits identity encoding only.
+
 ## Prerequisites and scope
 
 Follow the [live storage and SQL cutover](03-live-storage-and-sql-cutover.md),
@@ -393,8 +424,8 @@ through their existing explicit operation API and start a new consumption.
 **Independent memory and work budgets.** Start with the existing native envelope
 ceilings: 32 rows, 1 MiB canonical cell bytes and 4 MiB serialized message bytes.
 Give SQL batching its own limits rather than aliasing a Table or Arrow constant.
-Allow smaller effective budgets, and account for schema, basis, hex expansion,
-JSON framing, cell metadata and decoded allocations under their owning bounds.
+Allow smaller effective budgets, and account for schema, basis, binary column
+framing, cell metadata and decoded allocations under their owning bounds.
 Keep query work/result quotas distinct from transport and display limits.
 
 Use a bounded batch builder across all seven `Read` variants. Copy/encode a row

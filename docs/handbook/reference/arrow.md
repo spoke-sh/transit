@@ -78,8 +78,10 @@ necessary; preserve the source basis with the result.
 
 The [Transit console](../../../apps/transit-cli/docs/console.md) consumes logical
 statement results through the shared SQL client. Its table presentation does not
-expose storage pages or Arrow segment boundaries. Native session cells currently
-use canonical logical bytes in a bounded hex/JSON envelope; captured query owners
+expose storage pages or Arrow segment boundaries. Native sessions carry bounded binary columns with the schema and observation
+described once per result. Common scalar value buffers can be borrowed as Arrow
+views; state and conflict details remain in the enclosing Transit column. These
+HTTP bodies are uncompressed and are not Arrow IPC streams. Captured query owners
 can decode their retained Arrow segments beneath that boundary. JSON presentation
 uses exact typed row envelopes and a verified logical-result footer.
 

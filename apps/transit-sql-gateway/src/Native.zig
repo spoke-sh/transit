@@ -96,7 +96,8 @@ pub fn handleConnection(self: *Self, _: std.Io, allocator: std.mem.Allocator, co
     try respond(request, response);
 }
 fn respond(request: *std.http.Server.Request, body: []const u8) !void {
-    try request.respond(body, .{ .keep_alive = request.head.keep_alive, .extra_headers = &.{ .{ .name = "content-type", .value = "application/json" }, .{ .name = "cache-control", .value = "no-store" }, .{ .name = "x-content-type-options", .value = "nosniff" } } });
+    const content_type = if (std.mem.startsWith(u8, body, "TSR1")) api.ResultFrame.content_type else "application/json";
+    try request.respond(body, .{ .keep_alive = request.head.keep_alive, .extra_headers = &.{ .{ .name = "content-type", .value = content_type }, .{ .name = "cache-control", .value = "no-store" }, .{ .name = "x-content-type-options", .value = "nosniff" } } });
 }
 pub fn serve(self: *Self, io: std.Io, allocator: std.mem.Allocator, listener: *std.Io.net.Server) !void {
     return http.serve(io, allocator, listener, .{ .connections = 16, .requests = 8, .control_requests = 4, .header_timeout_ms = 1000, .request_timeout_ms = self.registry.configuration.limits.command_ms + 1000, .requests_per_connection = 256 }, self);

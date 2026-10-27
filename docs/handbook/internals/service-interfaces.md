@@ -337,7 +337,8 @@ execution results and limits.
 
 Native result cells carry canonical descriptors and schema-bound bytes. This
 preserves wide/nested types and distinguishes missing, null, type error and
-conflict. JSON is the bounded envelope, not a numeric conversion layer. PG/MySQL
+conflict. Native result payloads use the bounded binary TSR1 frame; JSON carries
+control messages and the initial observation descriptor. PG/MySQL
 continue to reject types outside their own representable profile before streaming.
 A batch contains at most 32 rows and 1 MiB of canonical payload. Only the most
 recent batch is cached; requesting its ordinal reauthorizes and returns it.
@@ -372,8 +373,12 @@ validates typed batches before atomically advancing progress. Its
 [batch view](../../../packages/zig/transit-sql-results/src/Batch.zig) separates
 row and column layout; row access needs only reusable descriptors while column
 access can preserve Fuze or Arrow-compatible buffers. The native decoder owns
-one cell matrix and one decoded payload per batch, borrowing variable bytes
-from that payload rather than allocating and copying each cell separately. The
+one aligned response body per batch. Common scalar columns borrow Arrow-compatible
+value buffers without allocating a cell matrix; other types allocate descriptors
+and borrow variable bytes. The initial schema and observation have independent
+ownership, while subsequent frames carry their commitments. Server column
+construction and socket reads still copy bytes, so this establishes bounded
+borrowing rather than end-to-end zero-copy. The
 [native reader](../../../packages/zig/transit-sql-client/src/NativeResult.zig)
 projects decoded, identity-checked responses into those transitions and repeats
 only the same requested ordinal within the original deadline. It primes the first

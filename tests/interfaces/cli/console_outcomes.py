@@ -2,6 +2,7 @@
 This checks client behavior, not native write durability (covered by server proofs).
 """
 from runner.paths import ROOT
+from interfaces.sql_sessions.result_frame import CONTENT_TYPE, ENCODING, encode_fixture
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -14,6 +15,8 @@ import tempfile
 import threading
 import time
 
+BAD_FRAMES = ('binary_definition', 'binary_commitment', 'binary_padding', 'binary_count', 'json_batch')
+ROW_MODES = ('rows', 'empty', 'incomplete', 'interrupt_fetch', 'drop_fetch') + BAD_FRAMES
 
 @contextmanager
 def peer(mode, *, length=None, maximum=32, empty_terminal=False):
@@ -43,7 +46,7 @@ def peer(mode, *, length=None, maximum=32, empty_terminal=False):
             state['actions'].append((action, value))
             instance = [2]*16
             if action == 'hello':
-                result = dict(hello=dict(encoding='transit.logical.v1.hex', session_lease_ms=30000, maximum_message=4194304, maximum_batch=1048576, maximum_rows=32, capabilities=[]))
+                result = dict(hello=dict(encoding=ENCODING, session_lease_ms=30000, maximum_message=4194304, maximum_batch=1048576, maximum_rows=32, capabilities=[]))
             elif action == 'open':
                 result = dict(opened=dict(session=[5 if state['expired'] else 3]*32, account=[4]*32, database='transit'))
             elif action in ('close', 'close_result', 'touch'):
@@ -60,7 +63,7 @@ def peer(mode, *, length=None, maximum=32, empty_terminal=False):
                     return
                 if length is not None:
                     result = batch(0)
-                elif mode in ('rows', 'incomplete', 'empty', 'interrupt_fetch', 'drop_fetch'):
+                elif mode in ROW_MODES:
                     result = dict(batch=dict(cursor=[6]*32, batch=0, schema=logical['schema'], rows=[] if mode == 'empty' else [logical['cells']], complete=mode == 'empty', completion=dict(rows=0) if mode == 'empty' else None, observation=observation))
                 else:
                     result = operation()
@@ -100,9 +103,20 @@ def peer(mode, *, length=None, maximum=32, empty_terminal=False):
                     if mode == 'interrupt_stall': time.sleep(2)
                     result = operation('applied' if mode == 'interrupt_applied' else 'cancelled')
             else: raise AssertionError(action)
-            payload = json.dumps(dict(version=1, definition=definition, instance=instance, result=result)).encode()
+            payload = encode_fixture(definition, instance, result['batch']) if 'batch' in result else json.dumps(dict(version=1, definition=definition, instance=instance, result=result)).encode()
+            content_type = CONTENT_TYPE if 'batch' in result else 'application/json'
+            if action == 'fetch' and mode in BAD_FRAMES:
+                if mode == 'json_batch':
+                    content_type = 'application/json'
+                    payload = json.dumps(dict(version=1, definition=definition, instance=instance, result=result)).encode()
+                else:
+                    damaged = bytearray(payload)
+                    offset = dict(binary_definition=4, binary_commitment=108, binary_padding=len(payload)-1, binary_count=100)[mode]
+                    damaged[offset] ^= 1
+                    payload = bytes(damaged)
             try:
                 self.send_response(200)
+                self.send_header('Content-Type', content_type)
                 self.send_header('Content-Length', str(len(payload)))
                 self.end_headers()
                 self.wfile.write(payload)
@@ -137,12 +151,12 @@ def check(binary):
     with tempfile.TemporaryDirectory(prefix='transit-outcomes-') as directory:
         root = Path(directory)
         config = root/'console.json'
-        for mode in ('applied', 'transient_status', 'transient_timeout', 'rejected', 'partial', 'unchanged', 'drop_execute', 'slow_acceptance', 'missing', 'timeout_discovery', 'denied', 'expired', 'instance_changed', 'rows', 'empty', 'drop_fetch', 'incomplete', 'interrupt_execute', 'interrupt_fetch', 'interrupt_cancelled', 'interrupt_applied', 'interrupt_stall'):
+        for mode in ('applied', 'transient_status', 'transient_timeout', 'rejected', 'partial', 'unchanged', 'drop_execute', 'slow_acceptance', 'missing', 'timeout_discovery', 'denied', 'expired', 'instance_changed', 'rows', 'empty', 'drop_fetch', 'incomplete', 'interrupt_execute', 'interrupt_fetch', 'interrupt_cancelled', 'interrupt_applied', 'interrupt_stall') + BAD_FRAMES:
             with peer(mode) as (endpoint, state):
                 config.write_text(json.dumps(dict(version=1, endpoint=endpoint, authentication='trust', request_timeout_ms=200)))
                 args = [binary, 'console', '--no-rc', '--config', str(config), '--format', 'json']
                 process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                process.stdin.write('SELECT * FROM items;\n' if mode in ('rows', 'empty', 'incomplete', 'interrupt_fetch', 'drop_fetch') else 'INSERT INTO items VALUES (1);\n')
+                process.stdin.write('SELECT * FROM items;\n' if mode in ROW_MODES else 'INSERT INTO items VALUES (1);\n')
                 process.stdin.flush()
                 if mode.startswith('interrupt'):
                     assert state['entered'].wait(5), mode
@@ -165,7 +179,7 @@ def check(binary):
                 elif mode in ('missing', 'timeout_discovery', 'denied', 'instance_changed'):
                     assert process.returncode == 1 and 'unresolved' in json.loads(stdout) and 'may apply changes twice' in stderr, (mode, stdout, stderr)
                     if mode == 'denied': assert 'Permissions prevented' in stderr
-                elif mode == 'incomplete':
+                elif mode == 'incomplete' or mode in BAD_FRAMES:
                     assert process.returncode == 1 and '"complete_coverage":true' not in stdout and 'partial result' in stderr, (mode, stdout, stderr)
                 elif mode in ('rejected', 'partial'):
                     assert process.returncode == 1 and json.loads(stdout)['completion']['outcome'] == mode, (mode, stdout, stderr)
@@ -179,6 +193,10 @@ def check(binary):
                     assert json.loads(stdout)['completion']['counts']['changed'] == '1', (mode, stdout)
                 executions = [value for action, value in state['actions'] if action == 'execute']
                 assert len(executions) == 1, (mode, state['actions'])
+                if mode in BAD_FRAMES:
+                    frames = [json.loads(line) for line in stdout.splitlines()]
+                    assert len([frame for frame in frames if 'row' in frame]) == 1, frames
+                    assert sum(action == 'close_result' for action, _ in state['actions']) == 1, state['actions']
                 if mode == 'drop_fetch':
                     frames = [json.loads(line) for line in stdout.splitlines()]
                     assert len([frame for frame in frames if 'row' in frame]) == 1, frames
@@ -188,7 +206,7 @@ def check(binary):
                 if mode == 'transient_timeout': assert state['observations'] == 2, state['actions']
                 if mode == 'timeout_discovery': assert time.monotonic() - state['submitted'] < 2, state['actions']
                 assert 'token:' not in stdout+stderr and '.resume' not in stdout+stderr
-                if stdout and mode not in ('rows', 'empty', 'incomplete', 'interrupt_fetch', 'drop_fetch'):
+                if stdout and mode not in ROW_MODES:
                     observed = json.loads(stdout)
                     if 'completion' in observed:
                         assert observed['completion']['operation']['id'] == '42'

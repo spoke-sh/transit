@@ -70,7 +70,8 @@ pub fn execute(self: *Self, sql: []const u8, parameters: ?[]const r.fuze.Logical
         out.value = try self.settle(&pending, err == error.ResultCancelled);
         return out;
     };
-    defer response.deinit();
+    var retained = false;
+    defer if (!retained) response.deinit();
     switch (response.value.result) {
         .operation => |operation| {
             try pending.observe(operation);
@@ -87,10 +88,11 @@ pub fn execute(self: *Self, sql: []const u8, parameters: ?[]const r.fuze.Logical
             out.value = .{ .command = completion };
         },
         .batch => |batch| {
-            const result = @import("NativeResult.zig").open(out.memory.allocator(), self, batch, options.resident_bytes) catch |err| {
+            const result = @import("NativeResult.zig").open(out.memory.allocator(), self, response, options.resident_bytes) catch |err| {
                 self.release(.{ .close_result = batch.cursor });
                 return err;
             };
+            retained = true;
             out.value = .{ .rows = result };
         },
         else => return error.InvalidSqlResponse,
@@ -197,17 +199,19 @@ pub fn openCaptured(self: *Self, operation: r.Operation, options: Options) !*Out
     const out = try self.createOutcome(options);
     errdefer out.deinit();
     const response = try self.call(.{ .result = operation }, out.memory.allocator());
-    defer response.deinit();
+    var retained = false;
+    defer if (!retained) response.deinit();
     if (response.value.result == .err) {
         out.value = .{ .failure = try self.failure(out.arena.allocator(), response.value.result.err) };
         return out;
     }
     if (response.value.result != .batch) return error.SqlResultUnavailable;
     const batch = response.value.result.batch;
-    const result = @import("NativeResult.zig").open(out.memory.allocator(), self, batch, options.resident_bytes) catch |err| {
+    const result = @import("NativeResult.zig").open(out.memory.allocator(), self, response, options.resident_bytes) catch |err| {
         self.release(.{ .close_result = batch.cursor });
         return err;
     };
+    retained = true;
     out.value = .{ .rows = result };
     return out;
 }
