@@ -148,7 +148,7 @@ function description(value: NativeDescription): Description {
       value.columns.map((column) => {
         if (column.optional) throw new IncompatibleNative("Relational columns cannot be missing");
         const type = decodeType(column.type);
-        if (type.kind !== "int64" && type.kind !== "uint64")
+        if (type.kind !== "int64" && type.kind !== "uint64" && type.kind !== "utf8")
           throw new IncompatibleNative("Unsupported relational output type");
         return Object.freeze({
           name: column.name,
@@ -176,10 +176,19 @@ export interface Opened {
 }
 export type Identity =
   | { readonly kind: "pair"; readonly left: RowIdentity; readonly right: RowIdentity | undefined }
-  | { readonly kind: "group"; readonly keys: readonly (bigint | null)[] };
+  | { readonly kind: "group"; readonly keys: readonly (bigint | string | null)[] };
 export interface Row {
   readonly identity: Identity;
-  readonly cells: readonly (bigint | null)[];
+  readonly cells: readonly (bigint | string | null)[];
+}
+function textScalar(value: string): string {
+  if (
+    typeof value !== "string" ||
+    Buffer.byteLength(value) > 1024 * 1024 ||
+    Buffer.from(value, "utf8").toString("utf8") !== value
+  )
+    throw new IncompatibleNative("Invalid relational text");
+  return value;
 }
 function row(value: NativeRow): Row {
   const identity: Identity =
@@ -197,9 +206,10 @@ function row(value: NativeRow): Row {
           keys: Object.freeze(
             value.identity.group.map((key) => {
               if (key === null) return null;
-              if (!/^(0|-?[1-9][0-9]*)$/.test(key))
+              if ("utf8" in key) return textScalar(key.utf8);
+              if (!("signed" in key) || !/^(0|-?[1-9][0-9]*)$/.test(key.signed))
                 throw new IncompatibleNative("Invalid relational group key");
-              const result = BigInt(key);
+              const result = BigInt(key.signed);
               if (result < -(1n << 63n) || result >= 1n << 63n)
                 throw new IncompatibleNative("Relational key exceeds int64");
               return result;
@@ -214,6 +224,7 @@ function row(value: NativeRow): Row {
         if (!("value" in cell) || !("atom" in cell.value))
           throw new IncompatibleNative("Unsupported relational cell");
         const atom = cell.value.atom;
+        if ("utf8" in atom) return textScalar(atom.utf8);
         if ("unsigned" in atom) return nativeWide(atom.unsigned);
         if (!("signed" in atom) || !/^(0|-?[1-9][0-9]*)$/.test(atom.signed))
           throw new IncompatibleNative("Unsupported relational scalar");

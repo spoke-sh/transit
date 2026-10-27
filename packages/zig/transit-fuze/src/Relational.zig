@@ -5,7 +5,7 @@ const table = @import("TableSchema.zig");
 const types = @import("Types.zig");
 pub const RowIdentity = @import("TableRow.zig").Identity;
 
-pub const definition = "transit.fuze.relational.v1.2026-10-11";
+pub const definition = "transit.fuze.relational.v1.2026-10-26";
 pub const max_sources = 2;
 pub const max_outputs = 128;
 pub const max_groups = 128;
@@ -42,7 +42,7 @@ pub const Expression = union(enum(u8)) {
 pub const Output = struct { name: []const u8, expression: Expression };
 pub const Comparison = enum(u8) { equal, not_equal, less, less_equal, greater, greater_equal };
 pub const Instruction = union(enum(u8)) {
-    compare: struct { column: Column, op: Comparison, value: i64 },
+    compare: struct { column: Column, op: Comparison, value: @import("RelationalValues.zig").Literal },
     is_null: Column,
     is_not_null: Column,
     negate,
@@ -104,8 +104,9 @@ pub const Plan = struct {
         }
         if (self.join) |join| {
             if (join.left.source != 0 or join.right.source != 1) return error.InvalidRelationalJoin;
-            _ = try self.resolveColumn(join.left);
-            _ = try self.resolveColumn(join.right);
+            const left = try self.resolveColumn(join.left);
+            const right = try self.resolveColumn(join.right);
+            if (std.meta.activeTag(left.type) != std.meta.activeTag(right.type) or left.collation != right.collation) return error.InvalidRelationalJoin;
         }
         try self.validatePredicate(self.filter, null);
         for (self.group_by, 0..) |column, i| {
@@ -133,7 +134,8 @@ pub const Plan = struct {
                         if (!grouped) return error.UngroupedRelationalColumn;
                     }
                 },
-                .count, .sum => |column| _ = try self.resolveColumn(column),
+                .count => |column| _ = try self.resolveColumn(column),
+                .sum => |column| if ((try self.resolveColumn(column)).type != .int64) return error.UnsupportedRelationalType,
             }
         }
         const type_limits: types.Limits = .{};
@@ -152,7 +154,7 @@ pub const Plan = struct {
         if (reference.source >= self.sources.len) return error.UnknownRelationalSource;
         const schema = self.sources[reference.source].schema;
         const result = schema.columns[try schema.index(reference.id)];
-        if (result.type != .int64) return error.UnsupportedRelationalType;
+        if (result.type != .int64 and result.type != .utf8) return error.UnsupportedRelationalType;
         return result;
     }
 
@@ -166,7 +168,8 @@ pub const Plan = struct {
                 else => null,
             };
             if (reference) |column| {
-                _ = try self.resolveColumn(column);
+                const descriptor = try self.resolveColumn(column);
+                if (instruction == .compare) try @import("RelationalValues.zig").validate(instruction.compare.value, descriptor);
                 if (source) |index| if (column.source != index) return error.InvalidRelationalFilterScope;
                 depth += 1;
             } else switch (instruction) {
@@ -210,7 +213,8 @@ pub const Plan = struct {
             fields[i] = .{
                 .name = output.name,
                 .type = switch (output.expression) {
-                    .column, .sum => .int64,
+                    .column => |reference| (try self.resolveColumn(reference)).type,
+                    .sum => .int64,
                     .count_all, .count => .uint64,
                 },
                 .nullable = nullable,
@@ -351,13 +355,11 @@ pub const Bound = struct {
 };
 
 /// These distinct rules prevent NULL equality for joins leaking into grouping.
-pub fn joinMatches(left: ?i64, right: ?i64) bool {
-    return left != null and right != null and left.? == right.?;
+pub fn joinMatches(left: @import("RelationalValues.zig").Value, right: @import("RelationalValues.zig").Value, descriptor: table.Column) !bool {
+    return left != null and right != null and try groupOrder(left, right, descriptor) == .eq;
 }
-pub fn groupOrder(left: ?i64, right: ?i64) std.math.Order {
-    if (left == null) return if (right == null) .eq else .lt;
-    if (right == null) return .gt;
-    return std.math.order(left.?, right.?);
+pub fn groupOrder(left: @import("RelationalValues.zig").Value, right: @import("RelationalValues.zig").Value, descriptor: table.Column) !std.math.Order {
+    return @import("RelationalValues.zig").order(left, right, descriptor);
 }
 /// One aggregate's provisional state. Caller supplies canonical contributors;
 /// discard a failed candidate. Group storage and publication are host concerns.
@@ -395,7 +397,7 @@ fn writePredicate(writer: *std.Io.Writer, predicate: Predicate) !void {
             .compare => |item| {
                 try writeColumn(writer, item.column);
                 try writer.writeByte(@backingInt(item.op));
-                try writer.writeInt(i64, item.value, .little);
+                try @import("RelationalValues.zig").write(writer, item.value);
             },
             .is_null, .is_not_null => |column| try writeColumn(writer, column),
             else => {},

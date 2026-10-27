@@ -1,8 +1,8 @@
 {
-  "definition": "transit.fuze.relational.v1.2026-10-11",
+  "definition": "transit.fuze.relational.v1.2026-10-26",
   "identity": {
-    "prepared": "fabbfd5aae9f4bdc9e8fdd705b1f2b9097b07552b3ca0880ce94bec134d1453a",
-    "bound": "93e3154579a2302812a991284fea166ea223c533e1f645468f7fd984bd065546"
+    "prepared": "884e0174dee15faf8f3839585399b256a0d862a51a1cd431b5d23c269860149b",
+    "bound": "386216396d89e32746e616eeb3da26a1a933a8f44fdc6ad184189707e126355d"
   },
   "nulls": [
     {

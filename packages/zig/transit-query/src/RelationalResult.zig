@@ -8,13 +8,16 @@ const p = q.protocol;
 const g = p.Growth;
 const c = q.catalog;
 const Self = @This();
+pub const resident_base = @sizeOf(Self) + 4 * @sizeOf(g.SnapshotRead.Result) + 2 * f.RelationalCheckpoint.fixed_bytes + 2 * f.RelationalOutput.fixed_bytes + 16384 + 4 * f.TableSchema.max_bytes + f.Types.max_encoding_bytes;
+parent: std.mem.Allocator,
+memory: q.QueryMemory,
 bundle: q.RelationalBundle,
 disclosure: p.Authorization.Subject,
 source: q.wire.SnapshotReader,
 stored: r.Job,
 vector: q.RelationalCaptured.Vector,
 cuts: [f.Relational.max_sources]f.Relational.Cut,
-progress: f.RelationalCheckpoint,
+progress: ?f.RelationalCheckpoint = null,
 ordinal: u64 = 0,
 bytes: u64 = 0,
 canonical_bytes: u64,
@@ -37,18 +40,22 @@ pub const Options = struct {
 };
 /// Native reads cover the independent computation resource. Source disclosure
 /// uses exact authority references retained with each direct Table pin.
-pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: Options, disclosure: p.Authorization.Subject, nonce: [16]u8) !Self {
+pub fn open(allocator: std.mem.Allocator, client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: Options, disclosure: p.Authorization.Subject, nonce: [16]u8) !*Self {
     try bundle.validate();
     if (options.requests < 2) return error.QueryPageBudget;
     if (bundle.sources[0].scope.realm != client.realm) return error.RelationalSourceChanged;
     const current = try q.ResultDisclosure.check(disclosure, try options.selection(bundle), client.realm);
-    var self: Self = .{ .bundle = bundle, .disclosure = current, .source = try q.wire.SnapshotReader.open(client, options.resource, nonce), .stored = undefined, .vector = undefined, .cuts = undefined, .progress = undefined, .canonical_bytes = 0, .requests = 2, .request_limit = options.requests };
+    if (bundle.plan.budgets.resident_bytes <= resident_base or bundle.plan.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
+    const self = try allocator.create(Self);
+    errdefer allocator.destroy(self);
+    self.* = .{ .parent = allocator, .memory = .{ .parent = allocator, .limit = @intCast(bundle.plan.budgets.resident_bytes - resident_base) }, .bundle = bundle, .disclosure = current, .source = try q.wire.SnapshotReader.open(client, options.resource, nonce), .stored = undefined, .vector = undefined, .cuts = undefined, .canonical_bytes = 0, .requests = 2, .request_limit = options.requests };
     errdefer {
         const rejection = client.wire.last_rejection;
         self.close() catch {};
+        self.release();
         client.wire.last_rejection = rejection;
     }
-    var reader: Reader = .{ .owner = &self, .view = self.source.view };
+    var reader: Reader = .{ .owner = self, .view = self.source.view };
     self.stored = try q.RelationalCapture.job(&reader, options.job);
     if (self.stored.destination != options.peer or self.stored.request_version.pid != options.owner) return error.QueryDenied;
     if (self.stored.phase != .complete) return error.IncompleteResult;
@@ -65,8 +72,8 @@ pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: 
     if (!std.meta.eql(manifest.job, self.stored) or !manifest.vector.eql(vector_value) or manifest.checkpoint.resource != options.resource) return error.InvalidRelationalRecord;
     const descriptor = try pages.publication.inspect(&reader, self.stored.checkpoint);
     if (!std.meta.eql(descriptor.spec, manifest.checkpoint.spec)) return error.InvalidRelationalRecord;
-    self.progress = try pages.checkpoint(&reader, self.stored.checkpoint, self.bound());
-    if (self.progress.phase != .complete or self.progress.result_rows != self.stored.outputs) return error.IncompleteResult;
+    self.progress = try pages.checkpoint(self.memory.allocator(), &reader, self.stored.checkpoint, self.bound());
+    if (self.progress.?.phase != .complete or self.progress.?.result_rows != self.stored.outputs) return error.IncompleteResult;
     var fields: [f.Relational.max_outputs]f.Types.Field = undefined;
     var schema_bytes: [f.Types.max_encoding_bytes]u8 = undefined;
     self.canonical_bytes = (try (try bundle.plan.outputSchema(&fields)).encode(&schema_bytes)).len;
@@ -172,15 +179,16 @@ pub fn freshness(self: *Self, clients: []const c.DirectTableClient) !q.Relationa
     try self.authorize(false);
     return result;
 }
-/// One owned scalar row. A failed/unfinished prefix remains incomplete until
+/// One owned scalar row; call row.deinit() before destroying this reader. A failed/unfinished prefix remains incomplete until
 /// the final null has checked counts, digest chain, canonical bytes and rights.
 pub fn next(self: *Self) !?f.RelationalExecution.Output {
     if (self.failed) return error.FailedRelationalQuery;
     if (self.complete) return null;
+    if (self.source.closed) return error.QueryClosed;
     errdefer self.failed = true;
     try self.authorize(false);
     if (self.ordinal == self.stored.outputs) {
-        if (self.bytes != self.stored.output_bytes or self.canonical_bytes != self.progress.result_bytes or !std.mem.eql(u8, &self.chain, &self.stored.chain)) return error.IncompleteResult;
+        if (self.bytes != self.stored.output_bytes or self.canonical_bytes != self.progress.?.result_bytes or !std.mem.eql(u8, &self.chain, &self.stored.chain)) return error.IncompleteResult;
         try self.authorize(true);
         self.complete = true;
         return null;
@@ -191,11 +199,14 @@ pub fn next(self: *Self) !?f.RelationalExecution.Output {
     const pages: q.RelationalState = .{ .publication = self.stored.publication(self.source.view.resource) };
     const descriptor = try pages.publication.inspect(&reader, record.reference.record);
     if (!std.meta.eql(descriptor.spec, record.reference.spec)) return error.InvalidRelationalRecord;
-    var bytes: [f.RelationalOutput.max_bytes]u8 = undefined;
-    const output = try f.RelationalOutput.decode(self.bound(), try pages.read(&reader, record.reference.record, r.output_format, &bytes));
+    const allocator = self.memory.allocator();
+    const bytes = try pages.readAlloc(allocator, &reader, record.reference.record, r.output_format);
+    defer allocator.free(bytes);
+    var output = try f.RelationalOutput.decode(allocator, self.bound(), bytes);
+    errdefer output.deinit();
     if (output.ordinal != self.ordinal) return error.InvalidRelationalRecord;
     if (self.previous) |previous| switch (output.row.identity) {
-        .group => |key| if (previous != .group or key.order(previous.group) != .gt) return error.InvalidRelationalGroupOrder,
+        .group => |key| if (previous != .group or try key.order(previous.group, self.bundle.plan) != .gt) return error.InvalidRelationalGroupOrder,
         .pair => |pair| {
             if (previous != .pair) return error.InvalidRelationalSourceOrder;
             const order = f.RelationalExecution.identityOrder(pair.left, previous.pair.left);
@@ -203,17 +214,32 @@ pub fn next(self: *Self) !?f.RelationalExecution.Output {
         },
     };
     const next_bytes = try std.math.add(u64, self.bytes, record.reference.spec.length);
-    var canonical = self.canonical_bytes;
-    for (output.row.cells[0..output.row.len]) |cell| canonical = try std.math.add(u64, canonical, 5 + @as(u64, if (cell == .null) 0 else 8));
-    if (next_bytes > self.stored.output_bytes or canonical > self.progress.result_bytes) return error.IncompleteResult;
+    const canonical = try std.math.add(u64, self.canonical_bytes, try output.row.canonicalBytes());
+    if (next_bytes > self.stored.output_bytes or canonical > self.progress.?.result_bytes) return error.IncompleteResult;
     try self.authorize(false);
+    const chain = try record.extend(self.chain);
+    const identity = try output.row.identity.clone(allocator);
     self.bytes = next_bytes;
     self.canonical_bytes = canonical;
-    self.previous = output.row.identity;
-    self.chain = try record.extend(self.chain);
+    if (self.previous) |*previous| previous.deinit();
+    self.previous = identity;
+    self.chain = chain;
     self.ordinal += 1;
     return output.row;
 }
 pub fn close(self: *Self) !void {
     try self.source.close();
+}
+
+fn release(self: *Self) void {
+    if (self.progress) |*progress| progress.deinit();
+    if (self.previous) |*previous| previous.deinit();
+    std.debug.assert(self.memory.used == 0);
+}
+/// Release every returned row before destroying its reader. close() reports
+/// snapshot-release errors; deinit() retries closure and always frees local state.
+pub fn deinit(self: *Self) void {
+    self.close() catch {};
+    self.release();
+    self.parent.destroy(self);
 }

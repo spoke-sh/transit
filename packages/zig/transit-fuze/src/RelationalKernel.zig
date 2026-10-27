@@ -6,6 +6,7 @@ const r = @import("Relational.zig");
 const k = @import("VectorKernel.zig");
 const Truth = @import("PredicateTruth.zig").Truth;
 const Row = @import("RelationalExecution.zig").Row;
+const values = @import("RelationalValues.zig");
 const Self = @This();
 const Predicate = struct {
     instructions: [r.max_instructions]k.Instruction = undefined,
@@ -13,15 +14,15 @@ const Predicate = struct {
     fn bind(plan: r.Plan, predicate: r.Predicate) Predicate {
         var result: Predicate = .{ .len = @intCast(predicate.instructions.len) };
         for (predicate.instructions, result.instructions[0..result.len]) |input, *out| out.* = switch (input) {
-            .compare => |v| .{ .atom = k.Atom.bindType(.{ .compare = .{ .column = bindColumn(plan, v.column), .op = switch (v.op) {
+            .compare => |v| .{ .atom = k.Atom.bindCollation(.{ .compare = .{ .column = bindColumn(plan, v.column), .op = switch (v.op) {
                 .equal => .eq,
                 .not_equal => .ne,
                 .less => .lt,
                 .less_equal => .le,
                 .greater => .gt,
                 .greater_equal => .ge,
-            }, .value = .{ .signed = v.value } } }, .int64) },
-            .is_null, .is_not_null => |column| .{ .atom = k.Atom.bindType(.{ .state = .{ .column = bindColumn(plan, column), .value = if (input == .is_null) .null else .value } }, .int64) },
+            }, .value = values.cell(v.value).value.atom } }, (plan.resolveColumn(v.column) catch unreachable).type, (plan.resolveColumn(v.column) catch unreachable).collation) },
+            .is_null, .is_not_null => |column| .{ .atom = k.Atom.bindType(.{ .state = .{ .column = bindColumn(plan, column), .value = if (input == .is_null) .null else .value } }, (plan.resolveColumn(column) catch unreachable).type) },
             .negate => .negate,
             .conjunction => .conjunction,
             .disjunction => .disjunction,
@@ -36,7 +37,7 @@ const Predicate = struct {
             .atom => |atom| {
                 const value = cell(atom.column, left, right);
                 var outcome: [1]k.Outcome = undefined;
-                atom.run(atom, .{ .constant = .{ .value = if (value) |v| .{ .value = .{ .atom = .{ .signed = v } } } else .null, .len = 1 } }, 0, &outcome);
+                atom.run(atom, .{ .constant = .{ .value = values.cell(value), .len = 1 } }, 0, &outcome);
                 stack[depth] = outcome[0].truth;
                 depth += 1;
             },
@@ -67,7 +68,7 @@ pub fn bind(plan: r.Plan) Self {
 fn bindColumn(plan: r.Plan, column: r.Column) u8 {
     return @as(u8, @intCast(plan.sources[column.source].schema.index(column.id) catch unreachable)) | (column.source << 7);
 }
-pub fn cell(column: u8, left: ?Row, right: ?Row) ?i64 {
+pub fn cell(column: u8, left: ?Row, right: ?Row) values.Value {
     const row = (if (column < 128) left else right) orelse return null;
     return row.values[column & 127];
 }

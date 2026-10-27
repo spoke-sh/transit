@@ -49,8 +49,8 @@ const Input = struct {
         }
         if (selected) |row| {
             var result: e.Row = .{ .identity = .{ .origin = 1, .operation = @intCast(row[0].?), .ordinal = 0 } };
-            result.values[0] = row[1];
-            result.values[1] = row[2];
+            result.values[0] = scalar(row[1]);
+            result.values[1] = scalar(row[2]);
             return result;
         }
         return null;
@@ -58,17 +58,18 @@ const Input = struct {
 };
 // Deliberately materialized reference storage for small semantic fixtures only.
 const Groups = struct {
+    plan: r.Plan = base(),
     items: std.ArrayList(e.Group) = .empty,
     writes: u64 = 0,
     fail_at: ?u64 = null,
     pub fn get(self: *Groups, key: e.Key) !?e.Group {
-        for (self.items.items) |group| if (group.key.order(key) == .eq) return group;
+        for (self.items.items) |group| if (try group.key.order(key, self.plan) == .eq) return group;
         return null;
     }
     pub fn put(self: *Groups, group: e.Group) !void {
         if (self.fail_at == self.writes) return error.StoreUnavailable;
         self.writes += 1;
-        for (self.items.items) |*existing| if (existing.key.order(group.key) == .eq) {
+        for (self.items.items) |*existing| if (try existing.key.order(group.key, self.plan) == .eq) {
             existing.* = group;
             return;
         };
@@ -77,8 +78,8 @@ const Groups = struct {
     pub fn next(self: *Groups, after: ?e.Key) !?e.Group {
         var result: ?e.Group = null;
         for (self.items.items) |group| {
-            if (after) |key| if (group.key.order(key) != .gt) continue;
-            if (result == null or group.key.order(result.?.key) == .lt) result = group;
+            if (after) |key| if (try group.key.order(key, self.plan) != .gt) continue;
+            if (result == null or try group.key.order(result.?.key, self.plan) == .lt) result = group;
         }
         return result;
     }
@@ -92,7 +93,7 @@ fn column(name: []const u8) r.Column {
 }
 fn predicate(value: ?Predicate, instruction: *[1]r.Instruction) r.Predicate {
     const pred = value orelse return .{};
-    instruction[0] = if (std.mem.eql(u8, pred.op, "is_null")) .{ .is_null = column(pred.column) } else if (std.mem.eql(u8, pred.op, "is_not_null")) .{ .is_not_null = column(pred.column) } else .{ .compare = .{ .column = column(pred.column), .op = if (std.mem.eql(u8, pred.op, "gt")) .greater else if (std.mem.eql(u8, pred.op, "lt")) .less else .equal, .value = pred.value } };
+    instruction[0] = if (std.mem.eql(u8, pred.op, "is_null")) .{ .is_null = column(pred.column) } else if (std.mem.eql(u8, pred.op, "is_not_null")) .{ .is_not_null = column(pred.column) } else .{ .compare = .{ .column = column(pred.column), .op = if (std.mem.eql(u8, pred.op, "gt")) .greater else if (std.mem.eql(u8, pred.op, "lt")) .less else .equal, .value = .{ .integer = pred.value } } };
     return .{ .instructions = instruction };
 }
 fn cuts() ![2]r.Cut {
@@ -124,9 +125,9 @@ fn rebatch(bound: r.Bound, input: *Input, partitions: u64, batch: u8, retained: 
                     segment.rows[segment.len] = value;
                     segment.len += 1;
                 }
-                var bytes: [x.max_bytes]u8 = undefined;
-                const decoded = try x.Segment.decode(bound, try segment.encode(bound, &bytes));
-                for (decoded.rows[0..decoded.len]) |value| try retained[source].append(t.allocator, .{ @intCast(value.identity.operation), value.values[0], value.values[1] });
+                var bytes: [x.fixed_bytes]u8 = undefined;
+                const decoded = try x.Segment.decode(t.allocator, bound, try segment.encode(bound, &bytes));
+                for (decoded.rows[0..decoded.len]) |value| try retained[source].append(t.allocator, .{ @intCast(value.identity.operation), number(value.values[0]), number(value.values[1]) });
                 if (decoded.terminal) break;
                 segment.len = 0;
                 segment.sequence += 1;
@@ -169,9 +170,9 @@ test "bounded relational executor agrees with independent bags groups nulls and 
             var exchanged: [2]std.ArrayList([3]?i64) = .{ .empty, .empty };
             defer for (&exchanged) |*rows| rows.deinit(t.allocator);
             if (mode == .partitions_1_batch_1 or mode == .partitions_7_batch_4) try rebatch(bound, &input, if (mode == .partitions_1_batch_1) 1 else 7, if (mode == .partitions_1_batch_1) 1 else 4, &exchanged);
-            var groups: GroupStore = if (durable) .{ .tree = try Index.init(bound, null) } else .{};
+            var groups: GroupStore = if (durable) .{ .tree = try Index.init(t.allocator, bound, null) } else .{ .plan = plan };
             defer groups.deinit();
-            var run = try Engine.init(bound, &input, &groups);
+            var run = try Engine.init(t.allocator, bound, &input, &groups);
             var rows: usize = 0;
             while (true) {
                 if (durable) try restart(Engine, &run, &input, &groups);
@@ -182,7 +183,7 @@ test "bounded relational executor agrees with independent bags groups nulls and 
                     try t.expectEqual(@as(u64, @intCast(expected.identity[0].?)), failure.pair.left.operation);
                     try t.expectEqual(expected.identity[1], if (failure.pair.right) |right| @as(?i64, @intCast(right.operation)) else null);
                     try t.expectEqual(expected.output, failure.output);
-                    try t.expectEqualSlices(?i64, expected.group, failure.group.values[0..failure.group.len]);
+                    try expectNumbers(expected.group, failure.group.values[0..failure.group.len]);
                     try t.expectEqual(@as(usize, 0), rows);
                     if (durable) try restart(Engine, &run, &input, &groups);
                     try t.expectError(error.FailedRelationalQuery, run.step());
@@ -202,23 +203,23 @@ test "bounded relational executor agrees with independent bags groups nulls and 
                     .row => |row| {
                         if (durable) {
                             const Record = @import("RelationalOutput.zig");
-                            var bytes: [Record.max_bytes]u8 = undefined;
+                            var bytes: [Record.fixed_bytes]u8 = undefined;
                             const record: Record = .{ .binding = try bound.fingerprint(), .ordinal = rows, .row = row };
                             const encoded = try record.encode(bound, &bytes);
-                            const restored = try Record.decode(bound, encoded);
+                            const restored = try Record.decode(t.allocator, bound, encoded);
                             try t.expect(std.meta.eql(record, restored));
                             if (rows == 0) {
                                 for (0..encoded.len) |prefix| {
-                                    if (Record.decode(bound, encoded[0..prefix])) |_| return error.AcceptedIncompleteOutput else |_| {}
+                                    if (Record.decode(t.allocator, bound, encoded[0..prefix])) |_| return error.AcceptedIncompleteOutput else |_| {}
                                 }
                                 bytes[4] ^= 1;
-                                try t.expectError(error.IncompatibleDefinition, Record.decode(bound, encoded));
+                                try t.expectError(error.IncompatibleDefinition, Record.decode(t.allocator, bound, encoded));
                                 bytes[4] ^= 1;
                                 bytes[36] ^= 1;
-                                try t.expectError(error.RelationalSourceChanged, Record.decode(bound, encoded));
+                                try t.expectError(error.RelationalSourceChanged, Record.decode(t.allocator, bound, encoded));
                                 bytes[36] ^= 1;
                                 std.mem.writeInt(u64, bytes[68..76], bound.plan.budgets.output_rows, .little);
-                                try t.expectError(error.InvalidRelationalOutput, Record.decode(bound, encoded));
+                                try t.expectError(error.InvalidRelationalOutput, Record.decode(t.allocator, bound, encoded));
                             }
                         }
                         try t.expect(rows < case.expected.rows.len);
@@ -228,7 +229,7 @@ test "bounded relational executor agrees with independent bags groups nulls and 
                                 try t.expectEqual(@as(u64, @intCast(expected.identity[0].?)), pair.left.operation);
                                 try t.expectEqual(expected.identity[1], if (pair.right) |right| @as(?i64, @intCast(right.operation)) else null);
                             },
-                            .group => |key| try t.expectEqualSlices(?i64, expected.identity, key.values[0..key.len]),
+                            .group => |key| try expectNumbers(expected.identity, key.values[0..key.len]),
                         }
                         try t.expectEqual(expected.values.len, row.len);
                         for (expected.values, row.cells[0..row.len]) |value, actual| {
@@ -253,7 +254,7 @@ test "source and store failure terminally reject without complete publication" {
         var input: Input = .{ .rows = .{ &.{ .{ 1, 7, 3 }, .{ 2, 7, 4 } }, &.{} }, .fail_at = if (fail < 3) fail else null };
         var groups: Groups = .{ .fail_at = if (fail >= 3) fail - 3 else null };
         defer groups.deinit();
-        var run = try Run.init(.{ .plan = base(), .cuts = basis[0..1] }, &input, &groups);
+        var run = try Run.init(t.allocator, .{ .plan = base(), .cuts = basis[0..1] }, &input, &groups);
         var failed = false;
         for (0..20) |_| {
             const event = run.step() catch |err| {
@@ -275,22 +276,22 @@ test "empty and completed relations still validate all source rights and budgets
     defer groups.deinit();
     var plan = base();
     plan.budgets.resident_bytes = Run.residentBytes - 1;
-    try t.expectError(error.RelationalResidentBudget, Run.init(.{ .plan = plan, .cuts = basis[0..1] }, &input, &groups));
+    try t.expectError(error.RelationalResidentBudget, Run.init(t.allocator, .{ .plan = plan, .cuts = basis[0..1] }, &input, &groups));
     plan = base();
     plan.budgets.work_steps = 1;
-    var run = try Run.init(.{ .plan = plan, .cuts = basis[0..1] }, &input, &groups);
+    var run = try Run.init(t.allocator, .{ .plan = plan, .cuts = basis[0..1] }, &input, &groups);
     _ = try run.step();
     try t.expectError(error.RelationalWorkBudget, run.step());
     plan = base();
     plan.budgets.output_rows = 0;
-    run = try Run.init(.{ .plan = plan, .cuts = basis[0..1] }, &input, &groups);
+    run = try Run.init(t.allocator, .{ .plan = plan, .cuts = basis[0..1] }, &input, &groups);
     _ = try run.step();
     try t.expectError(error.RelationalResultBudget, run.step());
-    run = try Run.init(.{ .plan = base(), .cuts = basis[0..1] }, &input, &groups);
+    run = try Run.init(t.allocator, .{ .plan = base(), .cuts = basis[0..1] }, &input, &groups);
     input.denied = true;
     try t.expectError(error.AccessDenied, run.step());
     input.denied = false;
-    run = try Run.init(.{ .plan = base(), .cuts = basis[0..1] }, &input, &groups);
+    run = try Run.init(t.allocator, .{ .plan = base(), .cuts = basis[0..1] }, &input, &groups);
     while (try run.step() != .complete) {}
     input.denied = true;
     try t.expectError(error.AccessDenied, run.step());
@@ -315,12 +316,12 @@ const ImmutableGroups = struct {
     }
 };
 fn restart(comptime Engine: type, run: *Engine, input: *Input, groups: *ImmutableGroups) !void {
-    var bytes: [Checkpoint.max_bytes]u8 = undefined;
+    var bytes: [Checkpoint.fixed_bytes]u8 = undefined;
     const saved = try run.checkpoint(groups.tree.root);
-    const decoded = try Checkpoint.decode(run.bound, try saved.encode(run.bound, &bytes));
+    const decoded = try Checkpoint.decode(t.allocator, run.bound, try saved.encode(run.bound, &bytes));
     try t.expect(std.meta.eql(saved, decoded));
-    groups.tree = try Index.init(run.bound, decoded.root);
-    run.* = try Engine.restore(run.bound, input, groups, decoded);
+    groups.tree = try Index.init(t.allocator, run.bound, decoded.root);
+    run.* = try Engine.restore(t.allocator, run.bound, input, groups, decoded);
 }
 
 test "checkpoint admission rejects changed cuts corrupt counters truncation and revoked sources" {
@@ -330,22 +331,22 @@ test "checkpoint admission rejects changed cuts corrupt counters truncation and 
     plan.budgets.resident_bytes = 4 * 1024 * 1024;
     const bound: r.Bound = .{ .plan = plan, .cuts = basis[0..1] };
     var input: Input = .{ .rows = .{ &.{}, &.{} } };
-    var groups: ImmutableGroups = .{ .tree = try Index.init(bound, null) };
+    var groups: ImmutableGroups = .{ .tree = try Index.init(t.allocator, bound, null) };
     defer groups.deinit();
     const Engine = e.Execution(*Input, *ImmutableGroups);
-    var run = try Engine.init(bound, &input, &groups);
+    var run = try Engine.init(t.allocator, bound, &input, &groups);
     _ = try run.step();
     const saved = try run.checkpoint(groups.tree.root);
-    var bytes: [Checkpoint.max_bytes]u8 = undefined;
+    var bytes: [Checkpoint.fixed_bytes]u8 = undefined;
     const encoded = try saved.encode(bound, &bytes);
     for (0..encoded.len) |size| {
-        if (Checkpoint.decode(bound, encoded[0..size])) |_| return error.AcceptedIncompleteCheckpoint else |_| {}
+        if (Checkpoint.decode(t.allocator, bound, encoded[0..size])) |_| return error.AcceptedIncompleteCheckpoint else |_| {}
     }
     bytes[4] ^= 1;
-    try t.expectError(error.IncompatibleDefinition, Checkpoint.decode(bound, encoded));
+    try t.expectError(error.IncompatibleDefinition, Checkpoint.decode(t.allocator, bound, encoded));
     bytes[4] ^= 1;
     basis[0].revision += 1;
-    try t.expectError(error.RelationalSourceChanged, Checkpoint.decode(bound, encoded));
+    try t.expectError(error.RelationalSourceChanged, Checkpoint.decode(t.allocator, bound, encoded));
     basis[0].revision -= 1;
     var invalid = saved;
     invalid.group_count += 1;
@@ -354,5 +355,16 @@ test "checkpoint admission rejects changed cuts corrupt counters truncation and 
     invalid.result_bytes = 0;
     try t.expectError(error.InvalidRelationalCheckpoint, invalid.validate(bound));
     input.denied = true;
-    try t.expectError(error.AccessDenied, Engine.restore(bound, &input, &groups, saved));
+    try t.expectError(error.AccessDenied, Engine.restore(t.allocator, bound, &input, &groups, saved));
+}
+
+fn scalar(value: ?i64) @import("RelationalValues.zig").Value {
+    return if (value) |integer| .{ .integer = integer } else null;
+}
+fn number(value: @import("RelationalValues.zig").Value) ?i64 {
+    return if (value) |present| present.integer else null;
+}
+fn expectNumbers(expected: []const ?i64, actual: []const @import("RelationalValues.zig").Value) !void {
+    try t.expectEqual(expected.len, actual.len);
+    for (expected, actual) |a, b| try t.expectEqual(a, number(b));
 }

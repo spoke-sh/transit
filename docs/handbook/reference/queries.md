@@ -275,10 +275,13 @@ Both return uint64; null/missing still consume the input LIMIT. Checked int64
 SUM adds the selected values of one declared source.
 Those single-source interfaces retain their original cut and operator profile.
 The separate [finite relational contract](../../../contracts/RELATIONAL_V1.md)
-supports one or two explicitly routed Tables, one inner/left int64 equijoin,
-grouping by int64 columns, projection, COUNT and ordered checked int64 SUM.
-SQL declares int64 as BIGINT. Join nulls do not match; grouping places null keys
-together and before integer keys. Duplicate rows retain their multiplicity.
+supports one or two explicitly routed Tables, one inner/left int64 or UTF-8 equijoin,
+grouping by int64 or UTF-8 columns, projection, COUNT and ordered checked int64 SUM.
+SQL declares int64 as BIGINT and UTF-8 as TEXT. Join columns require matching
+types and collations. Text comparison, grouping and routing honor UTF8_BINARY,
+ASCII_CI or EBCDIC_CP037 with NO PAD semantics. Join nulls do not match; grouping
+places null keys together and before values. Equivalent text groups retain the
+first contributor’s original spelling. Duplicate rows retain their multiplicity.
 
 The SQL service uses `DirectRelationalQuery` over independently retained Table
 partition cuts. Tables in one catalog need not share a frontier; repeated aliases
@@ -320,7 +323,7 @@ repeatable one-row pages and close through the shared
 A complete page rechecks all source rights; host loss expires interactive handles.
 The [TypeScript](../../../sdks/ts/transit-station-sdk/docs/relational.md) and
 [Python](../../../sdks/python/transit-station/docs/relational.md) SDKs expose
-that interactive owner with immutable references and full-width integer rows.
+that interactive owner with immutable references and full-width integer and UTF-8 rows.
 Board's [relational worksheet](../../../apps/transit-board/docs/relational.md) exposes
 the same owner through explicit routes and page controls. Active-session
 inspection can recover a browser's lost reference without rerunning the query.

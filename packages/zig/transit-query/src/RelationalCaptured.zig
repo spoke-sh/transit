@@ -146,15 +146,7 @@ pub fn next(self: *Self, ordinal: u8, after: ?r.RowIdentity) !?e.Row {
     try self.validate(self.bound());
     if (batch.count == 0) return null;
     const owned = batch.rows[0].?;
-    var row: e.Row = .{ .identity = owned.identity };
-    for (self.bundle.plan.sources[ordinal].schema.columns, owned.row().cells, 0..) |column, cell, i| {
-        if (column.type != .int64) continue;
-        row.values[i] = if (cell == .null) null else value: {
-            if (cell != .value or cell.value != .atom or cell.value.atom != .signed) return error.InvalidRelationalSourceRow;
-            break :value std.math.cast(i64, cell.value.atom.signed) orelse return error.InvalidRelationalSourceRow;
-        };
-    }
-    return row;
+    return try e.Row.fromCells(self.allocator, owned.identity, self.bundle.plan.sources[ordinal].schema.columns, owned.row().cells);
 }
 
 test {

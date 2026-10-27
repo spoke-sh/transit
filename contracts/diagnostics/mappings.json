@@ -960,6 +960,10 @@
           "code": "query.exchange_closed",
           "category": "lifecycle"
         },
+        "RelationalExchangeCreditBudget": {
+          "code": "query.exchange_credit_budget",
+          "category": "limit"
+        },
         "RelationalExchangePending": {
           "code": "query.exchange_pending",
           "category": "lifecycle"
@@ -1723,6 +1727,10 @@
         {
           "source": "packages/zig/transit-query/src/RelationalWorkspace.zig",
           "name": "relational workspace fences concurrent hosts and preserves interrupted original ownership"
+        },
+        {
+          "source": "packages/zig/transit-query/src/relational_exchange_test.zig",
+          "name": "relational text exchange owns received rows and rejects impossible byte credit"
         }
       ]
     },
@@ -2488,6 +2496,10 @@
         "RelationalExchangeClosed": {
           "code": "query.exchange_closed",
           "category": "lifecycle"
+        },
+        "RelationalExchangeCreditBudget": {
+          "code": "query.exchange_credit_budget",
+          "category": "limit"
         },
         "RelationalExchangePending": {
           "code": "query.exchange_pending",

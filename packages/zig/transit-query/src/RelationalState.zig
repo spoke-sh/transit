@@ -11,7 +11,7 @@ const Turn = q.station.Turn;
 const Self = @This();
 pub const node_format: u32 = 0x314e5246;
 pub const checkpoint_format: u32 = 0x31435246;
-pub const max_record_bytes = @max(Index.max_record_bytes, f.RelationalCheckpoint.max_bytes);
+pub const max_record_bytes = @max(f.RelationalDelta.max_bytes, @max(Index.max_record_bytes, f.RelationalCheckpoint.max_bytes));
 publication: Pub,
 
 pub fn create(turn: *Turn, namespace: u64) !Self {
@@ -39,15 +39,26 @@ pub fn read(self: Self, source: anytype, id: u64, format: u32, output: []u8) ![]
     if (at != length) return error.InvalidRelationalState;
     return output[0..at];
 }
-pub fn stageCheckpoint(self: Self, turn: *Turn, id: u64, bound: r.Bound, saved: f.RelationalCheckpoint) !bool {
+pub fn stageCheckpoint(self: Self, allocator: std.mem.Allocator, turn: *Turn, id: u64, bound: r.Bound, saved: f.RelationalCheckpoint) !bool {
     try self.check();
-    var bytes: [f.RelationalCheckpoint.max_bytes]u8 = undefined;
-    const body = try saved.encode(bound, &bytes);
+    const body = try saved.encodeAlloc(allocator, bound);
+    defer allocator.free(body);
     return self.publication.stage(turn, id, try Pub.Digest.of(checkpoint_format, body), body);
 }
-pub fn checkpoint(self: Self, source: anytype, id: u64, bound: r.Bound) !f.RelationalCheckpoint {
-    var bytes: [f.RelationalCheckpoint.max_bytes]u8 = undefined;
-    return f.RelationalCheckpoint.decode(bound, try self.read(source, id, checkpoint_format, &bytes));
+pub fn readAlloc(self: Self, allocator: std.mem.Allocator, source: anytype, id: u64, format: u32) ![]u8 {
+    try self.check();
+    if (id == 0 or source.view.resource != self.publication.resource) return error.InvalidRelationalState;
+    const cursor = try self.publication.open(source, id);
+    if (cursor.spec.format != format or cursor.spec.length == 0 or cursor.spec.length > max_record_bytes) return error.InvalidRelationalState;
+    const bytes = try allocator.alloc(u8, cursor.spec.length);
+    errdefer allocator.free(bytes);
+    if ((try self.read(source, id, format, bytes)).len != bytes.len) return error.InvalidRelationalState;
+    return bytes;
+}
+pub fn checkpoint(self: Self, allocator: std.mem.Allocator, source: anytype, id: u64, bound: r.Bound) !f.RelationalCheckpoint {
+    const bytes = try self.readAlloc(allocator, source, id, checkpoint_format);
+    defer allocator.free(bytes);
+    return f.RelationalCheckpoint.decode(allocator, bound, bytes);
 }
 pub fn Candidate(comptime Source: type) type {
     return struct {

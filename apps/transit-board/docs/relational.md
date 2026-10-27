@@ -2,7 +2,7 @@
 
 Board's Operations screen contains an explicit-submit relational worksheet.
 It uses the shared Zig [interactive caller](../../../packages/zig/transit-query/docs/relational-callers.md)
-for one or two Tables, one inner/left int64 equijoin, int64 projection/grouping,
+for one or two Tables, one inner/left int64 or UTF-8 equijoin, int64/UTF-8 projection/grouping,
 COUNT and ordered checked int64 SUM. SQL declares int64 as `BIGINT`.
 The [relational contract](../../../contracts/RELATIONAL_V1.md) defines exact
 ordering, nulls, multiplicity, limits and unsupported forms.
@@ -17,7 +17,7 @@ Enable the route with a separate query identity and explicit catalog connections
     "seed_file": "/run/board/relational-seed",
     "recovery_directory": "/var/lib/transit-board/query-recovery",
     "query": {
-      "definition": "35b9c09c9133c90a76f4a40c5ef461cb32053e2fab2063439a1f9da4e6e8f8e1",
+      "definition": "e374e6f34d0a317e1fedcde79a548b45e124f1751a3bc62494aadcb7e69988d5",
       "service_url": "http://127.0.0.1:9400",
       "catalogs": [
         {
@@ -125,7 +125,7 @@ and browser validators derive from those Zig types.
 
 Requests require an `Origin` matching the admitted Host and scheme, and JSON content type. The body
 limit is 16 KiB; responses use the browser's 256 KiB decoded limit. One page has
-at most 128 int64/uint64/null cells. Existing Board deadlines, shared read throttle
+at most 128 int64/uint64/UTF-8/null cells. Existing Board deadlines, shared read throttle
 and serialized query lock apply. The browser retries an identical pre-dispatch
 429 refusal at most three times, 250 ms apart. Other errors require explicit
 caller action. A disabled route returns `404 QueryDisabled`.

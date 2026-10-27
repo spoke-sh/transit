@@ -151,7 +151,7 @@ Catalog and native administration must resolve and authorize this syntax before
 execution; the parser itself reads no policy and changes no authority.
 
 `Relational` supplies pure admission, stable column resolution, output descriptors
-and prepared/bound identities for finite int64 Table join/group plans. It also
+and prepared/bound identities for finite int64/UTF-8 Table join/group plans. It also
 defines distinct join/group NULL rules and checked aggregate steps.
 `RelationalSql` lowers the selected finite SQL profile through shared syntax and
 typed literals. `RelationalExecution` advances ordered source rows and externally
@@ -166,8 +166,14 @@ immutable parents during an update instead of retaining their payloads across
 tree depth. The host charges those additional reads to its work budget; read or
 write failure preserves the original root. `RelationalCheckpoint` encodes exact operator progress; execution restore
 rechecks the bound source vector and current rights through its adapter. Hosts
-stage and atomically publish these records with input/output progress.
-`RelationalExchange` specifies canonical int64/null routing and source-qualified
+stage and atomically publish these records with input/output progress. Source
+rows, group keys, returned outputs and decoded records own their text buffers;
+move them or clone through the bounded host allocator and release with `deinit`.
+`checkpoint()` borrows the executor until its next mutation; `restore` copies it.
+Group equality, order and exchange routing share the declared column collation.
+Each row/key/cell vector permits at most 1 MiB of text, with actual payloads
+charged to the host's resident budget.
+`RelationalExchange` specifies canonical collation-aware int64/UTF-8/null routing and source-qualified
 row segments with exact bound identities and explicit terminal coverage. Hosts
 own durable acceptance, credits and current authorization under the
 [exchange contract](../../../contracts/RELATIONAL_EXCHANGE_V1.md).

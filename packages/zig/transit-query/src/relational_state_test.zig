@@ -15,7 +15,7 @@ fn cut() ![1]r.Cut {
 }
 fn group(value: i64, count: u64) f.RelationalExecution.Group {
     var result: f.RelationalExecution.Group = .{ .key = .{ .len = 1 } };
-    result.key.values[0] = value;
+    result.key.values[0] = .{ .integer = value };
     result.states[0].rows = count;
     return result;
 }
@@ -56,26 +56,26 @@ test "publication staging restarts preserve the previous operator root until che
             const old_head = try readHead(&turn);
             if (old_head) |head| {
                 // Host memory is dispensable: recover the exact accepted state.
-                accepted = try pages.checkpoint(&turn, head[0], bound);
+                accepted = try pages.checkpoint(t.allocator, &turn, head[0], bound);
                 next = head[1];
                 used = head[2];
             }
             try t.expectEqual(i, accepted.group_count);
             candidate.* = try Candidate.init(t.allocator, pages, &turn, next, used, bound, 10000);
             defer candidate.deinit();
-            var tree = try Index.init(bound, accepted.root);
+            var tree = try Index.init(t.allocator, bound, accepted.root);
             try tree.put(candidate, group(@intCast((i * 7) % 20), i + 1));
             var proposed = accepted;
             proposed.root = tree.root;
             proposed.group_count += 1;
             proposed.work += 1;
             proposed.after_left = .{ .origin = 1, .operation = i + 1, .ordinal = 0 };
-            var bytes: [f.RelationalCheckpoint.max_bytes]u8 = undefined;
+            var bytes: [f.RelationalCheckpoint.fixed_bytes]u8 = undefined;
             const encoded = try proposed.encode(bound, &bytes);
             const total = try candidate.retainedBytes(encoded.len);
             const checkpoint_id = try candidate.checkpointId();
             var ready = try candidate.stage(&turn);
-            if (ready) ready = pages.stageCheckpoint(&turn, checkpoint_id, bound, proposed) catch |err| blk: {
+            if (ready) ready = pages.stageCheckpoint(t.allocator, &turn, checkpoint_id, bound, proposed) catch |err| blk: {
                 if (err != error.MutationBudgetExceeded) return err;
                 break :blk false;
             };
@@ -92,7 +92,7 @@ test "publication staging restarts preserve the previous operator root until che
             if (ready) {
                 turn = try store.capture();
                 const head = (try readHead(&turn)).?;
-                accepted = try pages.checkpoint(&turn, head[0], bound);
+                accepted = try pages.checkpoint(t.allocator, &turn, head[0], bound);
                 try t.expectEqual(i + 1, accepted.group_count);
                 if (i == 4) oldest = accepted;
                 complete = true;
@@ -106,7 +106,7 @@ test "publication staging restarts preserve the previous operator root until che
     const head = (try readHead(&turn)).?;
     candidate.* = try Candidate.init(t.allocator, pages, &turn, head[1], head[2], bound, 10000);
     defer candidate.deinit();
-    const old_tree = try Index.init(bound, oldest.?.root);
+    const old_tree = try Index.init(t.allocator, bound, oldest.?.root);
     var after: ?f.RelationalExecution.Key = null;
     var count: usize = 0;
     while (try old_tree.next(candidate, after)) |value| {
@@ -116,7 +116,7 @@ test "publication staging restarts preserve the previous operator root until che
     try t.expectEqual(@as(usize, 5), count);
     store.denied = true;
     turn = try store.capture();
-    try t.expectError(error.AccessDenied, pages.checkpoint(&turn, head[0], bound));
+    try t.expectError(error.AccessDenied, pages.checkpoint(t.allocator, &turn, head[0], bound));
 }
 test "candidate quotas and identity conflicts fail before replacing accepted state" {
     var store: Store = .{};
@@ -132,7 +132,7 @@ test "candidate quotas and identity conflicts fail before replacing accepted sta
     turn = try store.capture();
     candidate.* = try Candidate.init(t.allocator, pages, &turn, 1, 0, .{ .plan = requested, .cuts = &cuts }, 100);
     defer candidate.deinit();
-    var tree = try Index.init(.{ .plan = requested, .cuts = &cuts }, null);
+    var tree = try Index.init(t.allocator, .{ .plan = requested, .cuts = &cuts }, null);
     try t.expectError(error.RelationalSpillBudget, tree.put(candidate, group(1, 3)));
     try t.expect(tree.root == null);
     try t.expectEqual(@as(u16, 0), candidate.count);
@@ -140,7 +140,7 @@ test "candidate quotas and identity conflicts fail before replacing accepted sta
     const bound: r.Bound = .{ .plan = requested, .cuts = &cuts };
     candidate.discard();
     candidate.* = try Candidate.init(t.allocator, pages, &turn, 1, 0, bound, 1);
-    tree = try Index.init(bound, null);
+    tree = try Index.init(t.allocator, bound, null);
     try tree.put(candidate, group(1, 3));
     try t.expectError(error.RelationalWorkBudget, tree.put(candidate, group(2, 4)));
     try t.expectEqual(@as(u64, 1), tree.root.?.entries);
@@ -149,7 +149,7 @@ test "candidate quotas and identity conflicts fail before replacing accepted sta
     turn = try store.capture();
     candidate.discard();
     candidate.* = try Candidate.init(t.allocator, pages, &turn, 1, 0, bound, 100);
-    tree = try Index.init(bound, null);
+    tree = try Index.init(t.allocator, bound, null);
     try tree.put(candidate, group(1, 4));
     try t.expectError(error.PublicationIdentityConflict, candidate.stage(&turn));
     for (turn.decision.mutations) |mutation| try t.expect(mutation == null);
@@ -168,7 +168,7 @@ test "candidate payload memory follows encoded bytes and discard preserves charg
     var memory: f.MemoryBudget = .{ .parent = t.allocator, .limit = plan.budgets.resident_bytes };
     var candidate = try Candidate.init(memory.allocator(), pages, &turn, 1, 0, bound, 100);
     defer candidate.deinit();
-    var tree = try Index.init(bound, null);
+    var tree = try Index.init(t.allocator, bound, null);
     for (0..3) |i| try tree.put(&candidate, group(@intCast(i), i + 1));
     try t.expectEqual(candidate.bytes, memory.used);
     try t.expect(memory.used < @as(usize, candidate.count) * Index.max_record_bytes);
@@ -179,7 +179,7 @@ test "candidate payload memory follows encoded bytes and discard preserves charg
     try t.expectEqual(@as(u16, 0), candidate.count);
     try t.expectEqual(work, candidate.work);
     // An abandoned private update may reuse its identities, but not its work.
-    tree = try Index.init(bound, null);
+    tree = try Index.init(t.allocator, bound, null);
     try tree.put(&candidate, group(7, 9));
     try t.expect(candidate.work > work);
     try t.expectEqual(@as(u64, 1), tree.root.?.id);
@@ -188,7 +188,7 @@ test "candidate payload memory follows encoded bytes and discard preserves charg
     var fixed: std.heap.FixedBufferAllocator = .init(&workspace);
     var bounded = try Candidate.init(fixed.allocator(), pages, &turn, 1, 0, bound, 100);
     defer bounded.deinit();
-    tree = try Index.init(bound, null);
+    tree = try Index.init(t.allocator, bound, null);
     for (0..3) |i| try tree.put(&bounded, group(@intCast(i), i + 1));
     try t.expect(fixed.end_index > 0);
     bounded.discard();
@@ -208,7 +208,7 @@ test "candidate resident exhaustion does not publish a partial group" {
     const bound: r.Bound = .{ .plan = requested, .cuts = &cuts };
     var candidate = try Candidate.init(t.allocator, pages, &turn, 1, 0, bound, 100);
     defer candidate.deinit();
-    var tree = try Index.init(bound, null);
+    var tree = try Index.init(t.allocator, bound, null);
     try t.expectError(error.RelationalResidentBudget, tree.put(&candidate, group(1, 3)));
     try t.expect(tree.root == null);
     try t.expectEqual(@as(u16, 0), candidate.count);
@@ -218,7 +218,7 @@ test "candidate resident exhaustion does not publish a partial group" {
 fn candidateAllocationFailures(allocator: std.mem.Allocator, pages: State, turn: *q.station.Turn, bound: r.Bound) !void {
     var candidate = try Candidate.init(allocator, pages, turn, 1, 0, bound, 1000);
     defer candidate.deinit();
-    var tree = try Index.init(bound, null);
+    var tree = try Index.init(t.allocator, bound, null);
     for (0..5) |i| {
         const before = tree.root;
         tree.put(&candidate, group(@intCast(i), i + 1)) catch |err| {

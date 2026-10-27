@@ -24,7 +24,7 @@ Options require `consistency: independent_table_snapshots`, decimal-string
 same query budgets as the typed executor. One retained output row and bounded
 JSON request/response buffers belong to the caller boundary, separately from the
 executor's heap budget. The ABI admits at most 256 KiB per request; its result is
-one row with at most 128 int64/uint64/null cells. Catalog descriptors and responses
+one row with at most 128 int64/uint64/UTF-8/null cells. Catalog descriptors and responses
 remain independently bounded by their native contracts. The host requires the
 [Station calling stack](../../transit-station-bindings/README.md).
 

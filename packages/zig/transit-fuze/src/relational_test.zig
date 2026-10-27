@@ -72,9 +72,11 @@ test "relational null routing and canonical checked arithmetic match independent
     const parsed = try std.json.parseFromSlice(Fixture, testing.allocator, @embedFile("fixtures/relational.json"), .{ .ignore_unknown_fields = true });
     defer parsed.deinit();
     for (parsed.value.nulls) |sample| {
-        try testing.expectEqual(sample.join, r.joinMatches(sample.left, sample.right));
+        const left: @import("RelationalValues.zig").Value = if (sample.left) |integer| .{ .integer = integer } else null;
+        const right: @import("RelationalValues.zig").Value = if (sample.right) |integer| .{ .integer = integer } else null;
+        try testing.expectEqual(sample.join, try r.joinMatches(left, right, columns[0]));
         const order: std.math.Order = if (sample.order < 0) .lt else if (sample.order > 0) .gt else .eq;
-        try testing.expectEqual(order, r.groupOrder(sample.left, sample.right));
+        try testing.expectEqual(order, try r.groupOrder(left, right, columns[0]));
     }
     for (parsed.value.sums) |sample| {
         var state: r.AggregateState = .{};
@@ -142,7 +144,7 @@ test "relational admission rejects invalid shape aliases keys types and output g
     var changed_columns = columns;
     changed_sources[1].schema.columns = &changed_columns;
     changed_columns[0].type = .utf8;
-    try testing.expectError(error.UnsupportedRelationalType, value.validate());
+    try testing.expectError(error.InvalidRelationalJoin, value.validate());
     changed_columns = columns;
     changed_columns[0].id = 3;
     changed_sources[1].schema.next_column = 4;
@@ -184,7 +186,7 @@ test "Table identities include resource scope while aliases in one resource shar
 }
 
 test "relational source and post-join predicates have distinct scope identity and stack admission" {
-    const positive = [_]r.Instruction{.{ .compare = .{ .column = right_value, .op = .greater, .value = 0 } }};
+    const positive = [_]r.Instruction{.{ .compare = .{ .column = right_value, .op = .greater, .value = .{ .integer = 0 } } }};
     var value = plan();
     value.source_filters[0] = .{ .instructions = &positive };
     try testing.expectError(error.InvalidRelationalFilterScope, value.validate());
@@ -325,7 +327,7 @@ test "relational plan byte budget rejects a wide valid descriptor before fingerp
         for (program[0..32]) |*instruction| instruction.* = .{ .compare = .{
             .column = .{ .source = @intCast(source), .id = 1 },
             .op = .equal,
-            .value = 7,
+            .value = .{ .integer = 7 },
         } };
         @memset(program[32..], .conjunction);
     }

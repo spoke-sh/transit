@@ -63,8 +63,8 @@ Direct and captured finite SELECT, prepared comparisons and UPDATE/DELETE
 predicates use that declared collation, as do primary-key lookups and range
 counts. Saved plans bind each input column's collation alongside its logical
 type and exact source. `ENCODING` clauses, expression-level overrides and changing
-an existing column's collation through SQL are unsupported. Relational joins,
-grouping and ordering retain their int64-only execution profile.
+an existing column's collation through SQL are unsupported. Relational text joins,
+grouping and canonical group order use the same declared collations.
 
 Omitted nullability means nullable. A declared
 single or composite PRIMARY KEY implies NOT NULL; column position creates no

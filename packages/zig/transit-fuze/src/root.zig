@@ -8,6 +8,7 @@ pub const FileQuery = @import("FileQuery.zig");
 pub const BatchExecution = @import("BatchExecution.zig");
 pub const Batch = @import("Batch.zig");
 pub const MemoryBudget = @import("MemoryBudget.zig");
+pub const RelationalValues = @import("RelationalValues.zig");
 pub const LogicalQuery = @import("LogicalQuery.zig");
 pub const Relational = @import("Relational.zig");
 pub const RelationalExecution = @import("RelationalExecution.zig");
@@ -63,6 +64,7 @@ test {
     _ = MemoryBudget;
     _ = BatchExecution;
     _ = Relational;
+    _ = RelationalValues;
     _ = RelationalExecution;
     _ = RelationalSql;
     _ = RelationalCodec;

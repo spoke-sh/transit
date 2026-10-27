@@ -1,6 +1,6 @@
 {
-  "definition": "35b9c09c9133c90a76f4a40c5ef461cb32053e2fab2063439a1f9da4e6e8f8e1",
-  "segment": "4658533135b9c09c9133c90a76f4a40c5ef461cb32053e2fab2063439a1f9da4e6e8f8e193e3154579a2302812a991284fea166ea223c533e1f645468f7fd984bd065546580000000000000000070000000000000004000000000000000300000000000000000000000000000001020000000000000001000000000000000100000000010700000000000000010900000000000000000000000000000100000000000000020000000001070000000000000000",
+  "definition": "e374e6f34d0a317e1fedcde79a548b45e124f1751a3bc62494aadcb7e69988d5",
+  "segment": "46585331e374e6f34d0a317e1fedcde79a548b45e124f1751a3bc62494aadcb7e69988d5386216396d89e32746e616eeb3da26a1a933a8f44fdc6ad184189707e126355d580000000000000000070000000000000005000000000000000300000000000000000000000000000001020000000000000001000000000000000100000000010700000000000000010900000000000000000000000000000100000000000000020000000001070000000000000000",
   "routing": [
     {
       "key": null,
@@ -45,112 +45,600 @@
     {
       "key": -1,
       "partitions": 2,
-      "partition": 0
+      "partition": 1
     },
     {
       "key": 7,
       "partitions": 2,
-      "partition": 0
+      "partition": 1
     },
     {
       "key": -9223372036854775808,
       "partitions": 2,
-      "partition": 0
+      "partition": 1
     },
     {
       "key": 9223372036854775807,
       "partitions": 2,
-      "partition": 0
-    },
-    {
-      "key": null,
-      "partitions": 7,
       "partition": 1
     },
     {
-      "key": 0,
+      "key": null,
       "partitions": 7,
       "partition": 2
     },
     {
-      "key": -1,
-      "partitions": 7,
-      "partition": 6
-    },
-    {
-      "key": 7,
+      "key": 0,
       "partitions": 7,
       "partition": 4
     },
     {
-      "key": -9223372036854775808,
-      "partitions": 7,
-      "partition": 6
-    },
-    {
-      "key": 9223372036854775807,
+      "key": -1,
       "partitions": 7,
       "partition": 0
     },
     {
+      "key": 7,
+      "partitions": 7,
+      "partition": 5
+    },
+    {
+      "key": -9223372036854775808,
+      "partitions": 7,
+      "partition": 3
+    },
+    {
+      "key": 9223372036854775807,
+      "partitions": 7,
+      "partition": 3
+    },
+    {
       "key": null,
       "partitions": 257,
-      "partition": 186
+      "partition": 201
     },
     {
       "key": 0,
       "partitions": 257,
-      "partition": 20
+      "partition": 57
     },
     {
       "key": -1,
       "partitions": 257,
-      "partition": 228
+      "partition": 37
     },
     {
       "key": 7,
       "partitions": 257,
-      "partition": 114
+      "partition": 68
     },
     {
       "key": -9223372036854775808,
       "partitions": 257,
-      "partition": 234
+      "partition": 163
     },
     {
       "key": 9223372036854775807,
       "partitions": 257,
-      "partition": 211
+      "partition": 150
     },
     {
       "key": null,
       "partitions": 18446744073709551615,
-      "partition": 5537515322683060221
+      "partition": 1655122307056968157
     },
     {
       "key": 0,
       "partitions": 18446744073709551615,
-      "partition": 3321873155233261498
+      "partition": 17400012868574102372
     },
     {
       "key": -1,
       "partitions": 18446744073709551615,
-      "partition": 15873632679056485472
+      "partition": 9241040259787016275
     },
     {
       "key": 7,
       "partitions": 18446744073709551615,
-      "partition": 8281501741586120114
+      "partition": 15073032056094561715
     },
     {
       "key": -9223372036854775808,
       "partitions": 18446744073709551615,
-      "partition": 7863220156081990272
+      "partition": 13411190603928520217
     },
     {
       "key": 9223372036854775807,
       "partitions": 18446744073709551615,
-      "partition": 14380963935108771882
+      "partition": 12778571761286221733
+    }
+  ],
+  "text_routing": [
+    {
+      "key": null,
+      "collation": "utf8_binary",
+      "partitions": 7,
+      "partition": 2
+    },
+    {
+      "key": "",
+      "collation": "utf8_binary",
+      "partitions": 7,
+      "partition": 4
+    },
+    {
+      "key": "a",
+      "collation": "utf8_binary",
+      "partitions": 7,
+      "partition": 2
+    },
+    {
+      "key": "A",
+      "collation": "utf8_binary",
+      "partitions": 7,
+      "partition": 6
+    },
+    {
+      "key": "a ",
+      "collation": "utf8_binary",
+      "partitions": 7,
+      "partition": 2
+    },
+    {
+      "key": "\u00e9",
+      "collation": "utf8_binary",
+      "partitions": 7,
+      "partition": 3
+    },
+    {
+      "key": "\u00c9",
+      "collation": "utf8_binary",
+      "partitions": 7,
+      "partition": 4
+    },
+    {
+      "key": "\u0000",
+      "collation": "utf8_binary",
+      "partitions": 7,
+      "partition": 3
+    },
+    {
+      "key": "0",
+      "collation": "utf8_binary",
+      "partitions": 7,
+      "partition": 6
+    },
+    {
+      "key": null,
+      "collation": "utf8_binary",
+      "partitions": 257,
+      "partition": 201
+    },
+    {
+      "key": "",
+      "collation": "utf8_binary",
+      "partitions": 257,
+      "partition": 158
+    },
+    {
+      "key": "a",
+      "collation": "utf8_binary",
+      "partitions": 257,
+      "partition": 102
+    },
+    {
+      "key": "A",
+      "collation": "utf8_binary",
+      "partitions": 257,
+      "partition": 127
+    },
+    {
+      "key": "a ",
+      "collation": "utf8_binary",
+      "partitions": 257,
+      "partition": 246
+    },
+    {
+      "key": "\u00e9",
+      "collation": "utf8_binary",
+      "partitions": 257,
+      "partition": 66
+    },
+    {
+      "key": "\u00c9",
+      "collation": "utf8_binary",
+      "partitions": 257,
+      "partition": 82
+    },
+    {
+      "key": "\u0000",
+      "collation": "utf8_binary",
+      "partitions": 257,
+      "partition": 75
+    },
+    {
+      "key": "0",
+      "collation": "utf8_binary",
+      "partitions": 257,
+      "partition": 237
+    },
+    {
+      "key": null,
+      "collation": "utf8_binary",
+      "partitions": 18446744073709551615,
+      "partition": 1655122307056968157
+    },
+    {
+      "key": "",
+      "collation": "utf8_binary",
+      "partitions": 18446744073709551615,
+      "partition": 5514787466600975833
+    },
+    {
+      "key": "a",
+      "collation": "utf8_binary",
+      "partitions": 18446744073709551615,
+      "partition": 1082244641486221922
+    },
+    {
+      "key": "A",
+      "collation": "utf8_binary",
+      "partitions": 18446744073709551615,
+      "partition": 16194108448487267948
+    },
+    {
+      "key": "a ",
+      "collation": "utf8_binary",
+      "partitions": 18446744073709551615,
+      "partition": 16355581507254442497
+    },
+    {
+      "key": "\u00e9",
+      "collation": "utf8_binary",
+      "partitions": 18446744073709551615,
+      "partition": 15307637093645612138
+    },
+    {
+      "key": "\u00c9",
+      "collation": "utf8_binary",
+      "partitions": 18446744073709551615,
+      "partition": 6871718733978536316
+    },
+    {
+      "key": "\u0000",
+      "collation": "utf8_binary",
+      "partitions": 18446744073709551615,
+      "partition": 1721570046023786493
+    },
+    {
+      "key": "0",
+      "collation": "utf8_binary",
+      "partitions": 18446744073709551615,
+      "partition": 9808501432751916376
+    },
+    {
+      "key": null,
+      "collation": "ascii_ci",
+      "partitions": 7,
+      "partition": 2
+    },
+    {
+      "key": "",
+      "collation": "ascii_ci",
+      "partitions": 7,
+      "partition": 4
+    },
+    {
+      "key": "a",
+      "collation": "ascii_ci",
+      "partitions": 7,
+      "partition": 2
+    },
+    {
+      "key": "A",
+      "collation": "ascii_ci",
+      "partitions": 7,
+      "partition": 2
+    },
+    {
+      "key": "a ",
+      "collation": "ascii_ci",
+      "partitions": 7,
+      "partition": 2
+    },
+    {
+      "key": "\u00e9",
+      "collation": "ascii_ci",
+      "partitions": 7,
+      "partition": 3
+    },
+    {
+      "key": "\u00c9",
+      "collation": "ascii_ci",
+      "partitions": 7,
+      "partition": 4
+    },
+    {
+      "key": "\u0000",
+      "collation": "ascii_ci",
+      "partitions": 7,
+      "partition": 3
+    },
+    {
+      "key": "0",
+      "collation": "ascii_ci",
+      "partitions": 7,
+      "partition": 6
+    },
+    {
+      "key": null,
+      "collation": "ascii_ci",
+      "partitions": 257,
+      "partition": 201
+    },
+    {
+      "key": "",
+      "collation": "ascii_ci",
+      "partitions": 257,
+      "partition": 158
+    },
+    {
+      "key": "a",
+      "collation": "ascii_ci",
+      "partitions": 257,
+      "partition": 102
+    },
+    {
+      "key": "A",
+      "collation": "ascii_ci",
+      "partitions": 257,
+      "partition": 102
+    },
+    {
+      "key": "a ",
+      "collation": "ascii_ci",
+      "partitions": 257,
+      "partition": 246
+    },
+    {
+      "key": "\u00e9",
+      "collation": "ascii_ci",
+      "partitions": 257,
+      "partition": 66
+    },
+    {
+      "key": "\u00c9",
+      "collation": "ascii_ci",
+      "partitions": 257,
+      "partition": 82
+    },
+    {
+      "key": "\u0000",
+      "collation": "ascii_ci",
+      "partitions": 257,
+      "partition": 75
+    },
+    {
+      "key": "0",
+      "collation": "ascii_ci",
+      "partitions": 257,
+      "partition": 237
+    },
+    {
+      "key": null,
+      "collation": "ascii_ci",
+      "partitions": 18446744073709551615,
+      "partition": 1655122307056968157
+    },
+    {
+      "key": "",
+      "collation": "ascii_ci",
+      "partitions": 18446744073709551615,
+      "partition": 5514787466600975833
+    },
+    {
+      "key": "a",
+      "collation": "ascii_ci",
+      "partitions": 18446744073709551615,
+      "partition": 1082244641486221922
+    },
+    {
+      "key": "A",
+      "collation": "ascii_ci",
+      "partitions": 18446744073709551615,
+      "partition": 1082244641486221922
+    },
+    {
+      "key": "a ",
+      "collation": "ascii_ci",
+      "partitions": 18446744073709551615,
+      "partition": 16355581507254442497
+    },
+    {
+      "key": "\u00e9",
+      "collation": "ascii_ci",
+      "partitions": 18446744073709551615,
+      "partition": 15307637093645612138
+    },
+    {
+      "key": "\u00c9",
+      "collation": "ascii_ci",
+      "partitions": 18446744073709551615,
+      "partition": 6871718733978536316
+    },
+    {
+      "key": "\u0000",
+      "collation": "ascii_ci",
+      "partitions": 18446744073709551615,
+      "partition": 1721570046023786493
+    },
+    {
+      "key": "0",
+      "collation": "ascii_ci",
+      "partitions": 18446744073709551615,
+      "partition": 9808501432751916376
+    },
+    {
+      "key": null,
+      "collation": "ebcdic_cp037",
+      "partitions": 7,
+      "partition": 2
+    },
+    {
+      "key": "",
+      "collation": "ebcdic_cp037",
+      "partitions": 7,
+      "partition": 4
+    },
+    {
+      "key": "a",
+      "collation": "ebcdic_cp037",
+      "partitions": 7,
+      "partition": 6
+    },
+    {
+      "key": "A",
+      "collation": "ebcdic_cp037",
+      "partitions": 7,
+      "partition": 0
+    },
+    {
+      "key": "a ",
+      "collation": "ebcdic_cp037",
+      "partitions": 7,
+      "partition": 2
+    },
+    {
+      "key": "\u00e9",
+      "collation": "ebcdic_cp037",
+      "partitions": 7,
+      "partition": 0
+    },
+    {
+      "key": "\u00c9",
+      "collation": "ebcdic_cp037",
+      "partitions": 7,
+      "partition": 0
+    },
+    {
+      "key": "\u0000",
+      "collation": "ebcdic_cp037",
+      "partitions": 7,
+      "partition": 3
+    },
+    {
+      "key": "0",
+      "collation": "ebcdic_cp037",
+      "partitions": 7,
+      "partition": 2
+    },
+    {
+      "key": null,
+      "collation": "ebcdic_cp037",
+      "partitions": 257,
+      "partition": 201
+    },
+    {
+      "key": "",
+      "collation": "ebcdic_cp037",
+      "partitions": 257,
+      "partition": 158
+    },
+    {
+      "key": "a",
+      "collation": "ebcdic_cp037",
+      "partitions": 257,
+      "partition": 56
+    },
+    {
+      "key": "A",
+      "collation": "ebcdic_cp037",
+      "partitions": 257,
+      "partition": 40
+    },
+    {
+      "key": "a ",
+      "collation": "ebcdic_cp037",
+      "partitions": 257,
+      "partition": 225
+    },
+    {
+      "key": "\u00e9",
+      "collation": "ebcdic_cp037",
+      "partitions": 257,
+      "partition": 179
+    },
+    {
+      "key": "\u00c9",
+      "collation": "ebcdic_cp037",
+      "partitions": 257,
+      "partition": 79
+    },
+    {
+      "key": "\u0000",
+      "collation": "ebcdic_cp037",
+      "partitions": 257,
+      "partition": 75
+    },
+    {
+      "key": "0",
+      "collation": "ebcdic_cp037",
+      "partitions": 257,
+      "partition": 79
+    },
+    {
+      "key": null,
+      "collation": "ebcdic_cp037",
+      "partitions": 18446744073709551615,
+      "partition": 1655122307056968157
+    },
+    {
+      "key": "",
+      "collation": "ebcdic_cp037",
+      "partitions": 18446744073709551615,
+      "partition": 5514787466600975833
+    },
+    {
+      "key": "a",
+      "collation": "ebcdic_cp037",
+      "partitions": 18446744073709551615,
+      "partition": 14556582982202450720
+    },
+    {
+      "key": "A",
+      "collation": "ebcdic_cp037",
+      "partitions": 18446744073709551615,
+      "partition": 15267392233721797680
+    },
+    {
+      "key": "a ",
+      "collation": "ebcdic_cp037",
+      "partitions": 18446744073709551615,
+      "partition": 6037740701883175896
+    },
+    {
+      "key": "\u00e9",
+      "collation": "ebcdic_cp037",
+      "partitions": 18446744073709551615,
+      "partition": 432975939611015360
+    },
+    {
+      "key": "\u00c9",
+      "collation": "ebcdic_cp037",
+      "partitions": 18446744073709551615,
+      "partition": 5053873438962497821
+    },
+    {
+      "key": "\u0000",
+      "collation": "ebcdic_cp037",
+      "partitions": 18446744073709551615,
+      "partition": 1721570046023786493
+    },
+    {
+      "key": "0",
+      "collation": "ebcdic_cp037",
+      "partitions": 18446744073709551615,
+      "partition": 11471033589461989384
     }
   ]
 }

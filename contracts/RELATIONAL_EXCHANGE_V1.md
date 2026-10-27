@@ -44,8 +44,12 @@ Routing hashes `transit.relational.partition.v1\0` with SHA-256. Join inputs
 append byte 1 and the join key. Single-source grouping/aggregation appends byte 2,
 the uint8 group-key count and the declared key values; an ungrouped aggregate
 therefore has one constant key. A plain single-source projection appends byte 3
-and its stable row identity. A nullable key is byte 0, or byte 1 followed by signed
-int64 little endian. Row identity is origin:uint64be, operation:uint64be,
+and its stable row identity. A key uses the declared column's canonical sort
+bytes: NULL has rank byte 1; a value has rank byte 4. Int64 appends its signed
+value offset by 2^127 as 16 big-endian bytes. Text appends collation weights,
+escaping each zero byte as `00 ff` and terminating with `00 00`. ASCII_CI folds
+only ASCII A–Z; UTF8_BINARY uses UTF-8 bytes; EBCDIC_CP037 uses CP037 weights.
+The hash consumes these bytes incrementally, without a fixed sort-key buffer. Row identity is origin:uint64be, operation:uint64be,
 ordinal:uint32be. Routing interprets digest bytes 0–7 as uint64 little endian and
 takes the remainder modulo partition count. Aliases and column IDs are absent
 from join-key bytes, so equal left/right keys colocate. NULL routing never changes
@@ -78,10 +82,11 @@ follow [Station publication](STATION_PUBLICATION_V1.md).
 | Terminal, row count | boolean byte, uint8 |
 | Rows | zero to four rows |
 
-Each row contains the 20-byte identity above and one nullable-int64 value per
-schema column. Non-int64 unreferenced columns have NULL placeholders. Unused
-resident vector positions must be NULL. Referenced int64 values obey schema
-nullability. Rows are strictly increasing by stable identity within a segment
+Each row contains the 20-byte identity above and one typed nullable scalar per
+schema column using the [relational scalar encoding](RELATIONAL_V1.md).
+Unsupported unreferenced types have NULL placeholders. Each row contains at
+most 1 MiB of text; unused vector positions remain NULL. Referenced int64 and
+UTF-8 values obey schema types, collation and nullability. Rows are strictly increasing by stable identity within a segment
 and, during consumption, across consecutive segments of one partition. Each row
 must route to the declared partition. The row count is at most four. A zero-row
 segment must be terminal. Sequence is zero-based and less than uint64 max.
@@ -175,8 +180,13 @@ SUMs, publish early unmatched-left rows or infer empty coverage from silence.
 ## Budgets, authorization and failure
 
 Hosts supply explicit resident, producer/receiver cumulative retained-byte, inflight-byte and
-inflight-segment limits. Minimum byte limits accommodate the largest segment;
-segment credit is positive. One staging record bounds active copying and fan-in,
+inflight-segment limits. Minimum byte limits cover the fixed numeric segment
+bound; segment credit is positive. Text payloads use actual encoded byte counts.
+An offered segment larger than the receiver's total byte-credit capacity returns
+`RelationalExchangeCreditBudget` before reservation; temporary exhaustion of
+remaining credit returns `blocked`. The format permits at most four 1 MiB row
+payloads plus fixed fields. Encoding, decoding and row copies use bounded host
+allocators; fixed frames do not reserve this maximum on the stack. One staging record bounds active copying and fan-in,
 independently of the durable partition count. Native paging bounds registry and
 row-index reads. The cumulative charge conservatively includes segment bytes,
 publication keys/descriptors, control records and four row-index entries per

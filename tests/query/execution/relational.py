@@ -16,7 +16,7 @@ import sqlite3
 import struct
 
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/relational.json'
-DEFINITION = b'transit.fuze.relational.v1.2026-10-11'
+DEFINITION = b'transit.fuze.relational.v1.2026-10-26'
 MIN_I64, MAX_I64, MAX_U64 = -(2**63), 2**63 - 1, 2**64 - 1
 
 

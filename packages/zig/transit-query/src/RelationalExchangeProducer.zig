@@ -94,7 +94,7 @@ pub fn create(turn: *s.Turn, bound: f.Relational.Bound, sources: anytype, id: u6
 /// While publication is private, the accepted scan cursor stays unchanged, so
 /// a new worker reconstructs exactly the same body and physical-plan epoch.
 /// Assignment is channel % workers; source = channel % source_count.
-pub fn step(turn: *s.Turn, bound: f.Relational.Bound, sources: anytype, id: u64) !x.Advance {
+pub fn step(allocator: std.mem.Allocator, turn: *s.Turn, bound: f.Relational.Bound, sources: anytype, id: u64) !x.Advance {
     const decision = turn.decision;
     errdefer turn.decision = decision;
     try sources.validate(bound);
@@ -104,18 +104,21 @@ pub fn step(turn: *s.Turn, bound: f.Relational.Bound, sources: anytype, id: u64)
     const source: u8 = @intCast(stored.channel % bound.plan.sources.len);
     const partition = stored.channel / bound.plan.sources.len;
     var segment: codec.Segment = .{ .exchange = id, .source = source, .partitions = stored.partitions, .partition = partition, .epoch = stored.epoch, .sequence = stored.sequence, .terminal = false };
+    defer segment.deinit();
     for (0..scan_rows) |_| {
         if (stored.steps == bound.plan.budgets.work_steps) return error.RelationalWorkBudget;
         stored.steps += 1;
-        const row = (try sources.next(source, stored.after)) orelse {
+        var row = (try sources.next(source, stored.after)) orelse {
             segment.terminal = true;
             break;
         };
+        defer row.deinit();
         if (stored.after) |after| if (f.RelationalExecution.identityOrder(after, row.identity) != .lt) return error.InvalidRelationalSourceOrder;
         stored.after = row.identity;
         if (try codec.route(bound.plan, source, stored.partitions, row) != partition) continue;
         segment.rows[segment.len] = row;
         segment.len += 1;
+        row.buffer = .{};
         if (segment.len == stored.batch) break;
     }
     if (segment.len == 0 and !segment.terminal) {
@@ -123,7 +126,7 @@ pub fn step(turn: *s.Turn, bound: f.Relational.Bound, sources: anytype, id: u64)
         return .progress;
     }
     const publication: s.Publication = .{ .resource = turn.view.resource, .domain = .query_exchange, .namespace = id };
-    const outcome = try x.offer(turn, bound, sources, segment, publication, stored.record);
+    const outcome = try x.offer(allocator, turn, bound, sources, segment, publication, stored.record);
     if (outcome != .accepted and outcome != .duplicate) return outcome;
     stored.record = std.math.add(u64, stored.record, 1) catch return error.RelationalSpillBudget;
     if (segment.terminal) {

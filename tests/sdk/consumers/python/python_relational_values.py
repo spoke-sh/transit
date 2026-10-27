@@ -15,7 +15,7 @@ from transit_station import catalog_values as v
 from transit_client import ResourceRef
 
 REF = dict(definition=DEFINITION, id='01'*16, plan='02'*32, basis='03'*32)
-PAGE = dict(reference=REF, ordinal=str((1 << 64)-1), row=dict(identity=dict(group=[None, str(-(1 << 63))]), cells=[dict(value=dict(atom=dict(signed=str(-(1 << 63))))), dict(value=dict(atom=dict(unsigned=str((1 << 64)-1)))), {'null': {}}]), complete_coverage=False)
+PAGE = dict(reference=REF, ordinal=str((1 << 64)-1), row=dict(identity=dict(group=[None, {'signed': str(-(1 << 63))}, {'utf8': 'A\0é '}, {'utf8': ''}]), cells=[dict(value=dict(atom=dict(signed=str(-(1 << 63))))), dict(value=dict(atom=dict(unsigned=str((1 << 64)-1)))), {'null': {}}, {'value': {'atom': {'utf8': 'A\0é '}}}, {'value': {'atom': {'utf8': ''}}}]), complete_coverage=False)
 
 
 class Values(unittest.TestCase):
@@ -31,8 +31,8 @@ class Values(unittest.TestCase):
         source = copy.deepcopy(PAGE)
         page = r._decode(r._page, source, r.Reference(**REF), (1 << 64)-1)
         source['row']['cells'].clear()
-        self.assertEqual(page.row.cells, (-(1 << 63), (1 << 64)-1, None))
-        self.assertEqual(page.row.identity.keys, (None, -(1 << 63)))
+        self.assertEqual(page.row.cells, (-(1 << 63), (1 << 64)-1, None, 'A\0é ', ''))
+        self.assertEqual(page.row.identity.keys, (None, -(1 << 63), 'A\0é ', ''))
         self.assertFalse(page.complete_coverage)
         pair = dict(identity=dict(pair=dict(left='ff'*20, right=None)), cells=[{'null': {}}])
         self.assertEqual(r._row(pair).identity.left.data, b'\xff'*20)
@@ -45,6 +45,11 @@ class Values(unittest.TestCase):
             {**PAGE, 'row': dict(identity=dict(group=[]), cells=[dict(value=dict(atom=dict(signed=str(1 << 63))))])},
             {**PAGE, 'row': dict(identity=dict(group=[]), cells=[dict(value=dict(atom=dict(unsigned=str(1 << 64))))])},
         ):
+            with self.assertRaises(IncompatibleNative): r._decode(r._page, bad, r.Reference(**REF), (1 << 64)-1)
+
+    def test_text_scalars_reject_invalid_utf8_and_old_untyped_keys(self):
+        for key in ('1', {'utf8': '\ud800'}, {'utf8': 'x' * (1024 * 1024 + 1)}, {'signed': '01'}):
+            bad = {**PAGE, 'row': dict(identity=dict(group=[key]), cells=[{'null': {}}])}
             with self.assertRaises(IncompatibleNative): r._decode(r._page, bad, r.Reference(**REF), (1 << 64)-1)
 
     def test_options_and_routes_are_exact(self):

@@ -313,7 +313,11 @@ pub fn main(init: std.process.Init) !void {
         if (statement.plan == .relational) {
             const query = try statement.openRelational(init.gpa, init.io, directory_handle, "gateway-read-spill", &caller, snapshots[0..count], read_options, null);
             defer query.deinit();
-            while (try query.next()) |row| try appendRow(arena, &rows, row.cells[0..row.len]);
+            while (try query.next()) |value| {
+                var row = value;
+                defer row.deinit();
+                try appendRow(arena, &rows, row.cells[0..row.len]);
+            }
             query.close();
         } else {
             var query = try statement.openSelect(init.gpa, &caller, bound, snapshots[0], .{ .requests = 10000, .rows = 32, .result_bytes = 65536 }, null);

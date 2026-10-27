@@ -110,7 +110,7 @@ pub const Handler = struct {
             if (!worker and std.mem.eql(u8, payload, "x:attach")) return q.RelationalMaintenance.attachExchange(turn, self.identity, self.exchange, self.clients, self.inner.workspace);
             if (!worker or !std.mem.eql(u8, payload, "x:tick")) return error.InvalidProofFrame;
             if (try turn.read(outstanding)) |value| return Producer.retry(turn, bound, &history, self.exchange, try r.Pending.decode(value));
-            switch (try Producer.step(turn, bound, &history, self.exchange)) {
+            switch (try Producer.step(fixed.allocator(), turn, bound, &history, self.exchange)) {
                 .accepted => for (turn.decision.outputs) |slot| {
                     if (slot) |output| {
                         const sent = try s.Frame.decode(output.value);
@@ -131,9 +131,9 @@ pub const Handler = struct {
         if (head.pending) {
             const saved = (try turn.read(try r.key('s', self.exchange, 0, 0, 0))).?;
             if (!saved.eql(frame.payload)) return;
-            _ = try x.advance(turn, bound, &history, self.exchange);
+            _ = try x.advance(fixed.allocator(), turn, bound, &history, self.exchange);
             try turn.cast(turn.delivery.pid, frame.payload);
-        } else if (try x.consume(turn, bound, &history, self.exchange, notice.source, notice.partition) == .progress) try turn.cast(turn.delivery.pid, frame.payload);
+        } else if (try x.consume(fixed.allocator(), turn, bound, &history, self.exchange, notice.source, notice.partition) == .progress) try turn.cast(turn.delivery.pid, frame.payload);
     }
     pub fn interface(self: *@This()) s.GenServer.Handler {
         return .{ .context = self, .handle = handle };

@@ -154,8 +154,12 @@ def self_test(manifest, surface, files):
     rejected(changed_surface=changed)
     for named in manifest['boundaries']:
         changed = dict(files)
-        entry = next(iter(named['codes'].values()))
-        changed[named['registry']] = changed[named['registry']].replace(entry['code'], 'changed.semantic.code')
+        # The combined map may start with a delegated entry. Mutate a code
+        # owned by this registry so ordering the manifest cannot make this
+        # negative check silently test an unchanged file.
+        entry = registry_entries(files[named['registry']], named.get('registry_kind', 'error'))[0]
+        changed[named['registry']] = changed[named['registry']].replace(json.loads(entry[1]), 'changed.semantic.code')
+        assert changed[named['registry']] != files[named['registry']], named['id']
         rejected(changed_files=changed)
         changed = copy.deepcopy(surface)
         owner = next(path for path in surface['sources'] if path not in named['exclude'] and any(fnmatchcase(path, pattern) for pattern in named['owners']))

@@ -45,9 +45,10 @@ fn insert(client: c.DirectTableClient, name: []const u8, operation: u64, overflo
 fn readResult(client: c.DirectTableClient, bundle: q.RelationalBundle, worker: support.Provision, identity: maintained.Identity, expected_count: u128, expected_sum: i128) !q.RelationalRevision.Position {
     const options: q.RelationalRevision.Options = .{ .owner = worker.pid, .resource = worker.resource, .identity = identity, .revision = 1, .requests = 4000 };
     const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
-    var read = try q.RelationalRevision.open(.{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, options, disclosure, @splat(180));
-    defer read.close() catch {};
-    const output = (try read.next()).?.row;
+    const read = try q.RelationalRevision.open(client.allocator, .{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, options, disclosure, @splat(180));
+    defer read.deinit();
+    var output = (try read.next()).?.row;
+    defer output.deinit();
     try t.expectEqual(expected_count, output.cells[0].value.atom.unsigned);
     try t.expectEqual(expected_sum, output.cells[1].value.atom.signed);
     try t.expect(try read.next() == null);
@@ -154,14 +155,15 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
             checkpoint = job.checkpoint;
             const options: q.RelationalResult.Options = .{ .owner = worker.pid, .peer = worker.pid, .resource = worker.resource, .job = id, .requests = 4000 };
             const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
-            try t.expectError(error.IncompleteResult, q.RelationalResult.open(resources, bundle, options, disclosure, @splat(181)));
+            try t.expectError(error.IncompleteResult, q.RelationalResult.open(client.allocator, resources, bundle, options, disclosure, @splat(181)));
             break;
         }
     } else return error.RelationalFailurePending;
     var reader = try resources.open(worker.resource);
     if (case == .captured_overflow or case == .maintained_overflow) {
         const pages: q.RelationalState = .{ .publication = .{ .resource = worker.resource, .domain = .query_result, .namespace = (@as(u64, 1) << 63) | id } };
-        const progress = try pages.checkpoint(&reader, checkpoint, .{ .plan = bundle.plan, .cuts = cuts[0..1] });
+        var progress = try pages.checkpoint(alloc, &reader, checkpoint, .{ .plan = bundle.plan, .cuts = cuts[0..1] });
+        defer progress.deinit();
         try t.expectEqual(.failed, progress.phase);
         try t.expectEqual(@as(u8, 1), progress.failure.?.output);
         try t.expectEqual(operation + 3, progress.failure.?.pair.left.operation);

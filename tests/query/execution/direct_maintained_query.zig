@@ -177,31 +177,33 @@ pub fn mutation(init: std.process.Init, client: c.DirectTableClient, name: []con
 pub fn readResult(client: c.DirectTableClient, bundle: q.RelationalBundle, state: State, revision: u64, expected: u128) !q.RelationalRevision.Position {
     const options: q.RelationalRevision.Options = .{ .owner = state.worker.pid, .resource = state.worker.resource, .identity = state.identity, .revision = revision, .requests = 4000 };
     const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
-    var reader = try q.RelationalRevision.open(.{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, options, disclosure, @splat(@intCast(100 + revision)));
-    defer reader.close() catch {};
+    const reader = try q.RelationalRevision.open(client.allocator, .{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, options, disclosure, @splat(@intCast(100 + revision)));
+    defer reader.deinit();
     if (state.named) |reference| {
         const named = naming(state);
-        try t.expectEqualDeep(reference, try (try named.maintainedDefinition(&reader)).reference());
+        try t.expectEqualDeep(reference, try (try named.maintainedDefinition(reader)).reference());
         try t.expectEqual(@as(u64, 0), reader.ordinal);
         try t.expectError(error.IncompleteResult, reader.checkpoint());
         var foreign = named;
         foreign.configuration.scope.resource += 1;
-        try t.expectError(error.NamedQueryChanged, foreign.maintainedDefinition(&reader));
+        try t.expectError(error.NamedQueryChanged, foreign.maintainedDefinition(reader));
     }
-    try t.expectEqual(expected, (try reader.next()).?.row.cells[0].value.atom.unsigned);
+    var output = (try reader.next()).?;
+    defer output.deinit();
+    try t.expectEqual(expected, output.row.cells[0].value.atom.unsigned);
     try t.expect(try reader.next() == null);
-    if (state.named != null) try t.expectError(error.QueryClosed, naming(state).maintainedDefinition(&reader));
+    if (state.named != null) try t.expectError(error.QueryClosed, naming(state).maintainedDefinition(reader));
     return reader.checkpoint();
 }
 fn freshness(client: c.DirectTableClient, bundle: q.RelationalBundle, state: State, revision: u64, expected: bool) !void {
     const before = try observed(client, state);
     const options: q.RelationalRevision.Options = .{ .owner = state.worker.pid, .resource = state.worker.resource, .identity = state.identity, .revision = revision, .requests = 4000 };
     const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
-    var reader = try q.RelationalRevision.open(.{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, options, disclosure, @splat(@intCast(150 + revision)));
-    defer reader.close() catch {};
+    const reader = try q.RelationalRevision.open(client.allocator, .{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, options, disclosure, @splat(@intCast(150 + revision)));
+    defer reader.deinit();
     const result = try reader.freshness(&.{ client, client });
     try t.expectEqual(expected, result.fresh());
-    if (state.named) |reference| try t.expectEqualDeep(reference, try (try naming(state).maintainedDefinition(&reader)).reference());
+    if (state.named) |reference| try t.expectEqualDeep(reference, try (try naming(state).maintainedDefinition(reader)).reference());
     // Inspecting source progress cannot verify unread output or wake maintenance.
     try t.expectError(error.IncompleteResult, reader.checkpoint());
     try t.expectEqualDeep(before, try observed(client, state));
@@ -292,14 +294,15 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, admin: anyty
         const position = try readResult(client, bundle, state, revision, expected);
         const options = try previous.nextOptions(4000, null);
         const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
-        var delta = try q.RelationalRevision.openNext(.{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, previous, disclosure, @splat(@intCast(110 + revision)), 4000, null);
-        defer delta.close() catch {};
+        const delta = try q.RelationalRevision.openNext(client.allocator, .{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key }, bundle, previous, disclosure, @splat(@intCast(110 + revision)), 4000, null);
+        defer delta.deinit();
         if (state.named) |reference| {
-            try t.expectEqualDeep(reference, try (try naming(state).maintainedDefinition(&delta)).reference());
+            try t.expectEqualDeep(reference, try (try naming(state).maintainedDefinition(delta)).reference());
             try t.expectError(error.IncompleteResult, delta.checkpoint());
         }
         if (expected != previous_count) {
-            const event = (try delta.next()).?.delta;
+            var event = (try delta.next()).?.delta;
+            defer event.deinit();
             try t.expectEqual(previous_count, event.before.?.row.cells[0].value.atom.unsigned);
             try t.expectEqual(expected, event.after.?.row.cells[0].value.atom.unsigned);
         }

@@ -16,11 +16,13 @@ const page = {
   reference,
   ordinal: "18446744073709551615",
   row: {
-    identity: { group: [null, "-9223372036854775808"] },
+    identity: { group: [null, { signed: "-9223372036854775808" }, { utf8: "A\u0000é " }] },
     cells: [
       { value: { atom: { signed: "-9223372036854775808" } } },
       { value: { atom: { unsigned: "18446744073709551615" } } },
       { null: {} },
+      { value: { atom: { utf8: "A\u0000é " } } },
+      { value: { atom: { utf8: "" } } },
     ],
   },
   complete_coverage: false,
@@ -31,6 +33,8 @@ describe("relational browser boundaries", () => {
     expect(validateRelational({ query: { page } })).toBe(true);
     for (const change of [
       { row: null },
+      { row: { ...page.row, identity: { group: ["1"] } } },
+      { row: { ...page.row, cells: [{ value: { atom: { utf8: "\ud800" } } }] } },
       { complete_coverage: true },
       { ordinal: "01" },
       { reference: { ...reference, definition: "foreign" } },

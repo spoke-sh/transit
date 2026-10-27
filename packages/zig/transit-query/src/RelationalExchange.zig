@@ -12,7 +12,11 @@ const Pub = s.Publication;
 const Ref = s.PublicationReference;
 const Turn = s.Turn;
 pub const Advance = enum { progress, accepted, duplicate, blocked, complete };
-pub const resident_bytes = 3 * x.max_bytes + 2 * @sizeOf(x.Segment) + 8 * 256;
+pub const resident_bytes = 3 * x.fixed_bytes + 2 * @sizeOf(x.Segment) + 8 * 256;
+fn memory(allocator: std.mem.Allocator, bound: f.Relational.Bound) !q.QueryMemory {
+    if (bound.plan.budgets.resident_bytes <= resident_bytes or bound.plan.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
+    return .{ .parent = allocator, .limit = @intCast(bound.plan.budgets.resident_bytes - resident_bytes) };
+}
 
 // Conservative logical retention accounting includes keys, control records,
 // publication descriptors and all four possible row-index entries. Provider
@@ -99,7 +103,7 @@ pub fn producerState(turn: *Turn, bound: f.Relational.Bound, id: u64) !r.Produce
 /// The producer stages exact FXS1 bytes first, then atomically records eligibility
 /// and sends the receiver's identified notice. It must keep the publication
 /// readable until durable acceptance; retirement after acceptance is safe.
-pub fn offer(turn: *Turn, bound: f.Relational.Bound, sources: anytype, segment: x.Segment, publication: Pub, record: u64) !Advance {
+pub fn offer(allocator: std.mem.Allocator, turn: *Turn, bound: f.Relational.Bound, sources: anytype, segment: x.Segment, publication: Pub, record: u64) !Advance {
     const decision = turn.decision;
     errdefer turn.decision = decision;
     try sources.validate(bound);
@@ -107,8 +111,16 @@ pub fn offer(turn: *Turn, bound: f.Relational.Bound, sources: anytype, segment: 
     const budget_key = try r.key('b', segment.exchange, 0, 0, 0);
     var budget = try producerState(turn, bound, segment.exchange);
     const receiver = budget.receiver.owner;
-    var bytes: [x.max_bytes]u8 = undefined;
-    const body = try segment.encode(bound, &bytes);
+    var budget_memory = try memory(allocator, bound);
+    // Input rows are borrowed from the producer. Account their live payloads
+    // alongside this operation's encoded candidate.
+    var input_bytes: usize = 0;
+    for (segment.rows[0..segment.len]) |row| input_bytes = try std.math.add(usize, input_bytes, try f.RelationalValues.payloadLength(&row.values));
+    if (input_bytes > budget_memory.limit) return error.RelationalResidentBudget;
+    budget_memory.limit -= input_bytes;
+    const owned = budget_memory.allocator();
+    const body = try segment.encodeAlloc(owned, bound);
+    defer owned.free(body);
     const reference: Ref = .{ .resource = publication.resource, .domain = publication.domain, .namespace = publication.namespace, .record = record, .spec = try Pub.Digest.of(r.segment_format, body) };
     const notice: r.Pending = .{ .source = segment.source, .partition = segment.partition, .sequence = segment.sequence, .remote = reference };
     const address = try r.key('p', segment.exchange, segment.source, segment.partition, segment.sequence);
@@ -181,6 +193,7 @@ pub fn receive(turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64
     if (notice.sequence < route.consumed) return error.RelationalExchangeConflict;
     if (notice.sequence != route.accepted) return .blocked;
     if (segmentCharge(notice.remote.spec) > stored.limits.retained_bytes - stored.retained_bytes) return error.RelationalSpillBudget;
+    if (notice.remote.spec.length > stored.limits.credit_bytes) return error.RelationalExchangeCreditBudget;
     if (stored.inflight_segments == stored.limits.credit_segments or notice.remote.spec.length > stored.limits.credit_bytes - stored.inflight_bytes) return .blocked;
     // Reserve the cumulative charge before staging. Concurrent registration
     // must not consume the space promised to this already reserved segment.
@@ -193,7 +206,7 @@ pub fn receive(turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64
 /// Continue one reserved segment. The caller supplies a fresh turn with the
 /// producer resource registered. Its ledger proves the segment was eligible
 /// before any fence; physical epoch changes cannot discard accepted late work.
-pub fn advance(turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64) !Advance {
+pub fn advance(allocator: std.mem.Allocator, turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64) !Advance {
     const decision = turn.decision;
     errdefer turn.decision = decision;
     var stored = try check(turn, bound, sources, id);
@@ -209,9 +222,12 @@ pub fn advance(turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64
     if (!eligible.eql(try notice.encode())) return error.RelationalExchangeConflict;
     const descriptor = try notice.remote.publication().inspect(&producer, notice.remote.record);
     if (descriptor.publisher != route.producer) return error.UnexpectedQueryPublisher;
-    var bytes: [x.max_bytes]u8 = undefined;
-    const body = try q.RelationalMaintenance.readBody(notice.remote, &producer, &bytes);
-    const segment = try x.Segment.decode(bound, body);
+    var budget_memory = try memory(allocator, bound);
+    const owned = budget_memory.allocator();
+    const body = try q.RelationalMaintenance.readBodyAlloc(owned, notice.remote, &producer, x.max_bytes);
+    defer owned.free(body);
+    var segment = try x.Segment.decode(owned, bound, body);
+    defer segment.deinit();
     if (segment.exchange != id or segment.source != notice.source or segment.partition != notice.partition or segment.sequence != notice.sequence or segment.partitions != stored.partitions) return error.RelationalExchangeConflict;
     if (route.complete or (route.terminal != r.none and segment.sequence > route.terminal) or (segment.terminal and (route.highest > segment.sequence + 1 or (route.terminal != r.none and route.terminal != segment.sequence)))) return error.RelationalExchangeConflict;
     try producer.requireCurrent();
@@ -235,7 +251,7 @@ pub fn advance(turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64
 /// One stable row, or one empty/finished segment, per native turn. No credit is
 /// released until every row of that segment is durably indexed. Output execution
 /// is gated by terminal consumption from every explicitly registered partition.
-pub fn consume(turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64, source: u8, partition: u64) !Advance {
+pub fn consume(allocator: std.mem.Allocator, turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64, source: u8, partition: u64) !Advance {
     const decision = turn.decision;
     errdefer turn.decision = decision;
     var stored = try check(turn, bound, sources, id);
@@ -243,8 +259,12 @@ pub fn consume(turn: *Turn, bound: f.Relational.Bound, sources: anytype, id: u64
     if (route.complete) return .complete;
     const value = (try turn.read(try r.key('a', id, source, partition, route.consumed))) orelse return .blocked;
     const receipt = try r.Accepted.decode(value);
-    var bytes: [x.max_bytes]u8 = undefined;
-    const segment = try x.Segment.decode(bound, try q.RelationalMaintenance.readBody(receipt.local, turn, &bytes));
+    var budget_memory = try memory(allocator, bound);
+    const owned = budget_memory.allocator();
+    const body = try q.RelationalMaintenance.readBodyAlloc(owned, receipt.local, turn, x.max_bytes);
+    defer owned.free(body);
+    var segment = try x.Segment.decode(owned, bound, body);
+    defer segment.deinit();
     if (segment.exchange != id or segment.source != source or segment.partition != partition or segment.sequence != route.consumed or segment.partitions != stored.partitions or route.row > segment.len) return error.InvalidRelationalExchange;
     if (route.row < segment.len) {
         const row = segment.rows[route.row];
@@ -285,6 +305,7 @@ pub fn close(turn: *Turn, id: u64) !void {
 pub fn Sources(comptime Reader: type, comptime Authority: type) type {
     return struct {
         const Self = @This();
+        allocator: std.mem.Allocator,
         reader: Reader,
         authority: Authority,
         id: u64,
@@ -305,13 +326,18 @@ pub fn Sources(comptime Reader: type, comptime Authority: type) type {
             const first = page.entries[0] orelse return null;
             if (first.key.len != 32 or !std.mem.eql(u8, first.key.data[0..12], prefix.data[0..12])) return null;
             const index = try r.Row.decode(first.value);
-            var bytes: [x.max_bytes]u8 = undefined;
-            const segment = try x.Segment.decode(self.bound, try q.RelationalMaintenance.readBody(index.segment, self.reader, &bytes));
+            if (index.segment.spec.length > x.max_bytes) return error.InvalidRelationalExchange;
+            const bytes = try self.allocator.alloc(u8, index.segment.spec.length);
+            defer self.allocator.free(bytes);
+            var segment = try x.Segment.decode(self.allocator, self.bound, try q.RelationalMaintenance.readBody(index.segment, self.reader, bytes));
+            defer segment.deinit();
             if (segment.exchange != self.id or segment.source != source or index.ordinal >= segment.len) return error.InvalidRelationalExchange;
             const row = segment.rows[index.ordinal];
             if (!first.key.eql(try r.rowKey(self.id, source, row.identity))) return error.InvalidRelationalExchange;
             if (after) |id| if (f.RelationalExecution.identityOrder(id, row.identity) != .lt) return error.InvalidRelationalSourceOrder;
             try self.authority.validate(self.bound);
+            // Move only the selected row; release the remaining decoded rows.
+            segment.rows[index.ordinal].buffer = .{};
             return row;
         }
     };

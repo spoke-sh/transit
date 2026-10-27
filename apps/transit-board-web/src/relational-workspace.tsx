@@ -130,7 +130,9 @@ export function RelationalWorkspace() {
               !("atom" in cell.value) ||
               ("int64" in column.type
                 ? !("signed" in cell.value.atom)
-                : !("unsigned" in cell.value.atom))
+                : "uint64" in column.type
+                  ? !("unsigned" in cell.value.atom)
+                  : !("utf8" in column.type) || !("utf8" in cell.value.atom))
             );
           }))
       )
@@ -410,7 +412,9 @@ export function RelationalWorkspace() {
                               ? cell.value.atom.signed
                               : "unsigned" in cell.value.atom
                                 ? cell.value.atom.unsigned
-                                : "Invalid scalar"
+                                : "utf8" in cell.value.atom
+                                  ? JSON.stringify(cell.value.atom.utf8)
+                                  : "Invalid scalar"
                             : "Invalid cell"}
                       </td>
                     ))}
