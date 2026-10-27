@@ -469,8 +469,9 @@ This cursor neither selects all retained roots nor grants read/deletion rights.
 The caller must retain its selected roots for the entire traversal. History
 anchors, unflushed rows, snapshots, recovery baselines, current roots and other
 owners remain separate retention obligations. Cursor JSON used in component
-tests is not a persisted maintenance format. The component supplies no physical
-Table collector or automatic scheduling.
+tests is not a persisted maintenance format. The local backend composes these
+cursors with [durable graph work and physical collection](../../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection);
+automatic scheduling remains separate.
 
 `TableStorageRoots` enumerates the current root, selected recovery capsule and
 frames from a fixed cut's logical history floor through its accepted frontier.

@@ -80,7 +80,7 @@ pub const Read = struct {
     value: union(enum) { single: q.DirectTableQuery, relational: *q.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read },
     pins: [f.Relational.max_sources]?g.ReadPins.Record = @splat(null),
     batch: ?q.DirectTableQuery.Batch = null,
-    output: f.RelationalExecution.Output = undefined,
+    output: ?f.RelationalExecution.Output = null,
     probe_cells: [3]f.Types.Values.Cell = undefined,
     emitted: bool = false,
     emitted_rows: u64 = 0,
@@ -109,6 +109,8 @@ pub const Read = struct {
         try self.host.current();
         if (self.batch) |*batch| batch.deinit();
         self.batch = null;
+        if (self.output) |*output| output.deinit();
+        self.output = null;
         var result: g.ReadBatch = .{};
         if (self.value == .captured) return self.value.captured.next(maximum);
         if (self.value == .source) return self.value.source.next(maximum);
@@ -131,7 +133,7 @@ pub const Read = struct {
             .single, .source, .captured => unreachable,
             .relational => |query| blk: {
                 self.output = try query.next() orelse break :blk null;
-                break :blk self.output.cells[0..self.output.len];
+                break :blk self.output.?.cells[0..self.output.?.len];
             },
             .settings => |*settings| try settings.next(),
             .inspection => |*inspection| try inspection.next(),
@@ -394,6 +396,8 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     return read;
 }
 pub fn closeRead(self: *Self, read: *Read) void {
+    if (read.output) |*output| output.deinit();
+    read.output = null;
     const rejection = self.wire.last_rejection;
     defer self.wire.last_rejection = rejection;
     if (read.batch) |*batch| batch.deinit();

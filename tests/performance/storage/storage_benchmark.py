@@ -152,6 +152,21 @@ def execute(binary, owner, operation, directory, rows, mode, cpu, timeout):
                     involuntary_switches=usage.ru_nivcsw)
 
 
+def validate_inventory(phase, owner, read_only=False):
+    counters = phase['counters']
+    names = ('inventory_wal_appends', 'inventory_wal_bytes', 'inventory_wal_syncs', 'inventory_wal_startup_frames')
+    require(all(name in counters and counters[name] >= 0 for name in names), 'Missing allocation WAL attribution')
+    if owner == 'table':
+        require(all(counters[name] == 0 for name in names), 'Standalone Table fixture has no allocation WAL')
+    elif counters['object_puts']:
+        require(counters['inventory_wal_appends'] >= counters['object_puts'] and
+                counters['inventory_wal_bytes'] > 0 and counters['inventory_wal_syncs'] > 0,
+                'Native object creation lacks durable inventory attribution')
+    if read_only:
+        require(counters['inventory_wal_appends'] == 0 and counters['inventory_wal_bytes'] == 0,
+                'Read unexpectedly changes allocation history')
+
+
 def validate(sample, owner, operation, rows, mode, variant):
     record = sample['record']
     require(record['complete'] is True and record['build_mode'] == 'safe', 'Missing ReleaseSafe completion')
@@ -170,6 +185,7 @@ def validate(sample, owner, operation, rows, mode, variant):
     require(names == ['physical_open', 'recover', operation], 'Missing, duplicate or reordered phases')
     require(record['image_peak_rss_kib'] > 0, 'Missing executable RSS')
     for phase in record['phases']:
+        validate_inventory(phase, owner, operation == 'measure')
         require(phase['elapsed_ns'] > 0, 'Missing phase timing')
         require(phase['peak_live_bytes'] >= max(phase['baseline_live_bytes'], phase['end_live_bytes']), 'Invalid allocation peak')
         require(all(value >= 0 for value in phase['counters'].values()), 'Invalid owner counters')

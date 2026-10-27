@@ -147,9 +147,9 @@ def _description(value: object) -> Description:
     for item in _array(value['columns'], 1, 128):
         item = v._object(item, 'name type nullable optional')
         kind, payload = v._variant(item['type'])
-        if kind not in ('int64', 'uint64') or payload != {} or v._boolean(item['optional']):
+        if kind not in ('int64', 'uint64', 'utf8') or payload != {} or v._boolean(item['optional']):
             raise ValueError('Unsupported relational output type')
-        columns.append(Column(v._text(item['name'], 255), ScalarType('int64' if kind == 'int64' else 'uint64'), v._boolean(item['nullable'])))
+        columns.append(Column(v._text(item['name'], 255), ScalarType(kind), v._boolean(item['nullable'])))
     join = value['join']
     if join not in (None, 'inner', 'left'): raise ValueError('Invalid relational join')
     return Description(v._digest(value['plan']), tuple(sources), tuple(columns), join, v._boolean(value['grouped']))
@@ -196,13 +196,13 @@ class PairIdentity:
 
 @dataclass(frozen=True, slots=True)
 class GroupIdentity:
-    keys: tuple[int | None, ...]
+    keys: tuple[int | str | None, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class Row:
     identity: PairIdentity | GroupIdentity
-    cells: tuple[int | None, ...]
+    cells: tuple[int | str | None, ...]
 
 
 def _signed(value: object) -> int:
@@ -210,6 +210,18 @@ def _signed(value: object) -> int:
     result = int(value)
     if str(result) != value or not -(1 << 63) <= result < (1 << 63): raise ValueError('Invalid canonical int64')
     return result
+
+
+def _text_scalar(value: object) -> str:
+    if not isinstance(value, str) or len(value.encode('utf8')) > 1024 * 1024: raise ValueError('Invalid relational text')
+    return value
+
+
+def _group_scalar(value: object) -> int | str:
+    kind, payload = v._variant(value)
+    if kind == 'signed': return _signed(payload)
+    if kind == 'utf8': return _text_scalar(payload)
+    raise ValueError('Invalid relational group key')
 
 
 def _row(value: object) -> Row:
@@ -220,9 +232,9 @@ def _row(value: object) -> Row:
         payload = v._object(payload, 'left right')
         identity = PairIdentity(RowIdentity(v._hex(payload['left'], 20, True)),
             None if payload['right'] is None else RowIdentity(v._hex(payload['right'], 20, True)))
-    elif kind == 'group': identity = GroupIdentity(tuple(None if k is None else _signed(k) for k in _array(payload, 0, 128)))
+    elif kind == 'group': identity = GroupIdentity(tuple(None if k is None else _group_scalar(k) for k in _array(payload, 0, 128)))
     else: raise ValueError('Unknown relational identity')
-    cells: list[int | None] = []
+    cells: list[int | str | None] = []
     for item in _array(value['cells'], 1, 128):
         tag, cell = v._variant(item)
         if tag == 'null':
@@ -233,6 +245,7 @@ def _row(value: object) -> Row:
             scalar, data = v._variant(atom)
             if scalar == 'signed': cells.append(_signed(data))
             elif scalar == 'unsigned': cells.append(v._decimal(data, 0))
+            elif scalar == 'utf8': cells.append(_text_scalar(data))
             else: raise ValueError('Unsupported relational scalar')
         else: raise ValueError('Unsupported relational cell')
     return Row(identity, tuple(cells))

@@ -51,9 +51,49 @@ does not isolate frequency, caches or memory bandwidth. Hardware performance
 counters are unavailable, so no cycle, instruction or bandwidth attribution is
 claimed. Medians are not tail percentiles or service latency guarantees.
 
+## Segment membership filter selectivity
+
+Segment groups retain a fixed 64-bit, two-hash membership filter per indexed
+column. A controlled range-reader experiment uses 256 int64 rows per group and
+4, 16, 64 or 256 distinct values. Each arm asks about the same 2,048 absent values
+inside the group's minimum/maximum bounds. The control disables only membership
+pruning; page layout, integrity checks and predicate evaluation stay identical.
+
+| Distinct values | Filter bits per distinct value | False positives | Payload bytes with filter / control |
+| --- | ---: | ---: | ---: |
+| 4 | 16 | 22 / 2,048 (1.07%) | 53,504 / 4,980,736 |
+| 16 | 4 | 379 / 2,048 (18.51%) | 921,728 / 4,980,736 |
+| 64 | 1 | 1,803 / 2,048 (88.04%) | 4,384,896 / 4,980,736 |
+| 256 | 0.25 | 2,048 / 2,048 (100%) | 4,980,736 / 4,980,736 |
+
+The fixed filter helps low-distinct-count groups and saturates on the 256-value
+fixture. It is not an adaptive filter or a guaranteed false-positive bound.
+Every present value also returns its independently expected multiplicity; no
+false negative is observed. Counts measure requested payload ranges from an
+in-memory immutable source, excluding the common footer reads. They do not
+measure filesystem I/O or latency. The [executed account](../../history/qualification/storage.md#segment-membership-selectivity--2026-10-27)
+records the source, controls and reproduction.
+
 ## Retained Table key-range measurements
 
-A paired ReleaseSafe disk-owner matrix measures 1,024-row Table scans and a
+A complete matrix at `1b9ccb12c` records 768 verified raw samples across Table and
+native owners, warm/cold fixture pages and baseline/checkpoint arms. At 1,024
+Table rows, full-scan median/p95 read times are **575.08/582.86 ms** warm and
+**696.31/722.61 ms** cold. The same retained four-row interval takes
+**10.75/11.82 ms** and **15.18/18.57 ms**, requesting 41,024 segment bytes across
+two segments versus 1,312,768 bytes across 64 for the scan. Each arm has 31
+recorded observations, with independent value checks and one discarded warmup.
+
+In this run, checkpointing reduces Table logical recovery from 65 records to
+one: warm median 22.53 to 0.86 ms, cold median 60.88 to 2.85 ms. Physical startup
+still validates the WAL. Native 64-turn reads/startup change little, and its
+allocation WAL still requires startup validation alongside the authority WAL.
+Maximum executable RSS is 9,624 KiB for Table and 7,656 KiB for native samples.
+The [executed account](../../history/qualification/storage.md#disk-owner-recovery-and-read-matrix--2026-10-27)
+records all phases, physical scope, source hashes and raw-report location. These
+are local owner measurements on a shared host, not installed SQL or latency SLOs.
+
+An earlier paired ReleaseSafe disk-owner matrix measures 1,024-row Table scans and a
 four-row interval at the same retained snapshot. With warm fixture pages, the
 baseline median / p95 read times are **621.72 / 645.94 ms** for a complete scan
 and **11.89 / 16.33 ms** for the interval. With verified cold fixture pages at
@@ -100,6 +140,49 @@ The [proof ledger](../../history/qualification/storage.md#retained-table-cross-s
 records the fixture and reproduction command.
 
 ## Local ingestion and bounded growth measurements
+
+The current matrix at `1b9ccb12c` completes **384 independently verified
+write/readback samples**, with 31 recorded observations per arm after a discarded
+warmup. Inserting sixteen 1 KiB rows into a 1,024-row Table takes median/p95
+**466.35/1,576.51 ms** through point/WAL acceptance and **476.68/505.20 ms** through
+bulk/segment acceptance with warm fixture pages. Cold-entry times are
+**507.99/1,989.10 ms** and **522.22/535.45 ms**. Both append one acceptance record
+with three WAL syncs. Bulk reduces WAL bytes from 23,616 to 3,840 while increasing
+staged object bytes from 67,566 to 88,155; it does not consistently reduce whole
+owner latency or storage.
+
+For a 64-turn native fixture, preparing one more turn takes median/p95
+494.10/1,114.35 ms warm and 510.55/2,030.87 ms cold; committing it takes about
+3.07–3.08 ms median. Preparation includes two authority-WAL appends and **43
+allocation-WAL appends**, plus immutable object staging. Commit adds one authority
+append. The standalone Table composition omits the installed native authorization
+and direct-data allocation adapter, so its counters do not measure installed
+Table ingestion. Maximum write-child RSS is 33,908 KiB for Table and 8,680 KiB
+for native. The [executed account](../../history/qualification/storage.md#disk-ingestion-and-commit-matrix--2026-10-27)
+records phase percentiles, both WALs, object ranges/bytes, tracked allocations,
+retained files, exact source/build identities and the raw report. These are
+shared-host local-owner observations, not installed SQL or concurrent group-commit
+measurements.
+
+The current [Table growth matrix](../../history/qualification/storage.md#local-bounded-growth-requalification--2026-10-27)
+verifies 2,048 and 8,192 rows with 16 KiB values under a fixed 128 MiB process
+address-space ceiling. The larger fixture retains 193,003,856 file bytes; cold
+fresh-process readback verifies every value without changing storage. Setup's
+tracked peak is 67,015,751 bytes at both sizes, and readback's is 312,449 bytes.
+This exceeds the process ceiling and configured caches, not host RAM.
+
+The [native growth matrix](../../history/qualification/storage.md#native-growth-with-an-explicit-extended-time-guard)
+also verifies 512 and 2,048 turns with the same executable and 128 MiB limit. The
+larger fixture retains **346,805,395 file bytes**; setup peak virtual memory is
+11,216 KiB and cold-readback peak is 10,300 KiB. Its setup takes 6,489 seconds,
+followed by 11.90 seconds of fresh-process cold readback checking every KV value,
+block, consumed input and emitted output without changing stored bytes. This
+profile uses an explicit **7,200-second child guard**. The earlier default
+1,800-second attempt remains failed; the completed memory proof does not establish
+that time budget or a latency SLO.
+
+The earlier disk-owner matrix below preserves its original source and outcomes;
+changes between these runs are not controlled performance comparisons.
 
 A separate disk-owner matrix completes 384 verified write/readback samples,
 including 31 observations per arm. At a 1,024-row baseline, inserting sixteen
@@ -829,9 +912,10 @@ staging pipeline:
   for selected point reads and decoded groups for scans, and enforces separate
   byte budgets. Full-key ranges use the paged ordered index with declared
   collations. Finite direct scans select required columns before reading segment
-  pages. General SQL predicate pushdown and encoded operators remain separate
-  work; segment Zone Map and Bloom-filter primitives alone do not establish
-  those execution paths.
+  pages and execute bounded predicates before materializing selected rows.
+  Relational predicate pushdown remains separate; the
+  [query owner](../../../packages/zig/transit-query/README.md) defines the finite
+  scan's source-coverage, failure-order and authorization gates.
 - **Cache and manifest components:** `NvmeCache` caches `64 KiB`
   SHA-256-verified ranges and protects `.metadata_or_index` chunks from
   sequential `.column_data` scans. `PartitionLease.OccCoordinator` can rebase

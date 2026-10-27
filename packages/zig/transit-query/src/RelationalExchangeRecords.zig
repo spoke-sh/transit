@@ -53,7 +53,7 @@ pub const Limits = struct {
     credit_bytes: u64,
     credit_segments: u64,
     pub fn validate(self: Limits) !void {
-        if (self.retained_bytes < x.max_bytes or self.credit_bytes < x.max_bytes or self.credit_segments == 0) return error.InvalidRelationalExchange;
+        if (self.retained_bytes < x.fixed_bytes or self.credit_bytes < x.fixed_bytes or self.credit_segments == 0) return error.InvalidRelationalExchange;
     }
 };
 pub const Head = struct {
@@ -270,7 +270,7 @@ pub const Producer = struct {
     pub fn encode(self: Producer) !p.Value {
         try self.receiver.validate();
         if (self.receiver.resource == self.resource) return error.InvalidRelationalExchange;
-        if (self.id == 0 or self.owner == 0 or self.resource == 0 or self.limit < x.max_bytes or self.charged < base_bytes or self.charged > self.limit) return error.InvalidRelationalExchange;
+        if (self.id == 0 or self.owner == 0 or self.resource == 0 or self.limit < x.fixed_bytes or self.charged < base_bytes or self.charged > self.limit) return error.InvalidRelationalExchange;
         if (self.pending) |reference| {
             if (reference.record <= self.last or reference.resource != self.resource or reference.namespace != self.id or reference.domain != .query_exchange or reference.spec.format != segment_format or reference.spec.length < 111 or reference.spec.length > x.max_bytes) return error.InvalidRelationalExchange;
             if (charge(reference.spec) > self.charged - base_bytes) return error.InvalidRelationalExchange;

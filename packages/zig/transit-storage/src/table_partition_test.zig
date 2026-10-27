@@ -48,8 +48,8 @@ test "Table compact evidence recovers receipts and pending work without original
         _ = try table.checkpoint(.{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
         _ = try table.expireHistory(cut, access.guard());
         expected = table.root;
-        // Test-only destruction isolates the evidence dependency. The owner has
-        // no production collector yet. No snapshot needs these flushed rows,
+        // Test-only destruction isolates the evidence dependency from the
+        // separately composed collector. No snapshot needs these flushed rows,
         // the logical interval expired and recovery starts beyond this prefix.
         const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &table.index };
         var lsn: u64 = 0;

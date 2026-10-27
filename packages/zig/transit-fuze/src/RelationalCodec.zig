@@ -120,7 +120,7 @@ fn predicate(arena: std.mem.Allocator, reader: *std.Io.Reader) !r.Predicate {
     for (instructions) |*instruction| {
         const tag = std.enums.fromInt(std.meta.Tag(r.Instruction), try reader.takeByte()) orelse return error.InvalidRelationalEncoding;
         instruction.* = switch (tag) {
-            .compare => .{ .compare = .{ .column = try column(reader), .op = std.enums.fromInt(r.Comparison, try reader.takeByte()) orelse return error.InvalidRelationalEncoding, .value = try reader.takeInt(i64, .little) } },
+            .compare => .{ .compare = .{ .column = try column(reader), .op = std.enums.fromInt(r.Comparison, try reader.takeByte()) orelse return error.InvalidRelationalEncoding, .value = try literal(arena, reader) } },
             .is_null => .{ .is_null = try column(reader) },
             .is_not_null => .{ .is_not_null = try column(reader) },
             .negate => .negate,
@@ -129,6 +129,10 @@ fn predicate(arena: std.mem.Allocator, reader: *std.Io.Reader) !r.Predicate {
         };
     }
     return .{ .instructions = instructions };
+}
+fn literal(arena: std.mem.Allocator, reader: *std.Io.Reader) !@import("RelationalValues.zig").Literal {
+    const value = (try @import("RelationalValues.zig").read(reader)) orelse return error.InvalidRelationalEncoding;
+    return if (value == .text) .{ .text = try arena.dupe(u8, value.text) } else value;
 }
 
 test {

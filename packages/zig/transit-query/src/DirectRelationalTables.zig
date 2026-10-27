@@ -8,6 +8,7 @@ const r = f.Relational;
 const e = f.RelationalExecution;
 const Scan = @import("DirectTableScan.zig");
 const Self = @This();
+allocator: std.mem.Allocator,
 client: c.DirectTableClient,
 scans: [r.max_sources]?Scan = @splat(null),
 declarations: []const r.Source,
@@ -18,7 +19,7 @@ closed: bool = false,
 
 pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshots: []const c.DirectTableProtocol.Snapshot, sources: []const r.Source, requests: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
     if (sources.len == 0 or sources.len > r.max_sources or snapshots.len != sources.len) return error.InvalidRelationalSources;
-    var self: Self = .{ .client = client, .declarations = sources, .request_limit = requests };
+    var self: Self = .{ .allocator = allocator, .client = client, .declarations = sources, .request_limit = requests };
     errdefer self.deinit();
     for (snapshots, sources, 0..) |snapshot, source, i| {
         if (self.requests >= requests) return error.QueryPageBudget;
@@ -75,13 +76,5 @@ pub fn next(self: *Self, source: u8, after: ?r.RowIdentity) !?e.Row {
     defer self.requests += scan.requests - before;
     var row = (try scan.nextAfter(after)) orelse return null;
     defer row.deinit();
-    var result: e.Row = .{ .identity = scan.after.? };
-    for (self.declarations[source].schema.columns, row.cells, 0..) |column, value, i| {
-        if (column.type != .int64) continue;
-        result.values[i] = if (value == .null) null else integer: {
-            if (value != .value or value.value != .atom or value.value.atom != .signed) return error.InvalidRelationalSourceRow;
-            break :integer std.math.cast(i64, value.value.atom.signed) orelse return error.InvalidRelationalSourceRow;
-        };
-    }
-    return result;
+    return try e.Row.fromCells(self.allocator, scan.after.?, self.declarations[source].schema.columns, row.cells);
 }

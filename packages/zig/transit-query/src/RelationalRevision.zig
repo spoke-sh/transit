@@ -47,7 +47,20 @@ pub const Position = struct {
         return .{ .owner = self.owner, .resource = self.reference.resource, .identity = self.identity, .revision = revision, .mode = .{ .delta = self.reference }, .requests = requests, .cancellation = cancellation };
     }
 };
-pub const Event = union(enum) { row: f.RelationalExecution.Output, delta: f.RelationalDelta };
+pub const Event = union(enum) {
+    row: f.RelationalExecution.Output,
+    delta: f.RelationalDelta,
+    pub fn deinit(self: *Event) void {
+        switch (self.*) {
+            .row => |*row| row.deinit(),
+            .delta => |*delta| delta.deinit(),
+        }
+        self.* = undefined;
+    }
+};
+pub const resident_base = @sizeOf(Self) + 4 * @sizeOf(g.SnapshotRead.Result) + 2 * f.RelationalCheckpoint.fixed_bytes + 2 * f.RelationalDelta.fixed_bytes + 16384 + 4 * f.TableSchema.max_bytes + f.Types.max_encoding_bytes;
+parent: std.mem.Allocator,
+memory: q.QueryMemory,
 bundle: q.RelationalBundle,
 source: q.wire.SnapshotReader,
 options: Options,
@@ -58,7 +71,7 @@ manifest: r.Manifest,
 previous: ?r.Manifest = null,
 cuts: [f.Relational.max_sources]f.Relational.Cut = undefined,
 old_cuts: [f.Relational.max_sources]f.Relational.Cut = undefined,
-progress: f.RelationalCheckpoint,
+progress: ?f.RelationalCheckpoint = null,
 ordinal: u64 = 0,
 bytes: u64 = 0,
 canonical_bytes: u64 = 0,
@@ -69,20 +82,24 @@ complete: bool = false,
 failed: bool = false,
 closed: bool = false,
 
-pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: Options, disclosure: p.Authorization.Subject, nonce: [16]u8) !Self {
+pub fn open(allocator: std.mem.Allocator, client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: Options, disclosure: p.Authorization.Subject, nonce: [16]u8) !*Self {
     try bundle.validate();
     try options.identity.validate();
     if (bundle.plan.lifetime != .maintained or bundle.sources[0].scope.realm != client.realm) return error.RelationalSourceChanged;
     if (options.requests < 2) return error.QueryPageBudget;
     if (options.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
     const subject = try q.ResultDisclosure.check(disclosure, try options.selection(bundle), client.realm);
-    var self: Self = .{ .bundle = bundle, .source = try q.wire.SnapshotReader.open(client, options.resource, nonce), .options = options, .disclosure = subject, .stored = undefined, .reference = undefined, .manifest = undefined, .progress = undefined, .chain = if (options.mode == .result) finite.initialChain() else r.initialDeltaChain() };
+    if (bundle.plan.budgets.resident_bytes <= resident_base or bundle.plan.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
+    const self = try allocator.create(Self);
+    errdefer allocator.destroy(self);
+    self.* = .{ .parent = allocator, .memory = .{ .parent = allocator, .limit = @intCast(bundle.plan.budgets.resident_bytes - resident_base) }, .bundle = bundle, .source = try q.wire.SnapshotReader.open(client, options.resource, nonce), .options = options, .disclosure = subject, .stored = undefined, .reference = undefined, .manifest = undefined, .chain = if (options.mode == .result) finite.initialChain() else r.initialDeltaChain() };
     errdefer {
         const rejection = client.wire.last_rejection;
         self.close() catch {};
+        self.release();
         client.wire.last_rejection = rejection;
     }
-    var reader: Reader = .{ .owner = &self, .view = self.source.view };
+    var reader: Reader = .{ .owner = self, .view = self.source.view };
     self.stored = try q.RelationalMaintenance.head(&reader, options.identity);
     if (self.stored.request_version.pid != options.owner) return error.QueryDenied;
     if (self.stored.phase == .retired) return error.MaintainedResetRequired;
@@ -100,9 +117,11 @@ pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: 
         if (self.manifest.work.old_cursor != previous.work.outputs) return error.IncompleteResult;
     }
     if (options.mode == .delta and !std.meta.eql(options.mode.delta, self.manifest.previous)) return error.MaintainedResetRequired;
-    var bytes: [f.RelationalCheckpoint.max_bytes]u8 = undefined;
-    self.progress = try f.RelationalCheckpoint.decode(self.bound(), try q.RelationalMaintenance.readBody(self.manifest.checkpoint, &reader, &bytes));
-    if (self.progress.phase != .complete or self.progress.result_rows != self.manifest.work.outputs) return error.IncompleteResult;
+    const owned = self.memory.allocator();
+    const bytes = try q.RelationalMaintenance.readBodyAlloc(owned, self.manifest.checkpoint, &reader, f.RelationalCheckpoint.max_bytes);
+    defer owned.free(bytes);
+    self.progress = try f.RelationalCheckpoint.decode(owned, self.bound(), bytes);
+    if (self.progress.?.phase != .complete or self.progress.?.result_rows != self.manifest.work.outputs) return error.IncompleteResult;
     var fields: [f.Relational.max_outputs]f.Types.Field = undefined;
     var schema_bytes: [f.Types.max_encoding_bytes]u8 = undefined;
     self.canonical_bytes = (try (try bundle.plan.outputSchema(&fields)).encode(&schema_bytes)).len;
@@ -111,11 +130,11 @@ pub fn open(client: q.wire.ResourceReader, bundle: q.RelationalBundle, options: 
 }
 /// Resume exactly the next complete transaction. Pending means no successor is
 /// visible yet; reset-required never silently chooses a newer starting point.
-pub fn openNext(client: q.wire.ResourceReader, bundle: q.RelationalBundle, position: Position, disclosure: p.Authorization.Subject, nonce: [16]u8, requests: u64, cancellation: ?*const std.atomic.Value(bool)) !Self {
+pub fn openNext(allocator: std.mem.Allocator, client: q.wire.ResourceReader, bundle: q.RelationalBundle, position: Position, disclosure: p.Authorization.Subject, nonce: [16]u8, requests: u64, cancellation: ?*const std.atomic.Value(bool)) !*Self {
     try position.validate();
     if (!std.mem.eql(u8, &position.request, &try bundle.fingerprint())) return error.RelationalSourceChanged;
-    var self = try open(client, bundle, try position.nextOptions(requests, cancellation), disclosure, nonce);
-    errdefer self.close() catch {};
+    const self = try open(allocator, client, bundle, try position.nextOptions(requests, cancellation), disclosure, nonce);
+    errdefer self.deinit();
     if (self.stored.id != position.id) return error.MaintainedResetRequired;
     return self;
 }
@@ -213,7 +232,7 @@ fn authorize(self: *Self, finish: bool) !void {
     _ = try authority.requireAuthorization(required orelse return error.QueryDenied);
 }
 fn order(self: *Self, identity: @FieldType(f.RelationalExecution.Output, "identity")) !void {
-    if (self.last) |previous| if (try f.RelationalDelta.identityOrder(previous, identity) != .lt) return error.InvalidRelationalSourceOrder;
+    if (self.last) |previous| if (try f.RelationalDelta.identityOrder(previous, identity, self.bundle.plan) != .lt) return error.InvalidRelationalSourceOrder;
 }
 /// Null establishes complete row/delta coverage and current rights. Only then
 /// may checkpoint() be saved atomically with installing the consumer relation.
@@ -229,7 +248,7 @@ pub fn next(self: *Self) !?Event {
         const bytes = if (self.options.mode == .result) work.output_bytes else work.delta_bytes;
         const chain = if (self.options.mode == .result) work.chain else work.delta_chain;
         if (self.bytes != bytes or !std.mem.eql(u8, &self.chain, &chain)) return error.IncompleteResult;
-        if (self.options.mode == .result and self.canonical_bytes != self.progress.result_bytes) return error.IncompleteResult;
+        if (self.options.mode == .result and self.canonical_bytes != self.progress.?.result_bytes) return error.IncompleteResult;
         try self.authorize(true);
         self.complete = true;
         return null;
@@ -245,33 +264,39 @@ pub fn next(self: *Self) !?Event {
         break :blk .{ record.ordinal, record.reference, try record.extend(self.chain) };
     };
     if (ordinal != self.ordinal or reference.resource != self.options.resource or reference.namespace != self.stored.namespace() or reference.record >= work.manifest or (self.manifest.previous != null and reference.record <= self.manifest.previous.?.record)) return error.InvalidMaintainedRecord;
-    var bytes: [f.RelationalDelta.max_bytes]u8 = undefined;
-    const body = try q.RelationalMaintenance.readBody(reference, &reader, &bytes);
+    const allocator = self.memory.allocator();
+    const body = try q.RelationalMaintenance.readBodyAlloc(allocator, reference, &reader, if (self.options.mode == .result) f.RelationalOutput.max_bytes else f.RelationalDelta.max_bytes);
+    defer allocator.free(body);
     var event: Event = undefined;
     var identity: @FieldType(f.RelationalExecution.Output, "identity") = undefined;
     var canonical = self.canonical_bytes;
     if (self.options.mode == .result) {
-        const output = try f.RelationalOutput.decode(self.bound(), body);
+        var output = try f.RelationalOutput.decode(allocator, self.bound(), body);
+        errdefer output.deinit();
         if (output.ordinal != ordinal) return error.InvalidMaintainedRecord;
         identity = output.row.identity;
-        for (output.row.cells[0..output.row.len]) |cell| canonical = try std.math.add(u64, canonical, 5 + @as(u64, if (cell == .null) 0 else 8));
-        if (canonical > self.progress.result_bytes) return error.IncompleteResult;
+        canonical = try std.math.add(u64, canonical, try output.row.canonicalBytes());
+        if (canonical > self.progress.?.result_bytes) return error.IncompleteResult;
         event = .{ .row = output.row };
     } else {
-        const delta = try f.RelationalDelta.decode(self.oldBound(), self.bound(), body);
+        var delta = try f.RelationalDelta.decode(allocator, self.oldBound(), self.bound(), body);
+        errdefer delta.deinit();
         if (delta.ordinal != ordinal) return error.InvalidMaintainedRecord;
         identity = if (delta.before) |row| row.row.identity else delta.after.?.row.identity;
         event = .{ .delta = delta };
     }
+    errdefer event.deinit();
     try self.order(identity);
     const size = try std.math.add(u64, self.bytes, reference.spec.length);
     if (size > if (self.options.mode == .result) work.output_bytes else work.delta_bytes) return error.IncompleteResult;
     try self.authorize(false);
+    const retained_identity = try identity.clone(allocator);
     self.ordinal += 1;
     self.bytes = size;
     self.canonical_bytes = canonical;
     self.chain = chain;
-    self.last = identity;
+    if (self.last) |*last| last.deinit();
+    self.last = retained_identity;
     return event;
 }
 /// Recheck this retained revision's current disclosure rights without reading
@@ -298,4 +323,17 @@ pub fn checkpoint(self: *const Self) !Position {
 pub fn close(self: *Self) !void {
     try self.source.close();
     self.closed = true;
+}
+
+fn release(self: *Self) void {
+    if (self.progress) |*progress| progress.deinit();
+    if (self.last) |*last| last.deinit();
+    std.debug.assert(self.memory.used == 0);
+}
+/// Release returned events first. close() reports snapshot-release errors;
+/// deinit() retries closure and always frees the reader's bounded local state.
+pub fn deinit(self: *Self) void {
+    self.close() catch {};
+    self.release();
+    self.parent.destroy(self);
 }

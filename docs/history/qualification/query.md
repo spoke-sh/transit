@@ -9,6 +9,75 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Collated TEXT relational execution and owned results — 2026-10-26
+
+The current-v1 cutover adds nullable `int64` and `utf8` relational values to
+filtering, projection, equijoins and grouping. `SUM` remains integer-only.
+`UTF8_BINARY`, `ASCII_CI` and `EBCDIC_CP037` define comparisons, group identity,
+index ordering and exchange routing; joins reject unequal declared collations.
+The first contributing row supplies a group's displayed spelling. An equal
+collated identity can therefore have a paired delta with different text values.
+The shared definition becomes
+`e374e6f34d0a317e1fedcde79a548b45e124f1751a3bc62494aadcb7e69988d5`;
+stored records, generated contracts, caller fixtures and signing inputs migrate
+together. Earlier definitions reject rather than being decoded as this format.
+
+Rows, outputs, index keys, checkpoints and exchange records now have explicit
+owned text lifetimes. A value vector admits at most 1 MiB of cumulative TEXT;
+larger record envelopes reserve their complete bounded constituents. Captured
+and maintained readers have stable heap addresses so their budget allocators
+outlive returned rows. Callers release rows before the owning reader. Spill
+charges actual text bytes, and a segment larger than total exchange credit
+fails explicitly instead of waiting forever for impossible credit.
+
+Executed with the pinned Zig development shell (Debug component checks and
+`ReleaseSafe` service binaries):
+
+- Fuze relational selection passes **66/66** tests, including retained join
+  rows, collated group representatives, checkpoint restore after source release,
+  encoded output/delta/exchange ownership and immutable group indexes. The
+  additional exhaustive output/delta/exchange allocation-failure selection
+  passes **23/23**, including imported dependencies.
+- Query relational selection passes **43/43** tests. Its disk-spill growth case
+  consumes **36,448 inputs**, retains **18,224 groups**, uses a **145,789-byte
+  resident bound**, writes **2,770,048 spill bytes** and returns **473,873 result
+  bytes** in **54,674 steps**. TEXT spill and 16 KiB TEXT exchange rows retain
+  owned values across producer and receiver transitions.
+- The independent relational oracle compares **312 SQLite cases**; the
+  exchange oracle checks **81 independently calculated text routes**. The
+  Python caller's **7 tests**, TypeScript caller checks and Board's **101 tests
+  in 12 files** pass with typed integer/text group identities.
+- `just check fast` and the contract checks pass **36** and **18** checks
+  respectively. Generated schemas, ABI declarations and neutral fixtures agree
+  on the new definition. These are working-tree checks, not clean-source CI.
+- The complete direct captured-query service schedule passes: captured TEXT
+  joins/groups, retained row ownership, existing integer captures, named
+  declarations, maintained backfill and resume, node replacement, permanent
+  failures, overflow/work/spill/history limits, exchange continuation and unified
+  Arrow boundaries. The subsequent TEXT-maintenance fixture is qualified
+  separately below; it was not in the binary for this broad run.
+
+The focused relational service rerun passes captured and maintained collated
+joins/groups, worker replacement after a persisted compute checkpoint, retained
+rows across subsequent reads, current disclosure denial/restoration, and two
+complete maintained revisions. Deleting the earliest `Alpha` contributor produces
+exactly one paired delta to `aLPHA`, with equal collated group identity and the
+new aggregate count. Both revisions return four groups and a verified terminal
+position. The passing rerun reports no allocator leaks. Earlier attempts exposed
+fixture assumptions about rotated credentials, unrelated pin-fault injection,
+the initial absent compute checkpoint and ownership of allocated retention
+grants; the corrected fixture completes all assertions without relaxing them.
+Its raw output is `/var/tmp/transit-m2-relational-text-maintained6.log`.
+
+Raw runs are retained locally as `transit-m2-relational-text-*.log` under
+`/var/tmp`. The reproduction entry points are the Fuze `test` and query
+`test-unit` targets with relational filters, the neutral contract drivers, and root
+`zig build test-direct-captured-query -Doptimize=ReleaseSafe`. The focused
+`-- --relational-only` service option runs captured and maintained relational
+cases without the unrelated finite-capture uncertain-pin schedule. This record
+does not establish arbitrary SQL types, maintained incremental algorithms,
+distributed exchange or the final clean-source milestone gates.
+
 ## Captured direct Table request batching — 2026-10-24
 
 `nix develop --command zig build test-direct-captured-query -Doptimize=ReleaseSafe
@@ -4268,4 +4337,3 @@ invalidation and separate source/compute/output budgets. This change removes one
 compute payload copy; it does not change stored formats, export Arrow buffers or
 establish a whole-query latency improvement. The earlier clean core lane and
 ingestion matrix remain in progress at their recorded revisions.
-

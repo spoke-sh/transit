@@ -11,7 +11,9 @@ The default local launcher selects the
 [local native backend](../transit-backend-local/README.md). Ursula remains an
 explicit node backend. This package's
 Table component tests do not establish installed SQL execution, automatic flushing,
-automatic archive scheduling, immutable Table-object collection or multi-process Table commits.
+automatic archive scheduling or multi-process Table commits. Physical Table-object
+collection is composed by the [local backend](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
+and the catalog's retained dependency graph.
 
 ## Modules
 
@@ -114,6 +116,13 @@ sequential reads follow verified LSNs directly across segment files. Missing,
 overlapping and noncanonical segment names reject. The inventory retains no
 filename array; cold partition loads still enumerate the directory, and trim
 may enumerate it repeatedly.
+
+`LocalWal.nextPartition(after)` discovers existing partitions in numeric order,
+including empty fenced and fully trimmed partitions. Each call retains one ID
+and scans the directory, checking canonical names and the selected owner's
+mandatory metadata even when its descriptor is cached. Segment-only owners
+reject instead of disappearing from discovery. Callers serialize each call and
+establish their own acceptance cut; the cursor is not a retained snapshot.
 
 `zig build test` includes real temporary-directory WAL tests: cache eviction,
 segmented recovery above 64 MiB, durable empty-log fencing and full trim,

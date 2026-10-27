@@ -8,7 +8,7 @@ const Objects = c.storage.TransitObjectStore;
 const header_bytes = 40;
 pub const Owned = std.json.Parsed(r.Request);
 
-fn key(content: p.DataLifecycle.Content, output: *[96]u8) ![]const u8 {
+pub fn key(content: p.DataLifecycle.Content, output: *[96]u8) ![]const u8 {
     try content.validate();
     return std.fmt.bufPrint(output, "catalog-intents/{x}.data", .{&content.sha256});
 }

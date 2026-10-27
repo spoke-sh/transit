@@ -19,6 +19,10 @@ const Counters = struct {
     wal_bytes: u64 = 0,
     wal_syncs: u64 = 0,
     wal_startup_frames: u64 = 0,
+    inventory_wal_appends: u64 = 0,
+    inventory_wal_bytes: u64 = 0,
+    inventory_wal_syncs: u64 = 0,
+    inventory_wal_startup_frames: u64 = 0,
     object_puts: u64 = 0,
     object_write_bytes: u64 = 0,
     object_ranges: u64 = 0,
@@ -40,6 +44,16 @@ const Counters = struct {
         result.segment_bytes = owner.segment_bytes_read;
         result.decoded_groups = owner.row_groups_decoded;
         result.table_replay_frames = owner.recovery_work.replayed_frames;
+        return result;
+    }
+    fn forBackend(backend: *const local.Backend) Counters {
+        var result = read(&backend.wal, &backend.objects);
+        for ([_]*const s.LocalWal.LocalWal{ &backend.allocations.queue, &backend.data_allocations.queue }) |queue| {
+            result.inventory_wal_appends += queue.appends;
+            result.inventory_wal_bytes += queue.bytes_written;
+            result.inventory_wal_syncs += queue.syncs;
+            result.inventory_wal_startup_frames += queue.recovered_frames;
+        }
         return result;
     }
     fn difference(after: Counters, before: Counters) Counters {
@@ -338,8 +352,8 @@ fn native(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, 
     meter.begin(.{});
     var backend = try local.Backend.open(a, init.io, directory, "native", .{});
     defer backend.deinit();
-    meter.end("physical_open", Counters.read(&backend.wal, &backend.objects));
-    meter.begin(Counters.read(&backend.wal, &backend.objects));
+    meter.end("physical_open", Counters.forBackend(&backend));
+    meter.begin(Counters.forBackend(&backend));
     var pages = try local.PageStore.init(&backend, 1);
     defer pages.deinit();
     var journal: local.Store = .{ .backend = &backend };
@@ -347,7 +361,7 @@ fn native(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, 
     var engine = if (std.mem.eql(u8, operation, "init")) try Engine.bootstrap(&journal, &pages, genesis) else try Engine.open(&journal, &pages, genesis);
     var context: u8 = 0;
     engine.clock = .{ .context = &context, .read = clock };
-    var counters = Counters.read(&backend.wal, &backend.objects);
+    var counters = Counters.forBackend(&backend);
     counters.index_misses = pages.misses;
     meter.end("recover", counters);
     meter.begin(counters);
@@ -382,14 +396,14 @@ fn native(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, 
             const request = try g.sign(.{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .{ .turn = turn } }, try key());
             const prepared = try engine.prepareWithBlocks(request, &batch.body);
             if (ingest) {
-                counters = Counters.read(&backend.wal, &backend.objects);
+                counters = Counters.forBackend(&backend);
                 counters.index_misses = pages.misses;
                 meter.end("prepare", counters);
                 meter.begin(counters);
             }
             _ = try engine.commit(prepared);
             if (ingest) {
-                counters = Counters.read(&backend.wal, &backend.objects);
+                counters = Counters.forBackend(&backend);
                 counters.index_misses = pages.misses;
                 meter.end("commit", counters);
             }
@@ -415,7 +429,7 @@ fn native(init: std.process.Init, directory: std.Io.Dir, operation: []const u8, 
             values.add(id, value, response.blocks.slice());
         }
     } else return error.InvalidArguments;
-    counters = Counters.read(&backend.wal, &backend.objects);
+    counters = Counters.forBackend(&backend);
     counters.index_misses = pages.misses;
     if (!ingest) meter.end(operation, counters);
     try emit(init, meter, values, values, engine.head.position, engine.head.history_floor);

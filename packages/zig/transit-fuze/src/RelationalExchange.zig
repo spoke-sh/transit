@@ -5,8 +5,10 @@ const r = @import("Relational.zig");
 const e = @import("RelationalExecution.zig");
 const native = @import("transit_protocol").Growth;
 const table = @import("TableSchema.zig");
+const values = @import("RelationalValues.zig");
 pub const max_rows = 4;
-pub const max_bytes = 4 + 32 + 32 + 8 + 1 + 8 * 4 + 2 + max_rows * (20 + table.max_columns * 9);
+pub const fixed_bytes = 4 + 32 + 32 + 8 + 1 + 8 * 4 + 2 + max_rows * (20 + table.max_columns * 9);
+pub const max_bytes = fixed_bytes + max_rows * values.max_text_bytes;
 
 pub fn definition() [32]u8 {
     var bytes: [32]u8 = undefined;
@@ -25,11 +27,11 @@ pub fn route(plan: r.Plan, source: u8, partitions: u64, row: e.Row) !u64 {
     if (plan.join) |join| {
         hash.update(&.{1});
         const column = if (source == 0) join.left else join.right;
-        hashValue(&hash, row.values[try plan.sources[source].schema.index(column.id)]);
+        try values.hashInto(&hash, row.values[try plan.sources[source].schema.index(column.id)], try plan.resolveColumn(column));
     } else if (grouped(plan)) {
         hash.update(&.{2});
         hash.update(&.{@intCast(plan.group_by.len)});
-        for (plan.group_by) |column| hashValue(&hash, row.values[try plan.sources[source].schema.index(column.id)]);
+        for (plan.group_by) |column| try values.hashInto(&hash, row.values[try plan.sources[source].schema.index(column.id)], try plan.resolveColumn(column));
     } else {
         hash.update(&.{3});
         var bytes: [20]u8 = undefined;
@@ -44,14 +46,6 @@ fn grouped(plan: r.Plan) bool {
     for (plan.outputs) |output| if (output.expression != .column) return true;
     return false;
 }
-fn hashValue(hash: *std.crypto.hash.sha2.Sha256, value: ?i64) void {
-    hash.update(&.{@intFromBool(value != null)});
-    if (value) |integer| {
-        var bytes: [8]u8 = undefined;
-        std.mem.writeInt(i64, &bytes, integer, .little);
-        hash.update(&bytes);
-    }
-}
 pub fn identityBytes(value: r.RowIdentity, bytes: *[20]u8) void {
     std.mem.writeInt(u64, bytes[0..8], value.origin, .big);
     std.mem.writeInt(u64, bytes[8..16], value.operation, .big);
@@ -60,10 +54,11 @@ pub fn identityBytes(value: r.RowIdentity, bytes: *[20]u8) void {
 pub fn validateRow(plan: r.Plan, source: u8, row: e.Row) !void {
     if (source >= plan.sources.len) return error.InvalidRelationalExchange;
     try row.identity.validate();
+    _ = try values.payloadLength(&row.values);
     const columns = plan.sources[source].schema.columns;
     for (columns, 0..) |column, i| {
-        if (column.type == .int64) {
-            if (!column.nullable and row.values[i] == null) return error.InvalidRelationalSourceRow;
+        if (column.type == .int64 or column.type == .utf8) {
+            try values.validate(row.values[i], column);
         } else if (row.values[i] != null) return error.InvalidRelationalSourceRow;
     }
     for (row.values[columns.len..]) |value| if (value != null) return error.InvalidRelationalSourceRow;
@@ -81,12 +76,24 @@ pub const Segment = struct {
     len: u8 = 0,
     rows: [max_rows]e.Row = undefined,
 
+    pub fn deinit(self: *Segment) void {
+        for (self.rows[0..self.len]) |*row| row.deinit();
+        self.* = undefined;
+    }
+
     pub fn encode(self: Segment, bound: r.Bound, output: []u8) ![]const u8 {
+        var writer: std.Io.Writer = .fixed(output[0..@min(output.len, max_bytes)]);
+        try self.writeTo(bound, &writer);
+        return writer.buffered();
+    }
+    pub fn encodeAlloc(self: Segment, allocator: std.mem.Allocator, bound: r.Bound) ![]u8 {
+        return values.encodeOwned(allocator, self, bound, max_bytes);
+    }
+    pub fn writeTo(self: Segment, bound: r.Bound, writer: *std.Io.Writer) !void {
         try bound.validate();
         if (self.exchange == 0 or self.epoch == 0 or self.partitions == 0 or self.partition >= self.partitions or
             self.source >= bound.plan.sources.len or self.sequence == std.math.maxInt(u64) or self.len > max_rows or
             (self.len == 0 and !self.terminal)) return error.InvalidRelationalExchange;
-        var writer: std.Io.Writer = .fixed(output[0..@min(output.len, max_bytes)]);
         try writer.writeAll("FXS1");
         try writer.writeAll(&definition());
         try writer.writeAll(&try bound.fingerprint());
@@ -103,14 +110,10 @@ pub const Segment = struct {
             var id: [20]u8 = undefined;
             identityBytes(row.identity, &id);
             try writer.writeAll(&id);
-            for (row.values[0..bound.plan.sources[self.source].schema.columns.len]) |value| {
-                try writer.writeByte(@intFromBool(value != null));
-                if (value) |integer| try writer.writeInt(i64, integer, .little);
-            }
+            for (row.values[0..bound.plan.sources[self.source].schema.columns.len]) |value| try values.write(writer, value);
         }
-        return writer.buffered();
     }
-    pub fn decode(bound: r.Bound, bytes: []const u8) !Segment {
+    pub fn decode(allocator: std.mem.Allocator, bound: r.Bound, bytes: []const u8) !Segment {
         try bound.validate();
         if (bytes.len > max_bytes) return error.InvalidRelationalExchange;
         var reader: std.Io.Reader = .fixed(bytes);
@@ -125,15 +128,15 @@ pub const Segment = struct {
         if (result.len > max_rows or result.source >= bound.plan.sources.len) return error.InvalidRelationalExchange;
         for (result.rows[0..result.len]) |*row| {
             row.* = .{ .identity = .{ .origin = try reader.takeInt(u64, .big), .operation = try reader.takeInt(u64, .big), .ordinal = try reader.takeInt(u32, .big) } };
-            for (row.values[0..bound.plan.sources[result.source].schema.columns.len]) |*value| switch (try reader.takeByte()) {
-                0 => value.* = null,
-                1 => value.* = try reader.takeInt(i64, .little),
-                else => return error.InvalidRelationalExchange,
-            };
+            for (row.values[0..bound.plan.sources[result.source].schema.columns.len]) |*value| value.* = try values.read(&reader);
         }
         if (reader.bufferedLen() != 0) return error.InvalidRelationalExchange;
-        var canonical: [max_bytes]u8 = undefined;
-        if (!std.mem.eql(u8, try result.encode(bound, &canonical), bytes)) return error.InvalidRelationalExchange;
+        values.checkEncoding(bytes, result, bound) catch |err| return switch (err) {
+            error.WriteFailed, error.InvalidRelationalEncoding => error.InvalidRelationalExchange,
+            else => err,
+        };
+        errdefer result.deinit();
+        for (result.rows[0..result.len]) |*row| row.* = try row.clone(allocator);
         return result;
     }
 };

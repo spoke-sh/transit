@@ -93,9 +93,10 @@ pub const Opened = struct {
     complete_coverage: bool = false,
     pub const json_schema_sequence_bounds = .{ .cuts = r.max_sources };
 };
+pub const GroupScalar = union(enum) { signed: []const u8, utf8: []const u8 };
 pub const Identity = union(enum) {
     pair: struct { left: []const u8, right: ?[]const u8 },
-    group: []const ?[]const u8,
+    group: []const ?GroupScalar,
     pub const json_schema_sequence_bounds = .{ .group = r.max_groups };
 };
 pub const Row = struct {
@@ -130,8 +131,11 @@ pub fn row(allocator: Allocator, value: f.RelationalExecution.Output, schema: f.
     return .{ .cells = cells, .identity = switch (value.identity) {
         .pair => |pair| .{ .pair = .{ .left = try v.hex(allocator, &try pair.left.encode()), .right = if (pair.right) |right| try v.hex(allocator, &try right.encode()) else null } },
         .group => |group| blk: {
-            const keys = try allocator.alloc(?[]const u8, group.len);
-            for (keys, group.values[0..group.len]) |*out, key| out.* = if (key) |number| try std.fmt.allocPrint(allocator, "{d}", .{number}) else null;
+            const keys = try allocator.alloc(?GroupScalar, group.len);
+            for (keys, group.values[0..group.len]) |*out, key| out.* = if (key) |scalar| switch (scalar) {
+                .integer => |number| .{ .signed = try std.fmt.allocPrint(allocator, "{d}", .{number}) },
+                .text => |text| .{ .utf8 = try allocator.dupe(u8, text) },
+            } else null;
             break :blk .{ .group = keys };
         },
     } };
@@ -159,7 +163,10 @@ pub const Session = struct {
         failure: ?anyerror = null,
     } = null,
     pub fn deinit(self: *Session) void {
-        if (self.active) |active| active.query.deinit();
+        if (self.active) |*active| {
+            if (active.pending) |*pending| pending.deinit();
+            active.query.deinit();
+        }
         self.active = null;
     }
     pub const Progress = struct { opened: Opened, ordinal: []const u8, read: bool };
@@ -276,6 +283,8 @@ pub const Session = struct {
                 try active.query.tables.validate(active.query.execution.bound);
                 if (active.failure) |failure| return failure;
                 if (!active.read or next) {
+                    if (active.pending) |*pending| pending.deinit();
+                    active.pending = null;
                     const value = active.query.next() catch |err| {
                         active.failure = err;
                         return err;

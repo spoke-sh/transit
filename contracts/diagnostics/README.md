@@ -90,6 +90,14 @@ tests that local classifications never erase submission uncertainty. Native
 authority rejection remains distinct. `diagnostic_case_codes.py` only generates
 test inputs from the reviewed manifest; it cannot record expected semantics.
 
+The exchange's total byte-credit refusal is `query.exchange_credit_budget`, a
+limit with `correct_input` advice. It differs from temporary remaining-credit
+exhaustion, which returns `blocked`. The matrix checks HTTP 400 and Flight status
+8, preserves unknown submission after dispatch, and gives current inspection
+denial priority. Correcting a proposed segment never permits replacing earlier
+accepted segment identities; the [exchange contract](../RELATIONAL_EXCHANGE_V1.md)
+owns that boundary.
+
 
 The migration ledger mapping boundary covers all thirteen terminal input causes.
 Invalid/changed owner configuration, absent initialization and oversized transform

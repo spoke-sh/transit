@@ -450,7 +450,9 @@ pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, c
     defer retained_query.deinit();
     const original_rows = try q.DirectRelationalQuery.openPreparedRetained(allocator, io, directory, "retired-source", client, retained_query, &.{original}, relational_options, null);
     defer original_rows.deinit();
-    try t.expectEqual(@as(u128, 2), (try original_rows.next()).?.cells[0].value.atom.unsigned);
+    var original_output = (try original_rows.next()).?;
+    defer original_output.deinit();
+    try t.expectEqual(@as(u128, 2), original_output.cells[0].value.atom.unsigned);
     try t.expect(try original_rows.next() == null);
     try t.expect(original_rows.complete);
     try t.expectError(error.RelationalSourceChanged, q.DirectRelationalCompilation.fromRetained(allocator, client, 1, "SELECT COUNT(*) AS total FROM renamed", &.{prepared}, &.{original}, relational_options, null));

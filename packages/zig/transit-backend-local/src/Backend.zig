@@ -4,6 +4,7 @@ const std = @import("std");
 const core = @import("transit_core");
 const storage = @import("transit_storage");
 const Allocations = @import("NativeAllocations.zig");
+const DataAllocations = @import("DataAllocations.zig");
 const Self = @This();
 
 allocator: std.mem.Allocator,
@@ -13,8 +14,15 @@ lock: std.Io.File,
 wal: storage.LocalWal.LocalWal,
 objects: storage.LocalSegmentStore.LocalSegmentStore,
 allocations: Allocations,
+data_allocations: DataAllocations,
 mutex: std.Io.Mutex = .init,
 collection: std.Io.Mutex = .init,
+/// Creation holds the shared side through inventory and object publication.
+/// Reclamation must hold the exclusive side before inspecting the latest epoch.
+data_creators: std.Io.RwLock = .init,
+/// Serializes the private allocation queue, independently of native publication.
+/// Lock order: data_creators, data_inventory, then short quota/head mutex work.
+data_inventory: std.Io.Mutex = .init,
 /// Data owners hold a shared fence only while checking/disclosing/committing.
 /// Native publication takes the exclusive side; private staging holds neither.
 authority: std.Io.RwLock = .init,
@@ -40,14 +48,16 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: 
     errdefer wal.deinit();
     var allocations = try Allocations.open(allocator, io, directory);
     errdefer allocations.deinit();
+    var data_allocations = try DataAllocations.open(allocator, io, directory);
+    errdefer data_allocations.deinit();
     var allocated = try countFiles(io, directory);
     // Known depth only; file/object cardinality does not determine resident size.
-    for ([_][]const u8{ "keys", "locks", "objects", "wal", "native-allocations", "native-allocations/queue" }) |relative| {
+    for ([_][]const u8{ "keys", "locks", "objects", "wal", "native-allocations", "native-allocations/queue", "data-allocations", "data-allocations/queue" }) |relative| {
         const child = try directory.openDir(io, relative, .{ .iterate = true });
         defer child.close(io);
         allocated = try std.math.add(u64, allocated, try countFiles(io, child));
     }
-    return .{ .allocator = allocator, .io = io, .directory = directory, .lock = lock, .wal = wal, .objects = objects, .allocations = allocations, .limits = limits, .allocated = allocated };
+    return .{ .allocator = allocator, .io = io, .directory = directory, .lock = lock, .wal = wal, .objects = objects, .allocations = allocations, .data_allocations = data_allocations, .limits = limits, .allocated = allocated };
 }
 
 fn bindNativeOwner(io: std.Io, directory: std.Io.Dir, lock: std.Io.File) !void {
@@ -65,13 +75,14 @@ fn bindNativeOwner(io: std.Io, directory: std.Io.Dir, lock: std.Io.File) !void {
     var iterator = directory.iterate();
     while (try iterator.next(io)) |entry| {
         if (std.mem.eql(u8, entry.name, ".initialize") or std.mem.eql(u8, entry.name, ".definition") or std.mem.eql(u8, entry.name, ".native-owner")) continue;
-        if (!std.mem.eql(u8, entry.name, "keys") and !std.mem.eql(u8, entry.name, "locks") and !std.mem.eql(u8, entry.name, "objects") and !std.mem.eql(u8, entry.name, "native-allocations")) return error.NativeStorageUnmarked;
+        if (!std.mem.eql(u8, entry.name, "keys") and !std.mem.eql(u8, entry.name, "locks") and !std.mem.eql(u8, entry.name, "objects") and !std.mem.eql(u8, entry.name, "native-allocations") and !std.mem.eql(u8, entry.name, "data-allocations")) return error.NativeStorageUnmarked;
         const child = try directory.openDir(io, entry.name, .{ .iterate = true });
         defer child.close(io);
         var contents = child.iterate();
         if (try contents.next(io) != null) return error.NativeStorageUnmarked;
     }
     try directory.createDirPath(io, "native-allocations");
+    try directory.createDirPath(io, "data-allocations");
     try @import("LocalFiles.zig").sync(io, directory);
     try lock.writePositionalAll(io, &expected, 0);
     try lock.sync(io);
@@ -80,6 +91,7 @@ fn bindNativeOwner(io: std.Io, directory: std.Io.Dir, lock: std.Io.File) !void {
 }
 
 pub fn deinit(self: *Self) void {
+    self.data_allocations.deinit();
     self.allocations.deinit();
     self.objects.deinit();
     self.wal.deinit();
@@ -110,20 +122,46 @@ pub fn reserve(self: *Self, bytes: usize, control: bool) !void {
 
 pub fn put(self: *Self, key: []const u8, bytes: []const u8, control: bool) !void {
     try dataKey(key);
+    if (bytes.len > storage.TransitObjectStore.max_object_bytes) return error.ObjectTooLarge;
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    const meta: storage.TransitObjectStore.ObjectMeta = .{ .size = bytes.len, .sha256 = digest };
+    try self.data_creators.lockShared(self.io);
+    defer self.data_creators.unlockShared(self.io);
     const store = self.objects.objectStore();
-    if (try store.head(key) == null) {
+    const existing = try store.head(key);
+    if (existing) |known| if (!std.meta.eql(known, meta)) return error.ImmutableObjectConflict;
+    const epoch = blk: {
+        try self.mutex.lock(self.io);
+        defer self.mutex.unlock(self.io);
+        const epoch = if (try self.wal.log().tail(0) == 0) 1 else (try @import("Store.zig").currentHeadLocked(self)).storage_epoch;
         // Payload, checksum chunks, descriptor and bounded publication overhead.
         // Concurrent missing-key observations can reserve twice. Keep both
         // reservations until reopen rather than undercount uncertain staging.
-        const checks = std.math.divCeil(usize, bytes.len, 64 * 1024) catch unreachable;
-        try self.mutex.lock(self.io);
-        defer self.mutex.unlock(self.io);
-        try self.reserve(bytes.len + checks * 32 + 1024, control);
+        // Reserve before waiting on private inventory I/O so ordinary writes
+        // still fail quota promptly while another creator's sync is paused.
+        if (existing == null) {
+            const checks = std.math.divCeil(usize, bytes.len, 64 * 1024) catch unreachable;
+            try self.reserve(bytes.len + checks * 32 + 1024, control);
+        }
+        break :blk epoch;
+    };
+    const allocation = try DataAllocations.Allocation.init(epoch, key, meta);
+    {
+        try self.data_inventory.lock(self.io);
+        defer self.data_inventory.unlock(self.io);
+        const previous = try self.data_allocations.latest(allocation.name());
+        if (previous == null or previous.?.epoch < epoch) {
+            try self.mutex.lock(self.io);
+            defer self.mutex.unlock(self.io);
+            try self.reserve(DataAllocations.record_bytes + storage.TransitLog.alignedFrameSize(DataAllocations.queue_record_bytes) + 1024, control);
+        }
+        // Persist a new epoch even for deduplicated content. The old allocation
+        // cannot authorize deletion after this key is reused by newer work.
+        _ = try self.data_allocations.record(allocation);
     }
     // Private immutable publication is per-key. Disk syncs must not hold the
     // quota/journal mutex or delay unrelated native reads and control work.
-    var digest: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     _ = try store.putImmutable(key, bytes, digest);
 }
 

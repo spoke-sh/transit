@@ -28,6 +28,17 @@ Concurrent attempts that both observe a missing key can reserve twice; those
 conservative reservations remain charged until reopen. Direct-object syncs therefore
 do not hold up unrelated native reads or control publication through this mutex.
 Device contention and the serialized WAL can still delay them.
+Direct creation also records a durable key/content inventory before publication.
+The private FIFO and latest per-key epoch use a separate mutex: slow inventory
+syncs can delay other direct creators, but do not hold the native journal mutex.
+Reusing existing content after a storage fence records the newer epoch, which
+prevents an older inventory item from removing its latest marker. Creation holds
+a shared reclamation fence until publication finishes. Inventory markers, queue
+records and object files all consume the physical quota and control reserve;
+even deduplicated reuse can fail quota when it requires a newer epoch record.
+This inventory supplies no reachability or deletion authority. Its mandatory
+directory is created only for a fresh current-definition installation; missing
+history rejects on reopen instead of being reset.
 Native page/block creation and explicit native collection retain the journal
 mutex through allocation, publication and reclamation. Their syncs can delay
 journal work; this serialization prevents a delayed native creator from
@@ -55,8 +66,18 @@ mutex. It does not compare the native progress position: an unrelated accepted
 input does not invalidate an otherwise current Table candidate. Direct owners
 still compare their own partition frontier. Table WAL trimming requires coverage
 published in the latest accepted Table archive record; it preserves the last WAL
-record and every archived logical record. Mutable data objects and Table-object
-collection are unavailable through this adapter.
+record and every required archived logical record. Objects are immutable;
+physical collection has a separate retained-graph owner.
+
+`DataCuts` walks the local nonzero partitions under an accepted native storage
+fence. It fixes each partition's observed tail, then reads one frame per step
+backwards to its last acceptance in an older storage epoch. Later appends cannot
+extend that walk. The fixed cursor owns its fields and resumes after reopen;
+each selected cut binds the frame header and full payload hash. Empty owners
+and owners created after the fence contribute no older cut. Missing or trimmed
+required history stops traversal. This discovery supplies neither a complete
+object graph nor deletion authority; catalog and Table retained-root traversal
+must account for the selected owners before collection.
 
 `DataAuthority` authenticates the original signed subject and checks the supplied
 generic native requirements. It separately verifies the catalog resource's
@@ -98,6 +119,15 @@ schedule automatic local collection. `PayloadStore` implements explicit
 [standalone payload publication and retirement](docs/payloads.md) under the
 existing native declarations. These component operations are separate from
 installed node payload routes and automatic maintenance.
+
+`DataCollection.Collector(transit_catalog.DirectStorageGraph)` composes the local
+allocation/deletion mechanism with complete Table/catalog dependency traversal.
+It retains current data, unexpired history, live pins, recovery and original
+operation evidence. Explicit history expiry and pin release can make old objects
+eligible; a complete mark, native epoch/time fences and exact allocation identity
+are still required before removal. Paged private work and deletion progress
+resume after reopen. See [direct-data collection](docs/maintenance.md#direct-table-and-catalog-collection)
+for invocation, memory limits and permanent saved-intent ownership.
 
 Run `nix develop --command zig build test-local-native` from the repository root,
 or `zig build test` here inside the pinned development shell. The root unit task

@@ -113,7 +113,7 @@ pub const Fixture = struct {
         const pubn: s.Publication = .{ .resource = self.producer.resource, .domain = .query_exchange, .namespace = segment.exchange };
         for (0..100) |_| {
             var turn = try self.producer.capture();
-            const result = try x.offer(&turn, bound, &self.authority, segment, pubn, record);
+            const result = try x.offer(t.allocator, &turn, bound, &self.authority, segment, pubn, record);
             var notice: ?r.Pending = null;
             if (result == .accepted) {
                 for (turn.decision.outputs) |slot| if (slot) |output| {
@@ -131,10 +131,10 @@ pub const Fixture = struct {
         try self.receiver.commit(turn);
         for (0..100) |_| {
             turn = try self.advanceTurn();
-            const result = try x.advance(&turn, bound, &self.authority, id);
+            const result = try x.advance(t.allocator, &turn, bound, &self.authority, id);
             // An interrupted uncommitted step reconstructs identical bytes.
             var retry = try self.advanceTurn();
-            try t.expectEqual(result, try x.advance(&retry, bound, &self.authority, id));
+            try t.expectEqual(result, try x.advance(t.allocator, &retry, bound, &self.authority, id));
             try t.expectEqualDeep(turn.decision, retry.decision);
             try self.receiver.commit(turn);
             if (result == .accepted) return;
@@ -144,7 +144,7 @@ pub const Fixture = struct {
     pub fn consume(self: *Fixture, bound: f.Relational.Bound, id: u64, source: u8, partition: u64) !void {
         for (0..codec.max_rows + 1) |_| {
             var turn = try self.capture();
-            const result = try x.consume(&turn, bound, &self.authority, id, source, partition);
+            const result = try x.consume(t.allocator, &turn, bound, &self.authority, id, source, partition);
             try self.receiver.commit(turn);
             if (result == .blocked or result == .complete) return;
         }
@@ -164,8 +164,8 @@ const NoGroups = struct {
 };
 fn row(source: u8, index: u64) f.RelationalExecution.Row {
     var result: f.RelationalExecution.Row = .{ .identity = .{ .origin = 10 + @as(u64, source), .operation = 20 + index, .ordinal = 0 } };
-    result.values[0] = if (index % 5 == 0) null else @intCast(index % 3);
-    result.values[1] = @intCast(index * 7);
+    result.values[0] = if (index % 5 == 0) null else .{ .integer = @intCast(index % 3) };
+    result.values[1] = .{ .integer = @intCast(index * 7) };
     return result;
 }
 test "durable exchange separates acceptance consumption credits and all-partition coverage" {
@@ -193,7 +193,7 @@ test "durable exchange separates acceptance consumption credits and all-partitio
                     var turn = try fixture.capture();
                     const admitted = try x.head(&turn, 88);
                     try t.expectEqual(@as(u64, 1), admitted.inflight_segments);
-                    var input: x.Sources(*s.Turn, *Authority) = .{ .reader = &turn, .authority = &fixture.authority, .bound = bound, .id = 88 };
+                    var input: x.Sources(*s.Turn, *Authority) = .{ .allocator = t.allocator, .reader = &turn, .authority = &fixture.authority, .bound = bound, .id = 88 };
                     try t.expectError(error.RelationalExchangePending, input.next(0, null));
                     // Lost acceptance ack repeats the exact identity without
                     // consuming rows or returning another unit of credit.
@@ -225,7 +225,7 @@ test "durable exchange separates acceptance consumption credits and all-partitio
         const complete = try x.head(&turn, 88);
         try t.expectEqual(partitions * 2, complete.completed);
         try t.expectEqual(@as(u64, 0), complete.inflight_segments);
-        var input: x.Sources(*s.Turn, *Authority) = .{ .reader = &turn, .authority = &fixture.authority, .bound = bound, .id = 88 };
+        var input: x.Sources(*s.Turn, *Authority) = .{ .allocator = t.allocator, .reader = &turn, .authority = &fixture.authority, .bound = bound, .id = 88 };
         for (0..2) |source| {
             var after: ?f.Relational.RowIdentity = null;
             for (0..19) |index| {
@@ -238,7 +238,7 @@ test "durable exchange separates acceptance consumption credits and all-partitio
         // Real production execution over the recovered row index; expected
         // pairs are enumerated directly from the independent fixture formula.
         var groups: NoGroups = .{};
-        var engine = try f.RelationalExecution.Execution(@TypeOf(&input), *NoGroups).init(bound, &input, &groups);
+        var engine = try f.RelationalExecution.Execution(@TypeOf(&input), *NoGroups).init(t.allocator, bound, &input, &groups);
         var left: u64 = 0;
         var right: u64 = 0;
         var matched = false;
@@ -254,7 +254,7 @@ test "durable exchange separates acceptance consumption credits and all-partitio
                 while (right < 19) {
                     const candidate = right;
                     right += 1;
-                    if (key != null and row(1, candidate).values[0] != null and key.? == row(1, candidate).values[0].?) {
+                    if (key != null and row(1, candidate).values[0] != null and key.?.integer == row(1, candidate).values[0].?.integer) {
                         expected_right = candidate;
                         matched = true;
                         break :search;
@@ -281,7 +281,7 @@ test "durable exchange separates acceptance consumption credits and all-partitio
         var expected_count: usize = 0;
         for (0..19) |i| {
             var matches: usize = 0;
-            for (0..19) |j| if (row(0, i).values[0] != null and row(1, j).values[0] != null and row(0, i).values[0].? == row(1, j).values[0].?) {
+            for (0..19) |j| if (row(0, i).values[0] != null and row(1, j).values[0] != null and row(0, i).values[0].?.integer == row(1, j).values[0].?.integer) {
                 matches += 1;
             };
             expected_count += @max(1, matches);
@@ -330,7 +330,7 @@ test "reordered traffic and exhausted credits leave accepted work and control ca
     // Quota is cumulative and includes already consumed bytes/index records.
     turn = try fixture.capture();
     var stored = try x.head(&turn, 89);
-    stored.limits.retained_bytes = @max(codec.max_bytes, stored.retained_bytes);
+    stored.limits.retained_bytes = @max(codec.fixed_bytes, stored.retained_bytes);
     try turn.write(try stored.address(), try stored.encode());
     try fixture.receiver.commit(turn);
     var right = first;
@@ -366,24 +366,24 @@ test "producer reserves cumulative quota before staging and cannot reinterpret p
     var turn = try fixture.producer.capture();
     const budget_key = try r.key('b', 90, 0, 0, 0);
     var budget = try r.Producer.decode((try turn.read(budget_key)).?);
-    budget.limit = codec.max_bytes;
+    budget.limit = codec.fixed_bytes;
     try turn.write(budget_key, try budget.encode());
     try fixture.producer.commit(turn);
     const publication: s.Publication = .{ .resource = fixture.producer.resource, .domain = .query_exchange, .namespace = 90 };
     var segment: codec.Segment = .{ .exchange = 90, .source = 0, .partitions = 1, .partition = 0, .epoch = 1, .sequence = 0, .terminal = false, .len = 1 };
     segment.rows[0] = row(0, 0);
     turn = try fixture.producer.capture();
-    try t.expectEqual(.progress, try x.offer(&turn, bound, &fixture.authority, segment, publication, 1));
+    try t.expectEqual(.progress, try x.offer(t.allocator, &turn, bound, &fixture.authority, segment, publication, 1));
     try fixture.producer.commit(turn);
     turn = try fixture.producer.capture();
     const reserved = try r.Producer.decode((try turn.read(budget_key)).?);
     try t.expect(reserved.pending != null and reserved.charged > budget.charged);
     var changed = segment;
-    changed.rows[0].values[1] = 999;
-    try t.expectError(error.RelationalExchangeConflict, x.offer(&turn, bound, &fixture.authority, changed, publication, 1));
+    changed.rows[0].values[1] = .{ .integer = 999 };
+    try t.expectError(error.RelationalExchangeConflict, x.offer(t.allocator, &turn, bound, &fixture.authority, changed, publication, 1));
     for (turn.decision.mutations) |mutation| try t.expect(mutation == null);
     fixture.authority.denied = true;
-    try t.expectError(error.CatalogDenied, x.offer(&turn, bound, &fixture.authority, segment, publication, 1));
+    try t.expectError(error.CatalogDenied, x.offer(t.allocator, &turn, bound, &fixture.authority, segment, publication, 1));
     fixture.authority.denied = false;
     _ = try fixture.offer(bound, segment, 1);
     var exhausted = false;
@@ -391,7 +391,7 @@ test "producer reserves cumulative quota before staging and cannot reinterpret p
         segment.sequence = index;
         segment.rows[0] = row(0, index);
         turn = try fixture.producer.capture();
-        _ = x.offer(&turn, bound, &fixture.authority, segment, publication, index + 1) catch |err| {
+        _ = x.offer(t.allocator, &turn, bound, &fixture.authority, segment, publication, index + 1) catch |err| {
             try t.expectEqual(error.RelationalSpillBudget, err);
             for (turn.decision.mutations) |mutation| try t.expect(mutation == null);
             exhausted = true;
@@ -426,6 +426,67 @@ test "exchange acceptance rejects a producer addressed to another receiver resou
     try fixture.producer.commit(turn);
     turn = try fixture.advanceTurn();
     const before = turn.decision;
-    try t.expectError(error.RelationalExchangeConflict, x.advance(&turn, bound, &fixture.authority, 91));
+    try t.expectError(error.RelationalExchangeConflict, x.advance(t.allocator, &turn, bound, &fixture.authority, 91));
     try t.expectEqualDeep(before, turn.decision);
+}
+
+test "relational text exchange owns received rows and rejects impossible byte credit" {
+    var text_columns = columns;
+    text_columns[0].type = .utf8;
+    text_columns[0].collation = .ascii_ci;
+    var text_sources = declarations;
+    var basis: [2]f.Relational.Cut = undefined;
+    for (&text_sources, &basis) |*source, *cut| {
+        source.schema.columns = &text_columns;
+        cut.* = .{ .domain = .native_resource, .resource = source.resource, .revision = 1, .commitment = @splat(1), .schema = try source.schema.fingerprint() };
+    }
+    var text_plan = plan;
+    text_plan.sources = &text_sources;
+    const bound: f.Relational.Bound = .{ .plan = text_plan, .cuts = &basis };
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.setup(bound, 101, 1, 1, plan.budgets.spill_bytes);
+    var scratch: [16384]u8 = @splat('A');
+    for (0..2) |source| {
+        var segment: codec.Segment = .{ .exchange = 101, .source = @intCast(source), .partitions = 1, .partition = 0, .epoch = 1, .sequence = 0, .terminal = true, .len = 1 };
+        segment.rows[0] = row(@intCast(source), 1);
+        segment.rows[0].values[0] = .{ .text = &scratch };
+        const notice = try fixture.offer(bound, segment, source + 1);
+        if (source == 0) {
+            var turn = try fixture.capture();
+            var stored = try x.head(&turn, 101);
+            stored.limits.credit_bytes = codec.fixed_bytes;
+            try turn.write(try stored.address(), try stored.encode());
+            try fixture.receiver.commit(turn);
+            turn = try fixture.noticeTurn(notice);
+            try t.expectError(error.RelationalExchangeCreditBudget, x.receive(&turn, bound, &fixture.authority, 101, notice));
+            for (turn.decision.mutations) |mutation| try t.expect(mutation == null);
+            stored.limits.credit_bytes = 2 * notice.remote.spec.length;
+            turn = try fixture.capture();
+            try turn.write(try stored.address(), try stored.encode());
+            try fixture.receiver.commit(turn);
+        }
+        try fixture.accept(bound, 101, notice);
+        try fixture.consume(bound, 101, @intCast(source), 0);
+        var turn = try fixture.producer.capture();
+        _ = try notice.remote.publication().retire(&turn, notice.remote.record);
+        try fixture.producer.commit(turn);
+    }
+    @memset(&scratch, 'z');
+    fixture.denied_producer = true;
+    var turn = try fixture.capture();
+    var memory: q.QueryMemory = .{ .parent = t.allocator, .limit = 128 * 1024 };
+    var input: x.Sources(*s.Turn, *Authority) = .{ .allocator = memory.allocator(), .reader = &turn, .authority = &fixture.authority, .bound = bound, .id = 101 };
+    var first = (try input.next(0, null)).?;
+    defer first.deinit();
+    {
+        var second = (try input.next(1, null)).?;
+        defer second.deinit();
+        try t.expectEqualStrings(first.values[0].?.text, second.values[0].?.text);
+        try t.expect(std.mem.allEqual(u8, first.values[0].?.text, 'A'));
+    }
+    try t.expectEqual(@as(usize, scratch.len), memory.used);
+    fixture.authority.denied = true;
+    try t.expectError(error.CatalogDenied, input.next(0, first.identity));
+    try t.expectEqual(@as(usize, scratch.len), memory.used);
 }

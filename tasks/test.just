@@ -111,6 +111,11 @@ local-native-service:
 local-catalog:
     zig build test-local-catalog
 
+# Explicit Table expiry, retained snapshots and original receipts after collection.
+local-data-collection:
+    zig build test-local-data-collection
+    zig build test-local-data-collection-faults -Doptimize=ReleaseSafe
+
 # Real direct Table HTTP owner, typed caller, disk restart and uncertain replies.
 direct-table-service *args:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- {{args}}
@@ -428,6 +433,10 @@ growing-station *args:
 # Qualify Document jobs, checkpoint recovery and current-policy reads over disk Ursula.
 document:
     zig build test-document
+
+# Run the same worker/node crash schedule over the local WAL and immutable objects.
+document-local:
+    zig build test-document -Doptimize=ReleaseSafe -- --backend local
 
 # Run the real Document writer and two Zig editors through failure and resynchronization.
 document-remote:

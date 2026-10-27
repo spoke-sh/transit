@@ -13,7 +13,7 @@ const Ref = s.PublicationReference;
 const History = q.RelationalHistory;
 const Pin = q.CapturedTablePin;
 const Client = q.catalog.DirectTableClient;
-pub const resident_base = 4 * History.resident_bytes + 3 * q.RelationalBundle.max_bytes + 4 * f.RelationalCheckpoint.max_bytes + 4 * f.RelationalOutput.max_bytes + 2 * f.RelationalDelta.max_bytes + 3 * r.Manifest.max_bytes;
+pub const resident_base = 4 * History.resident_bytes + 3 * q.RelationalBundle.max_bytes + 4 * f.RelationalCheckpoint.fixed_bytes + 4 * f.RelationalOutput.fixed_bytes + 2 * f.RelationalDelta.fixed_bytes + 3 * r.Manifest.max_bytes;
 pub const Advance = enum { progress, complete, idle, closed, duplicate };
 pub fn head(source: anytype, identity: r.Identity) !r.Head {
     try identity.validate();
@@ -46,6 +46,14 @@ pub fn readBody(reference: Ref, source: anytype, bytes: []u8) ![]const u8 {
     }
     if (at != reference.spec.length) return error.InvalidMaintainedRecord;
     return bytes[0..at];
+}
+pub fn readBodyAlloc(allocator: std.mem.Allocator, reference: Ref, source: anytype, maximum: usize) ![]u8 {
+    try reference.validate();
+    if (reference.spec.length > maximum) return error.InvalidMaintainedRecord;
+    const bytes = try allocator.alloc(u8, reference.spec.length);
+    errdefer allocator.free(bytes);
+    _ = try readBody(reference, source, bytes);
+    return bytes;
 }
 fn storedReference(source: anytype, publication: Pub, id: u64) !Ref {
     const cursor = try publication.open(source, id);
@@ -128,7 +136,7 @@ pub fn attachExchange(turn: *Turn, identity: r.Identity, exchange: u64, clients:
     if (!std.mem.eql(u8, &grant.request, &try bundle.fingerprint())) return error.QueryDenied;
     try bundle.bindSubject(turn, stored.peer, stored.request.resource, grant.principal);
     var history = try History.open(turn, fixed.allocator(), bundle, try readBasis(turn, bundle, stored), clients, 1);
-    var inputs: Exchanged = .{ .reader = turn, .authority = &history, .id = exchange, .bound = history.bound() };
+    var inputs: Exchanged = .{ .allocator = fixed.allocator(), .reader = turn, .authority = &history, .id = exchange, .bound = history.bound() };
     try inputs.validate(history.bound());
     const value = try (r.ExchangeInput{ .binding = try history.bound().fingerprint(), .exchange = exchange }).encode();
     const address = try inputKey(stored);
@@ -380,7 +388,7 @@ fn advanceInner(turn: *Turn, stored: r.Head, clients: []const Client, workspace:
         const value = (try turn.read(try inputKey(stored))) orelse return .idle;
         const input = try r.ExchangeInput.decode(value);
         if (!std.mem.eql(u8, &input.binding, &try data.bound().fingerprint())) return error.RelationalSourceChanged;
-        var inputs: Exchanged = .{ .reader = turn, .authority = data, .id = input.exchange, .bound = data.bound() };
+        var inputs: Exchanged = .{ .allocator = data.allocator, .reader = turn, .authority = data, .id = input.exchange, .bound = data.bound() };
         try inputs.validate(data.bound());
         if (work.phase == .compute) return compute(turn, allocator, stored, work, data.bound(), &inputs);
     }
@@ -408,33 +416,37 @@ fn compute(turn: *Turn, allocator: std.mem.Allocator, stored: r.Head, work: r.Wo
     const Engine = f.RelationalExecution.Execution(@TypeOf(data), *Groups);
     const pages: q.RelationalState = .{ .publication = stored.publication(turn.view.resource) };
     const candidate = try allocator.create(Candidate);
-    candidate.* = try Candidate.init(pages, turn, work.next_record, work.state_bytes, bound, 8 * f.RelationalIndex.max_candidate_records);
-    const previous: ?f.RelationalCheckpoint = if (work.checkpoint == 0) null else try pages.checkpoint(turn, work.checkpoint, bound);
-    var groups: Groups = .{ .index = try f.RelationalIndex.init(bound, if (previous) |old| old.root else null), .candidate = candidate };
-    var engine = if (previous) |old| try Engine.restore(bound, data, &groups, old) else try Engine.init(bound, data, &groups);
+    candidate.* = try Candidate.init(allocator, pages, turn, work.next_record, work.state_bytes, bound, 8 * f.RelationalIndex.max_candidate_records);
+    defer candidate.deinit();
+    var previous: ?f.RelationalCheckpoint = if (work.checkpoint == 0) null else try pages.checkpoint(allocator, turn, work.checkpoint, bound);
+    defer if (previous) |*old| old.deinit();
+    var groups: Groups = .{ .index = try f.RelationalIndex.init(allocator, bound, if (previous) |old| old.root else null), .candidate = candidate };
+    var engine = if (previous) |old| try Engine.restore(allocator, bound, data, &groups, old) else try Engine.init(allocator, bound, data, &groups);
+    defer engine.deinit();
+    const checkpoint_bytes = try allocator.alloc(u8, try f.RelationalCheckpoint.bufferBytes(bound.plan));
+    defer allocator.free(checkpoint_bytes);
     if (engine.result_rows != work.outputs) return error.InvalidMaintainedRecord;
     var failure: ?finite.Failure = null;
-    const event = engine.step() catch |err| blk: {
+    var event = engine.step() catch |err| blk: {
         if (turn.read_error != null) return err;
         failure = (try finite.Failure.fromError(err)) orelse return err;
         groups.index.root = if (previous) |old| old.root else null;
-        candidate.count = 0;
-        candidate.bytes = 0;
+        candidate.discard();
         break :blk f.RelationalExecution.Event.progress;
     };
+    defer if (event == .row) event.row.deinit();
     const progress = try engine.checkpoint(groups.index.root);
-    var bytes: [f.RelationalCheckpoint.max_bytes]u8 = undefined;
-    const checkpoint = try progress.encode(bound, &bytes);
+    const checkpoint = try progress.encode(bound, checkpoint_bytes);
     const checkpoint_ref = try allocated(turn, stored, try candidate.checkpointId(), q.RelationalState.checkpoint_format, checkpoint);
     var proposed = work;
     proposed.checkpoint = checkpoint_ref.record;
     proposed.next_record = try std.math.add(u64, checkpoint_ref.record, 1);
     proposed.state_bytes = if (failure != null) try std.math.add(u64, work.state_bytes, checkpoint.len) else try candidate.retainedBytes(checkpoint.len);
-    var output_bytes: [f.RelationalOutput.max_bytes]u8 = undefined;
-    var output_body: ?[]const u8 = null;
+    var output_body: ?[]u8 = null;
+    defer if (output_body) |bytes| allocator.free(bytes);
     var output_record: ?finite.Output = null;
     if (event == .row) {
-        output_body = try (f.RelationalOutput{ .binding = try bound.fingerprint(), .ordinal = work.outputs, .row = event.row }).encode(bound, &output_bytes);
+        output_body = try (f.RelationalOutput{ .binding = try bound.fingerprint(), .ordinal = work.outputs, .row = event.row }).encodeAlloc(allocator, bound);
         output_record = .{ .ordinal = work.outputs, .reference = try allocated(turn, stored, proposed.next_record, finite.output_format, output_body.?) };
         proposed.next_record = try std.math.add(u64, proposed.next_record, 1);
         proposed.state_bytes = try std.math.add(u64, proposed.state_bytes, output_body.?.len);
@@ -463,28 +475,33 @@ fn compute(turn: *Turn, allocator: std.mem.Allocator, stored: r.Head, work: r.Wo
     }
     return .progress;
 }
-fn output(turn: *Turn, stored: r.Head, revision: u64, ordinal: u64, bound: f.Relational.Bound) !f.RelationalOutput {
+fn output(allocator: std.mem.Allocator, turn: *Turn, stored: r.Head, revision: u64, ordinal: u64, bound: f.Relational.Bound) !f.RelationalOutput {
     const record = try finite.Output.decode((try turn.read(r.key('o', stored.id, revision, ordinal))) orelse return error.MissingResultSegment);
     if (record.ordinal != ordinal or record.reference.resource != turn.view.resource or record.reference.namespace != stored.namespace()) return error.InvalidMaintainedRecord;
-    var bytes: [f.RelationalOutput.max_bytes]u8 = undefined;
-    const value = try f.RelationalOutput.decode(bound, try readBody(record.reference, turn, &bytes));
+    const bytes = try readBodyAlloc(allocator, record.reference, turn, f.RelationalOutput.max_bytes);
+    defer allocator.free(bytes);
+    var value = try f.RelationalOutput.decode(allocator, bound, bytes);
+    errdefer value.deinit();
     if (value.ordinal != ordinal) return error.InvalidMaintainedRecord;
     return value;
 }
 fn delta(turn: *Turn, bundle: q.RelationalBundle, stored: r.Head, work: r.Work, data: *History, previous: ?r.Manifest) !Advance {
+    const allocator = data.allocator;
     var old_cuts: [f.Relational.max_sources]f.Relational.Cut = undefined;
     if (previous) |old| try old.vector.boundCuts(bundle, &old_cuts);
     const old_bound: ?f.Relational.Bound = if (previous != null) .{ .plan = bundle.plan, .cuts = old_cuts[0..bundle.sources.len] } else null;
     const old_count = if (previous) |old| old.work.outputs else 0;
     if (work.old_cursor > old_count) return error.InvalidMaintainedRecord;
-    const before = if (work.old_cursor < old_count) try output(turn, stored, previous.?.work.revision, work.old_cursor, old_bound.?) else null;
-    const after = if (work.new_cursor < work.outputs) try output(turn, stored, work.revision, work.new_cursor, data.bound()) else null;
+    var before = if (work.old_cursor < old_count) try output(allocator, turn, stored, previous.?.work.revision, work.old_cursor, old_bound.?) else null;
+    defer if (before) |*value| value.deinit();
+    var after = if (work.new_cursor < work.outputs) try output(allocator, turn, stored, work.revision, work.new_cursor, data.bound()) else null;
+    defer if (after) |*value| value.deinit();
     var proposed = work;
     var change: ?f.RelationalDelta = null;
     if (before == null and after == null) {
         proposed.phase = .manifest;
     } else {
-        const order: std.math.Order = if (before == null) .gt else if (after == null) .lt else try f.RelationalDelta.identityOrder(before.?.row.identity, after.?.row.identity);
+        const order: std.math.Order = if (before == null) .gt else if (after == null) .lt else try f.RelationalDelta.identityOrder(before.?.row.identity, after.?.row.identity, bundle.plan);
         if (order != .gt) proposed.old_cursor += 1;
         if (order != .lt) proposed.new_cursor += 1;
         if (order != .eq or !f.RelationalDelta.sameValues(before.?.row, after.?.row)) change = .{ .ordinal = work.deltas, .before = if (order != .gt) before else null, .after = if (order != .lt) after else null };
@@ -492,8 +509,8 @@ fn delta(turn: *Turn, bundle: q.RelationalBundle, stored: r.Head, work: r.Work, 
     var pending = stored;
     try schedule(turn, &pending);
     if (change) |value| {
-        var bytes: [f.RelationalDelta.max_bytes]u8 = undefined;
-        const encoded = try value.encode(old_bound, data.bound(), &bytes);
+        const encoded = try value.encodeAlloc(allocator, old_bound, data.bound());
+        defer allocator.free(encoded);
         const record: r.Delta = .{ .ordinal = work.deltas, .reference = try allocated(turn, stored, work.next_record, r.delta_format, encoded) };
         proposed.next_record = try std.math.add(u64, proposed.next_record, 1);
         proposed.state_bytes = try std.math.add(u64, proposed.state_bytes, encoded.len);
@@ -511,9 +528,11 @@ fn delta(turn: *Turn, bundle: q.RelationalBundle, stored: r.Head, work: r.Work, 
     return .progress;
 }
 fn publish(turn: *Turn, bundle: q.RelationalBundle, stored: r.Head, work: r.Work, data: *History, previous: ?r.Manifest) !Advance {
+    const allocator = data.allocator;
     const publication = stored.publication(turn.view.resource);
     const pages: q.RelationalState = .{ .publication = publication };
-    const checkpoint = try pages.checkpoint(turn, work.checkpoint, data.bound());
+    var checkpoint = try pages.checkpoint(allocator, turn, work.checkpoint, data.bound());
+    defer checkpoint.deinit();
     if (checkpoint.phase != .complete or checkpoint.result_rows != work.outputs or work.new_cursor != work.outputs or work.old_cursor != if (previous) |old| old.work.outputs else @as(u64, 0)) return error.IncompleteResult;
     var proposed = work;
     proposed.phase = .complete;

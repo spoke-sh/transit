@@ -70,8 +70,7 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
             defer anchor.deinit();
             if (anchor.frames.len != 1) return error.CatalogHistoryMissing;
             const frame = anchor.frames[0];
-            if (frame.header.partition_id != known.root.configuration.partition or frame.header.lsn != known.root.next_lsn - 1 or frame.header.kind != .catalog_ddl) return error.InvalidDirectCatalogHistory;
-            const record = try decode(self.allocator, frame.payload, frame.header.lsn);
+            const record = try decodeFrame(self.allocator, frame, known.root.configuration.partition, known.root.next_lsn - 1);
             if (!std.meta.eql(record.root, known.root) or !std.mem.eql(u8, &r.hash(frame.payload), &known.chain)) return error.InvalidDirectCatalogHistory;
         }
         next = known.root;
@@ -82,8 +81,7 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
         defer batch.deinit();
         if (batch.frames.len != 1) return error.CatalogHistoryMissing;
         const frame = batch.frames[0];
-        if (frame.header.partition_id != next.configuration.partition or frame.header.lsn != next.next_lsn or frame.header.kind != .catalog_ddl) return error.InvalidDirectCatalogHistory;
-        const record = try decode(self.allocator, frame.payload, frame.header.lsn);
+        const record = try decodeFrame(self.allocator, frame, next.configuration.partition, next.next_lsn);
         try successor(next, record.root);
         try self.operationTransition(next, record);
         if (!std.mem.eql(u8, &record.previous, &chain)) return error.InvalidDirectCatalogHistory;
@@ -125,6 +123,15 @@ fn decode(allocator: std.mem.Allocator, bytes: []const u8, position: u64) !r.Rec
     defer parsed.deinit();
     try parsed.value.validate(position);
     return parsed.value;
+}
+
+/// Shared by recovery and retained-root traversal. The returned record owns all
+/// fields; neither the WAL buffer nor the temporary JSON arena escapes.
+pub fn decodeFrame(allocator: std.mem.Allocator, frame: s.TransitLog.Frame, partition: u64, position: u64) !r.Record {
+    if (frame.header.partition_id != partition or frame.header.lsn != position or frame.header.kind != .catalog_ddl) return error.InvalidDirectCatalogHistory;
+    const record = try decode(allocator, frame.payload, position);
+    if (record.root.configuration.partition != partition) return error.InvalidDirectCatalogHistory;
+    return record;
 }
 
 /// Caller stages all directories and supplies the final current authorization

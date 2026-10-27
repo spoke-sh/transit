@@ -52,9 +52,9 @@ pub fn openPreparedRetained(allocator: std.mem.Allocator, io: std.Io, directory:
         if (!std.meta.eql(binding.interpretation, scan.?.reader.basis.interpretation)) return error.RelationalSourceChanged;
     }
     const bound: r.Bound = .{ .plan = self.owned.plan, .cuts = self.tables.cuts[0..snapshots.len] };
-    self.spill = try q.RelationalSpill.open(io, directory, spill_name, bound, options.spill_work, cancellation);
+    self.spill = try q.RelationalSpill.open(owned, io, directory, spill_name, bound, options.spill_work, cancellation);
     errdefer self.spill.deinit();
-    self.execution = try Run.init(bound, &self.tables, &self.spill);
+    self.execution = try Run.init(owned, bound, &self.tables, &self.spill);
     self.complete = false;
     self.failed = false;
     return self;
@@ -72,7 +72,9 @@ pub fn next(self: *Self) !?e.Output {
         return err;
     }) {
         .progress => {},
-        .row => |row| {
+        .row => |returned| {
+            var row = returned;
+            errdefer row.deinit();
             // Include all sources, even an empty join input, in the final
             // authorization check after row buffering and before disclosure.
             try self.tables.validate(self.execution.bound);
@@ -90,6 +92,7 @@ pub fn close(self: *Self) void {
 }
 pub fn deinit(self: *Self) void {
     const allocator = self.parent;
+    self.execution.deinit();
     self.spill.deinit();
     self.tables.deinit();
     self.owned.deinit();

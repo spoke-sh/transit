@@ -23,6 +23,11 @@ function decimal(value: string, signed = false, nonzero = false): boolean {
     ? number >= -(1n << 63n) && number < 1n << 63n
     : number >= (nonzero ? 1n : 0n) && number < 1n << 64n;
 }
+function textScalar(value: string): boolean {
+  if (value.length > 1024 * 1024) return false;
+  const encoded = new TextEncoder().encode(value);
+  return encoded.length <= 1024 * 1024 && new TextDecoder().decode(encoded) === value;
+}
 function reference(value: RelationalReference): boolean {
   return hex(value.id, 16) && !/^0+$/.test(value.id) && hex(value.plan, 32) && hex(value.basis, 32);
 }
@@ -90,7 +95,9 @@ function description(value: Description): boolean {
       );
     }) &&
     value.columns.length >= 1 &&
-    value.columns.every((c) => !c.optional && ("int64" in c.type || "uint64" in c.type))
+    value.columns.every(
+      (c) => !c.optional && ("int64" in c.type || "uint64" in c.type || "utf8" in c.type),
+    )
   );
 }
 export function validateRelational(value: unknown): value is RelationalResponse {
@@ -166,7 +173,13 @@ export function validateRelational(value: unknown): value is RelationalResponse 
         (identity.pair.right !== null && !hex(identity.pair.right, 20))
       )
         return false;
-    } else if (!identity.group.every((key) => key === null || decimal(key, true))) return false;
+    } else if (
+      !identity.group.every(
+        (key) =>
+          key === null || ("signed" in key ? decimal(key.signed, true) : textScalar(key.utf8)),
+      )
+    )
+      return false;
     return (
       value.row.cells.length >= 1 &&
       value.row.cells.every((cell) => {
@@ -175,7 +188,9 @@ export function validateRelational(value: unknown): value is RelationalResponse 
         const atom = cell.value.atom;
         return "signed" in atom
           ? decimal(atom.signed, true)
-          : "unsigned" in atom && decimal(atom.unsigned);
+          : "unsigned" in atom
+            ? decimal(atom.unsigned)
+            : "utf8" in atom && textScalar(atom.utf8);
       })
     );
   }

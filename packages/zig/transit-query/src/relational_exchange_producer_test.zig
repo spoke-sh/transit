@@ -25,8 +25,8 @@ const Input = struct {
     }
     fn row(source: u8, operation: u64) f.RelationalExecution.Row {
         var value: f.RelationalExecution.Row = .{ .identity = .{ .origin = @as(u64, source) + 1, .operation = operation, .ordinal = 0 } };
-        value.values[0] = if (operation % 5 == 0) null else @intCast(operation % 3);
-        value.values[1] = @intCast(operation * 7);
+        value.values[0] = if (operation % 5 == 0) null else .{ .integer = @intCast(operation % 3) };
+        value.values[1] = .{ .integer = @intCast(operation * 7) };
         return value;
     }
     pub fn next(self: *Input, source: u8, after: ?f.Relational.RowIdentity) !?f.RelationalExecution.Row {
@@ -87,11 +87,11 @@ test "durable producer cursor resumes bounded scans and pending segments across 
                 turn = try store.capture();
                 const original = try Producer.cursor(&turn, bound, 99);
                 const reads = source.reads;
-                const result = try Producer.step(&turn, bound, &source, 99);
+                const result = try Producer.step(t.allocator, &turn, bound, &source, 99);
                 try t.expect(source.reads - reads <= Producer.scan_rows);
                 if (step % 7 == 0) {
                     var retry = try store.capture();
-                    try t.expectEqual(result, try Producer.step(&retry, bound, &source, 99));
+                    try t.expectEqual(result, try Producer.step(t.allocator, &retry, bound, &source, 99));
                     try t.expectEqualDeep(turn.decision, retry.decision);
                 }
                 var notice: ?r.Pending = null;
@@ -104,8 +104,9 @@ test "durable producer cursor resumes bounded scans and pending segments across 
                 const current = try Producer.cursor(&turn, bound, 99);
                 if (notice) |record| {
                     try t.expectEqual(.accepted, result);
-                    var bytes: [codec.max_bytes]u8 = undefined;
-                    const segment = try codec.Segment.decode(bound, try q.RelationalMaintenance.readBody(record.remote, &turn, &bytes));
+                    var bytes: [codec.fixed_bytes]u8 = undefined;
+                    var segment = try codec.Segment.decode(t.allocator, bound, try q.RelationalMaintenance.readBody(record.remote, &turn, &bytes));
+                    defer segment.deinit();
                     try t.expectEqual(@as(u64, 3), segment.epoch);
                     try t.expectEqual(worker, (segment.partition * 2 + segment.source) % workers);
                     try t.expectEqual(sequence[segment.source][segment.partition], segment.sequence);

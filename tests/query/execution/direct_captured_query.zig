@@ -661,12 +661,13 @@ pub const RelationalHost = struct {
     }
 };
 pub fn relational(init: std.process.Init, client: c.DirectTableClient, admin: anytype) !void {
-    try relationalCase(init, client, admin, false, false);
-    try relationalCase(init, client, admin, true, false);
+    try relationalCase(init, client, admin, false, false, false);
+    try relationalCase(init, client, admin, true, false, false);
+    try relationalCase(init, client, admin, true, false, true);
 }
 pub fn namedRelational(init: std.process.Init, client: c.DirectTableClient, admin: anytype) !void {
-    try relationalCase(init, client, admin, false, true);
-    try relationalCase(init, client, admin, true, true);
+    try relationalCase(init, client, admin, false, true, false);
+    try relationalCase(init, client, admin, true, true, false);
 }
 pub fn prepareNamed(init: std.process.Init, client: c.DirectTableClient, naming: app.NamedRelational, draft: app.NamedRelationalRecords.Draft, bundle: q.RelationalBundle) !std.json.Parsed(app.NamedRelationalPublication) {
     const Publication = app.NamedRelationalPublication;
@@ -850,17 +851,22 @@ pub fn namedStep(init: std.process.Init, host: *s.GenServer, behavior: *Relation
     if (path) |name| try std.Io.Dir.cwd().deleteFile(init.io, name);
     return result;
 }
-fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: anytype, independent: bool, named: bool) !void {
+fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: anytype, independent: bool, named: bool, text: bool) !void {
     const alloc = init.arena.allocator();
-    const principal: u64 = if (named) (if (independent) 152 else 151) else if (independent) 106 else 105;
+    const principal: u64 = if (text) 180 else if (named) (if (independent) 152 else 151) else if (independent) 106 else 105;
     const seed: u8 = if (independent) 71 else 61;
     var worker = try provision(admin, principal, seed);
     const role = (try (s.client.AuthorizationClient{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }).read(.identity)).body.authorization.body.identity.login_role;
-    const left_name = if (named) (if (independent) "named_left" else "named_join") else if (independent) "captured_left" else "captured_join";
-    const right_name = if (independent) (if (named) "named_right" else "captured_right") else left_name;
-    const offset: u64 = if (named) 1000 else 0;
-    try table(alloc, client, role, (if (independent) @as(u64, 63) else 62) + offset, left_name, (if (independent) @as(u64, 619) else 617) + offset, 2);
-    if (independent) try table(alloc, client, role, 64 + offset, right_name, 621 + offset, 2);
+    const left_name = if (text) "captured_text_left" else if (named) (if (independent) "named_left" else "named_join") else if (independent) "captured_left" else "captured_join";
+    const right_name = if (text) "captured_text_right" else if (independent) (if (named) "named_right" else "captured_right") else left_name;
+    const offset: u64 = if (text) 2000 else if (named) 1000 else 0;
+    if (text) {
+        try textTable(client, left_name, 2063, 2619, "('Alpha',10),('aLPHA',20),('',30),(NULL,40),('Zulu',50)");
+        try textTable(client, right_name, 2064, 2621, "('ALPHA',3),('alpha',5),(NULL,6),('',7)");
+    } else {
+        try table(alloc, client, role, (if (independent) @as(u64, 63) else 62) + offset, left_name, (if (independent) @as(u64, 619) else 617) + offset, 2);
+        if (independent) try table(alloc, client, role, 64 + offset, right_name, 621 + offset, 2);
+    }
     _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = worker.pid }, .grantee = role, .privileges = p.permission(.send) | p.permission(.inspect) } });
     worker.generation = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = worker.pid } }, try key(17))).body.process.process.generation;
     _ = try admin.submit(.{ .own = .{ .pid = worker.pid, .expected_generation = worker.generation, .worker = principal } });
@@ -883,7 +889,8 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
         .{ .alias = "a", .realm = 42, .resource = client.connection.scope.resource, .catalog = client.connection.scope.catalog, .owner = client.connection.audience, .schema = schema.schema },
         .{ .alias = "b", .realm = 42, .resource = client.connection.scope.resource, .catalog = client.connection.scope.catalog, .owner = client.connection.audience, .schema = right_schema.schema },
     };
-    var syntax = try q.fuze.RelationalSql.parse(alloc, try std.fmt.allocPrint(alloc, "SELECT COUNT(*) AS n FROM {s} a JOIN {s} b ON a.id = b.id WHERE a.id = 0 AND b.id = 0", .{ left_name, right_name }), null);
+    const sql = if (text) try std.fmt.allocPrint(alloc, "SELECT a.k, COUNT(*) AS n, COUNT(b.v) AS present, SUM(b.v) AS total FROM {s} a LEFT JOIN {s} b ON a.k = b.k WHERE a.k IS NULL OR a.k >= '' GROUP BY a.k", .{ left_name, right_name }) else try std.fmt.allocPrint(alloc, "SELECT COUNT(*) AS n FROM {s} a JOIN {s} b ON a.id = b.id WHERE a.id = 0 AND b.id = 0", .{ left_name, right_name });
+    var syntax = try q.fuze.RelationalSql.parse(alloc, sql, null);
     defer syntax.deinit();
     const description: q.RelationalBundle = .{ .plan = try syntax.bind(&declarations, .captured, .{ .resident_bytes = q.RelationalCapture.resident_base + 8 * 1024 * 1024, .spill_bytes = 8 * 1024 * 1024, .result_bytes = 1024, .output_rows = 10, .work_steps = 10000, .source_pins = if (independent) 2 else 1 }, null), .sources = &.{ source.source, right_source.source } };
     const capture: q.Bundle.Capture = .{ .executor = principal, .operation = (if (independent) @as(u64, 623) else 616) + offset, .expected = definition.position };
@@ -963,7 +970,7 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
                 job_id = try q.UnifiedRecords.readIdentity(index);
                 const stored = try q.RelationalCapture.job(&reader, job_id);
                 if (attempt % 100 == 0) std.debug.print("Direct relational capture: independent={} attempt={d} phase={s} acquired={d} checkpoint={d} outputs={d}\n", .{ independent, attempt, @tagName(stored.phase), stored.acquired, stored.checkpoint, stored.outputs });
-                if (!replaced and stored.phase == .acquiring and stored.acquired == @as(u8, if (independent) 1 else 0)) {
+                if (!replaced and (if (text) stored.phase == .capturing and stored.checkpoint != 0 else stored.phase == .acquiring and stored.acquired == @as(u8, if (independent) 1 else 0))) {
                     worker.generation = host.session.generation;
                     executor.key = host.session.key;
                     _ = try admin.submit(.{ .own = .{ .pid = worker.pid, .expected_generation = worker.generation, .worker = principal } });
@@ -1006,30 +1013,27 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
     try t.expectEqual(independent, vector.entries[0].partition != vector.entries[1].partition);
     const options: q.RelationalResult.Options = .{ .owner = worker.pid, .peer = worker.pid, .resource = worker.resource, .job = job_id, .requests = 2000 };
     const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
-    var result = try q.RelationalResult.open(resources, bundle, options, disclosure, @splat(67));
-    defer result.close() catch {};
+    const result = try q.RelationalResult.open(client.allocator, resources, bundle, options, disclosure, @splat(67));
+    defer result.deinit();
     if (behavior.named) |naming| {
-        const retained_definition = try naming.capturedDefinition(&result);
+        const retained_definition = try naming.capturedDefinition(result);
         try t.expectEqualDeep(named_reference.?, try retained_definition.reference());
         try t.expectEqual(@as(u64, 0), result.ordinal);
         var foreign = naming;
         foreign.configuration.scope.resource += 1;
-        try t.expectError(error.NamedQueryChanged, foreign.capturedDefinition(&result));
+        try t.expectError(error.NamedQueryChanged, foreign.capturedDefinition(result));
     }
-    if (named) try freshnessProof(init, client, admin, role, independent, left_name, &result);
-    const row = (try result.next()).?;
-    try t.expectEqual(@as(u128, 1), row.cells[0].value.atom.unsigned);
-    try t.expect(try result.next() == null);
+    if (named) try freshnessProof(init, client, admin, role, independent, left_name, result);
+    try capturedRows(result, text);
     if (named) try t.expectError(error.QueryClosed, result.freshness(&.{ client, client }));
-    if (behavior.named) |naming| try t.expectError(error.QueryClosed, naming.capturedDefinition(&result));
+    if (behavior.named) |naming| try t.expectError(error.QueryClosed, naming.capturedDefinition(result));
     const retained = try q.CapturedTablePin.source(alloc, &reader, .{ .job = job_id, .source = if (independent) 1 else 0 }, worker.pid);
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(retained.authority.table), .owner = 0 } });
-    try t.expectError(error.CatalogDenied, q.RelationalResult.open(resources, bundle, options, disclosure, @splat(68)));
+    try t.expectError(error.CatalogDenied, q.RelationalResult.open(client.allocator, resources, bundle, options, disclosure, @splat(68)));
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(retained.authority.table), .owner = role } });
-    var restored = try q.RelationalResult.open(resources, bundle, options, disclosure, @splat(69));
-    defer restored.close() catch {};
-    try t.expectEqual(@as(u128, 1), (try restored.next()).?.cells[0].value.atom.unsigned);
-    try t.expect(try restored.next() == null);
+    const restored = try q.RelationalResult.open(client.allocator, resources, bundle, options, disclosure, @splat(69));
+    defer restored.deinit();
+    try capturedRows(restored, text);
     try t.expectError(error.AccessDenied, behavior.clients[0].call(.{ .lookup = .{ .namespace = 1, .name = right_name } }));
     if (named) {
         const current_name = if (independent) "freshness_independent" else "freshness_alias";
@@ -1040,12 +1044,15 @@ fn relationalCase(init: std.process.Init, client: c.DirectTableClient, admin: an
         try t.expectEqual(null, try behavior.named.?.lookup(&current, named_reference.?.identity.name));
         try t.expectEqualDeep(named_reference.?, try behavior.named.?.attribution(&current, worker.pid, 1));
         try namedDrop(client, current_name, operation + 1, false);
-        var historical = try q.RelationalResult.open(resources, bundle, options, disclosure, @splat(70));
-        defer historical.close() catch {};
-        try t.expectEqualDeep(named_reference.?, try (try behavior.named.?.capturedDefinition(&historical)).reference());
-        try t.expectEqual(@as(u128, 1), (try historical.next()).?.cells[0].value.atom.unsigned);
+        const historical = try q.RelationalResult.open(client.allocator, resources, bundle, options, disclosure, @splat(70));
+        defer historical.deinit();
+        try t.expectEqualDeep(named_reference.?, try (try behavior.named.?.capturedDefinition(historical)).reference());
+        var historical_output = (try historical.next()).?;
+        defer historical_output.deinit();
+        try t.expectEqual(@as(u128, 1), historical_output.cells[0].value.atom.unsigned);
         try t.expect(try historical.next() == null);
     }
+    if (text) try textMaintenance(init, client, admin, role, description);
 }
 
 fn freshnessProof(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, independent: bool, name: []const u8, result: *q.RelationalResult) !void {
@@ -1090,4 +1097,175 @@ fn freshnessProof(init: std.process.Init, client: c.DirectTableClient, admin: an
     try t.expect(rebound.entries[0].current == null);
     try t.expectEqualDeep(first.entries[0].interpretation, rebound.entries[0].interpretation);
     // The caller still verifies the original result under its retained cuts.
+}
+
+fn textTable(client: c.DirectTableClient, name: []const u8, object: u64, operation: u64, values: []const u8) !void {
+    const allocator = client.allocator;
+    const ddl_text = try std.fmt.allocPrint(allocator, "CREATE TABLE {s} (k TEXT COLLATE ASCII_CI, v BIGINT)", .{name});
+    defer allocator.free(ddl_text);
+    var ddl = try c.DirectTablePreparedDdl.prepare(allocator, client, 1, ddl_text, .transit, null);
+    defer ddl.deinit();
+    var creation = try ddl.bind(allocator, client, operation, object);
+    defer creation.deinit();
+    (try creation.table.admit(client)).deinit();
+    const created = try creation.table.operation(client, .execute, 32);
+    defer created.deinit();
+    try t.expect(created.value.result.ddl == .committed);
+    const insert_text = try std.fmt.allocPrint(allocator, "INSERT INTO {s} VALUES {s}", .{ name, values });
+    defer allocator.free(insert_text);
+    var dml = try c.DirectTablePreparedDml.prepare(allocator, client, 1, insert_text, .transit, null);
+    defer dml.deinit();
+    var insertion = try dml.bind(allocator, client, operation + 1, &.{}, .bulk, null);
+    defer insertion.deinit();
+    (try insertion.admit(client)).deinit();
+    const inserted = try insertion.operation(client, .execute, 32);
+    defer inserted.deinit();
+    try t.expect(inserted.value.result.rows == .committed);
+}
+fn capturedRows(reader: *q.RelationalResult, text: bool) !void {
+    if (!text) {
+        var row = (try reader.next()).?;
+        defer row.deinit();
+        try t.expectEqual(@as(u128, 1), row.cells[0].value.atom.unsigned);
+    } else {
+        const keys = [_]?[]const u8{ null, "", "Alpha", "Zulu" };
+        const counts = [_]u64{ 1, 1, 4, 1 };
+        const present = [_]u64{ 0, 1, 4, 0 };
+        const sums = [_]?i64{ null, 7, 16, null };
+        var held: ?q.fuze.RelationalExecution.Output = null;
+        defer if (held) |*row| row.deinit();
+        for (keys, counts, present, sums) |key_value, count_value, nonnull, sum| {
+            var row = (try reader.next()).?;
+            defer row.deinit();
+            if (key_value) |key_text| try t.expectEqualStrings(key_text, row.cells[0].value.atom.bytes) else try t.expect(row.cells[0] == .null);
+            try t.expectEqual(@as(u128, count_value), row.cells[1].value.atom.unsigned);
+            try t.expectEqual(@as(u128, nonnull), row.cells[2].value.atom.unsigned);
+            if (sum) |value| try t.expectEqual(@as(i128, value), row.cells[3].value.atom.signed) else try t.expect(row.cells[3] == .null);
+            if (held) |previous| try t.expectEqualStrings("Alpha", previous.identity.group.values[0].?.text);
+            if (key_value != null and std.mem.eql(u8, key_value.?, "Alpha")) {
+                held = row;
+                row.buffer = .{};
+                row.identity.group.buffer = .{};
+            }
+        }
+    }
+    try t.expect(try reader.next() == null);
+}
+
+fn textMaintenance(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, description: q.RelationalBundle) !void {
+    const allocator = client.allocator;
+    const principal = 181;
+    var worker = try provision(admin, principal, 74);
+    _ = try admin.change(.{ .grant = .{ .object = .{ .kind = .process, .id = worker.pid }, .grantee = role, .privileges = p.permission(.send) | p.permission(.inspect) } });
+    worker.generation = (try admin.client.query(.{ .realm = 42, .principal = 0, .kind = .{ .process = worker.pid } }, try key(17))).body.process.process.generation;
+    _ = try admin.submit(.{ .own = .{ .pid = worker.pid, .expected_generation = worker.generation, .worker = principal } });
+    worker.generation += 1;
+    var requested = description;
+    requested.plan.lifetime = .maintained;
+    requested.plan.budgets.resident_bytes = q.RelationalMaintenance.resident_base + 8 * 1024 * 1024;
+    var captures: [2]q.Bundle.Capture = undefined;
+    for ([_][]const u8{ "captured_text_left", "captured_text_right" }, 0..) |name, i| {
+        const found = try client.call(.{ .lookup = .{ .namespace = 1, .name = name } });
+        defer found.deinit();
+        captures[i] = .{ .executor = principal, .operation = 3000 + i, .expected = found.value.result.lookup.?.position };
+    }
+    const bundle = try requested.authorizeCapture(allocator, .{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, &.{ client, client }, worker.pid, worker.resource, worker.pid, worker.resource, &captures);
+    defer allocator.free(bundle.retention);
+    var encoded: [q.RelationalBundle.max_bytes]u8 = undefined;
+    var executor = client;
+    executor.connection.principal = principal;
+    executor.key = try key(74);
+    const clients = [_]c.DirectTableClient{ executor, executor };
+    const workspace = try allocator.alloc(u8, 4 * 1024 * 1024);
+    defer allocator.free(workspace);
+    var behavior: RelationalHost = .{ .bundle = bundle, .bytes = try bundle.encode(&encoded), .reference = try bundle.reference(worker.resource, 1), .clients = &clients, .workspace = workspace };
+    var host = try s.GenServer.init(.{ .client = client.authority, .realm = 42, .principal = principal, .pid = worker.pid, .generation = worker.generation, .key = executor.key }, "state");
+    host.failure_policy = .stop;
+    try send(client, worker.pid, try .init("configure"));
+    try send(client, worker.pid, try .init("upload"));
+    const resources: s.client.ResourceReader = .{ .wire = client.authority, .realm = 42, .principal = 101, .key = client.key };
+    var identity: q.RelationalMaintenanceRecords.Identity = undefined;
+    var previous: ?q.RelationalRevision.Position = null;
+    for (1..3) |revision| {
+        var replaced = false;
+        for (0..5000) |_| {
+            try relationalStep(init, client, admin, &host, &behavior);
+            var reader = try resources.open(worker.resource);
+            const correlation = (try reader.read(RelationalHost.correlation_key)) orelse continue;
+            identity = .{ .peer = worker.pid, .correlation = try q.UnifiedRecords.readIdentity(correlation) };
+            const stored = q.RelationalMaintenance.head(&reader, identity) catch |err| {
+                if (err == error.QueryNotFound) continue;
+                return err;
+            };
+            if (stored.phase == .failed) return error.MaintainedQueryFailed;
+            if (!replaced and stored.phase == .running) {
+                // The captured basis is published before the first compute
+                // checkpoint. Missing work here is the initial zero cursor.
+                if (try reader.read(q.RelationalMaintenanceRecords.key('w', stored.id, revision, 0))) |saved| {
+                    const work = try q.RelationalMaintenanceRecords.Work.decode(saved);
+                    if (work.checkpoint != 0 and work.phase == .compute) {
+                        _ = try admin.submit(.{ .own = .{ .pid = worker.pid, .expected_generation = host.session.generation, .worker = principal } });
+                        var session = host.session;
+                        session.generation += 1;
+                        host = try s.GenServer.init(session, "state");
+                        host.failure_policy = .stop;
+                        replaced = true;
+                    }
+                }
+            }
+            if (stored.phase == .idle and stored.revision == revision) break;
+        } else return error.MaintainedQueryPending;
+        try t.expect(replaced);
+        const options: q.RelationalRevision.Options = .{ .owner = worker.pid, .resource = worker.resource, .identity = identity, .revision = revision, .requests = 10000 };
+        const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
+        const result = try q.RelationalRevision.open(allocator, resources, bundle, options, disclosure, @splat(@intCast(190 + revision)));
+        defer result.deinit();
+        const expected_keys = [_]?[]const u8{ null, "", if (revision == 1) "Alpha" else "aLPHA", "Zulu" };
+        for (expected_keys, 0..) |expected, index| {
+            var event = (try result.next()) orelse return error.ExpectedTextRow;
+            defer event.deinit();
+            const row = event.row;
+            if (expected) |value| try t.expectEqualStrings(value, row.cells[0].value.atom.bytes) else try t.expect(row.cells[0] == .null);
+            try t.expectEqual(@as(u128, if (index == 2) (if (revision == 1) 4 else 2) else 1), row.cells[1].value.atom.unsigned);
+        }
+        try t.expect(try result.next() == null);
+        const position = try result.checkpoint();
+        if (previous) |before| {
+            const next_options = try before.nextOptions(10000, null);
+            const next_disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try next_options.selection(bundle));
+            const delta = try q.RelationalRevision.openNext(allocator, resources, bundle, before, next_disclosure, @splat(195), 10000, null);
+            defer delta.deinit();
+            std.debug.print("Direct text revision: revision={d} outputs={d} deltas={d}\n", .{ revision, delta.manifest.work.outputs, delta.manifest.work.deltas });
+            var event = (try delta.next()) orelse return error.ExpectedTextDelta;
+            defer event.deinit();
+            const old_row = event.delta.before orelse return error.ExpectedTextDeltaBefore;
+            const new_row = event.delta.after orelse return error.ExpectedTextDeltaAfter;
+            try t.expectEqualStrings("Alpha", old_row.row.cells[0].value.atom.bytes);
+            try t.expectEqualStrings("aLPHA", new_row.row.cells[0].value.atom.bytes);
+            try t.expectEqual(std.math.Order.eq, try q.fuze.RelationalDelta.identityOrder(old_row.row.identity, new_row.row.identity, bundle.plan));
+            try t.expect(try delta.next() == null);
+            try t.expectEqualDeep(position, try delta.checkpoint());
+        }
+        previous = position;
+        if (revision == 1) {
+            // Remove only the earliest contributor. Equal collated identity must
+            // retain a paired value change when its representative spelling changes.
+            var deletion = try c.DirectTablePreparedDml.prepare(allocator, client, 1, "DELETE FROM captured_text_left WHERE v = 10", .transit, null);
+            defer deletion.deinit();
+            var intent = try deletion.bind(allocator, client, 3002, &.{}, .bulk, null);
+            defer intent.deinit();
+            (try intent.admit(client)).deinit();
+            const deleted = try intent.operation(client, .execute, 32);
+            defer deleted.deinit();
+            try t.expect(deleted.value.result.rows == .committed);
+            try send(client, worker.pid, try .init("wake"));
+        }
+    }
+    try send(client, worker.pid, try .init("close"));
+    for (0..100) |_| {
+        try relationalStep(init, client, admin, &host, &behavior);
+        var reader = try resources.open(worker.resource);
+        const stored = try q.RelationalMaintenance.head(&reader, identity);
+        if (stored.phase == .cancelled and stored.cleanup_cursor == stored.count) break;
+    } else return error.MaintainedQueryPending;
 }

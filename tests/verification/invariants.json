@@ -132,20 +132,24 @@
       "claim": "Recovery restores decisions without running handlers or redispatching effects",
       "owner": "docs/handbook/reference/streams.md",
       "implementation": [
-        "packages/zig/transit-core/src/root.zig"
+        "packages/zig/transit-core/src/root.zig",
+        "packages/zig/transit-backend-local/src/native_test.zig"
       ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::storage",
         "test::service",
         "test::station",
-        "test::properties"
+        "test::properties",
+        "check::native"
       ],
       "scenarios": [
         "SIGKILL and WAL recovery",
-        "Checkpoint plus trimmed tail"
+        "Checkpoint plus trimmed tail",
+        "Local authorized/unknown attempts and observed/closed-unknown outcomes retain exact lost-reply receipts across one-page reopen and trimming",
+        "Late local effect outcomes retain evidence without admitting new input to the retired caller"
       ],
-      "limits": "Process kill is not host power loss; legacy checkpoint includes the whole bounded catalog.",
+      "limits": "Finite recovery schedules. Process kill is not host power loss. The local owner case records connector observations but performs no external request and establishes no remote cancellation or exactly-once external effect guarantee.",
       "model": null,
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
@@ -2136,6 +2140,33 @@
         "check::native",
         "test::table-filtering"
       ]
+    },
+    {
+      "id": "STORAGE-09",
+      "claim": "Document publications, conflicts and deletion anchors recover with original receipts and retained revisions across local worker and node replacement",
+      "owner": "docs/handbook/reference/documents.md",
+      "implementation": [
+        "packages/zig/transit-station-document/src/Service.zig",
+        "packages/zig/transit-station-document/src/Document.zig",
+        "packages/zig/transit-backend-local/src/Backend.zig",
+        "tests/runtime/document/document.zig",
+        "tests/runtime/document/document.py"
+      ],
+      "profile": "Current native v1; local POSIX WAL/objects and separate disk Ursula control",
+      "tasks": [
+        "test::document-local",
+        "test::document"
+      ],
+      "scenarios": [
+        "Three SIGKILL worker/node boundaries during staged publication, accepted change and checkpoint recovery",
+        "Lost replies retain exact signed requests and byte-identical receipts",
+        "Two field assignments retain conflict identities; removed fields and deleted text anchors preserve current and historical values",
+        "One-page recovery and current read revocation deny both independent readers and a pending writer",
+        "Retired Document cleanup retains accepted-outcome evidence without repeating output"
+      ],
+      "limits": "Finite application workload and process-death schedules; no host power loss, provider failover, automatic lifecycle scheduling or whole-process growth bound. Local evidence inspects actual WAL/object files; Ursula separately replaces its disk provider.",
+      "model": null,
+      "qualification": "Executed sources and outcomes belong in docs/history/qualification/storage.md; registration alone does not establish a passing run."
     }
   ]
 }

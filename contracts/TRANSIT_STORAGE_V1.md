@@ -351,6 +351,14 @@ creates no logical changefeed event. Unlimited history is the default; advancing
 an explicit logical floor is a separate acceptance transition. Neither operation
 authorizes archive, segment or index-object collection by itself.
 
+The archive directory records historical placement, not perpetual ownership of
+every value. After explicit logical expiry, complete owner-graph collection may
+remove a frame below the floor only if no selected recovery baseline/replay,
+current or retained row locator, live history anchor or other retained root needs
+its bytes. Directory pages remain retained. A saved snapshot resolves row locators
+through the current accepted directory; its older archive coverage does not pin
+the entire old archive. Missing bytes for a required frame still fail closed.
+
 ### Table recovery checkpoints
 
 Every accepted root and saved snapshot root has a mandatory `recovery` field:
@@ -482,7 +490,15 @@ supplies common `len`/`cell` access. A plain column's `arrowValues` borrows its
 nullable Arrow value child and a caller-supplied buffer directory. All non-value
 states are null in that child; the column's state tags and error/conflict details
 remain necessary to preserve Transit cells. Retaining an Arrow borrowed buffer
-does not retain the group. This API creates no C data release callback, durable
+does not retain the group. `TSegReader.SharedGroup` provides a separate explicit
+owner: construction transfers the buffered group only on success, and each
+returned Arrow value array retains that group. Array slices and C exports keep
+the same ownership through the final release callback, without copying value
+payloads. The buffer directory and reference headers are allocated through the
+host allocator; all backing allocators must outlive their references. The host
+enforces resident limits and its allocator's thread discipline. A value child
+still requires the enclosing state/error/conflict metadata to represent full
+Transit cells. Neither form acquires a durable
 pin, authorization or complete-result evidence. Export requires little-endian
 host interpretation and 64-byte-aligned buffer addresses.
 
@@ -587,6 +603,17 @@ count against the inventory so overlapping files cannot escape validation.
 This is not a persistent segment index: each uncached partition still scans the
 directory, and physical trimming may scan it repeatedly. No throughput claim
 follows from these bounds.
+
+The local owner's `nextPartition(after)` selects the least existing partition
+ID strictly greater than the optional cursor. A null cursor includes partition
+zero; exhaustion returns null without wrapping the largest `u64` ID. Empty
+fenced and fully trimmed partitions remain discoverable through metadata.
+Discovery scans both metadata and segment names with constant resident memory,
+rejects noncanonical names, and verifies the selected partition's mandatory
+metadata directly. A cached descriptor cannot hide missing metadata. Unpublished
+atomic-file temporaries supply no partition identity. Each call requires caller
+serialization; the cursor is not a snapshot and does not freeze membership or
+authorize collection. Its directory I/O grows with the file count.
 
 Within each cached partition, three volatile frame coordinates retain the latest
 accepted frame and the start/continuation of the last read. They contain no
@@ -745,6 +772,44 @@ untracked content. Creation checks the accepted native epoch under the publicati
 mutex, allowing the current epoch or the next epoch for a prepared fence and
 rejecting older creators. Direct data access reserves the `native/` namespace.
 
+Direct-data creation and reuse have a separate mandatory `data-allocations/`
+directory. Every object PUT first records its key, exact metadata and observed
+native storage epoch. Existing immutable content reused in a newer epoch records
+a new intent before confirming its bytes; an exact same-epoch retry syncs its
+existing marker without appending another intent. Older epochs reject. A
+conflicting key/content binding rejects even if the first attempt did not finish
+object publication. These private records establish neither acceptance nor
+reachability, and do not authorize deletion.
+
+The latest marker's name is the 64 lowercase hexadecimal SHA-256 of the object
+key. Its 512 bytes contain `TDALLOC1` at `0..8`, the mandatory definition at
+`8..40`, little-endian storage epoch at `40..48`, little-endian `u16` key length
+at `48..50`, six zeros, little-endian object length at `56..64`, object SHA-256
+at `64..96`, the key in a zero-padded 256-byte field at `96..352`, 128 zeros,
+and SHA-256 of `0..480` at `480..512`. The key must satisfy the object contract
+and exclude `native/`; the epoch is nonzero and within the native counter bound.
+The marker filename must match the decoded key hash.
+
+`data-allocations/queue/` is a separate segmented `LocalWal`, using partition
+zero, writer/policy epoch one and `manifest_checkpoint` frames. Its 576-byte
+payload contains `TDALQ1` plus two zeros at `0..8`, the definition at `8..40`,
+little-endian position and consumed-prefix cursor at `40..48` and `48..56`, an
+item-present byte at `56`, seven zeros, and the 512-byte allocation at `64..576`
+(all zero when absent). Position equals LSN, and cursor cannot exceed position.
+One append atomically advances the cursor and optionally carries a retained
+item; one empty-prefix advance reads at most 64 records. Queue append and latest
+marker publication are durable before content creation. An uncertain attempt can
+leave duplicate intents. Removal must match the latest marker exactly, so an
+older item cannot erase a newer reuse. Missing queue history with existing
+markers rejects; an existing owner never recreates a missing inventory directory.
+
+Direct creation holds a shared creation/reclamation fence through inventory
+recording and object publication. Private inventory updates serialize separately
+from the native journal mutex; only quota reservations and the accepted-epoch
+read take that mutex. Reclamation requires the exclusive creation fence before
+checking the latest marker. This stored-layout change replaces the shared current-v1 definition;
+earlier directories reject instead of acquiring an empty inventory.
+
 `Storage.Limits` bounds candidate bytes and encoded-file allocation admission.
 The core carries its control classification with the prepared transition through
 commit; a later candidate cannot change its reserve eligibility. Reservations
@@ -770,6 +835,62 @@ FIFO consume, not a transient counter, establishes completed inventory progress.
 Native compaction preserves logical values and captured roots through the core
 `storage_compact` operation. Standalone payload publication, Table collection and
 automatic installed maintenance retain separate owners.
+
+### Local direct-data collection
+
+`DataCollection.Collector(DirectStorageGraph)` uses the same exclusively owned
+backend and an accepted native `storage_fence`. It discovers nonzero durable
+partitions and fixes each owner's last acceptance before that epoch. Complete
+marking includes every catalog control root and accepted intent; current Table
+data, declarations, original receipts and operation intents; the selected recovery
+baseline and subsequent replay; unexpired history; live snapshots and history
+anchors. Snapshot/recovery metadata has its own retention and does not implicitly
+restore released old data graphs. An unflushed row locator retains its exact WAL
+or archive frame, without recursively owning that frame's obsolete roots.
+
+The definition-bound `.data-collection` checkpoint is a JSON body of at most
+256 KiB followed by its SHA-256. It stores the native cut, grace, owner cursor,
+separate paged physical/typed marks, paged FIFO roots and positions, active owned
+graph work, fixed allocation end and exact pending deletion. Replacement syncs
+the file and parent directory. A work item is at most 128 KiB: `TDWORK1` plus NUL,
+32 definition bytes and owned JSON; its immutable key is
+`data-maintenance/<sha256>.work`. Queue keys are eight-byte big-endian positions;
+values are eight-byte little-endian object lengths followed by SHA-256. Mark keys
+are SHA-256 of object keys, with the same 40-byte exact-metadata values. Typed
+visited keys hash their traversal context and carry empty values. All private
+indexes use `TreeStore`. Roots and active work publish in one checkpoint; staged
+objects alone cannot advance progress.
+
+A step performs at most four graph transitions, one allocation decision/deletion,
+or 64 empty FIFO advances. A graph transition emits at most three child items;
+page depth and decoding bounds remain independent of retained cardinality. The
+step allocator caps simultaneous graph/index allocations at 64 MiB, with an
+8 MiB per-transition index-work budget and one cached index page. Provider WAL
+buffers and fixed decoding/stack buffers have separate format bounds. Scanning
+partition directories or reading a bounded segment can still perform substantial
+I/O; these limits do not establish a latency bound.
+
+Incomplete marking never reaches sweep. Required history trimmed during discovery
+or traversal aborts the pass; corrupt/missing dependencies or quota refusal leave
+the last checkpoint for retry. Sweep requires the same snapshot/request grace and
+persisted native time floor as native collection. It protects all allocations at
+or after the cut epoch and any marked object. Permanent `data-operations/` identity
+reservations, saved `direct-intents/` staging references and unknown namespaces
+remain outside collection. Collectible namespaces are `data-index/`,
+`data-maintenance/`, `catalog-intents/`, `table-definitions/`, `table-evidence/`,
+`table-intents/`, `table-snapshots/`, `table-checkpoints/`, `table-history/` and
+`table-segments/`.
+
+Deletion holds the exclusive creator fence and inventory lock, checks the current
+native epoch/genesis, then removes only the pending allocation's exact immutable
+identity. A different latest-marker epoch skips that intent without deleting the
+marker: a newer marker owns a newer reuse; an older marker means this attempted
+reuse never published its marker. Descriptor, payload, checksums and matching
+marker are removed before FIFO consumption. A recovered consumed cursor wins over
+stale private deletion state. Repeating a pending deletion is idempotent, while
+byte/object counters can undercount lost acknowledgements. Quotas include marks,
+work and progress; quota pressure never authorizes expiry. Automatic installed
+scheduling and public progress operations are separate from this component API.
 
 ## Local standalone payloads
 
@@ -833,10 +954,15 @@ point reads/deletes require that identity, not an empty primary key.
    - Segment-wide `[min_pk_sort_key, max_pk_sort_key]` bounds.
    - Per-row-group page offsets, lengths, SHA-256 digests, and collation-aware
      `ZoneMap`s (`min_sort_key`, `max_sort_key`, 5-state counts, 64-bit Wyhash
-     `bloom_mask`).
-   - Embedded Primary-Key B-Tree directory (`pk_sort_key`, `TableRow.Identity`,
-     `row_group`, `row_in_group`, `global_row_offset`) enabling $O(\log N)$ point
-     lookups and $O(1)$ / $O(K \log N)$ OCC primary-key overlap detection.
+     `bloom_mask`). Two hash positions use seeds `0x54534547` and `0xCAFEBABE`
+     modulo 64 over the collation sort key. The fixed filter can saturate as
+     distinct keys increase; it has no promised false-positive rate. Missing
+     bounds disable pruning, and a possible error/conflict prevents unsafe skips.
+   - Embedded sorted primary-key directory (`pk_sort_key`, `TableRow.Identity`,
+     `row_group`, `row_in_group`, `global_row_offset`). Binary search is
+     $O(\log N)$ after the bounded footer is decoded. This array is distinct from
+     the live Table's paged ordered index and does not imply logarithmic physical
+     I/O or constant-time overlap checks.
    - Trailing 32-byte SHA-256 over the `"TSF1"` footer body.
 4. **Trailer (`16 bytes` at `EOF - 16`)**: `footer_offset` (`u64`),
    `footer_length` (`u32`), and `"TSEG"`.

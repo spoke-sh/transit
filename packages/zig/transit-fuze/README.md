@@ -59,8 +59,21 @@ buffer directory and returns borrowed Arrow `ArrayData` on little-endian hosts.
 It verifies 64-byte address alignment. All non-value states are null in this
 nullable value child; the complete column retains state and error/conflict
 evidence separately. Both directory and group must outlive every derived Arrow
-view. Buffer `retain` does not extend these borrowed lifetimes. This is local
-value-buffer interchange, without a C data release callback or external import.
+view. Buffer `retain` does not extend these borrowed lifetimes.
+
+`TSegReader.SharedGroup.init(allocator, group)` transfers a `BufferedGroup` on
+success; failure leaves it with the caller. `shared.arrowValues(index)` returns
+an owned Arrow `ArrayRef` for a qualified plain column in the projection. It
+allocates only the array header and buffer directory and pins the original group.
+Slices and `arrow.exportArrayToC` retain that pin; the final release frees the
+group, including its state/error/conflict metadata. The original reader and
+the caller's shared reference can close first. Every backing allocator must
+outlive the final reference, and the host must respect its allocator's thread
+discipline when invoking release callbacks. Retaining arrays consumes the host's
+memory allowance and does not retain a durable Table lease or access rights.
+The C array represents only the nullable value child. Full five-state interchange
+uses the logical Arrow schema/sidecars and bounded IPC conversion below; these
+value views do not admit arbitrary external Arrow input.
 
 `PhysicalCodecs.decodeColumnPageSelected` accepts sorted, unique row ordinals
 and owns only their decoded cells in the output arena. It validates the complete
@@ -106,7 +119,17 @@ held; projecting the predicate column reads that page again after selection.
 Missing/oversized sort keys use the unpruned path. Pruning trusts the bound
 footer's statistics and does not verify omitted payloads. Hosts own deletion
 visibility, query limits, snapshot retention and final disclosure; direct SQL
-does not yet lower general predicates into this component API.
+uses the retained Table owner's bounded predicate path for finite identity scans.
+Relational predicate pushdown remains separate.
+
+Each indexed column group has a fixed 64-bit, two-hash membership filter over
+collation sort keys. This is a low-distinct-count optimization, not an adaptive
+filter with a target false-positive rate. Duplicate values consume no additional
+bits; many distinct values saturate it and retain the bounded predicate-page
+fallback. The [selectivity measurement](../../../docs/handbook/reference/performance.md#segment-membership-filter-selectivity)
+compares 4, 16, 64 and 256 distinct values with identical row/page sizes. Row-group
+size alone does not determine selectivity. Missing bounds disable pruning, and
+the filter never authorizes skipping a possible source error.
 
 `filteredCandidates` applies the same program to at most 1,024 unique physical
 row ordinals supplied in the owner's logical traversal order. The owner supplies
@@ -151,7 +174,7 @@ Catalog and native administration must resolve and authorize this syntax before
 execution; the parser itself reads no policy and changes no authority.
 
 `Relational` supplies pure admission, stable column resolution, output descriptors
-and prepared/bound identities for finite int64 Table join/group plans. It also
+and prepared/bound identities for finite int64/UTF-8 Table join/group plans. It also
 defines distinct join/group NULL rules and checked aggregate steps.
 `RelationalSql` lowers the selected finite SQL profile through shared syntax and
 typed literals. `RelationalExecution` advances ordered source rows and externally
@@ -161,10 +184,19 @@ spill and complete-result publication. The
 [relational contract](../../../contracts/RELATIONAL_V1.md) defines capabilities,
 ownership, canonical order, budgets and remaining integration obligations.
 `RelationalIndex` supplies immutable group roots and bounded copy-on-write
-updates. `RelationalCheckpoint` encodes exact operator progress; execution restore
+updates. Its traversal stack holds references and directions, reloading verified
+immutable parents during an update instead of retaining their payloads across
+tree depth. The host charges those additional reads to its work budget; read or
+write failure preserves the original root. `RelationalCheckpoint` encodes exact operator progress; execution restore
 rechecks the bound source vector and current rights through its adapter. Hosts
-stage and atomically publish these records with input/output progress.
-`RelationalExchange` specifies canonical int64/null routing and source-qualified
+stage and atomically publish these records with input/output progress. Source
+rows, group keys, returned outputs and decoded records own their text buffers;
+move them or clone through the bounded host allocator and release with `deinit`.
+`checkpoint()` borrows the executor until its next mutation; `restore` copies it.
+Group equality, order and exchange routing share the declared column collation.
+Each row/key/cell vector permits at most 1 MiB of text, with actual payloads
+charged to the host's resident budget.
+`RelationalExchange` specifies canonical collation-aware int64/UTF-8/null routing and source-qualified
 row segments with exact bound identities and explicit terminal coverage. Hosts
 own durable acceptance, credits and current authorization under the
 [exchange contract](../../../contracts/RELATIONAL_EXCHANGE_V1.md).

@@ -17,6 +17,8 @@ pub const TableRecovery = @import("TableRecovery.zig");
 pub const TableEvidence = @import("TableEvidence.zig");
 pub const TableStorageWalk = @import("TableStorageWalk.zig");
 pub const TableStorageRoots = @import("TableStorageRoots.zig");
+pub const TableSnapshot = @import("TableSnapshot.zig");
+pub const TablePartitionRecord = @import("TablePartitionRecord.zig");
 pub const TablePartition = @import("TablePartition.zig");
 pub const TableDmlIntent = @import("TableDmlIntent.zig");
 

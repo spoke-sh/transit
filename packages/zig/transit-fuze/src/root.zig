@@ -8,6 +8,7 @@ pub const FileQuery = @import("FileQuery.zig");
 pub const BatchExecution = @import("BatchExecution.zig");
 pub const Batch = @import("Batch.zig");
 pub const MemoryBudget = @import("MemoryBudget.zig");
+pub const RelationalValues = @import("RelationalValues.zig");
 pub const LogicalQuery = @import("LogicalQuery.zig");
 pub const Relational = @import("Relational.zig");
 pub const RelationalExecution = @import("RelationalExecution.zig");
@@ -63,6 +64,7 @@ test {
     _ = MemoryBudget;
     _ = BatchExecution;
     _ = Relational;
+    _ = RelationalValues;
     _ = RelationalExecution;
     _ = RelationalSql;
     _ = RelationalCodec;
@@ -177,4 +179,8 @@ test "Arrow IPC and compute share the same arrays and release their ownership" {
     try std.testing.expectEqual(@as(i64, 3), result.scalar.value.i64);
     var too_small: [1]u8 = undefined;
     try std.testing.expectError(error.WriteFailed, encode(allocator, batch, &too_small));
+    // Fail after schema publication and at every record-batch write boundary.
+    // Message ownership must release metadata once even after full construction.
+    var partial: [4096]u8 = undefined;
+    for (1..bytes.len) |capacity| try std.testing.expectError(error.WriteFailed, encode(allocator, batch, partial[0..capacity]));
 }

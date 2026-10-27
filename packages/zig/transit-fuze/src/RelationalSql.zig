@@ -106,13 +106,13 @@ pub const Owned = struct {
                         const column = try resolve(compare.column, sources, location);
                         if (compare.value != .literal) return error.UnboundParameters;
                         var failure: ?Parser.Literal.Span = null;
-                        const value = compare.value.literal.bind(allocator, .int64, &failure) catch |err| {
+                        const descriptor = try plan.resolveColumn(column);
+                        const value = compare.value.literal.bind(allocator, descriptor.type, &failure) catch |err| {
                             if (location) |at| at.* = .{ .offset = (failure orelse compare.value.literal.span).start };
                             return err;
                         };
                         if (value == .null) return error.UnsupportedNullComparison;
-                        if (value != .value or value.value != .atom or value.value.atom != .signed) return error.UnsupportedRelationalType;
-                        const integer = std.math.cast(i64, value.value.atom.signed) orelse return error.Overflow;
+                        const literal = (try @import("RelationalValues.zig").fromCell(value, descriptor)).?;
                         break :result .{ .compare = .{ .column = column, .op = switch (compare.op) {
                             .eq => .equal,
                             .ne => .not_equal,
@@ -120,7 +120,7 @@ pub const Owned = struct {
                             .le => .less_equal,
                             .gt => .greater,
                             .ge => .greater_equal,
-                        }, .value = integer } };
+                        }, .value = literal } };
                     },
                 },
             };

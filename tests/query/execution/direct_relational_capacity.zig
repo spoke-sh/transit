@@ -116,10 +116,12 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     } else return error.RelationalQueryPending;
     const options: q.RelationalResult.Options = .{ .owner = saved.worker.pid, .peer = saved.worker.pid, .resource = saved.worker.resource, .job = saved.job, .requests = 2000 };
     const disclosure = try q.ResultDisclosure.prepare(.{ .transport = client.authority, .realm = 42, .principal = 101, .key = client.key }, try options.selection(bundle));
-    var result = try q.RelationalResult.open(resources(client), bundle, options, disclosure, @splat(185));
-    defer result.close() catch {};
+    const result = try q.RelationalResult.open(client.allocator, resources(client), bundle, options, disclosure, @splat(185));
+    defer result.deinit();
     var seen: [3]bool = @splat(false);
-    while (try result.next()) |row| {
+    while (try result.next()) |returned| {
+        var row = returned;
+        defer row.deinit();
         const id = row.cells[0].value.atom.signed;
         try t.expect(id >= 0 and id < seen.len);
         const i: usize = @intCast(id);

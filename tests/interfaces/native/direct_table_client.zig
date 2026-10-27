@@ -299,7 +299,8 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     defer prepared.deinit();
     const joined = try q.DirectRelationalQuery.openPreparedRetained(init.gpa, init.io, directory, "joined", client, prepared, &.{ saved.snapshot, saved.snapshot }, options, null);
     defer joined.deinit();
-    const result = (try joined.next()).?;
+    var result = (try joined.next()).?;
+    defer result.deinit();
     try t.expectEqual(@as(i128, 1), result.cells[0].value.atom.signed);
     try t.expectEqual(@as(u128, 1), result.cells[1].value.atom.unsigned);
     try t.expect(try joined.next() == null);
@@ -521,7 +522,7 @@ pub fn main(init: std.process.Init) !void {
             try Captured.recover(init, client, &admin, profile.captured.?);
         } else if (std.mem.eql(u8, args[2], "capture-relational")) {
             var fresh = client;
-            fresh.key = try key(59);
+            if (profile.captured != null) fresh.key = try key(59);
             try Captured.relational(init, fresh, &admin);
         } else if (std.mem.eql(u8, args[2], "capture-named")) {
             var fresh = client;

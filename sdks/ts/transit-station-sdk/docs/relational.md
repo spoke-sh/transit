@@ -77,7 +77,8 @@ diagnostic; it does not produce an empty successful result.
 
 Rows own immutable `bigint | null` cells and pair or group identities. Pair
 identities own their Table row bytes; group keys are nullable signed 64-bit
-integers. Counts retain the full unsigned 64-bit range. Budgets and ordinals are
+integers or strings. Cells use `bigint | string | null`; text preserves empty
+strings and embedded NULs. Counts retain the full unsigned 64-bit range. Budgets and ordinals are
 `bigint`, including Table partition positions; route indices and native realm/resource
 identities are checked numbers.
 

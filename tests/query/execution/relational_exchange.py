@@ -12,7 +12,19 @@ from query.execution.relational import identity_fixture
 
 def route(value, partitions):
     encoded = b'transit.relational.partition.v1\0\1'
-    encoded += b'\0' if value is None else b'\1' + struct.pack('<q', value)
+    encoded += b'\1' if value is None else b'\4' + (value + (1 << 127)).to_bytes(16, 'big')
+    return int.from_bytes(hashlib.sha256(encoded).digest()[:8], 'little') % partitions
+
+
+def text_route(value, collation, partitions):
+    if value is None:
+        key = b'\1'
+    else:
+        raw = value.encode('cp037' if collation == 'ebcdic_cp037' else 'utf-8')
+        if collation == 'ascii_ci':
+            raw = bytes(byte + 32 if 65 <= byte <= 90 else byte for byte in raw)
+        key = b'\4' + raw.replace(b'\0', b'\0\xff') + b'\0\0'
+    encoded = b'transit.relational.partition.v1\0\1' + key
     return int.from_bytes(hashlib.sha256(encoded).digest()[:8], 'little') % partitions
 
 
@@ -27,7 +39,12 @@ def fixtures():
     fuze = dict(definition=definition, segment=segment.hex(),
                 routing=[dict(key=value, partitions=count, partition=route(value, count))
                          for count in [1, 2, 7, 257, 2**64 - 1]
-                         for value in [None, 0, -1, 7, -(2**63), 2**63 - 1]])
+                         for value in [None, 0, -1, 7, -(2**63), 2**63 - 1]],
+                text_routing=[dict(key=value, collation=collation, partitions=count,
+                                   partition=text_route(value, collation, count))
+                              for collation in ['utf8_binary', 'ascii_ci', 'ebcdic_cp037']
+                              for count in [7, 257, 2**64 - 1]
+                              for value in [None, '', 'a', 'A', 'a ', 'é', 'É', '\0', '0']])
     remote = b'SPF1' + struct.pack('<QIQQII', 8, 10, 88, 1, 0x31535846, len(segment)) + bytes([17]) * 32
     local = b'SPF1' + struct.pack('<QIQQII', 7, 10, 88, 2, 0x31535846, len(segment)) + bytes([17]) * 32
     head = b'RXH1' + contract + bytes([19]) * 32 + struct.pack('<13Q3B',

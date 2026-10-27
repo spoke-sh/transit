@@ -9,6 +9,7 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 | --- | --- |
 | Local objects and WAL process-death recovery | [Objects](local/local_objects.py), [storage faults](local/local_storage_faults.py), [collection faults](local/local_native_collection_faults.py) |
 | Local native collection and maintenance | [local/](local/), [growth](local/storage_growth.py) |
+| Direct Table graph collection, expiry and retained pins | [Disk collection](local/direct_collection.zig), [collection process faults](local/local_native_collection_faults.py) |
 | Direct Table service and restart behavior | [Direct Table schedule](tables/direct_table_service.py) |
 | Physical codecs and independent bytes | [Codec fixtures](codecs/column_codecs.py) |
 | Ursula/provider-specific conformance | [Provider storage](providers/storage.py), [pages](providers/pages.py), [blocks](providers/block_storage.py), [authority growth](providers/growing.py), [cold-store fixture](providers/cold_storage.py) |
@@ -23,3 +24,12 @@ not establish the backend. Performance drivers and budgets live in
 Physical disk, process death, injected failure and modeled power loss are
 distinct evidence. Automatic runner records identify completed commands; archived
 results do not qualify current source.
+
+`just test::local-data-collection` exercises explicit Table history expiry,
+snapshot retention, original receipts and admitted work through physical
+collection and disk reopen. It also runs the direct profile of the shared
+collection fault harness: actual SIGKILL at each observed sync, file removal,
+progress publication and reply boundary. The same checks are included by the
+native components/faults aggregate. Run `just test::local-native-collection` for
+the native page/block profile. These component checks do not establish automatic
+installed maintenance or physical power-loss behavior.

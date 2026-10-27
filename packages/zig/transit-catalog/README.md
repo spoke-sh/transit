@@ -19,6 +19,24 @@ catalog and registrar. The local server, SQL runtime, query consumers and catalo
 SDKs use these operations. See the [direct catalog guide](docs/direct-catalog.md)
 for initialization, ownership, authorization, storage bounds and recovery.
 
+`DirectCatalogRoots` enumerates every control record through one accepted cut,
+checking its complete hash chain and final root with the recovery decoder.
+Each step owns one bounded record and preserves its cursor on failure. Catalog
+recovery still reads historical directories, so a latest-root-only inventory
+cannot authorize their reclamation. This traversal supplies retained roots and
+actions; the storage maintenance owner must follow their object dependencies.
+`DirectCatalogWalk` verifies one directory through a fixed depth cursor and
+emits its pages and original Table seed declarations. Object entries retain
+their catalog identity and allocation frontier; their seed remains a dependency
+even after a later Table definition becomes current.
+
+`DirectStorageGraph` supplies typed retained dependencies to the local backend's
+resumable collector. It joins these catalog roots with Table history/recovery,
+live snapshots, original receipts and intents. Durable work/marks and physical
+deletion stay in the backend; this graph grants no read or deletion authority
+on its own. See [direct-data collection](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
+for invocation, bounded work and permanently retained namespaces.
+
 `DirectResourceClient` uses the same directory for named native KV and Document
 objects. Its saved bindings separate admission, caller-authorized allocation,
 writer initialization and completed publication. The

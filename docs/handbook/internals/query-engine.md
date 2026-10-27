@@ -376,7 +376,7 @@ analysis uses revision `2c1a9d2d`; the implemented finite extension is scoped by
 the [current query boundary](../reference/queries.md#relational-boundary).
 
 The local [relational contract](../../../contracts/RELATIONAL_V1.md) now implements
-plan/basis validation, shared SQL lowering and bounded execution for a finite int64
+plan/basis validation, shared SQL lowering and bounded execution for a finite int64/UTF-8
 profile. It uses stable Table row IDs rather than assuming primary keys identify
 every row: general Tables also allow duplicate rows without a declared key.
 Its [independent oracle](../../../tests/query/execution/relational.py) materializes small relations
@@ -391,8 +391,8 @@ establish bounded execution over growing retained data.
 
 The finite physical model uses ordered nested loops and an external AVL group
 map. For L selected left rows, R right rows and G groups, the join can read
-O(LR) right rows; group operations use O(log G) record reads/writes with fixed
-record buffers and an index path bounded by the height possible for uint64
+O(LR) right rows; group operations use O(log G) record reads/writes with a fixed number of
+variable-sized record buffers and an index path bounded by the height possible for uint64
 cardinality. Explicit work and disk quotas stop expensive executions. This
 choice preserves canonical pair/error order directly and avoids a resident hash
 table proportional to R or G. A partitioned hash join may reduce repeated reads,
@@ -400,6 +400,21 @@ but must restore canonical contributors before checked SUM; no such optimizer
 is enabled here. Private spill is unlinked and cannot recover a captured job.
 The heap accounting and bounded working buffers describe query-owned memory,
 not process RSS or the transport client's separate allocations.
+
+Variable-width values make the ownership bound separate from the row-count
+bound. Each row or group-key vector admits at most 1 MiB of cumulative TEXT.
+The operator retains owned join and group cursors; a checkpoint borrows those
+cursors only until the next operator mutation, while restore copies them into
+the host's allocator. The host charges live candidate encodings and retained
+payloads against its resident budget before publication. Returned result rows
+own their text and remain valid across later reads, but must be released before
+the reader that supplies their budget allocator. Exchange routing hashes
+canonical collation keys through a fixed scratch buffer rather than allocating
+an expanded sort key. Ordered group iteration uses the external index; there
+is no total-result sort array. The [TEXT and spill evidence](../../history/qualification/query.md#collated-text-relational-execution-and-owned-results--2026-10-26)
+checks these lifetimes, growing private state and independent comparison/routing
+oracles. It establishes the selected execution profile, not an optimized hash
+join or a process-wide memory ceiling.
 
 For resumable operator state, the question is how to advance a cursor without
 modifying the previous accepted group map. The implemented
@@ -1047,11 +1062,13 @@ checks complete framing and codec identity. Foreign mainframe decoders expose
 invalid or inexact values as `type_error`; they do not silently substitute a
 number. General pages retain five-state cells, while ordinary Table acceptance
 rejects stored error/conflict states. These are different input profiles.
-Plain pages currently use canonical logical value envelopes; they are not
-borrowed Arrow buffers. The symbol-table codec is Transit-owned and does not
-claim upstream FSST format compatibility. SIMD mainframe conversion and Arrow
-page borrowing remain storage/query extensions, not consequences of an encoding
-name.
+Qualified plain pages use aligned Arrow value buffers with separate five-state
+metadata. The verified segment reader retains encoded pages while borrowing
+compatible payloads; compressed and unsupported layouts use bounded decoding.
+The [reader contract](../../../contracts/TRANSIT_STORAGE_V1.md) defines those
+layouts and ownership limits. The symbol-table codec is Transit-owned and does
+not claim upstream FSST format compatibility. SIMD mainframe conversion is a
+separate extension, not a consequence of an encoding name.
 
 For valid text in an admitted collation, the implementation must establish
 $u \preceq_\kappa v$ if and only if
@@ -1066,8 +1083,15 @@ so a caller cannot substitute binary comparison while retaining the same source
 identity. Scalar predicates, decoded vector/page kernels, oversized-row fallback
 and Table UPDATE/DELETE share the declared comparison semantics. Prepared
 parameters acquire the vector from their original declaration at binding.
-Relational join/group/order operators remain int64-only; this finite profile
-adds no text join or grouping semantics.
+Relational join/group/order operators use the same collation descriptors.
+Join columns must have matching types and collations. Group equality and order
+use canonical sort bytes while output retains the first contributor's spelling.
+Exchange hashing streams those same sort bytes, so equivalent keys colocate
+even when their original bytes differ. The [text checks](../../../packages/zig/transit-fuze/src/relational_text_test.zig)
+cover NULL, ASCII-only case folding, CP037 order and retained cursor ownership;
+[exchange fixtures](../../../tests/query/execution/relational_exchange.py) derive
+CP037 weights independently with Python's codec. These finite checks do not
+establish an optimized hash join or distributed write authority.
 The neutral JSON schema requires explicit encoding and collation fields and
 preserves them through SDK conversion. The shared schema validator admits the
 type/codec/collation combination; the direct Table interface retains complete

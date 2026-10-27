@@ -16,21 +16,21 @@ fn cuts() ![2]r.Cut {
 }
 fn row(id: u64, key: ?i64) e.Row {
     var result: e.Row = .{ .identity = .{ .origin = 1, .operation = id, .ordinal = 0 } };
-    result.values[0] = key;
-    result.values[1] = 9;
+    result.values[0] = if (key) |integer| .{ .integer = integer } else null;
+    result.values[1] = .{ .integer = 9 };
     return result;
 }
 test "routing colocates equal join keys independent of aliases identities values and worker count" {
     for ([_]u64{ 1, 2, 7, 257, std.math.maxInt(u64) }) |partitions| for ([_]?i64{ null, 0, -1, std.math.minInt(i64), std.math.maxInt(i64) }) |value| {
         var right = row(100, value);
-        right.values[1] = -8;
+        right.values[1] = .{ .integer = -8 };
         try t.expectEqual(try x.route(plan, 0, partitions, row(1, value)), try x.route(plan, 1, partitions, right));
     };
     // Independently calculated SHA-256(domain || join-tag || null/int64 key).
     try t.expectEqual(@as(u64, 0), try x.route(plan, 0, 1, row(1, 7)));
     try t.expectError(error.InvalidRelationalExchange, x.route(plan, 0, 0, row(1, 7)));
     var invalid = row(1, 7);
-    invalid.values[2] = 1;
+    invalid.values[2] = .{ .integer = 1 };
     try t.expectError(error.InvalidRelationalSourceRow, x.route(plan, 0, 2, invalid));
 }
 test "exchange bytes and routing agree with the independent Python contract fixtures" {
@@ -61,14 +61,14 @@ test "exchange bytes and routing agree with the independent Python contract fixt
         .{ .domain = .native_resource, .resource = 202, .revision = 12, .commitment = @splat(34), .schema = try fixture_sources[1].schema.fingerprint() },
     };
     const bound: r.Bound = .{ .plan = fixture_plan, .cuts = &basis };
-    var bytes: [x.max_bytes]u8 = undefined;
+    var bytes: [x.fixed_bytes]u8 = undefined;
     const encoded = try std.fmt.hexToBytes(&bytes, parsed.value.segment);
-    const segment = try x.Segment.decode(bound, encoded);
+    const segment = try x.Segment.decode(t.allocator, bound, encoded);
     try t.expectEqual(@as(u8, 2), segment.len);
-    try t.expectEqual(@as(?i64, 9), segment.rows[0].values[1]);
-    try t.expectEqual(@as(?i64, null), segment.rows[1].values[1]);
+    try t.expectEqual(@as(i64, 9), segment.rows[0].values[1].?.integer);
+    try t.expect(segment.rows[1].values[1] == null);
     try t.expectEqual(@as(u64, 3), segment.epoch);
-    var rewritten: [x.max_bytes]u8 = undefined;
+    var rewritten: [x.fixed_bytes]u8 = undefined;
     try t.expectEqualSlices(u8, encoded, try segment.encode(bound, &rewritten));
 }
 test "exchange segments bind exact cuts and require canonical rows routing and explicit empty completion" {
@@ -79,27 +79,27 @@ test "exchange segments bind exact cuts and require canonical rows routing and e
     segment.rows[1] = row(2, 7);
     var bytes: [x.max_bytes + 1]u8 = undefined;
     const encoded = try segment.encode(bound, &bytes);
-    const decoded = try x.Segment.decode(bound, encoded);
+    const decoded = try x.Segment.decode(t.allocator, bound, encoded);
     try t.expectEqualDeep(segment.rows[0..2], decoded.rows[0..2]);
     try t.expectEqual(segment.partition, decoded.partition);
     for (0..encoded.len) |length| {
-        if (x.Segment.decode(bound, encoded[0..length])) |_| return error.AcceptedTruncatedExchange else |_| {}
+        if (x.Segment.decode(t.allocator, bound, encoded[0..length])) |_| return error.AcceptedTruncatedExchange else |_| {}
     }
     bytes[encoded.len] = 0;
-    try t.expectError(error.InvalidRelationalExchange, x.Segment.decode(bound, bytes[0 .. encoded.len + 1]));
+    try t.expectError(error.InvalidRelationalExchange, x.Segment.decode(t.allocator, bound, bytes[0 .. encoded.len + 1]));
     bytes[4] ^= 1;
-    try t.expectError(error.IncompatibleDefinition, x.Segment.decode(bound, encoded));
+    try t.expectError(error.IncompatibleDefinition, x.Segment.decode(t.allocator, bound, encoded));
     bytes[4] ^= 1;
     var changed = basis;
     changed[0].revision += 1;
-    try t.expectError(error.RelationalSourceChanged, x.Segment.decode(.{ .plan = plan, .cuts = &changed }, encoded));
+    try t.expectError(error.RelationalSourceChanged, x.Segment.decode(t.allocator, .{ .plan = plan, .cuts = &changed }, encoded));
     segment.rows[1] = segment.rows[0];
     try t.expectError(error.InvalidRelationalSourceOrder, segment.encode(bound, &bytes));
     segment.len = 0;
     segment.terminal = false;
     try t.expectError(error.InvalidRelationalExchange, segment.encode(bound, &bytes));
     segment.terminal = true;
-    try t.expectEqual(@as(u8, 0), (try x.Segment.decode(bound, try segment.encode(bound, &bytes))).len);
+    try t.expectEqual(@as(u8, 0), (try x.Segment.decode(t.allocator, bound, try segment.encode(bound, &bytes))).len);
     segment.len = 5;
     try t.expectError(error.InvalidRelationalExchange, segment.encode(bound, &bytes));
 }

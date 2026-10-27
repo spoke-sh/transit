@@ -32,9 +32,13 @@ change schema/prepared commitments. DROP/recreate cannot redirect old work.
 Rows use Table `(origin, operation, ordinal)` identity, independent of primary
 keys; keyless and composite-key Tables use the same relational model.
 
-Referenced projection, join, grouping, predicate and SUM columns must be int64.
-SQL declares these columns with BIGINT; INTEGER denotes int32.
-COUNT(*) and COUNT(int64-column) return uint64; SUM returns nullable int64.
+Referenced projection, join, grouping, predicate and COUNT columns admit int64
+and UTF-8 text. SQL declares these types with BIGINT and TEXT; INTEGER denotes
+int32. SUM admits only int64. COUNT(*) and COUNT(column) return uint64; SUM
+returns nullable int64. Join columns require the same logical type and declared
+collation, without implicit coercion. Text comparison, group identity, group
+order and exchange hashing use the source column's declared UTF8_BINARY,
+ASCII_CI or EBCDIC_CP037 semantics; unsupported collations reject at admission.
 Unreferenced columns may use other valid stored types. Left joins make right
 projections nullable, including originally NOT NULL columns. Output names are
 explicit and unique. Storage support does not widen operator admission.
@@ -94,15 +98,18 @@ identity. Existing single-source query ordering is unchanged. Joined identity is
 the pair of source-qualified row identities; an unmatched right side has an
 explicit absent marker. Unmatched emission requires complete right coverage.
 
-Equal non-null int64 keys join; NULL never joins NULL. Bag multiplicity is
+Equal non-null keys under their declared type and collation join; NULL never joins NULL. Bag multiplicity is
 preserved: two matching left rows and three right rows produce six pairs.
 Joined filtering happens after null extension; moving a right filter across a
 left join is not generally equivalent.
 
-Grouping treats NULL keys as equal and sorts them before int64 values. Output
+Grouping treats NULL keys as equal and sorts them before present values. Output
 groups sort lexicographically by declared key tuple; contributors retain input
 order. Every non-aggregate output in an aggregate/grouped query must be a group
 key. Grouping without aggregates emits one row per distinct tuple.
+Collation-equivalent spellings share one group, whose projected key retains the
+first canonical contributor's original spelling. Comparisons and hashes do not
+rewrite retained text. All selected text collations use NO PAD semantics.
 
 Aggregates advance in contributor order, then output-list order per contributor.
 The first arithmetic failure wins across groups; sorting groups cannot reorder
@@ -150,7 +157,7 @@ of these lifecycle operations.
 
 ## Canonical identity preimages
 
-Domain: `transit.fuze.relational.v1.2026-10-11`. Strings have one-byte byte-length
+Domain: `transit.fuze.relational.v1.2026-10-26`. Names have one-byte byte-length
 prefixes; integers are little endian. SHA-256 hashes the following prepared bytes:
 
 1. Domain, NUL, `prepared`, NUL, one-byte source count.
@@ -160,8 +167,9 @@ prefixes; integers are little endian. SHA-256 hashes the following prepared byte
 4. Each source predicate, then joined predicate: one-byte instruction count,
    then instructions. Tags are compare 0, is-null 1, is-not-null 2, negate 3,
    conjunction 4, disjunction 5. Compare carries column, one-byte comparison
-   (equal 0, not-equal 1, less 2, less-equal 3, greater 4, greater-equal 5), int64
-   literal. State tests carry a column; Boolean operators have no payload.
+   (equal 0, not-equal 1, less 2, less-equal 3, greater 4, greater-equal 5), then
+   a typed literal: tag 1 and int64, or tag 2, uint32 byte length and UTF-8 bytes.
+   State tests carry a column; Boolean operators have no payload.
 5. One-byte group count and columns; one-byte output count, then output names
    and expression tags (column 0, count-all 1, count-column 2, sum 3). Expressions
    other than count-all carry a column.
@@ -189,8 +197,12 @@ older saved artifacts reject rather than being rebound to current data.
 
 `RelationalIndex` stores groups in an immutable AVL tree. An update copies a
 bounded search path and any rotated nodes, assigning fresh monotone record IDs.
-The previous root remains readable after a failed candidate write. Resident
-frames and candidate records depend on the 94-frame traversal bound, not the
+The previous root remains readable after a failed candidate read or write. The
+94-entry traversal stack holds references and directions; unwinding reloads and
+verifies each immutable parent instead of retaining its group payload. This adds
+one record read per parent, charged to the host's existing work budget, while
+only a fixed number of working nodes retain payloads. Resident
+frames and candidate records depend on the traversal bound, not the
 number of durable groups. A host budgets all retained record bytes, including
 old roots and unreachable staging records, separately from its active staging
 reservation. Neither this index nor pressure on that budget expires history.
@@ -199,9 +211,11 @@ A reference contains uint64 record ID, uint32 byte length, 32-byte SHA-256 of th
 record, uint8 height and uint64 entry count. Optional references use a Boolean
 byte followed by that payload only when present. `FRN1` nodes contain magic,
 32-byte shared native definition, 32-byte bound fingerprint, optional left/right
-references, one-byte group/output counts, nullable int64 keys, then per-output
-uint64 row/value counts and nullable int64 sum. Nullable integers always occupy
-nine bytes: Boolean presence and little-endian int64, zero when absent. Child IDs
+references, one-byte group/output counts, typed nullable keys, then per-output
+uint64 row/value counts and nullable int64 sum. Keys and source values use tag 0
+for NULL with no payload, tag 1 followed by int64, or tag 2 followed by uint32
+byte length and UTF-8 bytes. A key vector contains at most 1 MiB of text. Aggregate
+sums retain their nine-byte Boolean-presence/int64 encoding, zero when absent. Child IDs
 precede their parent; lengths, integrity, binding, balance, height, subtree count
 and aggregate-state shape are checked when read. All integer fields are little
 endian. Hosts stage candidates privately; a node record's existence is not a
@@ -214,12 +228,18 @@ phase byte (input 1, empty-right coverage 2, grouped output 3, complete 4, faile
 matched and right-covered Booleans, uint64 group/work/result-row/result-byte
 counts, optional last output group and optional failure witness. Optional
 identities have a Boolean prefix and the Table's 20-byte stable identity. A
-retained row contains its identity and one nullable int64 per schema column;
-unreferenced non-int64 columns remain null. Group keys have the prepared number
-of nullable int64 cells. A failure records left identity, optional right identity,
+retained row contains its identity and one typed nullable scalar per schema
+column; unsupported unreferenced types remain null. Group keys have the prepared
+number of typed nullable scalars. Each source-row or group-key vector contains
+at most 1 MiB of text. A failure records left identity, optional right identity,
 one-byte output ordinal and group key. Decoders reject noncanonical Booleans,
 truncation, trailing bytes, wrong definitions/bindings and inconsistent progress.
-The record fits an 8192-byte caller-owned buffer; it is not a native inline value.
+The record is bounded by 8192 fixed bytes plus two 1 MiB text vectors; it is
+not a native inline value. Hosts allocate actual encoded sizes for reads.
+`bufferBytes(plan)` reserves 8192 bytes plus 1 MiB when a join retains text in
+its left schema and another 1 MiB when grouping uses text. Hosts reserve that
+encoding space before executing a step, so an observed arithmetic failure can
+move its owned group key into the witness without another allocation.
 
 `RelationalExecution.checkpoint` and `restore` preserve the join cursor, match
 state, output position, counters and canonical failure witness. Restoring requires
@@ -229,6 +249,11 @@ does not establish that transaction or authorize reading retained inputs.
 
 The query package's `RelationalState` stages these records through Station
 Publication with one active record reservation and bounded candidate memory.
+Candidates allocate the actual encoded bytes for each private record through
+the host's query allocator, with a tree-height-bounded record directory. The
+resident and retained-state byte limits both apply before adding a record.
+Discarding a candidate releases its payload allocations without resetting work
+already charged to the operation; allocation failure preserves the accepted root.
 Group records use format `0x314e5246`; checkpoints use `0x31435246`. Reconstructed
 candidates retain their reserved IDs and bytes; conflicting reuse rejects. The
 host owns accepted allocation counters, continuation identity, retained source
@@ -315,8 +340,9 @@ contains decoded descriptors, source adapters and the bounded node candidate.
 A continuation performs at most one source-row read and a tree-height-bounded
 index operation. `spill_bytes` bounds retained logical node/checkpoint/output/
 manifest bytes, including older roots; Publication separately reserves one active
-record of at most 8192 bytes. A terminal semantic failure has one additional
-bounded checkpoint reserve, at most 8192 bytes, to record its original witness
+record bounded by `RelationalState.max_record_bytes` (the largest typed delta,
+checkpoint or node record). A terminal semantic failure has one additional
+checkpoint reserve, bounded by `RelationalCheckpoint.max_bytes`, to record its original witness
 when ordinary state capacity is exhausted. This reserve neither permits further
 query execution nor deletes accepted state. Physical storage failure can still
 prevent the native turn from committing.
@@ -415,13 +441,23 @@ definition. Fields are little endian unless noted; native values are bounded by
 `FRO1` output records use format `0x314f5246`. After magic and definition they
 contain the 32-byte bound fingerprint, uint64 ordinal and identity tag: pair 0
 or group 1. A pair has a 20-byte left row identity, Boolean right presence and
-optional 20-byte right identity. A group has one-byte width and nullable int64
-keys. One-byte output width precedes cells, each a Boolean presence and eight
-integer bytes; absent values encode zero. The output schema determines int64
-versus uint64 interpretation. Nullability, identity kind, referenced type, width,
+optional 20-byte right identity. A group has one-byte width and typed nullable
+keys using the scalar encoding above. One-byte output width precedes cells:
+tag 0 is NULL with no payload, tag 1 is int64, tag 2 is uint32-length-prefixed
+UTF-8, and tag 3 is uint64. The output schema must agree with each tag. The key
+and output-cell vectors each allow at most 1 MiB of text. Nullability, identity kind, referenced type, width,
 ordinal, trailing bytes and canonical representation are validated.
 
 ### Reading captured results
+
+`RelationalResult.open` takes an allocator and returns a stable owned reader.
+Its fixed frames and bounded allocator share the plan's resident budget.
+Returned rows own text and must be released with `row.deinit()` before
+`reader.deinit()`. `close()` reports snapshot-release errors; `deinit()` attempts
+closure and frees local state. The maintained `RelationalRevision` reader has
+the same allocator/lifetime rules; release each returned event with `deinit()`.
+Neither reader accumulates all rows. Retaining too many caller rows can exhaust
+the same resident budget before result completion.
 
 `RelationalResult` accepts the caller's frozen bundle and explicit coordinator,
 peer, resource, job and native-request budget, plus a separate
@@ -551,8 +587,8 @@ Physical query-page collection is not exposed by this owner.
 The workspace plus `resident_base` must fit the resident budget. Retained logical
 bytes include every immutable group/checkpoint/output/delta/manifest version;
 `spill_bytes` bounds their cumulative size. Publication reserves one active
-record of at most 8192 bytes separately. A failed semantic step can retain one
-additional bounded failure checkpoint. Four native mutations and 256-byte values
+record bounded by `RelationalState.max_record_bytes` separately. A failed semantic
+step can retain one additional checkpoint bounded by `RelationalCheckpoint.max_bytes`. Four native mutations and 256-byte values
 remain unchanged. Recomputing every transaction can increase maintenance lag and
 state growth; quota pressure stops work without deleting accepted history.
 
@@ -600,7 +636,7 @@ definition. Integer fields are little endian unless stated otherwise.
 - `RMC1`, 60 bytes: uint64 peer, correlation and exact scheduling input.
 - `FRD1`, publication format `0x31445246`: Boolean previous-basis presence,
   32-byte previous binding (zero when absent), 32-byte next binding, uint64 delta
-  ordinal, uint16-length-prefixed before `FRO1`, and uint16-length-prefixed after
+  ordinal, uint32-length-prefixed before `FRO1`, and uint32-length-prefixed after
   `FRO1`. Zero length means absent. At least one side exists. A pair has the same
   stable identity and different cells. Both bounds have the same prepared plan.
 - `RMD1`, 116 bytes: uint64 delta ordinal and 72-byte immutable delta reference.
@@ -672,7 +708,9 @@ the captured basis; changed IDs/statements reject. References require the curren
 native definition, open ID, prepared plan hash and bound hash. Missing or foreign
 definitions reject. Ordinals and full-width quantities are canonical decimal
 strings. Pair row identities are the 20-byte Table identity encodings; group
-identities preserve the ordered nullable int64 keys as decimal strings.
+identities preserve ordered nullable keys: NULL or a tagged `{signed: decimal}`
+or `{utf8: text}` value. Text remains UTF-8, including empty strings and embedded
+NULs; it is never interpreted as an integer based on its content.
 
 One page contains one row or a terminal null row. Only the current ordinal and
 its immediate successor are admissible; a successor requires a previous row.

@@ -1,6 +1,6 @@
 # Maintained Table relations
 
-`RelationalMaintenance` maintains the selected int64 relational plan through
+`RelationalMaintenance` maintains the selected int64/UTF-8 relational plan through
 complete Table transaction history. It uses the same Fuze join, grouping and
 ordered aggregate semantics as finite execution. The
 [relational contract](../../../../contracts/RELATIONAL_V1.md#maintained-table-owner-operations)
@@ -75,7 +75,7 @@ relax authority or justify skipping source transactions.
 
 ## Read and resume
 
-`RelationalRevision.open` takes a public `ResourceReader`, frozen bundle, owner,
+`RelationalRevision.open` takes an allocator, public `ResourceReader`, frozen bundle, owner,
 resource, peer/correlation, optional exact revision, mode, request budget,
 cancellation flag, fresh disclosure subject and snapshot nonce. Obtain the subject
 with `ResultDisclosure.prepare(authorization_client, options.selection(bundle))`.
@@ -95,6 +95,10 @@ candidate until terminal null proves complete coverage. Only then does
 `checkpoint` return a resumable position. Save that position atomically with
 installing the new consumer relation. An incomplete prefix must not replace the
 last complete relation, even if the host disconnects after its final row.
+Returned events own their text bytes independently of later fetches. Release each
+event with `event.deinit()` before `reader.deinit()`, which releases the reader's
+bounded allocations. `close()` reports errors releasing the native snapshot;
+`deinit()` attempts that release and always frees local ownership.
 
 `openNext` validates the saved version, shared definition, query identity and
 bundle, then requests exactly the following revision. Prepare its fresh disclosure

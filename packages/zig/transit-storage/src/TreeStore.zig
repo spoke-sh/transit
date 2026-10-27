@@ -46,7 +46,7 @@ pub fn end(self: *Self) void {
     self.candidate = null;
 }
 
-fn key(address: [32]u8, output: *[96]u8) ![]const u8 {
+pub fn key(address: [32]u8, output: *[96]u8) ![]const u8 {
     if (std.mem.allEqual(u8, &address, 0)) return error.InvalidDataIndexReference;
     return std.fmt.bufPrint(output, "data-index/{x}.data", .{&address});
 }

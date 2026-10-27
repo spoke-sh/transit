@@ -10,7 +10,7 @@ const Turn = s.Turn;
 const Pub = s.Publication;
 const Ref = s.PublicationReference;
 const Pin = q.CapturedTablePin;
-pub const resident_base = 4 * @sizeOf(q.RelationalCaptured) + 3 * q.RelationalBundle.max_bytes + 2 * f.TableRow.max_bytes + 4 * f.TableSchema.max_bytes + f.RelationalIndex.resident_bytes + 4 * f.RelationalCheckpoint.max_bytes;
+pub const resident_base = 4 * @sizeOf(q.RelationalCaptured) + 3 * q.RelationalBundle.max_bytes + 2 * f.TableRow.max_bytes + 4 * f.TableSchema.max_bytes + f.RelationalIndex.resident_bytes + 4 * f.RelationalCheckpoint.fixed_bytes;
 pub fn policy(source: anytype, peer: u64) !?r.Policy {
     const value = (try source.read(r.key('p', peer, 0))) orelse return null;
     const result = try r.Policy.decode(value);
@@ -304,25 +304,29 @@ fn advanceInner(turn: *Turn, stored: r.Job, clients: []const q.catalog.DirectTab
     const bound = data.bound();
     const pages: q.RelationalState = .{ .publication = stored.publication(turn.view.resource) };
     const candidate = try allocator.create(Candidate);
-    candidate.* = try Candidate.init(pages, turn, stored.next_record, stored.state_bytes, bound, 8 * f.RelationalIndex.max_candidate_records);
-    const previous: ?f.RelationalCheckpoint = if (stored.checkpoint == 0) null else try pages.checkpoint(turn, stored.checkpoint, bound);
-    var groups: Groups = .{ .index = try f.RelationalIndex.init(bound, if (previous) |old| old.root else null), .candidate = candidate };
-    var engine = if (previous) |old| try Engine.restore(bound, data, &groups, old) else try Engine.init(bound, data, &groups);
+    candidate.* = try Candidate.init(allocator, pages, turn, stored.next_record, stored.state_bytes, bound, 8 * f.RelationalIndex.max_candidate_records);
+    defer candidate.deinit();
+    var previous: ?f.RelationalCheckpoint = if (stored.checkpoint == 0) null else try pages.checkpoint(allocator, turn, stored.checkpoint, bound);
+    defer if (previous) |*old| old.deinit();
+    var groups: Groups = .{ .index = try f.RelationalIndex.init(allocator, bound, if (previous) |old| old.root else null), .candidate = candidate };
+    var engine = if (previous) |old| try Engine.restore(allocator, bound, data, &groups, old) else try Engine.init(allocator, bound, data, &groups);
+    defer engine.deinit();
+    const checkpoint_bytes = try allocator.alloc(u8, try f.RelationalCheckpoint.bufferBytes(bound.plan));
+    defer allocator.free(checkpoint_bytes);
     if (engine.result_rows != stored.outputs) return error.InvalidRelationalRecord;
     var failure: ?r.Failure = null;
-    const event = engine.step() catch |err| blk: {
+    var event = engine.step() catch |err| blk: {
         if (turn.read_error != null) return err;
         failure = (try r.Failure.fromError(err)) orelse return err;
         // A failed operation cannot accept candidate groups. Its bounded control
         // checkpoint preserves the first observed semantic witness separately.
         groups.index.root = if (previous) |old| old.root else null;
-        candidate.count = 0;
-        candidate.bytes = 0;
+        candidate.discard();
         break :blk f.RelationalExecution.Event.progress;
     };
+    defer if (event == .row) event.row.deinit();
     const progress = try engine.checkpoint(groups.index.root);
-    var checkpoint_bytes: [f.RelationalCheckpoint.max_bytes]u8 = undefined;
-    const checkpoint_body = try progress.encode(bound, &checkpoint_bytes);
+    const checkpoint_body = try progress.encode(bound, checkpoint_bytes);
     const checkpoint_id = try candidate.checkpointId();
     const checkpoint_ref: Ref = .{ .resource = turn.view.resource, .domain = .query_result, .namespace = stored.namespace(), .record = checkpoint_id, .spec = try Pub.Digest.of(q.RelationalState.checkpoint_format, checkpoint_body) };
     var proposed = stored;
@@ -332,11 +336,11 @@ fn advanceInner(turn: *Turn, stored: r.Job, clients: []const q.catalog.DirectTab
         try std.math.add(u64, stored.state_bytes, checkpoint_body.len)
     else
         try candidate.retainedBytes(checkpoint_body.len);
-    var output_bytes: [f.RelationalOutput.max_bytes]u8 = undefined;
-    var output_body: ?[]const u8 = null;
+    var output_body: ?[]u8 = null;
+    defer if (output_body) |bytes| allocator.free(bytes);
     var output_record: ?r.Output = null;
     if (event == .row) {
-        output_body = try (f.RelationalOutput{ .binding = try bound.fingerprint(), .ordinal = stored.outputs, .row = event.row }).encode(bound, &output_bytes);
+        output_body = try (f.RelationalOutput{ .binding = try bound.fingerprint(), .ordinal = stored.outputs, .row = event.row }).encodeAlloc(allocator, bound);
         output_record = .{ .ordinal = stored.outputs, .reference = .{ .resource = turn.view.resource, .domain = .query_result, .namespace = stored.namespace(), .record = proposed.next_record, .spec = try Pub.Digest.of(r.output_format, output_body.?) } };
         proposed.next_record = try std.math.add(u64, proposed.next_record, 1);
         proposed.state_bytes = try std.math.add(u64, proposed.state_bytes, output_body.?.len);

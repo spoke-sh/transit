@@ -25,10 +25,27 @@ fn bootstrap() !doc.Change {
         .{ .assign = .{ .field = try doc.Model.Name.init("body"), .value = .text } },
         .{ .insert = .{ .object = .{ .counter = 1, .replica = 1 }, .value = .{ .character = 'a' } } },
         .{ .assign = .{ .field = try doc.Model.Name.init("value"), .value = .null_value } },
+        .{ .assign = .{ .field = try doc.Model.Name.init("conflict"), .value = .{ .signed = 7 } } },
+        .{ .assign = .{ .field = try doc.Model.Name.init("gone"), .value = .{ .boolean = true } } },
     });
 }
-fn fresh() doc.Change {
-    return change(2, 2, 0, 4, &.{.{ .insert = .{ .object = .{ .counter = 1, .replica = 1 }, .after = .{ .counter = 2, .replica = 1 }, .value = .{ .character = 0x1f642 } } }});
+fn fresh() !doc.Change {
+    return change(2, 2, 0, 6, &.{
+        .{ .insert = .{ .object = .{ .counter = 1, .replica = 1 }, .after = .{ .counter = 2, .replica = 1 }, .value = .{ .character = 0x1f642 } } },
+        // The second replica has not observed the earlier field assignment.
+        .{ .assign = .{ .field = try doc.Model.Name.init("conflict"), .value = .{ .signed = 9 } } },
+        .{ .remove = .{ .field = try doc.Model.Name.init("gone"), .observed = try doc.Model.Observed.init(&.{.{ .counter = 5, .replica = 1 }}) } },
+        // Keep the deleted anchor's child visible after disk recovery.
+        .{ .delete_element = .{ .object = .{ .counter = 1, .replica = 1 }, .element = .{ .counter = 2, .replica = 1 } } },
+    });
+}
+fn checkConflict(fields: doc.Document.Register) !void {
+    try t.expectEqual(.conflict, fields.status());
+    try t.expectEqual(@as(u8, 2), fields.len);
+    for (fields.assignments[0..2], [_]u64{ 4, 7 }, [_]u64{ 1, 2 }, [_]i64{ 7, 9 }) |assignment, counter, replica, expected| {
+        try t.expectEqualDeep(doc.Model.Dot{ .counter = counter, .replica = replica }, assignment.id);
+        try t.expectEqual(expected, assignment.value.signed);
+    }
 }
 const Handler = struct {
     done: bool = false,
@@ -79,19 +96,21 @@ const Handler = struct {
                 try t.expectError(error.DocumentHistoryGap, s.open(turn, 1));
                 try t.expectError(error.DocumentResyncRequired, s.prepare(turn, 3, try bootstrap(), 256));
                 const sync = try s.resynchronize(turn, 1);
-                try t.expectEqual(@as(u64, 3), sync.previous_counter);
+                try t.expectEqual(@as(u64, 5), sync.previous_counter);
                 const sequence = try s.readSequence(turn, .{ .revision = 2, .object = .{ .counter = 1, .replica = 1 } });
                 try t.expectEqual(@as(u8, 1), sequence.len);
             },
             9 => {
-                _ = try s.prepare(turn, 3, fresh(), 256);
+                _ = try s.prepare(turn, 3, try fresh(), 256);
             },
-            10 => self.done = try s.upload(turn, 3, fresh()),
+            10 => self.done = try s.upload(turn, 3, try fresh()),
             11 => self.done = (try s.advance(turn, 3)) != .progress,
             12 => {
                 const sequence = try s.readSequence(turn, .{ .revision = 3, .object = .{ .counter = 1, .replica = 1 } });
-                try t.expectEqual(@as(u8, 2), sequence.len);
-                try t.expectEqual(@as(u32, 0x1f642), sequence.items[1].values.assignments[0].value.character);
+                try t.expectEqual(@as(u8, 1), sequence.len);
+                try t.expectEqual(@as(u32, 0x1f642), sequence.items[0].values.assignments[0].value.character);
+                try checkConflict(try s.readPath(turn, 3, &.{try doc.Model.Name.init("conflict")}));
+                try t.expectEqual(.missing, (try s.readPath(turn, 3, &.{try doc.Model.Name.init("gone")})).status());
             },
             13 => try s.retire(turn),
             14 => self.done = try s.collectRetired(turn, 1),
@@ -241,9 +260,23 @@ pub fn main(init: std.process.Init) !void {
         const path = [_]doc.Model.Name{try doc.Model.Name.init("value")};
         try t.expectEqual(.null_value, (try reader_client.readPath(description.reference, &path)).value.status());
         const read_cursor: doc.Service.PageCursor = .{ .revision = 3, .object = .{ .counter = 1, .replica = 1 } };
-        try t.expectEqual(@as(u8, 2), (try reader_client.readSequence(description.reference, read_cursor)).value.len);
+        const recovered_sequence = (try reader_client.readSequence(description.reference, read_cursor)).value;
+        try t.expectEqual(@as(u8, 1), recovered_sequence.len);
+        try t.expectEqual(@as(u32, 0x1f642), recovered_sequence.items[0].values.assignments[0].value.character);
+        try checkConflict((try reader_client.readPath(description.reference, &.{try doc.Model.Name.init("conflict")})).value);
+        try t.expectEqual(.missing, (try reader_client.readPath(description.reference, &.{try doc.Model.Name.init("gone")})).value.status());
+        var previous = description.reference;
+        previous.revision = 2;
+        const old_value = (try reader_client.readPath(previous, &.{try doc.Model.Name.init("conflict")})).value;
+        try t.expectEqual(@as(u8, 1), old_value.len);
+        try t.expectEqual(@as(i64, 7), old_value.assignments[0].value.signed);
+        const old_field = (try reader_client.readPath(previous, &.{try doc.Model.Name.init("gone")})).value;
+        try t.expect(old_field.assignments[0].value.boolean);
+        const old_sequence = (try reader_client.readSequence(previous, .{ .revision = 2, .object = .{ .counter = 1, .replica = 1 } })).value;
+        try t.expectEqual(@as(u8, 1), old_sequence.len);
+        try t.expectEqual(@as(u32, 'a'), old_sequence.items[0].values.assignments[0].value.character);
         _ = try reader_client.acceptedChange(description.reference);
-        try t.expectEqual(@as(u64, 4), (try reader_client.resynchronize(identity, 2)).previous_counter);
+        try t.expectEqual(@as(u64, 9), (try reader_client.resynchronize(identity, 2)).previous_counter);
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Principal + 1, .permissions = 0 } });
         try t.expectError(error.AccessDenied, reader_client.readSequence(description.reference, read_cursor));
         try send(init.io, &admin, &server, &handler, 12, false);
@@ -260,7 +293,12 @@ pub fn main(init: std.process.Init) !void {
         const snapshot = try s.open(&server.ready.?, 3);
         var reader: station.ImmutableIndex.Reader(*Turn) = .{ .publication = s.publication(), .source = &server.ready.? };
         var cursor: doc.Document.SequenceCursor = .{};
-        try t.expect((try snapshot.sequenceStep(&reader, .{ .counter = 1, .replica = 1 }, &cursor)) == .item);
+        try t.expectEqual(.more, try snapshot.sequenceStep(&reader, .{ .counter = 1, .replica = 1 }, &cursor));
+        try t.expectEqualDeep(doc.Model.Dot{ .counter = 2, .replica = 1 }, cursor.current);
+        const visible = try snapshot.sequenceStep(&reader, .{ .counter = 1, .replica = 1 }, &cursor);
+        try t.expect(visible == .item);
+        try t.expectEqualDeep(doc.Model.Dot{ .counter = 6, .replica = 2 }, visible.item.id);
+        try t.expectEqual(@as(u32, 0x1f642), visible.item.values.assignments[0].value.character);
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Principal, .permissions = 0 } });
         try t.expectError(error.AccessDenied, s.readSequence(&server.ready.?, .{ .revision = 3, .object = .{ .counter = 1, .replica = 1 }, .traversal = cursor }));
         try t.expectError(error.AccessDenied, server.finish(null));

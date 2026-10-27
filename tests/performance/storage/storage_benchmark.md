@@ -28,7 +28,10 @@ Native fixtures contain 16 and 64 accepted turns. Each turn commits one KV value
 one immutable 1,024-byte block, input progress and one recorded output to a second
 process. Reopen checks consumed inputs/output counts and reads every KV value and
 block through signed queries with block verification. Both arms use one resident
-page. The fixture explicitly permits history trimming; the checkpoint arm
+page and a deterministic fixture authority clock (`unix_ms = 100`). Measured
+durations use the monotonic host clock; these fixtures do not qualify installed
+wall-clock deadline behavior. The fixture explicitly permits history trimming;
+the checkpoint arm
 accepts a native checkpoint and advances the physical log's authorized read
 floor. Whole segments below that floor can be removed; a segment straddling the
 floor retains its bytes and startup validation. Its current
@@ -53,7 +56,14 @@ or native trim savings remain visible in that inventory.
 
 Owner counters distinguish WAL appends/bytes/syncs/startup frames, object
 puts/ranges/payload bytes, immutable index misses and Table segment ranges/bytes,
-decoded groups and logical replay frames. Object counters describe the public
+decoded groups and logical replay frames. The `wal_*` fields count the Table or
+native authority log. Separate `inventory_wal_*` fields count the native backend's
+allocation queues, including their startup validation and syncs. Successful native
+object creation must report its preceding durable inventory writes; readback
+must append to neither log. The standalone Table fixture composes its WAL and
+object store directly, so these inventory fields are zero. It does not measure
+the installed direct-data adapter's allocation inventory or native authority
+checks. Object counters describe the public
 storage interface: they exclude descriptor/checksum reads, directory enumeration
 and filesystem metadata. Kernel child block-I/O counters have their separate
 whole-process scope. A lower Table replay count does not bypass WAL startup
@@ -151,8 +161,12 @@ larger than host RAM. Shared-host contention remains visible in recorded load.
 
 ## Growth under a process memory ceiling
 
+The [recorded full matrices](../../../docs/history/qualification/storage.md#local-bounded-growth-requalification--2026-10-27)
+use separate owner runs and the explicit native time guard below.
+
 ```sh
-nix develop --command just test::storage-growth --output .cache/storage-growth.json
+nix develop --command just test::storage-growth --owner table --output .cache/storage-growth-table.json
+nix develop --command just test::storage-growth --owner native --timeout 7200 --output .cache/storage-growth-native.json
 ```
 
 The growth task builds a separate ReleaseSafe executable with 16 KiB payloads.
@@ -172,9 +186,23 @@ readback. File hashes and physical allocation must remain unchanged afterwards;
 verification cannot append or publish objects. The report records complete phase
 allocation accounting, executable peak virtual memory/RSS, retained logical and
 allocated disk bytes, cache evidence and source/build identities. A complete
-normal run requires the larger retained fixture of **each owner** to exceed the
-process address-space ceiling. No latency percentile is derived from these
-single fixture observations.
+normal run requires the larger retained fixture of **each selected owner** to
+exceed the process address-space ceiling. Both owners run by default;
+`--owner native` or `--owner table` selects one complete growth matrix for
+independent diagnosis. A single-owner report does not qualify the other owner.
+No latency percentile is derived from these single fixture observations.
+Reports retain the requested fixture matrix and per-child time guard, including
+incomplete runs. The default guard is 1,800 seconds per creation/readback process;
+`--timeout` selects a different finite execution profile. A completed run with a
+longer guard does not turn an earlier timeout into a pass or establish that the
+default execution budget was met. Value checks, fixture sizes and memory limits
+remain independently required.
+
+A failed growth run retains its working directory and frozen executable under
+`/var/tmp`; `retained_failure_directory` in the report identifies it. Inspect
+that exact fixture when diagnosing partial acceptance or recovery. Successful
+runs remove their private directory. Remove a failed fixture only after retaining
+the evidence needed for its diagnosis; a later passing run does not clean it up.
 
 `--table-rows 32 --native-rows 2 --smoke` validates the harness without asserting
 that the data exceed the ceiling. The report labels this profile explicitly.

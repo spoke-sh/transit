@@ -66,8 +66,9 @@ terminal output. The reference contains its mandatory shared definition, query
 ID, plan and basis. Saving it does not make an interactive cursor durable.
 Replacing the host invalidates that cursor instead of resuming it silently.
 
-Rows own tuples of `int | None`. Signed values and grouping keys are int64;
-counts preserve uint64. Pair identities own their 20-byte values. Response
+Rows own tuples of `int | str | None`. Signed values and integer grouping keys
+are int64; counts preserve uint64. Text cells and keys preserve Unicode strings,
+including empty strings and embedded NULs. Pair identities own their 20-byte values. Response
 validation checks original source bindings, object identities, schema and cut
 positions. Local query closure releases local execution and spill resources,
 including after denial. It leaves explicit durable snapshots for their owner to

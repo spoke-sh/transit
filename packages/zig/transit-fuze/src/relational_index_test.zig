@@ -15,6 +15,8 @@ pub const Store = struct {
     attempts: usize = 0,
     fail: ?usize = null,
     missing: ?u64 = null,
+    reads: usize = 0,
+    fail_read: ?usize = null,
     pub fn save(self: *Store, bytes: []const u8) !u64 {
         if (self.fail == self.attempts) return error.StoreUnavailable;
         self.attempts += 1;
@@ -24,8 +26,11 @@ pub const Store = struct {
         return self.records.items.len;
     }
     pub fn read(self: *Store, id: u64, output: []u8) ![]const u8 {
+        if (self.fail_read == self.reads) return error.StoreUnavailable;
+        self.reads += 1;
         if (self.missing == id or id == 0 or id > self.records.items.len) return error.MissingRecord;
         const bytes = self.records.items[@intCast(id - 1)];
+        if (output.len < bytes.len) return error.IncompleteRelationalIndex;
         @memcpy(output[0..bytes.len], bytes);
         return output[0..bytes.len];
     }
@@ -36,7 +41,7 @@ pub const Store = struct {
 };
 fn key(value: ?i64) e.Key {
     var result: e.Key = .{ .len = 1 };
-    result.values[0] = value;
+    result.values[0] = if (value) |integer| .{ .integer = integer } else null;
     return result;
 }
 fn group(value: ?i64, count: u64) e.Group {
@@ -50,7 +55,7 @@ test "immutable AVL preserves ordered groups and old roots across rotations and 
     for (0..3) |order| {
         var store: Store = .{};
         defer store.deinit();
-        var tree = try Index.init(bound, null);
+        var tree = try Index.init(t.allocator, bound, null);
         var old: ?Index = null;
         for (0..901) |i| {
             const value: i64 = @intCast(switch (order) {
@@ -71,7 +76,7 @@ test "immutable AVL preserves ordered groups and old roots across rotations and 
         for (0..902) |i| {
             const actual = (try tree.next(&store, after)).?;
             const value: ?i64 = if (i == 0) null else @intCast(i - 1);
-            try t.expectEqual(value, actual.key.values[0]);
+            try t.expectEqual(value, if (actual.key.values[0]) |present| @as(?i64, present.integer) else null);
             try t.expectEqual(@as(u64, if (i == 0) 9 else if (i == 18) 999 else i), actual.states[0].rows);
             try t.expect(std.meta.eql(actual, (try tree.get(&store, key(value))).?));
             after = actual.key;
@@ -95,7 +100,7 @@ test "every failed candidate write leaves the accepted root readable and retry p
     const bound: r.Bound = .{ .plan = plan, .cuts = &cuts };
     var store: Store = .{};
     defer store.deinit();
-    var tree = try Index.init(bound, null);
+    var tree = try Index.init(t.allocator, bound, null);
     for (0..200) |i| try tree.put(&store, group(@intCast(i * 2), i));
     const old = tree;
     var fail: usize = 0;
@@ -120,7 +125,7 @@ test "immutable groups reject missing corrupt foreign bound and malformed roots"
     var cuts = try cut();
     var store: Store = .{};
     defer store.deinit();
-    var tree = try Index.init(.{ .plan = plan, .cuts = &cuts }, null);
+    var tree = try Index.init(t.allocator, .{ .plan = plan, .cuts = &cuts }, null);
     try tree.put(&store, group(7, 1));
     store.missing = tree.root.?.id;
     try t.expectError(error.MissingRecord, tree.get(&store, key(7)));
@@ -129,7 +134,7 @@ test "immutable groups reject missing corrupt foreign bound and malformed roots"
     try t.expectError(error.InvalidRelationalIndex, tree.get(&store, key(7)));
     store.records.items[0][0] ^= 1;
     cuts[0].revision += 1;
-    const foreign = try Index.init(.{ .plan = plan, .cuts = &cuts }, tree.root);
+    const foreign = try Index.init(t.allocator, .{ .plan = plan, .cuts = &cuts }, tree.root);
     try t.expectError(error.RelationalSourceChanged, foreign.get(&store, key(7)));
     var invalid = tree;
     invalid.root.?.entries += 1;
@@ -141,4 +146,36 @@ test "immutable groups reject missing corrupt foreign bound and malformed roots"
     bad.states[0].values = 1;
     try t.expectError(error.InvalidRelationalGroup, tree.put(&store, bad));
     try t.expectError(error.InvalidRelationalGroup, tree.get(&store, .{}));
+}
+
+test "immutable group parent reload failures leave the accepted tree unchanged" {
+    const cuts = try cut();
+    const bound: r.Bound = .{ .plan = plan, .cuts = &cuts };
+    var store: Store = .{};
+    defer store.deinit();
+    var tree = try Index.init(t.allocator, bound, null);
+    for (0..200) |i| try tree.put(&store, group(@intCast(i * 2), i));
+    const original = tree;
+    var failed_after_staging: usize = 0;
+    var failure: usize = 0;
+    while (true) : (failure += 1) {
+        tree = original;
+        const previous_writes = store.attempts;
+        store.fail_read = store.reads + failure;
+        tree.put(&store, group(175, 55)) catch |err| {
+            try t.expectEqual(error.StoreUnavailable, err);
+            store.fail_read = null;
+            if (store.attempts > previous_writes) failed_after_staging += 1;
+            try t.expectEqualDeep(original.root, tree.root);
+            try t.expect(try tree.get(&store, key(175)) == null);
+            try t.expectEqual(@as(u64, 88), (try tree.get(&store, key(176))).?.states[0].rows);
+            continue;
+        };
+        store.fail_read = null;
+        break;
+    }
+    try t.expect(failed_after_staging > 0);
+    try t.expect(failure <= 5 * Index.max_height);
+    try t.expectEqual(@as(u64, 55), (try tree.get(&store, key(175))).?.states[0].rows);
+    try t.expect(try original.get(&store, key(175)) == null);
 }

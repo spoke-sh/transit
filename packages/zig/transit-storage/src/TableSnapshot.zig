@@ -26,7 +26,7 @@ pub const Owned = struct {
 };
 const Metadata = struct { owner: d.Operation, retention: Retention, root: r.Root };
 
-fn key(content: d.Content, buffer: *[96]u8) ![]const u8 {
+pub fn key(content: d.Content, buffer: *[96]u8) ![]const u8 {
     try content.validate();
     return std.fmt.bufPrint(buffer, "table-snapshots/{x}.tman", .{&content.sha256});
 }

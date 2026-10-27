@@ -23,6 +23,49 @@ fn change(engine: *Engine, action: a.Action) !?u64 {
     const id = try command(engine, .{ .authorization = .{ .begin = .{ .expected_revision = engine.head.authorization.revision, .action = action } } });
     return finish(engine, id);
 }
+
+fn collectDirect(engine: *Engine, catalog: *D) !void {
+    const Collection = backend.DataCollection.Collector(c.DirectStorageGraph);
+    const Clock = struct {
+        now: u64,
+        fn read(raw: *anyopaque) !@import("transit_core").Time.Sample {
+            return .{ .unix_ms = @as(*@This(), @ptrCast(@alignCast(raw))).now };
+        }
+    };
+    var clock: Clock = .{ .now = engine.head.time_floor_ms + 100 };
+    const previous_clock = engine.clock;
+    defer engine.clock = previous_clock;
+    engine.clock = .{ .context = &clock, .read = Clock.read };
+    const owner = engine.journal.backend;
+    // An unreferenced managed object and an independently retained namespace
+    // distinguish real collection from a pass that merely preserves everything.
+    const orphan = "table-segments/unpublished.tseg";
+    try owner.put(orphan, "private orphan", false);
+    try owner.put("direct-intents/saved.data", "independently retained saved bytes", false);
+    const fence = try command(engine, .{ .storage_fence = {} });
+    var collection: Collection = .{ .backend = owner };
+    try collection.start(engine, fence);
+    var steps: usize = 0;
+    while ((try collection.current()).?.phase != .wait) : (steps += 1) {
+        if (steps == 100_000) return error.FixtureBudget;
+        try t.expect(try collection.step(engine, .{ .unix_ms = clock.now }));
+    }
+    clock.now = (try collection.current()).?.grace_until_ms + 1;
+    _ = try command(engine, .{ .storage_fence = {} });
+    while ((try collection.current()).?.phase != .complete) : (steps += 1) {
+        if (steps == 200_000) return error.FixtureBudget;
+        try t.expect(try collection.step(engine, .{ .unix_ms = clock.now }));
+    }
+    const completed = (try collection.current()).?;
+    try t.expect(!completed.aborted and completed.reclaimed_objects != 0);
+    try t.expect(try owner.objects.objectStore().head(orphan) == null);
+    var bytes: [64]u8 = undefined;
+    try t.expectEqualStrings("independently retained saved bytes", try owner.read("direct-intents/saved.data", &bytes));
+    // Catalog recovery must traverse its old control roots after physical
+    // reclamation; a latest-root-only collector fails this check.
+    try catalog.recover();
+    std.debug.print("Direct graph collection: {d} steps, {d} confirmed allocations reclaimed.\n", .{ steps, completed.reclaimed_objects });
+}
 fn finish(engine: *Engine, id: u64) !?u64 {
     while (true) {
         const observed = try outcome(engine, id);
@@ -839,7 +882,7 @@ test "local catalog checks real native registrations, current ownership and exac
     var pages = try backend.PageStore.init(&owner, 1);
     defer pages.deinit();
     var journal: backend.Store = .{ .backend = &owner };
-    var engine = try Engine.bootstrap(&journal, &pages, .{ .realm = 42, .root_key = (try key(17)).public_key.toBytes() });
+    var engine = try Engine.bootstrap(&journal, &pages, .{ .realm = 42, .root_key = (try key(17)).public_key.toBytes(), .max_clock_error_ms = 5 });
     const pid = try command(&engine, .{ .spawn = .{} });
     const resource = try command(&engine, .{ .create_resource = .{ .writer = pid, .owned = false } });
     const role = (try change(&engine, .{ .create_role = .{ .name = try p.Value.init("catalog-owner"), .login = true } })).?;
@@ -997,6 +1040,12 @@ test "local catalog checks real native registrations, current ownership and exac
     var resolved = (try catalog.resolve(t.allocator, 1, automatic.intent.name, policy.policy())).?;
     defer resolved.deinit();
     try t.expectEqual(@as(u64, 8), resolved.table.root.interpretation.object.object);
+    try collectDirect(&engine, &catalog);
+    try t.expect((try catalog.status(request.binding, policy.policy())) == .committed);
+    try t.expect((try catalog.rowStatus(succeeding.binding, policy.policy())) == .committed);
+    var collected_view = (try catalog.resolve(t.allocator, 1, intent.name, policy.policy())).?;
+    defer collected_view.deinit();
+    try t.expectEqual(@as(u64, 1), collected_view.table.root.live_rows);
     var interrupted = automatic;
     interrupted.intent.name = try c.TableAuthority.Name.init("interrupted");
     interrupted.intent.action.create.schema.object = 9;

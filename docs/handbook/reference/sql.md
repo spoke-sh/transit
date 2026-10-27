@@ -42,7 +42,7 @@ requires a catalog name; it is not evidence that a named catalog is unsupported.
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Measure declarative components and inspect TPC coverage | [Benchmarks](benchmarks.md)                                                                                                                                                                                                                                                              |
 | Compare implemented and planned grammar                 | [Grammar surface and semantic targets](sql/grammar-surface.md)                                                                                                                                                                                                                           |
-| Join Tables or group int64 values | [Table joins and grouped aggregation](sql/relational.md) |
+| Join Tables or group integer/text values | [Table joins and grouped aggregation](sql/relational.md) |
 | Read rows, filter or aggregate                          | [SELECT](sql/select.md)                                                                                                                                                                                                                                                                  |
 | Understand names and literal syntax                     | [Syntax](sql/syntax.md)                                                                                                                                                                                                                                                                  |
 | Check scalar types, nulls and missing values            | [Data types and cell states](sql/types.md)                                                                                                                                                                                                                                               |
@@ -250,7 +250,7 @@ trailing tokens fail. Durable requests use an explicitly budgeted finite plan
 upload.
 
 The separately configured [relational Table profile](sql/relational.md) supports
-one inner/left int64 equijoin and grouped COUNT/SUM. Sorting, arithmetic, general
+one inner/left int64 or UTF-8 equijoin and grouped COUNT/SUM. Sorting, arithmetic, general
 casts and continuous queries remain unsupported.
 Public query transports reject writes. Applications can explicitly integrate
 the [bounded Table mutation helper](sql/insert.md) in their fenced writer.

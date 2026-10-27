@@ -33,7 +33,7 @@ defines physical layouts, mandatory schema evidence, five states, ownership and
 the independent eight-row/4 MiB workspace/64 KiB segment limits. This capability
 includes local `LogicalInspect` decoding of one canonical complete segment against
 an exact supplied schema. Decoded rows and descriptors own their bytes. General
-external Arrow import, neutral ABI import, C data export and richer Flight
+external Arrow import, neutral ABI import, full logical C data export and richer Flight
 output admission have separate contracts and are not enabled by this decoder.
 Native durable query jobs use these logical segments under their own source and
 working-set bounds. Fixed encoding-workspace exhaustion is distinct from a host
@@ -52,9 +52,14 @@ int64, uint64, float64, Boolean, UTF-8, binary and JSON columns on little-endian
 hosts. The local `arrowValues` view borrows both the group and a caller-owned
 buffer directory. Non-value cells appear null in that value child; the enclosing
 column's state tags and error/conflict details preserve their full meaning.
-Retaining a borrowed buffer does not extend the group's lifetime. Recursive and
-other encoded columns use bounded logical decoding. This view supplies neither
-a C data release callback nor an external import boundary. See the
+Retaining a borrowed buffer does not extend the group's lifetime. A
+`TSegReader.SharedGroup` can instead own the group and produce retained Arrow
+value arrays. Their slices and C exports pin the same payloads until the final
+release callback. Hosts keep the backing allocators alive and charge retained
+groups to their memory budgets. These arrays describe the nullable value child;
+full Transit cells still require the state and error/conflict sidecars. Recursive
+and other encoded columns use bounded logical decoding. This interface does not
+admit arbitrary external Arrow input. See the
 [segment reader](../../../packages/zig/transit-fuze/README.md) for ownership and
 the [stored layout](../../../contracts/TRANSIT_STORAGE_V1.md#qualified-plain-value-buffers)
 for offsets, validity and canonical padding.

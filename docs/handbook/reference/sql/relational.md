@@ -2,7 +2,10 @@
 
 The relational Table profile executes one inner or left equijoin over two
 explicit Tables, or grouped aggregation over one Table. Referenced columns have
-the exact int64 type (`BIGINT`); other columns can remain in the stored schema.
+the exact int64 (`BIGINT`) or UTF-8 (`TEXT`) type; SUM requires int64. Other
+columns can remain in the stored schema. Join keys require matching types and
+collations. Text comparisons, grouping and routing use the declared UTF8_BINARY,
+ASCII_CI or EBCDIC_CP037 collation with NO PAD semantics.
 SQL, typed plans and the captured query owner use the same Fuze operators.
 
 ```sql
@@ -30,7 +33,7 @@ Tables retain bag multiplicity. Every equal-key pair contributes, including
 duplicate rows. NULL keys do not match. A left join emits one null-extended row
 only after complete right-side coverage proves that no right row matches.
 `WHERE` filters the joined rows before grouping. Boolean predicates use the
-existing three-valued, eager evaluation rules; this profile accepts int64
+existing three-valued, eager evaluation rules; this profile accepts int64 and text
 comparisons and `IS [NOT] NULL`.
 
 `COUNT(*)` counts contributors, `COUNT(column)` counts non-null values and
@@ -39,7 +42,8 @@ stable left/right row-identity order and preserves the first overflowing
 contributor, even if later values would reduce the mathematical total. It does
 not widen to PostgreSQL's numeric result. Ungrouped empty input returns zero
 counts and null sums; grouped empty input returns no rows. Group output is
-lexicographic with NULL first. This canonical order does not enable `ORDER BY`.
+lexicographic under the declared collations with NULL first. A text group retains
+the first contributor’s original spelling, including under ASCII_CI. This canonical order does not enable `ORDER BY`.
 
 Direct Tables have separate partition cuts even within one catalog resource.
 Repeated aliases of the same Table share one retained pin. This independent

@@ -47,11 +47,15 @@ test("relational pages preserve exact values and own their caller-selected ordin
       reference,
       ordinal: "18446744073709551615",
       row: {
-        identity: { group: [null, "-9223372036854775808"] },
+        identity: {
+          group: [null, { signed: "-9223372036854775808" }, { utf8: "A\u0000é " }, { utf8: "" }],
+        },
         cells: [
           { value: { atom: { signed: "-9223372036854775808" } } },
           { value: { atom: { unsigned: "18446744073709551615" } } },
           { null: {} },
+          { value: { atom: { utf8: "A\u0000é " } } },
+          { value: { atom: { utf8: "" } } },
         ],
       },
       complete_coverage: false,
@@ -60,8 +64,11 @@ test("relational pages preserve exact values and own their caller-selected ordin
   await withHost(response, async (client, requests) => {
     const ref = r.Reference.restore(JSON.stringify(reference));
     const result = await client.page(ref, (1n << 64n) - 1n);
-    assert.deepEqual(result.row?.cells, [-(1n << 63n), (1n << 64n) - 1n, null]);
-    assert.deepEqual(result.row?.identity, { kind: "group", keys: [null, -(1n << 63n)] });
+    assert.deepEqual(result.row?.cells, [-(1n << 63n), (1n << 64n) - 1n, null, "A\u0000é ", ""]);
+    assert.deepEqual(result.row?.identity, {
+      kind: "group",
+      keys: [null, -(1n << 63n), "A\u0000é ", ""],
+    });
     assert.equal(result.completeCoverage, false);
     assert(Object.isFrozen(result.row?.cells));
     const sent = (await requests()).find((v: any) => v.unified_query?.relational?.page) as any;

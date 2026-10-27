@@ -1,10 +1,10 @@
 # Captured relational jobs
 
-`RelationalCapture` is the Zig Station owner for durable int64 Table joins,
+`RelationalCapture` is the Zig Station owner for durable int64 and UTF-8 Table joins,
 grouping, projection, COUNT and ordered checked SUM. Its
 [contract](../../../../contracts/RELATIONAL_V1.md) defines the frozen request,
 source vector, checkpoints, output records and manifest. The interactive
-`RelationalQuery` uses the same Fuze semantics with a different lifetime.
+`DirectRelationalQuery` uses the same Fuze semantics with a different lifetime.
 
 ## Provisioning and admission
 
@@ -59,9 +59,11 @@ every input would prevent closure after a foreign grant is revoked.
 `start` and `advance` require `workspace.len + RelationalCapture.resident_base`
 to fit the declared resident budget. The workspace is a fixed allocator;
 candidate nodes, schema decoding and publication buffers have bounded resident
-storage. Spill accounting includes immutable historical and private candidate
+storage. Candidate records allocate their actual encoded lengths, with a fixed
+directory bounded by tree height. Discarding an unsuccessful candidate releases
+its allocations while preserving charged work. Spill accounting includes immutable historical and private candidate
 records, not just the latest root. A failed semantic step can use one additional
-checkpoint of at most 8192 bytes to preserve its witness after quota exhaustion.
+checkpoint bounded by `RelationalCheckpoint.max_bytes` to preserve its witness after quota exhaustion.
 Native storage/transport failures remain attempts until an outcome is committed.
 
 ## Reading and closure
@@ -71,7 +73,10 @@ with the caller's original frozen bundle, owner/resource/job identities and
 native request limit. Keep the bundle alive for the reader's lifetime. `schema`
 and `next` check current coordinator policy, job state, native grants and every
 source catalog policy. They do not rebind historical schemas through live names.
-Rows are owned scalar values; counts retain their uint64 representation.
+Rows own their integer/text/null values; counts retain their uint64 representation.
+Pass an allocator to `RelationalResult.open`, release each returned row with
+`deinit`, then release the reader with `deinit`. Both buffered rows and decode
+workspace count against the plan resident budget.
 
 Only the final null from `next` establishes completeness. It verifies ordinal
 coverage, canonical ordering, output digest chain, encoded byte counts and

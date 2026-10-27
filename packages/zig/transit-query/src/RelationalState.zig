@@ -11,7 +11,7 @@ const Turn = q.station.Turn;
 const Self = @This();
 pub const node_format: u32 = 0x314e5246;
 pub const checkpoint_format: u32 = 0x31435246;
-pub const max_record_bytes = @max(Index.max_record_bytes, f.RelationalCheckpoint.max_bytes);
+pub const max_record_bytes = @max(f.RelationalDelta.max_bytes, @max(Index.max_record_bytes, f.RelationalCheckpoint.max_bytes));
 publication: Pub,
 
 pub fn create(turn: *Turn, namespace: u64) !Self {
@@ -39,38 +39,65 @@ pub fn read(self: Self, source: anytype, id: u64, format: u32, output: []u8) ![]
     if (at != length) return error.InvalidRelationalState;
     return output[0..at];
 }
-pub fn stageCheckpoint(self: Self, turn: *Turn, id: u64, bound: r.Bound, saved: f.RelationalCheckpoint) !bool {
+pub fn stageCheckpoint(self: Self, allocator: std.mem.Allocator, turn: *Turn, id: u64, bound: r.Bound, saved: f.RelationalCheckpoint) !bool {
     try self.check();
-    var bytes: [f.RelationalCheckpoint.max_bytes]u8 = undefined;
-    const body = try saved.encode(bound, &bytes);
+    const body = try saved.encodeAlloc(allocator, bound);
+    defer allocator.free(body);
     return self.publication.stage(turn, id, try Pub.Digest.of(checkpoint_format, body), body);
 }
-pub fn checkpoint(self: Self, source: anytype, id: u64, bound: r.Bound) !f.RelationalCheckpoint {
-    var bytes: [f.RelationalCheckpoint.max_bytes]u8 = undefined;
-    return f.RelationalCheckpoint.decode(bound, try self.read(source, id, checkpoint_format, &bytes));
+pub fn readAlloc(self: Self, allocator: std.mem.Allocator, source: anytype, id: u64, format: u32) ![]u8 {
+    try self.check();
+    if (id == 0 or source.view.resource != self.publication.resource) return error.InvalidRelationalState;
+    const cursor = try self.publication.open(source, id);
+    if (cursor.spec.format != format or cursor.spec.length == 0 or cursor.spec.length > max_record_bytes) return error.InvalidRelationalState;
+    const bytes = try allocator.alloc(u8, cursor.spec.length);
+    errdefer allocator.free(bytes);
+    if ((try self.read(source, id, format, bytes)).len != bytes.len) return error.InvalidRelationalState;
+    return bytes;
+}
+pub fn checkpoint(self: Self, allocator: std.mem.Allocator, source: anytype, id: u64, bound: r.Bound) !f.RelationalCheckpoint {
+    const bytes = try self.readAlloc(allocator, source, id, checkpoint_format);
+    defer allocator.free(bytes);
+    return f.RelationalCheckpoint.decode(allocator, bound, bytes);
 }
 pub fn Candidate(comptime Source: type) type {
     return struct {
         const C = @This();
-        const Record = struct { len: u16, bytes: [Index.max_record_bytes]u8 };
+        allocator: std.mem.Allocator,
         pages: Self,
         source: Source,
         first: u64,
         previous_bytes: u64,
         quota: u64,
+        resident_limit: u64,
         work_limit: u64,
         work: u64 = 0,
         count: u16 = 0,
         bytes: u64 = 0,
-        records: [Index.max_candidate_records]Record = undefined,
+        records: [Index.max_candidate_records][]u8 = undefined,
         pub const resident_bytes = @sizeOf(C) + Index.resident_bytes;
-        pub fn init(pages: Self, source: Source, first: u64, previous_bytes: u64, bound: r.Bound, work_limit: u64) !C {
+        /// The allocator must belong to the host's complete query memory budget.
+        /// Only encoded candidate bytes are allocated, independently of the
+        /// maximum record size. The fixed record directory is depth-bounded.
+        pub fn init(allocator: std.mem.Allocator, pages: Self, source: Source, first: u64, previous_bytes: u64, bound: r.Bound, work_limit: u64) !C {
             try pages.check();
             try bound.validate();
             if (bound.plan.lifetime == .interactive or first == 0 or work_limit == 0 or source.view.resource != pages.publication.resource) return error.InvalidRelationalState;
             if (previous_bytes > bound.plan.budgets.spill_bytes) return error.RelationalSpillBudget;
             if (bound.plan.budgets.resident_bytes < resident_bytes) return error.RelationalResidentBudget;
-            return .{ .pages = pages, .source = source, .first = first, .previous_bytes = previous_bytes, .quota = bound.plan.budgets.spill_bytes, .work_limit = work_limit };
+            return .{ .allocator = allocator, .pages = pages, .source = source, .first = first, .previous_bytes = previous_bytes, .quota = bound.plan.budgets.spill_bytes, .resident_limit = bound.plan.budgets.resident_bytes - resident_bytes, .work_limit = work_limit };
+        }
+        pub fn discard(self: *C) void {
+            // Reclaim the allocation tail with stack-like host workspaces too.
+            while (self.count != 0) {
+                self.count -= 1;
+                self.allocator.free(self.records[self.count]);
+            }
+            self.bytes = 0;
+        }
+        pub fn deinit(self: *C) void {
+            self.discard();
+            self.* = undefined;
         }
         fn charge(self: *C) !void {
             if (self.work == self.work_limit) return error.RelationalWorkBudget;
@@ -81,9 +108,9 @@ pub fn Candidate(comptime Source: type) type {
             if (id >= self.first) {
                 const offset = id - self.first;
                 if (offset >= self.count) return error.InvalidRelationalState;
-                const record = &self.records[@intCast(offset)];
+                const record = self.records[@intCast(offset)];
                 if (output.len < record.len) return error.InvalidRelationalState;
-                @memcpy(output[0..record.len], record.bytes[0..record.len]);
+                @memcpy(output[0..record.len], record);
                 return output[0..record.len];
             }
             return self.pages.read(self.source, id, node_format, output);
@@ -92,12 +119,11 @@ pub fn Candidate(comptime Source: type) type {
             try self.charge();
             if (bytes.len == 0 or bytes.len > Index.max_record_bytes or self.count == self.records.len) return error.InvalidRelationalState;
             if (bytes.len > self.quota - self.previous_bytes - self.bytes) return error.RelationalSpillBudget;
+            if (bytes.len > self.resident_limit - self.bytes) return error.RelationalResidentBudget;
             const id = std.math.add(u64, self.first, self.count) catch return error.InvalidRelationalState;
             // Always leave an identity for the checkpoint following the nodes.
             if (id == std.math.maxInt(u64)) return error.InvalidRelationalState;
-            const record = &self.records[self.count];
-            record.len = @intCast(bytes.len);
-            @memcpy(record.bytes[0..bytes.len], bytes);
+            self.records[self.count] = try self.allocator.dupe(u8, bytes);
             self.bytes += bytes.len;
             self.count += 1;
             return id;
@@ -110,7 +136,7 @@ pub fn Candidate(comptime Source: type) type {
             const before = turn.decision;
             errdefer turn.decision = before;
             for (self.records[0..self.count], 0..) |record, i| {
-                const body = record.bytes[0..record.len];
+                const body = record;
                 const ready = self.pages.publication.stage(turn, self.first + i, try Pub.Digest.of(node_format, body), body) catch |err| {
                     if (err == error.MutationBudgetExceeded and !std.meta.eql(before.mutations, turn.decision.mutations)) return false;
                     return err;
