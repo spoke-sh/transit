@@ -17,7 +17,7 @@ and links to supporting material.
 | [board-console](board-console/README.md) | Declarative Board interface, monochrome structure, Workspace objects and exploration, operator authentication/secrets/trust and SQL mapping |
 | [board-grammar](board-grammar/README.md) | Reactive Board composition, SQL-to-visual grammar, monochrome theme dimensions and application migration experience |
 | [board-data](board-data/README.md) | Data-first Board catalog, focused relationship and lineage views, five-state profiles, SQL workbooks and change review; monochrome desktop and laptop studies |
-| [world-simulator](world-simulator/README.md) | Physics-grounded enterprise world simulator and Agentic OS surface: spatial map, computing/regional factions, isometric `SimReady` facilities, agent POV, real-protocol apps (`ISPF`, `FIX`, `HTTP`) and MMO Mainnet live upgrades |
+| [world-simulator](world-simulator/README.md) | Enterprise world simulator and spatial Agentic OS: continental cartography, city software strata, inhabited facility miniatures, agent POV, corridor comparisons and persistent-world application changes |
 
 ## Maintaining the sequence
 
