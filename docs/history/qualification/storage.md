@@ -9,6 +9,36 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Local recorded effect outcomes after trim — 2026-10-26
+
+The local-owner test source retained in `61848d307` adds two outcome schedules
+over the current native WAL and immutable objects. Each schedule opens the same
+physical directory five times with one resident page. A lost dispatch reply
+leaves an authorized attempt; exact retry recovers its original receipt without
+new pages or acceptance. An unknown observation survives checkpoint and physical
+WAL trimming. After the caller retires, a lost terminal reply recovers either
+the recorded result or explicit closure with an unknown outcome. Another
+checkpoint, trim and reopen preserve that terminal receipt, the original attempt,
+the retired caller and its unchanged input count. Conflicting later evidence and
+another dispatch reject.
+
+In the pinned shell, `zig build test -Dtest-filter='local effect attempts' --summary all`
+from `packages/zig/transit-backend-local` passes **2/2** tests in **12 seconds**
+with no allocator leaks. The initial run rejects the fixture's incorrect initial
+generation of one; the corrected fixture claims generation zero, matching a new
+unassociated process. Logs are
+`/var/tmp/transit-m2-local-effect-recovery.log` and
+`/var/tmp/transit-m2-local-effect-recovery2.log`. The invariant registry check
+also passes. Production runtime source is unchanged from `c15e6344b`.
+
+This qualifies durable connector observations at the local owner boundary.
+It does not contact an external service, exercise a connector process, simulate
+host power loss or establish remote cancellation/exactly-once effects. Reopen is
+orderly in this case; the separate process-death schedules retain their own
+scope. The [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#native-authority-on-local-storage)
+and [local backend](../../../packages/zig/transit-backend-local/README.md) own the
+current persistence semantics.
+
 ## Shared segment Arrow value ownership — 2026-10-26
 
 `TSegReader.SharedGroup` transfers a verified `BufferedGroup` into a reference
