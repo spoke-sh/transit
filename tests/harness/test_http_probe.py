@@ -8,6 +8,50 @@ from harness.http_probe import Probe
 
 
 class Reuse(unittest.TestCase):
+    def test_direct_table_actions_are_bounded_and_do_not_retain_payloads(self):
+        secret = 'private-name-row-or-signed-proof'
+        received = []
+        body = json.dumps({'result': secret}).encode()
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = 'HTTP/1.1'
+            def log_message(self, *_): pass
+            def do_POST(self):
+                received.append(self.rfile.read(int(self.headers['Content-Length'])))
+                self.send_response(200)
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        probe = Probe(f'http://127.0.0.1:{server.server_port}', native=True)
+        client = HTTPConnection('127.0.0.1', probe.server.server_port, timeout=3)
+        requests = [json.dumps({'action': action, 'proof': secret}).encode() for action in
+                    ('describe', {'read_key': {'key': secret}}, {secret: secret},
+                     {'scan': secret, secret: secret}, [secret])]
+        requests.append(b'invalid-private-payload')
+        try:
+            for request in requests:
+                client.request('POST', '/table/v1', request)
+                self.assertEqual(client.getresponse().read(), body)
+            self.assertTrue(probe.wait_completed(len(requests), timeout=3))
+            self.assertEqual(received, requests)
+            counters = probe.snapshot()
+            self.assertEqual(counters['table:describe'], 1)
+            self.assertEqual(counters['table:read_key'], 1)
+            self.assertEqual(counters['table:other'], 4)
+            self.assertGreater(counters['table:read_key:elapsed_ns'], 0)
+            self.assertNotIn(secret, json.dumps([counters, probe.trace()]))
+            self.assertNotIn('invalid-private-payload', json.dumps(probe.trace()))
+            self.assertEqual([event['operation'] for event in probe.trace()['retained']],
+                             ['table:describe', 'table:read_key', *(['table:other'] * 4)])
+        finally:
+            client.close()
+            probe.close()
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=3)
+
     def test_bulk_reads_count_attempts_without_retaining_bytes(self):
         body = json.dumps({'response': {'position': 17}, 'blocks': 'UFJJVkFURQ=='}).encode()
         class Handler(BaseHTTPRequestHandler):
