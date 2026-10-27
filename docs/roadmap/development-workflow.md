@@ -496,7 +496,7 @@ acceptance items; an earlier pass does not qualify a later source automatically.
 | P9 — Build boundaries | All 188 named build steps and 52 original aggregate edges are preserved. Actual runtime/gateway packages build and run without test/SDK source at `d326243ac`; disabled/missing test inputs reject and 23 Nix invalidation controls pass. All 34 standalone manifests retain their own checks. | Complete. |
 | P10 — Reuse/phases | Lazy C/C++ peer preparation reduces six installations from 24 peer compilations to ten. Matching native/package reuse, distinct profiles, automatic interop phases and two-worker package compilation are implemented. Mutable fixtures and clean production documentation builds remain isolated. | Final SDK/preparation cost comparison; no further reuse framework is planned. |
 | P11 — Selection/resources | Reviewed formal-model and Go dependencies select their actual consumers; shared/unknown paths remain full. Rename/deletion, missing source, foreign format, omitted/duplicated tasks and child-environment controls pass. The 39-task growth lane is split 20/19 within seven jobs. Formal uses substitutes rather than a Nix archive that exceeded cache capacity. | Final resource/cost observations. Selection is already enabled. |
-| P12 — Qualification/PR | The migration audit is complete. Clean committed-source fast qualification passes all 38 groups at `722ae22df`. The successful comparison, available external profiles and scoped corrections retain exact source identities. | Three successful warm full samples, one successful explicit cache-miss sample, calibrated budgets, final account, cleanup reconciliation and completion PR. |
+| P12 — Qualification/PR | The migration audit is complete. Clean committed-source fast qualification passes all 39 groups at `ab7150250`. The successful comparison, available external profiles and scoped corrections retain exact source identities. | All three warm full samples pass. One successful explicit cache-miss sample, calibrated budgets, final account, cleanup reconciliation and completion PR remain. |
 
 ### Measured preparation and selection boundaries
 
@@ -529,12 +529,22 @@ applications whose strict configuration rejects unknown `TRANSIT_` settings.
 
 ### Current full-run qualification
 
-The measurement source is `93503e966`. Three requested warm samples are running:
-[40455488048](https://github.com/spoke-sh/transit/actions/runs/40455488048),
-[40455490500](https://github.com/spoke-sh/transit/actions/runs/40455490500) and
-[40455492918](https://github.com/spoke-sh/transit/actions/runs/40455492918).
-Actual matching cache restores, complete lanes and browser outcomes determine
-eligibility; requesting reuse does not establish a warm pass.
+All three warm samples pass every ordinary and browser task at `93503e966`.
+Each restores matching GitHub cache keys and transfers 22.01 GiB across its jobs.
+
+| Sample | Full feedback, minutes | Aggregate runner minutes | First completed lane, seconds |
+| --- | ---: | ---: | ---: |
+| [40455488048](https://github.com/spoke-sh/transit/actions/runs/40455488048) | 75.2 | 363.3 | 226 |
+| [40455490500](https://github.com/spoke-sh/transit/actions/runs/40455490500) | 82.0 | 416.1 | 205 |
+| [40455492918](https://github.com/spoke-sh/transit/actions/runs/40455492918) | 74.7 | 375.0 | 230 |
+
+Full feedback is shorter than the successful comparison's 98.1 minutes, but its
+partial dependency-cache reuse prevents attributing the whole reduction to code.
+Aggregate cost ranges from below to above the comparison's 400.4 runner-minutes;
+there is no demonstrated consistent aggregate saving. C/C++ takes 30.5–33.2 minutes
+versus 26.8 in the comparison despite compiling fewer peers. Keep these slower
+observations alongside the controlled preparation gains. The 20–30-minute full
+feedback target remains unmet; it does not expand this branch into runtime redesign.
 
 The original [cache-miss attempt](https://github.com/spoke-sh/transit/actions/runs/40453741480)
 fails the browser's first-response assertion: HTTP 429 is a pre-dispatch refusal
@@ -546,9 +556,21 @@ requests. Production behavior and deadlines are unchanged. The failed run's
 unfinished jobs are cancelled; it is not a qualification sample.
 
 Replacement [cache-miss run 40459344495](https://github.com/spoke-sh/transit/actions/runs/40459344495)
-uses `722ae22df`, including that test correction and the reporting-only fix that
-distinguishes emitted cache policy from echoed shell commands. Its comparison
-with the earlier measurement source must retain this exact test/source delta.
+at `722ae22df` fails when Ursula exits with `Address already in use` during the
+Rust SDK's deliberate store restart. The log does not identify the socket owner.
+The pinned provider binds admin first; the fixture leaves admin ephemeral, allowing
+it to consume the selected public port. `ab7150250` allocates distinct admin/public
+ports together and preserves them across restart. Child-process collision,
+restart and occupied-endpoint controls pass, as does the complete installed Rust
+SDK task with disk recovery, HTTP/gRPC and direct catalog checks. This removes a
+reproduced self-collision mechanism without proving the hosted socket's owner.
+The failed cold attempt cannot qualify P12.3.
+
+The final-source [cache-miss run 40465924045](https://github.com/spoke-sh/transit/actions/runs/40465924045)
+is running at `ab7150250`, with GitHub dependency caches disabled and upstream Nix
+substitutes available. It includes the browser transport-fault control, stricter
+cost reporting and listener correction. The warm samples retain their earlier
+source and do not claim these added controls ran there.
 
 The [cache-seeding attempt](https://github.com/spoke-sh/transit/actions/runs/40453738558)
 also fails: Station bootstrap completes, but the initial direct Table total does
