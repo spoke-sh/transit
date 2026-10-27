@@ -116,6 +116,15 @@ Directory discovery and segment verification can require substantial I/O.
 After graph completion, inventory WAL cleanup uses the same bounded units and
 resumption behavior as native collection above.
 
+`DataStore.trimUnit` separately performs one bounded cleanup unit for archived
+Table WAL history. Every unit verifies the latest accepted Table record and
+rejects a floor beyond its immutable archive coverage; it always retains the
+latest acceptance record. The serialized Table owner supplies current policy
+authorization. Its progress reports physical completion, independently of
+logical expiry and object collection. The generic synchronous log trim drains
+these units for component callers. Restart derives the pending cleanup from the
+persisted WAL floor and accepted Table archive rather than a volatile cursor.
+
 An incomplete or corrupt graph cannot reach deletion. A racing required-history
 trim aborts the pass; repairable I/O or quota errors preserve its last checkpoint.
 After the grace and time fence, deletion holds the exclusive creation lock and
