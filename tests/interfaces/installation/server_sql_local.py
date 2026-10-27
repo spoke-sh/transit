@@ -175,7 +175,7 @@ sql:
 
 
 def bootstrap_fault(cli, node, host, board, gateway):
-    from interfaces.installation.server import joined
+    from harness.processes import joined
     from interfaces.installation.server_application_faults import descendants, install_peer, wait_file
     fixture = Fixture(cli, node, host)
     freeze(fixture)
