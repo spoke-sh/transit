@@ -8,7 +8,7 @@ milestone. The intended outcome is that contributors can find a declaration's
 checks, run the appropriate scope, and inspect complete, attributable results
 without unnecessary compilation, packaging or environment setup.
 
-The delivered foundation is submitted in
+The delivered foundation is merged in
 [PR #185](https://github.com/spoke-sh/transit/pull/185) from
 `refactor/test-workflow-foundation`, frozen at `6f6fbc521`. Continue the remaining
 work on `refactor/test-workflow-completion` in logical commits, followed by a
@@ -309,13 +309,13 @@ this plan is not another chronological test transcript.
   from the current tree after preserving immutable source-revision links and
   hashes. Keep active inputs and specifically justified reproducibility data with
   their owners; moving every historical log into a new folder is insufficient.
-- [ ] P4.3 Update consumers of active budget/reference data, source selectors,
+- [x] P4.3 Update consumers of active budget/reference data, source selectors,
   CI routing, artifact publication paths and current documentation links.
-- [ ] P4.4 Verify that executable inputs still invalidate owning builds/checks
+- [x] P4.4 Verify that executable inputs still invalidate owning builds/checks
   while inert evidence does not. Exercise renamed-file and unknown-input controls.
 - [ ] P4.5 Run benchmark runner/oracle checks and affected real workloads. Keep
   old driver hashes intact and establish current baseline identities explicitly.
-- [ ] P4.6 Standardize automatic per-task result, log and artifact capture across
+- [x] P4.6 Standardize automatic per-task result, log and artifact capture across
   local, clean and hosted runs. Preserve failure and interruption status, source,
   command, toolchain and completion metadata. Test missing/incomplete artifacts;
   ordinary results must not require manually authored evidence files or commits.
@@ -351,7 +351,7 @@ this plan is not another chronological test transcript.
   scenarios into catalog, with their independent contract validators.
 - [x] P7.2 Move planning, logical values, execution, snapshot and result scenarios
   into query, including SQL/relational oracles and their native drivers.
-- [ ] P7.3 Split mixed operation modules by responsibility using explicit Zig
+- [x] P7.3 Split mixed operation modules by responsibility using explicit Zig
   module interfaces where needed; preserve test executable targets and behavior.
 - [ ] P7.4 Execute declaration, authorization, snapshot, bounded query, complete
   result, lifetime and recovery scenarios affected by the moves.
@@ -390,7 +390,7 @@ this plan is not another chronological test transcript.
 - [x] P10.1 Record relevant source/input identity, compiler, target/CPU, options,
   optimization profile, ABI/definition and output hashes for shared artifact sets.
   Prefer existing Zig/Nix artifacts to a new general-purpose cache framework.
-- [ ] P10.2 Keep Debug and ReleaseSafe sets distinct. Pass immutable outputs to
+- [x] P10.2 Keep Debug and ReleaseSafe sets distinct. Pass immutable outputs to
   SDK builders and scenarios instead of depending on mutable `zig-out` contents.
 - [ ] P10.3 Avoid repeated native/package work only for matching inputs. Never
   reuse test outcomes, mutable installations or incomplete build publications.
@@ -402,7 +402,7 @@ this plan is not another chronological test transcript.
   execution and teardown separately, including failures and incomplete work.
 - [ ] P10.6 Measure bounded concurrency for independent package checks while
   retaining each package's own manifest boundary and controlling resource use.
-- [ ] P10.7 Evaluate local documentation cache reuse with clean production checks
+- [x] P10.7 Evaluate local documentation cache reuse with clean production checks
   retained. Verify generated references/search/specification invalidation before
   adopting it; record a measured decision if no safe improvement is established.
 - [ ] P10.8 Run the same required SDK schedules and compare work/time against the
@@ -412,14 +412,14 @@ this plan is not another chronological test transcript.
 
 ### P11 — Dependency-aware selection and resource scheduling
 
-- [ ] P11.1 Extend current execution metadata with reviewed input/dependency and
+- [x] P11.1 Extend current execution metadata with reviewed input/dependency and
   resource ownership, including shared fixtures, generated contracts and consumers.
   Use bounded, audited groups; unmodeled dependencies retain full qualification
   rather than requiring a universal dependency analyzer before delivery.
-- [ ] P11.2 Compute affected PR coverage transitively; shared/unknown inputs and
+- [x] P11.2 Compute affected PR coverage transitively; shared/unknown inputs and
   unavailable comparison data must never silently select less qualification.
   Keep main/release full qualification and preserve both rename endpoints.
-- [ ] P11.3 Exercise changed package, SDK, fixture, budget, model, contract, build,
+- [x] P11.3 Exercise changed package, SDK, fixture, budget, model, contract, build,
   harness, evidence, deletion, rename and unknown-path selection controls.
 - [ ] P11.4 Compare proposed scoped selections with full runs before enabling
   them. Document selection limits; a directory match is not a dependency proof.
@@ -490,7 +490,27 @@ they are not automatically deferred to a later milestone or follow-up PR.
 | P8 | In Progress | 49 storage/runtime drivers and shared ABI/artifact helpers move to explicit owners. Backend choices, saved operation identities and schedules are preserved. The audit places Station provisioning, delivery receipt controls and query recovery assertions with their actual semantic owners. All 30 fast checks and 23 Nix input-selection controls pass. All 109 remaining Zig files move, provider-backed page/growth/collection tests are classified separately from local storage, and the structural page-layout experiment belongs to performance. The final root contains only the two indexes and 12 owners. The actual local direct Table schedule passes 1,942 typed calls, including retained history, current-policy denial, exact retry and three restarts. All redistributed native scopes now pass: 34 component roots (including physical-disk tests), 14 independent fixture/codec groups and four process-fault groups. Native fault schedules include 92 WAL/Table crash boundaries, 15 collection cases and three 12-race object-publication schedules. Remaining Ursula/application qualification is pending. |
 | P9 | Completed | `f902b7a0a` separates runtime/test registration while retaining all 188 previous named steps. At committed `d326243ac`, actual Transit and SQL gateway packages build and run without test/SDK source, and disabled/missing checks reject; 23 source-invalidation controls pass. `61a63e235` partitions all 52 original aggregate edges into explicit component, fixture and fault scopes with automatic capture; all three scopes pass. Clean fast qualification passes at that commit. The [package and contract audit](../../tests/runner/package-checks.md) records all 34 standalone package owners, seven not explicitly registered as root component tests, additional Query/Fuze roots, real I/O boundaries and retained exact validator overlap. |
 | P10 | In Progress | Clean setup previously waited 466.7 seconds behind a concurrent Nix evaluation-cache reader; `7207c6f61` bypasses that mutable cache while preserving store/compiler caches. The actual clean run at `61a63e235` spends 4.1 seconds entering the shell and 26.6 seconds on 30 checks; these are scoped observations under concurrent host work, not a whole-suite benchmark. `a7734ae8d` adds a passing real isolated cache-lock/value-preservation control. `400d2b140` resolves immutable native prefixes through Zig with source/profile/target/CPU/compiler/definition and output hashes. Wrong-input/output and interrupted-build controls pass; concurrent real callers resolve the same complete set with separate records. `b6ba94208` wires SDK tasks to explicit native inputs and separates Debug/ReleaseSafe package directories. All 32 fast checks pass from clean committed source; installed Python/Node logical codecs (111 vectors each) and Go vet/race/cgo checks pass against the new paths. `e176b8b12` adds automatic preparation/packaging/provider lifecycle phases and real failure/interruption/cleanup controls. `dfa176531` adds bounded standalone compilation with per-package logs and joined cancellation. At clean `f65cc07d3`, three warm 34-package samples take 2.44–2.49 seconds with one worker and 1.21–1.24 seconds with two, under concurrent host work; these measure warm graph lookup, not cold compilation. The default remains one worker pending cold resource measurements. `4df99b21a` also fixes the real Nix lock control for hosted Nix's busy-cache fallback. `d96b28f98` composes C/C++ SDK libraries and examples in one immutable build graph with source/profile/definition controls; actual Debug packaging and all 36 clean fast checks pass. The full installed C/C++ aggregate also passes with those artifacts: raw and Station callers, HTTP/gRPC recovery, direct catalog (154 public requests) and 170 logical-value fixtures. This is a scoped pass, not complete final-source qualification. Final language/fault qualification, package preparation reuse, phase coverage and documentation cache decisions remain unchecked above. |
-| P11–P12 | Planned | Checklists above; no complete execution or performance qualification claimed |
+| P11 | In Progress | `4d2d3c745` adds reviewed reverse dependencies for formal model inputs and the installed Go consumer, source-bound selections and worker metadata in the existing suite inventory. Seven selection controls cover transitive consumers, generated ABI drift, shared/unknown fallbacks, rename/deletion, missing comparison revisions, cycles, unowned tasks and foreign/tampered plans. The browser continuation retains its own required tasks. All 37 fast checks pass from committed clean source. Selection remains in shadow mode: ordinary code PRs still run the complete suite while recording proposed reductions. Full-run comparison and scheduling decisions remain pending. |
+| P12 | In Progress | Final-source ordinary qualification and a matching repaired comparison baseline are running; no successful complete sample or new performance budget is claimed. |
+
+The continuation after #185 contains these additional bounded changes:
+
+| Change | Observed result and remaining limit |
+| --- | --- |
+| C/C++ peer preparation (`3ff4e4c2d`) | HTTP/gRPC/Document peers compile only when their private installation invokes them. The full C/C++ aggregate and both Document schedules pass. Six aggregate installations previously compiled 24 peers; they now compile ten. Local installation/peer-compile phases fall from 140.9 to 91.9 seconds (about 35%); this is preparation under concurrent host work, not a whole-lane improvement. |
+| External SDK artifacts (`87ce7b164`) | The external SDK profile uses explicit immutable Debug native sets and profile-specific packages. Actual installed Python/Node fault schedules pass; preparation remains inside its failure and timeout ledger. |
+| Distinct fixture ports (`1f93ccf22`) | Six independent port discoveries reproduced a duplicate in one configuration. Batch discovery holds sockets until all six distinct ports are obtained. Real allocation/failure-cleanup controls and the complete SQL wire gateway task pass. This establishes a fixture defect, not the cause of the earlier hosted initialization failure whose configuration was unavailable. |
+| Terminal logging (`8333fdfcd`) | A separate terminal slot prevents queue contention from discarding the service's final event, retaining filtering, record bounds and the 200 ms flush attempt. Debug/ReleaseSafe package tests, blocked/closed stderr controls and the complete service-logging task pass. The original Board binary loses three events in 268 immediate-failure invocations; the repaired binary passes 1,500. The same runtime repair is applied to comparison source `40e70d202`. |
+| Documentation cache decision | Two successful local production builds at `1f93ccf22` with only telemetry changes in the worktree take 64.5 seconds after clearing generated state and 10.8 seconds with that state retained. This is one local pair, not Nix cold/warm qualification. Keep clean production checks: generated-reference/search/specification invalidation is not established for retained state, and a new invalidation mechanism is outside this bounded delivery. Existing development-server hot reload remains the local editing path. |
+
+The [continuation run](https://github.com/spoke-sh/transit/actions/runs/40441494668)
+and [repaired comparison run](https://github.com/spoke-sh/transit/actions/runs/40441691526)
+retain their own source and completion records. External discovery, application
+and query profiles are separate qualification runs, outside ordinary cost samples.
+The unchanged generic installed-server task still fails locally: earlier attempts
+reach SQL outcome uncertainty, and a fresh run exhausts bootstrap restarts after
+two-second native command timeouts. The original installations are preserved.
+No deadline is increased and no runtime cause or passing result is inferred.
 
 The [hosted migrated run](https://github.com/spoke-sh/transit/actions/runs/40425464863)
 at `fd2adf7f0` passes formal, launchers and both SDK lanes. Its core Nix-lock
