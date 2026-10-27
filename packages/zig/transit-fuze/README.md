@@ -59,8 +59,21 @@ buffer directory and returns borrowed Arrow `ArrayData` on little-endian hosts.
 It verifies 64-byte address alignment. All non-value states are null in this
 nullable value child; the complete column retains state and error/conflict
 evidence separately. Both directory and group must outlive every derived Arrow
-view. Buffer `retain` does not extend these borrowed lifetimes. This is local
-value-buffer interchange, without a C data release callback or external import.
+view. Buffer `retain` does not extend these borrowed lifetimes.
+
+`TSegReader.SharedGroup.init(allocator, group)` transfers a `BufferedGroup` on
+success; failure leaves it with the caller. `shared.arrowValues(index)` returns
+an owned Arrow `ArrayRef` for a qualified plain column in the projection. It
+allocates only the array header and buffer directory and pins the original group.
+Slices and `arrow.exportArrayToC` retain that pin; the final release frees the
+group, including its state/error/conflict metadata. The original reader and
+the caller's shared reference can close first. Every backing allocator must
+outlive the final reference, and the host must respect its allocator's thread
+discipline when invoking release callbacks. Retaining arrays consumes the host's
+memory allowance and does not retain a durable Table lease or access rights.
+The C array represents only the nullable value child. Full five-state interchange
+uses the logical Arrow schema/sidecars and bounded IPC conversion below; these
+value views do not admit arbitrary external Arrow input.
 
 `PhysicalCodecs.decodeColumnPageSelected` accepts sorted, unique row ordinals
 and owns only their decoded cells in the output arena. It validates the complete

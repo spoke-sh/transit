@@ -9,6 +9,45 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Shared segment Arrow value ownership — 2026-10-26
+
+`TSegReader.SharedGroup` transfers a verified `BufferedGroup` into a reference
+counted owner. Its compatible plain columns expose Arrow value arrays whose
+buffer directories are owned and whose payload bytes retain the original group.
+Array slices and C exports keep that owner alive after the reader and original
+group reference close. The allocator must outlive every reference; reference
+counting neither supplies allocator thread safety nor retains a durable snapshot
+or authorization. Five-state metadata stays in the shared group. The Arrow value
+child alone represents non-value states as null and is not the full logical
+cell export.
+
+The Fuze `test` target with `TSeg` and `Arrow IPC` filters passes **47/47**
+selected tests in the pinned development shell. Pointer identity establishes
+unchanged UTF-8 payload addresses through slicing and C export/import. Import
+consumes the C handle; repeat import rejects, and repeat release is harmless.
+The selected projection rejects a compressed integer column's plain export while
+its ordinary bounded decode remains usable. Cancellation halfway through a
+second projected range releases the partial group, preserves earlier Arrow
+values and permits a later complete read. IPC round-trip compares values after
+the original reader closes; IPC serialization is a copy, not zero-copy exchange.
+
+Exhaustive allocator-failure schedules cover owner transfer, directories, slices,
+C export/import and IPC writing. A nested C-export case fails every allocation
+while constructing two child arrays and verifies cleanup of completed children.
+Every truncated output capacity in the existing IPC compute fixture returns
+`WriteFailed` without leaks or duplicate frees. These checks found retained-array
+and partial-child leaks in C export, plus partially constructed record-batch
+metadata leaks in the pinned IPC writer. Guarded build-time source patches fix
+those paths without modifying the fetched dependency cache. The ordinary Arrow
+compute selection also passes **93/93** tests.
+
+Reproduce with `zig build test -Dtest-filter=TSeg -Dtest-filter='Arrow IPC'
+--summary all` from `packages/zig/transit-fuze` inside `nix develop`. Local raw
+evidence is `/var/tmp/transit-m2-shared-arrow-cancellation.log` and its preceding focused
+runs. The allocation-failure IPC reader uses a disposable arena to own partial
+FlatBuffer metadata. This does not qualify arbitrary foreign IPC input, compressed
+IPC writer failures, full five-state C export or concurrent host allocators.
+
 ## Direct-data allocation and content-reuse inventory — 2026-10-26
 
 On merged `ceb109a03` plus the direct-data inventory, the complete local backend
@@ -3126,4 +3165,3 @@ unflushed-row dependencies remain separate edges to traverse. Only complete
 enumeration can support a future collector's marks; this component supplies no
 all-owner cut, persisted mark/work queue, physical inventory or deletion. Full
 collection and final committed-HEAD clean qualification remain outstanding.
-

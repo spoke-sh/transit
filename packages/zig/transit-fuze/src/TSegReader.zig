@@ -152,6 +152,56 @@ pub const BufferedGroup = struct {
     }
 };
 
+/// Shared ownership of a verified group and its five-state metadata. Arrow
+/// value children retain this owner through slices and C release callbacks.
+/// Reference counting does not grant access or retain a durable source lease.
+pub const SharedGroup = struct {
+    allocator: std.mem.Allocator,
+    references: std.atomic.Value(usize),
+    group: BufferedGroup,
+
+    /// Transfer the group on success. On failure the caller still owns it.
+    pub fn init(allocator: std.mem.Allocator, owned: BufferedGroup) !*SharedGroup {
+        const self = try allocator.create(SharedGroup);
+        self.* = .{ .allocator = allocator, .references = .init(1), .group = owned };
+        return self;
+    }
+    pub fn retain(self: *SharedGroup) *SharedGroup {
+        const previous = self.references.fetchAdd(1, .monotonic);
+        std.debug.assert(previous != 0 and previous != std.math.maxInt(usize));
+        return self;
+    }
+    pub fn release(self: *SharedGroup) void {
+        if (self.references.fetchSub(1, .acq_rel) != 1) return;
+        const allocator = self.allocator;
+        self.group.deinit();
+        allocator.destroy(self);
+    }
+    /// Own the small Arrow buffer directory; borrow aligned payloads by pinning
+    /// this group. `index` addresses the selected projection. Non-value states
+    /// remain NULL in this value child; use `group.decoded` for their full cells.
+    /// An ArrayRef or C export can outlive the caller's SharedGroup reference.
+    pub fn arrowValues(self: *SharedGroup, index: usize) !@import("zarrow").ArrayRef {
+        const arrow = @import("zarrow");
+        if (index >= self.group.decoded.columns.len) return error.InvalidSegmentCoordinate;
+        const selected = self.group.decoded.columns[index];
+        if (selected != .plain) return error.UnsupportedPlainColumn;
+        var directory: [3]arrow.SharedBuffer = undefined;
+        var layout = try selected.plain.buffers.arrowValues(&directory);
+        layout.buffers = try self.allocator.dupe(arrow.SharedBuffer, layout.buffers);
+        errdefer self.allocator.free(layout.buffers);
+        return arrow.ArrayRef.fromOwnedWithOwner(self.allocator, layout, self, retainOwner, releaseOwner);
+    }
+    fn retainOwner(context: ?*anyopaque) void {
+        const self: *SharedGroup = @ptrCast(@alignCast(context.?));
+        _ = self.retain();
+    }
+    fn releaseOwner(context: ?*anyopaque) void {
+        const self: *SharedGroup = @ptrCast(@alignCast(context.?));
+        self.release();
+    }
+};
+
 /// Owned encoded pages for one projected group. Repeated point selections can
 /// reuse verified bytes without retaining unrelated expanded values. This is
 /// an explicit owner, independent of the source and reader lifetimes.

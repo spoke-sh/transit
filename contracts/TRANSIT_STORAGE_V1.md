@@ -490,7 +490,15 @@ supplies common `len`/`cell` access. A plain column's `arrowValues` borrows its
 nullable Arrow value child and a caller-supplied buffer directory. All non-value
 states are null in that child; the column's state tags and error/conflict details
 remain necessary to preserve Transit cells. Retaining an Arrow borrowed buffer
-does not retain the group. This API creates no C data release callback, durable
+does not retain the group. `TSegReader.SharedGroup` provides a separate explicit
+owner: construction transfers the buffered group only on success, and each
+returned Arrow value array retains that group. Array slices and C exports keep
+the same ownership through the final release callback, without copying value
+payloads. The buffer directory and reference headers are allocated through the
+host allocator; all backing allocators must outlive their references. The host
+enforces resident limits and its allocator's thread discipline. A value child
+still requires the enclosing state/error/conflict metadata to represent full
+Transit cells. Neither form acquires a durable
 pin, authorization or complete-result evidence. Export requires little-endian
 host interpretation and 64-byte-aligned buffer addresses.
 

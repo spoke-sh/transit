@@ -15,9 +15,24 @@ pub fn apply(b: *std.Build, dependency: *std.Build.Dependency, module: *std.Buil
     if (std.mem.count(u8, original, guard) != 1 or std.mem.count(u8, original, transfer) != 1)
         return error.UpstreamPatchMismatch;
     const guarded = try std.mem.replaceOwned(u8, b.allocator, original, guard, "var schema_transferred = false;\n            errdefer if (!schema_transferred) self.allocator.destroy(schema_ptr);");
-    const patched = try std.mem.replaceOwned(u8, b.allocator, guarded, transfer, "            schema_transferred = true;\n" ++ transfer);
+    const guarded_schema = try std.mem.replaceOwned(u8, b.allocator, guarded, transfer, "            schema_transferred = true;\n" ++ transfer);
+    // The batch message takes over its metadata lists only after construction.
+    // Keep partial lists and the header private until that transfer, including
+    // failures while growing array metadata or serializing the message.
+    const batch_start = std.mem.indexOf(u8, guarded_schema, "        pub fn writeRecordBatch(") orelse return error.UpstreamPatchMismatch;
+    const batch_end = std.mem.indexOfPos(u8, guarded_schema, batch_start, "\n        pub fn writeEnd(") orelse return error.UpstreamPatchMismatch;
+    var batch: []const u8 = guarded_schema[batch_start..batch_end];
+    const nodes = "            var nodes = try std.ArrayList(fbs.FieldNodeT).initCapacity(self.allocator, 0);";
+    batch = try replaceOnce(b.allocator, batch, nodes, "            var metadata_transferred = false;\n" ++ nodes ++ "\n            defer if (!metadata_transferred) nodes.deinit(self.allocator);");
+    const buffers = "            var buffers = try std.ArrayList(fbs.BufferT).initCapacity(self.allocator, 0);";
+    batch = try replaceOnce(b.allocator, batch, buffers, buffers ++ "\n            defer if (!metadata_transferred) buffers.deinit(self.allocator);");
+    const counts = "            var variadic_buffer_counts = try std.ArrayList(i64).initCapacity(self.allocator, 0);";
+    batch = try replaceOnce(b.allocator, batch, counts, counts ++ "\n            defer if (!metadata_transferred) variadic_buffer_counts.deinit(self.allocator);");
+    batch = try replaceOnce(b.allocator, batch, "            errdefer self.allocator.destroy(record_batch_ptr);", "            defer if (!metadata_transferred) self.allocator.destroy(record_batch_ptr);");
+    batch = try replaceOnce(b.allocator, batch, "            defer msg.deinit(self.allocator);", "            defer msg.deinit(self.allocator);\n            metadata_transferred = true;");
+    const patched = try std.fmt.allocPrint(b.allocator, "{s}{s}{s}", .{ guarded_schema[0..batch_start], batch, guarded_schema[batch_end..] });
     const files = b.addWriteFiles();
-    const source = files.addCopyDirectory(dependency.path("src"), "src", .{ .exclude_extensions = &.{ "ipc/stream_writer.zig", "ipc/stream_reader.zig", "fbs_runtime/Builder.zig" } });
+    const source = files.addCopyDirectory(dependency.path("src"), "src", .{ .exclude_extensions = &.{ "ipc/stream_writer.zig", "ipc/stream_reader.zig", "fbs_runtime/Builder.zig", "ffi/c_data.zig" } });
     _ = files.add("src/ipc/stream_writer.zig", patched);
     // Empty primitive RecordBatches legitimately have a zero-byte body. The
     // upstream reader requires a SharedBuffer even for that valid empty body;
@@ -38,4 +53,25 @@ pub fn apply(b: *std.Build, dependency: *std.Build.Dependency, module: *std.Buil
     if (std.mem.count(u8, builder, log) != 1) return error.UpstreamPatchMismatch;
     _ = files.add(builder_path, try std.mem.replaceOwned(u8, b.allocator, builder, log, "    _ = fmt;\n    _ = args;"));
     module.import_table.get("fbs_runtime").?.root_source_file = source.path(b, "fbs_runtime/lib.zig");
+    // C export retains the array before allocating its pointer directories.
+    // A failure at any later allocation must release that retain and every
+    // completed child; block-scoped errdefers do not cover later failures.
+    const c_path = "src/ffi/c_data.zig";
+    b.dependOnFileContents(dependency.path(c_path));
+    const c_source = try dir.readFileAlloc(b.graph.io, c_path, b.allocator, .limited(512 * 1024));
+    const start = std.mem.indexOf(u8, c_source, "fn exportArrayRecursive(") orelse return error.UpstreamPatchMismatch;
+    const end = std.mem.indexOfPos(u8, c_source, start, "\nfn releaseExportedArray(") orelse return error.UpstreamPatchMismatch;
+    var function: []const u8 = c_source[start..end];
+    function = try replaceOnce(b.allocator, function, "    errdefer allocator.destroy(priv);\n", "");
+    function = try replaceOnce(b.allocator, function, "    const n_buffers = data.buffers.len;", "    var failed_array: ArrowArray = std.mem.zeroes(ArrowArray);\n    failed_array.release = releaseExportedArray;\n    failed_array.private_data = priv;\n    errdefer releaseExportedArray(&failed_array);\n\n    const n_buffers = data.buffers.len;");
+    function = try replaceOnce(b.allocator, function, "        errdefer allocator.free(priv.buffers_ptrs);\n", "");
+    function = try replaceOnce(b.allocator, function, "        errdefer allocator.free(priv.children_storage);", "        for (priv.children_storage) |*child| child.release = null;");
+    function = try replaceOnce(b.allocator, function, "        errdefer allocator.free(priv.children_ptrs);\n", "");
+    function = try replaceOnce(b.allocator, function, "        errdefer allocator.destroy(priv.dict_storage.?);", "        priv.dict_storage.?.release = null;");
+    _ = files.add(c_path, try std.fmt.allocPrint(b.allocator, "{s}{s}{s}", .{ c_source[0..start], function, c_source[end..] }));
+}
+
+fn replaceOnce(allocator: std.mem.Allocator, source: []const u8, before: []const u8, after: []const u8) ![]const u8 {
+    if (std.mem.count(u8, source, before) != 1) return error.UpstreamPatchMismatch;
+    return std.mem.replaceOwned(u8, allocator, source, before, after);
 }

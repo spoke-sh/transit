@@ -10408,11 +10408,12 @@
         "InvalidColumnSelection": 4,
         "InvalidPredicateProgram": 1,
         "InvalidSegment": 6,
-        "InvalidSegmentCoordinate": 8,
+        "InvalidSegmentCoordinate": 9,
         "QueryConflict": 1,
         "QueryTypeError": 1,
         "SegmentReadBudgetExceeded": 12,
-        "TableSchemaChanged": 6
+        "TableSchemaChanged": 6,
+        "UnsupportedPlainColumn": 1
       },
       "outcomes": {
         "Column": [
@@ -10428,6 +10429,8 @@
         "OutcomeAtom.validateShape()": "<inferred>",
         "ProgramColumns.decision()": "<inferred>",
         "ProgramColumns.init()": "<inferred>",
+        "SharedGroup.arrowValues()": "<inferred>",
+        "SharedGroup.init()": "<inferred>",
         "Source.read()": "anyerror",
         "Workspace.failure()": "anyerror",
         "Workspace.init()": "<inferred>",
@@ -10447,7 +10450,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 47,
+        "try": 50,
         "catch": 15
       },
       "imports": [
@@ -10458,7 +10461,8 @@
         "TSeg.zig",
         "TableSchema.zig",
         "Values.zig",
-        "std"
+        "std",
+        "zarrow"
       ]
     },
     "packages/zig/transit-fuze/src/TableDdl.zig": {

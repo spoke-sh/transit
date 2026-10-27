@@ -389,6 +389,7 @@ const Input = struct {
     read_bytes: usize = 0,
     last_offset: u64 = 0,
     fail: bool = false,
+    cancel_at: ?usize = null,
     fn source(self: *Input) Reader.Source {
         return .{ .context = self, .read = read };
     }
@@ -398,6 +399,12 @@ const Input = struct {
         self.last_offset = offset;
         if (self.fail) return error.TestReadFailed;
         if (offset > self.bytes.len or out.len > self.bytes.len - offset) return error.TestReadOutsideObject;
+        if (self.cancel_at == self.calls) {
+            // An interrupted source may have filled a prefix. None of that
+            // pending range becomes a verified page or escapes its owner.
+            @memcpy(out[0 .. out.len / 2], self.bytes[@intCast(offset)..][0 .. out.len / 2]);
+            return error.Canceled;
+        }
         @memcpy(out, self.bytes[@intCast(offset)..][0..out.len]);
         self.read_bytes += out.len;
     }
@@ -657,6 +664,139 @@ test "TSeg buffered groups own verified pages and borrow payloads within separat
     group.deinit();
     group_live = false;
     try t.expectEqualStrings("seven", detached.value.atom.bytes);
+}
+
+fn sharedArrowCase(allocator: std.mem.Allocator, bytes: []u8) !void {
+    const arrow = @import("zarrow");
+    var input: Input = .{ .bytes = bytes };
+    var reader = try Reader.open(allocator, input.source(), bytes.len, 8192);
+    var reader_live = true;
+    defer if (reader_live) reader.deinit();
+    var group = try reader.bufferedGroup(allocator, input.source(), schema, 3, &.{ 1, 0 }, 8192, 8192);
+    var group_live = true;
+    defer if (group_live) group.deinit();
+    const shared = try Reader.SharedGroup.init(allocator, group);
+    group_live = false;
+    var shared_live = true;
+    defer if (shared_live) shared.release();
+    try t.expectError(error.InvalidSegmentCoordinate, shared.arrowValues(2));
+    const payload = shared.group.decoded.columns[0].cell(1).value.atom.bytes;
+    var strings = try shared.arrowValues(0);
+    var strings_live = true;
+    defer if (strings_live) strings.release();
+    var sliced = try strings.slice(1, 1);
+    defer sliced.release();
+    try t.expectError(error.UnsupportedPlainColumn, shared.arrowValues(1));
+    try t.expectEqual(@as(i128, 7), shared.group.decoded.columns[1].cell(1).value.atom.signed);
+    var exported = try arrow.exportArrayToC(allocator, strings);
+    defer if (exported.release) |release| release(&exported);
+    strings.release();
+    strings_live = false;
+    shared.release();
+    shared_live = false;
+    reader.deinit();
+    reader_live = false;
+
+    const text_type: arrow.DataType = .{ .string = {} };
+    var imported = try arrow.importArrayFromC(allocator, &text_type, &exported);
+    defer imported.release();
+    try t.expect(exported.release == null);
+    try t.expectError(error.Released, arrow.importArrayFromC(allocator, &text_type, &exported));
+    const text: arrow.StringArray = .{ .data = imported.data() };
+    const slice: arrow.StringArray = .{ .data = sliced.data() };
+    try t.expectEqualStrings("seven", try text.value(1));
+    try t.expectEqualStrings("seven", try slice.value(0));
+    try t.expectEqual(payload.ptr, (try text.value(1)).ptr);
+    try t.expectEqual(payload.ptr, (try slice.value(0)).ptr);
+
+    // IPC is a bounded serialization copy of the same retained value buffers.
+    const fields = [_]arrow.Field{.{ .name = "value", .data_type = &text_type, .nullable = true }};
+    var batch = try arrow.RecordBatch.initBorrowed(allocator, .{ .fields = &fields }, &.{imported});
+    defer batch.deinit();
+    var buffer: [4096]u8 = undefined;
+    const encoded = try @import("root.zig").encode(allocator, batch, &buffer);
+    var source = std.Io.Reader.fixed(encoded);
+    // Keep partially unpacked FlatBuffer metadata under one decode owner,
+    // including allocation failure.
+    var decoding = std.heap.ArenaAllocator.init(allocator);
+    defer decoding.deinit();
+    var ipc = arrow.IpcStreamReader(*std.Io.Reader).init(decoding.allocator(), &source);
+    defer ipc.deinit();
+    _ = try ipc.readSchema();
+    var recovered = (try ipc.nextRecordBatch()).?;
+    defer recovered.deinit();
+    const recovered_strings: arrow.StringArray = .{ .data = recovered.columns[0].data() };
+    try t.expectEqualStrings("seven", try recovered_strings.value(1));
+    try t.expect(try ipc.nextRecordBatch() == null);
+}
+
+test "TSeg shared Arrow values survive group reader and C handle release without payload copies" {
+    var buffer: [16384]u8 = undefined;
+    try sharedArrowCase(t.allocator, try fixture(&buffer));
+}
+
+test "TSeg canceled partial range releases pending pages and preserves retained Arrow values" {
+    var buffer: [16384]u8 = undefined;
+    var input: Input = .{ .bytes = try fixture(&buffer) };
+    var reader = try Reader.open(t.allocator, input.source(), input.bytes.len, 8192);
+    defer reader.deinit();
+    var group = try reader.bufferedGroup(t.allocator, input.source(), schema, 3, &.{1}, 8192, 8192);
+    const shared = Reader.SharedGroup.init(t.allocator, group) catch |err| {
+        group.deinit();
+        return err;
+    };
+    defer shared.release();
+    var values = try shared.arrowValues(0);
+    defer values.release();
+    // Fail the second projected page after the first page was read and verified.
+    input.cancel_at = input.calls + 2;
+    try t.expectError(error.Canceled, reader.bufferedGroup(t.allocator, input.source(), schema, 0, &.{ 0, 1 }, 8192, 8192));
+    const retained: @import("zarrow").StringArray = .{ .data = values.data() };
+    try t.expectEqualStrings("seven", try retained.value(1));
+    input.cancel_at = null;
+    var resumed = try reader.bufferedGroup(t.allocator, input.source(), schema, 0, &.{ 0, 1 }, 8192, 8192);
+    defer resumed.deinit();
+    try t.expectEqualStrings("one", resumed.decoded.columns[1].cell(1).value.atom.bytes);
+    try t.expectEqualStrings("seven", try retained.value(1));
+}
+
+test "TSeg shared Arrow allocation failures preserve transfer and release every retained owner" {
+    var buffer: [16384]u8 = undefined;
+    const bytes = try fixture(&buffer);
+    var no_resize = t.FailingAllocator.init(t.allocator, .{ .resize_fail_index = 0 });
+    try t.checkAllAllocationFailures(no_resize.allocator(), sharedArrowCase, .{bytes});
+}
+
+fn exportChildren(allocator: std.mem.Allocator, value: @import("zarrow").ArrayRef) !void {
+    var exported = try @import("zarrow").exportArrayToC(allocator, value);
+    const release = exported.release.?;
+    defer release(&exported);
+    try t.expectEqual(@as(i64, 2), exported.n_children);
+    try t.expectEqual(@as(i64, 2), exported.children[0].?.length);
+    release(&exported);
+    try t.expect(exported.release == null);
+}
+
+test "TSeg Arrow C export releases completed children when later allocation fails" {
+    const arrow = @import("zarrow");
+    var integers = try arrow.Int64Builder.init(t.allocator, 2);
+    defer integers.deinit();
+    try integers.append(7);
+    try integers.appendNull();
+    var child = try integers.finish();
+    defer child.release();
+    const kind: arrow.DataType = .{ .int64 = {} };
+    const fields = [_]arrow.Field{
+        .{ .name = "first", .data_type = &kind, .nullable = true },
+        .{ .name = "second", .data_type = &kind, .nullable = true },
+    };
+    var structure = arrow.StructBuilder.init(t.allocator, &fields);
+    defer structure.deinit();
+    try structure.appendValid();
+    try structure.appendValid();
+    var value = try structure.finish(&.{ child, child });
+    defer value.release();
+    try t.checkAllAllocationFailures(t.allocator, exportChildren, .{value});
 }
 
 test "TSeg selected decoding charges skipped string validation to the shared memory budget" {

@@ -179,4 +179,8 @@ test "Arrow IPC and compute share the same arrays and release their ownership" {
     try std.testing.expectEqual(@as(i64, 3), result.scalar.value.i64);
     var too_small: [1]u8 = undefined;
     try std.testing.expectError(error.WriteFailed, encode(allocator, batch, &too_small));
+    // Fail after schema publication and at every record-batch write boundary.
+    // Message ownership must release metadata once even after full construction.
+    var partial: [4096]u8 = undefined;
+    for (1..bytes.len) |capacity| try std.testing.expectError(error.WriteFailed, encode(allocator, batch, partial[0..capacity]));
 }
