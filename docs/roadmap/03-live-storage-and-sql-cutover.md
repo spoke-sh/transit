@@ -2,12 +2,12 @@
 
 [Roadmap](README.md) · [Tracker #110](https://github.com/spoke-sh/transit/issues/110) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress
 
-Wire the storage hierarchy (`TransitLog`, `TransitObjectStore`, paged
-`TablePartition` ownership) and `.tseg` hybrid columnar segment engine
-into the live runtime executables (`transit-node`, `transit-sql-gateway`,
-`transit-query-host`, `transit-cli`), eliminating read-after-write cache
-blindness, cross-lane cache isolation, unconditional sleep loops and multi-turn
-DML staging delays on the interactive SQL and server hot paths.
+Complete the installed local system over the delivered `TransitLog`,
+`TransitObjectStore`, paged `TablePartition` and bounded `.tseg` reader. Direct
+Table acceptance and SQL reads already use that foundation. Remaining delivery
+integrates automatic physical maintenance, compatible lazy schema projection,
+native payload routes, recovery, observable storage state and local packaging,
+then qualifies the complete public caller path and its costs.
 
 Extend the [declarative data lifecycle](01-declarative-data-lifecycle.md) and
 [four-tier storage hierarchy](02-storage-and-query-performance.md). The
@@ -21,6 +21,501 @@ presentation. Coordinate its batch ownership and disclosure contracts with this
 cutover; existing safe bounded-read and performance gates remain here. Replication
 and operational recovery precede later automatic placement and do not replace
 this milestone's installed restart and accepted-operation recovery evidence.
+
+## Implementation plan — 2026-10-27
+
+**Plan status: approved for implementation on 2026-10-27.** The user approved
+the reviewed plan, including decisions D1–D4, and authorized logical commits and
+a completion PR. The milestone retains its In Progress status and historical
+delivery; unchecked implementation and qualification gates remain required. Source review uses main at
+`c2d665e5ec7e4095f70f5b0c0d92a17e8497d8f6`, after
+[PR #187](https://github.com/spoke-sh/transit/pull/187) completes milestone 2 and
+[PR #186](https://github.com/spoke-sh/transit/pull/186) completes the supporting
+[development workflow](development-workflow.md). GitHub states below were read
+on 2026-10-27. This review inspected source and recorded qualification; it did
+not execute a new runtime qualification.
+
+The checklist below is the implementation order. Dated assessments later
+in this file preserve earlier diagnoses and acceptance requirements; they are
+not a second current backlog. A checkbox is complete only with linked delivery
+and the corresponding executed gate. Planning agreement alone completes none
+of the implementation checks.
+
+### Starting point: retain the foundation
+
+| Area | What is delivered at the review source | What milestone 3 must add or establish |
+| --- | --- | --- |
+| Local ownership | [Local node](../../apps/transit-node/Local.zig) opens one exclusive native backend; [server](../../apps/transit-cli/server/Server.zig) selects `data/native` without Ursula/MinIO children | Complete automatic maintenance, payload publication/reclamation and owner replacement; preserve shutdown/join and directory exclusivity |
+| Table acceptance | [LocalTableHost](../../apps/transit-node/LocalTableHost.zig), [service](../../apps/transit-node/LocalTableService.zig) and [direct catalog](../../packages/zig/transit-catalog/src/DirectCatalog.zig) compose direct CRUD/DDL, current policy and exact operation recovery | Preserve these operations while adding maintenance and mixed-definition reads; no second writer or actor Table staging |
+| SQL reads | [DirectTableScan](../../packages/zig/transit-query/src/DirectTableScan.zig) and [DirectTableReader](../../packages/zig/transit-catalog/src/DirectTableReader.zig) already reach bounded WAL/segment reads, projection/filtering and retained key access | Qualify the installed mixed WAL/segment path during maintenance; measure repeated owner recovery, cache reuse and transport work |
+| Physical maintenance | [TablePartition](../../packages/zig/transit-storage/src/TablePartition.zig) implements bounded flush, archive, checkpoint, expiry and compaction; [local collectors](../../packages/zig/transit-backend-local/docs/maintenance.md) cover native and direct graphs | Schedule these operations safely in the exclusive live owner and expose attributable progress. `Local.collect` currently returns false, and local runtime configuration rejects compaction |
+| Schema changes | [Table evolution](../../packages/zig/transit-storage/docs/table-partitions.md#acceptance-and-observation) validates and rewrites existing rows into private replacement segments before one acceptance | Implement a precisely qualified lazy path for compatible edits; retain exact old interpretation and current authorization |
+| Native payloads | [PayloadStore](../../packages/zig/transit-backend-local/docs/payloads.md) implements declaration-bound creation, verification and opted-in deletion | Connect authenticated installed publication/read/recovery and maintenance; `Local.reclaimPayload` currently reports unavailable |
+| Named resources/computations | Milestone 1 delivers typed named KV/Document lifecycle, exact dependencies, explicit computation activation, result attribution and freshness | Requalify installed behavior through restart and new maintenance. This does not introduce SQL publication for every data kind or automatic computation scheduling |
+| Packaging | The local bundle contains `transit`, node, query host, SQL gateway and Board; [configuration](../../apps/transit-cli/server/Config.zig) retains their paths/hashes | Resolve the single-binary target explicitly; absence of external storage services already holds and is a different criterion |
+| Recovery and readiness | Durable refusal and original-request recovery exist; query-host activity still resets `idle_wait_ms` to zero | Resolve [#173](https://github.com/spoke-sh/transit/issues/173), keep-armed waiting and startup/shutdown recovery with measured installed evidence |
+
+Use the [milestone 1 acceptance](01-declarative-data-lifecycle.md#final-lifecycle-acceptance-review--2026-10-26)
+and [milestone 2 acceptance](02-storage-and-query-performance.md#final-local-foundation-acceptance--2026-10-27)
+as prerequisite evidence with their original revisions. In particular, the
+foundation's fixed-memory growth, disk/process-fault, codec, history and retained
+graph checks should be extended at integration boundaries, not recreated in
+parallel harnesses. An open component issue with an old checkbox is not evidence
+that its implementation is absent.
+
+### Accepted decisions and scope boundaries
+
+**D1 — Accept the paged manifest as the local publication representation
+(accepted scope clarification).** The live Table uses a WAL-accepted
+`TablePartitionRecord.Root` and immutable paged indexes as its manifest. Deletes
+change that accepted live-row mapping; retained roots preserve previous rows.
+The [current storage contract](../../contracts/TRANSIT_STORAGE_V1.md#table-acceptance-records-and-indexes)
+explicitly rejects an independently published latest-manifest authority.
+Standalone `TableManifest`/`.tman` and `TDel` components exist, but the live owner
+does not use them. Requiring those filenames would add another format integration
+project to this milestone.
+
+The accepted local gate qualifies actual `.tseg` content, accepted paged
+manifest roots, deletion visibility and retained-history recovery. It replaces
+the earlier requirement for standalone `.tdel`/manifest files, preserving those
+semantic and recovery obligations. Do not create decorative files or claim
+`.tdel` integration. Future standalone segment membership/deletion coverage must
+reference the same WAL acceptance and qualify exact snapshot retention, pruning,
+compaction, GC and crashes through its owning milestone and current-v1 cutover.
+No independent CAS may become a second visibility decision.
+
+**D2 — Deliver one local executable without merging execution authorities.**
+Keep the existing single-binary target in scope. The implementation is
+one `transit` executable with internal node, SQL gateway, query-host and Board
+roles, reusing their implementation modules and embedded assets. It may spawn
+itself in separate processes. One executable does not mean one thread, one
+process, one acceptance log or an actor-based data plane. Standalone role
+executables may remain supported deployment entry points over the same modules;
+the default local profile must no longer need them beside `transit`. Application
+workers and external connectors remain separately installed applications.
+Release signing, platform expansion and distribution channels remain in
+[milestone 28](28-releases.md).
+
+**D3 — Limit lazy evolution to edits with a proved projection.** Include
+non-key column rename, nullable/constant-default ADD COLUMN and supported
+non-key DROP COLUMN where dependencies and validation permit. Bind projections
+to stable column identity and exact original definitions, including unflushed
+WAL rows. Freeze the ADD-time default for old rows; later default changes must
+not reinterpret them. Preserve `missing`, SQL NULL, errors and conflicts rather
+than converting every absent historical value to NULL. Key, type, codec,
+collation and constraint changes that require validation/reindexing retain an
+explicit bounded existing path or explicit refusal. General online rewrites,
+new constraints and arbitrary historical SQL remain in milestones
+[7](07-standards-and-catalogs.md) and [8](08-indexing-and-access-paths.md).
+
+**D4 — Compose maintenance; do not widen logical retention.** Automatic flush,
+archive/checkpoint, bounded compaction and safe collection operate within
+existing acceptance, quota, pin and epoch rules. History remains unlimited by
+default. Physical WAL trimming needs recoverable archive/checkpoint coverage;
+logical expiry needs explicit policy; deletion additionally needs a complete
+retained graph and read-lifetime fences. These are separate transitions.
+Automatic computation activation stays in
+[milestone 9](09-sql-and-dataflows.md), distributed providers/writers in
+[15](15-storage-providers-and-concurrency.md), and general cache/index/group-commit
+optimization in [10](10-data-structures-and-performance.md).
+
+The existing [SQL session contract](../../contracts/SQL_SESSION_V1.md) remains
+the result boundary. Fix storage/read ownership, current-policy disclosure and
+bounded consumption needed for this cutover, but leave the new shared
+`StatementResult`/result reader and console presentation to milestone 4.
+Multi-object transactions, global snapshot atomicity, new SDK families and a
+Board redesign are outside this plan.
+
+### Delivery sequence and reviewable changes
+
+Each row is a logical PR-sized outcome, with smaller scoped commits inside it.
+Split a row further if its contract/implementation review becomes too large;
+keep its exit gate intact. No elapsed-time estimate is asserted before P0's
+baseline. Lazy interpretation, maintenance scheduling
+and packaging are substantive work, not final documentation chores.
+
+| Slice | Reviewable outcome | Dependencies | Tracking owner |
+| --- | --- | --- | --- |
+| P0 | Frozen baseline, contract/ownership decisions and acceptance inventory | Review decisions D1–D4 | #110, #122, #123, #124, #76 |
+| P1 | Installed owner recovery and native payload lifecycle | P0 | #173, #126, #122 |
+| P2 | Automatic point flushing with bounded scheduling and basic inspection | P0; P1 recovery integration | #122, #116 |
+| P3 | Compatible lazy schema projection over WAL and segments | P0/D1; P2 supplies mixed-state fixture | #122, #118, #128 |
+| P4 | Automatic archive/checkpoint, compaction and safe collection | P1–P3 | #122, #116, #126, #127 |
+| P5 | Measured live reader reuse, bounded access and event-driven waiting | P0 baseline; P2–P4 final regression inputs | #122, #128, #76 |
+| P6 | Shared public storage inspection, configuration and Board projection | P2–P5 contracts | #122, #123 |
+| P7 | Single executable local composition | P1 ownership; P6 configuration | #122 |
+| P8 | Installed common-revision qualification, documentation and closure | P1–P7 | #110, #122, #123, #124, #76 |
+
+Review progress at three concrete checkpoints: after P2, demonstrate installed
+WAL-only acceptance, automatic flush and exact restart; after P4, repeat that
+journey with mixed schemas and safe maintenance; after P7, run it from the single
+executable. P8 establishes the complete final evidence rather than introducing
+the first end-to-end test at the end of the milestone.
+
+#### P0 — Freeze the contracts and baseline
+
+- [ ] P0.1 Record exact baseline binaries, definition, build profile and task
+  inventory. Reproduce a small installed physical-disk lifecycle and performance
+  control before changing runtime behavior. Keep uncertainty under its original
+  saved identity; a failed baseline is diagnostic evidence, not a timing sample.
+- [ ] P0.2 Resolve D1–D4 in this owner and #110/#122. Reconcile milestone 2's
+  acceptance with component issues and obsolete milestone-number references.
+  Preserve historical evidence; distinguish remaining local obligations from
+  explicitly transferred provider/transaction/index work.
+- [ ] P0.3 Specify the maintenance contract before wiring it: eligible work,
+  Table discovery, fairness, trigger accounting, per-step and aggregate budgets,
+  backpressure, retry/recovery, shutdown and public progress. Define current
+  privileges for configuration, requested maintenance and read-only observation.
+  Use existing storage/catalog policy owners, not an independent admin service.
+- [ ] P0.4 Define accurate observations: accepted physical position, logical
+  change position, oldest live WAL dependency/flush coverage, pending rows/bytes,
+  archive/recovery coverage, logical history floor, retained pins, collection
+  phase and bounded failure information. Do not invent one contiguous
+  "flushed LSN" if the layout contains gaps or non-row records. Directory-wide
+  summaries must state whether observations are independent.
+- [ ] P0.5 Map changed fields and formats to
+  [current-v1 cutover](../handbook/reference/versioning.md), generated contracts,
+  binding resources, signing fixtures and installed configurations. Every
+  incompatible merged slice must rotate the shared definition and migrate its
+  consumers together. Never default missing persisted fields or run mismatched
+  binaries against retained installations. Use separate candidate installations;
+  preserve older data with its matching build. This plan promises no automatic
+  conversion of an incompatible installation.
+
+**Gate:** one owner/proof matrix, a reproducible baseline and resolved format,
+projection, packaging and maintenance contracts. Required paths have concrete
+acceptance assertions before implementation; unavailable evidence is labelled.
+
+#### P1 — Complete live ownership, reopen and payload recovery
+
+Owners: [Local](../../apps/transit-node/Local.zig),
+[native server](../../apps/transit-node/NativeServer.zig),
+[local backend](../../packages/zig/transit-backend-local/README.md),
+[server lifecycle](../../apps/transit-cli/server/Server.zig),
+[launcher recovery](../../launchers/common.py).
+
+- [ ] P1.1 Document and enforce startup, exclusive directory ownership,
+  readiness, cancellation/join and shutdown for native, catalog, Table and
+  maintenance owners. Borrowed handles and request memory must not outlive their
+  owners; no detached worker may use a closed WAL/object store.
+- [ ] P1.2 Implement bounded replacement after recovery-required refusal,
+  covering temporary bootstrap and supervised runtime ownership. Stop admission,
+  drain/join the old owner, reopen and validate its original directory, then
+  resolve the exact saved request. Preserve principal/sequence/content, current
+  authorization and fencing. Corruption/incompatibility must remain errors;
+  exhausted recovery must report an unresolved outcome, not reinitialize.
+- [ ] P1.3 Compose accepted standalone payload declaration, authenticated byte
+  publication/read, original verification after uncertainty, readiness and
+  opted-in reclamation. Reuse the component's one-attempt marker and reserved
+  namespace; do not repeat a PUT merely because its reply or bytes are missing.
+  Define any missing service boundary before implementing its adapters.
+- [ ] P1.4 Exercise named KV/Document provisioning, native input/state/output,
+  captured blocks and effect records in the installed local profile after owner
+  replacement. Replay dispatches no external effect. Keep the existing native
+  one-KV-resource turn boundary and direct Table acceptance separate.
+
+**Gate:** deterministic recovery-required injection completes the original
+bootstrap request exactly once, the complete launcher schedule passes, payload
+recovery/reclamation passes on disk, and stop/restart preserves each durable
+owner without an external storage daemon. Close #173 only against those proofs.
+
+#### P2 — Make point flushing automatic and inspectable
+
+Owners: local Table host/service, `TablePartition`, shared storage settings and
+the installed server configuration.
+
+- [ ] P2.1 Discover eligible partitions through bounded persisted directories,
+  including after restart and for Tables absent from a resident cache. Use a
+  bounded worker set and fair resumable enumeration; do not allocate a queue or
+  owner for every durable Table. Define lock order with catalog/policy changes.
+- [ ] P2.2 Implement configurable pending-byte/row and maximum-age triggers
+  with explicit work/time/memory limits. Select numeric defaults from P0/P2
+  measurements and publish them before enabling the default. WAL acceptance
+  remains the durability boundary; ordinary INSERT does not wait for a flush.
+- [ ] P2.3 Reuse one bounded `TablePartition.flush` unit per selected turn of
+  the maintenance scheduler. Publish its exact replacement through the Table
+  WAL, preserve the logical change frontier and return capacity to foreground
+  work between units. This scheduler is direct runtime work, not Station actors.
+- [ ] P2.4 Preserve pending work through crash or uncertain publication. Reopen
+  when required and inspect accepted coverage before retrying; never infer
+  completion from staged objects. Reserve control capacity and surface disk,
+  quota or persistent failure without silently dropping accepted rows.
+- [ ] P2.5 Expose the minimal shared observations from P0 and a deterministic
+  qualified flush trigger/configuration for tests. An inspection starts no
+  maintenance. A requested flush has a target cut and inspectable completion;
+  continuing writes cannot make its completion criterion move forever.
+
+**Gate:** public SQL point writes are visible and survive restart before flush;
+crossing the documented trigger produces verified segment-backed rows, which
+also survive restart. A pre-flush pin reads its original rows throughout.
+Exercise competing Tables, a hot writer, paused I/O and quotas without losing
+control progress. Do not count private orphan segments as accepted data.
+
+#### P3 — Project compatible schema changes lazily
+
+Owners: [TableDeclaration](../../packages/zig/transit-storage/src/TableDeclaration.zig),
+[TablePartitionRecord](../../packages/zig/transit-storage/src/TablePartitionRecord.zig),
+[TablePartition](../../packages/zig/transit-storage/src/TablePartition.zig),
+Fuze schema/evolution/readers, catalog and query adapters.
+
+- [ ] P3.1 Bind each physical row/segment interpretation to retained immutable
+  definition and stable column identities. Specify bounded mapping lookup and
+  retention across repeated edits; do not make read cost or resident state grow
+  with an unbounded schema ancestry chain. Update the collector's dependencies.
+- [ ] P3.2 Qualify D3's exact edit matrix. Publish compatible definition changes
+  without traversing/re-encoding all rows; preserve old cuts, old operation
+  receipts, default-at-add semantics and rename/drop/recreate identity.
+- [ ] P3.3 Apply the same projection to WAL rows, segments, point/key-range reads,
+  filtered scans and predicate writes. Evaluate filters and pruning under the
+  requested logical definition and declared collation; historical physical
+  metadata may prune only where the mapping proves it sound.
+- [ ] P3.4 Normalize selected groups during later bounded flush/compaction,
+  preserving identities, logical change positions, history and old readers.
+  New writes use the new definition. Missing/corrupt interpretation fails;
+  guessing the current schema is forbidden.
+- [ ] P3.5 Check repeated ADD/default changes/rename/DROP, NULL versus missing,
+  denied or revoked reads, old receipts after ALTER, and restart between DDL
+  acceptance and physical maintenance. Compare results against an independent
+  eager projection oracle.
+
+**Gate:** supported compatible ALTER does no row-count-proportional rewrite on
+the interactive path, measured through storage counters. Mixed old/new physical
+data returns exact values under both retained and current interpretations.
+Unsupported edits have explicit unchanged bounds or refusal, not partial DDL.
+
+#### P4 — Schedule archival, checkpoints, compaction and collection
+
+Owners: [GrowingMaintenance](../../apps/transit-node/GrowingMaintenance.zig),
+local node composition, `TablePartition`,
+[DirectStorageGraph](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig)
+and the backend's native/direct/payload maintenance owners.
+
+- [ ] P4.1 Extend the live scheduler with independently bounded work classes
+  for Table archive/recovery checkpoints/compaction and native/direct collection.
+  Resume accepted progress after restart, including an unfinished collection;
+  do not start a replacement pass over an incomplete durable one.
+- [ ] P4.2 Separate archive coverage, recovery checkpoint, physical WAL trim,
+  explicit logical expiry and object deletion. Bind each to its current
+  authority and exact roots. Unlimited history must still be queryable after
+  archival; snapshots may retain unflushed history after current rows move.
+- [ ] P4.3 Integrate native epoch/time fences, current creator/reuse checks,
+  complete graph marking and read-lifetime grace before deletion. Retain schema
+  projection dependencies, catalog history, pending operations, original
+  receipts, snapshots, captures and standalone payload ownership.
+- [ ] P4.4 Bound CPU, bytes, allocations, outstanding I/O and total concurrent
+  maintenance memory. Test aggregate budgets across many Tables and foreground
+  readers, not just each component's allocator. Back off failures without a busy
+  retry loop or permission bypass; retain enough control reserve to recover.
+- [ ] P4.5 Exercise process death at accepted archive/checkpoint/flush/compaction
+  and delete-progress boundaries, racing policy changes, pin release, new
+  allocation/reuse, corrupt metadata, clock failure and injected I/O/quota errors.
+  Compaction must emit no logical mutation or invalidate computation freshness.
+
+**Gate:** the installed owner converges on eligible maintenance under a finite
+workload, resumes it after process death and preserves every retained obligation.
+Reclaim only objects proved unreachable; storage pressure never authorizes expiry.
+
+#### P5 — Qualify and reduce the remaining live read and wait costs
+
+Owners: local Table service/catalog, direct query readers, shared SQL service,
+[query host](../../apps/transit-query-host/main.zig) and readiness supervisor.
+
+- [ ] P5.1 Attribute end-to-end work before optimizing. The current service
+  constructs request-owned catalogs; `DirectCatalog.open` initializes and
+  recovers a Table for each open. Measure replay, immutable directory/footer
+  reads, cache lifetime, credential exchanges, serialization and result delivery
+  separately from WAL sync and application coordination.
+- [ ] P5.2 Reuse verified immutable data and validated owner/recovery state where
+  measurements justify it, under a bounded resident owner/cache pool. Bind every
+  entry to its exact root/definition/epoch and invalidate on uncertainty or
+  replacement. Eviction closes only volatile state; it cannot release a durable
+  pin or lose pending work. Current permission checks remain per disclosure.
+- [ ] P5.3 Qualify live point/range/projected/filter/relational reads across WAL,
+  flushed and compacted data with small caches and spill limits. Preserve
+  skipped-row coverage, original error positions, empty pages, LIMIT, owned
+  buffers, cancellation, incomplete prefixes and post-buffer revocation.
+  Measure the existing eight-row direct page bound before proposing a change;
+  widening a constant alone is not an access-path improvement.
+- [ ] P5.4 Complete or explicitly resolve keep-armed query-host waiting. Keep
+  immediate work responsive while avoiding the unconditional empty poll after
+  progress. Measure idle requests/CPU and first-work latency; prove disconnect,
+  cancellation, wakeup races and shutdown. Preserve gateway wakeups and the
+  applicable native cache visibility improvements already delivered.
+- [ ] P5.5 Establish matched live correctness/performance controls for point and
+  bulk mutations, key/range/full scans, metadata, compatible ALTER and recovery
+  with maintenance active. Attribute remaining Station coordination separately;
+  do not optimize retired actor Table staging or start a general query-engine
+  rewrite here.
+
+**Gate:** independently verified installed results, bounded memory at retained
+sizes above caches, and measured reduction in the selected live amplification
+and latency costs. Report regressions and uncertain samples. A component cache
+benchmark or shorter polling interval alone cannot pass this gate.
+
+#### P6 — Publish one authorized storage view and configuration surface
+
+Owners: shared protocol/catalog/client operations, server settings, CLI/SQL
+inspection adapters, Board API and its existing inspection UI.
+
+- [ ] P6.1 Complete the shared inspection from P2: selected backend, resolved
+  data root for authorized operators, exact Table/definition/cut, flush backlog,
+  archive/checkpoint/retention coverage, maintenance state/failure and measured
+  quota use. Distinguish live observations, durable facts and unavailable data;
+  use paginated inspection instead of traversing the whole installation.
+- [ ] P6.2 Define privilege-filtered disclosure of paths, aggregate statistics
+  and object details. Current read/inspection authority applies to repeated,
+  empty and terminal responses. Exclude credentials, payloads and unbounded
+  object-key/error dumps from telemetry.
+- [ ] P6.3 Route CLI/SQL and Board views through those same operations. Any new
+  SQL inspection syntax must be specified/generated with its grammar and
+  capability owner before exposure. Board inspection remains read-only and
+  receives no raw storage handles or hidden flush/GC mutation endpoint.
+- [ ] P6.4 Register settings with the existing configuration owner, validation,
+  retained generation and restart/dynamic-setting rules. Publish defaults,
+  units, limits and failure behavior in the public storage/configuration guides.
+  Demonstrate why an accepted point write may have no newly flushed segment.
+
+**Gate:** a user can answer where data is stored, what is accepted versus flushed,
+why maintenance is pending and what retains history, using public authorized
+interfaces. Inspection itself changes none of those states.
+
+#### P7 — Deliver the single executable local profile
+
+Owners: [runtime build](../../build/runtime.zig), app entry modules, CLI
+process supervision/configuration and source-bundle fixtures.
+
+- [ ] P7.1 Factor reusable role entry points into explicit build modules with
+  direct dependencies. Compose them in `transit`; do not copy implementations,
+  embed/extract child executable blobs or introduce another storage owner.
+- [ ] P7.2 Self-spawn the selected internal roles with existing process
+  isolation, signals, readiness and bounded shutdown. Retain the one exclusive
+  WAL owner. SQL and query workers use public direct operations, even when the
+  executable bytes are shared.
+- [ ] P7.3 Bind installation/configuration identity to role plus executable
+  definition/hash. Migrate incompatible bootstrap/configuration artifacts using
+  the current-v1 policy; never silently reuse an incompatible installation.
+  Keep explicit standalone deployment roles as the same implementation, not a
+  fallback decoder or legacy data path.
+- [ ] P7.4 Run the default profile and `--no-ui` with only `transit` installed
+  in an isolated directory and without ambient Transit/Ursula/MinIO executables.
+  Prove console, Board, opt-in PostgreSQL/MySQL, role death/restart and orderly
+  shutdown. Downstream application binaries remain explicit external inputs.
+
+**Gate:** one copied executable starts and restarts the qualified local system,
+including embedded Board assets when enabled, without sibling runtime artifacts
+or external storage daemons. Its accepted history and authorization behavior
+match the qualified standalone-role composition.
+
+#### P8 — Qualify, document and close the milestone
+
+- [ ] P8.1 Complete the acceptance matrix below against a frozen candidate and
+  matching definition. Establish real artifact provenance, not filename counts:
+  `.tseg` is an object-key suffix, and the local object store retains that suffix
+  on hashed physical content filenames. The fixture resolves accepted references and verifies
+  format, digest and independent row values without granting applications raw
+  provider access.
+- [ ] P8.2 Run affected formal/negative controls, component faults, installed
+  callers, SDK/ABI compatibility and browser regressions. Run `just check all`
+  and committed-source clean qualification; retain exact task/source identities
+  and failed, skipped or incomplete outcomes. Finish the ordinary full inventory
+  on the final runtime source, with the browser inventory separately accounted.
+- [ ] P8.3 Publish matched performance and resource measurements under #76/#124,
+  including latency distributions, throughput, phase work, restart time and
+  maintenance interference. Measure both elapsed CI time and aggregate runner
+  cost with the existing runner; update cost budgets only with matching inventory
+  and evidence, never merely to accept a slow regression.
+- [ ] P8.4 Update public storage/query/schema/retention/configuration/launcher
+  and component owners with every supported behavior and concrete limit. Keep
+  scientific mechanisms in Internals and source-attributed results in
+  qualification history. Keep `tests/README.md` an index; raw logs/reports remain
+  generated artifacts unless selected immutable evidence is needed.
+- [ ] P8.5 Reconcile issues and PR descriptions, close only satisfied local
+  scopes, and record later obligations with their actual owners. Update this
+  milestone and the roadmap index to Completed together only after acceptance.
+  Clean only task-owned stale worktrees/branches; preserve user notes and
+  unrelated work. Submit the final mergeable close-out PR with exact validation.
+
+### Acceptance and measurement matrix
+
+| Required outcome | Public/installed scenario | Evidence and principal failure schedules |
+| --- | --- | --- |
+| WAL-only durability | `transit console`, typed direct caller and installed PostgreSQL/MySQL write/read before any flush | Same accepted identity and independently known rows after lost reply and process restart; no required segment per INSERT |
+| Accepted physical storage | Cross documented flush threshold, inspect progress, then query point/range/full scans | Verified referenced segment and paged manifest at the accepted cut; delete/update and old pin survive flush/restart. D1 records the accepted paged-manifest/deletion gate |
+| Lazy compatible ALTER | Mix WAL-only and segment rows, acquire old pin, ADD/rename/DROP, write new rows, compact and restart | Independent old/current schema oracles, stable identities/defaults, no row-proportional compatible DDL rewrite, revoked metadata/row disclosure denied |
+| Maintenance safety | Active readers/writers, unlimited history and explicitly opted-in expiry | Archive/checkpoint/trim crash boundaries, A→B→A history, snapshot-to-tail continuity, no logical mutation from compaction, complete retained graph before deletion |
+| Native owners and payloads | Named KV/Document, process input/state/output, captured results, effect outcomes and standalone payload lifecycle | Disk restart, conflicts/tombstones, trim/pin retention, no redispatched effect, one-attempt payload verification and opted-in deletion |
+| Original operation recovery | Bootstrap, DML/DDL, large saved intents and interrupted publication | Exact original request across owner replacement; no new SQL/identity, duplicate allocation or timeout-as-rejection; bounded recovery exhaustion stays explicit |
+| Authorization and fencing | Revoke before publication and after buffering; retire/drop/recreate | Final current-policy fence, original object/definition bindings, old creators rejected, no reads from stale authorization cache |
+| Bounded data plane | Many Tables/objects and datasets exceeding cache/resident limits, oversized direct requests through supported staged operations | Fixed operation/cache/spill/scheduler budgets, independent complete readback, disk/allocation/RSS accounting, control progress under pressure; no native actor frame dependence |
+| Result safety | SQL, Flight and affected SDK consumers, including empty and multi-page results | Same retained basis, owned buffer lifetimes, current access after buffering, cancellation/early close, no successful completion from EOF or incomplete prefix |
+| Installed packaging and observation | Single executable, default Board and headless profiles, public inspection | Resolved root/backend and pending/error state are accurate; denied inspection stays denied; no sibling runtime or external storage daemon required |
+| Performance and waiting | Matched old/new ReleaseSafe installed SQL/typed/Flight paths, cold/warm and maintenance-active arms | Independent values/counts; WAL syncs, bytes, page/range reads, requests, CPU/RSS/spill, idle polling and bootstrap/restart latency; report regressions |
+
+Use the current [test owners](../../tests/README.md),
+[task inventory](../../tests/runner/suite.json) and
+[performance runners](../../tests/performance/README.md). Extend the existing
+installed Table/SQL/fault fixtures under `tests/interfaces/installation/`, direct
+storage schedules under `tests/storage/`, semantic oracles under `tests/query/`
+and formal/simulation owners under `tests/verification/`. Register every new
+scenario and dependency; package units stay beside the implementation. Do not
+copy complete launchers or rerun an expensive scenario under several wrappers.
+
+During iteration use `just check fast`, focused owner tests and affected clean
+lanes (`just ci clean --lane NAME`). Existing relevant tasks include
+`just test::local-storage-faults`, `just test::storage-io-faults`,
+`just test::local-data-collection`, `just test::table-compaction`,
+`just test::table-projection`, `just test::table-filtering`,
+`just test::server-direct-tables`, `just test::server-direct-faults`,
+`just test::server-sql-lifetimes`, `just test::server-sql-local` and
+`just test::sql-gateway`. These are starting owners, not claims that their
+current assertions cover all proposed behavior. Formal checking uses the
+existing authority/WAL models and relevant negative controls; add correspondence
+schedules for new transitions rather than asserting a model proves all Zig I/O.
+
+P0 freezes baseline budgets; P5/P8 must show improvement on selected bottlenecks
+without worsening correctness or hiding aggregate work. Use equal dataset,
+operation/retention policy, durability, cache budget, hardware, client versions
+and build profile. Use enough recorded observations for stated percentiles;
+retain raw distributions and failures. Separate cold startup, warm execution,
+accepted work, result delivery and asynchronous maintenance. A 20–30 minute full
+CI run remains a development-workflow target, not a new prerequisite or achieved
+claim. Conversely, the existing cutover's matched improvement and bounded-read
+gates may not be deferred to milestone 10. Disk process-kill checks do not prove
+device power-loss survival; unavailable distributed deployment tests remain
+outside the local claim and with milestone 15.
+
+### Tracking issues and closure policy
+
+Use P1–P7's outcome titles for focused child issues under #122 where its
+existing checklist is too broad. Reconcile tracker scope against delivered
+evidence as P0 proceeds; keep this file as the execution checklist rather than
+creating another parallel milestone plan.
+
+| Issue(s), current state | Planned disposition |
+| --- | --- |
+| [#110](https://github.com/spoke-sh/transit/issues/110), [#122](https://github.com/spoke-sh/transit/issues/122) — open | Primary closure targets after P8. Reconcile delivered direct CRUD/read wiring now; retain every installed maintenance, packaging, recovery and performance gate. Correct transferred provider references to milestone 15 |
+| [#173](https://github.com/spoke-sh/transit/issues/173) — open | Close in P1 after deterministic reopen/original-request and full launcher evidence |
+| [#126](https://github.com/spoke-sh/transit/issues/126) — open | Complete installed native/payload obligations in P1/P4/P8. Reconcile milestone 2's delivered foundation. Close only after explicitly accounting for its still-broader provider obligation under milestone 15; otherwise keep that scope open |
+| [#113](https://github.com/spoke-sh/transit/issues/113), [#114](https://github.com/spoke-sh/transit/issues/114), [#115](https://github.com/spoke-sh/transit/issues/115), [#116](https://github.com/spoke-sh/transit/issues/116) — open | Reconcile each with milestone 2's completed local evidence in P0. Do not reimplement it because the issue is stale. Close satisfied scopes; retain any actual installed or provider remainder with an explicit owner |
+| [#118](https://github.com/spoke-sh/transit/issues/118), [#125](https://github.com/spoke-sh/transit/issues/125), [#127](https://github.com/spoke-sh/transit/issues/127), [#128](https://github.com/spoke-sh/transit/issues/128) — open | Consume the delivered local contracts, qualify changed projection/history/reader integration here, and retain broader historical/transaction/managed-computation/provider requirements with their numbered owners |
+| [#123](https://github.com/spoke-sh/transit/issues/123), [#124](https://github.com/spoke-sh/transit/issues/124), [#76](https://github.com/spoke-sh/transit/issues/76) — open | Complete and link the milestone 3 documentation, installed evidence and selected matched controls. These cross-milestone trackers do not automatically close with #110 |
+| [#117](https://github.com/spoke-sh/transit/issues/117), [#121](https://github.com/spoke-sh/transit/issues/121) — open | Retain distributed provider/concurrent-writer qualification with milestone 15; local success does not check off these profiles |
+| [#108](https://github.com/spoke-sh/transit/issues/108), [#109](https://github.com/spoke-sh/transit/issues/109), [#111](https://github.com/spoke-sh/transit/issues/111), [#112](https://github.com/spoke-sh/transit/issues/112), [#119](https://github.com/spoke-sh/transit/issues/119), [#120](https://github.com/spoke-sh/transit/issues/120), [#171](https://github.com/spoke-sh/transit/issues/171) — closed | Preserve delivered lifecycle/foundation/cutover/logging evidence. Exercise affected regressions; reopen only for an identified unmet original criterion, not to reuse their numbers for new scope |
+
+Milestone completion means an independently checked installed local lifecycle,
+including automatic maintenance and exact recovery, with understandable public
+observations and measured costs. It does not mean every future provider,
+application actor workload or database optimization has been completed.
+
+### Principal risks and containment
+
+| Risk | Required containment |
+| --- | --- |
+| Projection changes stored interpretation and reachability | Resolve exact definition/default binding before changing readers; migrate the definition and retention graph together; keep independent eager/retained-cut controls |
+| Maintenance contends with foreground authority or exposes a stale root | Specify lock order and bounded work; preserve final policy/epoch fences; measure control latency with paused I/O and active collection |
+| Reuse hides stale recovery or permissions | Cache immutable content and exact validated roots, never permission; invalidate on uncertain I/O/reopen and qualify changed roots/revocation after buffering |
+| Single executable changes installation/process identity | Reuse role implementations, retain process isolation, bind role/definition/hash and test isolated startup plus role replacement |
+| Broad qualification becomes another open-ended project | Add one owning scenario per invariant, reuse matching artifacts, run focused checks while iterating and freeze a final matrix; separate later provider and general performance scope explicitly |
 
 ## Reopened assessment — 2026-10-22
 
@@ -60,6 +555,9 @@ recorded bottleneck diagnosis remain evidence to preserve; they are not an
 instruction to keep bulk data in the superseded actor/page path.
 
 ## Installed lifecycle integration
+
+This section records the 2026-10-26 lifecycle checkpoint. The implementation plan
+above incorporates the subsequent milestone 2 foundation acceptance.
 
 The merged lifecycle work supplies direct Table, named KV/Document and explicit
 computation owners, migrated callers and a coordinated current-v1 cutover. The
@@ -157,6 +655,10 @@ bottlenecks keeping interactive SQL and server workflows slow:
 
 ## Delivery sequence
 
+This is the original delivery sequence retained for acceptance traceability.
+Use P0–P8 above for the current implementation order; D1 records the approved
+paged-manifest clarification of the original artifact gate.
+
 1. **Resolve ownership and compose the native local profile.** Consume the
    catalog/snapshot, commit, native-owner and changefeed contracts in
    [#125](https://github.com/spoke-sh/transit/issues/125), #111, #126 and
@@ -224,7 +726,7 @@ direct ingestion for oversized statements while demonstrating measured
 wall-clock improvement under matched controls.
 
 The reopening adds an explicit review gate: show the installed public SQL path
-creating native `.tseg`/`.tdel`/manifest artifacts under the resolved storage root
+creating native `.tseg` artifacts and accepted paged-manifest roots under the resolved storage root
 after a documented flush condition, querying independently verified rows, and
 recovering the exact accepted results after process restart and lost replies.
 Qualify complete CRUD and schema changes,
@@ -243,6 +745,10 @@ paths, with observable progress explaining the difference.
 
 
 ## Native local persistence implementation contract
+
+The contract below records the earlier local-adapter delivery. The current
+baseline above and milestone 2 acceptance distinguish subsequently delivered
+payload/collection components from their remaining installed integration.
 
 The local adapter keeps the existing deterministic native authority engine and
 its paged copy-on-write catalogs. This delivery changes persistence, not the
@@ -283,7 +789,8 @@ as recorded in the installed lifecycle integration above. Row data does not
 pass through Station actor turns. Application workers can separately coordinate
 direct operations and persist their own dispatch/result evidence; those turns
 are application execution, not the Table's storage or acceptance authority.
-Standalone payload ownership, automatic point flushing, observable segment
-maintenance and the remaining installed cutover obligations are incomplete.
+Installed standalone payload publication/reclamation, automatic point flushing,
+observable segment maintenance and the remaining installed cutover obligations
+are incomplete.
 See the scoped
 [executed evidence](../history/qualification/storage.md#native-authority-over-local-storage--2026-10-22).
