@@ -233,6 +233,11 @@ does not establish that transaction or authorize reading retained inputs.
 
 The query package's `RelationalState` stages these records through Station
 Publication with one active record reservation and bounded candidate memory.
+Candidates allocate the actual encoded bytes for each private record through
+the host's query allocator, with a tree-height-bounded record directory. The
+resident and retained-state byte limits both apply before adding a record.
+Discarding a candidate releases its payload allocations without resetting work
+already charged to the operation; allocation failure preserves the accepted root.
 Group records use format `0x314e5246`; checkpoints use `0x31435246`. Reconstructed
 candidates retain their reserved IDs and bytes; conflicting reuse rejects. The
 host owns accepted allocation counters, continuation identity, retained source

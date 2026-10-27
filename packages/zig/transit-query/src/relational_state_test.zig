@@ -61,7 +61,8 @@ test "publication staging restarts preserve the previous operator root until che
                 used = head[2];
             }
             try t.expectEqual(i, accepted.group_count);
-            candidate.* = try Candidate.init(pages, &turn, next, used, bound, 10000);
+            candidate.* = try Candidate.init(t.allocator, pages, &turn, next, used, bound, 10000);
+            defer candidate.deinit();
             var tree = try Index.init(bound, accepted.root);
             try tree.put(candidate, group(@intCast((i * 7) % 20), i + 1));
             var proposed = accepted;
@@ -103,7 +104,8 @@ test "publication staging restarts preserve the previous operator root until che
     try t.expect(staging_turns > 20);
     turn = try store.capture();
     const head = (try readHead(&turn)).?;
-    candidate.* = try Candidate.init(pages, &turn, head[1], head[2], bound, 10000);
+    candidate.* = try Candidate.init(t.allocator, pages, &turn, head[1], head[2], bound, 10000);
+    defer candidate.deinit();
     const old_tree = try Index.init(bound, oldest.?.root);
     var after: ?f.RelationalExecution.Key = null;
     var count: usize = 0;
@@ -128,14 +130,16 @@ test "candidate quotas and identity conflicts fail before replacing accepted sta
     const candidate = try t.allocator.create(Candidate);
     defer t.allocator.destroy(candidate);
     turn = try store.capture();
-    candidate.* = try Candidate.init(pages, &turn, 1, 0, .{ .plan = requested, .cuts = &cuts }, 100);
+    candidate.* = try Candidate.init(t.allocator, pages, &turn, 1, 0, .{ .plan = requested, .cuts = &cuts }, 100);
+    defer candidate.deinit();
     var tree = try Index.init(.{ .plan = requested, .cuts = &cuts }, null);
     try t.expectError(error.RelationalSpillBudget, tree.put(candidate, group(1, 3)));
     try t.expect(tree.root == null);
     try t.expectEqual(@as(u16, 0), candidate.count);
     requested = plan;
     const bound: r.Bound = .{ .plan = requested, .cuts = &cuts };
-    candidate.* = try Candidate.init(pages, &turn, 1, 0, bound, 1);
+    candidate.discard();
+    candidate.* = try Candidate.init(t.allocator, pages, &turn, 1, 0, bound, 1);
     tree = try Index.init(bound, null);
     try tree.put(candidate, group(1, 3));
     try t.expectError(error.RelationalWorkBudget, tree.put(candidate, group(2, 4)));
@@ -143,10 +147,98 @@ test "candidate quotas and identity conflicts fail before replacing accepted sta
     _ = try candidate.stage(&turn);
     try store.commit(turn);
     turn = try store.capture();
-    candidate.* = try Candidate.init(pages, &turn, 1, 0, bound, 100);
+    candidate.discard();
+    candidate.* = try Candidate.init(t.allocator, pages, &turn, 1, 0, bound, 100);
     tree = try Index.init(bound, null);
     try tree.put(candidate, group(1, 4));
     try t.expectError(error.PublicationIdentityConflict, candidate.stage(&turn));
     for (turn.decision.mutations) |mutation| try t.expect(mutation == null);
     try t.expect(try readHead(&turn) == null);
+}
+
+test "candidate payload memory follows encoded bytes and discard preserves charged work" {
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture();
+    const pages = try State.create(&turn, 702);
+    try store.commit(turn);
+    turn = try store.capture();
+    const cuts = try cut();
+    const bound: r.Bound = .{ .plan = plan, .cuts = &cuts };
+    var memory: f.MemoryBudget = .{ .parent = t.allocator, .limit = plan.budgets.resident_bytes };
+    var candidate = try Candidate.init(memory.allocator(), pages, &turn, 1, 0, bound, 100);
+    defer candidate.deinit();
+    var tree = try Index.init(bound, null);
+    for (0..3) |i| try tree.put(&candidate, group(@intCast(i), i + 1));
+    try t.expectEqual(candidate.bytes, memory.used);
+    try t.expect(memory.used < @as(usize, candidate.count) * Index.max_record_bytes);
+    const work = candidate.work;
+    candidate.discard();
+    try t.expectEqual(@as(usize, 0), memory.used);
+    try t.expectEqual(@as(u64, 0), candidate.bytes);
+    try t.expectEqual(@as(u16, 0), candidate.count);
+    try t.expectEqual(work, candidate.work);
+    // An abandoned private update may reuse its identities, but not its work.
+    tree = try Index.init(bound, null);
+    try tree.put(&candidate, group(7, 9));
+    try t.expect(candidate.work > work);
+    try t.expectEqual(@as(u64, 1), tree.root.?.id);
+
+    var workspace: [16 * 1024]u8 = undefined;
+    var fixed: std.heap.FixedBufferAllocator = .init(&workspace);
+    var bounded = try Candidate.init(fixed.allocator(), pages, &turn, 1, 0, bound, 100);
+    defer bounded.deinit();
+    tree = try Index.init(bound, null);
+    for (0..3) |i| try tree.put(&bounded, group(@intCast(i), i + 1));
+    try t.expect(fixed.end_index > 0);
+    bounded.discard();
+    try t.expectEqual(@as(usize, 0), fixed.end_index);
+}
+
+test "candidate resident exhaustion does not publish a partial group" {
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture();
+    const pages = try State.create(&turn, 703);
+    try store.commit(turn);
+    turn = try store.capture();
+    const cuts = try cut();
+    var requested = plan;
+    requested.budgets.resident_bytes = Candidate.resident_bytes;
+    const bound: r.Bound = .{ .plan = requested, .cuts = &cuts };
+    var candidate = try Candidate.init(t.allocator, pages, &turn, 1, 0, bound, 100);
+    defer candidate.deinit();
+    var tree = try Index.init(bound, null);
+    try t.expectError(error.RelationalResidentBudget, tree.put(&candidate, group(1, 3)));
+    try t.expect(tree.root == null);
+    try t.expectEqual(@as(u16, 0), candidate.count);
+    try t.expectEqual(@as(u64, 0), candidate.bytes);
+}
+
+fn candidateAllocationFailures(allocator: std.mem.Allocator, pages: State, turn: *q.station.Turn, bound: r.Bound) !void {
+    var candidate = try Candidate.init(allocator, pages, turn, 1, 0, bound, 1000);
+    defer candidate.deinit();
+    var tree = try Index.init(bound, null);
+    for (0..5) |i| {
+        const before = tree.root;
+        tree.put(&candidate, group(@intCast(i), i + 1)) catch |err| {
+            // Some parent records may already be private when allocation fails.
+            // The accepted root still identifies the previous complete tree.
+            try t.expect(std.meta.eql(before, tree.root));
+            return err;
+        };
+    }
+    try t.expectEqual(@as(u64, 5), tree.root.?.entries);
+}
+
+test "candidate allocation failures release private records and preserve the previous root" {
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture();
+    const pages = try State.create(&turn, 704);
+    try store.commit(turn);
+    turn = try store.capture();
+    const cuts = try cut();
+    const bound: r.Bound = .{ .plan = plan, .cuts = &cuts };
+    try t.checkAllAllocationFailures(t.allocator, candidateAllocationFailures, .{ pages, &turn, bound });
 }

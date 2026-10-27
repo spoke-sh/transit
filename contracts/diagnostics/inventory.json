@@ -15911,7 +15911,7 @@
       "errors": {
         "InvalidRelationalState": 11,
         "MutationBudgetExceeded": 1,
-        "RelationalResidentBudget": 1,
+        "RelationalResidentBudget": 2,
         "RelationalSpillBudget": 3,
         "RelationalWorkBudget": 1
       },
@@ -15933,7 +15933,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
+        "try": 14,
         "catch": 2
       },
       "imports": [

@@ -304,7 +304,8 @@ fn advanceInner(turn: *Turn, stored: r.Job, clients: []const q.catalog.DirectTab
     const bound = data.bound();
     const pages: q.RelationalState = .{ .publication = stored.publication(turn.view.resource) };
     const candidate = try allocator.create(Candidate);
-    candidate.* = try Candidate.init(pages, turn, stored.next_record, stored.state_bytes, bound, 8 * f.RelationalIndex.max_candidate_records);
+    candidate.* = try Candidate.init(allocator, pages, turn, stored.next_record, stored.state_bytes, bound, 8 * f.RelationalIndex.max_candidate_records);
+    defer candidate.deinit();
     const previous: ?f.RelationalCheckpoint = if (stored.checkpoint == 0) null else try pages.checkpoint(turn, stored.checkpoint, bound);
     var groups: Groups = .{ .index = try f.RelationalIndex.init(bound, if (previous) |old| old.root else null), .candidate = candidate };
     var engine = if (previous) |old| try Engine.restore(bound, data, &groups, old) else try Engine.init(bound, data, &groups);
@@ -316,8 +317,7 @@ fn advanceInner(turn: *Turn, stored: r.Job, clients: []const q.catalog.DirectTab
         // A failed operation cannot accept candidate groups. Its bounded control
         // checkpoint preserves the first observed semantic witness separately.
         groups.index.root = if (previous) |old| old.root else null;
-        candidate.count = 0;
-        candidate.bytes = 0;
+        candidate.discard();
         break :blk f.RelationalExecution.Event.progress;
     };
     const progress = try engine.checkpoint(groups.index.root);

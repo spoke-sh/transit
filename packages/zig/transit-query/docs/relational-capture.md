@@ -59,7 +59,9 @@ every input would prevent closure after a foreign grant is revoked.
 `start` and `advance` require `workspace.len + RelationalCapture.resident_base`
 to fit the declared resident budget. The workspace is a fixed allocator;
 candidate nodes, schema decoding and publication buffers have bounded resident
-storage. Spill accounting includes immutable historical and private candidate
+storage. Candidate records allocate their actual encoded lengths, with a fixed
+directory bounded by tree height. Discarding an unsuccessful candidate releases
+its allocations while preserving charged work. Spill accounting includes immutable historical and private candidate
 records, not just the latest root. A failed semantic step can use one additional
 checkpoint of at most 8192 bytes to preserve its witness after quota exhaustion.
 Native storage/transport failures remain attempts until an outcome is committed.
