@@ -177,12 +177,21 @@ def main():
     assert measured['feedback_seconds'] == 10 and measured['aggregate_runner_seconds'] == 9 * len(selected)
     assert not measured['missing_lanes'] and not measured['duplicate_lanes']
     assert measured['first_completed_lane'] == dict(name=selected[0], seconds=10)
-    assert measured['budget_inventory_matches'] and measured['inventory']['ordinary_tasks'] == 103
+    assert measured['budget_inventory_matches']
+    expected_tasks = sum(len(LANES[name]) for name in selected)
+    assert measured['inventory']['ordinary_tasks'] == expected_tasks
     for old_inventory in (None, dict(inventory_identity(), ordinary_tasks=33),
                           dict(inventory_identity(), sha256='foreign')):
         stale = summarize(sample, full_jobs, full_log, dict(budgets, inventory=old_inventory))
         assert stale['status'] == 'measured' and not stale['budget_met']
         assert stale['budget'] is None and not stale['budget_inventory_matches']
+    expanded = json.loads(json.dumps(SUITE))
+    expanded['lanes']['growth'].append('test::additional-growth-scope')
+    assert inventory_identity(expanded)['ordinary_tasks'] == expected_tasks + 1
+    expanded_measurement = summarize(sample, full_jobs, full_log, budgets, suite=expanded)
+    assert expanded_measurement['status'] == 'measured'
+    assert not expanded_measurement['budget_inventory_matches']
+    assert expanded_measurement['budget'] is None and not expanded_measurement['budget_met']
     changed = json.loads(json.dumps(SUITE))
     changed['lanes']['browser'][0] = 'test::different-browser-scope'
     assert inventory_identity(changed)['sha256'] != inventory_identity()['sha256']
