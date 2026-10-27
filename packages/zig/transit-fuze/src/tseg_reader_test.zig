@@ -128,6 +128,65 @@ test "TSeg filtered groups collated pruning agrees with independent unpruned mas
     }
 }
 
+test "TSeg membership selectivity measures distinct values and payload ranges" {
+    // Equal row counts and page layouts isolate distinct-value pressure on the
+    // current 64-bit, two-hash filter. All absent probes are inside min/max.
+    const fields = [_]Schema.Column{.{ .id = 1, .name = "v", .type = .int64 }};
+    const definition: Schema.Schema = .{ .object = 2, .revision = 1, .next_column = 2, .columns = &fields };
+    const row_count = 256;
+    const probes = 2048;
+    for ([_]usize{ 4, 16, 64, 256 }) |distinct| {
+        var cells: [row_count][1]Values.Cell = undefined;
+        var rows: [row_count]Row.Row = undefined;
+        for (&rows, &cells, 0..) |*row, *cell, i| {
+            cell.* = .{.{ .value = .{ .atom = .{ .signed = @intCast((i % distinct) * 4096) } } }};
+            row.* = .{ .identity = .{ .origin = 1, .operation = 1, .ordinal = @intCast(i) }, .cells = cell };
+        }
+        var buffer: [128 * 1024]u8 = undefined;
+        const encoded = try TSeg.writeSegment(t.allocator, definition, &rows, .{ .segment_id = 1, .rows_per_group = row_count }, &buffer);
+        var input: Input = .{ .bytes = buffer[0..encoded.len] };
+        var reader = try Reader.open(t.allocator, input.source(), input.bytes.len, buffer.len);
+        defer reader.deinit();
+        const zone = @constCast(&reader.footer.row_groups[0].zone_maps[0]);
+        const mask = zone.bloom_mask;
+        const page_bytes = reader.footer.row_groups[0].pages[0].length;
+        var failure: ?Reader.FilterFailure = null;
+        // Exhaust every present value independently of the filter hash.
+        for (0..distinct) |value| {
+            const filter: Reader.Filter = .{ .column = 0, .predicate = .{ .compare = .{ .op = .eq, .value = .{ .signed = @intCast(value * 4096) } } } };
+            var selected = try reader.filteredGroup(t.allocator, input.source(), definition, 0, &.{0}, filter, .{}, &failure);
+            defer selected.deinit();
+            try t.expect(failure == null);
+            try t.expectEqual(row_count / distinct, selected.rows.?.len);
+            for (0..selected.columns[0].len()) |i| try t.expectEqual(@as(i128, @intCast(value * 4096)), selected.columns[0].cell(i).value.atom.signed);
+        }
+        var ranges: [2]usize = @splat(0);
+        var bytes: [2]usize = @splat(0);
+        for (0..2) |arm| {
+            // The control changes only the decoded filter to "maybe". Bounds,
+            // page bytes, integrity, predicate execution and projection match.
+            zone.bloom_mask = if (arm == 0) mask else std.math.maxInt(u64);
+            const before_calls = input.calls;
+            const before_bytes = input.read_bytes;
+            for (0..probes) |probe| {
+                const needle: i128 = @intCast(probe * 2 + 1);
+                const filter: Reader.Filter = .{ .column = 0, .predicate = .{ .compare = .{ .op = .eq, .value = .{ .signed = needle } } } };
+                var selected = try reader.filteredGroup(t.allocator, input.source(), definition, 0, &.{0}, filter, .{}, &failure);
+                defer selected.deinit();
+                try t.expect(failure == null);
+                try t.expectEqual(@as(usize, 0), selected.rows.?.len);
+            }
+            ranges[arm] = input.calls - before_calls;
+            bytes[arm] = input.read_bytes - before_bytes;
+            try t.expectEqual(ranges[arm] * page_bytes, bytes[arm]);
+        }
+        try t.expectEqual(@as(usize, probes), ranges[1]);
+        try t.expect(ranges[0] <= ranges[1]);
+        if (distinct <= 16) try t.expect(ranges[0] < probes / 4);
+        std.debug.print("membership: distinct={d}, rows={d}, bits_set={d}/64, false_positive={d}/{d}, payload_ranges={d}/{d}, payload_bytes={d}/{d}\n", .{ distinct, row_count, @popCount(mask), ranges[0], probes, ranges[0], ranges[1], bytes[0], bytes[1] });
+    }
+}
+
 test "TSeg filtered groups cannot prune eager source failures or reorder their row attribution" {
     // A synthetic imported column owns five-state cells not admitted by Table
     // INSERT. Its independently supplied footer commits to the exact page.

@@ -119,7 +119,17 @@ held; projecting the predicate column reads that page again after selection.
 Missing/oversized sort keys use the unpruned path. Pruning trusts the bound
 footer's statistics and does not verify omitted payloads. Hosts own deletion
 visibility, query limits, snapshot retention and final disclosure; direct SQL
-does not yet lower general predicates into this component API.
+uses the retained Table owner's bounded predicate path for finite identity scans.
+Relational predicate pushdown remains separate.
+
+Each indexed column group has a fixed 64-bit, two-hash membership filter over
+collation sort keys. This is a low-distinct-count optimization, not an adaptive
+filter with a target false-positive rate. Duplicate values consume no additional
+bits; many distinct values saturate it and retain the bounded predicate-page
+fallback. The [selectivity measurement](../../../docs/handbook/reference/performance.md#segment-membership-filter-selectivity)
+compares 4, 16, 64 and 256 distinct values with identical row/page sizes. Row-group
+size alone does not determine selectivity. Missing bounds disable pruning, and
+the filter never authorizes skipping a possible source error.
 
 `filteredCandidates` applies the same program to at most 1,024 unique physical
 row ordinals supplied in the owner's logical traversal order. The owner supplies

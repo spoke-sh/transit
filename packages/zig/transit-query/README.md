@@ -176,8 +176,9 @@ defines configuration, ownership, cancellation and memory accounting.
 Direct Table scans read accepted WAL and segment rows through `TablePartition`
 at retained cuts. Fuze's `TSegReader` verifies bounded footer and column ranges;
 point reads select owned cells and scans reuse decoded groups. Finite identity
-scans select columns before segment reads. Segment Zone Map and Bloom-filter
-primitives do not establish general SQL predicate pushdown.
+scans select columns and apply bounded predicate programs before materializing
+segment results, preserving source coverage and final authorization as described
+above. Relational predicate pushdown retains its separate execution path.
 
 `RelationalCompilation.prepare` resolves explicit catalog routes through current
 inspection reads, owns immutable schemas and compiles a prepared relational plan

@@ -954,10 +954,15 @@ point reads/deletes require that identity, not an empty primary key.
    - Segment-wide `[min_pk_sort_key, max_pk_sort_key]` bounds.
    - Per-row-group page offsets, lengths, SHA-256 digests, and collation-aware
      `ZoneMap`s (`min_sort_key`, `max_sort_key`, 5-state counts, 64-bit Wyhash
-     `bloom_mask`).
-   - Embedded Primary-Key B-Tree directory (`pk_sort_key`, `TableRow.Identity`,
-     `row_group`, `row_in_group`, `global_row_offset`) enabling $O(\log N)$ point
-     lookups and $O(1)$ / $O(K \log N)$ OCC primary-key overlap detection.
+     `bloom_mask`). Two hash positions use seeds `0x54534547` and `0xCAFEBABE`
+     modulo 64 over the collation sort key. The fixed filter can saturate as
+     distinct keys increase; it has no promised false-positive rate. Missing
+     bounds disable pruning, and a possible error/conflict prevents unsafe skips.
+   - Embedded sorted primary-key directory (`pk_sort_key`, `TableRow.Identity`,
+     `row_group`, `row_in_group`, `global_row_offset`). Binary search is
+     $O(\log N)$ after the bounded footer is decoded. This array is distinct from
+     the live Table's paged ordered index and does not imply logarithmic physical
+     I/O or constant-time overlap checks.
    - Trailing 32-byte SHA-256 over the `"TSF1"` footer body.
 4. **Trailer (`16 bytes` at `EOF - 16`)**: `footer_offset` (`u64`),
    `footer_length` (`u32`), and `"TSEG"`.
