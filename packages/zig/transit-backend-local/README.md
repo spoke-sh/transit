@@ -52,8 +52,11 @@ acquires the exclusive creation fence before checking and consuming an allocatio
 so a paused creator cannot publish untracked bytes after its marker is reclaimed.
 Independent direct-data acceptance and native reads can progress during private
 native staging. Competing native creators still serialize their inventory writes.
-Explicit native collection retains the journal mutex during progress-file
-publication and physical reclamation; those bounded steps can delay journal work.
+Native collection likewise releases the journal mutex during progress-file
+publication and physical reclamation. Its separate collection, creator and
+inventory locks preserve deletion order; only epoch checks and quota accounting
+take the journal mutex. Slow deletion still delays native creators, while
+independent direct-data acceptance and native reads can proceed.
 
 Complete native `submit` calls acquire a separate submission mutex before
 refreshing authority and staging their candidates. Cooperating request lanes

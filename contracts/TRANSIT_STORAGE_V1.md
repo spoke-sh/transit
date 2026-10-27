@@ -793,6 +793,12 @@ A creator paused after recording its intent cannot recreate content after the
 collector has discarded that intent. These locks change no stored record or
 acceptance boundary; native publication still checks its original expected head
 and epoch independently of private staging.
+Collection progress-file publication and reclamation syncs also run outside the
+journal mutex. The collection mutex serializes progress; the exclusive creator
+fence and inventory mutex protect deletion through FIFO consumption. Accepted
+storage epochs are monotone. Their short validation and quota accounting remain
+under the journal mutex, while independent direct acceptance and native reads
+can proceed during those private maintenance syncs.
 
 Direct-data creation and reuse have a separate mandatory `data-allocations/`
 directory. Every object PUT first records its key, exact metadata and observed

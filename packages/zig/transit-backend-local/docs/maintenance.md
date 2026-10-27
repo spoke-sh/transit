@@ -51,7 +51,12 @@ intent cannot recreate an untracked object after collection. A separate mutex
 serializes the native allocation queue. Epoch validation and quota reservation
 briefly take the journal mutex, while private allocation and object syncs release
 it so unrelated native reads and direct data acceptance can progress. Collection
-progress publication and physical reclamation still hold the journal mutex.
+uses the same short journal lock for epoch checks and quota accounting.
+Progress-file publication remains serialized by the collection mutex; physical
+reclamation keeps the creator fence and inventory mutex through deletion and FIFO
+consumption. Neither holds the journal mutex across its syncs. Epochs cannot
+retreat, and the creator fence prevents reuse of the selected native allocation
+while independent direct data advances.
 
 `storage_compact` uses the native engine's bounded relocation operation. It
 preserves logical values and resource revisions. An opted-in `checkpoint` and

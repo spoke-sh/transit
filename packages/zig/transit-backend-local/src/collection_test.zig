@@ -154,6 +154,87 @@ test "native collection joins a creator paused between inventory and object publ
     try t.expect(try f.owner.allocations.read(allocation.name()) == null);
 }
 
+test "paused native collection publication and deletion permit independent data acceptance" {
+    const Gate = struct {
+        var real: *const std.Io.VTable = undefined;
+        var armed: std.atomic.Value(bool) = .init(false);
+        var entered: std.Io.Event = .unset;
+        var release: std.Io.Event = .unset;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (armed.swap(false, .acq_rel)) {
+                entered.set(t.io);
+                try release.wait(t.io);
+            }
+            return real.fileSync(context, file);
+        }
+        fn collect(f: *Fixture, start: ?u64) !void {
+            if (start) |cut| return f.collector.start(&f.engine, cut);
+            try t.expect(try f.step());
+        }
+        fn readAndAppend(owner: *local.Backend, genesis: core.growing.Genesis, done: *std.Io.Event) !void {
+            defer done.set(t.io);
+            var pages = try local.PageStore.init(owner, 1);
+            defer pages.deinit();
+            var journal: local.Store = .{ .backend = owner };
+            var engine = try Engine.open(&journal, &pages, genesis);
+            try t.expect((try engine.principal(0)).sequence != 0);
+            var data: local.DataStore = .{ .backend = owner };
+            _ = try data.log().append(17, 0, engine.head.storage_epoch, engine.head.authorization.revision + 1, .row_delta, "accepted during native collection");
+            try t.expectEqual(@as(u64, 1), try data.log().tail(17));
+        }
+    };
+    const waitFor = @import("native_test.zig").waitFor;
+    Gate.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Gate.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    for ([_]bool{ false, true }) |deleting| {
+        Gate.entered = .unset;
+        Gate.release = .unset;
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var f: Fixture = .{};
+        try f.openWithIo(tmp.dir, true, io);
+        defer f.close();
+        _ = try f.orphan("unreachable native block");
+        const cut = try f.submit(.{ .storage_fence = {} });
+        if (deleting) {
+            try f.collector.start(&f.engine, cut);
+            try f.until(.wait);
+            try f.elapse();
+            try f.until(.deleting);
+        }
+        const pending = if (deleting) (try f.collector.current()).?.pending else null;
+        Gate.armed.store(true, .release);
+        var collector = try t.io.concurrent(Gate.collect, .{ &f, if (deleting) @as(?u64, null) else cut });
+        defer _ = collector.cancel(t.io) catch {};
+        defer Gate.release.set(t.io);
+        try waitFor(&Gate.entered);
+        var done: std.Io.Event = .unset;
+        var reader = try t.io.concurrent(Gate.readAndAppend, .{ &f.owner, f.engine.genesis, &done });
+        defer _ = reader.cancel(t.io) catch {};
+        try waitFor(&done);
+        try reader.await(t.io);
+        try t.expect(!Gate.release.isSet());
+        Gate.release.set(t.io);
+        try collector.await(t.io);
+        f.close();
+        try f.open(tmp.dir, false);
+        var data: local.DataStore = .{ .backend = &f.owner };
+        var accepted = try data.log().read(t.allocator, 17, 0, 1);
+        defer accepted.deinit();
+        try t.expectEqual(@as(usize, 1), accepted.frames.len);
+        try t.expectEqualStrings("accepted during native collection", accepted.frames[0].payload);
+        const state = (try f.collector.current()).?;
+        try t.expectEqual(@as(@TypeOf(state.phase), if (deleting) .sweep else .mark), state.phase);
+        if (pending) |item| {
+            try t.expect(try f.owner.allocations.read(item.allocation.name()) == null);
+            try t.expect((try f.owner.allocations.current()).cursor > item.cursor);
+        }
+    }
+}
+
 test "native collection retains history, fences delayed writers and resumes pending physical deletion" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
