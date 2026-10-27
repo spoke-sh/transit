@@ -185,6 +185,7 @@ def source_value(definition, owner):
     source['scope']['catalog'] = str(source['scope']['catalog'])
     source['branch'] = str(source['branch'])
     source['object'] = str(source['object'])
+    source['collations'] = [column['collation'] for column in definition['schema']['columns']]
     source['interpretation'] = dict(revision=str(stored['interpretation']['revision']),
         digest=stored['interpretation']['digest'], bytes=str(stored['content']['bytes']),
         schema=stored['schema_fingerprint'])
