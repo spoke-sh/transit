@@ -263,6 +263,25 @@ individual system calls. Trimming includes its verification reads.
 
 ## Physical storage budgets and maintenance
 
+With local storage and a configured `table` host, enabling
+`storage.maintenance.flush.enabled` schedules bounded point-row flushing inside
+the existing maintenance executor. It uses the same shared directory lock and
+Table lock stripe as public requests. It releases native authority during private
+staging and rechecks current maintenance privilege, catalog-resource lifetime
+and storage epochs before acceptance. Physical work does not use Station actors
+or require a trusted expiry clock. Each selected Table gets one unit; failures
+advance discovery and do not disable lifecycle scans.
+
+The shared [configuration reference](../../../docs/handbook/reference/configuration.md#immutable-storage)
+owns row/byte/age thresholds and the aggregate private workspace budget. Bare node
+configuration defaults flushing to disabled. Its configured maintenance interval
+and operation deadline also govern Table work. Enabling it requires both a Table
+host and a maintenance identity; startup rejects an incomplete owner configuration.
+The Ursula native profile rejects enabled Table flushing. Signed `storage` observations are
+read-only; explicit `flush` targets use current Table control authority and the
+same direct partition. Current rows, logical changes and retained history have
+separate frontiers.
+
 The following allocation ledger and physical collection details apply to
 Ursula. Local allocation accounting and retained-object limits are described in
 the [local backend](../../../packages/zig/transit-backend-local/README.md).

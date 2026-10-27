@@ -1507,6 +1507,10 @@ test "bounded pending observation and fixed flush cut preserve later writes and 
     deletion.action = .delete;
     _ = try table.apply(deletion, &.{.{ .remove = try key(0, &key_bytes) }}, .point, access.guard());
     const logical = table.root.changed_lsn;
+    try t.expectError(error.InvalidTableFlushBudget, table.flushThroughRows(cut, 0, access.guard()));
+    try t.expectError(error.InvalidTableFlushBudget, table.flushThroughRows(cut, P.max_changes + 1, access.guard()));
+    try t.expectEqual(@as(usize, 3), try table.flushThroughRows(cut, 3, access.guard()));
+    try t.expectEqual(@as(u64, 7), (try table.pendingRows(10, access.guard())).rows);
     table.lose_reply = true;
     try t.expectError(error.LostAcknowledgement, table.flushThrough(cut, access.guard()));
     table.lose_reply = false;

@@ -247,6 +247,34 @@ control/collection reserve and the private candidate buffer. Defaults are 8 GiB,
 Changes require restart. `SHOW storage.limits.bytes` reports the configured quota,
 not current filesystem usage.
 
+`storage.maintenance.flush.enabled` enables automatic local Table flushing and
+defaults to false. It requires the local node's configured Table host and
+maintenance principal. The other flush settings are:
+
+| Setting suffix | Default | Valid range | Meaning |
+| --- | --- | --- | --- |
+| `rows` | 256 | 1–1,024 | Current WAL row threshold |
+| `work_rows` | 32 | 1–1,024 | Maximum current WAL rows relocated per turn |
+| `bytes` | 256 KiB | 1–9,007,199,254,740,991 bytes | Encoded current WAL row threshold |
+| `age_ms` | 5,000 ms | 1–60,000 ms | Maximum known pending age before eligibility |
+| `resident_bytes` | 128 MiB | 32–512 MiB | Aggregate private Table maintenance workspace |
+
+These settings use the `storage.maintenance.flush.` prefix and require restart.
+Either row/byte threshold or age makes a Table eligible. The owner keeps at most
+64 volatile age hints; unknown ages after restart or eviction are immediately
+eligible. A prior empty observation conservatively bounds when rows became
+pending. Age controls eligibility, not a completion deadline under competing
+Tables or unavailable storage. One executor alternates lifecycle work and
+physical work, visiting one persisted object entry per Table turn. A fixed pass
+boundary prevents new high-ID Tables from extending the pass indefinitely.
+
+The private workspace includes catalog/Table owners, read caches, index staging
+and encoding. Native authority caches and bounded backend I/O buffers retain
+their separate limits. The node's maintenance operation deadline bounds each
+turn. Timeout, revocation, allocation budget or disk quota refusal leaves accepted
+rows recoverable; subsequent turns advance through the other Tables. No flush
+setting expires history, releases a read pin or grants a privilege.
+
 All allocations use ordinary capacity when available. Eligible control and
 collection work can use the separate reserve when ordinary capacity is exhausted;
 routine eligible turns do not consume the reserve while they fit the ordinary

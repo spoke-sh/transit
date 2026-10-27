@@ -1801,6 +1801,70 @@ fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, perform, 
 }
 
 const SnapshotAccess = struct { view: View, current: P.Guard };
+pub const StorageObservation = struct {
+    interpretation: s.TableDeclaration.Stored,
+    position: d.Position,
+    changed_lsn: u64,
+    live_rows: u64,
+    pending: struct { rows: u64, bytes: u64, complete: bool, oldest_lsn: ?u64 },
+    archive_through: u64,
+    recovery_through: ?u64,
+    history_floor: u64,
+};
+pub const FlushTarget = struct { object: d.Object, through: d.Position };
+pub const FlushObservation = struct { target: FlushTarget, observed: StorageObservation, complete: bool };
+
+fn storageAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, policy: Policy, write: bool) !SnapshotAccess {
+    try self.requireInitialized();
+    try object.validate();
+    if (!std.meta.eql(object.scope, self.config().scope) or object.branch != self.config().branch) return error.CatalogDenied;
+    const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    if (target.seed == null) return error.CatalogDenied;
+    var view = try self.open(self.allocator, target, false);
+    errdefer view.deinit();
+    const current = try self.guard(allocator, policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), if (write) .alter else .inspect);
+    try check(current);
+    if (view.table.root.next_lsn == 0) return error.CatalogRegistrationRequired;
+    return .{ .view = view, .current = current };
+}
+fn storageState(view: *View, limit: u16, guard_value: P.Guard) !StorageObservation {
+    const backlog = try view.table.pendingRows(limit, guard_value);
+    const root = view.table.root;
+    return .{
+        .interpretation = root.declared(),
+        .position = .{ .partition = root.partition, .next_lsn = root.next_lsn },
+        .changed_lsn = root.changed_lsn,
+        .live_rows = root.live_rows,
+        .pending = .{ .rows = backlog.rows, .bytes = backlog.bytes, .complete = backlog.complete, .oldest_lsn = backlog.oldest_lsn },
+        .archive_through = root.archive.through,
+        .recovery_through = if (root.recovery) |known| known.next_lsn else null,
+        .history_floor = root.history_floor,
+    };
+}
+pub fn inspectStorage(self: *Self, object: d.Object, limit: u16, policy: Policy) !StorageObservation {
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    var selected = try self.storageAccess(arena.allocator(), object, policy, false);
+    defer selected.view.deinit();
+    return storageState(&selected.view, limit, selected.current);
+}
+/// Execute one bounded physical unit against the caller's saved exclusive cut.
+/// Repeating the same target after uncertainty observes accepted coverage; it
+/// does not enqueue another request or choose a new cut. Automatic scheduling
+/// can independently satisfy this target. No logical receipt or pin is created.
+pub fn flushStorage(self: *Self, target: FlushTarget, policy: Policy) !FlushObservation {
+    try target.through.validate();
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    var selected = try self.storageAccess(arena.allocator(), target.object, policy, true);
+    defer selected.view.deinit();
+    if (target.through.partition != selected.view.table.root.partition) return error.InvalidTableBasis;
+    selected.view.table.lose_reply = self.lose_table_reply;
+    _ = try selected.view.table.flushThroughRows(target.through.next_lsn, (p.Storage.Flush{}).work_rows, selected.current);
+    const observed = try storageState(&selected.view, 1, selected.current);
+    return .{ .target = target, .observed = observed, .complete = observed.pending.oldest_lsn == null or observed.pending.oldest_lsn.? >= target.through.next_lsn };
+}
+
 fn snapshotAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, owner: d.Operation, policy: Policy, control: bool) !SnapshotAccess {
     try owner.validate();
     if (!std.meta.eql(owner.scope, object.scope) or owner.principal != policy.subject.principal()) return error.CatalogDenied;

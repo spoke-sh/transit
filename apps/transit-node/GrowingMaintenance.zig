@@ -13,14 +13,20 @@ pub const Config = struct {
     checkpoint_every_records: ?u64 = null,
     storage: core.protocol.Storage.Maintenance = .{},
 };
-const Progress = struct { scan: core.growing.Maintenance = .{}, maintained: u64 = 0, storage_turn: bool = false };
+pub fn Extension(comptime Provider: type) type {
+    return struct {
+        context: *anyopaque,
+        step: *const fn (*anyopaque, *Provider.Engine, Config, g.SignedRequest) anyerror!bool,
+    };
+}
+const Progress = struct { scan: core.growing.Maintenance = .{}, maintained: u64 = 0, storage_turn: bool = false, extension_turn: bool = false };
 const Outcome = enum { idle, transition, checkpointed, trimmed, storage };
 fn sample(engine: anytype) anyerror!?core.Time.Sample {
     const source = engine.clock orelse return null;
     return try source.sample();
 }
 
-fn step(comptime Provider: type, engine: *Provider.Engine, config: Config, key: core.Ed25519.KeyPair, progress: *Progress, observation: *observations.Observation) !Outcome {
+fn step(comptime Provider: type, engine: *Provider.Engine, config: Config, key: core.Ed25519.KeyPair, progress: *Progress, observation: *observations.Observation, extension: ?Extension(Provider)) !Outcome {
     try engine.refresh();
     var request: g.Request = .{
         .realm = engine.genesis.realm,
@@ -43,8 +49,16 @@ fn step(comptime Provider: type, engine: *Provider.Engine, config: Config, key: 
     // Alternate background storage work with lifecycle/control scans. Each
     // collection unit has its own durable cursor and shares this timeout budget.
     progress.storage_turn = !progress.storage_turn;
-    if (progress.storage_turn and engine.clock != null) {
-        if (try Provider.collect(engine, config, key, &request)) return .storage;
+    if (progress.storage_turn) {
+        progress.extension_turn = !progress.extension_turn;
+        if (extension != null and progress.extension_turn) {
+            // Physical Table work needs no trusted expiry clock. It shares this
+            // executor/deadline and alternates with native collection, including
+            // when its current Table remains eligible after one bounded unit.
+            if (try extension.?.step(extension.?.context, engine, config, try g.sign(request, key))) return .storage;
+        } else if (engine.clock != null) {
+            if (try Provider.collect(engine, config, key, &request)) return .storage;
+        }
     }
     // Clock failure cannot disable already authorized physical maintenance or
     // terminal-source disposition. The scanner evaluates time only if needed.
@@ -82,10 +96,10 @@ fn step(comptime Provider: type, engine: *Provider.Engine, config: Config, key: 
 fn timeout(io: std.Io, milliseconds: u32) anyerror!void {
     try io.sleep(.fromMilliseconds(milliseconds), .awake);
 }
-fn boundedStep(comptime Provider: type, io: std.Io, engine: *Provider.Engine, config: Config, key: core.Ed25519.KeyPair, progress: *Progress, observation: *observations.Observation) !Outcome {
+fn boundedStep(comptime Provider: type, io: std.Io, engine: *Provider.Engine, config: Config, key: core.Ed25519.KeyPair, progress: *Progress, observation: *observations.Observation, extension: ?Extension(Provider)) !Outcome {
     const Task = struct {
-        fn run(e: @TypeOf(engine), c: Config, k: core.Ed25519.KeyPair, state: *Progress, o: *observations.Observation) anyerror!Outcome {
-            return step(Provider, e, c, k, state, o);
+        fn run(e: @TypeOf(engine), c: Config, k: core.Ed25519.KeyPair, state: *Progress, o: *observations.Observation, extra: ?Extension(Provider)) anyerror!Outcome {
+            return step(Provider, e, c, k, state, o, extra);
         }
     };
     const Result = union(enum) { completed: anyerror!Outcome, timeout: anyerror!void };
@@ -93,13 +107,13 @@ fn boundedStep(comptime Provider: type, io: std.Io, engine: *Provider.Engine, co
     var select: std.Io.Select(Result) = .init(io, &results);
     defer select.cancelDiscard(); // Join owned work before its state is reused.
     try select.concurrent(.timeout, timeout, .{ io, config.operation_timeout_ms });
-    try select.concurrent(.completed, Task.run, .{ engine, config, key, progress, observation });
+    try select.concurrent(.completed, Task.run, .{ engine, config, key, progress, observation, extension });
     return switch (try select.await()) {
         .completed => |value| value,
         .timeout => error.MaintenanceTimeout,
     };
 }
-pub fn run(comptime Provider: type, init: std.process.Init, engine: *Provider.Engine, config: Config, diagnostics: *observations.telemetry.Runtime) !void {
+pub fn run(comptime Provider: type, init: std.process.Init, engine: *Provider.Engine, config: Config, diagnostics: *observations.telemetry.Runtime, extension: ?Extension(Provider)) !void {
     if (config.storage.collection_every_records == 0 or config.storage.collection_every_records > core.protocol.max_counter or config.principal > core.protocol.max_counter or config.interval_ms == 0 or config.interval_ms > 60000 or
         config.operation_timeout_ms == 0 or config.operation_timeout_ms > 60000 or
         (config.checkpoint_every_records != null and (config.checkpoint_every_records.? < 2 or !engine.genesis.allow_history_trim))) return error.InvalidMaintenanceConfig;
@@ -110,7 +124,7 @@ pub fn run(comptime Provider: type, init: std.process.Init, engine: *Provider.En
         observation.event.realm = engine.genesis.realm;
         Provider.trace(engine, observation.span.context);
         defer Provider.trace(engine, null);
-        const outcome = boundedStep(Provider, init.io, engine, config, key, &progress, &observation) catch |err| {
+        const outcome = boundedStep(Provider, init.io, engine, config, key, &progress, &observation, extension) catch |err| {
             observation.fail(err);
             observation.finish();
             if (err == error.Canceled) return err;

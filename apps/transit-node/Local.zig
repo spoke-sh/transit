@@ -5,6 +5,7 @@ const backend = @import("transit_backend_local");
 const telemetry = @import("transit_observability").telemetry;
 const server = @import("NativeServer.zig");
 const Maintenance = @import("GrowingMaintenance.zig");
+const TableMaintenance = @import("LocalTableMaintenance.zig");
 pub const TableHost = @import("LocalTableHost.zig");
 const Self = @This();
 pub const Store = backend.Store;
@@ -31,6 +32,8 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     defer parsed.deinit();
     const config = parsed.value;
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
+    try config.storage.maintenance.flush.validate();
+    if (config.storage.maintenance.flush.enabled and (config.table == null or config.maintenance == null)) return error.LocalTableMaintenanceRequiresOwner;
     if (mode.maintain) return error.LocalMaintenanceRequiresOwner;
     if (config.storage.maintenance.compact) return error.LocalCompactionUnavailable;
     var reopens: u8 = 0;
@@ -108,9 +111,13 @@ fn runOwner(init: std.process.Init, config: Config, mode: anytype, diagnostics: 
 }
 
 fn runServices(init: std.process.Init, engine: *Engine, lanes: []Lane, config: Config, maintenance_engine: ?*Engine, diagnostics: *telemetry.Runtime) !void {
+    var table_maintenance: ?TableMaintenance = if (lanes[0].table) |host| .{ .host = host } else null;
     const Task = struct {
-        fn maintain(process: std.process.Init, owned: *Engine, settings: Maintenance.Config, runtime: *telemetry.Runtime) anyerror!void {
-            return Maintenance.run(Self, process, owned, settings, runtime);
+        fn maintain(process: std.process.Init, owned: *Engine, settings: Maintenance.Config, runtime: *telemetry.Runtime, extension: ?Maintenance.Extension(Self)) anyerror!void {
+            return Maintenance.run(Self, process, owned, settings, runtime, extension);
+        }
+        fn maintainTable(raw: *anyopaque, owned: *Engine, settings: Maintenance.Config, signed: core.protocol.Growth.SignedRequest) anyerror!bool {
+            return TableMaintenance.step(raw, owned, settings.storage.flush, signed);
         }
         fn serve(process: std.process.Init, authority: *Engine, requests: []Lane, settings: Config, runtime: *telemetry.Runtime) anyerror!void {
             return server.Host(Self).serve(process, authority, requests, settings, runtime);
@@ -131,7 +138,8 @@ fn runServices(init: std.process.Init, engine: *Engine, lanes: []Lane, config: C
     if (maintenance_engine) |owned| {
         var maintenance = config.maintenance.?;
         maintenance.storage = config.storage.maintenance;
-        try select.concurrent(.maintenance, Task.maintain, .{ init, owned, maintenance, diagnostics });
+        const extension: ?Maintenance.Extension(Self) = if (table_maintenance) |*work| .{ .context = work, .step = Task.maintainTable } else null;
+        try select.concurrent(.maintenance, Task.maintain, .{ init, owned, maintenance, diagnostics, extension });
     }
     try select.concurrent(.server, Task.serve, .{ init, engine, lanes, config, diagnostics });
     try select.concurrent(.recovery, Task.watch, .{ init.io, engine.journal.backend });

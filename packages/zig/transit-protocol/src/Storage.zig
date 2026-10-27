@@ -10,5 +10,18 @@ pub const Limits = struct {
         if (self.bytes == 0 or self.bytes > p.max_counter or self.control_bytes < 1024 * 1024 or self.control_bytes > p.max_counter or self.candidate_bytes == 0 or self.candidate_bytes > max_candidate_bytes) return error.InvalidStorageBudget;
     }
 };
-pub const Maintenance = struct { collection_every_records: u64 = 1024, compact: bool = false };
+pub const Flush = struct {
+    enabled: bool = false,
+    rows: u16 = 256,
+    work_rows: u16 = 32,
+    bytes: u64 = 256 * 1024,
+    age_ms: u32 = 5000,
+    resident_bytes: u32 = 128 * 1024 * 1024,
+    pub fn validate(self: Flush) !void {
+        if (self.rows == 0 or self.rows > 1024 or self.work_rows == 0 or self.work_rows > 1024 or self.bytes == 0 or self.bytes > p.max_counter or
+            self.age_ms == 0 or self.age_ms > 60000 or self.resident_bytes < 32 * 1024 * 1024 or
+            self.resident_bytes > 512 * 1024 * 1024) return error.InvalidStorageBudget;
+    }
+};
+pub const Maintenance = struct { collection_every_records: u64 = 1024, compact: bool = false, flush: Flush = .{} };
 pub const Settings = struct { limits: Limits = .{}, maintenance: Maintenance = .{} };

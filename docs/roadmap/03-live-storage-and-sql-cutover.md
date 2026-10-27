@@ -229,7 +229,7 @@ original outcome before comparing the final candidate.
   deployment policy. Neither a request nor configuration can grant retention,
   bypass a revoked grant or recreate a dropped object. Board only observes.
 - A requested flush fixes its original accepted cut. Completion means no current
-  row still depends on WAL row bytes at or before that cut; overwritten/deleted
+  row still depends on WAL row bytes strictly below that exclusive cut; overwritten/deleted
   rows cease to be current obligations. Historical readers retain independent
   dependencies. Later writes do not extend this target. Inspection publishes no
   maintenance record and never initiates work.
@@ -305,6 +305,12 @@ to readiness with identical binaries. Preserve that failure while diagnosing
 contention and qualifying the installed lifecycle. These results do not close
 P1.4 or establish the final common-revision acceptance gate.
 
+A serial rerun of the installed direct SQL schedule passes direct CRUD, schema
+and namespace lifecycle, stopped application workers, stale preparations,
+dependency protection, abrupt owner restart and original outcomes after name
+reuse. The earlier bootstrap failure remains recorded; a later successful run
+does not establish its cause.
+
 #### P2 — Make point flushing automatic and inspectable
 
 Owners: local Table host/service, `TablePartition`, shared storage settings and
@@ -336,6 +342,28 @@ crossing the documented trigger produces verified segment-backed rows, which
 also survive restart. A pre-flush pin reads its original rows throughout.
 Exercise competing Tables, a hot writer, paused I/O and quotas without losing
 control progress. Do not count private orphan segments as accepted data.
+
+The bounded discovery/fixed-cut foundations are committed at `f354ade44`.
+Focused tests pass fixed high-water enumeration, current-policy cursor fences,
+late writes, old pins and lost flush replies. The live maintenance integration
+is being qualified: a selected small Table flushed in 128 ms with 29,396,604
+private peak bytes, but a real-node 256-row unit exceeded the five-second
+maintenance deadline on physical disk. Keep that failure; thresholds alone do
+not bound a turn's work. The candidate now separates eligibility thresholds
+from a 32-row work limit. That candidate passes the real signed node proof on
+physical disk: 258 WAL rows across three competing Tables become 10 independently
+verified segments in 12.701 seconds including owner restart, with the installed
+two-second per-turn deadline. This fixture uses a 50 ms scheduler interval; it
+does not measure the installed server's one-second interval. Original WAL pins
+and later segment-backed pins both survive another abrupt restart. The original
+failed preparation separately recovers with identical binaries and exact saved
+operation identities. The cause of that earlier preparation failure is unproved.
+Defaults remain disabled until the installed SQL and interference gate passes.
+Shared storage observations and explicit fixed-cut units have passing focused
+denial, partial-count, later-write, original-receipt and lost-reply checks.
+An explicit flush executes one bounded unit and returns accepted coverage; it
+does not acknowledge an asynchronous work request or create a second durable
+queue. Callers retain the original target while automatic work may also fulfill it.
 
 #### P3 — Project compatible schema changes lazily
 

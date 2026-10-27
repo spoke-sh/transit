@@ -184,6 +184,10 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     defer definition.deinit();
     try t.expectEqual(engine.head.authorization.revision, definition.value.policy_revision);
     const selected = definition.value.result.lookup.?;
+    const empty_storage = try dispatch(&service, .{ .storage = .{ .object = binding.target, .pending_limit = 1 } });
+    defer empty_storage.deinit();
+    try t.expectEqualDeep(selected.position, empty_storage.value.result.storage.position);
+    try t.expect(empty_storage.value.result.storage.pending.complete and empty_storage.value.result.storage.pending.rows == 0);
     const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 102, .operation = 201, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 12 } } }} };
     var work: w.Rows = .{ .binding = binding, .interpretation = selected.interpretation, .schema = schema_wire, .changes = &.{.{ .insert = try w.Binary.encode(alloc, try row.encode(schema, &buffer)) }}, .ingestion = .bulk };
     work.binding.identity.operation = 201;
@@ -196,6 +200,14 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     const rows = try dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } });
     defer rows.deinit();
     try t.expectEqual(@as(u64, 1), rows.value.result.rows.committed.outcome.affected);
+    const bulk_storage = try dispatch(&service, .{ .storage = .{ .object = binding.target, .pending_limit = 1 } });
+    defer bulk_storage.deinit();
+    try t.expectEqual(@as(u64, 0), bulk_storage.value.result.storage.pending.rows);
+    const bulk_target: D.FlushTarget = .{ .object = binding.target, .through = bulk_storage.value.result.storage.position };
+    const bulk_flush = try dispatch(&service, .{ .flush = bulk_target });
+    defer bulk_flush.deinit();
+    try t.expect(bulk_flush.value.result.flush.complete);
+    try t.expectEqualDeep(bulk_storage.value.result.storage, bulk_flush.value.result.flush.observed);
     const pinned = try dispatch(&service, .{ .pin = .{ .object = binding.target, .owner = .{ .scope = config.scope, .principal = 101, .operation = 202 }, .expected = rows.value.result.rows.committed.outcome.position } });
     defer pinned.deinit();
     const snapshot: w.Snapshot = .{ .object = binding.target, .handle = pinned.value.result.pin };
@@ -874,6 +886,57 @@ fn dependencyDispatch(engine: *Engine, config: D.Configuration, owner_role: u64)
     _ = try change(engine, .{ .revoke_privileges = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = owner_role, .privileges = p.permission(.admin) } });
 }
 
+fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAuthority.Name, expected: c.storage.TablePartition.Evidence, retained: c.storage.TablePartition.SnapshotHandle) !void {
+    const Work = @import("LocalTableMaintenance.zig");
+    var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
+    var work: Work = .{ .host = &host };
+    const settings: p.Storage.Flush = .{ .enabled = true };
+    const request: g.Request = .{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .checkpoint };
+    const signed = try g.sign(request, try key(17));
+    var denied = request;
+    denied.principal = 101;
+    const initial_cursor = work.cursor;
+    try t.expectError(error.Forbidden, Work.step(&work, engine, settings, try g.sign(denied, try key(29))));
+    try t.expectEqualDeep(initial_cursor, work.cursor);
+    const clock = engine.clock;
+    defer engine.clock = clock;
+    engine.clock = null; // Physical flushing neither samples nor requires UTC.
+    const owner = engine.journal.backend;
+    const limits = owner.limits;
+    owner.limits.bytes = owner.allocated;
+    defer owner.limits = limits;
+    try t.expectError(error.StorageQuota, Work.step(&work, engine, settings, signed));
+    try t.expectEqual(@as(?u64, expected.binding.target.object), work.cursor.after);
+    owner.limits = limits;
+    const begin = std.Io.Clock.awake.now(t.io);
+    var peak: usize = 0;
+    var steps: usize = 0;
+    while (true) : (steps += 1) {
+        const progressed = try Work.step(&work, engine, settings, signed);
+        peak = @max(peak, work.last_peak_bytes);
+        if (progressed and work.last_object == expected.binding.target.object) break;
+        if (steps == 32) return error.FixtureBudget;
+    }
+    peak = @max(peak, work.last_peak_bytes);
+    try t.expect(work.last_rows > 0 and peak <= settings.resident_bytes);
+    std.debug.print("Local physical flush: {d} scheduled entries, {d} peak private bytes, {d} ms.\n", .{ steps + 1, peak, begin.durationTo(std.Io.Clock.awake.now(t.io)).toMilliseconds() });
+    var current = (try catalog.resolve(t.allocator, 1, name, policy.policy())).?;
+    defer current.deinit();
+    try t.expectEqual(expected.outcome.position.next_lsn, current.table.root.changed_lsn);
+    try t.expect(current.table.root.next_lsn > expected.outcome.position.next_lsn);
+    try t.expectEqualDeep(expected, (try catalog.rowStatus(expected.binding, policy.policy())).committed);
+    var old = try catalog.scanRows(t.allocator, expected.binding.target, retained, null, .{}, policy.policy());
+    defer old.deinit();
+    try t.expect(old.rows[0].? == .wal);
+    // Fresh volatile work resumes from persisted discovery and observes no
+    // pending rows in the already flushed Table. No accepted work is recreated.
+    var restarted: Work = .{ .host = &host };
+    const after = current.table.root;
+    _ = try Work.step(&restarted, engine, settings, signed);
+    try current.table.recover();
+    try t.expectEqualDeep(after, current.table.root);
+}
+
 test "local catalog checks real native registrations, current ownership and exact request proof" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -999,6 +1062,7 @@ test "local catalog checks real native registrations, current ownership and exac
     var historical = try catalog.snapshotDefinition(t.allocator, request.binding.target, retained, policy.policy());
     defer historical.deinit();
     try t.expectEqualDeep(accepted.resulting, historical.root.declared());
+    try physicalFlush(&engine, &catalog, &policy, intent.name, accepted, retained);
     var another_principal = retained;
     another_principal.owner.principal = 0;
     try t.expectError(error.CatalogDenied, catalog.scanRows(t.allocator, request.binding.target, another_principal, null, .{}, policy.policy()));

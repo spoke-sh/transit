@@ -331,6 +331,8 @@ pub const Action = union(enum) {
     lookup: struct { namespace: u64, name: []const u8 },
     /// One read-only current observation; rows are optional and never resumable.
     observe: struct { namespace: u64, interpretation: d.Definition, rows: ?P.ReadLimits },
+    storage: struct { object: d.Object, pending_limit: u16 },
+    flush: D.FlushTarget,
     read_current: CurrentRead,
     read_authority: d.Object,
     name_assertion: struct { binding: c.NameAssertion.Binding, command: c.NameAssertion.Command },
@@ -385,7 +387,7 @@ pub const Request = struct {
     /// parsed action and current rights before using reserved admission.
     pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8 } {
         const mutation = switch (self.action) {
-            .initialize, .stage, .admit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .retain_history, .release => true,
+            .initialize, .stage, .admit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .retain_history, .release, .flush => true,
             .operation => |value| value.command != .inspect,
             .name_assertion => |value| value.command != .inspect,
             .namespace_operation => |value| value.command != .inspect,
@@ -504,6 +506,14 @@ pub const Request = struct {
                 try value.interpretation.validate();
                 try connection.object(value.interpretation.object);
                 if (value.rows) |limits| try limits.validate();
+            },
+            .storage => |value| {
+                try connection.object(value.object);
+                if (value.pending_limit == 0 or value.pending_limit > P.max_changes) return error.InvalidTableReadBudget;
+            },
+            .flush => |value| {
+                try connection.object(value.object);
+                try value.through.validate();
             },
             .read_current => |value| {
                 try c.Model.nativeId(value.namespace);
@@ -748,6 +758,8 @@ pub const Result = union(enum) {
     list: struct { entries: [8]?D.Listed, next: ?u64, directory_position: d.Position, consistency: enum { independent } },
     lookup: ?Definition,
     observation: Current,
+    storage: D.StorageObservation,
+    flush: D.FlushObservation,
     current_read: CurrentReadResult,
     read_authority: c.DirectReadAuthority,
     name_assertion: c.NameAssertion.Observation,

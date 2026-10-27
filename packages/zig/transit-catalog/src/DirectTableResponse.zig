@@ -43,6 +43,17 @@ fn resourceMetadata(allocator: std.mem.Allocator, connection: w.Connection, valu
     try value.position.validate();
     if (value.position.next_lsn == 0 or !std.meta.eql(value.interpretation, try value.definition.interpretation(allocator))) return error.InvalidTableResponse;
 }
+fn storage(connection: w.Connection, object: d.Object, limit: u16, value: c.DirectCatalog.StorageObservation) !void {
+    try definition(connection, value.interpretation);
+    try frontier(value.position, value.changed_lsn);
+    const pending = value.pending;
+    if (!std.meta.eql(value.interpretation.interpretation.object, object) or value.position.next_lsn == 0 or
+        pending.rows > limit or pending.rows > value.live_rows or (pending.rows == 0) != (pending.oldest_lsn == null) or
+        (pending.rows == 0) != (pending.bytes == 0) or (!pending.complete and (pending.rows != limit or pending.rows >= value.live_rows)) or
+        value.archive_through >= value.position.next_lsn or value.history_floor > value.position.next_lsn) return error.InvalidTableResponse;
+    if (pending.oldest_lsn) |oldest| if (oldest >= value.position.next_lsn) return error.InvalidTableResponse;
+    if (value.recovery_through) |through| if (through == 0 or through >= value.position.next_lsn) return error.InvalidTableResponse;
+}
 fn evidence(binding: d.Binding, value: P.Evidence) !void {
     try binding.requireSame(value.binding);
     try value.resulting.validate();
@@ -125,6 +136,8 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .list => .list,
         .lookup => .lookup,
         .observe => .observation,
+        .storage => .storage,
+        .flush => .flush,
         .read_current => .current_read,
         .read_authority => .read_authority,
         .name_assertion => .name_assertion,
@@ -152,6 +165,15 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .storage => |value| try storage(request.connection, request.action.storage.object, request.action.storage.pending_limit, value),
+        .flush => |value| {
+            const target = request.action.flush;
+            if (!std.meta.eql(target, value.target) or value.observed.interpretation.retired or
+                target.through.partition != value.observed.position.partition or target.through.next_lsn > value.observed.position.next_lsn) return error.InvalidTableResponse;
+            try storage(request.connection, target.object, 1, value.observed);
+            const complete = value.observed.pending.oldest_lsn == null or value.observed.pending.oldest_lsn.? >= target.through.next_lsn;
+            if (value.complete != complete) return error.InvalidTableResponse;
+        },
         .resource_preview => |value| {
             try request.action.resource_preview.requireSame(value.binding);
             try value.position.validate();

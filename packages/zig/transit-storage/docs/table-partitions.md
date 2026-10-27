@@ -340,6 +340,11 @@ lost publication reply is resolved from the accepted root before repeating the
 same target. Historical pins retain independent WAL dependencies. This primitive
 does not itself persist a caller's work request.
 
+`flushThroughRows(exclusive_frontier, rows, guard)` additionally limits the
+selected unit to 1–1,024 rows. This work limit is independent of a scheduler's
+eligibility threshold. Remaining rows retain their accepted WAL locators; another
+turn can continue the same target without a separate in-memory work queue.
+
 `pendingRows(limit, guard)` reads the current manifest prefix without decoding
 row values or staging objects. It returns the observed row count, encoded WAL
 row bytes, earliest current-row WAL position and an explicit completeness flag.

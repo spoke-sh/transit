@@ -1608,11 +1608,19 @@ pub fn flush(self: *Self, guard: Guard) !usize {
 /// replacements of older rows, cannot extend this physical-work obligation.
 /// Historical pins retain their own WAL dependencies after current rows move.
 pub fn flushThrough(self: *Self, through: u64, guard: Guard) !usize {
+    return self.flushThroughRows(through, max_changes, guard);
+}
+
+/// Bound one scheduler turn separately from the threshold selecting a Table.
+/// Partial work retains the same fixed cut; subsequent units rediscover the
+/// remaining current WAL rows from accepted locators.
+pub fn flushThroughRows(self: *Self, through: u64, rows: usize, guard: Guard) !usize {
     try self.ready();
     if (through > self.root.next_lsn) return error.InvalidTableBasis;
+    if (rows == 0 or rows > max_changes) return error.InvalidTableFlushBudget;
     var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.build_resident_bytes };
     defer self.build_resident_peak = memory.peak;
-    return self.flushWithinBudget(memory.allocator(), through, guard) catch |err| return buildFailure(&memory, err);
+    return self.flushWithinBudget(memory.allocator(), through, rows, guard) catch |err| return buildFailure(&memory, err);
 }
 
 pub const PendingRows = struct {
@@ -1656,7 +1664,7 @@ pub fn pendingRows(self: *Self, limit: usize, guard: Guard) !PendingRows {
     return result;
 }
 
-fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, through: u64, guard: Guard) !usize {
+fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, through: u64, row_limit: usize, guard: Guard) !usize {
     try self.ready();
     if (self.root.retired) return error.TableRetired;
     {
@@ -1669,14 +1677,14 @@ fn flushWithinBudget(self: *Self, allocator: std.mem.Allocator, through: u64, gu
     var rows: std.ArrayList(f.TableRow.Row) = .empty;
     var bytes: usize = 0;
     var after: ?pages.Key = null;
-    find: while (rows.items.len < max_changes) {
+    find: while (rows.items.len < row_limit) {
         const batch = try self.scan(self.root, after);
         for (batch.entries) |slot| if (slot) |entry| {
             const locator = try r.Locator.decode(entry.value);
             // WAL locators sort before segment locators. Once this boundary is
             // reached there is no unflushed work later in the durable directory.
             if (locator.kind != .wal or locator.lsn >= through) break :find;
-            if (locator.length > max_row_bytes - bytes or rows.items.len == max_changes) break :find;
+            if (locator.length > max_row_bytes - bytes or rows.items.len == row_limit) break :find;
             const row = try self.readRow(a, self.root, entry.key, entry.value);
             try rows.append(a, row.row());
             bytes += locator.length;

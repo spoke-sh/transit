@@ -128,6 +128,10 @@ local-data-collection:
 direct-table-service *args:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- {{args}}
 
+# Automatic Table flushing on physical disk, with original and new retained cuts.
+direct-table-maintenance:
+    zig build test-direct-table-maintenance -Doptimize=ReleaseSafe
+
 # Focused shared host preparation, saved work and explicit direct operations.
 direct-table-callers:
     zig build test-direct-table-callers -Doptimize=ReleaseSafe
