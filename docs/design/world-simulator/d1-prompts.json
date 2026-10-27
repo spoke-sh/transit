@@ -1,0 +1,63 @@
+{
+  "tool": "hybrid: built-in image-generator base world artwork + Playwright 2560x1600 @ 2x (5120x3200) vector UI/HUD/Terminal compositing",
+  "status": "High-resolution 5120x3200 D1 visual studies for world-simulator; synthetic faction archipelago, OpenUSD simready-assets metadata, TN3270/ISPF and FIX protocol screens, and MMO Mainnet upgrade metrics. Does not claim an implemented simulator binary or runtime integration in Transit.",
+  "referencePaths": "Relative to repository root.",
+  "notes": "Base world illustrations (images/raw/raw-01..06.png) were generated with the built-in image-generator subagent without baked-in text so that all cartographic telemetry, TN3270/ISPF green-screen terminals, FIX 4.2 order books, OpenUSD SimReady physics inspectors, and Transit Board provenance overlays are browser-rendered at 2560x1600 CSS pixels with deviceScaleFactor 2 (5120x3200 PNGs) via d1-render.mjs.",
+  "visualSystem": {
+    "viewportCss": "2560x1600",
+    "deviceScaleFactor": 2,
+    "outputPixels": "5120x3200",
+    "surfaceObsidian": "#0B0F17",
+    "panelGlass": "rgba(13, 19, 30, 0.88)",
+    "panelSolid": "#111827",
+    "borderRule": "#263248",
+    "inkPrimary": "#F8FAFC",
+    "inkSecondary": "#94A3B8",
+    "semanticAccents": {
+      "transitVerifiedTeal": "#14B8A6",
+      "ispfPhosphorGreen": "#22C55E",
+      "legacyBatchAmber": "#F59E0B",
+      "typeErrorCoral": "#EF4444",
+      "conflictViolet": "#A855F7",
+      "simReadyCyan": "#38BDF8"
+    }
+  },
+  "images": [
+    {
+      "filename": "d1-01-macro-world-map.png",
+      "rawBase": "docs/design/world-simulator/images/raw/raw-01-macro-world-map.png",
+      "title": "Macro cartographic OS, faction archipelago and anchored protocol apps",
+      "prompt": "Top-down oblique cartographic satellite-relief map of a procedurally generated industrial and computing archipelago (OpenTTD, Factorio, and SimCity 4 cartography aesthetic) with six distinct faction biomes (Clearing Spire, Java Archipelago, Midwest Heartland, Rust Foundry, Gopher Burrows, Ruby Mines) connected by submarine fiber cables, rail corridors, and shipping lanes, composited at 5120x3200 with spatial latency contours, live TN3270/ISPF terminal CICS-INV-04, FIX 4.2 order book feed, and Transit Fuze modernization overlay."
+    },
+    {
+      "filename": "d1-02-faction-archeology.png",
+      "rawBase": "docs/design/world-simulator/images/raw/raw-02-faction-archeology.png",
+      "title": "Computing factions and software archeology across geological strata",
+      "prompt": "Isometric cutaway geological-strata architectural illustration showing four computing faction landmarks with their underground legacy foundations exposed like archaeological excavations (1978 COBOL/VSAM tape vaults, 2001 Java/SOAP middleware racks, 2015 Ruby/Go stream conduits, 2026 Rust/OpenUSD automated foundry), composited at 5120x3200 with the 4-stratum protocol excavation inspector and 5-state cell breakdown (942 value, 28 null, 14 missing, 9 type_error, 7 conflict)."
+    },
+    {
+      "filename": "d1-03-isometric-simready-dock.png",
+      "rawBase": "docs/design/world-simulator/images/raw/raw-03-isometric-simready-dock.png",
+      "title": "Meso isometric intermodal dock with nvidia/simready-assets and live terminals",
+      "prompt": "Isometric 3D cutaway render of Sector 04 Intermodal Fulfillment Facility populated with OpenUSD nvidia/simready-assets (counterbalance forklifts, mobile AMR carts, stacked euro-pallets, high-speed conveyors, optical/LiDAR portals) contrasting congested Legacy Dock B (idling trucks awaiting ISPF batch cutoff) with Transit-activated Autonomous Dock A, composited at 5120x3200 with anchored TN3270 terminal, React/HTTP Warehouse Portal, OpenUSD physics inspector, and Station fenced connector ledger."
+    },
+    {
+      "filename": "d1-04-agent-pov-control.png",
+      "rawBase": "docs/design/world-simulator/images/raw/raw-04-agent-pov-control.png",
+      "title": "Micro first-person agent POV, counterfactual branch review and manual takeover",
+      "prompt": "First-person optical/LiDAR sensor POV from autonomous warehouse forklift Forklift-Unit-07 (Station PID 204) approaching stacked euro-pallets in a sunlit high-bay aisle with OpenUSD collision wireframes and floor path splines, composited at 5120x3200 with Picture-in-Picture TN3270/HTTP dual software view, real-time Transit counterfactual branch comparison (branch/reroute-cold-chain-dock-3 vs branch/wait-batch-settlement-dock-1), and human WASD/Terminal manual takeover HUD."
+    },
+    {
+      "filename": "d1-05-modernization-loop.png",
+      "rawBase": "docs/design/world-simulator/images/raw/raw-05-modernization-loop.png",
+      "title": "Non-stop modernization optimization workbench and fault-injection proof",
+      "prompt": "Isometric technical diorama of a cross-faction supply and clearing corridor transforming from vintage mainframe reel cabinets and congested rail sidings (left) through a central Transit HTAP nexus (center) into synchronized high-speed intermodal trains and automated cranes (right), composited at 5120x3200 with the 3-stage strangler-fig modernization pipeline, network-partition replay fault injection comparison (naive cloud double-ship vs Transit #op-7741 reconciliation), and Observation & Feedback loop scoreboard."
+    },
+    {
+      "filename": "d1-06-mmo-mainnet-epochs.png",
+      "rawBase": "docs/design/world-simulator/images/raw/raw-06-mmo-mainnet-epochs.png",
+      "title": "Persistent MMO Mainnet and five-axis rolling live upgrades",
+      "prompt": "Panoramic orbital-isometric night-and-dawn view of the persistent MMO Mainnet archipelago as a luminous emerald-and-amber geodesic upgrade wavefront sweeps across islands while trains, cargo ships, and automated docks continue operating without interruption, composited at 5120x3200 with the 412-day continuous uptime ledger, the 5-axis live upgrade inspector (Installation Identity, Artifact Revision, Ownership Generation, Data Epoch, Interface Revision), and pinned neighborhood multi-version coexistence matrix."
+    }
+  ]
+}
