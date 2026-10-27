@@ -19,7 +19,14 @@ pub fn Extension(comptime Provider: type) type {
         step: *const fn (*anyopaque, *Provider.Engine, Config, g.SignedRequest) anyerror!bool,
     };
 }
-const Progress = struct { scan: core.growing.Maintenance = .{}, maintained: u64 = 0, storage_turn: bool = false, extension_turn: bool = false };
+const StorageClass = enum { trim, collection, extension };
+const Progress = struct {
+    scan: core.growing.Maintenance = .{},
+    maintained: u64 = 0,
+    trim_target: ?core.growing.Head = null,
+    storage_turn: bool = false,
+    next_storage: StorageClass = .trim,
+};
 const Outcome = enum { idle, transition, checkpointed, trimmed, storage };
 fn sample(engine: anytype) anyerror!?core.Time.Sample {
     const source = engine.clock orelse return null;
@@ -41,23 +48,39 @@ fn step(comptime Provider: type, engine: *Provider.Engine, config: Config, key: 
     // Authentication may refresh after a competing publication. Rebuild only
     // this unpublished request; accepted work/receipts remain in the catalog.
     request.sequence = subject.sequence + 1;
-    if (engine.head.history_floor > progress.maintained) {
-        try engine.journal.maintain(engine.head);
-        progress.maintained = engine.head.history_floor;
-        return .trimmed;
-    }
     // Alternate background storage work with lifecycle/control scans. Each
-    // collection unit has its own durable cursor and shares this timeout budget.
+    // selected unit shares this timeout budget. Incomplete physical trimming
+    // cannot take every turn and starve accepted lifecycle/control work.
     progress.storage_turn = !progress.storage_turn;
     if (progress.storage_turn) {
-        progress.extension_turn = !progress.extension_turn;
-        if (extension != null and progress.extension_turn) {
-            // Physical Table work needs no trusted expiry clock. It shares this
-            // executor/deadline and alternates with native collection, including
-            // when its current Table remains eligible after one bounded unit.
-            if (try extension.?.step(extension.?.context, engine, config, try g.sign(request, key))) return .storage;
-        } else if (engine.clock != null) {
-            if (try Provider.collect(engine, config, key, &request)) return .storage;
+        // Skip idle classes within a finite pass. Advance before I/O so a
+        // failed or persistently busy class cannot monopolize the next turn.
+        for (0..3) |_| {
+            const selected = progress.next_storage;
+            progress.next_storage = switch (selected) {
+                .trim => .collection,
+                .collection => .extension,
+                .extension => .trim,
+            };
+            switch (selected) {
+                .trim => {
+                    if (progress.trim_target == null and engine.head.history_floor > progress.maintained) progress.trim_target = engine.head;
+                    if (progress.trim_target) |target| {
+                        if (try Provider.maintain(engine, target)) {
+                            progress.maintained = target.history_floor;
+                            progress.trim_target = null;
+                        }
+                        return .trimmed;
+                    }
+                },
+                .collection => if (engine.clock != null) {
+                    if (try Provider.collect(engine, config, key, &request)) return .storage;
+                },
+                .extension => if (extension) |extra| {
+                    // Physical Table work needs no trusted expiry clock.
+                    if (try extra.step(extra.context, engine, config, try g.sign(request, key))) return .storage;
+                },
+            }
         }
     }
     // Clock failure cannot disable already authorized physical maintenance or
@@ -138,4 +161,74 @@ pub fn run(comptime Provider: type, init: std.process.Init, engine: *Provider.En
         observation.finish();
         try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
     }
+}
+
+test "unfinished or failed native trim cannot starve lifecycle and other storage classes" {
+    const t = std.testing;
+    const backend = @import("transit_backend_local");
+    const Provider = struct {
+        pub const Engine = backend.DataAuthority.Engine;
+        var trims: usize = 0;
+        var collections: usize = 0;
+        var extensions: usize = 0;
+        var fail_trim = false;
+        fn maintain(_: *Engine, target: core.growing.Head) !bool {
+            try t.expect(target.history_floor != 0);
+            trims += 1;
+            if (fail_trim) return error.InjectedTrimFailure;
+            return false; // Deliberately never completes during this schedule.
+        }
+        fn collect(_: *Engine, _: Config, _: core.Ed25519.KeyPair, _: *g.Request) !bool {
+            collections += 1;
+            return true;
+        }
+        fn extra(_: *anyopaque, engine: *Engine, _: Config, signed: g.SignedRequest) !bool {
+            try engine.authorizeMaintenance(signed);
+            extensions += 1;
+            return true;
+        }
+        fn reclaimPayload(_: *Engine, _: g.Payload, _: g.SignedRequest) !void {
+            return error.UnexpectedPayload;
+        }
+        fn clock(_: *anyopaque) !core.Time.Sample {
+            return .{ .unix_ms = 100 };
+        }
+    };
+    Provider.trims = 0;
+    Provider.collections = 0;
+    Provider.extensions = 0;
+    Provider.fail_trim = false;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var pages = try backend.PageStore.init(&owner, 1);
+    defer pages.deinit();
+    var journal: backend.Store = .{ .backend = &owner };
+    const key = try core.Ed25519.KeyPair.generateDeterministic(@splat(17));
+    var engine = try Provider.Engine.bootstrap(&journal, &pages, .{ .realm = 42, .root_key = key.public_key.toBytes(), .max_clock_error_ms = 5, .allow_history_trim = true });
+    var context: u8 = 0;
+    engine.clock = .{ .context = &context, .read = Provider.clock };
+    _ = try engine.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } }, key));
+    _ = try engine.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = 2, .command = .{ .checkpoint = {} } }, key));
+    const accepted = engine.head.position;
+    var progress: Progress = .{};
+    var observation = observations.begin(null, .maintenance_step, "scan", null);
+    defer observation.finish();
+    const config: Config = .{ .principal = 0, .seed_file = "unused-by-step" };
+    const extension: Extension(Provider) = .{ .context = &context, .step = Provider.extra };
+    var lifecycle_turns: usize = 0;
+    for (0..6) |_| {
+        if (try step(Provider, &engine, config, key, &progress, &observation, extension) == .idle) lifecycle_turns += 1;
+    }
+    try t.expect(lifecycle_turns != 0);
+    try t.expect(Provider.trims != 0 and Provider.collections != 0 and Provider.extensions != 0);
+    try t.expectEqual(@as(u64, 0), progress.maintained);
+    try t.expectEqual(accepted, engine.head.position);
+    Provider.fail_trim = true;
+    try t.expectError(error.InjectedTrimFailure, step(Provider, &engine, config, key, &progress, &observation, extension));
+    try t.expectEqual(.idle, try step(Provider, &engine, config, key, &progress, &observation, extension));
+    const collections = Provider.collections;
+    _ = try step(Provider, &engine, config, key, &progress, &observation, extension);
+    try t.expect(Provider.collections > collections);
 }

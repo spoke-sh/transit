@@ -167,6 +167,12 @@ pub fn trim(self: *Self) !void {
     const head = try self.current();
     if (head.cursor != 0) try self.queue.log().trim(0, head.cursor);
 }
+/// Publish the consumed prefix and perform one bounded cleanup unit. Further
+/// calls resume it; a restart reconstructs the same authority from the FIFO.
+pub fn trimUnit(self: *Self) !bool {
+    const head = try self.current();
+    return head.cursor == 0 or try self.queue.trimUnit(0, head.cursor);
+}
 pub fn remove(self: *Self, allocation: Allocation) !void {
     const name = allocation.name();
     if (try self.read(name)) |existing| if (!std.meta.eql(existing, allocation)) return error.InvalidNativeAllocation;

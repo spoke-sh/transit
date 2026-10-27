@@ -227,6 +227,24 @@ pub const LocalWal = struct {
         part.trimmed_up_to_lsn = up_to_lsn;
     }
 
+    /// One bounded physical cleanup unit after publishing the authorized floor.
+    /// False means more cleanup remains; it does not undo the accepted floor.
+    pub fn trimUnit(self: *LocalWal, partition_id: u64, up_to_lsn: u64) !bool {
+        if (self.disk) |disk| return disk.trimUnit(partition_id, up_to_lsn);
+        try self.trimUpTo(partition_id, up_to_lsn);
+        return true;
+    }
+
+    /// Background owners can finish an existing unit without a new trim request.
+    /// Returns whether any volatile cleanup work was present. Restarted owners
+    /// reconstruct work by submitting their already accepted floors again.
+    pub fn resumeTrim(self: *LocalWal) !bool {
+        const disk = self.disk orelse return false;
+        if (disk.trim_work == null) return false;
+        _ = try disk.continueTrim();
+        return true;
+    }
+
     pub fn fenceEpochs(self: *LocalWal, partition_id: u64, min_writer_epoch: u64, min_policy_epoch: u64) !void {
         if (self.disk) |disk| return disk.fence(partition_id, min_writer_epoch, min_policy_epoch);
         if (min_writer_epoch == 0 or min_policy_epoch == 0) return error.InvalidWalEpoch;

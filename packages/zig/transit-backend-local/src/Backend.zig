@@ -16,6 +16,10 @@ objects: storage.LocalSegmentStore.LocalSegmentStore,
 allocations: Allocations,
 data_allocations: DataAllocations,
 mutex: std.Io.Mutex = .init,
+/// Sequence complete native submissions before staging their COW candidates.
+/// Direct data requests and native reads do not acquire this mutex. Explicit
+/// prepare/commit callers retain optimistic CAS and can still cause conflicts.
+submissions: std.Io.Mutex = .init,
 collection: std.Io.Mutex = .init,
 /// Creation holds the shared side through inventory and object publication.
 /// Reclamation must hold the exclusive side before inspecting the latest epoch.
@@ -23,6 +27,11 @@ data_creators: std.Io.RwLock = .init,
 /// Serializes the private allocation queue, independently of native publication.
 /// Lock order: data_creators, data_inventory, then short quota/head mutex work.
 data_inventory: std.Io.Mutex = .init,
+/// Native immutable staging uses the same separation, with its own inventory.
+/// Collection excludes creators before consuming their allocation records.
+/// Lock order: native_creators, native_inventory, then journal/quota mutex.
+native_creators: std.Io.RwLock = .init,
+native_inventory: std.Io.Mutex = .init,
 /// Data owners hold a shared fence only while checking/disclosing/committing.
 /// Native publication takes the exclusive side; private staging holds neither.
 authority: std.Io.RwLock = .init,
@@ -103,12 +112,23 @@ pub fn deinit(self: *Self) void {
 /// Observe all three serialized log owners without reading payloads or changing
 /// authority. The host must join every borrower before closing/reopening us.
 pub fn requiresRecovery(self: *Self) !bool {
+    return try self.recoverySource() != null;
+}
+
+/// Fixed diagnostic categories. The shared main WAL owns both native and
+/// direct partitions; this observation does not attribute an individual append.
+pub const RecoverySource = enum { main_wal, native_inventory, data_inventory };
+pub fn recoverySource(self: *Self) !?RecoverySource {
     try self.data_inventory.lock(self.io);
     defer self.data_inventory.unlock(self.io);
+    try self.native_inventory.lock(self.io);
+    defer self.native_inventory.unlock(self.io);
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
-    return self.wal.requiresRecovery() or self.allocations.queue.requiresRecovery() or
-        self.data_allocations.queue.requiresRecovery();
+    if (self.wal.requiresRecovery()) return .main_wal;
+    if (self.allocations.queue.requiresRecovery()) return .native_inventory;
+    if (self.data_allocations.queue.requiresRecovery()) return .data_inventory;
+    return null;
 }
 
 fn countFiles(io: std.Io, directory: std.Io.Dir) !u64 {
@@ -184,19 +204,28 @@ pub fn dataKey(key: []const u8) !void {
 /// Record the allocation before any object bytes. The accepted epoch fences
 /// delayed creators, including those whose previous publication was uncertain.
 pub fn putNative(self: *Self, epoch: u64, kind: @FieldType(Allocations.Allocation, "kind"), address: [32]u8, bytes: []const u8, control: bool) !void {
-    try self.mutex.lock(self.io);
-    defer self.mutex.unlock(self.io);
-    const current_epoch = if (try self.wal.log().tail(0) == 0) 1 else (try @import("Store.zig").currentHeadLocked(self)).storage_epoch;
-    // A storage-fence candidate stages in the next epoch before acceptance.
-    if (epoch < current_epoch or epoch - current_epoch > 1) return error.StaleStorageEpoch;
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     const allocation: Allocations.Allocation = .{ .epoch = epoch, .kind = kind, .address = address, .meta = .{ .size = bytes.len, .sha256 = digest } };
-    if (try self.allocations.read(allocation.name()) == null) {
-        const checks = std.math.divCeil(usize, bytes.len, 64 * 1024) catch unreachable;
-        try self.reserve(bytes.len + checks * 32 + 1536 + Allocations.record_bytes, control);
+    try self.native_creators.lockShared(self.io);
+    defer self.native_creators.unlockShared(self.io);
+    {
+        try self.native_inventory.lock(self.io);
+        defer self.native_inventory.unlock(self.io);
+        const missing = try self.allocations.read(allocation.name()) == null;
+        {
+            try self.mutex.lock(self.io);
+            defer self.mutex.unlock(self.io);
+            const current_epoch = if (try self.wal.log().tail(0) == 0) 1 else (try @import("Store.zig").currentHeadLocked(self)).storage_epoch;
+            // A storage-fence candidate stages in the next epoch before acceptance.
+            if (epoch < current_epoch or epoch - current_epoch > 1) return error.StaleStorageEpoch;
+            if (missing) {
+                const checks = std.math.divCeil(usize, bytes.len, 64 * 1024) catch unreachable;
+                try self.reserve(bytes.len + checks * 32 + 1536 + Allocations.record_bytes, control);
+            }
+        }
+        _ = try self.allocations.record(allocation);
     }
-    _ = try self.allocations.record(allocation);
     var key: [96]u8 = undefined;
     _ = try self.objects.objectStore().putImmutable(try allocation.key(&key), bytes, digest);
 }

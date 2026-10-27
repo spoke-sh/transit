@@ -371,6 +371,7 @@ test "direct Table archive uses control reserve and trims only accepted coverage
     _ = try table.apply(insertion, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 42 } } }} } } }}, .bulk, authority.guard());
     // An ordinary physical caller cannot substitute the WAL tail for coverage.
     try t.expectError(error.NoCheckpointIntent, data.log().trim(17, 1));
+    try t.expectError(error.NoCheckpointIntent, data.trimUnit(17, 1));
     owner.limits.bytes = owner.allocated;
     try t.expectEqual(@as(usize, 1), (try table.compact(table.root.next_segment, .{}, authority.guard())).rows);
     try t.expect((try table.archive(accepted.position, .{}, authority.guard())).complete);
@@ -378,11 +379,34 @@ test "direct Table archive uses control reserve and trims only accepted coverage
     try t.expectEqualDeep(accepted.position, try table.expireHistory(accepted.position, authority.guard()));
     owner.limits = .{};
     try t.expectError(error.NoCheckpointIntent, data.log().trim(17, table.root.next_lsn));
+    try t.expectError(error.NoCheckpointIntent, data.trimUnit(17, table.root.next_lsn));
     _ = try submit(&engine, .{ .grant_resource = .{ .resource = setup.resource, .subject = 1, .permissions = 0 } });
     try t.expectError(error.Forbidden, table.trimArchived(authority.guard()));
     var untrimmed = try data.log().read(t.allocator, 17, 0, 1);
     untrimmed.deinit();
     _ = try submit(&engine, .{ .grant_resource = .{ .resource = setup.resource, .subject = 1, .permissions = p.State.all_permissions } });
+    const unchanged = table.root;
+    var units: usize = 0;
+    while (true) {
+        const disk = owner.wal.disk.?;
+        const entries = disk.trim_entries;
+        const frames = disk.trim_frames;
+        const segments = disk.trim_segments;
+        const progress = try data.trimUnit(17, accepted.position.next_lsn);
+        units += 1;
+        try t.expect(disk.trim_entries - entries <= 32);
+        try t.expect(disk.trim_frames - frames <= 1);
+        try t.expect(disk.trim_segments - segments <= 1);
+        // Both authorities stay usable between physical units. The original
+        // receipt remains observable through accepted archive coverage.
+        try engine.refresh();
+        try table.recover();
+        try t.expectEqualDeep(unchanged, table.root);
+        try t.expectEqualDeep(accepted, (try table.observe(exact, authority.guard())).?);
+        if (progress.complete) break;
+        try t.expect(units < 64);
+    }
+    try t.expect(units != 0);
     try t.expectEqual(@as(u64, 1), try table.trimArchived(authority.guard()));
     try t.expectError(error.WalHistoryTrimmed, data.log().read(t.allocator, 17, 0, 1));
     try table.recover();

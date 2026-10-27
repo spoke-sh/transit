@@ -480,8 +480,17 @@ exporting newer state until recovery resolves the original history.
 The local host retains one such value across request arenas. It retains no
 permissions or response data: native rights and final disclosure checks still
 run for every request. This avoids replaying an unchanged catalog prefix for
-each operation. Table-history recovery and initial catalog recovery retain
-their own costs; the cache neither authorizes log trimming nor detects every
+each operation. For object-scoped requests and automatic flushing it also retains
+at most 64 Table root/chain hints, one per serialized Table lock stripe.
+`Options.table_recovery` passes a borrowed hint slot into a request-local catalog;
+the embedding owner must serialize it until every returned view is closed.
+Each Table open rechecks its boundary, declaration and current top-level roots,
+then validates newer records. A collision evicts only volatile history state;
+durable Tables, pins and pending work have no corresponding population limit.
+Uncertain storage, failed recovery and failed request disclosure clear the hint.
+Directory scans and name resolution still open Tables without these host hints.
+Cold recovery and immutable page/segment reads retain their own costs; the hints
+neither authorize log trimming nor detect every
 change to an already-validated historical byte during the live owner's lifetime.
 
 `admitRows`, `performRows`, `rowStatus` and `cancelRows` use the Table's durable

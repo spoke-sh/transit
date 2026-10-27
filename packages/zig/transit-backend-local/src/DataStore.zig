@@ -69,6 +69,19 @@ fn tailImpl(self: *Self, id: u64) !u64 {
 }
 fn trim(context: *anyopaque, id: u64, before: u64) !void {
     const self = erased(context);
+    while (!(try self.trimUnit(id, before)).complete) {}
+}
+
+pub const TrimProgress = struct { complete: bool };
+
+/// Validate accepted Table archive coverage and perform one bounded physical
+/// cleanup unit. The runtime owns current policy authorization and serializes
+/// this call with the Table; this adapter never accepts an invented trim floor.
+pub fn trimUnit(self: *Self, id: u64, before: u64) !TrimProgress {
+    return self.observe.run(self.backend.io, "data.trim", trimUnitImpl, .{ self, id, before });
+}
+
+fn trimUnitImpl(self: *Self, id: u64, before: u64) !TrimProgress {
     try partition(id);
     try self.backend.mutex.lock(self.backend.io);
     defer self.backend.mutex.unlock(self.backend.io);
@@ -83,7 +96,7 @@ fn trim(context: *anyopaque, id: u64, before: u64) !void {
     // The serialized Table owner publishes only after durable archive staging.
     // Physical removal does not expire logical history. Conservative allocation
     // reservations are reconciled on exclusive reopen, as for native WAL trim.
-    try value_log.trim(id, before);
+    return .{ .complete = try self.backend.wal.trimUnit(id, before) };
 }
 fn fence(_: *anyopaque, _: u64, _: u64, _: u64) !void {
     return error.NativeFenceRequired;

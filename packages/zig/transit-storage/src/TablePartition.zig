@@ -225,7 +225,10 @@ pub const OwnedRow = union(enum) {
 };
 
 /// Last successful recovery work; diagnostic counts confer no authority.
-pub const RecoveryWork = struct { checkpoint_lsn: u64 = 0, replayed_frames: u64 = 0 };
+pub const RecoveryWork = struct { checkpoint_lsn: u64 = 0, reused_lsn: u64 = 0, replayed_frames: u64 = 0 };
+/// Disposable same-owner history prefix. Never persist, accept from a caller,
+/// or reuse across physical storage owners. It contains no permissions or pin.
+pub const RecoveryState = struct { root: Root, chain: [32]u8 };
 
 allocator: std.mem.Allocator,
 log: Log.Log,
@@ -349,6 +352,18 @@ fn tree(self: *Self) pages.Tree(TreeStore) {
 /// archive. Replay verifies its publishing transition and the complete later
 /// chain. Without a checkpoint the chain starts at creation.
 pub fn recover(self: *Self) !void {
+    try self.recoverSince(null);
+}
+
+pub fn recoveryState(self: *Self) !RecoveryState {
+    try self.ready();
+    return .{ .root = self.root, .chain = self.chain };
+}
+
+/// Revalidate a previously checked boundary, then replay only its successors.
+/// A newer accepted checkpoint supersedes an older hint. New storage owners
+/// always use recover(); neither this hint nor recovery authorizes disclosure.
+pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
     self.recovery_required = true;
     self.index.clearCache();
     if (self.segment_cache) |*cached| cached.deinit(self.allocator);
@@ -378,6 +393,32 @@ pub fn recover(self: *Self) !void {
         chain = basis.chain;
         work.checkpoint_lsn = next.next_lsn;
     }
+    var checkpoint_boundary = selected != null;
+    if (prior) |known| {
+        try known.root.validate();
+        if (known.root.partition != next.partition or
+            !std.meta.eql(known.root.interpretation.object, next.interpretation.object)) return error.InvalidTableHistory;
+        if (known.root.next_lsn > end) return error.TableHistoryMissing;
+        // A superseding checkpoint may release the older hint's anchor. Use
+        // the checkpoint's normal publishing-transition proof in that case.
+        if (known.root.next_lsn > next.next_lsn or (selected == null and known.root.next_lsn == 0)) {
+            if (known.root.next_lsn == 0) {
+                if (!std.meta.eql(known.root, next) or !std.mem.eql(u8, &known.chain, &chain)) return error.InvalidTableHistory;
+            } else {
+                var anchor = try self.readHistoryFrame(known.root.next_lsn - 1);
+                defer anchor.deinit();
+                if (anchor.frames.len != 1) return error.TableHistoryMissing;
+                const frame = anchor.frames[0];
+                const record = (try decodeFrame(self.allocator, frame, next.partition, known.root.next_lsn - 1)).record;
+                if (!std.meta.eql(record.root, known.root) or !std.mem.eql(u8, &r.hash(frame.payload), &known.chain) or
+                    !std.meta.eql(known.root.recovery, selected)) return error.InvalidTableHistory;
+            }
+            next = known.root;
+            chain = known.chain;
+            work.reused_lsn = next.next_lsn;
+            checkpoint_boundary = false;
+        }
+    }
     while (next.next_lsn < end) {
         var batch = try self.readHistoryFrame(next.next_lsn);
         defer batch.deinit();
@@ -392,7 +433,7 @@ pub fn recover(self: *Self) !void {
         // A staged object or a copied reference in an unrelated record is not a
         // checkpoint. Every later record must retain the selected reference.
         if (selected != null and (!std.meta.eql(record.root.recovery, selected) or
-            (work.replayed_frames == 0 and record.action != .recovery))) return error.InvalidTableHistory;
+            (checkpoint_boundary and work.replayed_frames == 0 and record.action != .recovery))) return error.InvalidTableHistory;
         try requireTransition(next, record, try self.operationTransition(next, record));
         try self.requireReceiptTransition(next, record);
         try self.requireHistoryRetentionTransition(next, record);

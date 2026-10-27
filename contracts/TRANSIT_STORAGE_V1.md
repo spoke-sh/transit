@@ -587,6 +587,21 @@ segment remains until a later trim. Repeating the persisted floor resumes prefix
 segment removal after interruption, including when the whole log is trimmed.
 It does not advance the floor or grant permission to remove retained frames.
 Trimming every frame preserves the next LSN and epochs.
+`LocalWal.trimUnit` publishes the same floor and performs at most 32 directory
+entries or one verified frame, followed by at most one segment unlink and sync.
+It returns whether physical cleanup through that request is complete. Repeated
+units preserve an earlier partition's unfinished cursor; `resumeTrim` can advance
+that cursor without a new request. Directory changes restart unfinished minimum
+selection. A continuous writer can delay that selection; finite work converges.
+The cursor is volatile and bounded, with one independent directory handle per WAL
+owner. Restart reconstructs it from the accepted floor. New appends never reuse
+an obsolete segment after a complete logical trim, even before unlink completes.
+When the resident verified append descriptor and current file length establish
+that the selected active segment contains retained frames, cleanup keeps it
+without rescanning its prefix. Evicted descriptors use bounded frame verification;
+cleanup does not introduce a cold partition load just for that shortcut.
+An uncertain unlink or sync poisons the owner until reopen. The synchronous
+`Log.trim` operation drains these same units before returning.
 Retention authority must establish checkpoint, receipt, pin and
 logical-history coverage before calling trim. Disk pressure grants no permission
 to trim, and this backend does not implement that higher-level retention owner.
@@ -601,7 +616,8 @@ count in one constant-memory directory pass per loaded partition, then follows
 the contiguous decoded LSNs to each successor filename. It checks the visited
 count against the inventory so overlapping files cannot escape validation.
 This is not a persistent segment index: each uncached partition still scans the
-directory, and physical trimming may scan it repeatedly. No throughput claim
+directory. A cold partition lookup in `trimUnit` retains that recovery cost;
+its bounded physical cleanup does not establish a bounded cold lookup. No throughput claim
 follows from these bounds.
 
 The local owner's `nextPartition(after)` selects the least existing partition
@@ -629,8 +645,11 @@ end-of-file coordinate. Every traversed frame's partition and LSN are checked.
 
 Recovery still validates the entire required retained history. Every returned
 frame is read and integrity/identity checked again; stale/missing/corrupt bytes
-cannot be supplied from a cached payload. Trim clears seek coordinates and
-descriptor eviction discards them. No format, frontier, fence, sync or uncertain
+cannot be supplied from a cached payload. Trim drops coordinates below its floor
+and discards end-of-file continuations when that floor advances. Coordinates for
+actual retained frames remain valid, including the latest-frame seek needed by
+allocation collectors between cleanup units. Descriptor eviction discards them.
+No format, frontier, fence, sync or uncertain
 append semantics change. Disk-owner counters `read_frames`, `read_bytes` and
 `directory_scans` distinguish frame-read work from recovery and directory walks;
 they do not count all filesystem metadata I/O or establish physical device reads.
@@ -771,6 +790,22 @@ Uncertain marker publication may leave duplicate FIFO intents; it cannot leave
 untracked content. Creation checks the accepted native epoch under the publication
 mutex, allowing the current epoch or the next epoch for a prepared fence and
 rejecting older creators. Direct data access reserves the `native/` namespace.
+
+Native creation holds a shared creation/reclamation fence through inventory and
+immutable object publication. Its allocation queue has a separate mutex; the
+native journal mutex protects the accepted-epoch check and quota reservation,
+without covering private inventory or object syncs. Collection takes the
+exclusive creation fence before consuming an allocation or deleting its object.
+A creator paused after recording its intent cannot recreate content after the
+collector has discarded that intent. These locks change no stored record or
+acceptance boundary; native publication still checks its original expected head
+and epoch independently of private staging.
+Collection progress-file publication and reclamation syncs also run outside the
+journal mutex. The collection mutex serializes progress; the exclusive creator
+fence and inventory mutex protect deletion through FIFO consumption. Accepted
+storage epochs are monotone. Their short validation and quota accounting remain
+under the journal mutex, while independent direct acceptance and native reads
+can proceed during those private maintenance syncs.
 
 Direct-data creation and reuse have a separate mandatory `data-allocations/`
 directory. Every object PUT first records its key, exact metadata and observed

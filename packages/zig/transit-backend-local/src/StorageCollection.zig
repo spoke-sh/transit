@@ -53,8 +53,8 @@ fn save(self: *Self, state: State) !void {
     std.json.Stringify.value(state, .{}, &writer) catch return error.StorageMaintenanceBudget;
     const size = writer.buffered().len;
     std.crypto.hash.sha2.Sha256.hash(bytes[0..size], bytes[size..][0..32], .{});
-    try self.backend.mutex.lock(self.backend.io);
-    defer self.backend.mutex.unlock(self.backend.io);
+    // The collection mutex serializes this private filename. Hold the journal
+    // mutex only for quota reservation/accounting, never its publication syncs.
     const old = self.backend.directory.openFile(self.backend.io, filename, .{ .follow_symlinks = false }) catch |err| switch (err) {
         error.FileNotFound => null,
         else => return err,
@@ -63,8 +63,10 @@ fn save(self: *Self, state: State) !void {
         defer file.close(self.backend.io);
         break :blk try file.length(self.backend.io);
     } else 0;
-    try self.backend.reserve(size + 32 + 512, true);
+    try self.reserve(size + 32 + 512);
     try Files.save(self.backend.io, self.backend.directory, filename, bytes[0 .. size + 32], true);
+    try self.backend.mutex.lock(self.backend.io);
+    defer self.backend.mutex.unlock(self.backend.io);
     self.backend.allocated -= @min(self.backend.allocated, old_size + 512);
 }
 pub fn start(self: *Self, engine: anytype, fence_position: u64) !void {
@@ -81,12 +83,12 @@ pub fn start(self: *Self, engine: anytype, fence_position: u64) !void {
     if (try self.current()) |previous| if (previous.phase != .complete) return error.ActiveStorageCollection;
     const grace = try std.math.add(u64, now.upper(), core.protocol.Growth.snapshot_lifetime_ms + 60_000);
     if (grace > core.protocol.max_counter) return error.InvalidStorageCollection;
-    try self.backend.mutex.lock(self.backend.io);
+    try self.backend.native_inventory.lock(self.backend.io);
     const end = (self.backend.allocations.current() catch |err| {
-        self.backend.mutex.unlock(self.backend.io);
+        self.backend.native_inventory.unlock(self.backend.io);
         return err;
     }).tail;
-    self.backend.mutex.unlock(self.backend.io);
+    self.backend.native_inventory.unlock(self.backend.io);
     try self.save(.{ .definition = core.protocol.Growth.current_definition, .phase = .mark, .cut = cut, .inventory_end = end, .grace_until_ms = grace, .roots = .init(cut) });
 }
 
@@ -124,14 +126,25 @@ fn mark(state: *State, pages: *PageStore, edge: core.StorageWalk.Edge) !void {
     state.marks = marks.snapshot;
 }
 fn reclaim(self: *Self, cursor: u64, allocation: Allocations.Allocation, cut: core.growing.Head) !u64 {
-    try self.backend.mutex.lock(self.backend.io);
-    defer self.backend.mutex.unlock(self.backend.io);
-    const current_head = try Store.currentHeadLocked(self.backend);
-    if (current_head.storage_epoch < cut.storage_epoch or !std.mem.eql(u8, &current_head.genesis, &cut.genesis) or allocation.epoch >= cut.storage_epoch) return error.NoStorageFence;
+    // A paused creator must finish before its inventory item can be consumed.
+    // Otherwise it could publish bytes after deletion discarded their marker.
+    try self.backend.native_creators.lock(self.backend.io);
+    defer self.backend.native_creators.unlock(self.backend.io);
+    try self.backend.native_inventory.lock(self.backend.io);
+    defer self.backend.native_inventory.unlock(self.backend.io);
+    {
+        try self.backend.mutex.lock(self.backend.io);
+        defer self.backend.mutex.unlock(self.backend.io);
+        const current_head = try Store.currentHeadLocked(self.backend);
+        if (current_head.storage_epoch < cut.storage_epoch or !std.mem.eql(u8, &current_head.genesis, &cut.genesis) or allocation.epoch >= cut.storage_epoch) return error.NoStorageFence;
+    }
+    // Storage epochs cannot retreat. The creator fence and inventory mutex
+    // protect this exact allocation until removal and FIFO consume finish;
+    // independent direct data and native reads need neither of those locks.
     const queue = try self.backend.allocations.current();
     if (queue.cursor > cursor) return 0; // The prior consume survived a lost reply.
     if (queue.cursor != cursor or !std.meta.eql((try self.backend.allocations.at(cursor)).item, @as(?Allocations.Allocation, allocation))) return error.AllocationConflict;
-    try self.backend.reserve(512, true);
+    try self.reserve(512);
     const present = try self.backend.allocations.read(allocation.name());
     if (present) |record| if (!std.meta.eql(record, allocation)) return error.InvalidNativeAllocation;
     var key: [96]u8 = undefined;
@@ -139,13 +152,15 @@ fn reclaim(self: *Self, cursor: u64, allocation: Allocations.Allocation, cut: co
     try self.backend.allocations.remove(allocation);
     try self.backend.allocations.consume(cursor, allocation, false);
     if (present != null) removed += Allocations.record_bytes;
+    try self.backend.mutex.lock(self.backend.io);
+    defer self.backend.mutex.unlock(self.backend.io);
     self.backend.allocated -= @min(self.backend.allocated, removed);
     return removed;
 }
 fn sweep(self: *Self, state: *State, pages: *PageStore) !void {
     const selected = blk: {
-        try self.backend.mutex.lock(self.backend.io);
-        defer self.backend.mutex.unlock(self.backend.io);
+        try self.backend.native_inventory.lock(self.backend.io);
+        defer self.backend.native_inventory.unlock(self.backend.io);
         const head = try self.backend.allocations.current();
         if (head.cursor >= state.inventory_end) {
             state.phase = .complete;
@@ -153,7 +168,7 @@ fn sweep(self: *Self, state: *State, pages: *PageStore) !void {
             return;
         }
         const item = (try self.backend.allocations.at(head.cursor)).item orelse {
-            try self.backend.reserve(512, true);
+            try self.reserve(512);
             try self.backend.allocations.consumeEmpty(state.inventory_end);
             return;
         };
@@ -162,9 +177,9 @@ fn sweep(self: *Self, state: *State, pages: *PageStore) !void {
     const item = selected.allocation;
     var marks = try c.Catalog(PageStore).open(pages, state.marks);
     if (item.epoch >= state.cut.storage_epoch or try marks.get([32]u8, try objectKey(item.kind, item.address)) != null) {
-        try self.backend.mutex.lock(self.backend.io);
-        defer self.backend.mutex.unlock(self.backend.io);
-        try self.backend.reserve(512, true);
+        try self.backend.native_inventory.lock(self.backend.io);
+        defer self.backend.native_inventory.unlock(self.backend.io);
+        try self.reserve(512);
         try self.backend.allocations.consume(selected.cursor, item, true);
         state.retained_objects += 1;
     } else {
@@ -172,10 +187,16 @@ fn sweep(self: *Self, state: *State, pages: *PageStore) !void {
         state.phase = .deleting;
     }
 }
-fn trim(self: *Self) !void {
+fn trim(self: *Self) !bool {
+    try self.backend.native_inventory.lock(self.backend.io);
+    defer self.backend.native_inventory.unlock(self.backend.io);
+    return self.backend.allocations.trimUnit();
+}
+
+fn reserve(self: *Self, bytes: usize) !void {
     try self.backend.mutex.lock(self.backend.io);
     defer self.backend.mutex.unlock(self.backend.io);
-    try self.backend.allocations.trim();
+    try self.backend.reserve(bytes, true);
 }
 /// At most four graph edges, one allocation, or 64 empty progress records per
 /// step. The allocation FIFO carries retained items and trims consumed prefixes.
@@ -188,10 +209,7 @@ pub fn step(self: *Self, engine: anytype, now: core.Time.Sample) !bool {
     var state = (try self.current()) orelse return false;
     if (!std.mem.eql(u8, &state.cut.genesis, &engine.head.genesis) or state.cut.storage_epoch > engine.head.storage_epoch) return error.InvalidStorageCollection;
     switch (state.phase) {
-        .complete => {
-            try self.trim();
-            return false;
-        },
+        .complete => return !try self.trim(),
         .mark => {
             try engine.page_store.begin(engine.head.storage_epoch, true);
             defer engine.page_store.discard();
@@ -232,6 +250,6 @@ pub fn step(self: *Self, engine: anytype, now: core.Time.Sample) !bool {
         },
     }
     try self.save(state);
-    if (state.phase == .complete) try self.trim();
+    if (state.phase == .complete) _ = try self.trim();
     return true;
 }

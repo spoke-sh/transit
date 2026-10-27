@@ -210,10 +210,10 @@ pub fn Collector(comptime Graph: type) type {
             return removed;
         }
 
-        fn trim(self: *Self) !void {
+        fn trim(self: *Self) !bool {
             try self.backend.data_inventory.lock(self.backend.io);
             defer self.backend.data_inventory.unlock(self.backend.io);
-            try self.backend.data_allocations.trim();
+            return self.backend.data_allocations.trimUnit();
         }
 
         pub fn step(self: *Self, engine: anytype, now: core.Time.Sample) !bool {
@@ -229,10 +229,7 @@ pub fn Collector(comptime Graph: type) type {
             var index = try storage.TreeStore.init(memory.allocator(), data.objects(), 1);
             defer index.deinit();
             switch (state.phase) {
-                .complete => {
-                    try self.trim();
-                    return false;
-                },
+                .complete => return !try self.trim(),
                 .mark => for (0..4) |_| {
                     self.mark(memory.allocator(), &state, &data, &index) catch |err| {
                         if (err == error.OutOfMemory and memory.exhausted) return error.StorageMaintenanceBudget;
@@ -260,7 +257,7 @@ pub fn Collector(comptime Graph: type) type {
                 },
             }
             try self.save(state);
-            if (state.phase == .complete) try self.trim();
+            if (state.phase == .complete) _ = try self.trim();
             return true;
         }
     };

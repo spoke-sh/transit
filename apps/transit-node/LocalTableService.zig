@@ -23,6 +23,11 @@ before_reply: ?struct { context: *anyopaque, run: *const fn (*anyopaque, *backen
 /// All borrowed result fields live in the request arena until the buffered
 /// response is sent. The final fence can discard it after a revocation race.
 pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request, output: []u8) ![]const u8 {
+    // An uncertain append, failed recovery or failed disclosure cannot leave a
+    // warm Table hint behind. Full replay remains the next request's fallback.
+    errdefer if (self.options.table_recovery) |slot| {
+        slot.* = null;
+    };
     const allocator = arena.allocator();
     try request.validate(allocator);
     if (!request.connection.matches(self.configuration)) return error.CatalogDenied;
@@ -33,8 +38,16 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request,
     const original_context = if (request.closure != null or request.borrow != null) original.claim.context else if (request.delegation) |delegation| try delegation.binding.context(allocator) else context;
     var policy = try Policy.init(self.engine, self.configuration, original, original_context, if (request.delegation != null) request.proof else null);
     const owner = self.engine.journal.backend;
-    var control: backend.DataStore = .{ .backend = owner, .control = true };
-    var data: backend.DataStore = .{ .backend = owner };
+    var observation = self.engine.journal.observe;
+    observation.metrics = .{};
+    var control: backend.DataStore = .{ .backend = owner, .control = true, .observe = observation };
+    var data: backend.DataStore = .{ .backend = owner, .observe = observation };
+    // These request-owned adapters borrow the lane's trace context, not its
+    // counters. Merge their completed attempts even when execution fails.
+    defer inline for (@typeInfo(@TypeOf(observation.metrics)).@"struct".field_names) |name| {
+        @field(self.engine.journal.observe.metrics, name) +|= @field(control.observe.metrics, name);
+        @field(self.engine.journal.observe.metrics, name) +|= @field(data.observe.metrics, name);
+    };
     var catalog = try D.init(allocator, self.configuration, control.log(), control.objects(), data.log(), data.objects(), self.options);
     defer catalog.deinit();
     if (self.recovery_state) |prior| try catalog.recoverSince(prior.*) else try catalog.recover();

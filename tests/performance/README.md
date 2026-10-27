@@ -17,6 +17,15 @@ owning runner's workload/output arguments. Fast checks run benchmark reporting
 controls and independent expected-value checks. Actual workloads have separate
 execution owners and prerequisites.
 
+The mutation runner measures a persistent console separately from the console
+runner's process startup. `--repeat 0 --rows 8 --read-repeat 3` selects verified
+point, range, full, empty and LIMIT-zero reads after setup, without the measured
+mutation sequence. Setup still performs durable writes. `--instrument` reports
+direct Table and native attempt counts; its timings include proxy overhead.
+The legacy single-turn completion timeline does not attribute the multi-step SQL
+recovery ledger. Failed writes retain their installation and original identity;
+a fresh measurement is not recovery of that write.
+
 Reports belong in ignored run output and CI artifacts. The
 [historical experiments](../../docs/history/qualification/performance.md) retain
 their source, machine, workload and measurement limits. Active budgets remain

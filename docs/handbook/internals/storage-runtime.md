@@ -58,11 +58,14 @@ has its own publication lock; readers capture an atomic descriptor and verify
 the requested content. A separate shared creator fence protects direct-data
 publication against exclusive reclamation; neither path holds the native journal
 mutex through direct object I/O.
-The explicit native collector has a different creation/deletion boundary:
-`Backend.putNative` holds the journal mutex through allocation recording and
-object publication, and native reclamation holds the same mutex. This prevents
-a delayed creator from recreating an object after its allocation is consumed;
-native allocation/object syncs can therefore delay unrelated journal work.
+Native pages and blocks have a separate allocation mutex and shared creation
+fence. `Backend.putNative` holds that fence until immutable publication finishes;
+native reclamation acquires its exclusive side before consuming an allocation.
+This joins a delayed creator before deletion can remove its marker. Private
+native allocation/object syncs release the journal mutex, while epoch checks and
+quota reservations still take it briefly. Native collection progress publication
+and physical reclamation retain their journal lock; this remaining contention
+boundary is distinct from private staging.
 
 [`Backend.put`](../../../packages/zig/transit-backend-local/src/Backend.zig)
 checks for an existing descriptor, reserves encoded bytes under the shared
@@ -88,6 +91,41 @@ outcomes. Disk object tests share one facade across concurrent immutable and
 conditional writers and inspect counters after joining them. These schedules
 test lock independence and publication safety, not a wall-clock guarantee:
 device contention and the serialized WAL can still delay progress.
+
+The corresponding native-allocation schedule pauses an inventory sync while
+another lane reads native state and accepts independent data. A
+[collection schedule](../../../packages/zig/transit-backend-local/src/collection_test.zig)
+pauses creation after its inventory entry but before its object lock; reclamation
+must join that creator before removing its bytes and marker. These tests reject
+the earlier shared-journal staging lock and an unprotected creator respectively.
+
+### Sequencing local native candidates
+
+Can concurrent native preparation increase disk work without increasing accepted
+throughput? Native candidates share one accepted catalog frontier. Two candidates
+prepared from that frontier cannot both publish: one conditional append loses,
+even if both already synced private pages. Repeated retries can consume a request
+deadline and leave more unreachable allocations. This argument concerns native
+control/process state; direct Tables have their own acceptance frontiers.
+
+The local [Store](../../../packages/zig/transit-backend-local/src/Store.zig)
+sequences complete native submissions before refresh and preparation through
+the generic engine's paired journal hooks. A waiting submission reauthenticates
+and checks original receipts against the then-current authority. It still uses
+the same conditional append. Explicit prepared candidates do not hold this
+sequencer and can cause a conflict; native reads and direct data acceptance do
+not acquire it. This trades parallel native staging for less speculative disk
+work, without asserting that physical I/O or authorization waits are bounded in
+wall-clock time.
+
+The native submission regression pauses one principal before object publication,
+queues another principal and verifies independent native reads and direct data
+acceptance. Both native submissions then complete in order and recover their
+original receipts after reopen without staging again. The schedule fails with
+sequencing disabled and passes with it enabled. Run the package's `zig build test`
+with `-Dtest-filter='local native submissions'` inside the pinned development
+shell. This is a contention and recovery check; a matched installed SQL run is
+still needed to establish any latency improvement from the scheduling change.
 
 ### Local WAL publication and recovery model
 
@@ -207,6 +245,45 @@ missing roots and invalid successors. The
 [proof ledger](../../history/qualification/catalog.md#catalog-prefix-reuse--2026-10-26)
 records execution and the separate resource-growth schedule; these checks do
 not establish distributed ownership or a latency guarantee.
+
+The same local ownership assumptions permit bounded Table history hints.
+[`TablePartition.recoverSince`](../../../packages/zig/transit-storage/src/TablePartition.zig)
+rechecks a previously validated root/chain against its accepted WAL or archive
+boundary, then validates every newer transition. The latest accepted recovery
+capsule and current top-level roots are still read and verified. A newer
+checkpoint supersedes an older hint through the normal checkpoint-publication
+proof, so legitimately released older anchors need not remain available merely
+for a cache entry. An unchanged Table replays zero successor records; that does
+not eliminate declaration, boundary or index-root reads.
+
+`LocalTableHost` retains at most 64 owned Table hints, one per serialized lock
+stripe, for object-scoped requests, name resolution and automatic flushing.
+Name-only lookups hash the requested namespace/name into a stripe; this selects
+only a disposable hint, not the object's identity or rights. Catalog changes
+remain excluded by the directory lock. The actual resolved object and partition
+must match the hint before reuse. Name lookup can observe concurrent row
+acceptance as before; its stripe serializes the cache slot, while row mutations
+still use their object stripe. Directory scans open Tables without these hints.
+Collision discards only volatile history evidence. The next open either validates a matching hint or
+performs ordinary recovery; no pin, pending statement or durable Table is evicted.
+An uncertain append cannot export a hint, and the service clears the selected
+slot after a failed request, including denied final disclosure. Replacement
+discards all hints. Permission checks remain independent and current.
+
+The [`Table live recovery prefix` tests](../../../packages/zig/transit-storage/src/table_partition_test.zig)
+compare suffix replay with the accepted root, reload a changed declaration, reject
+forged boundaries and shortened history, and exercise checkpoint supersession
+and missing capsules on disk. The
+[catalog hint test](../../../packages/zig/transit-catalog/src/direct_catalog_test.zig)
+forces eviction and name changes; the
+[native policy schedule](../../../apps/transit-node/local_catalog_policy_test.zig)
+checks revocation after buffering with a warm hint, and compares cold/warm name
+lookups through the host before replacing the native object's owner. These are component and
+composition checks, not a measured end-to-end speedup. Increasing page capacity
+alone would not remove repeated history validation; retaining complete Table
+owners could additionally reuse pages but requires separate allocator, lifetime
+and memory accounting. Prefix reuse deliberately retains no request allocator
+or provider handle.
 
 ### Optimistic current reads and retained cuts
 

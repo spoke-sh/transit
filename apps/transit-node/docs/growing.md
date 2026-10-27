@@ -115,8 +115,11 @@ listener. Point and bulk row bytes bypass native actor inputs and resource-block
 frames. Catalog DDL excludes concurrent row admission; independent Table requests
 share directory access and use 64 bounded lock stripes. A stripe collision can
 serialize otherwise independent Tables. No per-row catalog root is published.
-The service opens a bounded Table/catalog view for each request; recovery cost
-currently grows with retained history even though resident caches stay bounded.
+The service opens a bounded Table/catalog view for each request. Up to 64 Table
+history hints reuse previously verified prefixes for object requests, name
+lookups and automatic flushing. Every open verifies the accepted boundary and
+current roots, and every disclosure checks current rights. Collisions evict only
+volatile hints; cold recovery still depends on retained replay/checkpoint coverage.
 
 Direct requests accept at most 8 MiB and buffer at most 16 MiB of response, in
 addition to bounded schema/row conversion, index caches and private storage work.
@@ -183,7 +186,13 @@ page cache, and shares the local owner's serialized publication boundary with
 request lanes. Shutdown joins both tasks before closing storage. Local
 `--maintain` rejects: a second process cannot acquire the directory while the
 node owns it. Authorized accepted-floor trimming survives restart; unlimited
-retention and the history-trim opt-in are unchanged. Local immutable objects
+retention and the history-trim opt-in are unchanged. Each local native trim turn
+performs at most 32 directory entries or one verified WAL frame, and removes at
+most one segment. The scheduler retains its selected checkpoint target until
+cleanup completes. Lifecycle scans alternate with physical work; native trim,
+collection and Table work rotate through a bounded pass that skips idle classes.
+A failed class advances the rotation before its next attempt. Incomplete cleanup
+therefore cannot occupy every maintenance turn. Local immutable objects
 remain retained, and `storage.maintenance.compact: true` rejects. Standalone
 payloads have their own opted-in retirement lifecycle: local maintenance confirms
 physical removal under the current native authority fence before publishing
@@ -248,7 +257,8 @@ and never establishes a durable outcome. It contains work nanoseconds, the zero
 authority-lock wait field, decoded cache hits/misses, staged pages/bytes, and provider request,
 transport failure, elapsed-time, append payload byte and response byte counters.
 Provider time is contained in work time; these durations must not be added.
-Append payload bytes exclude HTTP/framing and non-append operation bodies.
+Payload byte counters exclude HTTP and filesystem framing. Local direct Table
+requests include immutable object bodies as well as WAL append bodies.
 Counters cover this process's completed attempt, not maintenance in another
 process, durable outcomes, caller persistence or response transport time.
 Missing headers mean missing measurement, not zero work. Counters do not depend
@@ -256,9 +266,19 @@ on sampled logs and retain no payloads, credentials or principal labels. Encodin
 failure omits diagnostics without changing the authority response. Metrics
 headers are opt-in. With local storage, provider counters measure native log
 and immutable page/block operations, including conflicts and storage failures.
+The direct Table route also includes its request-owned catalog/Table WAL and
+object attempts, merged into the lane's counters on both success and failure.
 Cache hits do not count as provider reads. Local payload bytes count serialized
 WAL entries and page/block envelopes; they do not count filesystem framing or
 individual system calls. Trimming includes its verification reads.
+
+Before joining borrowers for a local owner reopen, the
+`storage.owner.recovery_required` event identifies one observed poisoned log as
+`main_wal`, `native_inventory` or `data_inventory`. The main WAL contains both
+native and direct partitions; this event does not identify an individual failed
+append or establish its durable outcome. It reports a fixed category without
+paths, keys or payloads. `storage.owner.reopen` separately records the start of
+replacement after borrowers have joined.
 
 
 ## Physical storage budgets and maintenance

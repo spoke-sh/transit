@@ -183,4 +183,5 @@ test {
     _ = @import("local_catalog_policy_test.zig");
     _ = @import("LocalTableHost.zig");
     _ = @import("LocalTableMaintenance.zig");
+    _ = @import("GrowingMaintenance.zig");
 }

@@ -94,8 +94,12 @@ owns language coverage.
 retains one owned root/chain value across its request lanes. Each request checks
 that accepted boundary, current directory roots and any newer records before
 using the catalog. The value holds no grants or response buffers; signed native
-authorization and final disclosure checks remain current. Replacement repeats
-full recovery. See the [catalog recovery guide](../../packages/zig/transit-catalog/docs/direct-catalog.md#bounds-and-remaining-integration)
+authorization and final disclosure checks remain current. Object-scoped requests
+and automatic flushing also reuse up to 64 validated Table root/chain hints,
+rechecking the accepted boundary and newer history on every open. Lock-stripe
+collisions evict volatile hints; they do not limit durable Table count or release
+pins. A failed request clears its Table hint. Replacement repeats full recovery.
+See the [catalog recovery guide](../../packages/zig/transit-catalog/docs/direct-catalog.md#bounds-and-remaining-integration)
 for the immutable-history assumption and failure boundaries.
 
 Command signatures do not encrypt traffic or authenticate response transport.

@@ -13,6 +13,14 @@ cached: ?struct { at: u64, entry: core.growing.Entry } = null,
 /// Failure injection after durable acceptance; used by the recovery proof.
 lose_reply: bool = false,
 
+pub fn beginSubmission(self: *Self) !void {
+    try self.backend.submissions.lock(self.backend.io);
+}
+
+pub fn endSubmission(self: *Self) void {
+    self.backend.submissions.unlock(self.backend.io);
+}
+
 pub fn tail(self: *Self) !u64 {
     return self.observe.run(self.backend.io, "native.tail", tailImpl, .{self});
 }
@@ -124,10 +132,19 @@ fn validate(entry: core.growing.Entry, at: u64) !void {
 /// The latest entry and all immutable objects remain. Exact retry records and
 /// captured roots continue to live in that entry's catalog.
 pub fn maintain(self: *Self, authorized: core.growing.Head) !void {
+    while (!(try self.maintainUnit(authorized)).complete) {}
+}
+
+pub const TrimProgress = struct { complete: bool };
+
+/// Publish an accepted native history floor and perform one bounded WAL cleanup
+/// unit. Every call revalidates that authority; completion does not expire more
+/// history or reclaim immutable pages. The live scheduler yields between units.
+pub fn maintainUnit(self: *Self, authorized: core.growing.Head) !TrimProgress {
     return self.observe.run(self.backend.io, "native.trim", maintainImpl, .{ self, authorized });
 }
 
-fn maintainImpl(self: *Self, authorized: core.growing.Head) !void {
+fn maintainImpl(self: *Self, authorized: core.growing.Head) !TrimProgress {
     if (authorized.history_floor == 0 or authorized.history_floor >= authorized.position) return error.NoCheckpointIntent;
     const position = try self.tail();
     if (position == 0) return error.InvalidHistory;
@@ -135,6 +152,7 @@ fn maintainImpl(self: *Self, authorized: core.growing.Head) !void {
     if (!std.mem.eql(u8, &current.genesis, &authorized.genesis) or current.position < authorized.position or current.history_floor < authorized.history_floor) return error.NoCheckpointIntent;
     try self.backend.mutex.lock(self.backend.io);
     defer self.backend.mutex.unlock(self.backend.io);
-    try self.backend.wal.log().trim(0, authorized.history_floor);
+    const complete = try self.backend.wal.trimUnit(0, authorized.history_floor);
     self.cached = null;
+    return .{ .complete = complete };
 }

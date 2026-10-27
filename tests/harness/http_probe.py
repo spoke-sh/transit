@@ -12,6 +12,27 @@ import time
 from urllib.parse import urlsplit
 
 
+# Protocol operation names are a finite vocabulary. Never retain the action's
+# fields (names, rows, keys, signed proofs), or use an unknown tag as a label.
+TABLE_ACTIONS = frozenset('''initialize describe namespace namespaces
+    namespace_preview namespace_operation dependency_operation dependency_state
+    dependencies resource_preview resource_operation resource_lookup resource_list
+    check check_set list lookup observe storage flush read_current read_authority
+    name_assertion preview name_preview preview_rows preview_statement stage
+    admit_saved admit_ddl admit_rows admit_statement operation pin retain_history
+    pin_status snapshot history_start history_source history history_scan read_key
+    scan column_scan filter_scan key_range release'''.split())
+
+
+def table_operation(body):
+    try:
+        action = json.loads(body)['action']
+        tag = action if isinstance(action, str) else next(iter(action)) if isinstance(action, dict) and len(action) == 1 else None
+        return 'table:' + (tag if tag in TABLE_ACTIONS else 'other')
+    except (ValueError, KeyError, TypeError):
+        return 'table:other'
+
+
 class Probe:
     def __init__(self, target, port=0, native=False, before=None):
         endpoint = urlsplit(target)
@@ -53,6 +74,10 @@ class Probe:
                 if before:
                     before(self.path, body)
                 labels = [self.command, 'request_bytes']
+                direct = native and self.path == '/table/v1'
+                if direct:
+                    classified = table_operation(body)
+                    labels.append(classified)
                 if native and self.path in ('/v1/query', '/v1/command', '/v1/blocks'):
                     value = json.loads(body)
                     mutation = self.path.endswith('command')
@@ -75,6 +100,8 @@ class Probe:
                 started = time.monotonic_ns()
                 event = {'start_ns': started - owner.started_ns, 'method': self.command,
                          'wait_hint': self.headers.get('X-Transit-Wait') is not None}
+                if direct:
+                    event['operation'] = classified
                 if native and self.path in ('/v1/query', '/v1/command', '/v1/blocks'):
                     event.update(operation=classified, principal=envelope['principal'])
                     if mutation:
@@ -114,6 +141,8 @@ class Probe:
                         elapsed = time.monotonic_ns() - started
                         owner.counts['elapsed_ns'] += elapsed
                         owner.counts[self.command + ':elapsed_ns'] += elapsed
+                        if direct:
+                            owner.counts[classified + ':elapsed_ns'] += elapsed
                         # Optional native diagnostics describe this completed
                         # attempt, independently of rate-limited event logs.
                         metrics = response.getheader('x-transit-work')

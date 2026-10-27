@@ -25,7 +25,16 @@ Repeated `step` calls with a trusted `Time.Sample` perform bounded work:
    removing any unreachable old allocation.
 4. Durably unpublish the descriptor, remove its immutable payload and checksums,
    remove the allocation marker and consume its FIFO entry. Repeating the intent
-   after uncertainty is safe. Trim the consumed FIFO prefix after completion.
+   after uncertainty is safe. Publish the consumed FIFO trim floor, then resume
+   physical log cleanup in bounded units after graph reclamation completes.
+
+The saved `complete` phase describes graph reclamation. Further `step` calls
+finish its inventory WAL cleanup, returning true while a cleanup unit remains
+and false when that floor is physically settled. A unit scans at most 32 directory
+entries or verifies one WAL frame and unlinks at most one segment. Reopening
+reconstructs cleanup from the accepted FIFO cursor; it never invents a new floor.
+Cold WAL recovery and directory validation have their own costs outside these
+cleanup-unit bounds.
 
 Native allocation intents enter their own segmented local WAL before any object
 content is created. An exact marker makes retries identifiable. An uncertain
@@ -35,11 +44,30 @@ old creators. Direct data adapters reject the reserved `native/` object namespac
 The mandatory shared definition binds this allocation layout; an older directory
 is incompatible and is never reset or inferred to contain current metadata.
 
+Native creators hold a shared creation fence through allocation recording and
+immutable object publication. Reclamation joins them with an exclusive fence
+before consuming their inventory entries; a creator paused after recording its
+intent cannot recreate an untracked object after collection. A separate mutex
+serializes the native allocation queue. Epoch validation and quota reservation
+briefly take the journal mutex, while private allocation and object syncs release
+it so unrelated native reads and direct data acceptance can progress. Collection
+uses the same short journal lock for epoch checks and quota accounting.
+Progress-file publication remains serialized by the collection mutex; physical
+reclamation keeps the creator fence and inventory mutex through deletion and FIFO
+consumption. Neither holds the journal mutex across its syncs. Epochs cannot
+retreat, and the creator fence prevents reuse of the selected native allocation
+while independent direct data advances.
+
 `storage_compact` uses the native engine's bounded relocation operation. It
 preserves logical values and resource revisions. An opted-in `checkpoint` and
-`Store.maintain` can release earlier native log history, while current captured
+`Store.maintainUnit` can release earlier native log history, while current captured
 versions independently protect their old roots. Compaction itself expires no
-history and emits no application mutation.
+history and emits no application mutation. Each native trim unit validates the
+accepted checkpoint and performs the bounded WAL cleanup described above;
+`complete` reports physical completion through that target. `Store.maintain`
+drains those units for synchronous component callers. The live node yields to
+lifecycle scans and other physical work between units instead of draining them
+inside one maintenance turn.
 
 Allocation records, private mark pages, FIFO progress and metadata publication
 consume the owner's encoded-file quota. Eligible maintenance uses the control
@@ -85,6 +113,17 @@ page and an 8 MiB index-work budget per transition. Work items and progress are
 bounded to 128 KiB and 256 KiB respectively; paged queues/marks permit larger
 durable graphs. WAL buffers and fixed decoding buffers have separate bounds.
 Directory discovery and segment verification can require substantial I/O.
+After graph completion, inventory WAL cleanup uses the same bounded units and
+resumption behavior as native collection above.
+
+`DataStore.trimUnit` separately performs one bounded cleanup unit for archived
+Table WAL history. Every unit verifies the latest accepted Table record and
+rejects a floor beyond its immutable archive coverage; it always retains the
+latest acceptance record. The serialized Table owner supplies current policy
+authorization. Its progress reports physical completion, independently of
+logical expiry and object collection. The generic synchronous log trim drains
+these units for component callers. Restart derives the pending cleanup from the
+persisted WAL floor and accepted Table archive rather than a volatile cursor.
 
 An incomplete or corrupt graph cannot reach deletion. A racing required-history
 trim aborts the pass; repairable I/O or quota errors preserve its last checkpoint.

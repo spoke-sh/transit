@@ -27,6 +27,16 @@ const State = struct {
 };
 const Segment = struct { first: u64, bytes: u64 };
 const Cursor = struct { lsn: u64, segment: u64, offset: u64 };
+const Trim = struct {
+    partition: u64,
+    floor: u64,
+    listing: std.Io.Dir,
+    iterator: ?std.Io.Dir.Iterator,
+    first: ?u64 = null,
+    offset: u64 = 0,
+    expected: u64 = 0,
+};
+pub const trim_directory_entries = 32;
 
 allocator: std.mem.Allocator,
 io: std.Io,
@@ -42,6 +52,10 @@ truncated_tail_bytes: u64 = 0,
 read_frames: u64 = 0,
 read_bytes: u64 = 0,
 directory_scans: u64 = 0,
+trim_work: ?Trim = null,
+trim_entries: u64 = 0,
+trim_frames: u64 = 0,
+trim_segments: u64 = 0,
 
 fn definition() [32]u8 {
     var bytes: [32]u8 = undefined;
@@ -118,6 +132,7 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: 
 }
 
 pub fn deinit(self: *Self) void {
+    self.finishTrim();
     self.lock.close(self.io);
     self.dir.close(self.io);
     self.* = undefined;
@@ -142,6 +157,12 @@ fn syncDir(io: std.Io, dir: std.Io.Dir) !void {
 }
 
 fn atomic(self: *Self, name: []const u8, bytes: []const u8) !void {
+    // readdir does not promise a stable walk across directory mutations. An
+    // unfinished minimum search must restart rather than omit an older prefix.
+    if (self.trim_work) |*work| if (work.iterator != null) {
+        work.iterator = work.listing.iterate();
+        work.first = null;
+    };
     errdefer self.poisoned = true;
     var pending = try self.dir.createFileAtomic(self.io, name, .{ .replace = true, .permissions = .fromMode(0o600) });
     defer pending.deinit(self.io);
@@ -338,6 +359,12 @@ fn recover(self: *Self, state: *State) !void {
         if (state.floor != state.next) return error.WalHistoryMissing;
         state.segment = state.next;
     }
+    // A bounded trim may leave wholly obsolete files. Never append into one:
+    // its accepted floor already authorizes a later cleanup unit to unlink it.
+    if (state.floor == state.next) {
+        state.segment = state.next;
+        state.offset = 0;
+    }
 }
 
 fn load(self: *Self, id: u64) !*State {
@@ -529,31 +556,124 @@ pub fn fence(self: *Self, id: u64, writer: u64, policy: u64) !void {
 /// checkpoints, pins, logical history and receipts elsewhere. This backend does
 /// not infer that authority from disk pressure or checkpoint existence.
 pub fn trim(self: *Self, id: u64, before: u64) !void {
+    while (!try self.trimUnit(id, before)) {}
+}
+
+/// Publish the authorized floor, then do at most one cleanup unit. The boolean
+/// reports physical completion through this requested floor, not logical expiry.
+/// An earlier partition's unfinished unit keeps its cursor when callers rotate.
+pub fn trimUnit(self: *Self, id: u64, before: u64) !bool {
     const state = try self.load(id);
     if (before > state.next) return error.InvalidWalTrimBoundary;
-    if (before < state.floor) return;
+    const floor = @max(before, state.floor);
     var next = state.*;
-    next.floor = before;
-    next.latest = null;
-    next.read_start = null;
-    next.read_next = null;
-    // A crash can leave the floor published with only some prefix segments
-    // removed. Repeating that authorized floor must finish physical cleanup.
-    if (before > state.floor) try self.save(next);
+    next.floor = floor;
+    // An actual frame at/above the floor cannot belong to a removed segment.
+    // Keep those verified seeks: allocation collectors read their latest cursor
+    // between cleanup units, and clearing it would rescan the entire WAL each
+    // time. A continuation may instead name EOF in a removed prefix segment.
+    if (next.latest) |cursor| if (cursor.lsn < floor) {
+        next.latest = null;
+    };
+    if (next.read_start) |cursor| if (cursor.lsn < floor) {
+        next.read_start = null;
+    };
+    if (floor > state.floor) next.read_next = null;
+    if (floor == next.next) {
+        next.segment = next.next;
+        next.offset = 0;
+    }
+    if (floor > state.floor) try self.save(next);
     state.* = next;
+    if (self.trim_work == null) {
+        const listing = try self.dir.openDir(self.io, ".", .{ .iterate = true });
+        self.trim_work = .{ .partition = id, .floor = floor, .listing = listing, .iterator = listing.iterate() };
+        self.directory_scans +|= 1;
+    }
+    const work = self.trim_work.?;
+    return try self.continueTrim() and work.partition == id and work.floor >= before;
+}
+
+fn finishTrim(self: *Self) void {
+    if (self.trim_work) |work| work.listing.close(self.io);
+    self.trim_work = null;
+}
+
+/// Resume one disposable cursor: at most 32 directory entries or one verified
+/// frame (4 MiB payload maximum), and one unlink plus directory sync. No cursor
+/// authorizes deletion: the already synced, monotone floor supplies authority.
+/// A restart inventories the surviving prefix again. No persisted layout changes.
+pub fn continueTrim(self: *Self) !bool {
+    try self.usable();
+    errdefer self.finishTrim(); // Interrupted enumeration cannot omit entries.
+    const work = if (self.trim_work) |*value| value else return true;
+    if (work.iterator) |*iterator| {
+        for (0..trim_directory_entries) |_| {
+            const entry = (try iterator.next(self.io)) orelse {
+                work.iterator = null;
+                if (work.first == null) {
+                    self.finishTrim();
+                    return true;
+                }
+                work.expected = work.first.?;
+                return false;
+            };
+            self.trim_entries +|= 1;
+            const parsed = parseSegment(entry.name) orelse continue;
+            if (parsed.partition != work.partition) continue;
+            var canonical: [96]u8 = undefined;
+            if (entry.kind != .file or !std.mem.eql(u8, entry.name, segmentName(parsed.partition, parsed.first, &canonical))) return error.InvalidWalDirectory;
+            if (parsed.first < work.floor and (work.first == null or parsed.first < work.first.?)) work.first = parsed.first;
+        }
+        return false;
+    }
+    var name: [96]u8 = undefined;
+    const filename = segmentName(work.partition, work.first.?, &name);
+    const file = try self.dir.openFile(self.io, filename, .{ .follow_symlinks = false });
+    defer file.close(self.io);
+    const length = try file.length(self.io);
+    // The current append segment is already verified by this exclusive owner.
+    // If it includes retained frames and its length still matches, it cannot
+    // be reclaimed. Avoid walking its prefix once per maintenance pass. A
+    // missing/evicted descriptor uses the ordinary bounded verification below;
+    // no cold recovery is introduced into this cleanup unit.
+    for (self.cache) |slot| if (slot) |state| {
+        if (state.partition == work.partition and state.segment == work.first.? and
+            state.next > work.floor and state.offset == length)
+        {
+            self.finishTrim();
+            return true;
+        }
+    };
+    if (work.offset < length) {
+        const bytes = try self.frame(file, work.offset, self.allocator);
+        defer self.allocator.free(bytes);
+        const decoded = try log.decodeFrame(bytes);
+        if (decoded.frame.header.partition_id != work.partition or decoded.frame.header.lsn != work.expected) return error.CorruptWalFrame;
+        self.trim_frames +|= 1;
+        work.offset += bytes.len;
+        work.expected = std.math.add(u64, work.expected, 1) catch return error.WalLsnExhausted;
+    }
+    if (work.offset != length) {
+        if (work.offset > length) return error.CorruptWalFrame;
+        if (work.expected >= work.floor) {
+            self.finishTrim(); // This segment contains a retained suffix.
+            return true;
+        }
+        return false;
+    }
+    if (work.expected > work.floor) return error.CorruptWalFrame;
+    // The serialized owner cannot append to a wholly trimmed last segment.
+    // Failed or interrupted unlink/sync requires reopen before further use.
     errdefer self.poisoned = true;
-    var previous: ?u64 = null;
-    while (try self.nextSegment(id, previous)) |segment| {
-        const following = try self.nextSegment(id, segment.first);
-        const end = if (following) |value| value.first else next.next;
-        previous = segment.first;
-        if (end > before) break;
-        var name: [96]u8 = undefined;
-        try self.dir.deleteFile(self.io, segmentName(id, segment.first, &name));
-    }
+    try self.dir.deleteFile(self.io, filename);
     try self.syncDirectory();
-    if (before == next.next) {
-        state.segment = next.next;
-        state.offset = 0;
+    self.trim_segments +|= 1;
+    if (work.expected == work.floor) {
+        self.finishTrim();
+        return true;
     }
+    work.first = work.expected; // Contiguous verified LSN names the successor.
+    work.offset = 0;
+    return false;
 }

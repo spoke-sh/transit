@@ -112,6 +112,48 @@ fn owner(wal: *s.LocalWal.LocalWal, objects: *s.LocalSegmentStore.LocalSegmentSt
 }
 const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
 
+test "direct Table recovery hints evict safely and cannot replace current metadata or authority" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    var hint: ?P.RecoveryState = null;
+    catalog.options.table_recovery = &hint;
+    try catalog.initialize(access.policy());
+    for ([_]D.Request{ try creation(7, 1, "events"), try creation(71, 2, "other") }) |create| {
+        _ = try catalog.admit(create, access.policy());
+        _ = try catalog.perform(create.binding, access.policy());
+    }
+    for ([_][]const u8{ "events", "events", "other", "events" }, 0..) |name, index| {
+        var view = (try resolve(&catalog, &access, name)).?;
+        try t.expectEqualStrings(name, view.properties.name.slice());
+        try t.expectEqual(@as(u64, if (index == 1) 0 else 1), view.table.recovery_work.replayed_frames);
+        view.deinit();
+        try t.expect(hint != null);
+    }
+    var view = (try resolve(&catalog, &access, "events")).?;
+    const renamed = try edit(&view, 3, .{ .rename = try a.Name.init("renamed") });
+    view.deinit();
+    _ = try catalog.admit(renamed, access.policy());
+    _ = try catalog.perform(renamed.binding, access.policy());
+    try t.expect(try resolve(&catalog, &access, "events") == null);
+    var updated = (try resolve(&catalog, &access, "renamed")).?;
+    try t.expectEqualStrings("renamed", updated.properties.name.slice());
+    updated.deinit();
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, resolve(&catalog, &access, "renamed"));
+    access.deny_at = std.math.maxInt(usize);
+    hint.?.chain[0] ^= 1;
+    try t.expectError(error.InvalidTableHistory, resolve(&catalog, &access, "renamed"));
+    try t.expect(hint == null);
+    var recovered = (try resolve(&catalog, &access, "renamed")).?;
+    defer recovered.deinit();
+    try t.expectEqual(recovered.table.root.next_lsn, recovered.table.recovery_work.replayed_frames);
+}
+
 test "direct preview checks current expectations and schema work without claims or durable writes" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

@@ -201,7 +201,8 @@ contract. Coordinate any shared-definition replacement and regenerated resources
 across the two branches; neither branch may retain a parallel legacy definition.
 
 Remaining work here includes P0's baseline diagnosis, P1.4's broader resource
-matrix, P4's automatic archive/checkpoint/compaction/collection, P5's measured
+matrix, P1.5's retained Station Table boundary and cleanup, P4's automatic
+archive/checkpoint/compaction/collection, P5's measured
 reader/recovery reuse and waiting, P6's storage views and P8's
 full common-revision qualification. Unfinished bounded WAL cleanup is a follow-up
 to the early PR. Coordinate P5 reader lifetime and P6 SQL inspection changes with
@@ -329,6 +330,19 @@ Owners: [Local](../../apps/transit-node/Local.zig),
   captured blocks and effect records in the installed local profile after owner
   replacement. Replay dispatches no external effect. Keep the existing native
   one-KV-resource turn boundary and direct Table acceptance separate.
+- [ ] P1.5 Audit and resolve the retained Station Table implementation and its
+  public bindings. The general actor-backed catalog/service and query-host Table
+  role are removed, but `TableCreation`, `TableWrite`, `TableStatement`,
+  `TableReader`, `TableData` and `TablePages` still implement application-private
+  Tables within native turns, including through `TableBridge` SDK bindings.
+  Inventory actual consumers, remove obsolete query/cache adapters, and specify
+  migration/removal of superseded Table storage and caller surfaces. Catalog
+  Tables must have one direct data owner. Any retained application-private KV
+  helper needs an explicit application-state purpose and must not become another
+  general Table engine. Preserve or explicitly replace the existing atomic
+  turn/input/output contract before migrating callers; two separate commits
+  cannot silently replace one atomic turn. Move affected contracts, SDKs,
+  examples, tests and documentation together under the current-v1 policy.
 
 **Gate:** deterministic recovery-required injection completes the original
 bootstrap request exactly once, the complete launcher schedule passes, payload
@@ -540,6 +554,17 @@ six-minute reader grace, and publishes the required native time fence before
 deletion. Cold owner replay/directory costs remain explicit P5 work; bounded
 cleanup alone cannot establish the complete P4 resource gate.
 
+The local native owner now yields between accepted-floor WAL cleanup units and
+rotates trim, collection and Table work independently of lifecycle scans. The
+target remains fixed until physical cleanup completes; failed or unfinished trim
+cannot consume every storage turn. The installed signed service schedule passes
+trim, restart and current revocation. Five local catalog/maintenance checks pass,
+including a deliberately unfinished trim, an injected trim failure, fair progress
+of the other classes, and the existing retained-graph and flush checks. Four
+selected backend checks pass bounded native trimming and reopen. Automatic
+archive/checkpoint/compaction and collection remain unfinished; these scheduler
+and backend results do not close P4.1 or the aggregate resource gate.
+
 #### P5 — Qualify and reduce the remaining live read and wait costs
 
 Owners: local Table service/catalog, direct query readers, shared SQL service,
@@ -549,7 +574,12 @@ Owners: local Table service/catalog, direct query readers, shared SQL service,
   constructs request-owned catalogs; `DirectCatalog.open` initializes and
   recovers a Table for each open. Measure replay, immutable directory/footer
   reads, cache lifetime, credential exchanges, serialization and result delivery
-  separately from WAL sync and application coordination.
+  separately from WAL sync and application coordination. Include SQL read-pin
+  acquisition/closure and their gateway recovery-file and directory syncs;
+  ordinary SELECT is not currently a disk-write-free observation. Count Table
+  opens, replayed frames, native requests and syncs per completed statement,
+  including repeated reads of unchanged data. Separate persistent-console
+  statement time from process/session startup and compare Debug/ReleaseSafe.
 - [ ] P5.2 Reuse verified immutable data and validated owner/recovery state where
   measurements justify it, under a bounded resident owner/cache pool. Bind every
   entry to its exact root/definition/epoch and invalidate on uncertainty or
@@ -576,6 +606,106 @@ Owners: local Table service/catalog, direct query readers, shared SQL service,
 sizes above caches, and measured reduction in the selected live amplification
 and latency costs. Report regressions and uncertain samples. A component cache
 benchmark or shorter polling interval alone cannot pass this gate.
+
+**Post-integration priority — 2026-10-27:** after merging PR #188, the user
+reports slow single-row INSERT and roughly 0.5-second queries against `items`.
+These are user observations, not an attributed benchmark. Start P5.1's ordinary
+console SELECT/INSERT measurements before extending maintenance. Source review
+at merge `5962c10d2` confirms per-open Table recovery and SQL's durable read-pin
+journal; determine their measured contribution before choosing the optimization.
+The remaining P4 recovery checkpoints and P5 bounded owner/cache reuse must be
+qualified together. Result batching belongs to milestone 4, but completing it
+does not discharge these storage/recovery costs. Preserve current authorization,
+retained cuts, exact outcomes and pin cleanup while reducing repeated work.
+
+**P5 continuation evidence — 2026-10-27:** ReleaseSafe runtime binaries from
+`8b19eaebb` are frozen under ignored local qualification output. The persistent
+console mutation run (`--repeat 3 --rows 8 --read-repeat 3`) completed six
+measured mutations at roughly 8.7–10.7 seconds, then its three-row INSERT reached
+the 30-second submission deadline with `SqlOutcomeUnknown`. A separate
+instrumented run with one repetition failed at the same case. Both original
+installations and request identities remain retained; neither run passes the
+mutation or recovery gate. The probe now classifies direct `/table/v1` calls
+without retaining their payloads. One successful instrumented INSERT observed
+1,307 total fixture requests, including background work, and 16 native turns.
+Direct Table history replay and the SQL account ledger's 128-byte reference
+upload are distinct costs; cumulative overlapping request durations cannot be
+added to infer statement latency. Diagnose that failed original operation and
+attribute ledger, storage-lock and read-pin costs before claiming the issue fixed.
+
+An independent read-only measurement after eight seed rows (plus the fixed
+zero-key row) completed all 15 exact-value controls. Three observations per case
+gave medians of 696 ms point, 983 ms range, 1,024 ms full, 736 ms empty and 707 ms
+LIMIT zero. These describe this physical-disk fixture, not tail percentiles or
+a product latency guarantee. `30ccc4f45` adds bounded same-owner Table history
+hints with boundary validation and request-failure invalidation. Eleven focused
+storage checks, four selected catalog checks and the four native policy/maintenance
+checks pass, including the 1,165-step retained-graph collection. Its matched live
+comparison, complete owner/cache resource gate and final qualification remain
+open. This is a component delivery within P5.2, not completion of P5.
+
+The node-only comparison at `13d36a3bd`, with the other runtime roles frozen at
+`8b19eaebb`, passes the same 15 read controls. Medians are 589 ms point, 786 ms
+range, 776 ms full, 581 ms empty and 612 ms LIMIT zero. The slowest point sample
+regresses from 778 ms to 1,167 ms. These three-sample, shared-host observations
+establish neither tail improvement nor the final same-source packaging gate.
+
+The original failed baseline installation was preserved before reopening with
+its original binaries. Public operation inspection finds the three-row INSERT
+terminal with three matched/changed rows under its original identity; an
+independent SELECT verifies those rows and all nine earlier retained rows. No
+replacement INSERT was submitted. The original completion deadline remains a
+failure even though recovery identifies the accepted result.
+
+`ff2d2e45e` separates private native allocation/object syncs from the shared journal
+mutex. A paused-sync negative control failed before the fix and passes after it;
+ten selected backend checks pass, including collection joining a creator paused
+before object publication. The same three-repetition mutation schedule with that
+node passes its first three-row INSERT, but reaches another 30-second submission
+deadline on the second cycle's single-row UPDATE. Its eight successful measured
+samples remain approximately 8.3–10.6 seconds. This is not a resolved live latency
+or completion gate. `6e649fc69` also includes direct catalog/Table WAL and object
+attempts in request diagnostics; earlier provider counters omitted that work.
+
+`5f96afeb1` also reuses validated Table history for name lookup through the same
+fixed-size host hint slots. Current authorization remains independent: the
+policy check observes eight WAL frames for the cold lookup and three for the
+warm lookup, then denies disclosure after revocation. Two fresh, unproxied
+installed runs each pass 100 independent persistent-console read controls
+(20 per case), comparing node `601c2db6d` with `5f96afeb1` while other roles stay
+at `8b19eaebb`. Point median/p95 changes from 1,159/1,397 ms to 669/784 ms; full
+scan from 1,370/1,635 ms to 857/996 ms. Range, empty and LIMIT-zero medians also
+improve. These shared-host, node-only measurements are encouraging but do not
+establish final same-source packaging or tail guarantees.
+
+The complete-native-submission sequencer removes the competing private staging
+seen in the earlier diagnostic, but does not resolve mutation latency. Its
+three-repetition uninstrumented run reaches another submission deadline on the
+second cycle's single-row INSERT. After preserving that installation, reopening
+with its original binaries finds all 15 original operations terminal; the final
+INSERT is applied with one matched/changed row. Independent readback verifies
+the exact ten expected rows without a replacement write. A separate instrumented
+two-repetition run completes all 14 mutations and 15 read controls with no native
+conditional conflicts, but some mutations take 23–39 seconds. Neither successful
+recovery nor the diagnostic run erases the original deadline failure. An
+instrumented read-only control also failed during bootstrap before measurement;
+its proxy obstructed the launcher's subsequent port preflight. That failed
+control remains retained separately from the successful unproxied comparison.
+
+The original failed `ff2d2e45e` mutation installation also resumes with its
+original binaries: all 16 saved operations are terminal, and the second-cycle
+UPDATE has one matched/changed row. Independent readback verifies key -1 at 200
+and keys 0–8 at 100, without submitting another UPDATE. Its original deadline
+failure remains part of the latency investigation.
+
+**Progress PR boundary:** the user requested another mergeable increment so
+statement-result work can build on the read-reuse, shorter journal locks,
+complete-submission sequencing, bounded cleanup and diagnostic improvements.
+This increment changes no shared definition, wire format or stored layout.
+Keep the milestone In Progress: automatic archive/checkpoint/compaction and
+collection, the Station Table boundary, broader resource integration, public
+storage inspection and final common-revision qualification remain required.
+Mutation timeouts are an explicit unresolved limit of this increment.
 
 #### P6 — Publish one authorized storage view and configuration surface
 

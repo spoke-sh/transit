@@ -81,6 +81,160 @@ pub const Fixture = struct {
     }
 };
 
+test "native collection joins a creator paused between inventory and object publication" {
+    const Gate = struct {
+        var real: *const std.Io.VTable = undefined;
+        var armed: std.atomic.Value(bool) = .init(false);
+        var entered: std.Io.Event = .unset;
+        var release: std.Io.Event = .unset;
+        // The first object-key lock follows the durable inventory record but
+        // precedes any content. Pausing here exposes the untracked-recreation
+        // race; pausing a payload sync would already hold the per-key lock.
+        fn lock(context: ?*anyopaque, file: std.Io.File, kind: std.Io.File.Lock) std.Io.File.LockError!void {
+            if (armed.swap(false, .acq_rel)) {
+                entered.set(t.io);
+                try release.wait(t.io);
+            }
+            return real.fileLock(context, file, kind);
+        }
+        fn reclaim(f: *Fixture, started: *std.Io.Event, done: *std.Io.Event) !void {
+            started.set(t.io);
+            defer done.set(t.io);
+            try t.expect(try f.step());
+        }
+    };
+    const waitFor = @import("native_test.zig").waitFor;
+    Gate.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileLock = Gate.lock;
+    var io = t.io;
+    io.vtable = &vtable;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var f: Fixture = .{};
+    try f.openWithIo(tmp.dir, true, io);
+    defer f.close();
+    const address: [32]u8 = @splat(44);
+    const body = "unpublished native creator";
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(body, &digest, .{});
+    const allocation: Allocations.Allocation = .{ .epoch = 1, .kind = .block, .address = address, .meta = .{ .size = body.len, .sha256 = digest } };
+    Gate.armed.store(true, .release);
+    var creator = try t.io.concurrent(local.Backend.putNative, .{ &f.owner, 1, .block, address, body, false });
+    defer _ = creator.cancel(t.io) catch {};
+    defer Gate.release.set(t.io);
+    try waitFor(&Gate.entered);
+    try t.expectEqualDeep(allocation, (try f.owner.allocations.read(allocation.name())).?);
+    // The private creator holds neither the journal nor the allocation queue
+    // while waiting to publish. Accepted fencing and marking can still finish.
+    const cut = try f.submit(.{ .storage_fence = {} });
+    try f.collector.start(&f.engine, cut);
+    try f.until(.wait);
+    try f.elapse();
+    try f.until(.deleting);
+    // Bootstrap may leave earlier unreachable allocations. Reclamation joins
+    // all in-flight creators before consuming any eligible allocation.
+    var started: std.Io.Event = .unset;
+    var done: std.Io.Event = .unset;
+    var reclaim = try t.io.concurrent(Gate.reclaim, .{ &f, &started, &done });
+    defer _ = reclaim.cancel(t.io) catch {};
+    try waitFor(&started);
+    try t.expectError(error.ProgressTimeout, waitFor(&done));
+    try t.expect(!Gate.release.isSet());
+    Gate.release.set(t.io);
+    try creator.await(t.io);
+    try reclaim.await(t.io);
+    try f.until(.complete);
+    var key: [96]u8 = undefined;
+    try t.expect(try f.owner.objects.objectStore().head(try allocation.key(&key)) == null);
+    try t.expect(try f.owner.allocations.read(allocation.name()) == null);
+    f.close();
+    try f.open(tmp.dir, false);
+    try t.expect(try f.owner.objects.objectStore().head(try allocation.key(&key)) == null);
+    try t.expect(try f.owner.allocations.read(allocation.name()) == null);
+}
+
+test "paused native collection publication and deletion permit independent data acceptance" {
+    const Gate = struct {
+        var real: *const std.Io.VTable = undefined;
+        var armed: std.atomic.Value(bool) = .init(false);
+        var entered: std.Io.Event = .unset;
+        var release: std.Io.Event = .unset;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            if (armed.swap(false, .acq_rel)) {
+                entered.set(t.io);
+                try release.wait(t.io);
+            }
+            return real.fileSync(context, file);
+        }
+        fn collect(f: *Fixture, start: ?u64) !void {
+            if (start) |cut| return f.collector.start(&f.engine, cut);
+            try t.expect(try f.step());
+        }
+        fn readAndAppend(owner: *local.Backend, genesis: core.growing.Genesis, done: *std.Io.Event) !void {
+            defer done.set(t.io);
+            var pages = try local.PageStore.init(owner, 1);
+            defer pages.deinit();
+            var journal: local.Store = .{ .backend = owner };
+            var engine = try Engine.open(&journal, &pages, genesis);
+            try t.expect((try engine.principal(0)).sequence != 0);
+            var data: local.DataStore = .{ .backend = owner };
+            _ = try data.log().append(17, 0, engine.head.storage_epoch, engine.head.authorization.revision + 1, .row_delta, "accepted during native collection");
+            try t.expectEqual(@as(u64, 1), try data.log().tail(17));
+        }
+    };
+    const waitFor = @import("native_test.zig").waitFor;
+    Gate.real = t.io.vtable;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Gate.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    for ([_]bool{ false, true }) |deleting| {
+        Gate.entered = .unset;
+        Gate.release = .unset;
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var f: Fixture = .{};
+        try f.openWithIo(tmp.dir, true, io);
+        defer f.close();
+        _ = try f.orphan("unreachable native block");
+        const cut = try f.submit(.{ .storage_fence = {} });
+        if (deleting) {
+            try f.collector.start(&f.engine, cut);
+            try f.until(.wait);
+            try f.elapse();
+            try f.until(.deleting);
+        }
+        const pending = if (deleting) (try f.collector.current()).?.pending else null;
+        Gate.armed.store(true, .release);
+        var collector = try t.io.concurrent(Gate.collect, .{ &f, if (deleting) @as(?u64, null) else cut });
+        defer _ = collector.cancel(t.io) catch {};
+        defer Gate.release.set(t.io);
+        try waitFor(&Gate.entered);
+        var done: std.Io.Event = .unset;
+        var reader = try t.io.concurrent(Gate.readAndAppend, .{ &f.owner, f.engine.genesis, &done });
+        defer _ = reader.cancel(t.io) catch {};
+        try waitFor(&done);
+        try reader.await(t.io);
+        try t.expect(!Gate.release.isSet());
+        Gate.release.set(t.io);
+        try collector.await(t.io);
+        f.close();
+        try f.open(tmp.dir, false);
+        var data: local.DataStore = .{ .backend = &f.owner };
+        var accepted = try data.log().read(t.allocator, 17, 0, 1);
+        defer accepted.deinit();
+        try t.expectEqual(@as(usize, 1), accepted.frames.len);
+        try t.expectEqualStrings("accepted during native collection", accepted.frames[0].payload);
+        const state = (try f.collector.current()).?;
+        try t.expectEqual(@as(@TypeOf(state.phase), if (deleting) .sweep else .mark), state.phase);
+        if (pending) |item| {
+            try t.expect(try f.owner.allocations.read(item.allocation.name()) == null);
+            try t.expect((try f.owner.allocations.current()).cursor > item.cursor);
+        }
+    }
+}
+
 test "native collection retains history, fences delayed writers and resumes pending physical deletion" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -127,7 +281,28 @@ test "native collection retains history, fences delayed writers and resumes pend
     f.close();
     try f.open(tmp.dir, false);
     try t.expectEqual(concurrent, (try f.engine.process(concurrent)).pid);
-    try t.expect(!try f.step());
+    // The saved complete phase finishes graph reclamation, but an interrupted
+    // FIFO trim still resumes in bounded physical units after reopening.
+    var cleanup_units: usize = 0;
+    const cleanup_frames = f.owner.allocations.queue.disk.?.trim_frames;
+    while (true) {
+        const disk = f.owner.allocations.queue.disk.?;
+        const entries = disk.trim_entries;
+        const frames = disk.trim_frames;
+        const segments = disk.trim_segments;
+        const progressed = try f.step();
+        try t.expect(disk.trim_entries - entries <= 32);
+        try t.expect(disk.trim_frames - frames <= 1);
+        try t.expect(disk.trim_segments - segments <= 1);
+        if (!progressed) break;
+        cleanup_units += 1;
+        try t.expect(cleanup_units < 2000);
+    }
+    try t.expect(cleanup_units != 0);
+    // This fixture's active inventory segment retains live carried entries.
+    // Its accepted descriptor proves it must stay; no prefix rescan is needed.
+    try t.expectEqual(cleanup_frames, f.owner.allocations.queue.disk.?.trim_frames);
+    try t.expectEqual(concurrent, (try f.engine.process(concurrent)).pid);
 }
 
 test "native collection aborts an incomplete retained-root mark after authorized history trim" {
