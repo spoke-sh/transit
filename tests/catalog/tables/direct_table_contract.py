@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "47c035195248bf570ed52323112b2a32622ee69714ffb7719124218e034b1b2b"
+definition = "c28797e8d36912bfca884567bf72256f7304e0e64ed278b90894d7e22b311914"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)

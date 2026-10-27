@@ -35,6 +35,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-station-http](../../../packages/zig/transit-station-http/README.md) / `transit_station_http` | finite HTTP request construction, strict framing and durable capture | transit-exchange, transit-tls |
 | [transit-tls](../../../packages/zig/transit-tls/README.md) / `transit_tls` | Compiler-pinned TLS client with bounded certificate-path verification | Pinned zig-libs certificate-validation snapshot |
 | [transit-tls-server](../../../packages/zig/transit-tls-server/README.md) / `transit_tls_server` | TLS 1.2/1.3 server sessions over bounded, deadline-controlled Zig I/O | Pinned OpenSSL 3.6.4 server API |
+| [transit-sql-results](../../../packages/zig/transit-sql-results/README.md) / `transit_sql_results` | Logical statement outcomes, result progress and observation evidence | transit-fuze, transit-protocol |
 | [transit-sql-protocol](../../../packages/zig/transit-sql-protocol/README.md) / `transit_sql_protocol` | SQL session messages, canonical logical carriage and SCRAM | transit-fuze, transit-protocol |
 | [transit-sql-client](../../../packages/zig/transit-sql-client/README.md) / `transit_sql_client` | Native HTTP/TLS and Unix session transport, authentication, local discovery and owned responses | transit-sql-protocol |
 | [transit-sql](../../../packages/zig/transit-sql/README.md) / `transit_sql` | Shared SQL sessions, credentials, catalog-bound statements and paged account recovery | transit-station, transit-query, transit-catalog |

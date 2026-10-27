@@ -108,7 +108,7 @@ pub fn status(host: *g.Session, id: u64) !api.Operation {
         else => .rejected,
     } else null;
     if (item.phase == .terminal and !complete) return error.MissingCapturedQueryOutcome;
-    return .{ .identity = .{ .account = host.account.ledger.account, .id = id, .kind = .captured }, .token = item.nonce, .phase = if (complete) .terminal else if (item.phase == .reserved) .reserved else if (current) |value| switch (value.phase) {
+    return .{ .command = .capture, .identity = .{ .account = host.account.ledger.account, .id = id, .kind = .captured }, .token = item.nonce, .phase = if (complete) .terminal else if (item.phase == .reserved) .reserved else if (current) |value| switch (value.phase) {
         .uploading => .uploading,
         .sealed => .ready,
         else => .active,

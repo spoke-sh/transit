@@ -5,6 +5,7 @@ import ctypes
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import selectors
@@ -22,6 +23,38 @@ from harness.http_probe import Probe
 def digest(path):
     with open(path, 'rb') as binary:
         return hashlib.file_digest(binary, 'sha256').hexdigest()
+
+
+def representation_sample(batch, historical=False):
+    """Payload-only experiment, not a negotiated wire format or latency sample.
+
+    Cell lengths make this private layout unambiguous. Schema/observation are
+    counted separately; framing, alignment and codec negotiation are not modeled.
+    Every compressed payload must round-trip byte-for-byte before being reported.
+    """
+    import pyarrow as pa
+    rows = [[bytes.fromhex(cell) for cell in row] for row in batch['rows']]
+    layouts = {
+        'rows': [cell for row in rows for cell in row],
+        'columns': [cell for column in zip(*rows) for cell in column],
+    }
+    result = dict(pyarrow=pa.__version__, layouts={},
+                  schema_json_bytes=len(json.dumps(batch['schema'], separators=(',', ':')).encode()),
+                  observation_json_bytes=len(json.dumps(batch['basis' if historical else 'observation'], separators=(',', ':')).encode()))
+    for name, cells in layouts.items():
+        payload = b''.join(len(cell).to_bytes(4, 'little') + cell for cell in cells)
+        codecs = {}
+        for codec in ('lz4', 'zstd'):
+            start = time.perf_counter_ns()
+            compressed = pa.compress(payload, codec=codec)
+            encoded_ns = time.perf_counter_ns() - start
+            start = time.perf_counter_ns()
+            restored = pa.decompress(compressed, decompressed_size=len(payload), codec=codec)
+            decoded_ns = time.perf_counter_ns() - start
+            assert restored.to_pybytes() == payload, 'codec changed the result payload'
+            codecs[codec] = dict(bytes=len(compressed), encode_ns=encoded_ns, decode_ns=decoded_ns)
+        result['layouts'][name] = dict(bytes=len(payload), sha256=hashlib.sha256(payload).hexdigest(), codecs=codecs)
+    return result
 
 
 def override(fixture, role, fields, probe_gate=None):
@@ -124,7 +157,16 @@ def main():
                         help='execute this many unmeasured SELECTs before measurements')
     parser.add_argument('--instrument', action='store_true',
                         help='count native/provider attempts through loopback proxies; adds overhead')
+    parser.add_argument('--rows', type=int, default=0, choices=range(513), metavar='0..512',
+                        help='seed a fixed narrow/variable-width result workload')
+    parser.add_argument('--historical-result-profile', action='store_true',
+                        help='validate the frozen pre-result-model console baseline explicitly')
+    parser.add_argument('--binary-revision', help='source revision of the frozen binaries being measured')
+    parser.add_argument('--representations', action='store_true',
+                        help='run separate payload-only row/column LZ4/Zstd experiments after timing samples')
     args = parser.parse_args()
+    if args.historical_result_profile and not args.binary_revision:
+        parser.error('--historical-result-profile requires --binary-revision')
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     fixture = Fixture(args.cli, args.node, args.host)
     success = False
@@ -147,8 +189,11 @@ def main():
         override(fixture, 'query_host', {'interval_ms': args.worker_interval_ms,
                                        'idle_max_interval_ms': 0 if args.worker_interval_ms is not None else None})
         fixture.path.write_text(json.dumps(fixture.config))
-        print(json.dumps({'executables': {role: digest(path) for role, path in
-              binaries.items()}, 'source_rows': 0, 'instrumented': args.instrument,
+        print(json.dumps({'binary_revision': args.binary_revision, 'driver_sha256': digest(__file__),
+              'system': platform.platform(), 'machine': platform.machine(), 'logical_cpus': os.cpu_count(),
+              'sample_method': 'sequential post-bootstrap; no timing warmup; RSS sampled every 20 ms',
+              'executables': {role: digest(path) for role, path in
+              binaries.items()}, 'source_rows': args.rows, 'historical_result_profile': args.historical_result_profile, 'instrumented': args.instrument,
               'age_queries': args.age_queries, 'repeat': args.repeat, 'execution': 'server_session',
               'cache_condition': 'post-bootstrap; later queries share the node cache',
               'overrides': {'resident_pages': args.resident_pages,
@@ -192,6 +237,21 @@ def main():
             return measured_run([fixture.cli, 'console', '--no-rc', '--format', mode,
                                  '-f', str(script)], fixture.root, node=authority[0])
 
+        if args.rows:
+            # Independent setup operations stay inside the compiler's statement
+            # limit. The measured reads begin only after every seed is accepted.
+            statements = ['CREATE TABLE result_latency (id INT64, body TEXT);']
+            for start in range(0, args.rows, 20):
+                values = ','.join("(%d,'%s')" % (i, 'v' * (32 + i % 96))
+                                  for i in range(start, min(start + 20, args.rows)))
+                statements.append('INSERT INTO result_latency VALUES ' + values + ';')
+            code, stdout, stderr, _ = execute('json', '\n'.join(statements))
+            assert code == 0, (stdout, stderr)
+            commands = [json.loads(line)['completion'] for line in stdout.splitlines()]
+            changed = sum(int(command['changed'] if args.historical_result_profile else command['counts']['changed'])
+                          for command in commands)
+            assert changed == args.rows, commands
+
         for _ in range(args.age_queries):
             code, _, stderr, _ = execute('table', 'SELECT * FROM items;')
             assert code == 0, stderr
@@ -201,6 +261,15 @@ def main():
                    ('table', 'SELECT * FROM items;'),
                    ('json', 'SELECT * FROM items;'),
                    ('table', 'SELECT COUNT(*) FROM items;')]
+        if args.rows:
+            queries = [
+                ('table', 'SELECT id FROM result_latency;'),
+                ('json', 'SELECT id, body FROM result_latency;'),
+                ('json', 'SELECT id, COUNT(*) AS rows FROM result_latency GROUP BY id;'),
+                ('table', 'DESCRIBE result_latency;'),
+                ('json', 'DESCRIBE result_latency;'),
+                ('json', 'SHOW TABLES;'),
+            ]
         selected = queries[:1] if args.single else queries
         for index, (mode, sql) in enumerate(selected * args.repeat):
             before_cpu = cpu()
@@ -209,15 +278,59 @@ def main():
             assert code == 0, stderr
             assert re.fullmatch(r'Time: \d+ ms \((?:[a-z]+ \d+ ms, )*[a-z]+ \d+ ms\)\n', stderr), stderr
             if mode == 'json':
-                from interfaces.cli.table_console import results
-                assert results(map(json.loads, stdout.splitlines()))[0]['complete']['rows'] == '0'
+                frames = [json.loads(line) for line in stdout.splitlines()]
+                expected_profile = 'sql_session_v1' if args.historical_result_profile else 'sql_result_v1'
+                assert frames[0]['profile'] == expected_profile, frames[0]
+                assert frames[-1]['complete_coverage'], frames[-1]
+                rows = [frame['row']['value']['structure'] for frame in frames if 'row' in frame]
+                assert int(frames[-1]['rows']) == len(rows), frames[-1]
+                if sql.startswith('SELECT') and args.rows:
+                    if 'GROUP BY' in sql:
+                        actual = sorted((int(row[0]['value']['atom']['signed']), int(row[1]['value']['atom']['unsigned'])) for row in rows)
+                        assert actual == [(i, 1) for i in range(args.rows)], actual
+                    else:
+                        actual = sorted((int(row[0]['value']['atom']['signed']), row[1]['value']['atom']['utf8']) for row in rows)
+                        assert actual == [(i, 'v' * (32 + i % 96)) for i in range(args.rows)], actual
+                elif sql.startswith('DESCRIBE'):
+                    assert len(rows) == 2, rows
+                elif sql.startswith('SHOW'):
+                    assert len(rows) >= 2, rows
+                else:
+                    assert not rows, rows
             else:
-                assert stdout.startswith('┌') and stdout.endswith(('0 rows; complete coverage\n', '1 rows; complete coverage\n'))
+                expected = 2 if sql.startswith('DESCRIBE') else args.rows if args.rows else 1 if 'COUNT' in sql else 0
+                assert stdout.startswith('┌') and stdout.endswith(f'{expected} rows; complete coverage\n'), stdout
+                if not args.historical_result_profile:
+                    assert stdout.count('┌') == 1 and stdout.count('└') == 1, stdout
             print(json.dumps({'phase': 'query', 'index': index, 'mode': mode, 'sql': sql, **measurements,
                               'node_cpu_seconds': cpu() - before_cpu,
                               'stdout_bytes': len(stdout.encode()), 'timing': stderr.strip(),
                               'attempts': {name: dict(probe.snapshot() - counters[name])
                                            for name, probe in probes.items()}}), flush=True)
+        if args.rows:
+            from interfaces.sql_sessions.measurements import local_batches
+            config, definition = fixture.console_config(), fixture.record()['definition']
+            for repeat in range(args.repeat):
+                for sql, expected in (
+                    ('SELECT id FROM result_latency;', args.rows),
+                    ('SELECT id, body FROM result_latency;', args.rows),
+                    ('SELECT id, COUNT(*) AS rows FROM result_latency GROUP BY id;', args.rows),
+                    ('DESCRIBE result_latency;', 2),
+                    ('SHOW TABLES;', None),
+                ):
+                    counters = {name: probe.snapshot() for name, probe in probes.items()}
+                    measured = local_batches(config, definition, sql, expected_rows=expected,
+                                             historical=args.historical_result_profile)
+                    measured.update(repeat=repeat, attempts={name: dict(probe.snapshot() - counters[name])
+                                                            for name, probe in probes.items()})
+                    print(json.dumps(measured), flush=True)
+            print(json.dumps(local_batches(config, definition, 'SELECT id, body FROM result_latency;',
+                                           expected_rows=args.rows, historical=args.historical_result_profile,
+                                           slow_ms=50)), flush=True)
+            if args.representations:
+                print(json.dumps(local_batches(config, definition, 'SELECT id, body FROM result_latency;',
+                                               expected_rows=args.rows, historical=args.historical_result_profile,
+                                               representation=representation_sample)), flush=True)
         success = True
     finally:
         fixture.cleanup()

@@ -104,12 +104,18 @@ new reload.
 
 ## Types and limits
 
-The native encoding `transit.logical.v1.hex` carries canonical logical values:
-schema fields contain FTY1 descriptors, parameters contain FVL1 values, and row
-cells use their schema's canonical encoding. Hexadecimal carriage preserves
-wide integers, decimals, nested values and the distinction between ordinary
-values, NULL, missing, type errors and conflicts. It does not convert values
-through JSON floating point. Fixed byte identities use JSON integer arrays;
+The native result encoding `transit.sql.result.v1.binary-columns` carries aligned
+binary columns. The first batch supplies the logical FTY1 schema and observation;
+later batches retain their commitments. Wide integers, decimals, nested values
+and all five cell states remain exact. Common scalar columns expose borrowed
+Arrow-compatible value buffers, with separate state and conflict details.
+Result bodies are uncompressed and distinct from Arrow IPC streams. The shared
+client owns decoding and response lifetimes; ordinary consumers see logical
+batches and verified completion.
+
+Small control messages use JSON. Prepared descriptors and standalone FVL1
+parameters use canonical hexadecimal inside those messages; values do not pass
+through JSON floating point. Fixed byte identities use JSON integer arrays and
 text uses strings.
 
 Messages are at most 4 MiB, SQL at most 64 KiB, parameter lists at most 65 values,

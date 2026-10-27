@@ -228,9 +228,11 @@ descriptors must match preparation before executor work. Parameters are confined
 to the shared single-Table SELECT/DML profile. MySQL quoting is handled by the
 shared lexer for SELECT, DML, CREATE and literal relational SQL.
 
-`Read.nextBatch(maximum)` borrows at most one to eight rows until its next call
-or close. The single-Table path owns at most 16 MiB of canonical cells per batch;
-other read owners may return a smaller batch. The host validates current account,
+`Read.nextBatch(maximum)` borrows up to 32 owned logical rows until its next call
+or close, with at most 1 MiB of canonical cells. SQL batches fill across source
+pages without changing storage page size. A row that exceeds the remaining byte
+budget stays with the source for the next pull; a row larger than an empty batch
+fails explicitly. Nested values are copied before iterator scratch is reused. The host validates current account,
 statement and scoped query authority after materialization, before any row in
 that batch is transmitted. Empty and final output require the same validation.
 A batch is one bounded disclosure; later batches observe current rights again.

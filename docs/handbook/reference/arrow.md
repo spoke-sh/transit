@@ -64,15 +64,26 @@ admit arbitrary external Arrow input. See the
 the [stored layout](../../../contracts/TRANSIT_STORAGE_V1.md#qualified-plain-value-buffers)
 for offsets, validity and canonical padding.
 
+The [SQL result library](../../../packages/zig/transit-sql-results/README.md) exposes
+borrowed row and column batch views over the same logical result. For admitted
+plain columns, its Arrow value view borrows the source buffers and preserves the slice offset;
+the full Transit column still supplies state/detail evidence. Row access populates
+only reusable descriptors. This local view does not widen native IPC import or
+Flight admission, and requires the source owner to remain alive.
+
 Decode bounded batches and validate full-width identities, lengths and semantic
 cell states at language boundaries. A readable IPC prefix is not a verified
 complete query. Result manifests, ordered segment coverage and digests remain
 necessary; preserve the source basis with the result.
 
-The [Transit console](../../../apps/transit-cli/docs/console.md) renders verified
-native Arrow batches directly in its default table mode, with typed headings and
-numeric alignment. It releases each page after presentation. JSON mode emits
-the lossless foreign-value page envelope.
+The [Transit console](../../../apps/transit-cli/docs/console.md) consumes logical
+statement results through the shared SQL client. Its table presentation does not
+expose storage pages or Arrow segment boundaries. Native sessions carry bounded binary columns with the schema and observation
+described once per result. Common scalar value buffers can be borrowed as Arrow
+views; state and conflict details remain in the enclosing Transit column. These
+HTTP bodies are uncompressed and are not Arrow IPC streams. Captured query owners
+can decode their retained Arrow segments beneath that boundary. JSON presentation
+uses exact typed row envelopes and a verified logical-result footer.
 
 The shared Zig Arrow implementation and pinned dependencies live under
 [Fuze](../../../packages/zig/transit-fuze/README.md). Public language wrappers own

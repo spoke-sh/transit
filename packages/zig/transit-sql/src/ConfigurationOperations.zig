@@ -75,7 +75,7 @@ pub fn status(host: *g.Session, id: u64) !api.Operation {
     const outcome: ?C.Outcome = if (result.value.result.reloads.rows.len == 0) null else result.value.result.reloads.rows[0];
     if (item.phase == .terminal and outcome == null) return error.MissingConfigurationOutcome;
     const complete = outcome != null and outcome.?.phase != .applying;
-    return .{ .identity = .{ .account = host.account.ledger.account, .id = item.id, .kind = .configuration }, .token = item.nonce, .phase = if (complete) .terminal else if (item.phase == .reserved) .reserved else .ready, .outcome = if (complete) switch (outcome.?.phase) {
+    return .{ .command = .reload, .identity = .{ .account = host.account.ledger.account, .id = item.id, .kind = .configuration }, .token = item.nonce, .phase = if (complete) .terminal else if (item.phase == .reserved) .reserved else .ready, .outcome = if (complete) switch (outcome.?.phase) {
         .rejected => .rejected,
         .partial => .partial,
         else => .applied,

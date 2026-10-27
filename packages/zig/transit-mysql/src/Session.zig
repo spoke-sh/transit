@@ -93,7 +93,7 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             while (true) {
                 const batch = try read.nextBatch(g.ReadBatch.max_rows);
                 try batch.validate(g.ReadBatch.max_rows);
-                try self.host.validate(prepared);
+                try read.validateDisclosure();
                 for (batch.rows[0..batch.len]) |cells| try self.send(try self.backend.row(fields, cells.?, binary));
                 if (batch.complete) break;
             }

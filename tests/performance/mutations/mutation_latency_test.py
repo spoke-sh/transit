@@ -52,11 +52,11 @@ class Evidence(unittest.TestCase):
         for corrupt in (False, True):
             with self.subTest(corrupt=corrupt):
                 basis = dict(object='19', revision='7')
-                frames = [dict(profile='sql_session_v1', complete_coverage=False,
-                               schema={'columns': []}),
+                frames = [dict(profile='sql_result_v1', complete_coverage=False,
+                               schema={'columns': []}, observation=basis),
                           dict(complete_coverage=False, row={'value': {'structure': [
                               {'value': {'atom': {'unsigned': '41'}}}]}}),
-                          dict(complete_coverage=True, rows=2 if corrupt else 1, basis=basis)]
+                          dict(complete_coverage=True, rows='2' if corrupt else '1', displayed_rows='1', observation=basis)]
                 script = """import sys,time
 sys.stdin.readline()
 sys.stderr.write(%r);sys.stderr.flush()

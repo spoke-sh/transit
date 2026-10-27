@@ -1,0 +1,152 @@
+//! SQL result columns reuse Fuze's current plain physical representation. These
+//! transient buffers confer neither Table identity nor storage/retention rights.
+const std = @import("std");
+const api = @import("root.zig");
+const r = api.results;
+const p = api.fuze.PhysicalCodecs;
+fn column(field: r.Types.Field, ordinal: usize) api.fuze.TableSchema.Column {
+    return .{ .id = ordinal + 1, .name = field.name, .type = field.type, .nullable = field.nullable, .encoding = .plain };
+}
+fn countCell(value: r.Types.Values.Cell, field: r.Types.Field) !usize {
+    var buffer: [256]u8 = undefined;
+    var counter: std.Io.Writer.Discarding = .init(&buffer);
+    try r.Types.Codec.writeBound(value, field, &counter.writer);
+    return @intCast(counter.fullCount());
+}
+
+/// Output and its directory belong to arena, with scratch freed separately.
+/// Each allocation scales with its actual values plus bounded column framing.
+pub fn encode(scratch: std.mem.Allocator, arena: std.mem.Allocator, fields: []const r.Types.Field, batch: r.Batch) ![]const []const u8 {
+    if (batch.len > api.max_rows or fields.len > api.ResultFrame.max_columns) return error.InvalidResultChunk;
+    try batch.validate(fields);
+    if (batch.len == 0) return &.{};
+    const columns = try arena.alloc([]const u8, fields.len);
+    var cells: [api.max_rows]r.Types.Values.Cell = undefined;
+    var total: usize = 0;
+    for (fields, columns, 0..) |field, *output, i| {
+        var size: usize = 0;
+        for (cells[0..batch.len], 0..) |*value, row| {
+            value.* = batch.cell(row, i);
+            size = try std.math.add(usize, size, try countCell(value.*, field));
+        }
+        total = try std.math.add(usize, total, size);
+        if (total > api.max_batch_bytes) return error.SqlBatchTooLarge;
+        // Plain cells add at most a length per value/alternative, a tag stream,
+        // the page header and four alignment pads. Canonical alternative clocks
+        // alone exceed their added length overhead, so twice the canonical bytes
+        // plus this fixed per-column allowance bounds every supported layout.
+        const capacity = try std.math.add(usize, try std.math.mul(usize, size, 2), 512 + batch.len * 8);
+        const page = try arena.alignedAlloc(u8, .fromByteUnits(api.ResultFrame.alignment), capacity);
+        output.* = try p.encodeColumnPage(scratch, column(field, i), cells[0..batch.len], page);
+    }
+    return columns;
+}
+
+/// Hot scalar columns borrow Arrow-compatible value buffers without a cell
+/// matrix. Other types allocate descriptors/recursive metadata, borrowing payload
+/// bytes. Input, arena and schema must all outlive the returned batch.
+pub fn decode(scratch: std.mem.Allocator, arena: std.mem.Allocator, fields: []const r.Types.Field, pages: []const []const u8, rows: usize) !r.Batch {
+    if (rows > api.max_rows or fields.len > api.ResultFrame.max_columns) return error.InvalidResultChunk;
+    if (rows == 0) {
+        if (pages.len != 0) return error.InvalidResultColumn;
+        return .fromRows(&.{});
+    }
+    if (pages.len != fields.len) return error.InvalidResultColumn;
+    const columns = try arena.alloc(r.Batch.Column, fields.len);
+    var total: usize = 0;
+    for (fields, pages, columns, 0..) |field, page, *out, i| {
+        if (page.len < p.page_header_bytes or std.mem.readInt(u32, page[37..41], .little) != rows) return error.InvalidResultColumn;
+        if (p.PlainBuffers.supports(field.type)) {
+            out.* = .{ .plain = try p.borrowPlainColumn(scratch, arena, column(field, i), page) };
+        } else {
+            const decoded = try p.decodeColumnPageBorrowingBytes(scratch, arena, column(field, i), page, null);
+            out.* = .{ .cells = decoded.cells };
+        }
+        if (out.len() != rows) return error.InvalidResultColumn;
+        for (0..rows) |row| {
+            total = try std.math.add(usize, total, try countCell(out.cell(row), field));
+            if (total > api.max_batch_bytes) return error.SqlBatchTooLarge;
+        }
+    }
+    return .fromColumns(columns, rows);
+}
+
+test "binary result columns preserve exact values while borrowing Arrow and nested bytes" {
+    const t = std.testing;
+    const child: r.Types.Field = .{ .name = "text", .type = .utf8 };
+    const fields = [_]r.Types.Field{
+        .{ .name = "id", .type = .uint64 },
+        .{ .name = "body", .type = .utf8 },
+        .{ .name = "wide", .type = .uint128 },
+        .{ .name = "nested", .type = .{ .structure = &.{child} } },
+    };
+    const nested = [_]r.Types.Values.Cell{.{ .value = .{ .atom = .{ .bytes = "nested bytes" } } }};
+    const cells = [_]r.Types.Values.Cell{
+        .{ .value = .{ .atom = .{ .unsigned = 17 } } },
+        .{ .value = .{ .atom = .{ .bytes = "hello" } } },
+        .{ .value = .{ .atom = .{ .unsigned = std.math.maxInt(u128) } } },
+        .{ .value = .{ .structure = &nested } },
+    };
+    var encoded: std.heap.ArenaAllocator = .init(t.allocator);
+    defer encoded.deinit();
+    const pages = try encode(t.allocator, encoded.allocator(), &fields, .fromRows(&.{&cells}));
+    var decoded: std.heap.ArenaAllocator = .init(t.allocator);
+    defer decoded.deinit();
+    const batch = try decode(t.allocator, decoded.allocator(), &fields, pages, 1);
+    try batch.validate(&fields);
+    for (cells, 0..) |expected, i| try t.expectEqualDeep(expected, batch.cell(0, i));
+    const pointer = batch.cell(0, 3).value.structure[0].value.atom.bytes.ptr;
+    try t.expect(@intFromPtr(pointer) >= @intFromPtr(pages[3].ptr) and @intFromPtr(pointer) < @intFromPtr(pages[3].ptr) + pages[3].len);
+    var buffers: [3]r.fuze.arrow.SharedBuffer = undefined;
+    const arrow = try (try batch.columnAt(0)).arrowValues(&buffers);
+    try t.expectEqual(17, try (r.fuze.arrow.PrimitiveArray(u64){ .data = &arrow }).value(0));
+    try t.expectEqual(.plain, std.meta.activeTag(batch.layout.columns.values[0]));
+    try t.expectError(error.InvalidResultColumn, decode(t.allocator, decoded.allocator(), &fields, pages, 2));
+    const retained = try r.Types.Values.cloneValidated(decoded.allocator(), batch.cell(0, 3));
+    @memset(@constCast(pages[3]), 'x');
+    try t.expectEqualDeep(cells[3], retained);
+    try t.expectEqualStrings("xxxxxxxxxxxx", batch.cell(0, 3).value.structure[0].value.atom.bytes);
+}
+
+test "column encoding capacity covers long conflicts and byte budget refuses oversized rows" {
+    const t = std.testing;
+    const field: r.Types.Field = .{ .name = "body", .type = .utf8, .nullable = true, .optional = true };
+    const alternatives = [_]r.Types.Values.Alternative{
+        .{ .counter = 1, .replica = 1, .value = .null },
+        .{ .counter = 2, .replica = 1, .value = .{ .value = .{ .atom = .{ .bytes = "variable conflict" } } } },
+    };
+    const cells = [_][1]r.Types.Values.Cell{
+        .{.missing}, .{.null}, .{.{ .type_error = .int64 }}, .{.{ .conflict = &alternatives }},
+    };
+    const rows = [_]r.Row{ &cells[0], &cells[1], &cells[2], &cells[3] };
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const pages = try encode(t.allocator, arena.allocator(), &.{field}, .fromRows(&rows));
+    const batch = try decode(t.allocator, arena.allocator(), &.{field}, pages, rows.len);
+    for (cells, 0..) |expected, row| try t.expectEqualDeep(expected[0], batch.cell(row, 0));
+    const large = try t.allocator.alloc(u8, api.max_batch_bytes);
+    defer t.allocator.free(large);
+    @memset(large, 'x');
+    const oversized = [_]r.Types.Values.Cell{.{ .value = .{ .atom = .{ .bytes = large } } }};
+    try t.expectError(error.SqlBatchTooLarge, encode(t.allocator, arena.allocator(), &.{field}, .fromRows(&.{&oversized})));
+}
+
+test "independent binary peer fixture decodes wide missing and null columns" {
+    const t = std.testing;
+    const text = std.mem.trim(u8, @embedFile("fixtures/result-frame.hex"), "\n");
+    const bytes = try t.allocator.alignedAlloc(u8, .fromByteUnits(64), text.len / 2);
+    defer t.allocator.free(bytes);
+    _ = try std.fmt.hexToBytes(bytes, text);
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const frame = try api.ResultFrame.parseBorrowed(arena.allocator(), bytes);
+    const schema = try r.Types.decodeInto(arena.allocator(), frame.description.?.schema);
+    try t.expectEqual(try schema.fingerprint(), frame.schema);
+    try t.expectEqual(try r.Observation.fingerprint(arena.allocator(), frame.description.?.observation), frame.observation);
+    const batch = try decode(t.allocator, arena.allocator(), schema.structure, frame.columns, frame.rows);
+    try t.expectEqual(1, batch.len);
+    try t.expectEqual(std.math.maxInt(u128), batch.cell(0, 0).value.atom.unsigned);
+    try t.expectEqual(.missing, std.meta.activeTag(batch.cell(0, 1)));
+    try t.expectEqual(.null, std.meta.activeTag(batch.cell(0, 2)));
+    try t.expectEqual(1, frame.completion.?.rows);
+}

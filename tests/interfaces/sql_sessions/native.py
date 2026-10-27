@@ -12,6 +12,7 @@ import subprocess
 import socket
 import shutil
 import time
+from interfaces.sql_sessions.result_frame import Decoder, ENCODING
 
 
 def mac(key, text):
@@ -23,6 +24,8 @@ class Client:
         self.root, self.port = root, port
         self.instance = self.session = self.account = None
         self.last = 0
+        self.results = {}
+        self.decoder = Decoder()
         self.definition = json.loads((root / 'sql-gateway.json').read_text())['definition']
         self.transport()
 
@@ -50,7 +53,7 @@ class Client:
                            request_bytes=len(content.encode()), response_bytes=len(raw), reused_tls=reused)
         assert response.status == 200, (response.status, raw)
         assert response.getheader('Cache-Control') == 'no-store'
-        value = json.loads(raw)
+        value = self.decoder.response(raw, response.getheader('Content-Type'), self.definition)
         assert value['definition'] == self.definition
         if self.instance is None:
             self.instance = value['instance']
@@ -66,10 +69,33 @@ class Client:
             assert result['err']['code'] == error, result
         else:
             assert not isinstance(result, dict) or 'err' not in result, result
+        if 'batch' in result:
+            batch = result['batch']
+            assert batch['complete'] == (batch['completion'] is not None), batch
+            assert batch['rows'] or batch['complete'], batch
+            assert len(batch['rows']) <= 32
+            identity = tuple(batch['cursor'])
+            previous = self.results.get(identity)
+            if previous is None:
+                assert batch['batch'] == 0, batch
+                received = len(batch['rows'])
+            else:
+                prior, received = previous
+                assert batch['schema'] == prior['schema'] and batch['observation'] == prior['observation']
+                if batch['batch'] == prior['batch']:
+                    assert batch == prior
+                else:
+                    assert not prior['complete'] and batch['batch'] == prior['batch'] + 1
+                    received += len(batch['rows'])
+            if batch['complete']:
+                assert batch['completion']['rows'] == received, (batch, received)
+            self.results[identity] = (batch, received)
+        if 'operation' in result and result['operation']['phase'] == 'terminal':
+            assert result['operation']['command'] is not None, result
         return result
 
     def open(self, source=None, *, password='proof-password', error=None):
-        assert self.call('hello')['hello']['encoding'] == 'transit.logical.v1.hex'
+        assert self.call('hello')['hello']['encoding'] == ENCODING
         nonce = base64.b64encode(os.urandom(18)).decode()
         bare = f'n=,r={nonce}'
         challenge = self.call(dict(open=dict(account='proof', database='data', source=source, authentication='scram', first='n,,' + bare)))['challenge']
@@ -201,9 +227,14 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     first.call(dict(fetch=dict(cursor=one['cursor'], batch=one['batch'])), error='SqlResultIncomplete')
     desc = first.execute('DESCRIBE native_sessions')['batch']
     assert desc['rows'] and len(desc['rows'][0]) == 9
+    assert desc['observation']['metadata']['kind'] == 'catalog'
+    assert len(desc['observation']['metadata']['definitions']) == 1
+    assert desc['complete'] and desc['completion']['rows'] == 2
     first.call(dict(close_result=desc['cursor']))
     explain = first.execute('EXPLAIN SELECT id FROM native_sessions')['batch']
     assert explain['rows']
+    assert explain['observation']['metadata']['kind'] == 'plan'
+    assert explain['complete'] and explain['completion']['rows'] == 1
     first.call(dict(close_result=explain['cursor']))
     with ThreadPoolExecutor(max_workers=2) as pool:
         replies = list(pool.map(lambda c: c.concurrent_read(), (first, second)))
@@ -229,7 +260,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     assert duplicate['identity'] == reload['identity'] and duplicate['owner_operation'] == reload['owner_operation']
     second.call(dict(cancel=dict(operation=reload['identity'])), error='ConfigurationCancellationUnsupported')
     captured = []
-    for name, count in ((('kv', 41), ('document', 12), ('table', 9)) if sources is None else sources):
+    for name, count in ((('kv', 41), ('document', 12), ('table', 41)) if sources is None else sources):
         print(json.dumps(dict(profile='native_sql_source', source=name, phase='interactive')), flush=True)
         select_source(name)
         selected = Client(root, port).open(name)
@@ -262,14 +293,14 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         if refusals:
             print(json.dumps(dict(profile='native_sql_source_capacity', source=name, refused_reads=refusals)), flush=True)
         assert batch['rows'] == [[(b'\x03' + count.to_bytes(8, 'little')).hex()]], batch
-        assert batch['basis']['source']['kind'] == name
+        assert batch['observation']['data']['source']['kind'] == name
         selected.call(dict(close_result=batch['cursor']))
         if name == 'table':
             configured = next(source for source in json.loads((root/'sql-gateway.json').read_text())['accounts'][0]['sources'] if source['name'] == name)
             assert configured['connection']['resource'] != configured['workspace']['source']['resource']
             orphan = Client(root, port).open(name)
             held = orphan.concurrent_read('SELECT value FROM items')['batch']
-            assert held['rows'] and not held['complete'] and held['basis']['source']['kind'] == 'table'
+            assert held['rows'] and not held['complete'] and held['observation']['data']['source']['kind'] == 'table'
             pins = [path for path in root.glob('read-pins-*/*.pin')
                     if json.loads(path.read_text())['table']['connection']['principal'] == configured['connection']['principal']]
             assert len(pins) == 1, pins
@@ -325,7 +356,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         rows = []
         while True:
             assert selected.call(dict(fetch=dict(cursor=result['cursor'], batch=result['batch'])))['batch'] == result
-            assert result['basis']['source']['kind'] == name
+            assert result['observation']['data']['source']['kind'] == name
             rows.extend(result['rows'])
             if result['complete']:
                 break
@@ -358,12 +389,20 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         selected.close()
         select_source(None)
     first = Client(root, port).open()
-    protected = first.execute('SELECT id FROM native_sessions')['batch']
-    authorize(False)
-    denied = first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='AccessDenied')['err']
-    assert denied['sqlstate'] == list(b'42501')
-    authorize(True)
-    first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='SqlResultIncomplete')
+    for sql in ('SELECT id FROM native_sessions',
+                'SELECT id FROM native_sessions WHERE id = -1',
+                'DESCRIBE native_sessions', 'SHOW TABLES',
+                'EXPLAIN SELECT id FROM native_sessions'):
+        protected = first.execute(sql)['batch']
+        authorize(False)
+        try:
+            denied = first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='AccessDenied')['err']
+            assert denied['sqlstate'] == list(b'42501')
+        finally:
+            authorize(True)
+        first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='SqlResultIncomplete')
+    print(json.dumps(dict(profile='native_sql_buffered_disclosure', data=True, empty_terminal=True,
+                          describe=True, catalog=True, explain=True, denied_repeats_disclose_no_rows=True)), flush=True)
     first.close()
     consumer = root/'consumer'
     consumer.mkdir()

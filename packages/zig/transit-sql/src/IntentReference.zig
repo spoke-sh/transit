@@ -18,6 +18,27 @@ pub const Reference = union(enum) {
     table: c.DirectTableIntent.Reference,
     name_assertion: c.NameAssertion.Binding,
     namespace_change: NamespaceChange,
+    pub fn commandKind(self: Reference) g.results.Command {
+        return switch (self) {
+            .table => |value| switch (value.binding.action) {
+                .create => .create_table,
+                .alter, .rename => .alter_table,
+                .drop => .drop_table,
+                .insert => .insert,
+                .update => .update,
+                .delete => .delete,
+            },
+            .name_assertion => |value| switch (value.action) {
+                .create_if_not_exists => .create_table,
+                .drop_if_exists => .drop_table,
+            },
+            .namespace_change => |value| switch (value.binding.action) {
+                .create => .create_schema,
+                .rename => .alter_schema,
+                .drop => .drop_schema,
+            },
+        };
+    }
     pub fn validate(self: Reference) !void {
         switch (self) {
             inline else => |value| try value.validate(),

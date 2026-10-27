@@ -16,7 +16,11 @@ pub fn main(init: std.process.Init) !void {
     try json.objectField("request");
     try api.fuze.LogicalSchema.write(api.Request, &json);
     try json.objectField("response");
-    try api.fuze.LogicalSchema.write(api.Response, &json);
+    try api.fuze.LogicalSchema.write(api.JsonResponse, &json);
+    try json.objectField("result_frame");
+    try json.write(.{ .content_type = api.ResultFrame.content_type, .magic = "TSR1", .header_bytes = api.ResultFrame.header_bytes, .alignment = api.ResultFrame.alignment, .max_description_bytes = api.ResultFrame.max_description_bytes });
+    try json.objectField("observation");
+    try api.fuze.LogicalSchema.write(api.results.Observation.Value, &json);
     try json.endObject();
     try output.interface.writeByte('\n');
     try output.interface.flush();

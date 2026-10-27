@@ -5,7 +5,10 @@ pub const fuze = @import("transit_fuze");
 pub const native = @import("transit_protocol").Growth;
 pub const Authentication = @import("Authentication.zig");
 pub const Codec = @import("Codec.zig");
-pub const Completion = enum { select, insert, update, delete, create_table, alter_table, drop_table, create_schema, alter_schema, drop_schema, set, show, discard_all };
+pub const ResultFrame = @import("ResultFrame.zig");
+pub const ResultColumns = @import("ResultColumns.zig");
+pub const results = @import("transit_sql_results");
+pub const Completion = results.Command;
 pub const Id = [32]u8;
 pub const Instance = [16]u8;
 pub const Token = [16]u8;
@@ -18,7 +21,7 @@ pub const max_parameters = 65;
 pub const max_prepared = 32;
 pub const data_path = "/v1/sql/session";
 pub const control_path = "/v1/sql/control";
-pub const encoding = "transit.logical.v1.hex";
+pub const encoding = "transit.sql.result.v1.binary-columns";
 /// Every externally parsed envelope supplies both fields. No compatibility defaults.
 pub const Request = struct {
     version: u8,
@@ -77,31 +80,47 @@ pub const Action = union(enum) {
     operations: struct { after: u64 = 0 },
     assist: struct { text: []const u8, cursor: u32 },
 };
-pub const OperationId = struct { account: Account, id: u64, kind: enum { table, configuration, captured } = .table };
+pub const OperationId = results.Operation;
 pub const Target = union(enum) { query: Id, operation: OperationId, token: Token };
 pub const Error = struct { code: []const u8, sqlstate: [5]u8, message: []const u8, retry: enum { never, control, same_token, same_batch }, operation: ?Operation = null, diagnostic: ?@import("transit_protocol").Diagnostic = null };
 pub const Operation = struct {
     identity: OperationId,
+    command: ?results.Command,
     token: Token,
     phase: enum { reserved, uploading, ready, active, terminal, abandoned },
     blocked: bool = false,
     cancellation_requested: bool = false,
-    outcome: ?enum { applied, unchanged, rejected, cancelled, partial } = null,
+    outcome: ?results.Outcome = null,
     matched: u64 = 0,
     changed: u64 = 0,
     owner_operation: ?[16]u8 = null,
     configuration_phase: ?enum { applying, applied, pending_restart, rejected, partial } = null,
     diagnostic: ?@import("transit_protocol").Diagnostic = null,
+    pub fn validate(self: Operation) !void {
+        if (self.identity.id == 0 or ((self.phase == .terminal) != (self.outcome != null))) return error.InvalidSqlOperation;
+        if (self.phase == .terminal) {
+            _ = try self.completion();
+        } else if (self.matched != 0 or self.changed != 0) return error.InvalidSqlOperation;
+        if ((self.phase == .ready or self.phase == .active) and self.command == null) return error.InvalidSqlOperation;
+    }
+    pub fn completion(self: Operation) !results.CommandCompletion {
+        if (self.phase != .terminal or self.outcome == null or self.command == null) return error.SqlOutcomeUnknown;
+        const value: results.CommandCompletion = .{
+            .kind = self.command.?,
+            .outcome = self.outcome.?,
+            .counts = if (self.identity.kind == .table) .{ .matched = self.matched, .changed = self.changed } else null,
+            .operation = self.identity,
+            .pending_restart = self.configuration_phase == .pending_restart,
+            .diagnostic = self.diagnostic,
+        };
+        try value.validate();
+        return value;
+    }
 };
 /// A command without returned rows has no result schema. The field is required;
 /// null is distinct from a row-returning statement with an empty result.
 pub const Description = struct { statement: Id, schema: ?[]const u8, parameters: []const []const u8, mutation: bool };
-pub const Basis = union(enum) {
-    source: struct { kind: fuze.Unified.SourceKind, resource: u64, position: union(enum) { native_revision: u64, table: [32]u8 }, contract: [32]u8, schema: [32]u8 },
-    table: struct { object: @import("transit_protocol").DataLifecycle.Object, interpretation: @import("transit_protocol").DataLifecycle.Definition, accepted: @import("transit_protocol").DataLifecycle.Position, changed_lsn: u64, pin: @import("transit_protocol").DataLifecycle.Content, commitment: [32]u8, schema: [32]u8 },
-    independent_table_snapshots: []const fuze.Relational.Cut,
-};
-pub const Batch = struct { cursor: Id, batch: u64, schema: []const u8, rows: []const []const []const u8, complete: bool, basis: ?Basis = null };
+pub const Batch = ResultFrame;
 pub const Response = struct {
     version: u8,
     definition: native.Definition,
@@ -115,12 +134,78 @@ pub const Response = struct {
         batch: Batch,
         operation: Operation,
         operations: struct { entries: []const Operation, next: ?u64 },
-        completion: struct { kind: Completion, matched: u64 = 0, changed: u64 = 0 },
+        completion: results.CommandCompletion,
         assistance: struct { coverage: enum { complete, limited }, status: enum { ready, inside_text, unsupported }, profile: enum { unified_v1, catalog_v1, configuration_v1, direct_table_v1 }, resource: u64, contract: [32]u8, resource_revision: ?u64, policy_revision: []const u8, range: ?fuze.SqlInput.Range, items: []const struct { text: []const u8, kind: enum { keyword, source, column, symbol, literal, meta }, detail: []const u8 } },
         closed,
         err: Error,
     },
 };
+/// JSON is the small control plane. Binary result frames never have a JSON
+/// realization; this reflected union deliberately excludes the batch tag.
+pub const JsonResponse = struct {
+    const R = @FieldType(Response, "result");
+    version: u8,
+    definition: native.Definition,
+    instance: Instance,
+    result: union(enum) {
+        hello: @FieldType(R, "hello"),
+        challenge: @FieldType(R, "challenge"),
+        opened: @FieldType(R, "opened"),
+        context: @FieldType(R, "context"),
+        described: @FieldType(R, "described"),
+        operation: @FieldType(R, "operation"),
+        operations: @FieldType(R, "operations"),
+        completion: @FieldType(R, "completion"),
+        assistance: @FieldType(R, "assistance"),
+        closed,
+        err: Error,
+    },
+};
+pub fn encodeResponse(allocator: std.mem.Allocator, response: Response) ![]align(ResultFrame.alignment) u8 {
+    if (response.result == .batch) return ResultFrame.encode(allocator, response.result.batch);
+    const value: JsonResponse = .{ .version = response.version, .definition = response.definition, .instance = response.instance, .result = switch (response.result) {
+        .batch => unreachable,
+        inline else => |item, tag| @unionInit(@FieldType(JsonResponse, "result"), @tagName(tag), item),
+    } };
+    const json = try Json.valueAlloc(allocator, value);
+    defer allocator.free(json);
+    const bytes = try allocator.alignedAlloc(u8, .fromByteUnits(ResultFrame.alignment), json.len);
+    @memcpy(bytes, json);
+    return bytes;
+}
+pub fn validateResponse(response: Response) !void {
+    if (response.version != 1 or response.definition != native.current_definition) return error.IncompatibleSqlDefinition;
+    switch (response.result) {
+        .operation => |value| try value.validate(),
+        .operations => |page| for (page.entries) |value| try value.validate(),
+        .completion => |value| try value.validate(),
+        .batch => |value| {
+            if (!std.mem.eql(u8, &value.instance, &response.instance) or value.rows > max_rows or
+                (value.rows == 0 and value.completion == null)) return error.InvalidResultChunk;
+        },
+        .err => |value| if (value.operation) |operation| try operation.validate(),
+        else => {},
+    }
+}
+/// Input/arena are the caller's response owner. Column payloads borrow input.
+pub fn decodeResponse(arena: std.mem.Allocator, bytes: []align(ResultFrame.alignment) const u8, binary: bool) !Response {
+    if (binary) {
+        const batch = try ResultFrame.parseBorrowed(arena, bytes);
+        const response: Response = .{ .version = 1, .definition = native.current_definition, .instance = batch.instance, .result = .{ .batch = batch } };
+        try validateResponse(response);
+        return response;
+    }
+    try fuze.Types.Json.preflight(bytes, .{ .bytes = max_message_bytes, .depth = 16, .tokens = 65536, .fields = 256 });
+    const tree = try std.json.parseFromSlice(std.json.Value, arena, bytes, .{});
+    defer tree.deinit();
+    try Json.validateShape(JsonResponse, tree.value);
+    const decoded = try std.json.parseFromSliceLeaky(JsonResponse, arena, bytes, .{ .allocate = .alloc_always });
+    const response: Response = .{ .version = decoded.version, .definition = decoded.definition, .instance = decoded.instance, .result = switch (decoded.result) {
+        inline else => |item, tag| @unionInit(@FieldType(Response, "result"), @tagName(tag), item),
+    } };
+    try validateResponse(response);
+    return response;
+}
 fn name(value: []const u8) !void {
     if (value.len == 0 or value.len > 63 or !std.unicode.utf8ValidateSlice(value) or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidSqlName;
 }
@@ -163,6 +248,15 @@ pub fn authenticationBinding(allocator: std.mem.Allocator, instance: Instance, a
 }
 pub fn parse(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(T) {
     try fuze.Types.Json.preflight(bytes, .{ .bytes = max_message_bytes, .depth = 16, .tokens = 65536, .fields = 256 });
+    if (T == Response) {
+        const parsed = try Json.parseFromSliceOwned(JsonResponse, allocator, bytes);
+        errdefer parsed.deinit();
+        const response: Response = .{ .version = parsed.value.version, .definition = parsed.value.definition, .instance = parsed.value.instance, .result = switch (parsed.value.result) {
+            inline else => |item, tag| @unionInit(@FieldType(Response, "result"), @tagName(tag), item),
+        } };
+        try validateResponse(response);
+        return .{ .arena = parsed.arena, .value = response };
+    }
     const parsed = try Json.parseFromSliceOwned(T, allocator, bytes);
     errdefer parsed.deinit();
     if (parsed.value.version != 1 or parsed.value.definition != native.current_definition) return error.IncompatibleSqlDefinition;
@@ -178,4 +272,29 @@ test "session JSON round trips fixed identities and void actions canonically" {
     defer restored.deinit();
     try std.testing.expectEqualDeep(request, restored.value);
     try std.testing.expect(std.mem.indexOf(u8, bytes, "\"touch\":{}") != null);
+}
+
+test "result cutover rejects JSON rows foreign definitions and old command shapes" {
+    const t = std.testing;
+    const a = t.allocator;
+    const obsolete = try Json.valueAlloc(a, .{ .version = 1, .definition = native.current_definition, .instance = @as(Instance, @splat(2)), .result = .{ .batch = .{ .cursor = @as(Id, @splat(6)), .batch = 0, .schema = "", .rows = .{}, .complete = true, .completion = .{ .rows = 0 } } } });
+    defer a.free(obsolete);
+    if (parse(Response, a, obsolete)) |accepted| {
+        accepted.deinit();
+        return error.AcceptedJsonResult;
+    } else |_| {}
+    const bytes = try Json.valueAlloc(a, JsonResponse{ .version = 1, .definition = native.current_definition, .instance = @splat(2), .result = .closed });
+    defer a.free(bytes);
+    const foreign_value = try std.json.parseFromSlice(std.json.Value, a, bytes, .{});
+    defer foreign_value.deinit();
+    foreign_value.value.object.getPtr("definition").?.* = .{ .string = "47c035195248bf570ed52323112b2a32622ee69714ffb7719124218e034b1b2b" };
+    const foreign = try std.json.Stringify.valueAlloc(a, foreign_value.value, .{});
+    defer a.free(foreign);
+    try t.expectError(error.InvalidJsonShape, parse(Response, a, foreign));
+    const invalid = try Json.valueAlloc(a, .{ .version = 1, .definition = native.current_definition, .instance = @as(Instance, @splat(2)), .result = .{ .completion = .{ .kind = "insert", .matched = 1, .changed = 1 } } });
+    defer a.free(invalid);
+    if (parse(Response, a, invalid)) |accepted| {
+        accepted.deinit();
+        return error.AcceptedObsoleteCompletion;
+    } else |_| {}
 }

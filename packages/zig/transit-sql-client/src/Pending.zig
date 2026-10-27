@@ -15,8 +15,12 @@ pub fn init(client: *Client, token: api.Token) Self {
     return .{ .token = token, .account = client.account.?, .started = std.Io.Clock.awake.now(client.io), .milliseconds = client.timeout_ms };
 }
 pub fn observe(self: *Self, value: api.Operation) !void {
+    try value.validate();
     if (!std.mem.eql(u8, &self.token, &value.token) or !std.mem.eql(u8, &self.account, &value.identity.account)) return error.InvalidSqlResponse;
-    if (self.operation) |prior| if (!std.meta.eql(prior.identity, value.identity)) return error.InvalidSqlResponse;
+    if (self.operation) |prior| {
+        if (!std.meta.eql(prior.identity, value.identity)) return error.InvalidSqlResponse;
+        if (prior.command != null and prior.command != value.command) return error.InvalidSqlResponse;
+    }
     if ((value.phase == .terminal) != (value.outcome != null)) return error.InvalidSqlResponse;
     self.operation = value;
 }

@@ -337,13 +337,87 @@ execution results and limits.
 
 Native result cells carry canonical descriptors and schema-bound bytes. This
 preserves wide/nested types and distinguishes missing, null, type error and
-conflict. JSON is the bounded envelope, not a numeric conversion layer. PG/MySQL
+conflict. Native result payloads use the bounded binary TSR1 frame; JSON carries
+control messages and the initial observation descriptor. PG/MySQL
 continue to reject types outside their own representable profile before streaming.
 A batch contains at most 32 rows and 1 MiB of canonical payload. Only the most
 recent batch is cached; requesting its ordinal reauthorizes and returns it.
 The next ordinal acknowledges it and advances the same iterator. A gap or an
 expired handle cannot silently open a fresh snapshot. Final coverage includes the
 actual Table/source basis or independent relational resource-cut vector.
+
+### Logical results and the communication boundary
+
+The question is whether changing communication chunk sizes can change what a
+consumer considers one SQL result. The supported scope is finite statements under
+a surviving session and current authority; transactions and infinite subscriptions
+are outside this model. The [result contract](../../../contracts/SQL_RESULTS_V1.md)
+defines immutable result/schema/observation identities, uniquely received count,
+delivered count, terminal outcome, consumption state and release state. These are
+separate from sockets and cursor ordinals. A statement is either a typed command
+completion, a row result, a service failure or an unresolved original attempt.
+
+The safety claim is conditional: for the same logical row occurrences and owner
+outcome, splitting or joining valid chunks preserves the sequence and terminal
+count. Duplicate row values are separate occurrences. Communication retries are
+projection steps with no additional delivery. Terminal count must equal uniquely
+received count; full exhaustion additionally requires delivery of that count.
+Closure, EOF and interruption supply no completion evidence. A received terminal
+can coexist with an intentionally truncated display. Revocation, expiry or budget
+exhaustion can stop disclosure and therefore invalidate an unconditional equivalence
+between two schedules. Nothing here proves honest computation by a remote server.
+
+[Progress](../../../packages/zig/transit-sql-results/src/Progress.zig) checks the
+abstract transitions. [ResultSet](../../../packages/zig/transit-sql-results/src/ResultSet.zig)
+validates typed batches before atomically advancing progress. Its
+[batch view](../../../packages/zig/transit-sql-results/src/Batch.zig) separates
+row and column layout; row access needs only reusable descriptors while column
+access can preserve Fuze or Arrow-compatible buffers. The native decoder owns
+one aligned response body per batch. Common scalar columns borrow Arrow-compatible
+value buffers without allocating a cell matrix; other types allocate descriptors
+and borrow variable bytes. The initial schema and observation have independent
+ownership, while subsequent frames carry their commitments. Server column
+construction and socket reads still copy bytes, so this establishes bounded
+borrowing rather than end-to-end zero-copy. The
+[native reader](../../../packages/zig/transit-sql-client/src/NativeResult.zig)
+projects decoded, identity-checked responses into those transitions and repeats
+only the same requested ordinal within the original deadline. It primes the first
+chunk before handing the result to a consumer, preserving terminal evidence even
+if the consumer closes immediately. This avoids making known completion depend on
+whether a renderer requested its first row.
+
+The [service batch builder](../../../packages/zig/transit-sql-results/src/BatchBuilder.zig)
+deep-copies cells before the next source pull resets scratch storage. It fills
+across storage pages up to independent row/byte budgets and retains a non-fitting
+row for the next batch. Encoded message and resident allocation limits still apply.
+The [disclosure owner](../../../packages/zig/transit-sql/src/BatchDisclosure.zig)
+retains metadata authority subjects with buffered rows. Native repeats and wire
+adapters recheck them before disclosure; a preparation-time permission check is
+insufficient. Exact Table definitions and data cuts remain distinct from settings
+revisions, session settings and independently observed catalog rows.
+
+An alternative is to expose wire batches directly to each renderer. That makes
+empty terminal frames, lost replies and cancellation separate consumer state
+machines and allows presentation to change result identity. The chosen API adds
+owned decoding and bounded copying costs while centralizing those obligations.
+[Window](../../../packages/zig/transit-sql-results/src/Window.zig) limits retained
+rows/bytes; streaming retains only one decoded chunk. Console width sampling has
+its own budget and never needs to drain a query to compute column widths.
+
+The [SQL session test guide](../../../tests/interfaces/sql_sessions/README.md)
+provides reproduction commands for the bounded result-consumption checks. The
+[finite oracle](../../../packages/zig/transit-sql-client/src/consumer_test.zig)
+expects occurrence `i` to contain `i mod 3`, independently of production counters
+or encoders. It exercises the same public consumer over scripted semantic sources
+and native messages. Partitions through eight rows, both terminal shapes,
+substituted evidence, malformed counts and allocation failures are finite coverage.
+Deliberately duplicated occurrences and fabricated prefix completion must fail
+that oracle. The [independent console peer](../../../tests/interfaces/cli/console_outcomes.py)
+adds actual dropped HTTP responses and cancellation races while counting SQL
+submissions. These mechanisms and test owners are correspondence evidence, not
+an exhaustive proof of all transport/allocator schedules. Executed qualification
+and performance observations belong in the [proof ledger](../../history/qualification/README.md).
+
 
 ### Admission and exact recovery
 

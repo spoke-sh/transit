@@ -17,6 +17,7 @@ started: bool = false,
 finished: bool = false,
 emitted: u64 = 0,
 pages: u64 = 0,
+observed_revision: ?u64 = null,
 origins: ?bool = null,
 arena: std.heap.ArenaAllocator,
 ordered: std.array_list.Managed(OwnedRow),
@@ -70,6 +71,13 @@ fn raw(self: *Self) !?[]const Cell {
         if (self.origins == null) self.origins = try self.client.canSeeOrigins();
         const action: C.Action = if (self.plan.statement == .show or self.plan.statement.relation == .settings) .{ .settings = .{ .name = if (self.plan.statement == .show) self.plan.statement.show else null, .cursor = self.cursor, .origins = self.origins.? } } else .{ .reloads = .{ .cursor = self.cursor, .origins = self.origins.? } };
         self.page = try self.client.read(action);
+        const revision = switch (self.page.?.value.result) {
+            .settings => |value| value.generation,
+            .reloads => |value| value.revision,
+            else => return error.InvalidConfigurationResponse,
+        };
+        if (self.observed_revision) |prior| if (prior != revision) return error.ConfigurationSnapshotChanged;
+        self.observed_revision = revision;
         self.cursor = switch (self.page.?.value.result) {
             .settings => |value| value.next,
             .reloads => |value| value.next,

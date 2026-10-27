@@ -1,4 +1,5 @@
 //! Shared SQL sessions and durable account execution over public native clients.
+pub const results = @import("transit_sql_results");
 pub const station = @import("transit_station");
 pub const query = @import("transit_query");
 pub const catalog = @import("transit_catalog");
@@ -20,6 +21,7 @@ pub const AccountRuntime = @import("AccountRuntime.zig");
 pub const Configuration = @import("Configuration.zig");
 pub const OperatorConfiguration = @import("OperatorConfiguration.zig");
 pub const Probe = @import("Probe.zig");
+pub const BatchDisclosure = @import("BatchDisclosure.zig");
 pub const ReadBatch = @import("ReadBatch.zig");
 pub const Coordinator = @import("Coordinator.zig");
 pub const Statement = @import("Statement.zig");

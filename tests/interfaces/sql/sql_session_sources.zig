@@ -84,7 +84,7 @@ fn table(init: std.process.Init, wire: *s.client.Client, admin: *Admin, director
     const writer = try admin.provisionReader(3200, writer_key, requester.resource);
     const config = try support.load(@import("fixture_sql_catalog_native").Config, init, directory, "catalog.json");
     var tables = try @import("fixture_sql_catalog_native").caller(init, wire, config);
-    const definition = try Catalog.initialize(init, tables, 9);
+    const definition = try Catalog.initialize(init, tables, 41);
     admin.sequence = (try admin.query(.capabilities)).principal_sequence;
     _ = try admin.authorization(.{ .bind_credential = .{ .principal = 3202, .role = login_role, .public_key = caller_key.public_key.toBytes() } });
     for ([_]u64{ 3202, 1234 }) |principal| for ([_]u64{ writer.resource, requester.resource }) |resource| {

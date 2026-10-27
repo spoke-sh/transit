@@ -10,6 +10,7 @@ name: ?c.TableMetadata.Name = null,
 metadata: ?c.DirectTableBinding = null,
 statement: ?g.Statement = null,
 source: bool = false,
+kind: @FieldType(g.results.Observation.Metadata, "kind") = .catalog,
 rows: []const []const f.Types.Values.Cell,
 output: []const f.Types.Field,
 const describe_fields = [_]f.Types.Field{
@@ -90,7 +91,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         };
         const rows = try a.alloc([]const f.Types.Values.Cell, 1);
         rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(plan)});
-        return .{ .arena = arena, .statement = statement, .rows = rows, .output = &explain_fields };
+        return .{ .arena = arena, .statement = statement, .kind = .plan, .rows = rows, .output = &explain_fields };
     }
     arena.deinit();
     return null;
@@ -123,7 +124,7 @@ fn prepareSource(host: *g.Session, source: *g.SourceSession, sql: []const u8) !?
     const result = try g.query.SqlInspection.apply(a, &source.client, .{ .scope = .{ .name = workspace.name, .source = workspace.source, .limits = workspace.limits }, .sql = sql });
     const rows = try a.alloc([]const f.Types.Values.Cell, 1);
     rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try g.query.protocol.Json.valueAlloc(a, result))});
-    return .{ .arena = arena, .source = true, .rows = rows, .output = &.{.{ .name = "source_inspection", .type = .utf8 }} };
+    return .{ .arena = arena, .source = true, .kind = if (explain) .plan else .catalog, .rows = rows, .output = &.{.{ .name = "source_inspection", .type = .utf8 }} };
 }
 pub fn deinit(self: *Self) void {
     if (self.statement) |*statement| statement.deinit();

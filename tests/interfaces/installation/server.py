@@ -210,7 +210,7 @@ def run(cli, node, host):
                                   'SELECT COUNT(chosen.amount) AS present FROM (SELECT value AS amount FROM items LIMIT 0) AS chosen;\n'
                                   'UPDATE items SET value = 101 WHERE id = 1;\n'
                                   'DELETE FROM items WHERE id = 2;\nSELECT value FROM items WHERE id = 1;\n')
-        assert [(row['completion']['matched'], row['completion']['changed']) for row in results if 'completion' in row] == [(2, 2), (1, 1), (1, 1)], results
+        assert [(row['completion']['counts']['matched'], row['completion']['counts']['changed']) for row in results if 'completion' in row] == [('2', '2'), ('1', '1'), ('1', '1')], results
         assert len(results) == 9, results
         for page, count in zip(results[1:6], ('1', '2', '0', '0', '0'), strict=True):
             assert page['complete']['rows'] == '1', page
@@ -315,7 +315,7 @@ def run(cli, node, host):
             assert fixture.record()["provision"] == original["provision"]
             fixture.console(".schema\n.quit\n")
             assert atom(fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1], 'unsigned') == "2"
-            assert fixture.console('UPDATE items SET value = 101 WHERE id = 1;\n')[-1]['completion']['changed'] == 0
+            assert fixture.console('UPDATE items SET value = 101 WHERE id = 1;\n')[-1]['completion']['counts']['changed'] == '0'
         fixture.kill_role("/courier.json")
         assert fixture.process.wait(timeout=30) == 1
         failure = Path(fixture.logs[-1].name).read_text().rsplit("server.failed ", 1)[-1]

@@ -22,6 +22,7 @@ const Host = struct {
         }
     };
     pub const Read = struct {
+        pub fn validateDisclosure(_: *Read) !void {}
         pub fn nextBatch(_: *Read, _: u8) !m.gateway.ReadBatch {
             return .{ .complete = true };
         }

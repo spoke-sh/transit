@@ -102,6 +102,7 @@ class Local(Client):
         self.definition = json.loads((fixture.installation / 'sql/gateway.json').read_text())['definition']
         self.instance = self.session = self.account = None
         self.last = 0
+        self.results = {}
         self.transport()
 
     def transport(self):

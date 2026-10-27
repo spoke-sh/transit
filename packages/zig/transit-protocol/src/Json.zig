@@ -73,8 +73,18 @@ pub fn valueAlloc(allocator: std.mem.Allocator, value: anytype) ![]u8 {
     var output: std.Io.Writer.Allocating = .init(allocator);
     defer output.deinit();
     var encoder: std.json.Stringify = .{ .writer = &output.writer };
-    try write(value, &encoder);
+    // This writer has no external sink: its only write failure is allocation.
+    // Preserve that classification for bounded callers and allocation proofs.
+    write(value, &encoder) catch return error.OutOfMemory;
     return output.toOwnedSlice();
+}
+
+fn allocationSchedule(allocator: std.mem.Allocator) !void {
+    const encoded = try valueAlloc(allocator, .{ .name = "bounded value", .values = [_]u64{ 1, 2, 3 } });
+    defer allocator.free(encoded);
+}
+test "allocated JSON reports allocation failures without leaking storage" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationSchedule, .{});
 }
 
 /// Validate reflected host wire shapes before typed decoding. Zig's generic

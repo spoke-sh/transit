@@ -97,6 +97,10 @@ pub fn open(self: *Self, config: Config, password: ?[]const u8) !void {
 /// No request is automatically replayed, including after a pooled socket dies.
 /// Mutation uncertainty remains attached to the caller's original token.
 pub fn call(self: *Self, action: api.Action) !std.json.Parsed(api.Response) {
+    return self.callAllocated(action, self.allocator);
+}
+/// Responses and transient message storage use the caller's bounded allocator.
+pub fn callAllocated(self: *Self, action: api.Action, allocator: std.mem.Allocator) !std.json.Parsed(api.Response) {
     // The host gives idle HTTP headers one second. Replace a quiescent
     // transport before dispatch, without replaying any request or new session.
     if (self.last_call) |last| if (last.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= 500) {
@@ -112,32 +116,34 @@ pub fn call(self: *Self, action: api.Action) !std.json.Parsed(api.Response) {
     errdefer self.last_call = .{ .nanoseconds = 0 };
     const input: api.Request = .{ .version = 1, .definition = api.native.current_definition, .instance = self.instance, .session = self.session, .action = action };
     try input.validate();
-    const body = try api.Json.valueAlloc(self.allocator, input);
+    const body = try api.Json.valueAlloc(allocator, input);
     defer {
         std.crypto.secureZero(u8, body);
-        self.allocator.free(body);
+        allocator.free(body);
     }
     if (body.len > api.max_message_bytes) return error.SqlMessageTooLarge;
-    const buffer = try self.allocator.alloc(u8, api.max_message_bytes);
-    defer self.allocator.free(buffer);
-    var output: std.Io.Writer = .fixed(buffer);
-    const Result = union(enum) { result: anyerror!void, timeout: anyerror!void };
+    const arena = try allocator.create(std.heap.ArenaAllocator);
+    arena.* = .init(allocator);
+    errdefer {
+        arena.deinit();
+        allocator.destroy(arena);
+    }
+    const Result = union(enum) { result: anyerror!Body, timeout: anyerror!void };
     var results: [2]Result = undefined;
     var selected: std.Io.Select(Result) = .init(self.io, &results);
     defer selected.cancelDiscard();
     try selected.concurrent(.timeout, sleep, .{ self.io, self.timeout_ms });
-    try selected.concurrent(.result, perform, .{ self, if (input.control()) api.control_path else api.data_path, body, &output });
-    switch (try selected.await()) {
+    try selected.concurrent(.result, perform, .{ self, if (input.control()) api.control_path else api.data_path, body, arena.allocator() });
+    const received = switch (try selected.await()) {
         .result => |result| try result,
         .timeout => |result| {
             try result;
             return error.SqlRequestTimeout;
         },
-    }
+    };
     selected.cancelDiscard();
     self.last_call = std.Io.Clock.awake.now(self.io);
-    const response = try api.parse(api.Response, self.allocator, output.buffered());
-    errdefer response.deinit();
+    const response: std.json.Parsed(api.Response) = .{ .arena = arena, .value = try api.decodeResponse(arena.allocator(), received.bytes, received.binary) };
     if (self.instance) |instance| {
         if (!std.mem.eql(u8, &instance, &response.value.instance)) return error.SqlInstanceChanged;
     } else if (action == .hello) self.instance = response.value.instance else return error.SqlInstanceRequired;
@@ -146,8 +152,16 @@ pub fn call(self: *Self, action: api.Action) !std.json.Parsed(api.Response) {
 fn sleep(io: std.Io, milliseconds: u32) !void {
     try io.sleep(.fromMilliseconds(milliseconds), .awake);
 }
-fn perform(self: *Self, path: []const u8, body: []const u8, output: *std.Io.Writer) anyerror!void {
-    if (std.mem.startsWith(u8, self.endpoint, "unix:")) return self.local(path, body, output);
+const Body = struct { bytes: []align(api.ResultFrame.alignment) u8, binary: bool };
+fn responseBody(allocator: std.mem.Allocator, head: std.http.Client.Response.Head) !Body {
+    if (head.status != .ok or head.content_encoding != .identity or head.transfer_encoding != .none or head.content_length == null or head.content_length.? == 0 or head.content_length.? > api.max_message_bytes) return error.InvalidSqlHttpResponse;
+    const content_type = head.content_type orelse return error.InvalidSqlHttpResponse;
+    const binary = std.mem.eql(u8, content_type, api.ResultFrame.content_type);
+    if (!binary and !std.mem.eql(u8, content_type, "application/json")) return error.InvalidSqlHttpResponse;
+    return .{ .bytes = try allocator.alignedAlloc(u8, .fromByteUnits(api.ResultFrame.alignment), @intCast(head.content_length.?)), .binary = binary };
+}
+fn perform(self: *Self, path: []const u8, body: []const u8, allocator: std.mem.Allocator) anyerror!Body {
+    if (std.mem.startsWith(u8, self.endpoint, "unix:")) return self.local(path, body, allocator);
     const url = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ self.endpoint, path });
     defer self.allocator.free(url);
     var request = try self.http.request(.POST, try std.Uri.parse(url), .{ .headers = .{ .content_type = .{ .override = "application/json" }, .accept_encoding = .{ .override = "identity" } }, .redirect_behavior = .not_allowed, .keep_alive = true });
@@ -159,15 +173,18 @@ fn perform(self: *Self, path: []const u8, body: []const u8, output: *std.Io.Writ
     try request.connection.?.flush();
     var headers: [8192]u8 = undefined;
     var response = try request.receiveHead(&headers);
-    if (response.head.status != .ok or response.head.content_encoding != .identity) return error.InvalidSqlHttpResponse;
+    const received = try responseBody(allocator, response.head);
+    var output: std.Io.Writer = .fixed(received.bytes);
     // The pinned std.http.fetch assumes every ReadFailed has a body error.
     // Cancellation of its underlying reader can leave that optional unset.
-    _ = response.reader(&.{}).streamRemaining(output) catch |err| switch (err) {
+    _ = response.reader(&.{}).streamRemaining(&output) catch |err| switch (err) {
         error.ReadFailed => return response.bodyErr() orelse error.Canceled,
         else => return err,
     };
+    if (output.buffered().len != received.bytes.len) return error.InvalidSqlHttpResponse;
+    return received;
 }
-fn local(self: *Self, path: []const u8, body: []const u8, output: *std.Io.Writer) !void {
+fn local(self: *Self, path: []const u8, body: []const u8, allocator: std.mem.Allocator) !Body {
     if (self.unix == null) {
         self.unix = try (try std.Io.net.UnixAddress.init(self.endpoint[5..])).connect(self.io);
         self.unix_reader = self.unix.?.reader(self.io, &self.input_buffer);
@@ -183,16 +200,37 @@ fn local(self: *Self, path: []const u8, body: []const u8, output: *std.Io.Writer
     try writer.flush();
     var reader: std.http.Reader = .{ .in = &self.unix_reader.interface, .interface = undefined, .state = .ready, .max_head_len = 8192 };
     const head = try std.http.Client.Response.Head.parse(try reader.receiveHead());
-    if (head.status != .ok or head.content_encoding != .identity or head.content_length == null or head.content_length.? > api.max_message_bytes) return error.InvalidSqlHttpResponse;
+    const received = try responseBody(allocator, head);
+    var output: std.Io.Writer = .fixed(received.bytes);
     const keep_alive = head.keep_alive;
-    _ = try reader.bodyReader(&.{}, head.transfer_encoding, head.content_length).streamRemaining(output);
+    _ = try reader.bodyReader(&.{}, head.transfer_encoding, head.content_length).streamRemaining(&output);
+    if (output.buffered().len != received.bytes.len) return error.InvalidSqlHttpResponse;
     if (!keep_alive) {
         self.unix.?.close(self.io);
         self.unix = null;
     }
+    return received;
 }
 test "native SQL endpoints reject unsafe trust and credential-bearing URLs" {
     const t = std.testing;
     for ([_][]const u8{ "http://example.com:1", "http://user:password@127.0.0.1:1", "http://127.0.0.1:1/redirect", "https://localhost:443?token=secret" }) |endpoint| try t.expectError(error.InvalidSqlEndpoint, init(t.allocator, t.io, .{ .endpoint = endpoint, .authentication = .trust }));
     try t.expectError(error.InvalidSqlEndpoint, init(t.allocator, t.io, .{ .endpoint = "unix:relative" }));
+}
+
+test "HTTP result reception sizes aligned ownership to the declared bounded body" {
+    const t = std.testing;
+    var memory: @import("root.zig").results.fuze.MemoryBudget = .{ .parent = t.allocator, .limit = 1024 };
+    const valid = "HTTP/1.1 200 OK\r\nContent-Type: application/vnd.transit.sql-result\r\nContent-Length: 256\r\n\r\n";
+    const received = try responseBody(memory.allocator(), try std.http.Client.Response.Head.parse(valid));
+    try t.expect(received.binary);
+    try t.expectEqual(256, received.bytes.len);
+    try t.expect(std.mem.isAligned(@intFromPtr(received.bytes.ptr), 64));
+    memory.allocator().free(received.bytes);
+    try t.expectEqual(0, memory.used);
+    for ([_][]const u8{
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Length: 256\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 4194305\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 256\r\nContent-Encoding: gzip\r\n\r\n",
+    }) |head| try t.expectError(error.InvalidSqlHttpResponse, responseBody(memory.allocator(), try std.http.Client.Response.Head.parse(head)));
 }

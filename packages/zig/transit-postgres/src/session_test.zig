@@ -34,6 +34,9 @@ const Host = struct {
         data: [2]i64,
         cursor: usize = 0,
         cells: [g.ReadBatch.max_rows][1]f.Types.Values.Cell = undefined,
+        pub fn validateDisclosure(self: *Read) !void {
+            if (self.host.denied) return error.CatalogDenied;
+        }
         pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
             if (self.host.denied) return error.CatalogDenied;
             if (self.host.invalid_batch) return .{};

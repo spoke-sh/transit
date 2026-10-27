@@ -82,7 +82,7 @@ def run(fixture):
             def applied(value):
                 completion = json.loads(value.stdout)['completion']
                 assert completion['outcome'] == 'applied', completion
-                assert (completion['matched'], completion['changed']) == (1, 1), completion
+                assert (completion['counts']['matched'], completion['counts']['changed']) == ('1', '1'), completion
 
             applied(invoke('INSERT INTO items (id,value) VALUES (-81,810);'))
             applied(invoke('DELETE FROM items WHERE id=-81;'))
