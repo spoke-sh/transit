@@ -233,9 +233,10 @@ def main():
                   ["tests/evidence/verification/../suite.json"],
                   ["tests/performance/query/budgets/record/budgets.json"],
                   ["tests/verification/invariants.json"], ["tests/runner/suite.json"],
-                  ["tests/verification/models/Wal.tla"],
                   ["tests/README.md", "packages/zig/transit-core/src/lib.zig"]):
         assert select(paths)["full"], paths
+    assert select(["tests/verification/models/Wal.tla"])["lanes"] == {"formal": ["test::wal-model"]}
+    assert select(["sdks/go/client/types.go"])["lanes"] == {"bindings-2": ["bindings::go-sdk-test"]}
     for event in ("push", "merge_group", "workflow_dispatch", "unknown"):
         assert select(["README.md"], event)["full"]
     # A moved source file must not become a docs-only diff. Check Git path

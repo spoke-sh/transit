@@ -131,10 +131,10 @@ The [task coverage checker](task_coverage.py) verifies direct
 recipe nesting and required tier ownership before expensive qualification.
 
 `just ci select BASE HEAD` reports the changed inputs, transitive consumer groups,
-proposed tasks and enforced lanes from `suite.json`. Selection currently runs in
-shadow mode: formal-model and Go SDK changes produce a scoped proposal while CI
-still executes the full ordinary inventory. Documentation-only routing remains
-active. Main, release, merge-group and manually dispatched qualification stay full.
+proposed tasks and enforced lanes from `suite.json`. Changes confined to the
+reviewed formal-model or Go SDK inputs execute their dependent tasks. Other code
+changes retain the full ordinary inventory; documentation-only changes run the
+documentation checks. Main, release, merge-group and manually dispatched qualification stay full.
 Both ends of a rename are inputs; a missing comparison revision fails planning.
 
 The reviewed graph is deliberately small. The Authority, WAL, Console and Delivery

@@ -454,7 +454,7 @@
   },
   "selection": {
     "version": 1,
-    "mode": "shadow",
+    "mode": "enabled",
     "max_parallel": 7,
     "groups": {
       "authority-specification": {

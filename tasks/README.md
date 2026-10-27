@@ -252,7 +252,8 @@ Use `zig build test-growing-service -Doptimize=Debug` or
 in Debug. Unit tests retain their default Debug build.
 
 `just ci::cost RUN_ID` compares ordinary-suite budgets only when every ordinary
-lane appears exactly once and completes successfully with available cache evidence.
+lane appears exactly once and completes successfully with available cache evidence
+and a matching budget inventory, including the browser continuation.
 Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.

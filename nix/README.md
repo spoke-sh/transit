@@ -448,12 +448,15 @@ transport cache. This avoids caching the tens of gigabytes accumulated by local
 Debug/ReleaseSafe builds. No application tests are skipped on a cache hit.
 
 CI runs for PRs, main pushes, version tags, merge queues and manual dispatch.
-Feature branch pushes no longer duplicate the PR run. A cheap planning job checks
-documentation and selects full qualification unless a PR changes only navigation
-README/AGENTS files, handbook sources/tooling, Markdown under `docs/`, the historical
-qualification migration map, or inert records under `tests/evidence/`.
-Contracts (including their README files), live fixtures/budgets, models, unknown
-paths, renames from code, and shared infrastructure select every lane. Other
+Feature branch pushes do not duplicate the PR run. A cheap planning job checks
+documentation and selects the reviewed consumers of formal-model and Go SDK
+inputs. The [dependency policy](../tests/runner/README.md) describes
+the audited callers and conservative fallback. Documentation-only routing covers
+navigation README/AGENTS files, handbook sources/tooling, Markdown under `docs/`,
+the historical qualification migration map, and inert records under `tests/evidence/`.
+Contracts (including their README files), live fixtures/budgets, unknown paths
+and shared infrastructure select every lane. Both rename endpoints contribute
+their required checks. Other
 `results/` directories can contain executable budgets and remain full. Missing Git
 revisions fail planning; main/tags/merge queues/manual runs are always full.
 Use `just ci::select BASE [HEAD]` to inspect the same selection locally.
