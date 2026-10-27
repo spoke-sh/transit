@@ -148,7 +148,10 @@ empty head. [ALTER TABLE](sql/alter-table.md) supports column and Table renames,
 column addition/removal, defaults, nullability and selected exact type changes.
 Metadata-only changes and complete row/index rewrites have separate execution
 paths. Existing rows must satisfy every tightened constraint before publication.
-Changing a default does not rewrite earlier values.
+Compatible additions, non-key renames and drops project older physical rows by
+stable column identity. Changing a default does not rewrite earlier values or
+change a column's frozen ADD-time value. Flush and bounded compaction normalize
+selected rows later; retained readers keep their original schema and values.
 
 [DROP TABLE](sql/drop-table.md) removes the live name and retires its object.
 Historical references do not make a name live. The direct Table owner rejects

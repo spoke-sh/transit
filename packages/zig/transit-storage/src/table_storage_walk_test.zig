@@ -31,7 +31,7 @@ test "Table storage walk resumes bounded page paths and preserves failed cursors
     for (0..257) |i| {
         var key: [32]u8 = @splat(0);
         std.mem.writeInt(u64, key[0..8], i, .big);
-        const row: r.Locator = .{ .kind = if (i % 2 == 0) .wal else .segment, .lsn = 1 + i % 98, .offset = 0, .length = 256, .digest = @splat(@intCast(i % 256)) };
+        const row: r.Locator = .{ .schema_revision = 1, .kind = if (i % 2 == 0) .wal else .segment, .lsn = 1 + i % 98, .offset = 0, .length = 256, .digest = @splat(@intCast(i % 256)) };
         root = try tree.put(root, try pages.Key.init(&key), try row.encode());
     }
     var walk = try W.init(context, .{ .reference = root.?, .kind = .rows });

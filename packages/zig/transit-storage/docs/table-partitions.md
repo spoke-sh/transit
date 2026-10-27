@@ -28,11 +28,19 @@ the number of durable rows, receipts and pins.
 
 `changeDefinition` accepts RENAME, ALTER and DROP against the frozen expected
 definition and optional data frontier. RENAME preserves row indexes and schema;
-its full definition revision advances. ALTER applies the shared schema evolution
-rules, streams every source row into groups of at most 1,024 rows and the encoded
-row-byte budget, and builds private replacement indexes. New-key collisions and
+its full definition revision advances. Compatible ALTER actions publish metadata
+without visiting rows: non-key column rename/drop, nullable or constant-default
+ADD, and insertion-default changes. Reads project older physical rows by stable
+column ID. An added column uses its immutable ADD-time value; later defaults only
+affect new assignments. New columns never reuse dropped identities.
+
+Key renames and changes to types, codecs, collations or nullability retain the
+complete validation/rewrite path. That path streams every source row into groups
+of at most 1,024 rows and the encoded row-byte budget, and builds private
+replacement indexes. New-key collisions and
 row validation failures leave the previous definition and all rows visible. One
-acceptance publishes the new declaration, both indexes and the receipt. The
+acceptance publishes the new declaration, indexes, interpretation directories
+and receipt. The
 64 MiB default index-work budget applies to the complete attempt and can be
 configured independently of the fixed resident cache. Private candidate
 allocations have a separate `build_resident_bytes` budget, defaulting to 64 MiB.
@@ -327,10 +335,31 @@ They exclude data-index and WAL reads, provider chunk-verification amplification
 filesystem cache effects and transport work. A cache hit retains no permission;
 current guards still control disclosure.
 
+Every row locator names its physical schema revision. The accepted root includes
+a paged physical-schema directory containing exact immutable declarations and
+live-locator counts, plus a column-origin directory for frozen ADD-time values.
+Resolving a row uses one bounded tree lookup for its schema and at most one per
+absent logical column, with at most 128 columns. No ancestry traversal or resident
+list of every schema revision is required. Removing the last locator for a schema
+drops its current directory entry; retained roots preserve their own entries.
+DROP COLUMN removes its active origin, and complete rewrites reset both
+directories. The collector follows declaration dependencies from all retained
+directories. Missing or corrupt mappings reject instead of assuming today's
+schema. These mandatory root fields and revision-bearing locators belong to the
+current shared contract definition; older stored roots are incompatible.
+
+WAL rows and segment rows use the same physical-to-logical projector. Mixed
+layouts evaluate predicates after projection; physical zone maps and encoded
+predicate decisions apply only to matching layouts. This preserves default and
+collation semantics when logical column positions change. The existing optimized
+column selection remains available for matching layouts.
+
 `flush` finds at most one bounded group of currently live WAL rows. It stages a
 segment, replaces their locators and publishes the replacement through the same
 Table WAL. It neither rewrites all manifests nor accumulates all historical rows
-in memory. Flush preserves the identity index. The logical-change frontier does not advance for flush or pin control
+in memory. Flush and bounded compaction normalize their selected rows to the
+current schema and update physical-schema counts atomically with their locators.
+Flush preserves the identity index. The logical-change frontier does not advance for flush or pin control
 records; accepted definition changes do advance it. Existing read roots still address their original row versions.
 
 `flushThrough(exclusive_frontier, guard)` restricts that unit to current WAL row

@@ -413,10 +413,26 @@ The pure `TableSchemaProjection` foundation maps exact physical/logical schemas
 by stable column ID and requires explicit frozen initial values. Focused checks
 cover original and intermediate physical rows, repeated default changes, dropped
 column name reuse, NULL, incompatible layouts and validation of dropped values.
-`TableEvolution.canProject` classifies the approved narrow edit matrix. This is
-not yet wired into the live Table owner: retained interpretation metadata,
-collector dependencies, the mandatory definition cutover and installed mixed-row
-qualification remain open before any P3 item can close.
+`TableEvolution.canProject` classifies the approved narrow edit matrix. The live
+Table owner now uses a paged physical-schema directory with live-locator counts
+and a separate active column-origin directory. The final locator removal drops
+the current physical mapping; old roots keep their exact dependencies. This
+avoids permanently accumulating unused schema mappings after normalization.
+Focused storage checks pass metadata-only ALTER over 1,028 segment rows (three
+object range reads, two staged index pages, no segment reads or row-index changes), mixed
+WAL/segment reads, repeated defaults/rename/drop/name reuse, original receipts,
+retained point/range/filtered reads, predicate writes with lost replies, disk
+restart and bounded normalization. The collector follows both new directories.
+An isolated collector walk preserves both interpretation dependencies without
+receipt/history roots masking missing edges. Allocation-failure enumeration
+preserves the original head before acceptance and performs no fallible visibility
+allocation afterward. The mandatory root directories and revision-bearing row
+locators use shared definition
+`654ca199c506604af21873605129e34e18c1c349a42643ece06ed0da9dca7a93`;
+native/binding/browser contracts and independent binary/signing fixtures are
+regenerated together. All 39 fast and 18 contract checks pass. Installed
+mixed-row and native collector qualification remain open before P3 closes.
+Component checks do not establish the installed SQL gate.
 
 #### P4 — Schedule archival, checkpoints, compaction and collection
 

@@ -61,6 +61,28 @@ def storage(fixture, record):
     return post(port, '/table/v1', request)['result']['storage']
 
 
+def lazy_schema(fixture, record):
+    before = storage(fixture, record)
+    assert before['pending']['complete'] and before['pending']['rows'] == 1, before
+    segments = set((fixture.installation / 'data/native').rglob('*.tseg'))
+    assert segments, 'The UPDATE must supply an old physical segment beside the WAL row'
+    fixture.console('ALTER TABLE items ADD COLUMN score BIGINT DEFAULT 7;\n'
+                    'ALTER TABLE items ALTER COLUMN score SET DEFAULT 9;\n'
+                    'ALTER TABLE items RENAME COLUMN score TO metric;\n')
+    assert sorted(records(fixture.console('SELECT id, metric FROM items;\n')[-1]), key=lambda row: int(row['id'])) == [
+        dict(id='1', metric='7'), dict(id='2', metric='7')]
+    assert atom(fixture.console('SELECT COUNT(*) FROM items WHERE metric = 7;\n')[-1], 'unsigned') == '2'
+    assert atom(fixture.console('SELECT COUNT(*) FROM items WHERE metric = 9;\n')[-1], 'unsigned') == '0'
+    fixture.console('ALTER TABLE items DROP COLUMN metric;\n'
+                    'ALTER TABLE items ADD COLUMN metric BIGINT DEFAULT 42;\n')
+    assert sorted(records(fixture.console('SELECT id, value, metric FROM items;\n')[-1]), key=lambda row: int(row['id'])) == [
+        dict(id='1', value='11', metric='42'), dict(id='2', value='20', metric='42')]
+    after = storage(fixture, record)
+    assert after['pending'] == before['pending'] and after['live_rows'] == before['live_rows'], (before, after)
+    assert set((fixture.installation / 'data/native').rglob('*.tseg')) == segments, 'Compatible ALTER rewrote segments'
+    print('Installed SQL lazy schema: mixed WAL/segment values, frozen ADD default, rename/drop/name reuse and unchanged physical coverage passed.', flush=True)
+
+
 def enable_default_flushing(fixture, record):
     # The earlier SIGKILL/restart recovered these current WAL rows while
     # automatic maintenance was disabled. Remove only the explicit override;
@@ -91,8 +113,8 @@ def enable_default_flushing(fixture, record):
         data = path.read_bytes()
         assert data[:8] == b'TSEG\x01\0\0\0' and data[-4:] == b'TSEG', path.name
         assert hashlib.sha256(data).hexdigest() in path.name, path.name
-    assert sorted(records(fixture.console('SELECT id, value FROM items;\n')[-1]), key=lambda row: int(row['id'])) == [
-        dict(id='1', value='11'), dict(id='2', value='20')]
+    assert sorted(records(fixture.console('SELECT id, value, metric FROM items;\n')[-1]), key=lambda row: int(row['id'])) == [
+        dict(id='1', value='11', metric='42'), dict(id='2', value='20', metric='42')]
     print(f'Installed SQL default flush: WAL recovery before enablement, accepted segment coverage and unchanged values; convergence after readiness {time.monotonic() - started:.3f}s.', flush=True)
 
 
@@ -143,6 +165,7 @@ def run(cli, node, host, board, gateway):
             values = fixture.console('UPDATE items SET value = 11 WHERE id = 1;\n'
                                      'SELECT COUNT(*) FROM items;\n')
             assert atom(values[-1], 'unsigned') == '2', values
+            lazy_schema(fixture, before)
             try:
                 for statement in (
                         'CREATE TABLE IF NOT EXISTS items (ignored TEXT)',
@@ -209,6 +232,7 @@ def run(cli, node, host, board, gateway):
         original_schema = fixture.sql_session(dict(status=dict(operation=created_schema['identity'])))['operation']
         assert original_schema['outcome'] == 'applied' and original_schema['matched'] == original_schema['changed'] == 0
         assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '2'
+        assert atom(fixture.console('SELECT COUNT(*) FROM items WHERE metric = 42;\n')[-1], 'unsigned') == '2'
         enable_default_flushing(fixture, after)
         fixture.console('DELETE FROM items WHERE id = 2;\nDROP TABLE items;\n')
         fixture.stop()

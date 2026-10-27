@@ -62,6 +62,7 @@ test {
     _ = DirectNamespace;
     _ = DirectDependency;
     _ = @import("direct_catalog_test.zig");
+    _ = @import("direct_storage_graph_test.zig");
     _ = AuthorizationLowering;
     _ = TableAuthority;
 }

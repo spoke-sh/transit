@@ -22,9 +22,13 @@ dropped identities are never reused. Dropping the last column, dropping a key
 column or making a key column nullable rejects. General constraint addition or
 removal and USING expressions are unsupported.
 
-Names/default changes are metadata-only. Changing a default affects future
-INSERT/DEFAULT assignments without rewriting existing values. Added columns use
-their default or nullable NULL for existing rows. Adding a required column
+Table and non-key column renames, default changes, supported column drops and
+nullable or constant-default additions publish metadata without rewriting rows.
+Reads interpret old rows through their exact physical schema and stable column
+identities. Changing a default affects future INSERT/DEFAULT assignments;
+existing rows retain the value selected when the column was added, including
+nullable NULL. Reusing a dropped column name creates a new identity and initial
+value. Adding a required column
 without a default can succeed for an empty Table; it fails if any existing row
 cannot acquire a valid value.
 
@@ -33,7 +37,9 @@ layout changes rewrite rows by stable column identity. Admitted type changes use
 exact checked integer/decimal, integer-to-float and float-width conversions;
 overflow and inexact rounding reject. Different text, temporal and nested
 descriptors do not acquire implicit conversions. Key type changes rebuild the
-index and revalidate uniqueness.
+index and revalidate uniqueness. Key column renames also use the complete rewrite
+path. Later flushes and bounded compaction normalize selected old rows while
+retained readers keep their original interpretation.
 
 The owner freezes the source/schema, fences conflicting DDL/DML and stages
 bounded work. Readers see the original schema and rows until the complete

@@ -80,7 +80,8 @@ recovery; successful pure validation does not complete ALTER.
 `Transition.canProject` identifies the narrower lazy edit matrix: non-key
 rename/drop, nullable or constant-default ADD, and insertion-default changes.
 Key renames and changes to types, physical attributes or constraints retain the
-existing validation/rewrite path. Classification does not change live storage.
+existing validation/rewrite path. The direct Table owner uses this classification
+to choose metadata publication or a complete bounded rewrite.
 
 `TableSchemaProjection` maps a retained physical schema directly to a requested
 logical schema by stable column ID. Its caller supplies the frozen ADD-time value
