@@ -62,9 +62,9 @@ configuration-check:
     zig build settings-reference | python3 -B tests/runner/launch.py tests/interfaces/installation/configuration_reference.py
 
 sql-session-generate:
-    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/interfaces/sql_sessions/contracts.py --schema --write
+    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/runner/launch.py tests/interfaces/sql_sessions/contracts.py --schema --write
     python3 -B tests/runner/launch.py tests/interfaces/sql_sessions/contracts.py --write
 
 sql-session-check:
-    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/interfaces/sql_sessions/contracts.py --schema
+    cd packages/zig/transit-sql-protocol && zig build schema | python3 -B ../../../tests/runner/launch.py tests/interfaces/sql_sessions/contracts.py --schema
     python3 -B tests/runner/launch.py tests/interfaces/sql_sessions/contracts.py
