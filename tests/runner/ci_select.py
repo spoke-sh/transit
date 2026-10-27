@@ -23,7 +23,7 @@ def matrix(tasks, suite=SUITE):
             continue
         worker = suite["workers"][lane]
         rows.append(dict(worker, lane=lane, shell=suite["environments"][lane]["shell"],
-                         cache_writer=worker["cache"] not in caches))
+                         cache_writer=worker["cache"] != "formal" and worker["cache"] not in caches))
         caches.add(worker["cache"])
     return rows
 

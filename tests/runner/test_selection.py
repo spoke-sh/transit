@@ -19,7 +19,8 @@ class Selection(unittest.TestCase):
         self.assertEqual(plan["lanes"], {"formal": ["test::wal-model"], "bindings-2": ["bindings::go-sdk-test"]})
         self.assertTrue({"go-module", "go-package", "go-installed-consumer"} <= set(plan["groups"]))
         self.assertIn("private-disk-authority", plan["resources"])
-        self.assertTrue(all(row["cache_writer"] for row in plan["matrix"]["include"]))
+        self.assertEqual({row["lane"]: row["cache_writer"] for row in plan["matrix"]["include"]},
+                         {"formal": False, "bindings-2": True})
         mixed = select(["sdks/go/client/types.go", "docs/handbook/reference/callers.md"], mode="enabled")
         self.assertTrue(mixed["checks"] and mixed["documentation"])
         self.assertFalse(plan["documentation"])

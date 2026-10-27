@@ -118,14 +118,19 @@ def main():
     assert workflow["jobs"]["checks"]["strategy"]["fail-fast"] is False
     steps = workflow["jobs"]["checks"]["steps"]
     reclaim = next(step for step in steps if step.get("name") == "Reclaim unused hosted SDKs")
-    assert reclaim["if"] == "runner.environment == 'github-hosted'"
+    assert reclaim["if"] == "runner.environment == 'github-hosted' && matrix.cache != 'formal'"
     # A primary cache hit can fill the disk during extraction, before the shell
-    # starts. Reclaim on all hosted runs and before either restore or build.
+    # starts. Large hosted lanes reclaim before either restore or build. Formal
+    # uses binary substitutes and does not restore an unrelated SDK closure.
     for name in ("Restore Nix store", "Prepare development shell"):
         assert steps.index(reclaim) < next(i for i, step in enumerate(steps) if step.get("name") == name)
     names = [step.get("name") for step in steps]
     assert names.index("Prepare development shell") < names.index("Save Nix store")
     assert names.index("Save Nix store") < names.index("Run ${{ matrix.lane }} checks")
+    for name in ('Restore Nix store', 'Save Nix store'):
+        assert "matrix.cache != 'formal'" in next(step['if'] for step in steps if step.get('name') == name)
+    assert "github.event_name == 'workflow_dispatch' && github.run_id" in workflow['concurrency']['group']
+    assert workflow['concurrency']['cancel-in-progress'] is True
     artifacts = next(step for step in steps if step.get("name") == "Preserve task timings and completion evidence")
     assert ".cache/m9/station-local-readiness.json" in artifacts["with"]["path"].splitlines()
     assert ".cache/checks/*.json" in artifacts["with"]["path"].splitlines()
@@ -144,7 +149,7 @@ def main():
     assert ".cache/verification/wal-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/console-model/" in artifacts["with"]["path"].splitlines()
     for cache in {row["cache"] for row in workers}:
-        assert sum(row["cache_writer"] for row in workers if row["cache"] == cache) == 1
+        assert sum(row["cache_writer"] for row in workers if row["cache"] == cache) == (0 if cache == 'formal' else 1)
     events = workflow.get("on", workflow.get(True))
     assert events["push"]["branches"] == ["main"]
     assert {"pull_request", "merge_group", "workflow_dispatch"} <= events.keys()
@@ -194,6 +199,18 @@ def main():
     fallback = summarize(sample, full_jobs, fallback_log, budgets)
     assert fallback['restored_cache_bytes'] == 300 * len(selected) and fallback['cache_profile'] == 'miss-or-partial'
     assert fallback['status'] == 'measured' and not fallback['budget_met']
+    # Formal deliberately uses Nix binary substitutes; only its configured Zig
+    # cache can be warm. An undeclared missing Nix restore remains incomplete.
+    formal_log = 'formal\tCI Nix cache policy: substitutes\nformal\tCache hit for: zig-key\nformal\tCache Size: ~0 MB (200 B)\n'
+    substitutes_log = full_log.replace(log.replace('core\t', 'formal\t'), formal_log)
+    substitutes = summarize(sample, full_jobs, substitutes_log, budgets)
+    assert substitutes['cache_profile'] == 'warm' and substitutes['budget_met']
+    assert substitutes['restored_cache_bytes'] == 300 * len(selected) - 100
+    assert next(row for row in substitutes['lanes'] if row['name'] == 'formal')['cache']['nix_policy'] == 'substitutes'
+    undeclared = summarize(sample, full_jobs, substitutes_log.replace('CI Nix cache policy: substitutes', 'No policy'), budgets)
+    assert undeclared['cache_profile'] == 'mixed' and not undeclared['budget_met']
+    nix_miss_log = substitutes_log.replace('formal\tCI Nix cache policy: substitutes', 'formal\tCould not find a cache.')
+    assert next(row for row in summarize(sample, full_jobs, nix_miss_log, budgets)['lanes'] if row['name'] == 'formal')['cache']['mode'] == 'miss-or-partial'
     # Match an actual full hosted selection: the alternative docs-only job is
     # skipped, but every required matrix lane must still execute successfully.
     docs_skipped = dict(job, name='Documentation site', conclusion='skipped')

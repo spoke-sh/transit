@@ -107,6 +107,12 @@ ordered task lists and lane allocation, including the browser continuation.
 Missing or foreign inventory identities leave the measured costs visible but
 cannot meet a budget. Run the reporter from the source whose inventory is being
 measured. The retained 33-task budget does not qualify the expanded inventory.
+Warm cache classification requires every configured GitHub cache to restore its
+matching key. Formal explicitly uses upstream Nix substitutes in both modes and
+has only a Zig GitHub cache; its policy is recorded separately. An undeclared
+missing Nix restore remains unknown or partial. Cache-miss runs disable GitHub
+restores/saves and retain upstream Nix substitutes. Neither mode promises empty
+upstream caches or a particular provider download rate.
 
 Clean qualification preserves these records and preparation logs before removing
 a successful clone. Failed clones remain private at the reported path. Local
@@ -158,8 +164,8 @@ evidence that no other caller exists. CI records the proposal with the executed
 tasks; the runner rejects plans for another commit, unowned/omitted tasks or a
 different policy. A scoped successful result cannot qualify a full-suite budget.
 Hosted work schedules eight lanes within the existing seven-job ceiling; each
-lane remains sequential, with isolated mutable state and one cache writer per
-selected toolchain closure. Storage/catalog/query tasks belong to `growth`;
+lane remains sequential, with isolated mutable state and one writer per selected
+Nix cache group; formal does not write a Nix cache. Storage/catalog/query tasks belong to `growth`;
 SQL protocol/relational and HTTP/gRPC tasks belong to `interfaces`. These split
 the former 39-task growth lane at existing task boundaries. Formal feedback stays
 early. The additional job repeats its shell/cache and native preparation; cost

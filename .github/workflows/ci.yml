@@ -17,7 +17,9 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}-${{ inputs.cache_mode || 'reuse' }}
+  # Explicit qualification samples may share one branch's immutable caches.
+  # Superseded PR/push runs still cancel; independent dispatches stay independent.
+  group: ci-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.event.pull_request.number || github.ref }}-${{ inputs.cache_mode || 'reuse' }}
   cancel-in-progress: true
 jobs:
   plan:
@@ -90,14 +92,17 @@ jobs:
       - name: Record dependency cache mode
         env:
           MODE: ${{ inputs.cache_mode || 'reuse' }}
-        run: 'echo "CI dependency cache mode: $MODE"'
+          NIX_CACHE: ${{ matrix.cache == 'formal' && 'substitutes' || 'github' }}
+        run: |
+          echo "CI dependency cache mode: $MODE"
+          echo "CI Nix cache policy: $NIX_CACHE"
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
         with:
           extra_nix_config: |
             keep-env-derivations = true
             keep-outputs = true
       - name: Reclaim unused hosted SDKs
-        if: runner.environment == 'github-hosted'
+        if: runner.environment == 'github-hosted' && matrix.cache != 'formal'
         # Cache extraction and cold Ursula builds both need this space. Every
         # consumed SDK comes from the pinned Nix shell; never remove software
         # from a user-managed runner.
@@ -107,7 +112,7 @@ jobs:
           df -h /
       - name: Restore Nix store
         id: nix-cache
-        if: inputs.cache_mode != 'cold'
+        if: inputs.cache_mode != 'cold' && matrix.cache != 'formal'
         uses: nix-community/cache-nix-action/restore@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
           # Separate closures: the experience lane never restores Kubernetes,
@@ -127,7 +132,7 @@ jobs:
       - name: Save Nix store
         # Preserve the rooted toolchain before long tests can be cancelled.
         # Test outcomes remain separate; no checkout artifacts enter this cache.
-        if: ${{ !cancelled() && inputs.cache_mode != 'cold' && matrix.cache_writer && steps.shell.outcome == 'success' && steps.nix-cache.outputs.hit-primary-key != 'true' }}
+        if: ${{ !cancelled() && inputs.cache_mode != 'cold' && matrix.cache != 'formal' && matrix.cache_writer && steps.shell.outcome == 'success' && steps.nix-cache.outputs.hit-primary-key != 'true' }}
         uses: nix-community/cache-nix-action/save@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
         with:
           primary-key: ${{ steps.nix-cache.outputs.primary-key }}

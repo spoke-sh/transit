@@ -392,14 +392,16 @@ Board and native Station), `just ci::launchers` (build smoke and native counter)
 and `just ci::bindings-1` / `just ci::bindings-2` (native boundary and languages).
 `just ci::bindings` runs both bindings inventories sequentially. Chromium follows
 experience in hosted CI as `just ci::browser`; local `just ci::complete` includes
-that additional inventory explicitly. `just ci all` runs the seven ordinary inventories
+that additional inventory explicitly. `just ci all` runs the eight ordinary inventories
 sequentially in the pinned bindings shell; `just check all` uses the ordinary
 developer tools. [The task inventory](../tests/runner/suite.json) owns the
 exact checks in each lane.
 
 The formal lane uses `nix develop .#ci-formal`, with only the pinned Zig, Python,
 TLC, Lean, Git and task runner. It installs no frontend dependencies and does not
-wait for SDK tests. Its 15-minute job limit includes cold preparation and concrete
+wait for SDK tests. It obtains its Nix tools from the pinned upstream substitutes
+and restores only the Zig dependency cache. It neither stores another Nix archive
+nor removes the hosted image's unrelated SDK installations. Its 15-minute job limit includes cold preparation and concrete
 Zig replay; unchanged task-local limits still apply. `just ci clean --lane formal`
 uses this same shell and records clone, shell, dependency and check phases
 separately. Other single-lane clean runs likewise use the environments declared
@@ -417,8 +419,9 @@ and includes those same Python packages.
 Both use the existing locked nixpkgs input; no compiler, provider or lockfile
 revision changes are required. The previously measured 1.2 GiB environment
 closure predates the database clients, PyArrow, gRPC peer and MinIO; the current closure has not
-been measured. Experience/launchers share one Nix cache, core/growth share another,
-bindings owns the third, and formal owns a fourth; each group has one writer. Successful preparation is rooted
+been measured. Experience/launchers share one Nix cache, core/growth/interfaces
+share another, and bindings owns the third; each group has one writer. Formal
+uses upstream Nix substitutes without a GitHub Nix archive. Successful preparation is rooted
 before collection, and a miss saves only the live closure. Small changes to the
 packaged inspection plugin or environment helper can rebuild without uploading
 the store. Exact cache hits do not upload again. Cache keys deliberately change
@@ -434,7 +437,7 @@ binding's workspace dependencies. This keeps new language qualification from
 expanding the other lanes or serializing their checks.
 
 The [hosted workflow](../.github/workflows/ci.yml) gives core 90 minutes,
-experience (including browser proofs) 120 minutes, growth 300 minutes, and each bindings
+experience (including browser proofs) 120 minutes, growth and interfaces 150 minutes each, and each bindings
 lane 360 minutes. Launchers have 30 minutes, or 45 for explicit cold calibration. These are
 finite failure limits, not measured feedback budgets. The earlier warm/cold
 budget records remain historical; a larger cap does not qualify a slower run or
@@ -461,7 +464,10 @@ their required checks. Other
 revisions fail planning; main/tags/merge queues/manual runs are always full.
 Use `just ci::select BASE [HEAD]` to inspect the same selection locally.
 
-The workflow cancels superseded runs on the same branch/PR and retains the old
+The workflow cancels superseded push/PR runs on the same branch/PR. Explicit
+manual dispatches are independent, so repeated qualification samples can share
+one branch's caches without creating duplicate archives on temporary branches.
+The workflow retains the old
 `foundation-and-protocol` required-check name as an aggregate gate. Each task's
 duration and status goes to the Actions summary and `.cache/ci/*.json` locally.
 Completion metadata records the revision and required task inventory separately;
@@ -475,10 +481,10 @@ outside successful temporary clones in `.cache/ci/clean/`.
 wall time and total runner time must be measured after deployment; local timings
 and smaller closures alone do not establish the final speedup.
 
-The accepted warm feedback budget is under fifteen minutes, based on the
-12m37s five-lane run; under ten remains an improvement target, five a stretch.
-[CI budgets](../tests/runner/ci-budgets.json) also track provisional runner
-and restore costs; `just ci::cost RUN_ID` collects completed hosted evidence.
+The retained fifteen-minute warm feedback budget describes the historical
+33-task inventory and its 12m37s five-lane run. It does not qualify the expanded
+suite. [CI budgets](../tests/runner/ci-budgets.json) identify their measured
+inventory; `just ci::cost RUN_ID` collects completed hosted evidence.
 Manual `cache_mode=cold` runs disable GitHub dependency restores/saves while
 retaining upstream Nix substitutes. The recorded fourteen-minute source build
 consumes almost the entire warm feedback budget before application checks;

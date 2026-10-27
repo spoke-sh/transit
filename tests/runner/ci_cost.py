@@ -57,11 +57,15 @@ def summarize(run, jobs, log, budgets):
         # Extract only byte counts and cache kinds, never raw logs or keys.
         sizes = [int(n) for line in lines for n in re.findall(r'Cache Size:.*\((\d+) B\)', line)]
         hits = {kind for line in lines for kind in re.findall(r'Cache (?:hit for(?: restore-key)?:|restored from key:) (nix|zig)-', line)}
-        misses = any('Cache not found' in line for line in lines)
+        misses = any('Cache not found' in line or 'Could not find a cache' in line for line in lines)
         fallback = any('Cache hit for restore-key:' in line for line in lines)
         cold = any('CI dependency cache mode: cold' in line for line in lines)
+        policies = {policy for line in lines for policy in re.findall(r'CI Nix cache policy: (\S+)', line)}
+        nix_policy = next(iter(policies)) if len(policies) == 1 else 'github' if not policies else 'unknown'
+        expected_hits = {'zig'} if nix_policy == 'substitutes' else {'nix', 'zig'}
         row['cache'] = dict(restored_bytes=sum(sizes) if sizes else 0 if cold else None,
-                            mode='cold' if cold and not hits and not sizes else 'miss-or-partial' if misses or fallback else 'warm' if hits == {'nix', 'zig'} and len(sizes) == 2 else 'unknown')
+                            nix_policy=nix_policy,
+                            mode='cold' if cold and not hits and not sizes else 'miss-or-partial' if misses or fallback else 'warm' if nix_policy in {'github', 'substitutes'} and hits == expected_hits and len(sizes) == len(expected_hits) else 'unknown')
         lanes.append(row)
     complete = bool(lanes) and all(row['conclusion'] == 'success' and row['seconds'] is not None for row in lanes)
     ends = [j['completed_at'] for j in jobs if j.get('completed_at')]
