@@ -81,6 +81,14 @@ Add newly consumed runtime inputs to the owning source set explicitly.
 actual offline package builds, so cached results cannot substitute for changed
 source. See the [tooling index](../tests/runner/README.md) for the controls.
 
+Clean-run setup bypasses Nix's mutable evaluation cache so a concurrent package
+build cannot hold it behind an evaluation-database lock. Dependency downloads,
+store substitutes and compiler caches remain enabled. The
+[evaluation control](../tests/runner/test_nix_evaluation.py) holds locks only in a
+private cache and verifies that bypassing it produces the same evaluated fixture
+value; it also checks normal evaluation after releasing the locks. Actual clean
+qualification still enters the pinned project shell.
+
 On Linux x86_64, `nix build .#transit-local` adds the matching SQL gateway to
 the Transit closure. Native local storage runs inside the node. The bundle
 places all executables together in `bin/`, so

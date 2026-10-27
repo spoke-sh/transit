@@ -495,4 +495,5 @@ zig-test:
 # Build the runtime without tests/SDKs and reject disabled or missing checks.
 runtime-boundary:
     python3 -B tests/runner/test_nix_inputs.py
+    python3 -B tests/runner/test_nix_evaluation.py
     python3 -B tests/runner/launch.py tests/sdk/sdk_runtime.py
