@@ -662,13 +662,25 @@ and the backend's native/direct/payload maintenance owners.
   Compaction must emit no logical mutation or invalidate computation freshness.
 
 The aggregate admission gate includes the complete lifetime of direct request
-allocations. `NativeServer.table` currently places parsing, catalog work and
-serialized output in an arena backed by the node allocator. Request/response
+allocations. `NativeServer.table` uses an arena backed by the node allocator for
+parsing and catalog work, then independently owns the serialized response during
+transmission. Request/response
 wire limits and individual operator budgets do not establish a byte cap for
 that whole arena or the sum of concurrent requests and maintenance. Qualify an
 explicit request-wide limit and independent control capacity, including exhausted
 data admission, slow response writes, cancellation and original-operation recovery.
 A private maintenance budget alone cannot close this gate.
+
+The request probe at `74b555d84` measures up to 9,613,056 live handler bytes at
+response time for seven-row scans. `c15ddd1f5` releases request scratch before
+transmission; all observed live bytes then equal the independently received
+response size, at most 3,335 bytes for scans in the active-flush arm. All six
+catalog/maintenance checks and the installed retained-row/restart schedule pass,
+including receipt inspection after output allocation fails on an accepted INSERT.
+The old exact binaries fail the new lifetime oracle. The
+[allocation and lifetime account](../history/qualification/storage.md#direct-request-allocation-and-response-lifetime--2026-10-28)
+preserves the additional allocation cost and unchanged observed CPU/latency.
+Working peaks remain around 9 MiB; the aggregate admission gate stays open.
 
 **Gate:** the installed owner converges on eligible maintenance under a finite
 workload, resumes it after process death and preserves every retained obligation.

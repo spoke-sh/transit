@@ -9,6 +9,77 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Direct request allocation and response lifetime — 2026-10-28
+
+The question is how much private request memory remains owned when a direct
+Table response starts transmission. At `74b555d8413a9b376e4a41718d445cfc2ec0cfe5`,
+opt-in native request diagnostics place an allocation probe below the complete
+handler allocator. Parsing, catalog work and serialization share an arena that
+survives until the response finishes. The installed physical-disk
+`just test direct-table-maintenance` schedule passes, but seven-row scans retain
+up to 9,613,056 bytes at response time. Snapshot and storage observations retain
+up to approximately 2 MiB. These are handler allocations, not whole-node RSS.
+
+At `c15ddd1f50c47fb68c0fff7517b46b9c606d5700`, serialization allocates its exact
+output independently. Parsing and catalog scratch are released before either a
+success or error response is sent. The existing final authorization fence runs
+before disclosure and frees a withheld response on failure. The new installed
+oracle compares counted live bytes with the independently received HTTP response
+length for every observed Table response; all must match.
+
+Both sources pass the complete installed schedule with the same caller binary,
+258 retained row values, seven-row pages and sixteen complete scans per arm.
+They enable request metrics and use the same existing HTTP fixture. The active
+arm also verifies overlapping flush progress, ten packed segments, fixed targets
+after SIGKILL, retained cuts after another restart and idle convergence.
+
+| Automatic-flush observation | Shared request arena | Independent response |
+| --- | ---: | ---: |
+| Scan responses | 624 | 624 |
+| Maximum live handler bytes at scan response | 9,613,056 | 3,335 |
+| Maximum peak handler bytes during a scan | 9,613,056 | 9,273,723 |
+| Scan backing allocation attempts | 4,642 | 5,260 |
+| Total scan acquired bytes | 4,233,772,544 | 4,257,742,350 |
+| Node CPU during phase (seconds) | 20.40 | 20.36 |
+| Complete-scan median (seconds) | 1.214 | 1.215 |
+| Node RSS after phase (bytes) | 53,825,536 | 53,940,224 |
+
+This reduces the response's private memory lifetime. It adds a separately owned
+output allocation and does not eliminate working allocations or establish a
+latency improvement. Both runs have uncontrolled host/cache state; inspection
+traffic varies and has its own operation totals. Provider/cache allocations,
+socket buffers, stacks and maintenance remain outside this probe. A pre-write
+snapshot is not a post-cleanup leak check or an aggregate admission limit.
+
+All six local catalog/maintenance checks pass at `c15ddd1f5`, including decoding
+responses after their work arenas are destroyed and denying already-buffered
+results after revocation without leaks. A new output-allocation failure occurs
+after an INSERT commits: inspecting its original operation finds the committed
+receipt, and independent reads verify the one expected row. No replacement
+mutation is submitted. Both revisions also pass the full handbook build and all
+41 committed-source clean fast checks.
+
+The exact baseline binaries run separately against the new driver as a negative
+control. It fails the request-memory validation gate after the disabled arm,
+reporting 1,059 invalid observations; the candidate passes that same gate.
+The original negative-control installation, exact executables and source record
+remain private at `/var/tmp/transit-table-maintenance-rsmxoz2i`.
+
+Raw logs are under `.cache/milestone3/`:
+
+| Log | SHA-256 |
+| --- | --- |
+| `native-request-memory-installed.log` | `325963915773dcb55477262c4b7b7065d602fd7f4c932c0f0468d7fb9d7be119` |
+| `native-response-lifetime-installed.log` | `378519935ee5e95ae3286eceb0a69f96d1282d9dafe8db33de8ebbbb92d33eca` |
+| `native-response-lifetime-catalog.log` | `8ced5a8f9106d851eb51b8992a35e25e4ab612cbbec914034b2a2ec1f62a4aa9` |
+| `native-response-lifetime-negative.log` | `3a155486fe4cc4fb0bc3ab178fa06f700ead9d10cceba6793e3d1c5fa690dcd5` |
+
+Baseline and candidate node SHA-256 identities are
+`4e507a6406d67086e7a6e5b113cb7ee622652d2cece8915bd1520ca1b4c0d180` and
+`06019a634b1ab69c5bb545208cc602016e539c537fc2b0a9b4c2b617ed9c1a38`.
+Both use caller SHA-256
+`334b1e52093210148e4b53c64123661335d61e4526598129731e7541178bbc1e`.
+
 ## Reusable private Table maintenance workspace — 2026-10-28
 
 The question is whether sequential maintenance units can reuse bounded private
