@@ -1,21 +1,306 @@
 {
   "version": 1,
-  "backing_budget": {"alloc_attempts": 0, "growing_resize_attempts": 0, "remap_attempts": 0},
+  "backing_budget": {
+    "alloc_attempts": 0,
+    "growing_resize_attempts": 0,
+    "remap_attempts": 0
+  },
   "warmup": "Finite owner initialization and reservation, independent of retained row count; no new warmup per batch, retry or repeated statement.",
-  "limits": {"result_rows": 32, "canonical_batch_bytes": 1048576, "native_frame_bytes": 4194304, "client_resident_bytes_max": 16777216},
+  "limits": {
+    "result_rows": 32,
+    "canonical_batch_bytes": 1048576,
+    "native_frame_bytes": 4194304,
+    "client_resident_bytes_max": 16777216
+  },
   "profiles": [
-    {"id": "logical_batches", "owner": "packages/zig/transit-sql-results", "phase": "C", "gate": "pending", "cases": ["builder", "nested_values", "window_retention", "five_states", "alternating_sizes"]},
-    {"id": "binary_results", "owner": "packages/zig/transit-sql-protocol", "phase": "C", "gate": "pending", "cases": ["frame", "columns", "metadata", "validation", "malformed_frames"]},
-    {"id": "shared_sql_client", "owner": "packages/zig/transit-sql-client", "phase": "D", "gate": "pending", "cases": ["repeat_statements", "prepared_binds", "fetch_retry", "cancellation", "terminal", "eof"]},
-    {"id": "sql_transport", "owner": "packages/zig/transit-sql-client", "phase": "D", "gate": "pending", "cases": ["unix", "http", "tls", "idle_reconnect", "over_256_requests", "io_tasks"]},
-    {"id": "console", "owner": "apps/transit-cli", "phase": "D", "gate": "pending", "cases": ["formatting", "bounded_width_sampling", "slow_reader"]},
-    {"id": "sql_producer", "owner": "packages/zig/transit-sql", "phase": "E", "gate": "pending", "cases": ["read_batch", "cursor_replay", "source_page", "revocation", "control_reserve"]},
-    {"id": "sql_gateway", "owner": "apps/transit-sql-gateway", "phase": "E", "gate": "pending", "cases": ["request_scratch", "native", "postgres", "mysql", "tls", "credential_erasure"]},
-    {"id": "query_sources", "owner": "packages/zig/transit-fuze", "phase": "F", "gate": "pending", "cases": ["page_decode", "row_fallback", "arrow_retention", "source_and_authority_reads"]},
-    {"id": "storage_runtime", "owner": "packages/zig/transit-storage", "phase": "F", "gate": "pending", "cases": ["ingest", "wal", "memtable", "flush", "native_turn", "kv", "document", "recovery"]},
-    {"id": "cache_and_metering", "owner": "packages/zig/transit-storage", "phase": "G", "gate": "pending", "cases": ["new_keys", "eviction", "leases", "cpu_io", "pressure"]},
-    {"id": "strings_search", "owner": "packages/zig/transit-fuze", "phase": "H", "gate": "pending", "cases": ["collations", "padding", "hashing", "dictionary", "fsst", "bm25"]},
-    {"id": "compiled_execution", "owner": "packages/zig/transit-fuze", "phase": "I", "gate": "pending", "cases": ["fusion", "dense", "stencils", "aot", "code_cache"]},
-    {"id": "installed_os_allocations", "owner": "tests/performance", "phase": "J", "gate": "pending", "cases": ["all_backing_allocators", "direct_mappings", "worker_stacks", "tls", "allocator_bypass_negative_control"]}
-  ]
+    {
+      "id": "memory_reserves",
+      "owner": "packages/zig/transit-memory",
+      "phase": "B",
+      "gate": "executable",
+      "cases": [
+        "failure_rollback",
+        "stale_lease",
+        "concurrent_quota",
+        "fragmentation",
+        "erasure",
+        "capacity_reuse"
+      ],
+      "checks": [
+        "packages/zig/transit-memory/src/Workspace.zig",
+        "packages/zig/transit-memory/src/Slab.zig",
+        "packages/zig/transit-memory/src/Pool.zig",
+        "packages/zig/transit-memory/src/Budget.zig"
+      ],
+      "backing": "Explicit finite caller reserve; counted attempts distinguish backing growth from internal reservations.",
+      "gaps": [
+        "Raw slices cannot validate stale ownership after a caller violates the lease lifetime."
+      ]
+    },
+    {
+      "id": "logical_batches",
+      "owner": "packages/zig/transit-sql-results",
+      "phase": "C",
+      "gate": "executable",
+      "cases": [
+        "builder",
+        "nested_values",
+        "window_retention",
+        "five_states",
+        "alternating_sizes"
+      ],
+      "checks": [
+        "packages/zig/transit-sql-results/src/BatchBuilder.zig",
+        "packages/zig/transit-sql-results/src/reader_test.zig"
+      ],
+      "backing": "Caller-owned Workspace or admitted Slab; complete retained reserve remains charged.",
+      "gaps": [
+        "A caller supplying an unrelated heap allocator does not inherit the reserve profile."
+      ]
+    },
+    {
+      "id": "binary_results",
+      "owner": "packages/zig/transit-sql-protocol",
+      "phase": "C",
+      "gate": "executable",
+      "cases": [
+        "frame",
+        "columns",
+        "metadata",
+        "validation",
+        "malformed_frames"
+      ],
+      "checks": [
+        "packages/zig/transit-sql-protocol/src/allocation_test.zig",
+        "tests/interfaces/sql/sql_wire_encoding.zig"
+      ],
+      "backing": "Fixed aligned builder, column/frame and decoder workspaces; stack column directory.",
+      "gaps": [
+        "Timing regressions require the separate paired comparison; component counts exclude OS and source work."
+      ]
+    },
+    {
+      "id": "shared_sql_client",
+      "owner": "packages/zig/transit-sql-client",
+      "phase": "D",
+      "gate": "executable",
+      "cases": [
+        "repeat_statements",
+        "prepared_binds",
+        "fetch_retry",
+        "cancellation",
+        "terminal",
+        "eof",
+        "16384_rows",
+        "retained_wide_window",
+        "retained_arrow_view",
+        "response_capacity",
+        "uncertain_write_settlement"
+      ],
+      "checks": [
+        "tests/interfaces/sql/sql_result_allocations.zig",
+        "tests/interfaces/sql_sessions/allocations.py"
+      ],
+      "backing": "16 MiB client data slab, 4 MiB transport slab; independent control client and charged 1 MiB retained window in the probe.",
+      "gaps": [
+        "Independent peer proves client behavior, not durable acceptance or service authorization."
+      ]
+    },
+    {
+      "id": "sql_transport",
+      "owner": "packages/zig/transit-sql-client",
+      "phase": "D",
+      "gate": "executable",
+      "cases": [
+        "unix",
+        "http",
+        "tls",
+        "idle_reconnect",
+        "over_256_requests",
+        "io_tasks"
+      ],
+      "checks": [
+        "tests/interfaces/sql_sessions/allocations.py",
+        "packages/zig/transit-io/src/root.zig"
+      ],
+      "backing": "Client transport slab and prewarmed bounded I/O worker/task owner; Unix and numeric IPv4 HTTP/TLS.",
+      "gaps": [
+        "Hostname DNS/NSS is unqualified.",
+        "Process observation excludes hidden allocators that neither cross instrumented boundaries nor acquire new mappings."
+      ]
+    },
+    {
+      "id": "console",
+      "owner": "apps/transit-cli",
+      "phase": "D",
+      "gate": "component",
+      "cases": [
+        "formatting",
+        "bounded_width_sampling",
+        "slow_reader"
+      ],
+      "checks": [
+        "apps/transit-cli/Console.zig",
+        "tests/performance/console/console_latency.py"
+      ],
+      "backing": "16 MiB formatting slab, 256 KiB width-sampling window and bounded client/I/O owners.",
+      "gaps": [
+        "Installed first-output/terminal timings and composed OS profile remain separate from formatting units."
+      ]
+    },
+    {
+      "id": "sql_producer",
+      "owner": "packages/zig/transit-sql",
+      "phase": "E",
+      "gate": "component",
+      "cases": [
+        "read_batch",
+        "cursor_replay",
+        "source_page",
+        "revocation",
+        "control_reserve"
+      ],
+      "checks": [
+        "tests/interfaces/sql/sql_gateway_native.zig",
+        "packages/zig/transit-sql/src/Registry.zig"
+      ],
+      "backing": "Per-session Slab plus separate recovery reserve; cursor batch and request output have independent lifetimes.",
+      "gaps": [
+        "AccountRuntime background execution still uses its parent allocator.",
+        "Direct source and authority services have separate phase F owners."
+      ]
+    },
+    {
+      "id": "sql_gateway",
+      "owner": "apps/transit-sql-gateway",
+      "phase": "E",
+      "gate": "component",
+      "cases": [
+        "request_scratch",
+        "native",
+        "postgres",
+        "mysql",
+        "tls",
+        "credential_erasure"
+      ],
+      "checks": [
+        "apps/transit-sql-gateway/src/Native.zig",
+        "apps/transit-sql-gateway/src/main.zig",
+        "tests/interfaces/sql_sessions/security.py"
+      ],
+      "backing": "Eight native data and four independent control slots per listener; wire connection slabs and separate cancellation capacity.",
+      "gaps": [
+        "Server OpenSSL currently uses its C allocator.",
+        "Gateway std.Io runtime workers/tasks are not yet admitted through transit-io.",
+        "Actual socket send failures and the composed allocation gate need their installed schedules."
+      ]
+    },
+    {
+      "id": "query_sources",
+      "owner": "packages/zig/transit-fuze",
+      "phase": "F",
+      "gate": "pending",
+      "cases": [
+        "page_decode",
+        "row_fallback",
+        "arrow_retention",
+        "source_and_authority_reads"
+      ],
+      "checks": [
+        "packages/zig/transit-fuze/src/TSegReader.zig"
+      ],
+      "gaps": [
+        "Source page/decompression backing, row fallback, retained storage exports and authority reads."
+      ]
+    },
+    {
+      "id": "storage_runtime",
+      "owner": "packages/zig/transit-storage",
+      "phase": "F",
+      "gate": "pending",
+      "cases": [
+        "ingest",
+        "wal",
+        "memtable",
+        "flush",
+        "native_turn",
+        "kv",
+        "document",
+        "recovery"
+      ],
+      "gaps": [
+        "Durable ingestion, log/flush buffers, native turns and paged recovery retain independent allocator owners."
+      ]
+    },
+    {
+      "id": "cache_and_metering",
+      "owner": "packages/zig/transit-storage",
+      "phase": "G",
+      "gate": "pending",
+      "cases": [
+        "new_keys",
+        "eviction",
+        "leases",
+        "cpu_io",
+        "pressure"
+      ],
+      "gaps": [
+        "Concurrent immutable cache leases, eviction admission, spill and CPU/I/O accounting."
+      ]
+    },
+    {
+      "id": "strings_search",
+      "owner": "packages/zig/transit-fuze",
+      "phase": "H",
+      "gate": "pending",
+      "cases": [
+        "collations",
+        "padding",
+        "hashing",
+        "dictionary",
+        "fsst",
+        "bm25"
+      ],
+      "gaps": [
+        "Prerequisite codec, collation, index and search implementations and their admitted workspaces."
+      ]
+    },
+    {
+      "id": "compiled_execution",
+      "owner": "packages/zig/transit-fuze",
+      "phase": "I",
+      "gate": "pending",
+      "cases": [
+        "fusion",
+        "dense",
+        "stencils",
+        "aot",
+        "code_cache"
+      ],
+      "gaps": [
+        "Prerequisite execution specialization and bounded code-cache ownership."
+      ]
+    },
+    {
+      "id": "installed_os_allocations",
+      "owner": "tests/performance",
+      "phase": "J",
+      "gate": "pending",
+      "cases": [
+        "all_backing_allocators",
+        "direct_mappings",
+        "worker_stacks",
+        "tls",
+        "allocator_bypass_negative_control"
+      ],
+      "gaps": [
+        "One-revision composed service/storage/runtime profiles; the client-only observer is not this whole-system gate."
+      ]
+    }
+  ],
+  "gate_meaning": {
+    "executable": "An executable scoped allocation gate exists; run artifacts, not this inventory, establish a pass.",
+    "component": "Local reserves have executable checks; the listed composed owners remain unqualified.",
+    "pending": "No complete allocation gate exists for the listed scope."
+  }
 }
