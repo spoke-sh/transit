@@ -333,11 +333,13 @@ operator, or AOT query compiler already exists in current builds.
   (`UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`), allowing equality, range,
   `ORDER BY` and join probes to filter or short-circuit in registers before
   touching out-of-line payloads. Push string equality, `IN (...)` and prefix
-  predicates into `.dictionary` codes and `.fsst` symbol tables, and structure
-  full-text inverted indexes into 256-document bitpacked posting blocks with
-  block-max BM25 impact weights evaluated via vectorized `MAXSCORE` / Block-Max
-  WAND pruning, SIMD relational/`.tdel` bitmask intersection and late
-  materialization.
+  predicates into `.dictionary` codes and `.fsst` symbol tables, and separate
+  declarative text segmentation, proximity (`NEAR` / `WITHIN`) and scoring
+  contracts from swappable `.tseg` index profiles—qualifying 256-document
+  bitpacked posting blocks with block-max BM25 impact weights (`MAXSCORE` /
+  Block-Max WAND pruning, SIMD relational/`.tdel` bitmask intersection and late
+  materialization) first without locking text or code search into a
+  bag-of-words model.
 - **Compile-time (`comptime`) and immutable-artifact perfect hashing with wide SIMD comparisons:**
   Use pure-Zig `comptime` perfect hash maps (`slot = (len + asso[key[i]] + asso[key[j]]) & mask`)
   for closed compile-time keyword, header and directive sets instead of linear

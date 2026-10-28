@@ -576,13 +576,20 @@ does not make an out-of-bounds access valid.
 Bound perfect-hash construction and verify exact non-member rejection; use a
 qualified bounded lookup strategy for key sets that cannot be constructed within
 budget. Keep dictionaries, FSST validation, filter masks and late materialization
-under the same workspace lease. For BM25, first define tokenizer/index
-identity, maintenance and snapshot/deletion coverage, then 256-document posting
-blocks, conservative score upper bounds, bounded top-k state and SIMD pruning.
-Compare complete scores/order/ties with unpruned execution before accepting
-Block-Max WAND. Hybrid composition waits for the qualified ANN/index owner and
-one supported snapshot model. Every new operator starts with allocation gates;
-future syntax and algorithms do not become current supported capabilities.
+under the same workspace lease. Separate declarative analyzer/segmenter, span,
+proximity and scoring semantics from swappable physical `.tseg` index profiles
+so `Fuze` is never locked into a bag-of-words model. For the initial Block-Max
+BM25 profile, first define tokenizer/segmenter and index identity, maintenance
+and snapshot/deletion coverage, then 256-document posting blocks, conservative
+score upper bounds, bounded top-k state and SIMD pruning. Compare complete
+scores/order/ties with unpruned scalar oracle execution before accepting
+Block-Max WAND or any later positional/substring/structural index profile.
+Hybrid composition waits for the qualified ANN/index owner and one supported
+snapshot model, while speculative research into declarative sequence, context
+and synthesis primitives belongs to
+[milestone 32](32-declarative-language-context-and-synthesis.md). Every new
+operator starts with allocation gates; future syntax and algorithms do not
+become current supported capabilities.
 
 **I — Apply the contract to fusion and compilation.** Keep implementation in
 [milestone 13](13-data-centric-compilation-and-specialization.md). Review fused

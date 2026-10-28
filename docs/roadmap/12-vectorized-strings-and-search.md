@@ -3,13 +3,15 @@
 [Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
 Make text representation, string comparison, static/immutable key lookup and
-full-text/hybrid search first-class, cache-resident operations in `Fuze` and
-`.tseg` storage. Eliminate pointer-chasing heap dereferences on short and
-medium strings, push string predicates directly into compressed `.dictionary`
-and `.fsst` pages, replace linear keyword/dictionary scans with compile-time
-(`comptime`) and segment-sealed perfect hash tables, and execute BM25 full-text
-and hybrid search through fully-vectorized block-max pruning over `.tseg` row
-groups.
+declarative lexical/structural and hybrid search first-class, cache-resident
+operations in `Fuze` and `.tseg` storage. Eliminate pointer-chasing heap
+dereferences on short and medium strings, push string predicates directly into
+compressed `.dictionary` and `.fsst` pages, replace linear keyword/dictionary
+scans with compile-time (`comptime`) and segment-sealed perfect hash tables, and
+separate declarative text segmentation, pattern/proximity matching and scoring
+contracts from swappable physical `.tseg` index profiles—qualifying
+fully-vectorized 256-document Block-Max BM25 and hybrid search first without
+boxing text or code workloads into a bag-of-words model.
 
 ## Prerequisites and scope
 
@@ -32,12 +34,18 @@ Start from [queries](../handbook/reference/queries.md),
 [query mechanisms](../handbook/internals/query-engine.md) and the
 [benchmark tooling](../../tests/performance/query/README.md).
 
-Keep logical types ($\tau$), physical codecs ($\epsilon$: `.dictionary`, `.fsst`,
-`.rle`, `EBCDIC`) and collations ($\kappa$: `utf8_binary`, `ascii_ci`,
-`ebcdic_cp037`, `icu:<locale>`) orthogonal. Every string representation, sort
-prefix, hash probe and inverted-index posting list must preserve five-state cell
-semantics (`missing`, `null`, `type_error`, `conflict`, `value`), snapshot
-pins, `.tdel` deletion visibility and current-authority disclosure checks.
+Keep logical types and span projections ($\tau$), collations and deterministic
+analyzers/segmenters ($\kappa$: `utf8_binary`, `ascii_ci`, `ebcdic_cp037`,
+`icu:<locale>`, versioned token/span boundaries) and physical codecs and index
+profiles ($\epsilon$: `.dictionary`, `.fsst`, `.rle`, `EBCDIC`, posting blocks,
+trigram/substring bitmaps, suffix/automaton structures) orthogonal. Declarative
+match, substring/pattern, proximity (`NEAR` / `WITHIN`) and ranking contracts
+must remain independent of any single physical index or bag-of-words heuristic
+so `Fuze` can swap physical access paths behind an exact scalar reference oracle.
+Every string representation, sort prefix, hash probe and search index evaluation
+must preserve five-state cell semantics (`missing`, `null`, `type_error`,
+`conflict`, `value`), snapshot pins, `.tdel` deletion visibility and
+current-authority disclosure checks.
 
 ## Delivery sequence
 
@@ -66,7 +74,7 @@ pins, `.tdel` deletion visibility and current-authority disclosure checks.
    into `.tseg` column readers before materializing `Batch` string views:
    - On **`.dictionary` pages**, resolve string literals against the sorted or
      perfect-hashed page dictionary once per row group, converting string equality
-     Into integer code equality and `IN (...)` into a compact bitset test over
+     into integer code equality and `IN (...)` into a compact bitset test over
      bitpacked dictionary codes.
    - On **`.fsst` (Fast Static Symbol Table) pages**, evaluate prefix and fixed-
      pattern comparisons against the 255-entry 1–8 byte symbol table or decode
@@ -91,33 +99,51 @@ pins, `.tdel` deletion visibility and current-authority disclosure checks.
      16-byte `@Vector(16, u8)` loads execute unconditionally on internal buffers;
      guard external unpadded caller slices against 4 KiB page boundaries
      (`(addr & 0xfff) <= 4080`) with a scalar fallback.
-4. **Deliver `.tseg` inverted full-text indexes and fully-vectorized block-max BM25 execution.**
-   Define declarative full-text index specifications (`CREATE FULLTEXT INDEX`) with
-   versioned tokenizer/normalizer pipelines (Unicode word boundaries, ASCII/case
-   folding, configurable stop words and n-gram/code tokenizers) stored as
-   immutable `.tseg`-aligned index segments:
-   - **256-document bitpacked posting blocks with Block-Max impact weights:**
-     Partition posting lists into fixed 256-document blocks aligned with `.tseg`
-     row groups. Encode doc ID deltas and term frequencies (`tf`) with SIMD
-     bitpacking (`StreamVByte` / `BitWeaver`) and store per-block upper-bound
-     BM25 impact metadata (`max_tf`, `min_doc_len`, quantized max block score).
+4. **Separate declarative text search and proximity contracts from swappable `.tseg` index profiles, and qualify vectorized 256-doc Block-Max BM25 first.**
+   Define declarative text index and match specifications (`CREATE FULLTEXT INDEX`
+   and swappable `USING <profile>` bindings) with versioned analyzer/segmenter
+   pipelines (Unicode word/span boundaries, ASCII/case folding, configurable stop
+   words, and n-gram, substring or code/structural segmenters) stored as
+   immutable `.tseg`-aligned index segments and verified against a finite scalar
+   reference oracle:
+   - **Swappable index and scoring boundary:** Keep the logical match, phrase/span
+     proximity (`NEAR` / `WITHIN`) and ranking contracts decoupled from the
+     physical index layout so `Fuze` is never locked into bag-of-words tokenization.
+     An index profile is selected only when its bound segmenter/collation digest,
+     predicate coverage and exactness/recall contract match the query; otherwise
+     `Fuze` falls back to another qualified index profile or the bounded scalar
+     reference scan.
+   - **Initial qualified lexical profile — 256-document bitpacked posting blocks with Block-Max impact weights:**
+     Partition inverted posting lists into fixed 256-document blocks aligned with
+     `.tseg` row groups. Encode doc ID deltas, term frequencies (`tf`) and
+     optional positional/span streams with SIMD bitpacking (`StreamVByte` /
+     `BitWeaver`) and store per-block upper-bound impact metadata (`max_tf`,
+     `min_doc_len`, quantized max block score).
    - **Vectorized `MAXSCORE` and Block-Max WAND execution in `Fuze`:** Evaluate
-     multi-term disjunctive (`OR`) and conjunctive (`AND`) BM25 top-$k$ queries as
+     multi-term disjunctive (`OR`) and conjunctive (`AND`) top-$k$ queries as
      native vectorized `Fuze` operators that maintain a dynamic top-$k$ threshold
      heap and skip entire 256-document blocks whose block-max score upper bound
      cannot enter the top-$k$.
    - **SIMD bitmask intersection and late materialization:** Intersect candidate
-     posting blocks directly in SIMD registers with `.tdel` deletion bitmaps,
-     MVCC snapshot visibility masks and relational predicate selection vectors
-     (`WHERE tenant_id = ? AND MATCH(body, ?)`), deferring document/row payload
-     decoding until final top-$k$ row IDs are selected.
-5. **Compose hybrid lexical + vector search (`BM25 + ANN`) under one snapshot.**
-   Combine vectorized Block-Max BM25 operators with segmented HNSW / IVF-PQ
-   approximate nearest-neighbor (ANN) vector indexes (`VECTOR(d)`) under a single
-   pinned Table snapshot cut. Support reciprocal rank fusion (`RRF`) and
-   calibrated linear score combination in `Fuze` without multiple round-trips or
-   external search engines, preserving per-morsel CPU/memory/IOPS metering from
+     posting or substring/trigram blocks directly in SIMD registers with `.tdel`
+     deletion bitmaps, MVCC snapshot visibility masks and relational predicate
+     selection vectors (`WHERE tenant_id = ? AND MATCH(body, ?)`), deferring
+     document/row payload decoding until final top-$k$ row IDs are selected.
+5. **Compose pluggable multi-signal and hybrid search under one snapshot, and hand off multi-model, reactive-context and corpus-synthesis extensions.**
+   Combine vectorized lexical/structural search operators (starting with
+   Block-Max BM25) and segmented HNSW / IVF-PQ approximate nearest-neighbor
+   (ANN) vector indexes (`VECTOR(d)`) under a single pinned Table snapshot cut.
+   Support reciprocal rank fusion (`RRF`) and calibrated linear score combination
+   in `Fuze` without multiple round-trips or external search engines, preserving
+   per-morsel CPU/memory/IOPS metering from
    [Milestone 11](11-data-structures-and-performance.md).
+   Hand off multi-model Document/Graph structural search and foreign-format
+   projections to [Milestone 14](14-multi-model-and-foreign-relations.md),
+   governed reactive context assembly to
+   [Milestone 27](27-reactive-context-and-agent-activation.md), and speculative
+   research into declarative span/proximity maps (`NEAR`), context-conditioned
+   sequence continuation and branch-verified agency to
+   [Milestone 32](32-declarative-language-context-and-synthesis.md).
 
 ## Candidate structures and selection evidence
 
@@ -126,7 +152,7 @@ pins, `.tdel` deletion visibility and current-authority disclosure checks.
 | 16-byte collation-prefixed strings ("German Strings") | Short ($\le 12\text{B}$), medium and long UTF-8/EBCDIC/binary distributions, shared-prefix adversarial inputs, collation sort-key fidelity across `utf8_binary`, `ascii_ci`, `ebcdic_cp037` and `icu:<locale>`, five-state tag preservation and arena memory footprint |
 | Compressed-domain `.dictionary` and `.fsst` string kernels | Predicate selectivity sweep ($0.01\%$ to $90\%$), dictionary cardinality, FSST symbol compression ratio, late-materialization decode savings and equivalence against decoded scalar oracle |
 | `comptime` and segment-sealed perfect hashing (`ConstexprCore/perfect_hash` style) | Construction bound at `comptime` and `.tseg` flush time, fallback behavior when key sets exceed greedy association budgets, cycles/ns per lookup on 6–1,000 keys, 4 KiB page-boundary safety and zero false positives on non-member probes |
-| Vectorized Block-Max BM25 and hybrid search (`turbopuffer` style) | 256-doc posting block compression ratio, block-skip rate on top-$k$ ($k \in \{10, 100, 1000\}$), filtered BM25 + relational predicate selectivity, `.tdel` tombstone filtering, cold/warm NVMe cache behavior and exact top-$k$ score agreement with unpruned BM25 oracle |
+| Swappable `.tseg` search profiles: vectorized 256-doc Block-Max BM25 (`turbopuffer` style), positional/proximity streams, n-gram/trigram bitmaps and hybrid `RRF`/linear fusion | 256-doc posting block compression ratio, block-skip rate on top-$k$ ($k \in \{10, 100, 1000\}$), filtered lexical/proximity + relational predicate selectivity, `.tdel` tombstone filtering, cold/warm NVMe cache behavior and exact top-$k$ score/order agreement with the unpruned scalar reference oracle |
 
 [Umbra's string layout](https://db.in.tum.de/~freitag/papers/p29-neumann-cidr20.pdf),
 [FSST](https://www.vldb.org/pvldb/vol13/p2649-boncz.pdf),
@@ -138,14 +164,16 @@ separate from evidence for Transit's Zig implementations.
 ## Acceptance criteria
 
 - 16-byte collation-prefixed strings, compressed-domain `.dictionary`/`.fsst`
-  predicates, `comptime`/immutable perfect hashing and vectorized Block-Max BM25
-  operators pass differential equivalence and fuzz checks against the independent
-  scalar `Fuze` oracle across all supported collations, five-state error lanes,
-  snapshots and `.tdel` deletions.
-- Hot-path string comparisons, dictionary probes and BM25 block evaluations run
+  predicates, `comptime`/immutable perfect hashing and vectorized search
+  operators (starting with the 256-doc Block-Max BM25 profile) pass differential
+  equivalence and fuzz checks against the independent scalar `Fuze` oracle
+  across all supported collations, analyzer/segmenter bindings, five-state error
+  lanes, snapshots and `.tdel` deletions.
+- Hot-path string comparisons, dictionary probes and search block evaluations run
   with zero steady-state heap allocations after warmup and enforce per-morsel
   CPU, memory and IOPS budgets from [Milestone 11](11-data-structures-and-performance.md).
 - Benchmarks on ClickBench string-heavy queries (`LIKE`, `REGEXP`, `GROUP BY`
-  strings, `IN (...)`) and standard information-retrieval workloads (BM25 top-$k$
-  and filtered hybrid search) meet predeclared latency, throughput and
-  allocation budgets in the [qualification scorecard](30-qualification-and-benchmarks.md).
+  strings, `IN (...)`) and standard information-retrieval workloads (lexical
+  top-$k$, substring/proximity filtering and hybrid search) meet predeclared
+  latency, throughput and allocation budgets in the
+  [qualification scorecard](30-qualification-and-benchmarks.md).

@@ -10,16 +10,22 @@ the same versioned event without an open MCP connection owning the application.
 ## Prerequisites and scope
 
 Extend [managed computation scheduling](10-sql-and-dataflows.md),
-[native full-text, vector and hybrid retrieval](14-multi-model-and-foreign-relations.md),
+[first-class strings and search](12-vectorized-strings-and-search.md),
+[native multi-model lexical/structural, vector and hybrid retrieval](14-multi-model-and-foreign-relations.md),
 [enterprise RLS, masking and WLM governance](22-control-and-policy-plane.md),
 [published resources](23-published-resources-and-investigations.md),
 [proposal lifecycle](24-reviewed-data-collaboration.md) and the
 [MCP service](26-mcp-service-and-apps.md). Durable source/change semantics stay
 with their current owners; this milestone supplies consumer-specific conditions,
-governed hybrid context assembly (combining relational/bitemporal filters, BM25
-full-text search and vector similarity under a single `SnapshotId`, branch and
-security-barrier `policy_epoch`), context delivery and protocol projections
-within the caller's WLM resource group. Reasoning loops remain applications.
+governed hybrid context assembly (combining relational/bitemporal filters,
+declarative lexical, proximity (`NEAR`) and structural search—starting with
+Block-Max BM25 without being locked to bag-of-words—and vector/graph similarity
+under a single `SnapshotId`, branch and security-barrier `policy_epoch`),
+context delivery and protocol projections within the caller's WLM resource
+group. Reasoning loops remain applications, while speculative research into
+declarative sequence/span maps, context-conditioned continuation and
+branch-verified agency is tracked in
+[Milestone 32](32-declarative-language-context-and-synthesis.md).
 
 ## Delivery sequence
 

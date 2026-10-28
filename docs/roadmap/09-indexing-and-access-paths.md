@@ -121,10 +121,13 @@ does not supply a portable cross-vendor indexing grammar.
    Use a sound implication check before selecting it for a query; if implication
    is unknown, choose another path. Preserve error/five-state semantics and
    validate updates that enter or leave the indexed subset. Expression-key and
-   spatial indexes require their own admitted profiles; segment-backed inverted
-   full-text (BM25) and vector/hybrid search indexes are owned by
-   [multi-model and foreign relations](14-multi-model-and-foreign-relations.md)
-   and [reactive agent context](27-reactive-context-and-agent-activation.md).
+   spatial indexes require their own admitted profiles; segment-backed lexical,
+   substring/proximity, structural and vector/hybrid search indexes (starting
+   with the 256-doc Block-Max BM25 and ANN profiles) are owned by
+   [first-class strings and search](12-vectorized-strings-and-search.md),
+   [multi-model and foreign relations](14-multi-model-and-foreign-relations.md),
+   [reactive agent context](27-reactive-context-and-agent-activation.md) and
+   [declarative language, context and synthesis research](32-declarative-language-context-and-synthesis.md).
 5. **Integrate the planner and shared public operations.** Expose define, inspect,
    build/rebuild and retire/drop through owning typed operations and SQL adapters,
    using shared statement outcomes and original-operation recovery. Define DDL
