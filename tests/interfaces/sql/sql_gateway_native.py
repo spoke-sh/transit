@@ -32,6 +32,7 @@ def run(node, catalog, gateway):
         recovered = False
         repeated = False
         capacity_binding = capacity_receipt = None
+        capacity_armed = False
         capacity_repeats = 0
         sends = turns = table_calls = 0
         failures = []
@@ -45,7 +46,7 @@ def run(node, catalog, gateway):
             def log_message(self, *_): pass
             def do_POST(self):
                 nonlocal armed, accepted, committed, recovered, repeated, sends, turns, table_calls
-                nonlocal capacity_binding, capacity_receipt, capacity_repeats
+                nonlocal capacity_binding, capacity_receipt, capacity_repeats, capacity_armed
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 connection = getattr(upstream, 'conn', None)
                 if connection is None:
@@ -66,14 +67,15 @@ def run(node, catalog, gateway):
                         saved = action.get('commit_saved')
                         binding = action.get('client_token', {}).get('bind')
                         if status == 200 and binding and 'table' in binding['intent']:
-                            if capacity_binding is None:
+                            if capacity_armed:
                                 # Acceptance happened, but its response looks
                                 # temporarily unavailable. The runtime may only
                                 # repeat this exact frozen binding and token.
                                 capacity_binding = binding
                                 capacity_receipt = json.loads(data)['result']['client_token']
+                                capacity_armed = False
                                 status, data = 503, b'{"err":"HttpCapacity"}'
-                            elif binding['key'] == capacity_binding['key']:
+                            elif capacity_binding is not None and binding['key'] == capacity_binding['key']:
                                 assert binding == capacity_binding
                                 assert json.loads(data)['result']['client_token'] == capacity_receipt
                                 capacity_repeats += 1
@@ -184,6 +186,7 @@ def run(node, catalog, gateway):
             assert (result['matched'], result['changed']) == (1, 0), result
             history = call(gateway, 'history')
             assert history == dict(count=31, pages=4, empty_scheduling_indexes=True), history
+            capacity_armed = True
             result = call(gateway, 'runtime', 'UPDATE wire_data SET value = 21 WHERE id = 2')
             assert (result['outcome']['state'], result['outcome']['matched'], result['outcome']['changed']) == ('applied', 1, 1), result
             values = ', '.join(f'({i}, {i * 10})' for i in range(4, 71))
