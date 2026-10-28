@@ -130,8 +130,8 @@ When TLS listeners are enabled, OpenSSL uses one additional fixed reserve of
 plus 16 for native TCP TLS. Provider state, connection objects, reallocations,
 headers and fragmentation all consume that reserve. Crypto allocation exhaustion
 fails the TLS operation without a heap fallback; freed payloads are erased.
-All connection tasks and I/O workers join before OpenSSL's process cleanup frees
-the reserve. This bounds these owners independently of account runtime, source
+All connection tasks join, then a barrier ends OpenSSL state on every I/O worker
+before runtime and process cleanup free the reserve. This bounds these owners independently of account runtime, source
 and authority allocations; it is not a whole-process zero-allocation claim.
 Account workers and source/authority clients own additional storage beyond these
 reserves. Exhaustion has no general-heap fallback in the result

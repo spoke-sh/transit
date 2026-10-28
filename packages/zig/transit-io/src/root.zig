@@ -118,8 +118,8 @@ pub const Threaded = struct {
         if (gate.arrived.fetchAdd(1, .acq_rel) + 1 == gate.count) gate.ready.set(io_);
         gate.leave.waitUncancelable(io_);
     }
-    /// All host futures and groups must be joined first. Threaded teardown joins
-    /// workers before their task allocator or borrowed host state can disappear.
+    /// All host futures and groups must be joined first. Teardown waits for
+    /// worker loops before their task allocator or borrowed state disappears.
     pub fn destroy(self: *Threaded) void {
         // Pinned Threaded detaches pthreads and waits for their worker loops,
         // not subsequent pthread TLS destructors. Finish foreign thread state

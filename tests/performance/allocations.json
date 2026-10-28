@@ -158,7 +158,11 @@
         "cursor_replay",
         "source_page",
         "revocation",
-        "control_reserve"
+        "control_reserve",
+        "framing_refusal",
+        "advance_then_framing_refusal",
+        "exact_batch_repeat",
+        "terminal_count"
       ],
       "checks": [
         "tests/interfaces/sql/sql_gateway_native.zig",
@@ -186,13 +190,41 @@
       "checks": [
         "apps/transit-sql-gateway/src/Native.zig",
         "apps/transit-sql-gateway/src/main.zig",
-        "tests/interfaces/sql_sessions/security.py"
+        "tests/interfaces/sql_sessions/security.py",
+        "packages/zig/transit-io/src/root.zig",
+        "packages/zig/transit-tls-server/src/Memory.zig",
+        "tests/interfaces/sql_wire/tls.py"
       ],
-      "backing": "Eight native data and four independent control slots per listener; wire connection slabs and separate cancellation capacity.",
+      "backing": "Eight native data and four independent control slots per listener; wire connection slabs and separate cancellation capacity. Prestarted fixed I/O workers/task records and one process-wide OpenSSL slab; see the gateway configuration for admission formulas.",
       "gaps": [
-        "Server OpenSSL currently uses its C allocator.",
-        "Gateway std.Io runtime workers/tasks are not yet admitted through transit-io.",
-        "Actual socket send failures and the composed allocation gate need their installed schedules."
+        "AccountRuntime, source and authority allocators remain separate phase F owners.",
+        "Composed service/storage OS accounting and actual socket-send allocation attribution remain phase J qualification."
+      ]
+    },
+    {
+      "id": "server_crypto",
+      "owner": "packages/zig/transit-tls-server",
+      "phase": "E",
+      "gate": "executable",
+      "cases": [
+        "postgres_upgrade",
+        "mysql_upgrade",
+        "tls_1_2",
+        "tls_1_3",
+        "100_connections",
+        "worker_thread_cleanup",
+        "reallocation_refusal",
+        "secret_erasure"
+      ],
+      "checks": [
+        "packages/zig/transit-tls-server/src/Memory.zig",
+        "packages/zig/transit-tls-server/src/probe.zig",
+        "tests/interfaces/sql_wire/tls.py"
+      ],
+      "backing": "16 MiB OpenSSL slab and prestarted four-worker I/O reserve in the independent probe; sealed parents before context creation and all connections.",
+      "gaps": [
+        "OpenSSL hooks account calls made through its memory API, not arbitrary internal libc or OS calls.",
+        "Other gateway owners and full composed process observation require separate qualification."
       ]
     },
     {

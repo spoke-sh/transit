@@ -18,6 +18,14 @@ the `sql-wire` shell and native binary inputs. Protocol acceptance and performan
 measurements have separate expectations. Reference deployment requires its own
 available infrastructure and cannot be inferred from local gateway checks.
 
+`just test::sql-wire-tls` also admits a fixed 16 MiB OpenSSL reserve and four
+I/O workers before creating the TLS context. A sealed backing allocator covers
+100 successive connections per database upgrade, alternating TLS 1.2/1.3 with
+independent exact-payload checks. Unit checks cover exhausted reallocations,
+concurrent borrowers, erased releases and one cleanup callback per distinct
+worker before its foreign memory owner is freed. These checks cover the named
+reserves; they do not count unrelated gateway, libc or OS allocation paths.
+
 The reference task prints sanitized observations for its actual run. Its
 [earlier saved transcript](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/sql_wire/reference-transcript.json)
 is a historical observation, not an executable input or current passing result.
