@@ -10,11 +10,14 @@ const Stop = @import("Stop.zig");
 const Connection = @import("Connection.zig");
 const http = @import("transit_http_server");
 const Memory = g.query.QueryMemory;
+const memory = @import("transit_memory");
 const telemetry = g.query.wire.observability.telemetry;
 test {
     _ = g.Session;
+    _ = Native;
 }
 const Worker = struct {
+    reserve: memory.Slab,
     done: std.atomic.Value(bool) = .init(true),
     active: std.atomic.Value(bool) = .init(false),
     cancelled: std.atomic.Value(bool) = .init(false),
@@ -22,6 +25,28 @@ const Worker = struct {
     future: ?std.Io.Future(void) = null,
     id: u32 = 0,
     secret: u32 = 0,
+
+    fn create(allocator: std.mem.Allocator, count: usize, capacity: usize) ![]Worker {
+        const workers = try allocator.alloc(Worker, count);
+        errdefer allocator.free(workers);
+        var initialized: usize = 0;
+        errdefer for (workers[0..initialized]) |*worker| worker.reserve.deinit();
+        for (workers) |*worker| {
+            worker.* = .{ .reserve = try .init(allocator, capacity) };
+            initialized += 1;
+        }
+        return workers;
+    }
+    // The supervisor joins every future before releasing its stable slot.
+    fn destroy(allocator: std.mem.Allocator, workers: []Worker) void {
+        for (workers) |*worker| worker.reserve.deinit();
+        allocator.free(workers);
+    }
+    fn reservedBytes(workers: []const Worker) usize {
+        var bytes = workers.len * @sizeOf(Worker);
+        for (workers) |worker| bytes += worker.reserve.buffer.len;
+        return bytes;
+    }
 };
 const Protocol = enum { postgres, mysql };
 const Server = struct {
@@ -82,7 +107,10 @@ const Server = struct {
         defer slot.done.store(true, .release);
         defer slot.active.store(false, .release);
         defer stream.close(self.io);
-        var budget: Memory = .{ .parent = self.allocator, .limit = self.config.limits.session_bytes };
+        // connectionDeadline joins both the protocol and its deadline before
+        // this slot is erased and published as reusable by done.store.
+        defer slot.reserve.reset(true) catch unreachable;
+        var budget: Memory = .{ .parent = slot.reserve.allocator(), .limit = self.config.limits.session_bytes };
         self.connectionDeadline(slot, stream, budget.allocator(), cancellation_only, protocol) catch |err| {
             self.diagnostics.event(.{ .name = "sql.connection.closed", .level = .debug, .outcome = .failed, .error_type = @errorName(err) });
         };
@@ -576,9 +604,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer if (postgres_listener) |*listener| listener.deinit(init.io);
     var mysql_listener: ?std.Io.net.Server = if (config.mysql_port) |port| try (try std.Io.net.IpAddress.parseIp4(config.bind_address, port)).listen(init.io, .{ .reuse_address = true }) else null;
     defer if (mysql_listener) |*listener| listener.deinit(init.io);
-    const workers = try init.gpa.alloc(Worker, @as(usize, config.limits.connections) + 2);
-    defer init.gpa.free(workers);
-    for (workers) |*worker| worker.* = .{};
+    const workers = try Worker.create(init.gpa, if (config.wireListening()) @as(usize, config.limits.connections) + 2 else 0, config.limits.session_bytes);
+    defer Worker.destroy(init.gpa, workers);
     defer for (workers) |*worker| if (worker.future) |*future| future.cancel(init.io);
     var server: Server = .{ .allocator = init.gpa, .io = init.io, .config = config, .tls_context = if (context) |*value| value else null, .runtimes = runtimes.items, .diagnostics = diagnostics, .workers = workers, .registry = &registry };
     var health_listener: ?std.Io.net.Server = if (config.health_port) |port| try (try std.Io.net.IpAddress.parseIp4(config.health_address, port)).listen(init.io, .{ .reuse_address = true }) else null;
@@ -636,4 +663,35 @@ fn recoverSessions(registry: *g.Registry, io: std.Io, diagnostics: *telemetry.Ru
         };
         previous = null;
     }
+}
+
+fn workerReserveFailures(allocator: std.mem.Allocator) !void {
+    const workers = try Worker.create(allocator, 3, 4096);
+    defer Worker.destroy(allocator, workers);
+}
+test "wire worker admission rolls back partial reserves" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, workerReserveFailures, .{});
+}
+test "wire frame reserves reuse independently of cancellation capacity" {
+    const t = std.testing;
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    const workers = try Worker.create(probe.allocator(), 3, 4096);
+    defer Worker.destroy(probe.allocator(), workers);
+    try t.expectEqual(Worker.reservedBytes(workers), probe.live_bytes);
+    probe.begin(true);
+    const retained = try workers[0].reserve.allocator().dupe(u8, "slow reader frame");
+    defer workers[0].reserve.allocator().free(retained);
+    for (0..100) |_| {
+        const a = workers[1].reserve.allocator();
+        const frame = try a.alloc(u8, 4096 - memory.Slab.granule);
+        try t.expectError(error.OutOfMemory, a.alloc(u8, 1));
+        const cancellation = try workers[2].reserve.allocator().dupe(u8, "cancel");
+        workers[2].reserve.allocator().free(cancellation);
+        try workers[2].reserve.reset(true);
+        try t.expect(std.mem.allEqual(u8, workers[2].reserve.buffer[memory.Slab.granule..], 0));
+        a.free(frame);
+        try workers[1].reserve.reset(true);
+        try t.expectEqualStrings("slow reader frame", retained);
+    }
+    try probe.verify();
 }

@@ -1,6 +1,7 @@
 //! Bounded logical sessions. Registry locks protect identities/admission only;
 //! each session has one native-client borrower, independent of its HTTP sockets.
 const std = @import("std");
+const mem = @import("transit_memory");
 const g = @import("root.zig");
 const api = g.session_protocol;
 const f = g.fuze;
@@ -12,6 +13,7 @@ runtimes: []const *g.AccountRuntime,
 instance: api.Instance,
 mutex: std.Io.Mutex = .init,
 slots: []Slot,
+recovery_reserve: mem.Slab,
 challenges: [16]?Challenge = @splat(null),
 authenticating: std.atomic.Value(u16) = .init(0),
 recovery_index: usize = 0,
@@ -47,6 +49,7 @@ pub const Slot = struct {
     cancellation: std.atomic.Value(bool) = .init(false),
     active: std.atomic.Value(bool) = .init(false),
     memory: g.query.QueryMemory = undefined,
+    reserve: mem.Slab = undefined,
     host: ?*g.Session = null,
     last: std.Io.Timestamp = .{ .nanoseconds = 0 },
     // Protected by Registry.mutex. Independent controls borrow immutable
@@ -71,19 +74,37 @@ pub const Slot = struct {
         if (self.host) |host| host.deinit();
         self.host = null;
         std.debug.assert(self.memory.used == 0);
+        self.reserve.reset(true) catch unreachable;
         std.crypto.secureZero(u8, &self.id);
     }
 };
 pub fn init(allocator: std.mem.Allocator, io: std.Io, configuration: *const g.Configuration, runtimes: []const *g.AccountRuntime, instance: api.Instance) !Self {
     const slots = try allocator.alloc(Slot, configuration.limits.connections);
-    for (slots) |*slot| slot.* = .{};
-    return .{ .allocator = allocator, .io = io, .configuration = configuration, .runtimes = runtimes, .instance = instance, .slots = slots };
+    errdefer allocator.free(slots);
+    var initialized: usize = 0;
+    errdefer for (slots[0..initialized]) |*slot| slot.reserve.deinit();
+    for (slots) |*slot| {
+        slot.* = .{ .reserve = try .init(allocator, configuration.limits.session_bytes) };
+        initialized += 1;
+    }
+    return .{ .allocator = allocator, .io = io, .configuration = configuration, .runtimes = runtimes, .instance = instance, .slots = slots, .recovery_reserve = try .init(allocator, configuration.limits.session_bytes) };
 }
 /// The supervisor joins every listener/borrower before releasing the registry.
 pub fn deinit(self: *Self) void {
-    for (self.slots) |*slot| if (slot.present) slot.clear();
+    for (self.slots) |*slot| {
+        if (slot.present) slot.clear();
+        slot.reserve.deinit();
+    }
     for (&self.challenges) |*challenge| if (challenge.*) |*value| value.scram.deinit();
     self.allocator.free(self.slots);
+    self.recovery_reserve.deinit();
+}
+/// Accounted backing remains resident-capacity admission even when no session
+/// is open. This excludes AccountRuntime/source/authority and listener reserves.
+pub fn reservedBytes(self: *const Self) usize {
+    var bytes = self.slots.len * @sizeOf(Slot) + self.recovery_reserve.buffer.len;
+    for (self.slots) |slot| bytes += slot.reserve.buffer.len;
+    return bytes;
 }
 pub fn acquireAuthentication(self: *Self) bool {
     var count = self.authenticating.load(.monotonic);
@@ -126,7 +147,8 @@ pub fn create(self: *Self, account: usize, credential: g.Configuration.Credentia
         slot.mutex.unlock(self.io);
     }
     try self.io.randomSecure(&slot.id);
-    slot.memory = .{ .parent = self.allocator, .limit = self.configuration.limits.session_bytes };
+    slot.memory = .{ .parent = slot.reserve.allocator(), .limit = self.configuration.limits.session_bytes };
+    errdefer slot.reserve.reset(true) catch unreachable;
     slot.cancellation.store(false, .release);
     slot.active.store(false, .release);
     slot.host = try g.Session.init(slot.memory.allocator(), self.io, self.configuration, account, self.runtimes[account], credential, database, dialect, &slot.cancellation, &slot.active);
@@ -182,13 +204,15 @@ pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]alig
 }
 /// Encodes while the borrower lock remains held. The returned bytes belong to
 /// the request allocator and never borrow a result freed by another connection.
-pub fn request(self: *Self, allocator: std.mem.Allocator, input: api.Request, peer: Peer) ![]align(api.ResultFrame.alignment) u8 {
+/// `working` is independent reusable control storage: freeing a temporary
+/// Session must reclaim it even while request JSON/output remains alive.
+pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator, input: api.Request, peer: Peer) ![]align(api.ResultFrame.alignment) u8 {
     try input.validate();
     if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery" } } });
     if (!std.mem.eql(u8, &input.instance.?, &self.instance)) return error.SqlInstanceChanged;
     if (input.action == .open) return self.open(allocator, input.action.open, peer);
     if (input.action == .authenticate) return self.authenticate(allocator, input.action.authenticate);
-    if (input.action == .cancel or input.action == .status or input.action == .operations or input.action == .@"resume") return self.control(allocator, input);
+    if (input.action == .cancel or input.action == .status or input.action == .operations or input.action == .@"resume") return self.control(allocator, working, input);
     try self.mutex.lock(self.io);
     const slot = self.locate(input.session.?) catch |err| {
         self.mutex.unlock(self.io);
@@ -214,7 +238,8 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, input: api.Request, pe
         self.mutex.unlock(self.io);
     }
     const host = slot.host.?;
-    errdefer slot.clearCursor();
+    var buffered = false;
+    errdefer if (!buffered) slot.clearCursor();
     if (input.action == .close) {
         try host.begin();
         host.end();
@@ -237,6 +262,10 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, input: api.Request, pe
         } else info.state;
         return self.response(allocator, .{ .err = .{ .code = @errorName(err), .sqlstate = state, .message = info.message, .diagnostic = diagnostic, .retry = if (input.action == .execute and input.action.execute.token != null and slot.acceptance_possible and err != error.SqlTokenConflict and diagnostic == null) .control else .never } });
     };
+    // A complete logical batch already owns its ordinal, contents and disclosure
+    // evidence. Request encoding failure must not destroy that retained state;
+    // repeating the same ordinal still revalidates current rights in action().
+    buffered = result == .batch;
     return self.response(allocator, result);
 }
 fn opened(self: *Self, allocator: std.mem.Allocator, account: usize, credential: g.Configuration.Credential, database: []const u8, source: ?[]const u8, proof: []const u8) ![]align(api.ResultFrame.alignment) u8 {
@@ -536,7 +565,7 @@ fn batch(self: *Self, slot: *Slot, ordinal: u64) !api.Batch {
 /// Controls use a separately owned transport, even while the session's read or
 /// admission request is stalled. Authentication is checked afresh before any
 /// atomic cancellation or protected operation observation.
-fn control(self: *Self, allocator: std.mem.Allocator, input: api.Request) ![]align(api.ResultFrame.alignment) u8 {
+fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator, input: api.Request) ![]align(api.ResultFrame.alignment) u8 {
     try self.mutex.lock(self.io);
     const slot = self.locate(input.session.?) catch |err| {
         self.mutex.unlock(self.io);
@@ -565,8 +594,8 @@ fn control(self: *Self, allocator: std.mem.Allocator, input: api.Request) ![]ali
     }
     var cancelled: std.atomic.Value(bool) = .init(false);
     var active: std.atomic.Value(bool) = .init(false);
-    var memory: g.query.QueryMemory = .{ .parent = self.allocator, .limit = self.configuration.limits.session_bytes };
-    const host = try g.Session.init(memory.allocator(), self.io, self.configuration, account, self.runtimes[account], credential, database, .transit, &cancelled, &active);
+    var budget: g.query.QueryMemory = .{ .parent = working, .limit = self.configuration.limits.session_bytes };
+    const host = try g.Session.init(budget.allocator(), self.io, self.configuration, account, self.runtimes[account], credential, database, .transit, &cancelled, &active);
     defer host.deinit();
     try host.selectSource(source_name);
     try host.begin();
@@ -670,7 +699,8 @@ pub fn recover(self: *Self) !void {
     self.recovery_index = (index + 1) % self.runtimes.len;
     const runtime = self.runtimes[index];
     if (!runtime.ready.load(.acquire)) return;
-    var memory: g.query.QueryMemory = .{ .parent = self.allocator, .limit = self.configuration.limits.session_bytes };
+    defer self.recovery_reserve.reset(true) catch unreachable;
+    var memory: g.query.QueryMemory = .{ .parent = self.recovery_reserve.allocator(), .limit = self.configuration.limits.session_bytes };
     const a = memory.allocator();
     const account = &self.configuration.accounts[index];
     var wire = g.station.client.Client.init(a, self.io, self.configuration.native_url);
@@ -702,4 +732,49 @@ pub fn recover(self: *Self) !void {
         },
         .table => return error.InvalidSqlOperationReference,
     }
+}
+
+const reserve_configuration: g.Configuration = .{
+    .version = 1,
+    .definition = g.session_protocol.native.current_definition,
+    .native_url = "http://127.0.0.1:1",
+    .certificate_file = "unused",
+    .certificate_key_file = "unused",
+    .activation_directory = "unused",
+    .spill_directory = "unused",
+    .accounts = &.{},
+    .limits = .{ .connections = 2, .connections_per_account = 2, .authentications = 1, .frame_bytes = 8192, .cycle_bytes = 8192, .session_bytes = 8192 },
+};
+fn reserveFailures(allocator: std.mem.Allocator) !void {
+    var registry = try init(allocator, std.testing.io, &reserve_configuration, &.{}, @splat(1));
+    defer registry.deinit();
+}
+test "registry reserve admission rolls back every partial initialization" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, reserveFailures, .{});
+}
+test "session slot reserves and recovery capacity remain independent across reassignment" {
+    const t = std.testing;
+    var probe: mem.AllocationProbe = .{ .parent = t.allocator };
+    var registry = try init(probe.allocator(), t.io, &reserve_configuration, &.{}, @splat(1));
+    defer registry.deinit();
+    try t.expectEqual(registry.reservedBytes(), probe.live_bytes);
+    const retained_allocator = registry.slots[0].reserve.allocator();
+    const retained = try retained_allocator.dupe(u8, "independent cursor storage");
+    defer retained_allocator.free(retained);
+    probe.begin(true);
+    for (0..100) |_| {
+        const reserve = &registry.slots[1].reserve;
+        const a = reserve.allocator();
+        const bytes = try a.alloc(u8, reserve.buffer.len - mem.Slab.granule);
+        @memset(bytes, 0xa5);
+        try t.expectError(error.OutOfMemory, a.alloc(u8, 1));
+        const recovery_allocator = registry.recovery_reserve.allocator();
+        const admitted = try recovery_allocator.dupe(u8, "recovery continues");
+        recovery_allocator.free(admitted);
+        a.free(bytes);
+        try reserve.reset(true);
+        try t.expect(std.mem.allEqual(u8, reserve.buffer[mem.Slab.granule..], 0));
+        try t.expectEqualStrings("independent cursor storage", retained);
+    }
+    try probe.verify();
 }

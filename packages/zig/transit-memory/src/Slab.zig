@@ -17,7 +17,7 @@ const Block = struct {
 comptime {
     std.debug.assert(@sizeOf(Block) <= granule);
 }
-parent: std.mem.Allocator,
+parent: ?std.mem.Allocator,
 buffer: []align(granule) u8,
 first_free: usize = 0,
 mutex: std.atomic.Mutex = .unlocked,
@@ -31,18 +31,37 @@ pub fn init(parent: std.mem.Allocator, capacity: usize) !Self {
     if (capacity < granule * 2) return error.InvalidWorkspaceCapacity;
     // Round down rather than silently exceeding a caller's admitted reserve.
     const bytes = try parent.alignedAlloc(u8, .fromByteUnits(granule), capacity & ~@as(usize, granule - 1));
-    var self: Self = .{ .parent = parent, .buffer = bytes };
-    self.block(0).* = .{ .size = bytes.len, .previous = 0 };
+    var self = try fromBuffer(bytes);
+    self.parent = parent;
+    return self;
+}
+/// The backing owner accounts for and outlives this slab and all its objects.
+/// The caller must hold an exclusive lease on the supplied bytes.
+pub fn fromBuffer(bytes: []align(granule) u8) !Self {
+    if (bytes.len < granule * 2) return error.InvalidWorkspaceCapacity;
+    var self: Self = .{ .parent = null, .buffer = bytes[0 .. bytes.len & ~@as(usize, granule - 1)] };
+    self.block(0).* = .{ .size = self.buffer.len, .previous = 0 };
     return self;
 }
 pub fn deinit(self: *Self) void {
     std.debug.assert(self.live_bytes == 0 and self.occupied_bytes == 0);
     std.crypto.secureZero(u8, self.buffer);
-    self.parent.free(self.buffer);
+    if (self.parent) |parent| parent.free(self.buffer);
     self.* = undefined;
 }
 pub fn allocator(self: *Self) std.mem.Allocator {
     return .{ .ptr = self, .vtable = &.{ .alloc = alloc, .resize = resize, .remap = remap, .free = free } };
+}
+/// Reassign an idle reserve only after every borrower has joined and freed its
+/// reservations. Lifetime high-water accounting survives reuse. Erasure includes
+/// freed payloads, padding and old headers before rebuilding the empty free list.
+pub fn reset(self: *Self, erase: bool) error{MemoryInUse}!void {
+    self.lock();
+    defer self.mutex.unlock();
+    if (self.live_bytes != 0 or self.occupied_bytes != 0) return error.MemoryInUse;
+    if (erase) std.crypto.secureZero(u8, self.buffer);
+    self.block(0).* = .{ .size = self.buffer.len, .previous = 0 };
+    self.first_free = 0;
 }
 fn lock(self: *Self) void {
     while (!self.mutex.tryLock()) std.atomic.spinLoopHint();
@@ -243,6 +262,54 @@ test "slab resize preserves adjacent borrowers and recovers trailing space" {
     a.free(tail);
     a.free(first);
     try t.expectEqual(0, slab.live_bytes);
+}
+
+test "borrowed slab lifetime stays inside its exclusive pool lease" {
+    const t = std.testing;
+    var probe: @import("AllocationProbe.zig") = .{ .parent = t.allocator };
+    var pool = try @import("Pool.zig").init(probe.allocator(), &.{4097});
+    defer pool.deinit();
+    probe.begin(true);
+    for (0..100) |_| {
+        const lease = try pool.acquire(4097);
+        defer lease.release(true) catch unreachable;
+        var slab = try fromBuffer(lease.value.owner.buffer);
+        defer slab.deinit();
+        try t.expectEqual(4096, slab.buffer.len);
+        try t.expectError(error.MemoryPoolExhausted, pool.acquire(1));
+        const value = try slab.allocator().dupe(u8, "owned until joined");
+        slab.allocator().free(value);
+        try slab.reset(true);
+        try t.expect(std.mem.allEqual(u8, slab.buffer[granule..], 0));
+    }
+    try probe.verify();
+    try t.expectEqual(pool.reservedBytes(), probe.live_bytes);
+}
+
+test "idle slab reassignment erases freed payloads without invalidating a borrower" {
+    const t = std.testing;
+    var probe: @import("AllocationProbe.zig") = .{ .parent = t.allocator };
+    var slab = try init(probe.allocator(), 4096);
+    defer slab.deinit();
+    const a = slab.allocator();
+    probe.begin(true);
+    for (0..100) |_| {
+        {
+            const value = try a.alloc(u8, 1024);
+            defer a.free(value);
+            @memset(value, 0xa5);
+            try t.expectError(error.MemoryInUse, slab.reset(true));
+            try t.expect(std.mem.allEqual(u8, value, 0xa5));
+        }
+        try slab.reset(true);
+        try t.expect(std.mem.allEqual(u8, slab.buffer[granule..], 0));
+        // Allocator.alloc may poison new values in Debug; inspect erasure before
+        // acquisition and independently check that the full capacity is reusable.
+        const whole = try a.alloc(u8, slab.buffer.len - granule);
+        a.free(whole);
+    }
+    try probe.verify();
+    try t.expectEqual(4096, probe.live_bytes);
 }
 
 test "slab exhaustion and failed growth preserve live borrowers and retained accounting" {

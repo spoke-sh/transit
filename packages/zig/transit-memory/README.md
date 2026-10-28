@@ -26,6 +26,10 @@ fragmentation consume the reserve. `live_bytes` counts requested payload bytes;
 until destruction. `reservations` and `refusals` count internal free-list requests.
 Allocation failure never falls back to the parent. Destroy it only after freeing
 every object. Initialization rounds capacity down to a multiple of 64 bytes.
+`fromBuffer` borrows an exclusively leased aligned reserve; its backing owner
+remains responsible for accounting and release. `reset(true)` requires no live
+objects and erases freed payloads, padding and old headers before reassignment.
+Lifetime peak accounting survives reset.
 
 `Budget` bounds allocations through one borrower and distinguishes its configured
 exhaustion from a parent allocator failure. Optional `Quota` ancestors provide
