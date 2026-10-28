@@ -243,6 +243,14 @@ never reopens a snapshot or silently skips to a new cut. A new session cannot
 resume an ordinary interactive SELECT. Explicit captured execution uses its
 separate durable query owner and operation reference.
 
+Before an ordinary Table result opens, snapshot preparation may race a Table
+publication. A conflict alone does not permit changing the acquisition identity.
+The service may prepare again only after current owner inspection proves that
+the original pin is absent and its exact frontier is permanently past. It records
+closure before the next acquisition, validates the same object/definition and
+bounds preparation to four attempts. Accepted or uncertain pins keep their
+original identities; an opened result never changes its observation basis.
+
 ## Durable admission and recovery
 
 The account-scoped token is a caller-generated 128-bit value. Its durable index

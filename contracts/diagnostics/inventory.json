@@ -21418,11 +21418,12 @@
     "packages/zig/transit-sql/src/ReadCache.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
+        "Conflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidSqlReadRecovery": 9,
         "SqlReadLeaseCapacity": 1,
         "StaleGatewayCoordinator": 1,
-        "TableDefinitionChanged": 2,
+        "TableDefinitionChanged": 3,
         "TableSnapshotNotPinned": 1
       },
       "outcomes": {
@@ -21448,8 +21449,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
-        "catch": 0
+        "try": 40,
+        "catch": 1
       },
       "imports": [
         "root.zig",

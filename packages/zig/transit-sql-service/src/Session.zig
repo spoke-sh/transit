@@ -464,7 +464,9 @@ pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.At
 }
 pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
     // Acquisition persists each original request before dispatch. A failed
-    // attempt enters cleanup; this boundary never silently captures a new cut.
+    // attempt enters cleanup. ReadCache can retry preparation only after proving
+    // the original pin is absent and its exact frontier can no longer be acquired;
+    // an accepted/uncertain pin or opened iterator never switches its cut.
     return self.acquireRead(prepared, values);
 }
 

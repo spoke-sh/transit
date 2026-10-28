@@ -262,6 +262,8 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     first.call(dict(close_result=retained['cursor']))
     completed('DELETE FROM native_sessions WHERE id = 2', 1, 1)
     print('Foreground DML: immediate terminal INSERT/UPDATE/DELETE counts, no-op/empty outcomes and original DELETE retry after reinsertion passed.', flush=True)
+    if faults is not None:
+        faults.check_pin_race(first, second)
     desc = first.execute('DESCRIBE native_sessions')['batch']
     assert desc['rows'] and len(desc['rows'][0]) == 9
     assert desc['observation']['metadata']['kind'] == 'catalog'

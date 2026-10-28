@@ -331,6 +331,25 @@ reduces the number of durable publications required by a new mutation.
 
 ### Optimistic current reads and retained cuts
 
+SQL's cold read preparation first observes a frontier and records an exact pin
+request. A concurrent row, pin or physical publication can advance that frontier
+before acquisition. [`ReadCache`](../../../packages/zig/transit-sql/src/ReadCache.zig)
+allows at most four preparation attempts, with a separate safety gate after a
+conflict: current `pin_status` must report no pin for the original owner and a
+strictly later frontier in the same partition. Monotonicity and exact pin matching
+then exclude both an earlier successful acquisition and any delayed future one.
+The service records closure before preparing another identity, and validates
+the original object and definition again. A retained pin, missing observation,
+changed definition or exhausted bound fails preparation. No iterator has opened
+at this point; an existing result never restarts or changes its cut.
+
+The [session fault schedule](../../../tests/interfaces/sql_sessions/faults.py)
+places a real concurrent INSERT between discovery and pinning, then checks the
+absence proof and exact result. Its complementary schedule replaces a successful
+pin reply with a conflict: inspection finds that original pin, and preparation
+must fail without substituting another identity. These schedules distinguish
+proven failed acquisition from an error response that follows acceptance.
+
 Can a caller read one row or traverse a stable Table without creating durable
 retention work? In the serialized local-owner model, `read_current` uses an
 optimistic logical-change fence. Let `e` be the caller's original exclusive

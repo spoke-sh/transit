@@ -74,7 +74,13 @@ Catalog recovery slots per connection route. A read checks the current definitio
 frontier, then borrows an unchanged cut without another pin or durable slot
 write. Every page and buffered disclosure still checks current authorization.
 A cold acquisition records its exact owner and expected cut before acquiring the
-pin; a missing reply never permits substituting a new cut. Reuse is bounded by
+pin; a missing reply never permits substituting a new cut. Before an iterator or
+result exists, a pin conflict permits another acquisition attempt only after
+`pin_status` proves the original owner absent at a strictly later frontier. The
+old exact request cannot then succeed, even if delayed. The service records its
+closure, rechecks the same Table definition and tries a fresh acquisition, with
+at most four attempts. An existing pin, uncertain observation, definition change
+or exhausted bound ends preparation without switching an accepted cut. Reuse is bounded by
 cache capacity; active borrows cannot be evicted. Idle entries can be replaced,
 and a new generation closes original pins using their recorded identities.
 Closing a result releases its borrow; it need not release the cached durable pin.
