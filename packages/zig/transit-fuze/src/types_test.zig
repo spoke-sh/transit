@@ -102,6 +102,21 @@ test "exact literals and casts preserve integer bits and require explicit roundi
     try t.expectError(error.Overflow, s.bind("9999.99", .{ .decimal = .{ .precision = 5, .scale = 2 } }));
     try t.expectEqual(@as(u64, 1) << 63, @as(u64, @bitCast((try s.bind("-0.0", .float64)).float)));
 }
+test "integer float casts preserve exactness at the full signed and unsigned boundaries" {
+    for ([_]m.Type{ .float32, .float64 }) |target| {
+        try t.expectEqual(@as(f64, -0x1p127), (try s.cast(.{ .signed = std.math.minInt(i128) }, .int128, target, .reject)).float);
+        try t.expectError(error.Inexact, s.cast(.{ .signed = std.math.minInt(i128) + 1 }, .int128, target, .reject));
+        try t.expectError(error.Inexact, s.cast(.{ .signed = std.math.maxInt(i128) }, .int128, target, .reject));
+        try t.expectEqual(@as(f64, 0x1p127), (try s.cast(.{ .signed = std.math.maxInt(i128) }, .int128, target, .nearest_even)).float);
+        try t.expectEqual(@as(f64, 0x1p127), (try s.cast(.{ .unsigned = @as(u128, 1) << 127 }, .uint128, target, .reject)).float);
+        try t.expectError(error.Inexact, s.cast(.{ .unsigned = (@as(u128, 1) << 127) + 1 }, .uint128, target, .reject));
+        try t.expectEqual(@as(f64, 0), (try s.cast(.{ .unsigned = 0 }, .uint128, target, .reject)).float);
+    }
+    try t.expectError(error.Inexact, s.cast(.{ .unsigned = std.math.maxInt(u128) }, .uint128, .float64, .reject));
+    try t.expectEqual(@as(f64, 0x1p128), (try s.cast(.{ .unsigned = std.math.maxInt(u128) }, .uint128, .float64, .nearest_even)).float);
+    try t.expectError(error.Overflow, s.cast(.{ .unsigned = std.math.maxInt(u128) }, .uint128, .float32, .reject));
+    try t.expectError(error.Overflow, s.cast(.{ .unsigned = std.math.maxInt(u128) }, .uint128, .float32, .nearest_even));
+}
 test "promotion is domain based while CSV inference protects identifiers" {
     try t.expectEqual(m.Tag.int128, (try s.promote(.int64, .uint64)).tag());
     try t.expectError(error.NoLosslessPromotion, s.promote(.int128, .uint128));
