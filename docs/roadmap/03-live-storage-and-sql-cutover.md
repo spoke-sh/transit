@@ -710,6 +710,19 @@ collection, the Station Table boundary, broader resource integration, public
 storage inspection and final common-revision qualification remain required.
 Mutation timeouts are an explicit unresolved limit of this increment.
 
+**Database decoupling bridge ([Milestone 6 Step 1](06-streams-queues-and-durable-runtime.md)):**
+To resolve P5's 16-turn / 128-byte KV part upload mutation bottleneck and
+per-query `ReadPins` disk syncs without building [Milestone 5](05-transactions-and-atomic-composition.md)
+(`BEGIN`/`COMMIT`/`ROLLBACK`) on top of [`AccountRuntime.zig`](../../packages/zig/transit-sql/src/AccountRuntime.zig)
+and [`Ledger.zig`](../../packages/zig/transit-sql/src/Ledger.zig), pull forward
+**Step 1 of [Milestone 6](06-streams-queues-and-durable-runtime.md)** (`transit-sql`
+$\perp$ `Station` decoupling): remove `AccountRuntime`, `Ledger`, `Coordinator`
+and disk-flushed `ReadPins` from `transit-sql`, and move client token
+idempotency (`(AccountId, ClientToken) -> OperationId, CommitLSN, OutcomeReceipt`)
+and lease-cached snapshot cuts (`policy_epoch`) directly into
+[`TablePartition.zig`](../../packages/zig/transit-storage/src/TablePartition.zig)
+and [`DirectCatalog.zig`](../../packages/zig/transit-catalog/src/DirectCatalog.zig).
+
 #### P6 — Publish one authorized storage view and configuration surface
 
 Owners: shared protocol/catalog/client operations, server settings, CLI/SQL

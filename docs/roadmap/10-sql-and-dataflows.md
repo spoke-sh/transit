@@ -112,11 +112,15 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   point-in-time research, backtesting and decision auditing evaluate what was
   valid in the domain *and* known to the system at the decision cut, preventing
   later backfill corrections from leaking into earlier simulated decisions.
-- **Expose a first-class SQL `CHANGES(...)` table-valued function for CDC egress:**
-  allow SQL, Arrow Flight and SDK callers to query committed logical changes
+- **Expose first-class SQL `CHANGES(...)` and `STREAM_SLICE(...)` table-valued functions for CDC egress and side-effect-free relational stream queries:**
+  allow SQL, Arrow Flight and SDK callers to query committed Table logical changes
   (`+row`/`-row` or net upserts/deletes with transaction, LSN and manifest
-  provenance) between two snapshot cuts or watermarks (`SELECT * FROM CHANGES(table, ...)`),
-  preserving 5-state cells and current `policy_epoch` access checks.
+  provenance) between two snapshot cuts or watermarks (`SELECT * FROM CHANGES(table, ...)`)
+  and to project bounded historical `.tseg` ranges from declared
+  [Streams](06-streams-queues-and-durable-runtime.md) into relational joins and
+  bitemporal `AS OF JOIN` backtests (`SELECT * FROM STREAM_SLICE(stream, OFFSET ? TO ?)`
+  or `STREAM_SLICE(stream, TIMESTAMP ? TO ?)`) without advancing consumer-group
+  offsets, preserving 5-state cells and current `policy_epoch` access checks.
 - Provide logical/physical explanation and output-schema inspection without
   source disclosure, mutation or external work.
 - Implement general `MERGE`/upsert and prepared-plan lifetime through shared SQL

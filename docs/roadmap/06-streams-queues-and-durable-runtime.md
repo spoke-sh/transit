@@ -63,19 +63,22 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
 | Primitive / Plane | Primary workload | Declarative SQL & caller verbs | Storage & execution authority |
 | --- | --- | --- | --- |
 | `TABLE` / `KV` / `DOCUMENT` (Direct Data Plane) | Mutable versioned state, relational queries, point lookups and causal documents | `CREATE TABLE`, `INSERT INTO`, `UPDATE`, `DELETE FROM`, `SELECT ... FROM` | `DirectCatalog`, `TablePartition`, `TransitLog` (`TWAL1`), `.tseg` segments and `.tdel` vectors with zero `Station` involvement |
-| `STREAM` (Direct Data Plane) | High-throughput append-only ordered event logs, pub/sub fan-out, CDC and replayable histories | `CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `COMMIT OFFSET` | Partitioned `TransitLog` (`TWAL1`) tail + immutable `.tseg` segments in `TransitObjectStore` + consumer-group watermark log |
-| `QUEUE` (Direct Data Plane) | Point-to-point competing consumers, delayed tasks, retries/DLQ and key-ordered (`key_fifo`) work leasing | `CREATE QUEUE`, `ENQUEUE INTO`, `CLAIM ... FROM ... WITH LEASE`, `ACK`, `NACK`, `EXTEND LEASE` | Append-only `TransitLog`/`.tseg` payloads + Roaring-bitmap ack vectors + fenced in-memory lease heap + `key_fifo` affinity table + hierarchical timer wheel |
+| `STREAM` (Direct Data Plane) | High-throughput append-only ordered event logs, pub/sub fan-out, CDC and replayable histories | `CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `COMMIT OFFSET` (plus read-only `STREAM_SLICE(...)` for relational `SELECT` joins) | `StreamPartition`: partitioned `TransitLog` (`TWAL1`) tail + immutable `.tseg` segments in `TransitObjectStore` + consumer-group watermark log |
+| `QUEUE` (Direct Data Plane) | Point-to-point competing consumers, delayed tasks, retries/DLQ and key-ordered (`key_fifo`) work leasing | `CREATE QUEUE`, `ENQUEUE INTO`, `CLAIM ... FROM ... WITH LEASE`, `ACK`, `NACK`, `EXTEND LEASE` | `QueuePartition`: `StreamPartition` payloads + `.tack` Roaring-bitmap ack vectors + fenced in-memory `_lease_epoch` heap + `key_fifo` affinity table + hierarchical timer wheel |
 | `Station` (Process & Effect Plane) | Stateful virtual actors, durable workflows, supervision trees and governed external connector effects | Behavior handlers, typed `client.service` RPC and transactional turns | Layered over declared `QUEUE` (inbox with `key_fifo` lease), `TABLE`/`KV`/`DOCUMENT` (state), `STREAM`/`QUEUE` (journal & outbox) and Milestone 5 transactions |
 
 ## Delivery sequence
 
-1. **Decouple the database and SQL service from `Station` (`transit-sql` $\perp$ `Station`).**
+1. **Decouple the database and SQL service from `Station` (`transit-sql` $\perp$ `Station` — pulled forward to close [Milestone 3 P5](03-live-storage-and-sql-cutover.md#implementation-plan--2026-10-27) before [Milestone 5](05-transactions-and-atomic-composition.md) coordinator implementation).**
    Remove `Station` `GenServer`, `AccountRuntime`, `Ledger` and `Coordinator` from
    `transit-sql`, `transit-sql-gateway` and `transit-query-host`. Move client
    operation idempotency (`(AccountId, ClientToken) -> OperationId, CommitLSN, OutcomeReceipt`),
    active lease fencing (`policy_epoch`) and snapshot cut pins directly into the
    database's own partition and transaction coordinator (`DirectCatalog`,
    `TablePartition` and [Milestone 5 transaction logs](05-transactions-and-atomic-composition.md)).
+   Execute this decoupling as the immediate bridge closing [Milestone 3 P5](03-live-storage-and-sql-cutover.md)
+   so [Milestone 5](05-transactions-and-atomic-composition.md) (`BEGIN`/`COMMIT`/`ROLLBACK`)
+   is never built on top of `AccountRuntime` or `Ledger`:
    - A single-partition autocommit SQL `INSERT`, `UPDATE` or `DELETE` must commit
      in **one round-trip** from the SQL gateway to the partition owner's
      `TransitLog` (`TWAL1`), without chunking SQL text into 128-byte KV parts or
@@ -140,6 +143,16 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
      high-watermark offset, next continuation offset and consumer watermark lag.
      Filter and projection predicates push down into vectorized `Fuze` batch
      readers over both hot `TWAL1` tail buffers and historical `.tseg` segments.
+   - **Explicit read-only bridge for relational queries over historical stream segments (`STREAM_SLICE`):**
+     While `PRODUCE INTO` and `CONSUME ... FROM` own operational stream append
+     and stateful cursor/watermark progression, analytical `SELECT` queries that
+     join or aggregate historical `.tseg` stream data with relational Tables
+     (such as bitemporal `AS OF JOIN` backtesting in [Milestone 10](10-sql-and-dataflows.md))
+     use an explicit, side-effect-free table-valued function bridge
+     (`SELECT * FROM STREAM_SLICE(events, OFFSET ? TO ?)` or
+     `STREAM_SLICE(events, TIMESTAMP ? TO ?)`), keeping stateful stream
+     consumption (`CONSUME`) and side-effect-free relational queries over a
+     pinned cut (`SELECT`) strictly separated.
 
 3. **Define the declarative `QUEUE` grammar and lease lifecycle contract.**
    Add `QUEUE` as a first-class catalog object kind for point-to-point competing
@@ -191,27 +204,33 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
    [Apache RocketMQ](https://rocketmq.apache.org/),
    [WarpStream](https://www.warpstream.com/) object-tiered logs and
    [Varghese & Lauck's Hashed Hierarchical Timing Wheels, SOSP 1987](https://dl.acm.org/doi/10.1145/41457.37504)):
-   - **Unified `TWAL1` $\rightarrow$ `.tseg` log-segment tiering:** Both Streams
-     and Queues append payloads once to partitioned `TransitLog` (`TWAL1`) files
-     and flush sealed runs into immutable `.tseg` segments in `TransitObjectStore`.
-     Active tail pages stay resident in the LeanStore/Umbra buffer pool so live
-     `CONSUME` and `CLAIM` readers stream zero-copy slices directly from memory
-     while catch-up consumers read historical `.tseg` segments without disturbing
-     tail writers.
-   - **Roaring-bitmap Queue state vectors (zero B-tree page rewrite amplification):**
-     Instead of mutating and vacuuming B-tree heap pages on every queue claim or
-     acknowledgement, each Queue partition maintains a compact per-segment state
-     machine over message offsets (`Available`, `Acquired`, `Acked`, `Archived/DLQ`).
-     `Acked` and `Archived` offsets are recorded in compressed **Roaring Bitmaps**
-     (sharing the `.tdel` bitmap machinery in `transit-storage`) and persisted as
-     compact delta frames in `TWAL1`. When all offsets in a sealed `.tseg` queue
-     segment are `Acked` and retention allows, the entire segment is reclaimed in
-     $O(1)$ without per-row deletes.
+   - **Shared physical partition architecture (`TablePartition`, `StreamPartition` and `QueuePartition`):**
+     Share the segment writer, LeanStore/Umbra buffer slabs, `NvmeCache` and
+     Roaring-bitmap machinery across all three partition types in `transit-storage`:
+     - **`TablePartition`:** `TWAL1` + `.tseg` + `.tdel` (Roaring bitmap of deleted
+       row IDs) + primary-key index.
+     - **`StreamPartition`:** `TWAL1` + `.tseg` indexed by monotonic `_offset` and
+       `_timestamp` zone maps. Active tail pages stay resident in the LeanStore/Umbra
+       RAM buffer pool so live `CONSUME` readers stream zero-copy slices directly
+       from memory while catch-up consumers and `STREAM_SLICE(...)` scans read
+       sealed `.tseg` segments in `TransitObjectStore` without disturbing tail
+       writers.
+     - **`QueuePartition`:** Composes `StreamPartition`'s `TWAL1` + `.tseg`
+       append-only payload storage with a **`.tack` Roaring-bitmap state vector**
+       (reusing the exact `.tdel` Roaring bitmap implementation in `transit-storage`
+       to track per-offset `Available`, `Acquired`, `Acked` and `Archived/DLQ`
+       states as compact `TWAL1` delta frames and sealed sidecars). Instead of
+       mutating and vacuuming B-tree heap pages on every queue claim or
+       acknowledgement, payloads are written once and never rewritten; when all
+       offsets in a sealed `.tseg` queue segment are marked `Acked` in `.tack`
+       and retention allows, the entire segment is reclaimed in $O(1)$ without
+       per-row deletes.
    - **Lock-free `key_fifo` key-affinity table:** For `mode = 'key_fifo'` queues,
-     each partition tracks active leases by `entity_key` hash. While a message for
-     `entity_key = K` is `Acquired`, later offsets for `K` wait in strict FIFO
-     order while messages for other keys on the same partition remain immediately
-     claimable by concurrent workers.
+     each `QueuePartition` tracks active leases by `entity_key` hash alongside an
+     in-memory fenced `_lease_epoch` min-heap ordered by `lease_expiry_ns`. While
+     a message for `entity_key = K` is `Acquired`, later offsets for `K` wait in
+     strict FIFO order while messages for other keys on the same partition remain
+     immediately claimable by concurrent workers.
    - **Hierarchical Timing Wheel for `visible_at`, lease expiry and retry backoff:**
      Manage delayed messages (`visible_at`), retry backoff deadlines and active
      lease expirations through an in-memory Hashed Hierarchical Timing Wheel
@@ -240,13 +259,18 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
      Suspension points, durable timers (scheduled via Queue `visible_at`) and
      recorded HTTP/gRPC/MCP connector intents enqueue into declared Streams and
      Queues.
-   - **A `Station` turn is a single [Milestone 5 database transaction](05-transactions-and-atomic-composition.md):**
-     Completing a handler turn executes one atomic database commit that validates
-     the inbox Queue's `_lease_epoch` and `policy_epoch`, `ACK`s the consumed
-     inbox message, commits `TABLE`/`KV`/`DOCUMENT` state mutations, and
-     `PRODUCE`s/`ENQUEUE`s outbound actor messages and connector effect intents in
-     **one round-trip**—eliminating external `courier` polling and unifying
-     database and runtime durability.
+   - **A `Station` turn is a single [Milestone 5 database transaction](05-transactions-and-atomic-composition.md) with zero bespoke turn-commit protocol:**
+     Because [Milestone 5's](05-transactions-and-atomic-composition.md) transaction
+     commit envelope natively unifies `(1) TABLE/KV/DOCUMENT state mutations and
+     conflict guards`, `(2) STREAM PRODUCE / QUEUE ENQUEUE log appends`, and
+     `(3) _lease_epoch-guarded QUEUE ACK / STREAM COMMIT OFFSET settlements`,
+     completing a handler turn requires no separate actor commit protocol—it
+     executes one standard database commit that validates the inbox Queue's
+     `_lease_epoch` and `policy_epoch`, `ACK`s the consumed inbox message,
+     commits `TABLE`/`KV`/`DOCUMENT` state mutations, and `PRODUCE`s/`ENQUEUE`s
+     outbound actor messages and connector effect intents in **one round-trip**,
+     eliminating external `courier` polling and unifying database and runtime
+     durability.
    - **Inspectable via standard SQL and Board:** Because `Station` inboxes, dead-
      letter queues, active leases, replay journals and actor state are catalog-
      declared Queues, Streams and Tables, operators and agents inspect queue
