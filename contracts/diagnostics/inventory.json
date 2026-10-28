@@ -13673,7 +13673,7 @@
           "deadline"
         ],
         "Definition": [
-          "fe92bb37f7e18a8f4cf00b60ad7d21198b130a623376d87ee92a0bd6108cd388"
+          "ed98a1fb80bc80e2534856d1eea5caeae705df1bff8e0347aa20009c935f58de"
         ],
         "Effect.phase": [
           "pending",
@@ -26786,13 +26786,14 @@
     },
     "packages/zig/transit-storage/src/TableMaintenanceState.zig": {
       "errors": {
-        "InvalidTableMaintenance": 12
+        "InvalidTableMaintenance": 14
       },
       "outcomes": {
         "Action": [
           "begin_archive",
           "complete_archive",
           "begin_compaction",
+          "skip_compaction",
           "complete_compaction"
         ]
       },
@@ -26852,25 +26853,25 @@
         "InvalidTableIdentity": 1,
         "InvalidTableInterpretation": 6,
         "InvalidTableKey": 3,
-        "InvalidTableMaintenance": 5,
+        "InvalidTableMaintenance": 6,
         "InvalidTableOperation": 14,
         "InvalidTablePin": 9,
         "InvalidTableReadBudget": 3,
         "InvalidTableReceipt": 4,
-        "InvalidTableRowReference": 30,
+        "InvalidTableRowReference": 33,
         "InvalidTableSegment": 2,
         "InvalidTableSnapshotCursor": 8,
         "InvalidTableStatementIntent": 1,
         "LostAcknowledgement": 1,
         "MissingTableInterpretation": 2,
-        "OutOfMemory": 2,
+        "OutOfMemory": 3,
         "QueryConflict": 1,
         "QueryTypeError": 2,
         "StorageCandidateTooLarge": 1,
         "TableAlreadyExists": 1,
         "TableBatchTooLarge": 5,
         "TableBuildBudget": 2,
-        "TableCompactionBudget": 2,
+        "TableCompactionBudget": 3,
         "TableDataChanged": 6,
         "TableDefinitionChanged": 4,
         "TableHistoryConflict": 1,
@@ -26954,7 +26955,9 @@
         "checkpoint()": "<inferred>",
         "compact()": "<inferred>",
         "compactBounded()": "<inferred>",
+        "compactionCandidate()": "<inferred>",
         "compactionMaintenanceUnit()": "<inferred>",
+        "compactionSparse()": "<inferred>",
         "currentBasis()": "<inferred>",
         "expectations()": "<inferred>",
         "expireHistory()": "<inferred>",
@@ -27010,7 +27013,7 @@
         "requireAdmissionBasis()": "<inferred>",
         "requireBasis()": "<inferred>",
         "requireHistoryRetentionTransition()": "<inferred>",
-        "requireMaintenanceCompletion()": "<inferred>",
+        "requireMaintenanceProgress()": "<inferred>",
         "requirePin()": "<inferred>",
         "requireReceiptTransition()": "<inferred>",
         "requireTransition()": "<inferred>",
@@ -27031,6 +27034,7 @@
         "scope()": "<inferred>",
         "segmentDecision()": "<inferred>",
         "segmentKey()": "<inferred>",
+        "segmentScanStart()": "<inferred>",
         "stageReceipt()": "<inferred>",
         "stageSegment()": "<inferred>",
         "statementEncode()": "<inferred>",
@@ -27040,8 +27044,8 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 600,
-        "catch": 13
+        "try": 610,
+        "catch": 14
       },
       "imports": [
         "OrderedKeyIndex.zig",

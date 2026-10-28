@@ -51,7 +51,9 @@ eligibility and per-turn work limits. Bare node deployments enable it explicitly
 WAL acceptance remains the durability boundary; an INSERT does not wait for
 background maintenance. Archive and compaction targets stay fixed across later
 writes and restart; their progress records do not trigger the same work forever.
-Compaction preserves logical change positions and retained rows. Absence of a new `.tseg` after a point write does not imply
+Compaction preserves logical change positions and retained rows. It merges small
+adjacent inputs or rewrites sparse ones that fit the work budget, without splitting
+healthy larger segments. Accepted skip progress survives restart. Absence of a new `.tseg` after a point write does not imply
 that the write is missing. The signed direct `storage` operation reports exact
 acceptance and logical-change positions, bounded current WAL backlog and separate
 archive, recovery-checkpoint and history frontiers. Incomplete backlog counts
@@ -61,6 +63,8 @@ after current rows have moved to segments.
 The same authorized observation reports fixed archive and compaction targets,
 their eligible source activity and completed activity. A null target with equal
 source/completed frontiers means that class has caught up at the observed root.
+A compaction pass can retain dense or oversized inputs; its `after_segment`
+cursor records those considered inputs, not a logical data or retention frontier.
 It establishes neither physical WAL deletion nor object collection completion;
 those retain their separate recovery and reader-lifetime conditions.
 

@@ -35,13 +35,13 @@ test "direct storage responses bind physical coverage to the original Table and 
             .archive_target = .{ .through_lsn = 6, .source_lsn = 6, .checkpoint_lsn = null },
             .compaction_source_lsn = 7,
             .compacted_source_lsn = 1,
-            .compaction_target = .{ .before_segment = 3, .source_lsn = 7 },
+            .compaction_target = .{ .before_segment = 3, .source_lsn = 7, .after_segment = 1 },
         },
     };
     var response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .storage = observation } };
     try c.DirectTableClient.validateResponse(alloc, request, response);
     try t.expect(!request.transport().mutation and request.transport().control == null);
-    inline for (0..18) |case| {
+    inline for (0..19) |case| {
         var changed = response;
         const value = &changed.result.storage;
         switch (case) {
@@ -63,6 +63,7 @@ test "direct storage responses bind physical coverage to the original Table and 
             15 => value.maintenance.compacted_source_lsn = 8,
             16 => value.maintenance.compaction_target.?.source_lsn = 0,
             17 => value.maintenance.archive_source_lsn = 9,
+            18 => value.maintenance.compaction_target.?.after_segment = 3,
             else => unreachable,
         }
         try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, request, changed));

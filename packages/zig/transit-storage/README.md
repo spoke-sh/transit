@@ -72,6 +72,8 @@ and the catalog's retained dependency graph.
   while retained roots keep their original physical references.
   Accepted archive/checkpoint and compaction targets resume across replacement;
   separate source frontiers prevent work bookkeeping from triggering itself.
+  Automatic compaction selects whole sparse inputs or merges two small adjacent
+  inputs; accepted skip progress leaves packed or oversized inputs intact.
   Mutation, rewrite and flush workspaces have an explicit allocation ceiling,
   separate from encoded row limits and index/cache budgets.
   Frozen row admission, rejection and cancellation share that Table WAL; row

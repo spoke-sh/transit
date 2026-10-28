@@ -2,14 +2,26 @@
 //! they grant neither retention changes nor permission to collect an object.
 const Self = @This();
 
-pub const Action = enum { begin_archive, complete_archive, begin_compaction, complete_compaction };
+pub const Action = union(enum) {
+    begin_archive,
+    complete_archive,
+    begin_compaction,
+    skip_compaction: u64,
+    complete_compaction,
+};
 pub const Archive = struct {
     through_lsn: u64,
     source_lsn: u64,
     /// First accepted archive publication covering this fixed target.
     checkpoint_lsn: ?u64,
 };
-pub const Compaction = struct { before_segment: u64, source_lsn: u64 };
+pub const Compaction = struct {
+    before_segment: u64,
+    source_lsn: u64,
+    /// Last segment deliberately retained by this pass. Relocated rows sort
+    /// beyond before_segment; neither kind of progress needs a resident queue.
+    after_segment: u64,
+};
 
 archive_source_lsn: u64,
 archived_source_lsn: u64,
@@ -41,7 +53,7 @@ pub fn validate(self: Self, root: anytype) !void {
         } else if (root.archive.through >= target.through_lsn) return error.InvalidTableMaintenance;
     }
     if (self.compaction_target) |target| {
-        if (target.before_segment <= 1 or target.before_segment > root.next_segment or
+        if (target.before_segment <= 1 or target.before_segment > root.next_segment or target.after_segment >= target.before_segment or
             target.source_lsn <= self.compacted_source_lsn or target.source_lsn > self.compaction_source_lsn)
             return error.InvalidTableMaintenance;
     }
@@ -70,7 +82,16 @@ pub fn transition(before: anytype, after: anytype, action: anytype) !Self {
             .begin_compaction => {
                 if (before.retired or before.next_segment <= 1 or next.compaction_target != null or
                     next.compaction_source_lsn <= next.compacted_source_lsn) return error.InvalidTableMaintenance;
-                next.compaction_target = .{ .before_segment = before.next_segment, .source_lsn = next.compaction_source_lsn };
+                next.compaction_target = .{ .before_segment = before.next_segment, .source_lsn = next.compaction_source_lsn, .after_segment = 0 };
+            },
+            .skip_compaction => |segment| {
+                var target = next.compaction_target orelse return error.InvalidTableMaintenance;
+                if (before.retired or segment <= target.after_segment or segment >= target.before_segment)
+                    return error.InvalidTableMaintenance;
+                // Publication/recovery additionally require the exact next
+                // live segment. A record cannot jump over unexamined inputs.
+                target.after_segment = segment;
+                next.compaction_target = target;
             },
             .complete_compaction => {
                 const target = next.compaction_target orelse return error.InvalidTableMaintenance;

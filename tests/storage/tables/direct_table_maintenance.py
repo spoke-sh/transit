@@ -87,6 +87,9 @@ def exercise(caller, endpoint, profile, root, restart):
     print(f'Automatic Table flush: 258 WAL rows across three competing Tables; '
           f'{len(segments)} segment objects; original and current rows survive restart; '
           f'convergence including owner restart {elapsed:.3f}s.', flush=True)
+    packed = json.loads(call('inspect').stdout)
+    packed_files = {path.relative_to(root): hashlib.sha256(path.read_bytes()).digest()
+                    for path in segments}
 
     def inspect():
         observed = json.loads(call('inspect').stdout)
@@ -136,6 +139,8 @@ def exercise(caller, endpoint, profile, root, restart):
                         assert resumed['source_lsn'] == target['source_lsn'], (field, before, after)
                         cut = 'through_lsn' if field == 'archive_target' else 'before_segment'
                         assert resumed[cut] == target[cut], (field, before, after)
+                        if field == 'compaction_target':
+                            assert resumed['after_segment'] >= target['after_segment'], (before, after)
                 restart(True, True)
                 killed = True
                 continue
@@ -158,7 +163,12 @@ def exercise(caller, endpoint, profile, root, restart):
     for _ in range(12):
         assert inspect() == converged, 'Completed maintenance kept publishing work'
         time.sleep(.2)
+    assert [value['next_segment'] for value in converged] == [value['next_segment'] for value in packed], \
+        'Compaction rewrote already packed inputs or lone dense segments'
+    after_files = {path.relative_to(root): hashlib.sha256(path.read_bytes()).digest()
+                   for path in (root / 'native').rglob('*.tseg')}
+    assert after_files == packed_files, 'Compaction created or changed healthy segment bytes'
     print(f'Automatic Table archive/checkpoint and compaction: three Tables settle '
           f'after SIGKILL during accepted work; original, flushed and maintained '
-          f'rows survive restart; no further publications while idle; '
+          f'rows survive restart; zero segment rewrites for packed inputs; no further publications while idle; '
           f'convergence and verification {time.monotonic() - before:.3f}s.', flush=True)

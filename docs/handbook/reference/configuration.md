@@ -282,10 +282,13 @@ default 32. Archive and compaction default to enabled in `transit server` and
 disabled in a bare node. Both require a Table host and maintenance principal.
 They use fixed targets accepted in the Table WAL and resume those targets after
 restart. These settings require restart and do not change logical retention.
-Compaction currently revisits live segment rows below its fixed boundary after
-new logical or flush activity. It does not select candidates by size or
-fragmentation, so even a packed segment can be rewritten or split by the row
-limit. The limit bounds one unit, not total bytes rewritten across a pass.
+Compaction considers segments below its fixed boundary after new logical or
+flush activity. It merges two adjacent inputs that fit the work limits or rewrites
+one input with at least half its original rows removed or replaced. Inputs stay
+whole: larger inputs and a lone dense input remain, with accepted skip progress
+across restart. The row limit bounds one relocation and metadata selection;
+it does not bound total work across a pass. Changing limits alone does not start
+a new pass. Compaction completion does not promise that every segment was rewritten.
 
 `storage.maintenance.resident_bytes` limits shared private Table maintenance
 workspace to 32–512 MiB, default 128 MiB. It requires restart and includes

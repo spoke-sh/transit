@@ -9,6 +9,155 @@ const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64
 const schema: f.TableSchema.Schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
 const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 7 };
 
+test "Table compaction automatic keeps packed inputs and resumes sparse and small segment selection on disk" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var pin: P.SnapshotHandle = undefined;
+    var baseline: P.Root = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        try insertCompactionSegment(&table, &access, 1, 64, 1);
+        try insertCompactionSegment(&table, &access, 101, 8, 2);
+        try insertCompactionSegment(&table, &access, 201, 8, 3);
+        try insertCompactionSegment(&table, &access, 301, 2, 4);
+        try insertCompactionSegment(&table, &access, 401, 2, 5);
+        pin = try table.pin(.{ .scope = object.scope, .principal = 2, .operation = 1 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        // One replacement leaves its old segment mostly full; only the third
+        // segment has enough dead rows to justify a bounded rewrite.
+        const updated: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 101 } } };
+        var replacement = change(&updated, 6);
+        replacement.put.expect = .present;
+        var update = binding(&table, 6);
+        update.action = .update;
+        _ = try table.apply(update, &.{replacement}, .point, access.guard());
+        var keys: [6][4096]u8 = undefined;
+        var deletes: [6]P.Change = undefined;
+        for (&deletes, &keys, 201..) |*item, *bytes, id| item.* = .{ .remove = try key(id, bytes) };
+        var deletion = binding(&table, 7);
+        deletion.action = .delete;
+        _ = try table.apply(deletion, &deletes, .point, access.guard());
+        try t.expect(try table.compactionMaintenanceUnit(.{ .rows = 4 }, access.guard()));
+        baseline = table.root;
+        const decoded_before_selection = table.row_groups_decoded;
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.compactionMaintenanceUnit(.{ .rows = 4 }, access.guard()));
+        try t.expectEqual(@as(u64, 1), table.root.maintenance.compaction_target.?.after_segment);
+        try t.expectEqual(baseline.next_segment, table.root.next_segment);
+        try t.expectEqual(@as(u64, 8), table.compaction_metadata_rows);
+        try t.expectEqual(decoded_before_selection, table.row_groups_decoded);
+    }
+    var units: usize = 0;
+    while (true) : (units += 1) {
+        try t.expect(units < 10);
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        if (units == 0) try t.expectEqual(@as(u64, 1), table.root.maintenance.compaction_target.?.after_segment);
+        const before = table.root;
+        table.lose_reply = units % 2 == 0;
+        const worked = table.compactionMaintenanceUnit(.{ .rows = 4 }, access.guard()) catch |err| blk: {
+            try t.expectEqual(error.LostAcknowledgement, err);
+            break :blk true;
+        };
+        try t.expect(table.compaction_metadata_rows <= 2 * (4 + p.Growth.page_size));
+        try t.expect(table.root.next_lsn <= before.next_lsn + 1);
+        try t.expectEqual(baseline.changed_lsn, table.root.changed_lsn);
+        try t.expectEqual(baseline.live_rows, table.root.live_rows);
+        try t.expectEqualDeep(baseline.identities, table.root.identities);
+        try t.expectEqualDeep(baseline.ordered_rows, table.root.ordered_rows);
+        if (worked) continue;
+        // Exactly one sparse rewrite and one two-input merge. The 64-row
+        // packed input and seven remaining rows of the updated input stay put.
+        try t.expectEqual(baseline.next_segment + 2, table.root.next_segment);
+        try t.expect(table.root.maintenance.compaction_target == null);
+        try t.expectEqual(table.root.maintenance.compaction_source_lsn, table.root.maintenance.compacted_source_lsn);
+        const layouts = [_]struct { first: usize, count: usize }{
+            .{ .first = 1, .count = 64 },  .{ .first = 101, .count = 8 }, .{ .first = 201, .count = 8 },
+            .{ .first = 301, .count = 2 }, .{ .first = 401, .count = 2 },
+        };
+        var encoded: [4096]u8 = undefined;
+        for (layouts) |layout| for (layout.first..layout.first + layout.count) |id| {
+            var current = try table.get(t.allocator, try key(id, &encoded), access.guard());
+            defer if (current) |*row| row.deinit();
+            try t.expectEqual(!(id >= 201 and id < 207), current != null);
+            if (current) |row| try t.expectEqual(@as(i128, id), row.row().cells[0].value.atom.signed);
+            var retained = (try table.readSnapshot(t.allocator, pin, try key(id, &encoded), access.guard())).?;
+            defer retained.deinit();
+            try t.expectEqual(@as(i128, id), retained.row().cells[0].value.atom.signed);
+        };
+        break;
+    }
+}
+
+test "Table compaction automatic preserves whole inputs under byte memory and authorization limits" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    try insertCompactionSegment(&table, &access, 1, 1, 1);
+    try insertCompactionSegment(&table, &access, 2, 1, 2);
+    try t.expect(try table.compactionMaintenanceUnit(.{ .rows = 2 }, access.guard()));
+    const before = table.root;
+    try t.expectError(error.TableCompactionBudget, table.compactionMaintenanceUnit(.{ .rows = 2, .resident_bytes = 1 }, access.guard()));
+    try t.expectEqualDeep(before, table.root);
+    access.deny_at = access.calls + 2;
+    try t.expectError(error.PermissionDenied, table.compactionMaintenanceUnit(.{ .rows = 2, .encoded_bytes = 1 }, access.guard()));
+    try t.expectEqualDeep(before, table.root);
+    access.deny_at = std.math.maxInt(usize);
+    for (0..3) |_| try t.expect(try table.compactionMaintenanceUnit(.{ .rows = 2, .encoded_bytes = 1 }, access.guard()));
+    try t.expect(!try table.compactionMaintenanceUnit(.{ .rows = 2 }, access.guard()));
+    try t.expectEqualDeep(before.rows, table.root.rows);
+    try t.expectEqualDeep(before.scan_rows, table.root.scan_rows);
+    try t.expectEqual(before.next_segment, table.root.next_segment);
+    try table.recover();
+    try t.expectEqual(before.next_segment, table.root.next_segment);
+}
+
+test "Table compaction automatic recovery rejects a skip over an unexamined live segment" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    try insertCompactionSegment(&table, &access, 1, 1, 1);
+    try insertCompactionSegment(&table, &access, 2, 1, 2);
+    try t.expect(try table.compactionMaintenanceUnit(.{}, access.guard()));
+    var forged: r.Record = .{ .definition = p.Growth.current_definition, .previous = table.chain, .root = table.root, .action = .{ .maintenance = .{ .skip_compaction = 2 } } };
+    forged.root.next_lsn += 1;
+    forged.root.maintenance = try @import("TableMaintenanceState.zig").transition(table.root, forged.root, forged.action);
+    const buffer = try t.allocator.alloc(u8, s.TransitLog.max_payload_bytes);
+    defer t.allocator.free(buffer);
+    _ = try wal.log().append(17, table.root.next_lsn, 1, 1, .manifest_checkpoint, try r.encode(forged, &.{}, buffer));
+    try t.expectError(error.InvalidTableMaintenance, table.recover());
+}
+
+fn insertCompactionSegment(table: *P, access: *Access, first: usize, count: usize, operation: u64) !void {
+    const cells = try t.allocator.alloc(f.Types.Values.Cell, count);
+    defer t.allocator.free(cells);
+    const changes = try t.allocator.alloc(P.Change, count);
+    defer t.allocator.free(changes);
+    for (cells, changes, 0..) |*cell, *item, i| {
+        cell.* = .{ .value = .{ .atom = .{ .signed = first + i } } };
+        item.* = change(cell, operation);
+        item.put.row.identity.ordinal = @intCast(i);
+    }
+    _ = try table.apply(binding(table, operation), changes, .bulk, access.guard());
+}
+
 test "Table maintenance targets survive disk reopen and lost replies then become idle" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -113,6 +262,11 @@ test "Table maintenance recovery rejects fabricated completion and missing persi
     defer t.allocator.free(encoded);
     var parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, encoded, .{ .allocate = .alloc_always });
     defer parsed.deinit();
+    const target = parsed.value.object.getPtr("maintenance").?.object.getPtr("compaction_target").?;
+    try t.expect(target.object.swapRemove("after_segment"));
+    const missing_cursor = try std.json.Stringify.valueAlloc(t.allocator, parsed.value, .{});
+    defer t.allocator.free(missing_cursor);
+    try t.expectError(error.MissingField, std.json.parseFromSlice(P.Root, t.allocator, missing_cursor, .{}));
     try t.expect(parsed.value.object.swapRemove("maintenance"));
     const missing = try std.json.Stringify.valueAlloc(t.allocator, parsed.value, .{});
     defer t.allocator.free(missing);

@@ -430,9 +430,24 @@ archive source; archive, recovery and work bookkeeping do not. A finite workload
 therefore settles without endlessly archiving its own progress records.
 
 `compactionMaintenanceUnit(limits, guard)` captures the current exclusive
-`next_segment` boundary and source activity. It relocates bounded groups below
-that fixed boundary, then accepts completion only after verifying that no live
-older segment remains. Recovery repeats that check. Logical changes and
+`next_segment` boundary and source activity, with mandatory `after_segment = 0`.
+Each work unit examines at most two adjacent live segments after that cursor,
+using at most `rows + 8` directory entries per candidate (including one page
+of lookahead) and bounded footer reads.
+It rewrites an entire segment only when at least half its original rows have
+been removed/replaced, or merges two complete adjacent inputs that fit the row
+and encoded-byte budgets. It never splits an input to satisfy those budgets.
+Otherwise a `maintenance.skip_compaction` record advances `after_segment` over
+exactly the next live segment. Acceptance and recovery verify that identity;
+the record cannot jump over another live input. Row bytes, logical roots and
+retention obligations remain unchanged by a skip.
+
+Completion requires no unexamined live segment between `after_segment` and the
+fixed exclusive boundary. Recovery repeats that check. Completion means the
+pass considered its inputs under the work budgets, not that every segment was
+rewritten, normalized to the current schema or physically collected. Oversized
+inputs and a lone dense segment can remain. Later source activity selects a new
+pass from the beginning; a budget change alone does not do so. Logical changes and
 non-compaction segment publication can select another pass; compaction output
 cannot. Retirement completes unfinished compaction without rewriting retained
 rows. Later writes leave either active target unchanged and can select later

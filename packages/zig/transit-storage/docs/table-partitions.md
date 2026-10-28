@@ -558,8 +558,22 @@ After a lost reply or owner replacement, recover the Table and call the same
 work class again. New foreground writes cannot move an active target.
 
 Archive completion requires archive coverage and a recovery checkpoint covering
-the target's archive publication. Compaction completion checks that no live row
-still references a segment below its captured boundary. Retirement closes a
+the target's archive publication. Compaction visits at most two adjacent inputs
+per unit. It rewrites a whole input with at least half its original rows removed
+or replaced, or merges two whole inputs that fit the work budgets. It never
+splits a healthy segment to fit the configured row limit. Oversized inputs, a
+lone dense input and inputs that cannot fit the encoded-byte budget are retained.
+A mandatory `after_segment` cursor records skipped inputs through the Table WAL;
+recovery rejects a cursor step that jumps over the next live segment. Selection
+reads at most `rows + 8` directory entries per candidate, including one page
+of lookahead, and loads bounded footer metadata
+before decoding selected rows. Private allocation failure remains a budget error
+and leaves the accepted target unchanged.
+
+Compaction completion checks that no unexamined live input remains between that
+cursor and the captured boundary. It means the pass considered its inputs, not
+that all rows were rewritten or normalized. Logical changes or new non-compaction
+segments can select another pass; changing budgets alone does not. Retirement closes a
 compaction target without moving retained data. The accepted source and completed
 source frontiers exclude each class's own bookkeeping, allowing finite workloads
 to become idle. Even idle calls check current authorization.
@@ -599,4 +613,6 @@ rows, contributing input segments, encoded row bytes and private peak allocation
 Budget exhaustion, staging failure or revocation before publication leaves the
 accepted root unchanged. Configured control adapters supply reserved staging and
 append capacity. Compaction rejects retired Tables; retained reads remain separate.
-Automatic candidate selection and scheduling are not part of this component API.
+This explicit `compact` API rewrites every selected live row, potentially across
+multiple bounded calls. `compactionMaintenanceUnit` supplies the selective policy
+above; its runtime caller still owns scheduling.
