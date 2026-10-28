@@ -661,6 +661,15 @@ and the backend's native/direct/payload maintenance owners.
   allocation/reuse, corrupt metadata, clock failure and injected I/O/quota errors.
   Compaction must emit no logical mutation or invalidate computation freshness.
 
+The aggregate admission gate includes the complete lifetime of direct request
+allocations. `NativeServer.table` currently places parsing, catalog work and
+serialized output in an arena backed by the node allocator. Request/response
+wire limits and individual operator budgets do not establish a byte cap for
+that whole arena or the sum of concurrent requests and maintenance. Qualify an
+explicit request-wide limit and independent control capacity, including exhausted
+data admission, slow response writes, cancellation and original-operation recovery.
+The reusable private maintenance workspace alone cannot close this gate.
+
 **Gate:** the installed owner converges on eligible maintenance under a finite
 workload, resumes it after process death and preserves every retained obligation.
 Reclaim only objects proved unreachable; storage pressure never authorizes expiry.
