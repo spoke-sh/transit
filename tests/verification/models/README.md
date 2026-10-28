@@ -188,7 +188,8 @@ original attempt or decision. Losing a reply changes knowledge only.
 Invariants require freezing before a decision, complete preparation before
 commit, one immutable original decision, current publication/disclosure authority,
 fenced publication and truthful terminal observations. Six independent controls
-remove those first six obligations and must produce their respective invariant
+remove freezing, preparation completeness, epoch fencing, publication authority,
+decision stability and disclosure checks. Each must produce its named invariant
 violation. No fairness or liveness assumption is made. Repeated failures,
 revocation and unavailable participants may prevent progress indefinitely.
 
