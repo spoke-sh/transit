@@ -2274,6 +2274,28 @@
       "limits": "No installed workspace owner, durable statement/result settlement, common-cut acquisition, aggregate transaction quota, retained workspace graph, segment identity reservation, Table preparation, SQL or savepoint/cursor interface is established. The embedding host must retain the borrowed owner and persist state/counters/results before exposing completion.",
       "model": null,
       "qualification": "Component executions must be recorded with their source and resource bounds; registration alone does not qualify installed transactions."
+    },
+    {
+      "id": "SQL-WRITE-01",
+      "claim": "Frozen single-Table statements retain one original outcome, atomic rows/counts and qualified history through retry, cancellation, replacement and lost replies",
+      "owner": "contracts/SQL_SESSION_V1.md",
+      "implementation": [
+        "packages/zig/transit-sql/src/DatabaseRuntime.zig",
+        "packages/zig/transit-catalog/src/DirectCatalogStore.zig",
+        "packages/zig/transit-storage/src/TablePartition.zig"
+      ],
+      "profile": "Three row slots and one independent INSERT; separate two-submission token profiles; current split acceptance and proposed combined acceptance/TRUNCATE",
+      "tasks": [
+        "test::write-lifecycle-model"
+      ],
+      "scenarios": [
+        "INSERT/UPDATE/DELETE/TRUNCATE, empty/no-op/invalid work, frozen basis conflicts, original retry after later insertion",
+        "Separate account/token/Table/fingerprint races and name replacement",
+        "Removed guards for identity, binding, atomic visibility, counts, durability, authority, retention and terminal stability; selected lifecycle counterexamples replayed against TablePartition"
+      ],
+      "limits": "Finite safety exploration and selected Table memory-owner replay, not a refinement theorem or every-edge correspondence. Catalog token model has no automatic implementation replay. TRUNCATE and combined Catalog/Table acceptance are proposals. Atomic durable publication and truthful guards are assumptions; physical WAL/object, real process death, installed SQL, quotas and liveness have separate owners.",
+      "model": "tests/verification/models/WriteLifecycle.tla",
+      "qualification": "Source/configuration/tool/binary hashes, exhausted state counts, complete counterexamples and replay results are retained under .cache/verification/write-lifecycle-model/ and CI artifacts."
     }
   ]
 }

@@ -334,3 +334,67 @@ remain separate temporal-model work. The session abstraction omits malformed
 wire framing and arbitrary reordered/skipped ordinals; concrete adapter tests
 own those cases. No liveness, latency or arbitrary-cardinality claim follows
 from the finite safety results.
+
+## Finite SQL write lifecycle models
+
+Run `nix develop --command just test::write-lifecycle-model`. The locked TLC
+uses one worker, seed `1`, fingerprint `0`, a 512 MiB heap and a 60-second
+per-process limit (`--seconds N` changes time, never coverage). The runner
+requires exhausted queues and complete recognized negative-control traces.
+Evidence, exact generated configurations, source/tool/binary identities, logs
+and replay projections live under `.cache/verification/write-lifecycle-model/`.
+
+[WriteLifecycle.tla](WriteLifecycle.tla) separates frozen intent, durable
+acceptance, terminal decision, visible rows, retained history, owner epoch,
+execution/inspection rights and caller knowledge. Three row slots contain absent,
+old or new values. One independent INSERT can occur before freezing, between
+freezing and completion, or after completion. Owner replacement has two epochs;
+crash/recovery, rights changes, observations and lost replies may repeat without
+a trace-depth cutoff. UPDATE uses constant assignments, matching the executable
+compiler. No-op, empty and invalid-work profiles distinguish matched from changed
+counts and complete rejection from partial publication.
+
+Twenty safety profiles cover INSERT/UPDATE/DELETE/TRUNCATE under separate
+acceptance and candidate combined acceptance. TRUNCATE is a **proposed** atomic
+empty successor that preserves object/definition identity and advances the data
+frontier even when empty. It has no runtime adapter. Combined acceptance is also
+a proposal: this model does not claim a shared Catalog/Table commit is installed.
+Neither profile changes an executable contract or authorizes removing a sync.
+
+[WriteTokens.tla](WriteTokens.tla) independently explores two concurrent callers
+with identical versus conflicting requests, separate accounts/tokens, different
+Tables, name replacement and recovery. Five profiles preserve the original
+account/token operation and frozen object. They abstract Catalog storage and
+bound requests, not production cardinality. Separating the token and row models
+controls exploration size; their composition is an unproved obligation.
+
+Fifteen controls remove original-operation, frozen-basis, atomic-publication,
+count, epoch, execution-right, disclosure, terminal-stability, retention,
+durability, token-scope, fingerprint, frozen-object, token-recovery and account
+isolation guards. Each must violate its named invariant. The durability control
+breaks the abstract publication assumption; it does not establish physical sync
+ordering. [Wal.tla](Wal.tla), immutable-object durability and retained dependency
+closure remain separate requirements before changing publication barriers.
+
+A separate `FairSpec` run checks eventual settlement of accepted work and eventual
+learning of a terminal outcome. It assumes eventually continuous availability
+and sufficient current authority/ownership for the respective operation, plus
+weak fairness of commit and observation. Indefinite revocation, crashes or lost
+service are outside these conditional results. There is no wall-clock bound.
+
+[The private Zig adapter](write_lifecycle_state.zig) replays all ten lifecycle
+negative-control schedules against `TablePartition` using real intents, WAL,
+indexes and retained snapshot APIs. Independent fixed fixture oracles check rows,
+counts, terminal identity and expected refusals. The first commit reply is lost;
+uncertain append errors require reconstruction before oracle inspection.
+`Cleanup` checkpoints without granting history expiry. The adapter uses the
+memory providers and a separate authorized inspector for its oracle: that
+inspector is not caller disclosure. Disk reopen and post-commit later INSERTs
+are independently exercised in `table_statement_test.zig`.
+
+This is selected counterexample replay, not every-edge correspondence, production
+guard mutation or a refinement proof. The token model has no automated Catalog
+replay. Physical bytes, quota reservation, schema changes, key swaps, arbitrary
+predicates/cardinality, network/session recovery and combined acceptance remain
+outside this abstraction. The owner mapping and durability obligations are
+explained in [storage runtime](../../../docs/handbook/internals/storage-runtime.md#write-lifecycle-model-boundary).

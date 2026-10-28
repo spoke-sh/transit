@@ -288,6 +288,10 @@ wal-model *args:
 transaction-decision-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/transaction_decision_model.py {{args}}
 
+# Durable write lifecycle/token models and selected production Table trace replay.
+write-lifecycle-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-write-lifecycle-model -- {{args}}
+
 # Finite editor model, every exported edge replayed against production Zig,
 # removed-guard controls and borrower release under explicit fairness.
 console-model *args:

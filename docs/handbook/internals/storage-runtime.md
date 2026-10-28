@@ -1635,3 +1635,45 @@ unavailable; they do not reset history or restore defaults. Native authority
 checks still govern every later disclosure/retry. The mechanism requires one
 installation manager and the existing installation lock, and does not make a
 restored local checkpoint proof of native permission.
+
+## Write lifecycle model boundary
+
+The question is whether a frozen Table mutation can preserve its original
+meaning and outcome when delivery, execution rights and ownership change. The
+[SQL session contract](../../../contracts/SQL_SESSION_V1.md) distinguishes token
+acceptance from completion; the [DML contract](../../../contracts/TABLE_DML_V1.md)
+requires a complete successor and exact counts. A reply disappearing does not
+undo either durable boundary.
+
+The [finite lifecycle and token models](../../../tests/verification/models/README.md#finite-sql-write-lifecycle-models)
+represent those dimensions separately. Frozen intent corresponds to
+`DatabaseRuntime.admit` and `TableDmlIntent`; account/token ownership corresponds
+to `DirectClientToken` and `DirectCatalogStore`. `TablePartition.commit` or
+`admit`/`perform` establish the data outcome. `operationState` and SQL status
+observe that outcome under current rights. Cancellation preserves an existing
+terminal decision. Retained snapshot roots remain valid after logical row removal.
+The separate token model captures first-reference wins across Tables; the row
+model captures selection conflicts and original-count recovery after later writes.
+
+Atomic durable publication is an explicit assumption of this abstraction. For
+its use in an implementation, every published root must have either durable
+immutable dependencies or enough retained WAL information to reconstruct them.
+The local WAL's file/name/metadata barriers and immutable-object publication
+establish different parts of that obligation. Moving index materialization after
+acknowledgement is therefore a storage-format/recovery change, not a consequence
+of a lifecycle model passing. A token directory and a Table log cannot be treated
+as one atomic domain merely because both use WAL.
+
+Separate-acceptance and candidate combined-acceptance profiles check the same
+finite safety predicates. The latter models an atomic acceptance/decision action;
+it does not prove refinement of the installed multi-step path or implementation
+of transaction coordination. The modeled TRUNCATE action is a proposed empty
+successor, distinct from executable DELETE and from physical reclamation.
+
+The executable model guide records bounds, fairness, removed-guard controls and
+selected production Table replay. Fixed row/count oracles and disk-reopen tests
+supply independent checks; the [qualification ledger](../../history/qualification/verification.md)
+records executed evidence. These checks can falsify the stated finite claims,
+but do not establish arbitrary-size correctness, filesystem power-loss behavior,
+quota consistency or latency improvements. Retaining current barriers costs
+writes and syncs; replacing them requires evidence for the new recovery boundary.
