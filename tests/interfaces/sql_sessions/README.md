@@ -63,6 +63,11 @@ must remain byte-identical, while credential revocation must reject disclosure
 and clear the cursor. This proves producer failure/retry semantics; it does not
 attribute allocations in the composed source and authority services.
 
+The installed native session schedule also waits for account recovery readiness
+to disappear after revocation, then repeats data, empty, metadata and storage
+results. Denial must still report current access failure and disclose no rows.
+Restoring authority cannot revive the cleared result cursor.
+
 Use `just test::sql-sessions` and the affected installed SQL task from the
 [test module](../../../tasks/test.just). Measurements describe elapsed work;
 they do not replace completion, authorization or recovery assertions.

@@ -286,13 +286,16 @@ pub fn current(self: *Self) !void {
     return self.fresh(Self.currentOnce, .{self});
 }
 fn currentOnce(self: *Self) !void {
-    if (!self.runtime.ready.load(.acquire)) return error.GatewayOwnerUnavailable;
     const credential = try loadCredential(self.allocator, self.io, self.account);
     if (!std.meta.eql(credential, self.credential)) return error.GatewayCredentialChanged;
     const native: g.wire.AuthorizationClient = .{ .transport = &self.wire, .realm = self.account.execution.realm, .principal = self.account.execution.table_principal, .key = self.table.key, .role = self.table.connection.role };
     const identity = (try native.read(.identity)).body.authorization.body.identity;
     try credential.checkIdentity(identity.principal, identity.login_role, identity.credential_epoch);
     _ = try self.table.require(.{ .namespace = self.namespace, .target = null, .access = .schema });
+    // Revocation can also withdraw account readiness. Report the caller's
+    // current denial before waiting for that account to recover; readiness is
+    // still required before the activation fence and any result disclosure.
+    if (!self.runtime.ready.load(.acquire)) return error.GatewayOwnerUnavailable;
     try self.runtime.fence(&self.observer);
     if (self.source) |source| try source.current();
 }
