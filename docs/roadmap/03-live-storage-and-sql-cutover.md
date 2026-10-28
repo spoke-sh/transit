@@ -380,6 +380,14 @@ dependency protection, abrupt owner restart and original outcomes after name
 reuse. The earlier bootstrap failure remains recorded; a later successful run
 does not establish its cause.
 
+The obsolete Station Table index cache in `transit-query.Interactive` and its
+unused `TableAuthority.Source.tableIndexCache` forwarding method are removed.
+The general query path no longer reserves eight native Table index-node buffers
+per interactive reader. Twelve selected query checks pass, including KV and
+Document source semantics and current Table caller authentication. This removes
+an unused adapter only: the active private-turn `TableBridge` and its SDK
+consumers still require P1.5's atomicity-preserving migration or removal.
+
 #### P2 — Make point flushing automatic and inspectable
 
 Owners: local Table host/service, `TablePartition`, shared storage settings and
