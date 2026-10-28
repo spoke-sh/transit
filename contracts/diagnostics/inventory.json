@@ -1083,6 +1083,7 @@
         "Diagnostic.zig",
         "Options.zig",
         "RuntimeRole.zig",
+        "build_version",
         "server/Gateway.zig",
         "server/Process.zig",
         "server/Server.zig",
