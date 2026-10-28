@@ -445,7 +445,7 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
             const assistance_request: g.query.Assistance.Request = .{ .sql = value.text, .cursor = std.math.cast(u16, value.cursor) orelse return error.InvalidSqlCursor, .generation = 0, .mode = .console };
             const result = result: {
                 if (host.config.settings != null) {
-                    if (try g.query.SettingsAssistance.complete(allocator, try @import("SessionSettings.zig").client(host), assistance_request)) |settings| break :result settings;
+                    if (try g.query.SettingsAssistance.complete(allocator, try @import("SessionSettings.zig").client(host), assistance_request, host.source == null)) |settings| break :result settings;
                 }
                 if (host.source) |source| break :result (try g.query.Workspace.apply(allocator, &source.client, source.configuration.workspace, .{ .assist = assistance_request })).assistance;
                 break :result try g.query.DirectTableAssistance.complete(allocator, host.table, host.namespace, assistance_request);

@@ -174,6 +174,8 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         ('.mode table\nSELECT 1; SELECT va FROM native_sessions', 31, '"value"', 'direct_table_v1'),
         ('UPDATE native_sessions SET va', 29, '"value"', 'direct_table_v1'),
         ('SET query.statement_t', 21, 'query.statement_timeout', 'configuration_v1'),
+        ('SHOW STO', len('SHOW STO'), 'STORAGE', 'configuration_v1'),
+        ('SHOW STORAGE FOR native_s', len('SHOW STORAGE FOR native_s'), '"native_sessions"', 'direct_table_v1'),
     ):
         result = first.call(dict(assist=dict(text=text, cursor=cursor)))['assistance']
         assistance_samples.append(dict(profile=profile, milliseconds=first.sample['milliseconds']))
@@ -214,6 +216,8 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     # Original token returns its original operation without recompiling CREATE.
     assert second.execute('CREATE TABLE native_sessions (id INT64 PRIMARY KEY, value INT128)', token)['operation']['identity'] == created['identity']
     second.call(dict(execute=dict(sql='CREATE TABLE changed (id INT64)', token=token)), error='SqlTokenConflict')
+    from interfaces.sql_sessions.storage import prepare_empty, after_insert
+    storage_statement = prepare_empty(first)
     insert_token = list(os.urandom(16))
     first.terminal(first.execute('INSERT INTO native_sessions VALUES (1, 170141183460469231731687303715884105727)', insert_token)['operation'])
     one = first.execute('SELECT * FROM native_sessions')['batch']
@@ -225,6 +229,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     first.call(dict(fetch=dict(cursor=one['cursor'], batch=one['batch'] + 2)), error='InvalidSqlCursor')
     # Invalid cursor sequencing clears the cursor, never reopens its snapshot.
     first.call(dict(fetch=dict(cursor=one['cursor'], batch=one['batch'])), error='SqlResultIncomplete')
+    after_insert(first, storage_statement, root, postgres)
     desc = first.execute('DESCRIBE native_sessions')['batch']
     assert desc['rows'] and len(desc['rows'][0]) == 9
     assert desc['observation']['metadata']['kind'] == 'catalog'
@@ -391,7 +396,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     first = Client(root, port).open()
     for sql in ('SELECT id FROM native_sessions',
                 'SELECT id FROM native_sessions WHERE id = -1',
-                'DESCRIBE native_sessions', 'SHOW TABLES',
+                'DESCRIBE native_sessions', 'SHOW TABLES', 'SHOW STORAGE FOR native_sessions',
                 'EXPLAIN SELECT id FROM native_sessions'):
         protected = first.execute(sql)['batch']
         authorize(False)
@@ -402,7 +407,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
             authorize(True)
         first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='SqlResultIncomplete')
     print(json.dumps(dict(profile='native_sql_buffered_disclosure', data=True, empty_terminal=True,
-                          describe=True, catalog=True, explain=True, denied_repeats_disclose_no_rows=True)), flush=True)
+                          describe=True, catalog=True, storage=True, explain=True, denied_repeats_disclose_no_rows=True)), flush=True)
     first.close()
     consumer = root/'consumer'
     consumer.mkdir()

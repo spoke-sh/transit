@@ -126,6 +126,14 @@ checks independently of a database wire protocol. The supervised SQL application
 creates sessions over each account’s shared `AccountRuntime`. PostgreSQL and
 MySQL retain their protocol admission and scalar encoding rules in their adapters.
 
+`SHOW STORAGE FOR name` prepares an exact direct Table definition and reads its
+signed `storage` observation at execution. `SessionStorage` projects those facts
+into typed columns shared by native, PostgreSQL and MySQL results. Prepared
+re-execution observes fresh progress; buffered retries preserve their original
+values and recheck current inspection rights. The one-row observation creates no
+data pin and invokes no maintenance. Backlog counts are bounded to 1,024 rows and
+retain their completeness flag. See the [SHOW reference](../../../docs/handbook/reference/sql/show.md#table-storage-progress).
+
 `Registry` reserves `limits.session_bytes` for each admitted connection slot and
 one independent recovery reserve at initialization. Session objects, prepared
 statements, reads and retained batches reuse those slabs across session lifetimes;

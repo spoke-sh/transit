@@ -242,7 +242,7 @@ privilege
 
 // ALL is a contextual setting selector; execution reserves it for the listing.
 showStatement
-    : SHOW (catalogKind | settingKey)
+    : SHOW (catalogKind | settingKey | STORAGE FOR identifier)
     ;
 settingKey: identifier (DOT identifier)*;
 sessionSettingStatement
@@ -295,7 +295,7 @@ legacyIdentifier
     | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION
     | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES
     | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN
-    | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE
+    | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
     ;
 
 // ---- Lexer rules --------------------------------------------------------
@@ -423,6 +423,7 @@ GRANT: 'GRANT';
 REVOKE: 'REVOKE';
 ON: 'ON';
 SHOW: 'SHOW';
+STORAGE: 'STORAGE';
 DESCRIBE: 'DESCRIBE';
 NOT: 'NOT';
 NULL_: 'NULL';
