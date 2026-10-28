@@ -105,6 +105,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         record_cache: catalog.RecordCache = .{},
         authorization_cache: catalog.RecordCache = .{},
         authorization_scans: catalog.PolicyScanCache = .{},
+        authorization_proofs: auth_ops.ProofCache = .{},
         clock: ?core.Time.Source = null,
         /// Inject a fresh secure epoch at service startup. Volatile read pins
         /// cannot survive restart or replace retained durable read versions.

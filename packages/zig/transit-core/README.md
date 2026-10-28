@@ -27,6 +27,13 @@ The local backend uses this to avoid competing native candidates. Explicit
 `prepare`/`commit` remains optimistic; every path retains conditional publication
 and current authorization. The engine owns no scheduling lock or provider policy.
 
+Each engine keeps at most eight successful domain-proof/public-key pairs to
+reuse their mathematical signature verification. Every authentication still
+loads current credential and role state, checks the credential epoch and selected
+role, and evaluates current permissions and lifetimes. The cache contains no
+authorization decision; a changed claim, signature or key requires verification.
+Replacement starts with an empty cache.
+
 Retention defaults to unlimited. Resource history policy, finite lifetimes,
 working metadata collection and authority-prefix trimming are separate opt-ins.
 Pending work, live dependencies, retained read versions and uncertain effects
