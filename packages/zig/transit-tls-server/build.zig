@@ -8,8 +8,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .link_libc = true,
     });
-    module.linkSystemLibrary("ssl", .{ .use_pkg_config = .force });
-    module.linkSystemLibrary("crypto", .{ .use_pkg_config = .force });
+    const linkage: std.builtin.LinkMode = if (target.result.abi.isMusl()) .static else .dynamic;
+    module.linkSystemLibrary("ssl", .{ .use_pkg_config = .force, .preferred_link_mode = linkage });
+    module.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = linkage });
     module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
     module.addCSourceFile(.{ .file = b.path("src/abi.c"), .flags = &.{"-std=c11"} });
     const tests = b.addTest(.{ .root_module = module });

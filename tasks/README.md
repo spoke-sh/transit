@@ -464,3 +464,13 @@ Packaged runtime builds pass `-Dchecks=false` to register only the
 and examples and resolve the public Zig SDK lazily; trying to build a consumer
 example with `-Dsdk-examples=false` is an error. The handbook's SDK navigation reads language
 installation guides from their SDK directories.
+
+## Release artifacts
+
+[package_release.py](package_release.py) packages an explicitly selected static
+runtime prefix and the Helm chart. [release_images.py](release_images.py) builds
+and exercises its scratch images without pushing. [publish_release.py](publish_release.py)
+handles immutable versioned publication in the tag workflow. Follow the
+[distribution build guide](../nix/README.md#distribution-builds); the public
+[distribution reference](../docs/handbook/reference/distribution.md) owns
+installation, registry locations and supported platforms.

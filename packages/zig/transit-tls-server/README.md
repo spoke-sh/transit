@@ -3,8 +3,10 @@
 TLS 1.2/1.3 server sessions over deadline-bound Zig socket I/O on Linux x86_64.
 The library links OpenSSL 3.6.4 (Apache-2.0), pinned by the consuming Nix
 environment and checked at context construction. It does not implement
-cryptography or database authentication. The separate `transit-tls` package
-continues to own outbound TLS.
+cryptography or database authentication. Linux musl builds select the static
+OpenSSL libraries from that target's package environment; other targets retain
+dynamic linking. The static release bundle carries the pinned dependency notices.
+The separate `transit-tls` package continues to own outbound TLS.
 
 `Context.init` loads explicitly supplied PEM certificate-chain and private-key
 paths and checks that they match and that the leaf certificate is currently valid. Contexts remain immutable while sessions use

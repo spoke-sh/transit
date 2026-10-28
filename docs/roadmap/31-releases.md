@@ -19,8 +19,15 @@ recovery, compatibility and conversion semantics remain with that owner.
   CI checks package consistency and exact clean release tags. See the
   [release policy](../handbook/reference/versioning.md#software-releases).
 
-Artifact publication, portable platform qualification and installed onboarding
-remain subject to the delivery sequence and release gate below.
+- Tag automation builds the static Linux x86_64 bundle and per-executable images,
+  packages the existing Helm chart, and gates GitHub Releases/GHCR publication on
+  ordinary CI plus installed/container checks. PR/manual runs only build.
+  The repository installer checks downloads before selecting a versioned prefix.
+  See the [distribution reference](../handbook/reference/distribution.md).
+
+First hosted publication, macOS/Windows portability, additional architectures,
+SDK registries, broader installers and the complete installed onboarding matrix
+remain outstanding. Static/component checks do not complete this milestone.
 
 ## Delivery sequence
 

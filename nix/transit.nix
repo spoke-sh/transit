@@ -14,6 +14,7 @@
   openssl,
   pkg-config,
   sourceRevision ? "unknown",
+  releaseBuild ? false,
 }:
 assert openssl.version == "3.6.4";
 let
@@ -108,6 +109,7 @@ stdenv.mkDerivation {
     zig
     pkg-config
   ]
+  ++ lib.optionals releaseBuild [ python3 ]
   ++ lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ];
   buildInputs = [ openssl ] ++ lib.optionals stdenv.hostPlatform.isLinux [ stdenv.cc.libc ];
   configurePhase = ''
@@ -117,7 +119,10 @@ stdenv.mkDerivation {
   '';
   buildPhase = ''
     runHook preBuild
-    zig build transit transit-node transit-query-host transit-board -Dsource-revision=${lib.escapeShellArg sourceRevision} -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
+    zig build transit transit-node transit-query-host transit-board ${lib.optionalString releaseBuild "transit-admin transit-delivery transit-station-controller -Dtarget=x86_64-linux-musl"} -Dsource-revision=${lib.escapeShellArg sourceRevision} -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
+    ${lib.optionalString releaseBuild ''
+      python3 -B tasks/release_notices.py "$out/share/transit/notices" ${zigDependencies} ${openssl.src} ${stdenv.cc.libc.src}
+    ''}
     runHook postBuild
   '';
   doInstallCheck = true;

@@ -728,6 +728,12 @@ server-sql-package:
     zig build test-operation-fixture -Doptimize=ReleaseSafe
     python3 -B tests/runner/launch.py tests/interfaces/installation/server_sql.py --bundle .cache/transit-sql-package
 
+# Installed static distribution lifecycle; prefix must be a matching release build.
+[positional-arguments]
+release prefix:
+    python3 -B tests/runner/test_version_build.py
+    python3 -B tests/runner/launch.py tests/interfaces/installation/release.py "$1"
+
 # Linux/Docker: real ENOSPC inside one newly allocated ext4 image.
 server-capacity:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe

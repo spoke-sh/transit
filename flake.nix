@@ -57,6 +57,11 @@
           inherit ursula;
           inherit zig kubectl-transit;
           inherit transit minio;
+          transit-release = transit.override {
+            stdenv = pkgs.pkgsStatic.stdenv;
+            openssl = pkgs.pkgsStatic.openssl;
+            releaseBuild = true;
+          };
           transit-sql-gateway = pkgs.callPackage ./nix/transit-sql-gateway.nix { inherit zig transit; };
           transit-local = pkgs.callPackage ./nix/transit-local.nix { inherit transit; };
           inherit vite-plus;
@@ -78,7 +83,7 @@
             ;
         }
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
-          inherit (toolchains.${system}) transit-local minio;
+          inherit (toolchains.${system}) transit-local transit-release minio;
         }
       );
 
@@ -97,6 +102,19 @@
             ;
         in
         rec {
+          release = pkgs.mkShellNoCC {
+            packages = [
+              pkgs.python3
+              pkgs.git
+              pkgs.gh
+              pkgs.kubernetes-helm
+              pkgs.skopeo
+              pkgs.docker-client
+              pkgs.binutils
+              pkgs.curl
+              pkgs.shellcheck
+            ];
+          };
           ci-formal = import ./nix/ci-formal.nix { inherit pkgs zig; };
           docs = pkgs.mkShellNoCC {
             packages = [

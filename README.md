@@ -33,6 +33,7 @@ Read the [published handbook](https://spoke-sh.github.io/transit/), starting wit
 | Data and policies | [Data model](docs/handbook/reference/data-model.md), [security](docs/handbook/reference/security.md), [retention](docs/handbook/reference/retention.md) |
 | Query language | [SQL](docs/handbook/reference/sql.md) |
 | Commands and recovery | [Transit CLI](docs/handbook/reference/cli.md) |
+| Release artifacts and installation | [Packages, containers and Helm](docs/handbook/reference/distribution.md) |
 | SQL connections | [Server-managed sessions](docs/handbook/reference/sql-sessions.md), [PostgreSQL and MySQL](docs/handbook/reference/database-protocols.md) |
 | HTTP APIs | [Serving OpenAPI](docs/handbook/reference/openapi.md), [Board OpenAPI](docs/handbook/reference/board-api.md) |
 | Reactive streams | [AsyncAPI](docs/handbook/reference/asyncapi.md) |
