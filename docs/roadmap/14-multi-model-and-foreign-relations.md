@@ -27,16 +27,18 @@ participants in a native atomic commit.
 
 Reuse [index identities, maintenance and coverage](09-indexing-and-access-paths.md)
 and [first-class strings and vectorized search](12-vectorized-strings-and-search.md)
-for graph adjacency, admitted document projections, **segment-backed Full-Text
-Search (BM25)** and **Vector / Hybrid Search** across Tables, Documents and
-foreign projections. Qualify each specialized key/predicate, scoring/distance
-function and source-refresh profile; ordered index support alone does not deliver
-inverted full-text, document-path or vector search without the dedicated segment
-layouts and recall/exactness contracts below. External statistics and indexes
-must match the captured manifest and comparison semantics. Extend the
+for graph adjacency, admitted document projections, **segment-backed lexical,
+substring/proximity and structural search** (starting with 256-doc Block-Max
+BM25) and **Vector / Hybrid Search** across Tables, Documents and
+foreign projections. Qualify each specialized key/predicate, analyzer/segmenter,
+proximity relation, scoring/distance function and source-refresh profile; ordered
+index support alone does not deliver inverted full-text, positional/span,
+document-path or vector search without the dedicated segment layouts and
+recall/exactness contracts below. External statistics and indexes must match the
+captured manifest and comparison semantics. Extend the
 [performance scorecard](11-data-structures-and-performance.md) and
 [string/search scorecard](12-vectorized-strings-and-search.md) with actual
-foreign decoding, pruning, graph multiplicity, multi-model full-text/vector
+foreign decoding, pruning, graph multiplicity, multi-model lexical/structural/vector
 retrieval, streaming CDC ingestion and import/export costs.
 
 1. **Define explicit Document-to-SQL and richer multi-model projections with stable identities:**
@@ -48,22 +50,29 @@ retrieval, streaming CDC ingestion and import/export costs.
    Worst-Case Optimal Joins (WCOJ) over `.tseg` adjacency/edge indexes so
    triangle and cyclic graph patterns avoid quadratic intermediate blowups while
    preserving parallel edges, self-loops, endpoint validity and multiplicity.
-3. **Compose segment-backed Full-Text Search (BM25) and Vector / Hybrid Retrieval across Tables, Documents and Graph projections:**
-   build on [Milestone 12's](12-vectorized-strings-and-search.md) 256-document
-   Block-Max BM25 posting blocks, vectorized `MAXSCORE` / Block-Max WAND
-   operators and ANN vector indexes to keep multi-model search and AI/agent
-   retrieval inside Transit's data gravity, `SnapshotId` cuts, branches and
-   `policy_epoch` governance:
-   - **Document and Multi-Model Inverted Indexes (BM25):** extend `.tseg`
-     inverted-index segments over Document blocks and projected JSON/structured
-     paths, respecting declared collations/analyzers, `.tdel` deletion vectors,
-     online snapshot-to-tail maintenance, SIMD bitmask intersection with
-     relational/graph predicates and late materialization.
+3. **Compose segment-backed lexical/structural search and Vector / Hybrid Retrieval across Tables, Documents and Graph projections:**
+   build on [Milestone 12's](12-vectorized-strings-and-search.md) declarative
+   search boundary, 256-document Block-Max posting blocks, vectorized
+   `MAXSCORE` / Block-Max WAND operators and ANN vector indexes to keep
+   multi-model search and AI/agent retrieval inside Transit's data gravity,
+   `SnapshotId` cuts, branches and `policy_epoch` governance without locking
+   queries into a flat bag-of-words model:
+   - **Document and Multi-Model Lexical, Positional and Structural Indexes:**
+     extend `.tseg` search index segments (Block-Max BM25, positional/proximity
+     `NEAR` streams, and substring/trigram or structural span profiles) over
+     Document blocks and projected JSON/structured paths, respecting declared
+     collations/segmenters, `.tdel` deletion vectors, online snapshot-to-tail
+     maintenance, SIMD bitmask intersection with relational/graph predicates
+     and late materialization.
    - **Multi-Model Vector Similarity and Hybrid Search:** compose fixed-dimension
      vector/embedding columns and disk-backed quantized/graph ANN index segments
      (such as DiskANN/HNSW with explicit exact-oracle recall reporting) across
      Table, Document and Graph queries with temporal `AS OF` cuts,
-     security-barrier RLS and BM25 lexical scores in a single hybrid query plan.
+     security-barrier RLS and lexical/structural scores in a single hybrid
+     query plan, handing off reactive context subscriptions to
+     [Milestone 27](27-reactive-context-and-agent-activation.md) and
+     declarative sequence/context synthesis research to
+     [Milestone 32](32-declarative-language-context-and-synthesis.md).
 4. **Implement multi-format `FOREIGN TABLE` and `COPY` readers over POSIX and `TransitObjectStore` (S3/GCS/R2):**
    - **Analytical columnar formats (`PARQUET`, `ARROW_IPC`):** use qualified
      borrowed layouts or bounded decoding for column chunks/dictionaries, with

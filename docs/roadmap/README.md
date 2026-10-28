@@ -64,7 +64,7 @@ Read the [delivery checkpoints](#delivery-checkpoints) for the execution plan.
 | [III: Distributed durability and operations](#phase-iii-distributed-durability-and-operations) | 18–21 | Operators use qualified providers, replicate and recover complete history, perform verified backup/restore/upgrades and move execution safely |
 | [IV: Governed collaboration and Board](#phase-iv-governed-collaboration-and-board) | 22–25 | People and applications inspect published resources, propose and review changes under shared policy and use the installed Board workbench |
 | [V: Agents and mixed application composition](#phase-v-agents-and-mixed-application-composition) | 26–29 | Agents and applications use governed MCP access, reactive activation and recorded effects through complete direct, Station and mixed language experiences |
-| [VI: Qualification and release](#phase-vi-qualification-and-release) | 30–31 | One committed revision has combined workload/fault evidence, verified distribution artifacts and runnable installed onboarding |
+| [VI: Qualification and release](#phase-vi-qualification-and-release) | 30–32 | One committed revision has combined workload/fault evidence, verified distribution artifacts and runnable installed onboarding, followed by speculative research into declarative language, structural context and corpus-native synthesis |
 
 Phases are delivery groupings, not additional runtime dependencies or release
 dates. Contract work and implementation may overlap when the owning prerequisites
@@ -95,9 +95,9 @@ combines that evidence at one revision.
 | --- | --- | --- | --- |
 | 10 | [Managed computations and WAL-activated dataflows](10-sql-and-dataflows.md) | Planned | Complete analytical SQL (window functions, CTEs, universal `D-Join` subquery unnesting, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress and WAL-driven managed computations |
 | 11 | [Data structures, query optimization and runtime performance](11-data-structures-and-performance.md) | In Progress | Zero-steady-state-allocation hot paths, per-morsel CPU/memory/IOPS metering, LeanStore/Umbra swizzled zero-copy buffer slabs, CedarDB directory-tagged join hash tables & WCOJ, statistics/costing, partitioning/clustering, LSM/`.tseg` compaction bounds and workload scorecards |
-| 12 | [First-class strings, perfect hashing and vectorized search execution](12-vectorized-strings-and-search.md) | Planned | 16-byte collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD comparisons and vectorized 256-doc Block-Max BM25 / hybrid search |
+| 12 | [First-class strings, perfect hashing and vectorized search execution](12-vectorized-strings-and-search.md) | Planned | 16-byte collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD comparisons, and declarative search/proximity contracts over swappable `.tseg` index profiles (qualifying vectorized 256-doc Block-Max BM25 and hybrid search first) |
 | 13 | [Data-centric pipeline fusion, AOT query compilation and adaptive specialization](13-data-centric-compilation-and-specialization.md) | Planned | HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up, `transit-app` AOT Zig query/view compilation and HyPer/Umbra/CedarDB benchmark baselines |
-| 14 | [Multi-model and multi-format foreign relations](14-multi-model-and-foreign-relations.md) | Planned | Document/graph projections (with WCOJ cyclic pattern matching), multi-model BM25/vector search composition, foreign formats, streaming CDC ingress and typed COPY/import/export |
+| 14 | [Multi-model and multi-format foreign relations](14-multi-model-and-foreign-relations.md) | Planned | Document/graph projections (with WCOJ cyclic pattern matching), multi-model lexical/structural/vector search composition, foreign formats, streaming CDC ingress and typed COPY/import/export |
 | 15 | [Branches, merges and restore](15-branches-merges-and-restore.md) | Planned | Durable multi-commit branches, logical three-way merge with `FOREIGN KEY`/`CHECK` verification, branch-aware compaction/GC and forward restore under current authority |
 | 16 | [Service and SDK coverage](16-service-and-sdk-coverage.md) | In Progress | Preserved Go raw/console slices and broader service, language, type and platform coverage over the shared API foundation |
 | 17 | [Formal semantics and implementation correspondence](17-formal-semantics-and-correspondence.md) | In Progress | Selected temporal models and algebraic proofs over delivered local contracts, connected to production behavior before distributed extensions |
@@ -135,6 +135,7 @@ combines that evidence at one revision.
 | --- | --- | --- | --- |
 | 30 | [Qualification and complete benchmarks](30-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
 | 31 | [Release distribution](31-releases.md) | Planned | Versioned verified artifacts, matching documentation and runnable installed onboarding |
+| 32 | [Declarative language, structural context and corpus-native synthesis research](32-declarative-language-context-and-synthesis.md) | Planned | Speculative research defining declarative span segmentation, multi-scale structural/graph proximity (`NEAR`), context-conditioned continuation and branch-verified agency over swappable physical index and predictor implementations |
 
 Performance measurement and amplification work remains tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76), alongside the reopened
@@ -165,9 +166,9 @@ evidence rather than assuming every preceding number is a technical dependency.
 | I | Declare and maintain indexes | 9 | Qualify ordered, covering and partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement, online index/table build recovery and snapshot-specific coverage through shared callers |
 | II | Maintain declared computations | 10 | Qualify complete analytical SQL (windows, CTEs, universal `D-Join` subquery unnesting, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress, service-owned activation, complete-commit change consumption, bounded operator state and recovered completed revisions |
 | II | Optimize database and runtime work | 11 | Establish workload/competitor baselines and numeric budgets, deliver zero-steady-state-allocation hot-path arenas, per-morsel CPU/memory/IOPS metering, LeanStore/Umbra swizzled zero-copy buffer slabs, CedarDB ~10-instruction directory-tagged join hash tables & WCOJ, statistics/planning, partitioning/clustering keys, LSM/`.tseg` compaction bounds and scan-resistant caching, and pass installed correctness/resource/performance gates |
-| II | Deliver first-class strings, perfect hashing and vectorized search | 12 | Qualify 16B collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD string comparisons, and vectorized 256-doc Block-Max BM25 and hybrid search |
+| II | Deliver first-class strings, perfect hashing and vectorized search | 12 | Qualify 16B collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD string comparisons, and declarative text/proximity search contracts over swappable `.tseg` index profiles (starting with vectorized 256-doc Block-Max BM25 and hybrid search) |
 | II | Deliver data-centric compilation, AOT queries and specialization | 13 | Qualify HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up and `transit-app` AOT Zig query/view compilation against HyPer/Umbra/CedarDB (VLDB 2018, JOB and CH-benCHmark) baselines |
-| II | Compose data models and history | 14–15 | Qualify foreign COPY/projections, streaming CDC ingress, multi-model BM25/vector search composition, multi-commit branches, branch-aware compaction/GC and conditional forward publication with `FOREIGN KEY`/uniqueness/constraint evidence and measured costs |
+| II | Compose data models and history | 14–15 | Qualify foreign COPY/projections, streaming CDC ingress, multi-model lexical/structural/vector search composition, multi-commit branches, branch-aware compaction/GC and conditional forward publication with `FOREIGN KEY`/uniqueness/constraint evidence and measured costs |
 | II | Expand qualified interfaces | 16 | Extend the language/service/platform matrix over the existing foundation; preserve delivered Go raw and console evidence and reject unsupported transaction/feed profiles |
 | II | Establish formal semantics and correspondence | 17 | Select settled local contracts, execute temporal/algebraic checks with implementation replay or independent fixtures, challenge them with negative controls and assign later extensions |
 | III | Qualify distributed infrastructure | 18–21 | Real providers, KMS/BYOK envelope encryption at rest and writer fencing/fine-grained distributed SSI, then replication, backup/PITR/upgrade procedures and automatic placement/distributed queries; repeat transaction and native-owner recovery across each failure profile |
@@ -176,6 +177,7 @@ evidence rather than assuming every preceding number is a technical dependency.
 | V | Extend agent-host interfaces and activation | 26–28 | MCP/Apps, reactive context and recorded outbound MCP over shared owners; no dependency on Board's frontend or configured credential |
 | V | Prove complete application composition | 29 | Installed direct, Station and all mixed capabilities in every claimed language; transaction/turn/checkpoint/effect boundaries and recovery remain explicit |
 | VI | Qualify and distribute one revision | 30–31 | Compose workload/fault/performance evidence at one committed revision, then immutable artifacts, matching docs and installed onboarding. Focused correctness gates remain mandatory earlier |
+| VI | Explore declarative language, structural context and synthesis | 32 | Speculative post-release research: define declarative span segmentation, multi-scale `NEAR` proximity maps, context-conditioned continuation and branch-verified agency against scalar reference oracles before selecting physical structures |
 
 Track first-three-milestone acceptance and explicitly transferred scope through
 #108/#109/#110 and the component issues. Update tracker ownership and links with
@@ -303,14 +305,22 @@ subsequent milestones to `13–30`:
      and seals frozen perfect-hash directories for `WHERE col IN (...)` sets,
      `TableSchema` column lookups and immutable `.tseg` dictionary/key pages
      (backed by 16–64 byte trailing buffer padding).
-   - **Vectorized 256-doc Block-Max BM25 and hybrid search:** Taking inspiration
-     from [turbopuffer's fully-vectorized search engine](https://turbopuffer.com/blog/fully-vectorized-search-engine),
-     `.tseg` inverted full-text indexes use 256-document bitpacked posting blocks
-     aligned with `.tseg` row groups and equipped with block-max BM25 impact
-     weights (`max_tf`, `min_doc_len`), evaluated via vectorized `MAXSCORE` /
-     Block-Max WAND operators in `Fuze` that prune non-competitive blocks,
-     intersect relational and `.tdel` bitmasks in SIMD registers, and defer
-     payload decoding through late materialization.
+   - **Declarative text/proximity search and swappable `.tseg` index profiles (starting with vectorized 256-doc Block-Max BM25 and hybrid search):**
+     Taking inspiration from
+     [turbopuffer's fully-vectorized search engine](https://turbopuffer.com/blog/fully-vectorized-search-engine),
+     [Milestone 12](12-vectorized-strings-and-search.md) separates declarative
+     analyzer/segmenter, proximity (`NEAR` / `WITHIN`) and ranking contracts from
+     swappable physical `.tseg` index layouts so text and code search are never
+     locked into a bag-of-words model. Its initial lexical profile partitions
+     posting lists into 256-document bitpacked blocks aligned with `.tseg` row
+     groups and equipped with block-max BM25 impact weights (`max_tf`,
+     `min_doc_len`), evaluated via vectorized `MAXSCORE` / Block-Max WAND
+     operators in `Fuze` that prune non-competitive blocks, intersect relational
+     and `.tdel` bitmasks in SIMD registers, and defer payload decoding through
+     late materialization, while handing off speculative research into
+     declarative spans, multi-scale `NEAR` maps, context-conditioned continuation
+     and branch-verified agency to
+     [Milestone 32](32-declarative-language-context-and-synthesis.md).
 3. **Data-centric pipeline fusion, CedarDB join structures, Flying-Start Adaptive Morsel Tier-Up and AOT query compilation ([Milestone 10](10-sql-and-dataflows.md), [Milestone 11](11-data-structures-and-performance.md), [Milestone 13](13-data-centric-compilation-and-specialization.md)):**
    Taking inspiration from [HyPer](https://hyper-db.de/) (Neumann, VLDB 2011),
    [Umbra](https://umbra-db.com/) (Neumann & Freitag, CIDR 2020),
@@ -831,7 +841,7 @@ computation; one universal readiness flag is insufficient.
 
 ## Maintaining the sequence
 
-Keep one numbered, descriptively named file per milestone (`01-` through `31-`).
+Keep one numbered, descriptively named file per milestone (`01-` through `32-`).
 Insert or reorder work by updating this index, filenames and links together.
 Split work only when it has independently reviewable outcomes and prerequisites.
 Keep phase membership contiguous and exhaustive: each milestone appears exactly
