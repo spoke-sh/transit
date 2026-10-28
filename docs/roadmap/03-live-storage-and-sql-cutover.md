@@ -1079,6 +1079,18 @@ source-activity target preserved through deletion recovery. Backend/root paths,
 quota accounting, failure inspection and CLI/SQL/Board presentation still need
 their shared operations and qualification; this does not close P6.
 
+The SQL session adapter now implements `SHOW STORAGE FOR name` through the
+existing signed Table storage operation. Preparation freezes the definition;
+execution observes fresh accepted progress, and repeat/terminal disclosure keeps
+the ordinary current-inspection checks. The typed row preserves bounded backlog
+completeness, archive/checkpoint/history frontiers and fixed compaction targets.
+Native console and database-wire adapters share this read-only implementation,
+without a new wire definition or maintenance authority. Reference grammar and
+completion checks pass; native/PostgreSQL/MySQL execution and post-buffer
+revocation checks are implemented but not yet executed at this source.
+Backend/root, quota/failure observations and Board presentation remain open.
+This is a partial P6.3 delivery and does not close any P6 acceptance checkbox.
+
 #### P7 — Deliver the single executable local profile
 
 Owners: [runtime build](../../build/runtime.zig), app entry modules, CLI

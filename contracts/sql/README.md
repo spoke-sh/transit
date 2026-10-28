@@ -41,6 +41,15 @@ It lowers typed metadata predicates/projections through Fuze's `TableSelect`;
 administrative reload remains a separate explicit execution operation. See
 [settings SQL](../../docs/handbook/reference/sql/settings.md) for its bounded profile.
 
+`SHOW STORAGE FOR name` belongs to the shared SQL session's direct Table
+inspection adapter. It returns one typed row from the signed direct Table
+`storage` operation under current metadata-inspection rights. It does not pin a
+snapshot, flush data or invoke the application runtime. The console and database
+wire adapters share this operation; query-source-only and Flight SELECT entry
+points do not accept it. `STORAGE` remains a contextual identifier, including in
+dotted setting names. See [SHOW](../../docs/handbook/reference/sql/show.md) for the
+bounded backlog and accepted-frontier semantics.
+
 ## Reproducible reference checks
 
 From the pinned development shell:

@@ -1,15 +1,17 @@
-//! Native DESCRIBE/EXPLAIN results are ordinary logical rows. Preparation owns
-//! metadata only; every disclosure rechecks current rights and source identity.
+//! Definition, plan and direct storage inspection produce ordinary logical rows.
+//! Preparation binds metadata; disclosure rechecks current rights and identity.
 const std = @import("std");
 const g = @import("root.zig");
 const f = g.fuze;
 const c = g.catalog;
+const Storage = @import("SessionStorage.zig");
 const Self = @This();
 arena: std.heap.ArenaAllocator,
 name: ?c.TableMetadata.Name = null,
 metadata: ?c.DirectTableBinding = null,
 statement: ?g.Statement = null,
 source: bool = false,
+storage: bool = false,
 kind: @FieldType(g.results.Observation.Metadata, "kind") = .catalog,
 rows: []const []const f.Types.Values.Cell,
 output: []const f.Types.Field,
@@ -31,11 +33,28 @@ fn unsigned(value: u64) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .unsigned = value } } };
 }
 pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
-    if (host.source) |source| return prepareSource(host, source, sql);
+    if (host.source) |source| return if (host.native_profile) prepareSource(host, source, sql) else null;
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
     errdefer arena.deinit();
     const a = arena.allocator();
     var parser = try f.SqlTyped.init(a, sql, null);
+    if (try parser.takeWord("SHOW")) {
+        if (!(try parser.takeWord("STORAGE")) or !(try parser.takeWord("FOR"))) {
+            arena.deinit();
+            return null;
+        }
+        const name = try c.TableMetadata.Name.init(try parser.name());
+        try parser.finish();
+        const response = try host.table.call(.{ .lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        defer response.deinit();
+        const definition = response.value.result.lookup orelse return error.CatalogNameNotFound;
+        const binding = try c.DirectTableBinding.init(host.table.connection, definition);
+        return .{ .arena = arena, .name = name, .metadata = binding, .storage = true, .rows = &.{}, .output = &Storage.fields };
+    }
+    if (!host.native_profile) {
+        arena.deinit();
+        return null;
+    }
     if (try parser.takeWord("DESCRIBE")) {
         const name = try c.TableMetadata.Name.init(try parser.name());
         try parser.finish();
@@ -130,13 +149,27 @@ pub fn deinit(self: *Self) void {
     if (self.statement) |*statement| statement.deinit();
     self.arena.deinit();
 }
+pub fn count(self: Self) usize {
+    return if (self.storage) 1 else self.rows.len;
+}
 pub const Read = struct {
     host: *g.Session,
     prepared: *Self,
     index: usize = 0,
+    storage_values: [Storage.fields.len]f.Types.Values.Cell = undefined,
     pub fn next(self: *Read) !?[]const f.Types.Values.Cell {
         try self.prepared.validate(self.host);
-        if (self.index == self.prepared.rows.len) return null;
+        if (self.index == self.prepared.count()) return null;
+        if (self.prepared.storage) {
+            const binding = self.prepared.metadata.?;
+            const response = try self.host.table.call(.{ .storage = .{ .object = binding.interpretation.interpretation.object, .pending_limit = Storage.pending_limit } });
+            defer response.deinit();
+            const observed = response.value.result.storage;
+            if (!std.meta.eql(binding.interpretation, observed.interpretation)) return error.TableDefinitionChanged;
+            self.storage_values = Storage.row(observed);
+            self.index += 1;
+            return &self.storage_values;
+        }
         defer self.index += 1;
         return self.prepared.rows[self.index];
     }

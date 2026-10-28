@@ -19,6 +19,14 @@ before allowing a successor. Status reads never initialize a lane. Source actors
 remain the owners of explicit captured Query execution, independently of SQL
 account recovery and direct database DDL/DML.
 
+`SHOW STORAGE FOR name` prepares an exact direct Table definition and reads its
+signed `storage` observation at execution. `SessionStorage` projects those facts
+into typed columns shared by native, PostgreSQL and MySQL results. Prepared
+re-execution observes fresh progress; buffered retries preserve their original
+values and recheck current inspection rights. The one-row observation creates no
+data pin and invokes no maintenance. Backlog counts are bounded to 1,024 rows and
+retain their completeness flag. See the [SHOW reference](../../../docs/handbook/reference/sql/show.md#table-storage-progress).
+
 See [source bindings](docs/sources.md), the [SQL session contract](../../../contracts/SQL_SESSION_V1.md)
 and [gateway configuration](../../../apps/transit-sql-gateway/docs/configuration.md).
 Run `zig build test` or `zig build check` here. The real service proofs use the
