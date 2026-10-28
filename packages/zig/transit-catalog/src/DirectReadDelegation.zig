@@ -65,7 +65,7 @@ pub const Closure = struct {
     }
     pub fn prepare(client: c.DirectTableClient, original: Self) !Closure {
         if (client.delegation != null or client.closure != null or client.borrow != null or !std.meta.eql(client.connection, original.binding.connection)) return error.InvalidTableDelegation;
-        const native: c.station.client.AuthorizationClient = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = client.connection.role, .key = client.key };
+        const native: c.client.AuthorizationClient = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = client.connection.role, .key = client.key };
         const signed = (try native.proof(client.connection.audience, try context(original, client.allocator))).signed;
         return .{ .credential_epoch = signed.claim.credential_epoch, .signature = signed.signature };
     }
@@ -184,7 +184,7 @@ pub fn validate(self: Self, allocator: std.mem.Allocator) !void {
 pub fn prepare(client: c.DirectTableClient, binding: Binding) !Self {
     try binding.validate();
     if (client.delegation != null or client.borrow != null or client.closure != null or !std.meta.eql(binding.connection, client.connection)) return error.InvalidTableDelegation;
-    const native: c.station.client.AuthorizationClient = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = client.connection.role, .key = client.key };
+    const native: c.client.AuthorizationClient = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = client.connection.role, .key = client.key };
     return .{ .binding = binding, .proof = (try native.proof(client.connection.audience, try binding.context(client.allocator))).signed };
 }
 

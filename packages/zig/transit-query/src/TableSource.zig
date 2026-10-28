@@ -48,7 +48,7 @@ pub fn from(allocator: std.mem.Allocator, connection: w.Connection, definition: 
     var schema = try f.TableSchema.decode(allocator, bytes);
     defer schema.deinit();
     if (!std.mem.eql(u8, &try schema.schema.fingerprint(), &definition.interpretation.schema_fingerprint)) return error.TableSchemaChanged;
-    try q.DirectTableQuery.qualify(schema.schema);
+    try q.direct.DirectTableQuery.qualify(schema.schema);
     var fields: [f.TableSchema.max_columns]t.Field = undefined;
     var descriptor = try (try schema.schema.rowType(&fields)).clone(allocator);
     errdefer descriptor.deinit();
@@ -156,7 +156,7 @@ pub const Basis = struct {
 pub fn basis(self: Self, retained: c.DirectTableReader.Basis, schema: f.TableSchema.Schema) !Basis {
     try self.validate();
     if (!std.meta.eql(retained.interpretation, self.interpretation) or !std.mem.eql(u8, &try schema.fingerprint(), &self.interpretation.schema_fingerprint)) return error.SourceChanged;
-    try q.DirectTableQuery.qualify(schema);
+    try q.direct.DirectTableQuery.qualify(schema);
     if (!std.meta.eql(self.collations, f.QueryCollations.fromTable(schema))) return error.TableSchemaChanged;
     var fields: [f.TableSchema.max_columns]t.Field = undefined;
     if (!try self.row_type.eql(try schema.rowType(&fields))) return error.TableSchemaChanged;

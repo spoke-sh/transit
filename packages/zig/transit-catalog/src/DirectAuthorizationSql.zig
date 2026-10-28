@@ -10,7 +10,7 @@ const w = c.DirectTableProtocol;
 pub const Limits = struct { requests: u32 = 128 };
 const Resolver = struct {
     client: c.DirectTableClient,
-    authority: c.station.client.AuthorizationClient,
+    authority: c.client.AuthorizationClient,
     description: struct { configuration: c.DirectCatalog.Configuration, subject: a.Verified },
     policy_revision: u64,
     default_namespace: u64,

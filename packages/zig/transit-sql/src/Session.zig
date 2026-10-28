@@ -38,7 +38,7 @@ sql_diagnostic: ?f.SqlDiagnostic = null,
 execution_diagnostic: ?q.protocol.Diagnostic = null,
 compile_binding: f.Sql.Binding = .{},
 const ObservationSource = enum { native, settings };
-pub const read_options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+pub const read_options: g.direct.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 pub const Prepared = union(enum) {
     native: g.Statement,
     probe: g.Probe,
@@ -77,7 +77,7 @@ pub const Prepared = union(enum) {
 };
 pub const Read = struct {
     host: *Self,
-    value: union(enum) { single: q.DirectTableQuery, relational: *q.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read },
+    value: union(enum) { single: g.direct.DirectTableQuery, relational: *g.direct.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read },
     prepared: *Prepared,
     builder: g.results.BatchBuilder,
     input: g.ReadBatch = .{},
@@ -85,7 +85,7 @@ pub const Read = struct {
     started: bool = false,
     disclosure: g.BatchDisclosure = .{},
     pins: [f.Relational.max_sources]?g.ReadPins.Record = @splat(null),
-    batch: ?q.DirectTableQuery.Batch = null,
+    batch: ?g.direct.DirectTableQuery.Batch = null,
     output: ?f.RelationalExecution.Output = null,
     probe_cells: [3]f.Types.Values.Cell = undefined,
     emitted: bool = false,
@@ -164,8 +164,8 @@ pub const Read = struct {
                     break;
                 }
                 try self.host.deadline.check(self.host.io);
-                self.input = try self.pull(@min(maximum - self.builder.len, q.DirectTableQuery.Batch.max_rows));
-                try self.input.validate(@min(maximum - self.builder.len, q.DirectTableQuery.Batch.max_rows));
+                self.input = try self.pull(@min(maximum - self.builder.len, g.direct.DirectTableQuery.Batch.max_rows));
+                try self.input.validate(@min(maximum - self.builder.len, g.direct.DirectTableQuery.Batch.max_rows));
                 self.input_index = 0;
                 self.started = true;
                 if (self.input.len == 0) {

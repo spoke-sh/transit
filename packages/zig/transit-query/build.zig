@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
     const document = b.dependency("transit_station_document", .{ .target = target, .optimize = optimize });
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
     const config = b.dependency("transit_config", .{ .target = target, .optimize = optimize });
-    const module = b.addModule("transit_query", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_config", .module = config.module("transit_config") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_station_document", .module = document.module("transit_station_document") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") } } });
+    const module = b.addModule("transit_query", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_query_direct", .module = b.dependency("transit_query_direct", .{ .target = target, .optimize = optimize }).module("transit_query_direct") }, .{ .name = "transit_config", .module = config.module("transit_config") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_station_document", .module = document.module("transit_station_document") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") } } });
     const filters = b.option([]const []const u8, "test-filter", "Run query tests whose names contain a filter") orelse &.{};
     const tests = b.addTest(.{ .root_module = module, .filters = filters });
     b.step("test-unit", "Run query component tests").dependOn(&b.addRunArtifact(tests).step);

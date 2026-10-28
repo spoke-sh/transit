@@ -24,7 +24,7 @@ fn tableKey(config: Config) !p.Ed25519.KeyPair {
         else => error.UnknownProofPrincipal,
     };
 }
-const read_options: gateway.query.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+const read_options: gateway.query.direct.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 fn appendRow(allocator: std.mem.Allocator, rows: *std.ArrayList([]const ?i128), cells: []const c.fuze.Types.Values.Cell) !void {
     if (rows.items.len == 32 or cells.len > 8) return error.ProofRowBudget;
     const values = try allocator.alloc(?i128, cells.len);

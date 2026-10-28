@@ -1,8 +1,8 @@
 //! Declarative identities, direct Table operations and named resource lifecycles.
-pub const station = @import("transit_station");
+pub const client = @import("transit_client");
 pub const storage = @import("transit_storage");
-pub const protocol = station.protocol;
-pub const fuze = station.fuze;
+pub const protocol = @import("transit_protocol");
+pub const fuze = @import("transit_fuze");
 pub const Model = @import("Model.zig");
 pub const Records = @import("Records.zig");
 pub const Inspection = @import("Inspection.zig");

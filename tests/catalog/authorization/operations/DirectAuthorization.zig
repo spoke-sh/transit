@@ -30,9 +30,9 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     const uri = try std.Uri.parse(profile.url);
     if (!(std.mem.eql(u8, uri.scheme, "http") or std.mem.eql(u8, uri.scheme, "https")) or uri.host == null or uri.user != null or uri.password != null or uri.query != null or uri.fragment != null or profile.url.len > 2048 or profile.request_timeout_ms == 0 or profile.request_timeout_ms > 60000 or profile.seed_file.len == 0) return error.InvalidConfiguration;
     const seed = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(absolute).?, profile.seed_file });
-    var key = try c.station.client.readKey(init.gpa, init.io, seed);
+    var key = try c.client.readKey(init.gpa, init.io, seed);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
-    var transport = c.station.client.Client.init(init.gpa, init.io, profile.url);
+    var transport = c.client.Client.init(init.gpa, init.io, profile.url);
     defer transport.deinit();
     transport.timeout_ms = profile.request_timeout_ms;
     const client: c.DirectTableClient = .{ .allocator = init.gpa, .authority = &transport, .service = &transport, .connection = profile.connection, .key = key };

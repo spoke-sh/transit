@@ -3,7 +3,6 @@
 const std = @import("std");
 const g = @import("root.zig");
 const c = g.catalog;
-const q = g.query;
 const f = g.fuze;
 const Self = @This();
 allocator: std.mem.Allocator,
@@ -11,7 +10,7 @@ text: []const u8,
 connection: c.DirectTableProtocol.Connection,
 namespace: u64,
 dialect: f.Sql.Dialect,
-plan: union(enum) { select: q.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, relational: *q.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
+plan: union(enum) { select: g.direct.DirectTablePrepared, dml: c.DirectTablePreparedDml, ddl: c.DirectTablePreparedDdl, relational: *g.direct.DirectRelationalCompilation, namespace_change: c.DirectAuthorizationSql.NamespacePlan },
 output: ?f.Types.Decoded,
 pub const Kind = enum { select, insert, update, delete, create, alter, drop };
 pub fn kind(self: *const Self) Kind {
@@ -74,10 +73,10 @@ pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []co
 /// This profile routes every relational target through the selected database's
 /// explicit catalog connection. SQL names never select another configured account.
 pub const Profile = enum { native, wire };
-pub fn prepare(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.DirectRelationalQuery.Options) !Self {
+pub fn prepare(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options) !Self {
     return prepareDiagnostic(allocator, client, namespace, text, dialect, profile, options, null);
 }
-pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding) !Self {
+pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding) !Self {
     if (detail) |value| value.* = .{};
     var location: f.Sql.Location = .{};
     return prepareInner(allocator, client, namespace, text, dialect, profile, options, detail, &location) catch |err| {
@@ -87,7 +86,7 @@ pub fn prepareDiagnostic(allocator: std.mem.Allocator, client: *c.DirectTableCli
         return err;
     };
 }
-fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: q.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location) !Self {
+fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, profile: Profile, options: g.direct.DirectRelationalQuery.Options, detail: ?*f.Sql.Binding, location: *f.Sql.Location) !Self {
     try f.Sql.validateText(text);
     var lexer: f.Sql.Lexer = .{ .text = text, .dialect = dialect, .parameters_enabled = true };
     const first = try lexer.next();
@@ -116,8 +115,8 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
             const clients: [f.Relational.max_sources]c.DirectTableClient = @splat(client.*);
             var selected = options;
             selected.dialect = dialect;
-            plan = .{ .relational = try q.DirectRelationalCompilation.prepare(allocator, clients[0..syntax.targets.len], namespace, text, .interactive, selected, location) };
-        } else plan = .{ .select = try q.DirectTablePrepared.prepare(allocator, client.*, namespace, text, dialect, detail) };
+            plan = .{ .relational = try g.direct.DirectRelationalCompilation.prepare(allocator, clients[0..syntax.targets.len], namespace, text, .interactive, selected, location) };
+        } else plan = .{ .select = try g.direct.DirectTablePrepared.prepare(allocator, client.*, namespace, text, dialect, detail) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "INSERT") or std.ascii.eqlIgnoreCase(first.text, "UPDATE") or std.ascii.eqlIgnoreCase(first.text, "DELETE")) {
         plan = .{ .dml = try c.DirectTablePreparedDml.prepare(allocator, client.*, namespace, text, dialect, location) };
     } else if (std.ascii.eqlIgnoreCase(first.text, "CREATE") or (profile == .native and (std.ascii.eqlIgnoreCase(first.text, "ALTER") or std.ascii.eqlIgnoreCase(first.text, "DROP")))) {
@@ -219,19 +218,19 @@ pub fn bindWrite(self: *const Self, allocator: std.mem.Allocator, client: *c.Dir
     if (self.plan == .namespace_change) return .{ .namespace_change = .{ .namespace = self.namespace, .binding = try self.plan.namespace_change.bind(operation, operation) } };
     return error.ExpectedGatewayWrite;
 }
-pub fn openSelect(self: *const Self, allocator: std.mem.Allocator, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, snapshot: c.DirectTableProtocol.Snapshot, limits: q.DirectTableQuery.Limits, cancellation: ?*const std.atomic.Value(bool)) !q.DirectTableQuery {
+pub fn openSelect(self: *const Self, allocator: std.mem.Allocator, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, snapshot: c.DirectTableProtocol.Snapshot, limits: g.direct.DirectTableQuery.Limits, cancellation: ?*const std.atomic.Value(bool)) !g.direct.DirectTableQuery {
     if (self.plan != .select) return error.ExpectedSingleTableSelect;
-    return q.DirectTableQuery.openPreparedRetained(allocator, client.*, snapshot, &self.plan.select, values, limits, cancellation, null, .{});
+    return g.direct.DirectTableQuery.openPreparedRetained(allocator, client.*, snapshot, &self.plan.select, values, limits, cancellation, null, .{});
 }
-pub fn openRelational(self: *const Self, allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, name: []const u8, client: *c.DirectTableClient, snapshots: []const c.DirectTableProtocol.Snapshot, options: q.DirectRelationalQuery.Options, cancellation: ?*const std.atomic.Value(bool)) !*q.DirectRelationalQuery {
+pub fn openRelational(self: *const Self, allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, name: []const u8, client: *c.DirectTableClient, snapshots: []const c.DirectTableProtocol.Snapshot, options: g.direct.DirectRelationalQuery.Options, cancellation: ?*const std.atomic.Value(bool)) !*g.direct.DirectRelationalQuery {
     if (self.plan != .relational) return error.ExpectedRelationalSelect;
-    return q.DirectRelationalQuery.openPreparedRetained(allocator, io, directory, name, client.*, self.plan.relational, snapshots, options, cancellation);
+    return g.direct.DirectRelationalQuery.openPreparedRetained(allocator, io, directory, name, client.*, self.plan.relational, snapshots, options, cancellation);
 }
 
 test "gateway statements reject transaction controls and multiple commands before authority access" {
     const t = std.testing;
     var client: c.DirectTableClient = undefined;
-    const options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+    const options: g.direct.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
     for ([_][]const u8{ "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT s", "COPY t FROM STDIN", "CREATE SCHEMA app", "ALTER SCHEMA app RENAME TO archive", "DROP SCHEMA app" }) |sql| try t.expectError(error.UnsupportedGatewayStatement, prepare(t.allocator, &client, 1, sql, .transit, .wire, options));
     if (prepare(t.allocator, &client, 1, "CREATE TABLE t (id BIGINT); CREATE TABLE u (id BIGINT)", .transit, .wire, options)) |value| {
         var result = value;

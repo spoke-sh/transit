@@ -16,14 +16,14 @@ pub const Spec = union(Kind) {
     document: struct {
         document: u64,
         type_revision: u32,
-        limits: c.station.Publication.Limits,
+        limits: c.protocol.DataLifecycle.PublicationLimits,
     },
 
     pub fn validate(self: Spec) !void {
         switch (self) {
             .kv => {},
             .document => |value| {
-                if (value.document == 0 or value.type_revision == 0 or value.limits.record_bytes < c.station.ImmutableIndex.node_bytes)
+                if (value.document == 0 or value.type_revision == 0 or value.limits.record_bytes < p.DataLifecycle.document_index_node_bytes)
                     return error.InvalidNamedResource;
                 try value.limits.validate();
             },

@@ -207,7 +207,7 @@ pub fn main(init: std.process.Init) !void {
     retained_count = 0;
     try meter.begin();
     var result_sum: i64 = 0;
-    const pool = try @import("transit_query").ComputePool.init(init.gpa, init.io, .{ .workers = config.workers, .minimum_work = 0 });
+    const pool = try @import("transit_query").direct.ComputePool.init(init.gpa, init.io, .{ .workers = config.workers, .minimum_work = 0 });
     defer pool.deinit();
     inline for (.{ false, true }) |batched| selected_engine: {
         if (batched != config.experimental_batch) break :selected_engine;

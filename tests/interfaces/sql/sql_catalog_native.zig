@@ -116,7 +116,7 @@ pub fn main(init: std.process.Init) !void {
         return support.print(init, .{ .found = true, .object = metadata.interpretation.interpretation.object.object, .count = data.value.result.observation.page.?.rows.len });
     }
     if (std.mem.eql(u8, mode, "select")) {
-        var prepared = try g.query.DirectTablePrepared.prepare(init.gpa, client, 1, args[4], .transit, null);
+        var prepared = try g.query.direct.DirectTablePrepared.prepare(init.gpa, client, 1, args[4], .transit, null);
         defer prepared.deinit();
         const response = try client.call(.{ .lookup = .{ .namespace = 1, .name = prepared.binding.name.slice() } });
         defer response.deinit();
@@ -128,7 +128,7 @@ pub fn main(init: std.process.Init) !void {
         defer pins.deinit();
         const pin = try pins.acquire(client, prepared.binding, metadata.position);
         defer pins.close(client, pin) catch {};
-        var query = try g.query.DirectTableQuery.openPreparedRetained(init.gpa, client, try pin.snapshot(), &prepared, &.{}, .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 }, null, null, .{});
+        var query = try g.query.direct.DirectTableQuery.openPreparedRetained(init.gpa, client, try pin.snapshot(), &prepared, &.{}, .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 }, null, null, .{});
         defer query.deinit();
         var buffer: [4096]u8 = undefined;
         var out = std.Io.File.stdout().writerStreaming(init.io, &buffer);

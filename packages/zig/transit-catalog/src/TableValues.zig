@@ -57,8 +57,8 @@ pub const PublicationLimits = struct {
     record_bytes: u32,
     staging_bytes: []const u8,
     staging_records: u32,
-    pub fn native(self: PublicationLimits) !c.station.Publication.Limits {
-        const value: c.station.Publication.Limits = .{ .record_bytes = self.record_bytes, .staging_bytes = try unsigned(self.staging_bytes), .staging_records = self.staging_records };
+    pub fn native(self: PublicationLimits) !c.protocol.DataLifecycle.PublicationLimits {
+        const value: c.protocol.DataLifecycle.PublicationLimits = .{ .record_bytes = self.record_bytes, .staging_bytes = try unsigned(self.staging_bytes), .staging_records = self.staging_records };
         try value.validate();
         return value;
     }

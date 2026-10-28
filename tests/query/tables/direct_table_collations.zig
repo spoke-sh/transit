@@ -31,7 +31,7 @@ fn pin(client: c.DirectTableClient, operation: u64, name: []const u8) !c.DirectT
     return .{ .object = value.interpretation.interpretation.object, .handle = response.value.result.pin };
 }
 fn count(client: c.DirectTableClient, snapshot: c.DirectTableProtocol.Snapshot, name: []const u8, sql: []const u8, expected: u64) !void {
-    var query = try q.DirectTableQuery.openRetained(client.allocator, client, snapshot, name, sql, .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+    var query = try q.direct.DirectTableQuery.openRetained(client.allocator, client, snapshot, name, sql, .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
     defer query.deinit();
     var rows = try query.nextBatch(8);
     defer rows.deinit();
@@ -61,9 +61,9 @@ pub fn run(client: c.DirectTableClient) !void {
         try count(client, snapshot, case.name, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE k < 'B' AND k IS NOT NULL", .{case.name}), case.range_count);
         const equality = try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE label = 'ALPHA'", .{case.name});
         try count(client, snapshot, case.name, equality, case.equality_count);
-        var prepared = try q.DirectTablePrepared.prepare(a, client, 1, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE label = $1", .{case.name}), .transit, null);
+        var prepared = try q.direct.DirectTablePrepared.prepare(a, client, 1, try std.fmt.allocPrint(a, "SELECT COUNT(*) FROM {s} WHERE label = $1", .{case.name}), .transit, null);
         defer prepared.deinit();
-        var query = try q.DirectTableQuery.openPreparedRetained(a, client, snapshot, &prepared, &.{.{ .bytes = "ALPHA" }}, .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+        var query = try q.direct.DirectTableQuery.openPreparedRetained(a, client, snapshot, &prepared, &.{.{ .bytes = "ALPHA" }}, .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
         defer query.deinit();
         var result = try query.nextBatch(8);
         defer result.deinit();

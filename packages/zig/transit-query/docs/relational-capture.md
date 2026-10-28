@@ -4,7 +4,7 @@
 grouping, projection, COUNT and ordered checked SUM. Its
 [contract](../../../../contracts/RELATIONAL_V1.md) defines the frozen request,
 source vector, checkpoints, output records and manifest. The interactive
-`DirectRelationalQuery` uses the same Fuze semantics with a different lifetime.
+`direct.DirectRelationalQuery` uses the same Fuze semantics with a different lifetime.
 
 ## Provisioning and admission
 

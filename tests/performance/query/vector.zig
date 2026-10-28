@@ -1,7 +1,7 @@
 //! Decoded operators and owned-row pipeline, independently checked by vector.py.
 const std = @import("std");
 const f = @import("transit_fuze");
-const Pool = @import("transit_query").ComputePool;
+const Pool = @import("transit_query").direct.ComputePool;
 const Tracker = @import("Allocator.zig");
 const Cell = f.Types.Values.Cell;
 const fixture = @import("pipeline_fixture.zig");

@@ -40,7 +40,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-sql-results](../../../packages/zig/transit-sql-results/README.md) / `transit_sql_results` | Logical statement outcomes, result progress and observation evidence | transit-fuze, transit-protocol |
 | [transit-sql-protocol](../../../packages/zig/transit-sql-protocol/README.md) / `transit_sql_protocol` | SQL session messages, canonical logical carriage and SCRAM | transit-fuze, transit-protocol |
 | [transit-sql-client](../../../packages/zig/transit-sql-client/README.md) / `transit_sql_client` | Native HTTP/TLS and Unix session transport, authentication, local discovery and owned responses | transit-sql-protocol |
-| [transit-sql](../../../packages/zig/transit-sql/README.md) / `transit_sql` | Shared SQL sessions, credentials, catalog-bound statements and paged account recovery | transit-station, transit-query, transit-catalog |
+| [transit-sql](../../../packages/zig/transit-sql/README.md) / `transit_sql` | Shared SQL sessions, credentials, catalog-bound statements and paged account recovery | transit-query-direct, transit-station, transit-query, transit-catalog |
 | [transit-postgres](../../../packages/zig/transit-postgres/README.md) / `transit_postgres` | PostgreSQL frames and deferred-write extended-cycle gate | transit-sql |
 | [transit-mysql](../../../packages/zig/transit-mysql/README.md) / `transit_mysql` | Bounded MySQL classic packet framing and sequence checks | transit-sql |
 | [transit-station-grpc](../../../packages/zig/transit-station-grpc/README.md) / `transit_station_grpc` | durable finite RPC adapter | transit-exchange, transit-grpc |
@@ -61,8 +61,9 @@ the implementations listed below remain shared runtime libraries.
 | [transit-runtime-substrate](../../../packages/zig/transit-runtime-substrate/README.md) / `transit_runtime_substrate` | Provider identity, template validation, sandbox lifecycle operations | transit-observability; invokes pinned external CLI |
 | [transit-station](../../../packages/zig/transit-station/README.md) / `transit_station` | GenServer, durable calls, scoped names, supervision, Tables and captured queries | transit-client, transit-fuze |
 | [transit-station-bindings](../../../packages/zig/transit-station-bindings/README.md) / `station_abi` | Shared native SDK handles, detached turn actions, C exports and generated host schemas; composes above the framework | transit-station, transit-client ABI, transit-station-http |
-| [transit-query](../../../packages/zig/transit-query/README.md) / `transit_query` | Signed query admission, verified typed pages and KV/Table/Document adapters | transit-station, transit-station-document |
-| [transit-catalog](../../../packages/zig/transit-catalog/README.md) / `transit_catalog` | Named Table creation, immutable definitions, bounded metadata, signed caller, neutral values and explicit catalog behavior | transit-station |
+| [transit-query-direct](../../../packages/zig/transit-query-direct/README.md) / `transit_query_direct` | Finite direct Table SQL compilation/execution, bounded compute and relational spill | transit-catalog, transit-fuze, transit-protocol |
+| [transit-query](../../../packages/zig/transit-query/README.md) / `transit_query` | Signed query admission, verified typed pages and KV/Table/Document adapters | transit-query-direct, transit-station, transit-station-document |
+| [transit-catalog](../../../packages/zig/transit-catalog/README.md) / `transit_catalog` | Named Table creation, immutable definitions, bounded metadata, signed caller, neutral values and explicit catalog behavior | transit-client, transit-protocol, transit-fuze, transit-storage |
 | [transit-fuze](../../../packages/zig/transit-fuze/README.md) / `transit_fuze` | Source/plan contracts, Table SQL compilation and bounded Zig-native Arrow execution | pinned zarrow, zarrow-compute |
 
 

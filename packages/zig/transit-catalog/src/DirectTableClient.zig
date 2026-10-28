@@ -3,7 +3,7 @@
 const std = @import("std");
 const c = @import("root.zig");
 const p = c.protocol;
-const wire = c.station.client;
+const wire = c.client;
 const w = c.DirectTableProtocol;
 const Self = @This();
 

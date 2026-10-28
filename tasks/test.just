@@ -82,7 +82,7 @@ storage-key-ranges:
 
 # Finite count intervals, same-pin scan controls and post-compute disclosure.
 table-count-ranges:
-    cd packages/zig/transit-query && zig build test-unit -Dtest-filter="count range" --summary all
+    cd packages/zig/transit-query-direct && zig build test -Dtest-filter="count range" --summary all
     just test::direct-table-service count-ranges
 
 # Projected segment pages, retained wire cursors and finite signed SQL reads.
@@ -343,6 +343,7 @@ packages:
     cd packages/zig/transit-station-bindings && zig build test
     cd packages/zig/transit-exchange && zig build test
     cd packages/zig/transit-station-http && zig build test
+    cd packages/zig/transit-query-direct && zig build test
     cd packages/zig/transit-query && zig build test
     cd packages/zig/transit-catalog && zig build test
     cd packages/zig/transit-station && zig build test

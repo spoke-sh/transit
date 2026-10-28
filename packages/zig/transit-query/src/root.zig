@@ -1,4 +1,5 @@
 //! One bounded public query model, shared by Board and the signed CLI.
+pub const direct = @import("transit_query_direct");
 pub const settings = @import("transit_config");
 pub const station = @import("transit_station");
 pub const protocol = station.protocol;
@@ -7,9 +8,6 @@ pub const wire = station.client;
 pub const document = @import("transit_station_document");
 pub const catalog = @import("transit_catalog");
 pub const storage = catalog.storage;
-pub const DirectTableQuery = @import("DirectTableQuery.zig");
-pub const DirectTablePrepared = @import("DirectTablePrepared.zig");
-pub const ComputePool = @import("ComputePool.zig");
 pub const TableChangeReader = @import("TableChangeReader.zig");
 pub const TableSource = @import("TableSource.zig");
 pub const TablePosition = @import("TablePosition.zig");
@@ -30,7 +28,6 @@ pub const RelationalExchangeRecords = @import("RelationalExchangeRecords.zig");
 pub const RelationalExchange = @import("RelationalExchange.zig");
 pub const RelationalExchangeProducer = @import("RelationalExchangeProducer.zig");
 pub const ExchangeAuthorization = @import("ExchangeAuthorization.zig");
-pub const RelationalSpill = @import("RelationalSpill.zig");
 pub const RelationalBridge = @import("RelationalBridge.zig");
 pub const RelationalCaller = @import("RelationalCaller.zig");
 pub const RelationalWorkspace = @import("RelationalWorkspace.zig");
@@ -54,7 +51,6 @@ pub const UnifiedSource = @import("UnifiedSource.zig");
 pub const Decoder = @import("Decoder.zig");
 pub const SourceDefinition = @import("SourceDefinition.zig");
 test {
-    _ = @import("direct_table_count_range_test.zig");
     _ = @import("table_source_test.zig");
     _ = @import("source_test.zig");
     _ = @import("sql_template_test.zig");
@@ -100,7 +96,4 @@ test {
 
 pub const SettingsJournal = @import("SettingsJournal.zig");
 
-pub const DirectRelationalCompilation = @import("DirectRelationalCompilation.zig");
-pub const DirectRelationalTables = @import("DirectRelationalTables.zig");
-pub const DirectRelationalQuery = @import("DirectRelationalQuery.zig");
 pub const DirectTableAssistance = @import("DirectTableAssistance.zig");

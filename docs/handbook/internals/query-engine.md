@@ -34,7 +34,7 @@ relational scans therefore retain canonical contribution order across WAL and
 segment sources. The [storage owner](../../../packages/zig/transit-storage/src/TablePartition.zig)
 checks identity uniqueness before publishing the complete root.
 
-[`DirectRelationalCompilation`](../../../packages/zig/transit-query/src/DirectRelationalCompilation.zig)
+[`DirectRelationalCompilation`](../../../packages/zig/transit-query-direct/src/DirectRelationalCompilation.zig)
 binds current definitions without acquiring data. Execution supplies retained
 pins and verifies the prepared interpretations. A cut explicitly identifies a
 native resource or a Table partition. Separate Tables have independent frontiers
@@ -200,7 +200,7 @@ XSAVE/XCR0 checks. This guards that object, not unrelated native-target code;
 a portable executable must itself be built with `-Dcpu=baseline`. Generic rich
 values retain their logical comparison and ownership rules.
 
-[`ComputePool`](../../../packages/zig/transit-query/src/ComputePool.zig) belongs to
+[`ComputePool`](../../../packages/zig/transit-query-direct/src/ComputePool.zig) belongs to
 the host. One admitted batch is partitioned into disjoint lane and scratch ranges
 across at most four workers. There is no queued backlog. Other queries compute
 locally; the host must still bound query concurrency and decoder/output owners.
