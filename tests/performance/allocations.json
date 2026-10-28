@@ -235,14 +235,20 @@
       "cases": [
         "page_decode",
         "row_fallback",
+        "nested_row_decode_warmup",
+        "detached_page_lifetime",
         "arrow_retention",
         "source_and_authority_reads"
       ],
       "checks": [
-        "packages/zig/transit-fuze/src/TSegReader.zig"
+        "packages/zig/transit-fuze/src/TSegReader.zig",
+        "packages/zig/transit-fuze/src/table_row_test.zig",
+        "packages/zig/transit-storage/src/table_snapshot_scan_test.zig"
       ],
+      "backing": "Nested row decoding reuses caller-owned scratch; Table pages detach admitted values into one shared output arena. A detached row retains its bounded page until the final release.",
       "gaps": [
-        "Source page/decompression backing, row fallback, retained storage exports and authority reads."
+        "Page output still allocates per page; the decode-only warmup check does not cover complete source reads.",
+        "Source cache/decompression backing, retained storage exports and current authority reads lack a combined sealed-reserve gate."
       ]
     },
     {
@@ -258,10 +264,21 @@
         "native_turn",
         "kv",
         "document",
-        "recovery"
+        "recovery",
+        "foreground_reads_during_flush",
+        "bounded_response_serialization"
       ],
+      "checks": [
+        "packages/zig/transit-protocol/src/Json.zig",
+        "apps/transit-node/local_catalog_policy_test.zig",
+        "tests/storage/tables/direct_table_maintenance.py",
+        "tests/storage/tables/direct_table_maintenance.zig"
+      ],
+      "backing": "Direct Table replies count encoded bytes before one exact output allocation. The installed maintenance schedule observes whole-node CPU/RSS/I/O, separately from the private Table workspace budget.",
       "gaps": [
-        "Durable ingestion, log/flush buffers, native turns and paged recovery retain independent allocator owners."
+        "Durable ingestion, log/flush buffers, native turns and paged recovery retain independent allocator owners.",
+        "Response serialization still allocates output and makes two encoding passes; it has no reusable service reserve.",
+        "Foreground-read process observations do not count all backing attempts or qualify concurrent writes, aggregate admission, or steady-state allocation freedom."
       ]
     },
     {
