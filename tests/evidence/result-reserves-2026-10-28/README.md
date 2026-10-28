@@ -15,6 +15,14 @@ hashes, all five alternating pairs, each process's five repetitions, workload
 sizes and allocation counters are embedded in the report. The original bytes
 are copied without transformation from `result-codecs-py64dckc/evidence.json`.
 
+The subsequent rebase incorporates upstream documentation and validation fixes.
+Revision `c94831b3c` has identical runtime and codec-probe inputs. In a fresh
+checkout of that revision, applying [candidate-source.patch](candidate-source.patch)
+restores the exact original candidate source tree
+`bb1c472dabea6664d80aefb1df52f44016da802b`. The patch changes only documentation
+and diagnostic validation files. This preserves reproducibility without rewriting
+the report's original revision or hashes.
+
 Reproduction follows the [codec measurement guide](../../performance/results/README.md)
 with those revisions and the unchanged budget file. The recorded AMD Threadripper
 3960X host has 48 logical CPUs; both arms were pinned to CPU 47. Other user work
