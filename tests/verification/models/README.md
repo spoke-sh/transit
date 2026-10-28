@@ -383,7 +383,7 @@ weak fairness of commit and observation. Indefinite revocation, crashes or lost
 service are outside these conditional results. There is no wall-clock bound.
 
 [The private Zig adapter](write_lifecycle_state.zig) replays all ten lifecycle
-negative-control schedules against `TablePartition` using real intents, WAL,
+negative-control schedules against a two-row UPDATE in `TablePartition` using real intents, WAL,
 indexes and retained snapshot APIs. Independent fixed fixture oracles check rows,
 counts, terminal identity and expected refusals. The first commit reply is lost;
 uncertain append errors require reconstruction before oracle inspection.

@@ -2274,3 +2274,48 @@ the reorganized suite. Current execution, automatic result retention and scope
 navigation are owned by the [runner](../../../tests/runner/README.md) and
 [verification index](../../../tests/verification/README.md). Reusable deterministic
 methods now live beside their [scenario owners](../../../tests/verification/simulation/README.md).
+
+## Durable SQL write lifecycle models — 2026-10-28
+
+At [`eaaf5ac72ace`](https://github.com/spoke-sh/transit/commit/eaaf5ac72aceadc410f08f641d5fdd85ba217781),
+`nix develop .#ci-formal --command just ci clean --lane formal` passed all eight
+formal tasks from a clean clone. The new write-lifecycle task exhausted twenty
+row-lifecycle safety profiles and five separate token profiles, detected fifteen
+intended removed-guard counterexamples, and replayed ten lifecycle schedules
+against the real Zig Table owner. A separate fair UPDATE profile checked
+conditional settlement and terminal observation.
+
+| Configuration family | Distinct states per configuration |
+| --- | ---: |
+| Separate acceptance, ordinary/no-op/empty | 3,373 |
+| Separate acceptance, invalid INSERT/UPDATE | 3,105 |
+| Candidate combined acceptance, ordinary/no-op/empty | 1,737 |
+| Candidate combined acceptance, invalid INSERT/UPDATE | 1,509 |
+| Token equality/conflict/different Table | 64 |
+| Separate accounts or tokens | 92 |
+| Fair UPDATE | 3,373 |
+
+The locked TLA+ 1.7.4/TLC 2.19 runs used one worker, seed 1, fingerprint 0, a
+512 MiB heap and a 60-second per-process bound, with no depth cutoff. The clean
+runner retained source/configuration/binary identities, exact commands, logs,
+counterexamples and independent replay projections under
+`.cache/ci/clean/eaaf5ac72ace-transit-ci-5dvs0sa4/verification/write-lifecycle-model/`.
+The clean completion record is the sibling `formal.json`; hosted CI retains the
+same model artifacts through its configured artifact upload.
+
+The separate storage-package command
+`nix develop .#ci-formal --command zig build test -Dtest-filter='original DML retry'`
+passed the new disk-reopen cases for INSERT, UPDATE and DELETE. Each loses its
+completion reply, accepts a later INSERT, checkpoints, reopens, retries the
+original intent and requests cancellation after the existing commit. Independent
+row/count expectations and an older retained snapshot remain intact. This is
+real disk reopen, not process-death injection or power loss.
+
+The [model guide](../../../tests/verification/models/README.md#finite-sql-write-lifecycle-models)
+defines the finite bounds and fairness assumptions. TRUNCATE and combined
+Catalog/Table acceptance remain modeled proposals; token-model counterexamples
+have no automatic Catalog replay. Selected Table replay uses memory providers
+and explicit reconstruction after uncertain append. These checks establish no
+universal refinement, arbitrary-size execution, quota consistency, installed
+SQL performance or physical power-loss theorem. INSERT latency targets remain
+open in [#211](https://github.com/spoke-sh/transit/issues/211).
