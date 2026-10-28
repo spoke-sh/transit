@@ -9,20 +9,25 @@ pub const Threaded = struct {
     vtable: std.Io.VTable,
     workers: usize,
     stack_bytes: usize,
+    barriers: []std.Io.Future(void),
+    worker_cleanup: ?*const fn () void,
     pub const Options = struct {
         workers: usize,
         task_bytes: usize,
         stack_bytes: usize = std.Thread.SpawnConfig.default_stack_size,
         environ: std.process.Environ = .empty,
         argv0: std.Io.Threaded.Argv0 = .empty,
+        worker_cleanup: ?*const fn () void = null,
     };
     pub fn create(parent: std.mem.Allocator, options: Options) !*Threaded {
         if (options.workers == 0 or options.stack_bytes == 0) return error.InvalidIoCapacity;
         _ = try std.math.mul(usize, options.workers, options.stack_bytes);
         const self = try parent.create(Threaded);
         errdefer parent.destroy(self);
-        self.* = .{ .parent = parent, .records = try .init(parent, options.task_bytes), .runtime = undefined, .vtable = undefined, .workers = options.workers, .stack_bytes = options.stack_bytes };
+        self.* = .{ .parent = parent, .records = try .init(parent, options.task_bytes), .runtime = undefined, .vtable = undefined, .workers = options.workers, .stack_bytes = options.stack_bytes, .barriers = undefined, .worker_cleanup = options.worker_cleanup };
         errdefer self.records.deinit();
+        self.barriers = try parent.alloc(std.Io.Future(void), options.workers);
+        errdefer parent.free(self.barriers);
         self.runtime = .init(self.records.allocator(), .{
             .async_limit = .limited(options.workers),
             .concurrent_limit = .limited(options.workers),
@@ -33,7 +38,7 @@ pub const Threaded = struct {
         errdefer self.runtime.deinit();
         self.vtable = self.runtime.io().vtable.*;
         self.vtable.netLookup = lookup;
-        try self.warmWorkers();
+        try self.barrier(null);
         return self;
     }
     pub fn io(self: *Threaded) std.Io {
@@ -70,32 +75,58 @@ pub const Threaded = struct {
     /// Backing records plus explicitly requested stacks. OS guard pages/TLS and
     /// pthread bookkeeping are reported by the host's separate mapping observer.
     pub fn reservedBytes(self: *const Threaded) usize {
-        return @sizeOf(Threaded) + self.records.buffer.len + self.workers * self.stack_bytes;
+        return @sizeOf(Threaded) + self.records.buffer.len + self.barriers.len * @sizeOf(std.Io.Future(void)) + self.workers * self.stack_bytes;
     }
-    fn warmWorkers(self: *Threaded) !void {
+    const Gate = struct {
+        arrived: std.atomic.Value(usize) = .init(0),
+        count: usize,
+        ready: std.Io.Event = .unset,
+        leave: std.Io.Event = .unset,
+    };
+    fn barrier(self: *Threaded, cleanup: ?*const fn () void) !void {
         const io_ = self.io();
-        const futures = try self.parent.alloc(std.Io.Future(void), self.workers);
-        defer self.parent.free(futures);
-        var gate: std.Io.Event = .unset;
+        self.quiescent();
+        var gate: Gate = .{ .count = self.workers };
         var started: usize = 0;
         defer {
-            gate.set(io_);
-            for (futures[0..started]) |*future| future.await(io_);
+            gate.leave.set(io_);
+            for (self.barriers[0..started]) |*future| future.await(io_);
+            self.quiescent();
         }
         // Every worker is simultaneously occupied before releasing the gate.
         // This warms a finite concurrency envelope, not data or query shapes.
-        for (futures) |*future| {
-            future.* = try io_.concurrent(wait, .{ io_, &gate });
+        for (self.barriers) |*future| {
+            future.* = try io_.concurrent(wait, .{ io_, &gate, cleanup });
             started += 1;
         }
+        gate.ready.waitUncancelable(io_);
     }
-    fn wait(io_: std.Io, gate: *std.Io.Event) void {
-        gate.waitUncancelable(io_);
+    fn quiescent(self: *Threaded) void {
+        // In this pinned runtime Future.await observes completion just before
+        // the worker releases its busy count. All host futures are already
+        // joined; wait for that finite tail under the runtime's own mutex.
+        while (true) {
+            std.Io.Threaded.mutexLock(&self.runtime.mutex);
+            const idle = self.runtime.busy_count == 0;
+            std.Io.Threaded.mutexUnlock(&self.runtime.mutex);
+            if (idle) return;
+            std.Thread.yield() catch {};
+        }
+    }
+    fn wait(io_: std.Io, gate: *Gate, cleanup: ?*const fn () void) void {
+        if (cleanup) |function| function();
+        if (gate.arrived.fetchAdd(1, .acq_rel) + 1 == gate.count) gate.ready.set(io_);
+        gate.leave.waitUncancelable(io_);
     }
     /// All host futures and groups must be joined first. Threaded teardown joins
     /// workers before their task allocator or borrowed host state can disappear.
     pub fn destroy(self: *Threaded) void {
+        // Pinned Threaded detaches pthreads and waits for their worker loops,
+        // not subsequent pthread TLS destructors. Finish foreign thread state
+        // explicitly on each distinct worker while its owner is still alive.
+        if (self.worker_cleanup != null) self.barrier(self.worker_cleanup) catch unreachable;
         self.runtime.deinit();
+        self.parent.free(self.barriers);
         self.records.deinit();
         self.parent.destroy(self);
     }
@@ -144,4 +175,29 @@ test "numeric lookup preserves address family port canonical lifetime and closur
         try t.expectError(error.Closed, queue.getOne(io_));
     }
     try probe.verify();
+}
+
+const CleanupTest = struct {
+    var calls: std.atomic.Value(usize) = .init(0);
+    var ids: [4]std.Thread.Id = undefined;
+    fn finish() void {
+        const index = calls.fetchAdd(1, .acq_rel);
+        std.debug.assert(index < ids.len);
+        ids[index] = std.Thread.getCurrentId();
+    }
+};
+test "foreign cleanup runs once on every distinct worker before reserve release" {
+    const t = std.testing;
+    CleanupTest.calls.store(0, .release);
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    const runtime = try Threaded.create(probe.allocator(), .{ .workers = 4, .task_bytes = 64 * 1024, .worker_cleanup = CleanupTest.finish });
+    probe.begin(true);
+    runtime.destroy();
+    try probe.verify();
+    try t.expectEqual(0, probe.live_bytes);
+    try t.expectEqual(4, CleanupTest.calls.load(.acquire));
+    for (CleanupTest.ids, 0..) |id, index| {
+        try t.expect(id != std.Thread.getCurrentId());
+        for (CleanupTest.ids[0..index]) |previous| try t.expect(id != previous);
+    }
 }

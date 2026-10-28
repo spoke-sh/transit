@@ -11,6 +11,7 @@ const Connection = @import("Connection.zig");
 const http = @import("transit_http_server");
 const Memory = g.query.QueryMemory;
 const memory = @import("transit_memory");
+const bounded_io = @import("transit_io");
 const telemetry = g.query.wire.observability.telemetry;
 test {
     _ = g.Session;
@@ -536,6 +537,36 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer parsed.deinit();
     const config = &parsed.value;
     try config.validate();
+    const native_listeners: usize = if (!initialize and config.native != null)
+        @as(usize, @intFromBool(config.native.?.port != null)) + @intFromBool(config.native.?.socket != null)
+    else
+        0;
+    const wire_connections: usize = if (!initialize and config.wireListening()) @as(usize, config.limits.connections) + 2 else 0;
+    // Supervisors/recovery, account transport/deadline work, wire protocol
+    // nesting, and HTTP header/dispatch/authority work have finite independent
+    // concurrency envelopes. No worker or task backing is added by a request.
+    const worker_count = 16 + 4 * config.accounts.len + 8 * wire_connections +
+        native_listeners * (3 * 16 + 4 * (Native.RequestStorage.data_slots + Native.RequestStorage.control_slots)) +
+        @as(usize, if (!initialize and config.health_port != null) 16 else 0);
+    const tls_connections = if (initialize) 0 else @as(usize, if (config.wireListening() and config.tls_mode != .disabled) config.limits.connections else 0) +
+        @as(usize, if (config.native != null and config.native.?.port != null and config.native.?.tls != null) 16 else 0);
+    const crypto = if (tls_connections != 0) try tls.Memory.create(init.gpa, (16 + tls_connections) * 1024 * 1024) else null;
+    defer if (crypto) |owner| owner.destroy();
+    const io_runtime = try bounded_io.Threaded.create(init.gpa, .{
+        .workers = worker_count,
+        .task_bytes = worker_count * 16 * 1024,
+        .environ = init.minimal.environ,
+        .argv0 = .init(init.minimal.args),
+        .worker_cleanup = if (crypto != null) tls.Memory.stopThread else null,
+    });
+    // Every service future is joined by serve before destroying workers. The
+    // cleanup barrier ends OpenSSL thread state before its reserve is freed.
+    defer io_runtime.destroy();
+    var host_init = init;
+    host_init.io = io_runtime.io();
+    return serve(host_init, diagnostics, config, initialize);
+}
+fn serve(init: std.process.Init, diagnostics: *telemetry.Runtime, config: *const g.Configuration, initialize: bool) !void {
     // Bootstrap and retained-operation recovery have no dependency on listener
     // credentials. In particular, expired or removed PEM files cannot prevent
     // a disabled listener's workers from resuming accepted operations.

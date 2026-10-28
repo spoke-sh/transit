@@ -30,6 +30,27 @@ output is drained after every TLS operation. Application writes use at most
 `finish` sends close-notify without waiting; `deinit` releases TLS memory and
 does not close the caller's socket. Truncated TLS input is an error.
 
+`Memory.create(allocator, capacity)` installs a fixed `transit-memory` slab as
+OpenSSL's process-wide allocator before any OpenSSL initialization. All library
+allocations, reallocations, headers, alignment and fragmentation consume that
+reserve; exhaustion returns allocation failure without a heap fallback. Shrinks
+retain charged capacity until release. Released payloads are erased before reuse.
+The owner is shared by contexts and connections, including provider and
+thread-local state; it is not an account quota or a bound on unrelated libc/I/O
+allocations. Callers that do not install this owner use OpenSSL's allocator.
+
+Installation must be serialized before other crypto users start. An existing
+installation or earlier foreign OpenSSL initialization rejects. Destroy every
+context/session and join every crypto-using worker before `Memory.destroy`;
+it performs OpenSSL's permanent process cleanup before freeing the reserve.
+OpenSSL cannot be used or reinitialized afterward. A process may instead retain
+the owner until process termination. For detached workers, call `Memory.stopThread`
+on each worker after its final crypto operation and before its completion signal;
+the gateway uses `transit-io`'s worker cleanup barrier for this purpose. The TLS probe reserves 16 MiB and checks
+100 fresh connections with alternating TLS 1.2/1.3, independently verified by
+Python clients, while forbidding backing growth. This component check does not
+qualify the gateway's other allocation owners.
+
 Build and run the standalone checks in the repository's `sql-wire` Nix shell.
 The `probe` build target supplies the independent database-upgrade TLS peer.
 See the [toolchain guide](../../../nix/README.md) and

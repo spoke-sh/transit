@@ -112,8 +112,29 @@ JSON and reply bytes remain alive.
 These capacities include allocator headers, alignment and retained slack inside
 each reserve; slot directories add their own accounted bytes. Capacity stays
 charged while idle. This is a backing-capacity bound, not a measurement of RSS.
-Account workers, source/authority clients, I/O tasks, stacks and OpenSSL own
-additional storage. Exhaustion has no general-heap fallback in these result
+
+The service also admits a fixed I/O runtime before opening listeners. It starts
+`16 + 4A + 8W + 96N + 16H` workers, where `A` is the account count, `W` is
+`limits.connections + 2` when either database-wire listener is enabled (otherwise
+zero), `N` is the number of native TCP/Unix listeners, and `H` is one when health
+inspection is enabled. Initialization without listeners uses only `16 + 4A`.
+This envelope includes protocol tasks, nested request/deadline work and separate
+control/recovery work. Each worker charges 16 KiB of shared task-record capacity
+and the pinned runtime's 16 MiB requested stack; OS guard pages and pthread
+bookkeeping are additional. Stacks are virtual reservations, not necessarily
+resident pages. Thread or record exhaustion fails admission/scheduling; the
+runtime does not allocate more backing while serving requests.
+
+When TLS listeners are enabled, OpenSSL uses one additional fixed reserve of
+`(16 + T) MiB`, where `T` is `limits.connections` for enabled database-wire TLS,
+plus 16 for native TCP TLS. Provider state, connection objects, reallocations,
+headers and fragmentation all consume that reserve. Crypto allocation exhaustion
+fails the TLS operation without a heap fallback; freed payloads are erased.
+All connection tasks and I/O workers join before OpenSSL's process cleanup frees
+the reserve. This bounds these owners independently of account runtime, source
+and authority allocations; it is not a whole-process zero-allocation claim.
+Account workers and source/authority clients own additional storage beyond these
+reserves. Exhaustion has no general-heap fallback in the result
 reserves. Connection/request tasks join before reuse, and reassigned storage is
 erased so another account cannot inherit payloads or credentials. Retained
 cursor output outlives request buffers and sockets; retries preserve its ordinal
