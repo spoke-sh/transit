@@ -90,8 +90,10 @@ fn run(self: *Self, original: *Client, config: Client.Config, password: ?[]const
         switch (reply.value.result) {
             .operation => |value| {
                 try self.observe(value);
-                if (discovering) return value;
+                if (discovering or value.phase == .terminal) return value;
                 request_cancel = false;
+                try sleep(client.io, 5);
+                continue;
             },
             .err => |failure| {
                 if (std.mem.eql(u8, &failure.sqlstate, "42501") or std.mem.eql(u8, &failure.sqlstate, "28000")) return error.SqlObservationDenied;

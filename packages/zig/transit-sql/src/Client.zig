@@ -10,8 +10,9 @@ execution: g.DatabaseAccount,
 principal: u64,
 key: p.Ed25519.KeyPair,
 lease: ?c.DirectClientToken.Lease = null,
+credential_epoch: ?u64 = null,
 pub fn table(self: *Self, binding: g.DatabaseAccount.Binding) c.DirectTableClient {
-    return .{ .allocator = self.transport.http.allocator, .authority = self.transport, .service = self.transport, .connection = .{ .scope = .{ .realm = self.execution.configuration.realm, .resource = binding.resource, .catalog = binding.catalog }, .branch = 1, .audience = binding.owner, .principal = self.execution.configuration.table_principal, .role = binding.role }, .key = self.key, .lease = self.lease };
+    return .{ .allocator = self.transport.http.allocator, .authority = self.transport, .service = self.transport, .connection = .{ .scope = .{ .realm = self.execution.configuration.realm, .resource = binding.resource, .catalog = binding.catalog }, .branch = 1, .audience = binding.owner, .principal = self.execution.configuration.table_principal, .role = binding.role }, .key = self.key, .lease = self.lease, .credential_epoch = self.credential_epoch };
 }
 pub const Source = struct {
     client: *Self,

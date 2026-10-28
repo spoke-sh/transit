@@ -10,6 +10,16 @@ configured database names to Catalog bindings. `ReadSources` composes cleanup
 for explicitly configured source connections above the database runtime; it
 introduces no database permission or storage authority.
 
+Each command verifies its account credential against the native identity. Its
+direct Table clients reuse that observed credential epoch when signing requests,
+avoiding a separate identity read before every Table exchange. The epoch is a
+claim, not permission: the owner authenticates it and checks current policy and
+runtime fencing on every request. Rotation rejects a stale claim. Buffered and
+repeated result batches retain their current disclosure checks.
+Credential and scope denial are checked before waiting for account recovery
+readiness, so revocation is reported even when it also stops background recovery.
+Readiness and activation fencing still gate execution.
+
 `ConfigurationOperations` records the original reload identity and expected
 configuration generation in Catalog before dispatch. `CapturedOperations` stages
 a complete compiled bundle and publishes each complete signed Query request

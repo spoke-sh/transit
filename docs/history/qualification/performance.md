@@ -9,6 +9,117 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Persistent console statement latency — 2026-10-28
+
+The [console workload](../../../tests/performance/console/statements.py) exercises
+the actual persistent `transit console` with `.timer on`, the human table
+renderer, five single-row INSERTs, exact contents after each write, warm reads
+and a final typed JSON readback. It asserts verified completion and mutation
+counts. Instrumented runs also reject Station sends/turns and new pins during
+warm reads. The [method](../../../tests/performance/README.md) extends the database
+decoupling latency investigation; it does not establish a latency guarantee.
+
+The control is committed `27bb9cd7ba5deed5797703ee35624f641d81d6f5`. The initial
+candidate is that source plus the frozen working patch
+`fb796bc2efb95e1598071443f18b295f3ff6759e42ba78f6d3d9c6cf6b704d79`, retained as
+`.cache/console-perf/candidate.patch`. The final candidate includes the denial
+ordering repair below, with patch
+`af6d399d87b71aaca5d5d5b98e141721211d1cb66dac7bb7faea5c7a7e04f7c4`
+retained as `.cache/console-perf/verified.patch`. All use ReleaseSafe with Zig
+`0.17.0-dev.2267+48abf1a34` on Linux x86_64. Executable hashes are in the reports;
+the new workload helper is identified separately by SHA-256
+`9a95dc1a8119d34b9eba86c24418a17401a9e10c4adfcf287a68022e1fdebc7b`.
+
+Sequential unproxied TLS runs reuse the existing SQL wire fixture, its eight-page
+native cache, file-backed local storage, request budgets and setup binaries.
+Only the node, SQL gateway and console under comparison differ. The retained
+experiment adapter `.cache/console-perf/wire_statements.py` calls the same workload
+through that fixture; its SHA-256 is
+`8c8e94d8c0519ce97080fbce1ec75e8293b2bb4db7f530f2b6766b09cd2314b1`.
+This is a component-launched TLS comparison, separate from default
+`transit server` installation. Other users' validation was active on the host;
+these small samples cannot attribute every timing difference to the patch.
+
+| Console timer observation | Control | Final candidate |
+| --- | ---: | ---: |
+| First empty SELECT, one sample | 2,581 ms | 1,717 ms |
+| Warm SELECT, p50 of six | 386 ms | 188 ms |
+| Single-row INSERT, p50 of five | 2,537 ms | 1,912 ms |
+| SELECT immediately after INSERT, p50 of five | 2,661 ms | 2,126 ms |
+
+All three complete workloads pass their independent values/counts/completion
+oracles. The initial candidate has warm-read p50 203 ms and INSERT p50 1,965 ms,
+with one post-write SELECT at 3,552 ms. Variation between candidate runs remains
+unisolated. Final rendering takes 0–1 ms, INSERT submission 845–871 ms and
+completion observation 1,027–1,076 ms. Server preparation and execution belong
+to the client-observed submit phase, not the zero-valued client compile phase.
+The final post-write SELECT range is 2,091–2,156 ms; warm-read gains do not eliminate
+cold acquisition or replacement costs.
+
+A separate initial-candidate proxy run passes the same assertions, observes zero
+Station sends/turns, zero warm-read pin requests and one `commit_saved` per
+INSERT. The first INSERT window contains 79 owner-work responses and 1,779 ms
+of accumulated provider time. Its direct commit request takes 1,072 ms and
+Catalog token binding 587 ms. Background recovery and overlapping requests are
+included; these durations are not additive exclusive SQL stages. The evidence
+locates substantial remaining cost in durable publication and Catalog control
+work, rather than console rendering or SQL actor turns.
+
+Raw reports under `.cache/console-perf/` are `wire-baseline.jsonl`
+(`b5eed5de6db0e807bb3eed87831f4129d6747d4792b96326e87a5ea9f7a59b80`),
+`wire-final.jsonl`
+(`bb1a042c25758bdb7fb61660da23788dbd77b32e93a01c82acc2364d91a1727b`),
+`wire-final-instrumented.jsonl`
+(`707fa5bbdaed62d25226c7851e706237c69d95b2a0ca0835f3470c23aea045e9`),
+and the final-build repeat `wire-verified.jsonl`
+(`476a3e15e22fd7183f7e43d64bc7e53e9193693a76c9bbb009b826bdd78a3817`).
+
+The registered default-installation reproduction is
+`just test::console-latency --statements --repeat 5`; run `--instrument`
+separately. Three initial-candidate attempts exhaust the existing native
+bootstrap retry budget before SQL becomes ready. A diagnostic fixture captures
+storage page staging consuming the two-second native attempt budget. The clean
+control reaches a 707 ms cold SELECT and a 2,336 ms first INSERT, then fails a
+later SELECT with `Conflict`; its prefix is not a completed benchmark. These
+failures remain in `baseline.jsonl`, `final*.stderr` and their retained private
+installations. No deadline is increased or failed SQL replayed to manufacture
+a passing latency sample.
+
+The basic session schedule exposes a denial-ordering race: role revocation
+withdraws background recovery readiness, which can mask `AccessDenied` behind
+`GatewayOwnerUnavailable`. The final repair checks credentials and namespace
+authority first, retaining readiness and activation fencing before execution.
+The test now waits for the public recovery endpoint to become unavailable before
+fetching the protected batch. The complete `sessions-basic` schedule then passes:
+data, empty terminal results, DESCRIBE, catalog, storage and EXPLAIN disclose no
+rows after revocation; the original token survives service restart; three-second
+authority outage recovery, independent SCRAM, concurrent sessions, wide values
+and the real TLS console checks pass. The log is
+`.cache/console-perf/sessions-basic-verified.log`, SHA-256
+`ce8609fe2afc400f77d8a909e9e7bf996d4fcbad9875e1b0dd446423b1fd41bb`.
+
+Package checks pass for memory, SQL, SQL client, SQL service and SQL gateway;
+focused Catalog signing/client-token/quota and storage-object tests also pass.
+Python console/probe oracles, test layout, Zig formatting, whitespace and
+documentation links pass. Broader attempts remain incomplete: the full session
+schedule times out while seeding Document source change 3/13; direct Table
+recovery passes lost-pin, warm reuse, replacement cleanup and conditional-name
+assertions, then its larger recovery function hits a stack probe (14.8 MiB frame,
+8 MiB shell stack); the final native SQL schedule times out on `commit_saved`
+under its unchanged ten-second node budget. Logs are `sessions.log`,
+`direct-table.log` and `native-verified.log` under `.cache/console-perf/`.
+These prefixes do not establish full-suite passes or power-loss qualification.
+
+PR preparation rebases the candidate onto
+`6c4c6843fc3a6d6e629a28366f549aacd7192bae`, which already contains the denial-ordering
+repair and its deterministic session checks. The memory reconciliation preserves
+that base's lazy slab initialization: the first erasure covers unknown initial
+contents, and later erasures cover the tracked high-water range. Memory, SQL,
+SQL-client, SQL-service and SQL-gateway package tests, focused Catalog signing and
+storage-object tests, Python console/probe controls, layout and documentation
+checks pass on the rebased implementation. The timing table remains evidence for
+the original frozen patches; it is not a new measurement of the rebased source.
+
 ## Result reserves and codec costs — 2026-10-28
 
 The [retained automatic comparison](../../../tests/evidence/result-reserves-2026-10-28/README.md)

@@ -37,7 +37,10 @@ diagnostics: ?*telemetry.Runtime = null,
 sql_diagnostic: ?f.SqlDiagnostic = null,
 execution_diagnostic: ?q.protocol.Diagnostic = null,
 compile_binding: f.Sql.Binding = .{},
+fresh_current: bool = false,
+fresh_prepared: ?*const Prepared = null,
 const ObservationSource = enum { native, settings };
+pub const Options = struct { capture_settings: bool = true };
 pub const read_options: g.direct.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 pub const Prepared = union(enum) {
     native: g.Statement,
@@ -90,6 +93,7 @@ pub const Read = struct {
     probe_cells: [3]f.Types.Values.Cell = undefined,
     emitted: bool = false,
     emitted_rows: u64 = 0,
+    validated_open: bool = false,
     pub fn dataBasis(self: *Read, allocator: std.mem.Allocator) !?g.results.Observation.Data {
         return switch (self.value) {
             .single => |*query| blk: {
@@ -153,7 +157,11 @@ pub const Read = struct {
     }
     pub fn nextBatch(self: *Read, maximum: u8) !g.ReadBatch {
         try self.host.deadline.check(self.host.io);
-        try self.host.current();
+        if (self.validated_open) {
+            self.validated_open = false;
+        } else {
+            try self.host.current();
+        }
         try self.builder.reset(maximum, g.results.BatchBuilder.max_bytes);
         self.disclosure = .{};
         var complete = false;
@@ -246,6 +254,9 @@ pub fn loadCredential(allocator: std.mem.Allocator, io: std.Io, account: *const 
     return parsed.value;
 }
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configuration, index: usize, runtime: *g.DatabaseRuntime, credential: g.Configuration.Credential, database: []const u8, dialect: f.Sql.Dialect, cancellation: *std.atomic.Value(bool), active: *std.atomic.Value(bool)) !*Self {
+    return initOptions(allocator, io, config, index, runtime, credential, database, dialect, cancellation, active, .{});
+}
+pub fn initOptions(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configuration, index: usize, runtime: *g.DatabaseRuntime, credential: g.Configuration.Credential, database: []const u8, dialect: f.Sql.Dialect, cancellation: *std.atomic.Value(bool), active: *std.atomic.Value(bool), options: Options) !*Self {
     if (runtime.read_pins == null) return error.SqlReadRecoveryRequired;
     const account = &config.accounts[index];
     const binding = try account.database(database);
@@ -268,7 +279,9 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configura
         self.settings_wire = g.wire.Client.init(allocator, io, configured.url);
         self.settings_wire.?.timeout_ms = config.request_timeout_ms;
         errdefer self.settings_wire.?.deinit();
-        self.settings_session = try self.freshOn(.settings, q.SettingsSession.capture, .{try Settings.client(self)});
+        if (options.capture_settings) {
+            self.settings_session = try self.freshOn(.settings, q.SettingsSession.capture, .{try Settings.client(self)});
+        }
     }
     return self;
 }
@@ -291,6 +304,8 @@ fn currentOnce(self: *Self) !void {
     const native: g.wire.AuthorizationClient = .{ .transport = &self.wire, .realm = self.account.execution.realm, .principal = self.account.execution.table_principal, .key = self.table.key, .role = self.table.connection.role };
     const identity = (try native.read(.identity)).body.authorization.body.identity;
     try credential.checkIdentity(identity.principal, identity.login_role, identity.credential_epoch);
+    self.table.credential_epoch = identity.credential_epoch;
+    self.observer.credential_epoch = identity.credential_epoch;
     _ = try self.table.require(.{ .namespace = self.namespace, .target = null, .access = .schema });
     // Revocation can also withdraw account readiness. Report the caller's
     // current denial before waiting for that account to recover; readiness is
@@ -339,24 +354,37 @@ pub fn begin(self: *Self) !void {
     self.cancellation.store(false, .release);
     self.operation = null;
     self.terminal = null;
+    self.fresh_prepared = null;
     self.deadline.start = std.Io.Clock.awake.now(self.io);
     self.deadline.milliseconds = self.commandMilliseconds();
     self.active.store(true, .release);
     errdefer self.active.store(false, .release);
+    // This evidence is scoped to one command. Session creation or a previous
+    // request cannot authorize work after credentials or grants change.
     try self.current();
+    self.fresh_current = true;
 }
 pub fn end(self: *Self) void {
+    self.fresh_current = false;
+    self.fresh_prepared = null;
     self.active.store(false, .release);
 }
 pub fn reset(self: *Self) !void {
+    self.fresh_current = false;
     try self.current();
     self.operation = null;
     self.settings_session.reset();
 }
 pub fn selectSource(self: *Self, name: ?[]const u8) !void {
-    if (self.source) |source| source.deinit();
+    if (self.source) |source| {
+        self.fresh_current = false;
+        source.deinit();
+    }
     self.source = null;
-    if (name) |selected| self.source = try self.fresh(g.SourceSession.init, .{ self, try self.account.source(selected, self.database) });
+    if (name) |selected| {
+        self.fresh_current = false;
+        self.source = try self.fresh(g.SourceSession.init, .{ self, try self.account.source(selected, self.database) });
+    }
 }
 pub fn sourceName(self: *const Self) ?[]const u8 {
     return if (self.source) |source| source.configuration.name else null;
@@ -387,7 +415,11 @@ pub fn prepare(self: *Self, sql: []const u8) !*Prepared {
     };
 }
 fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
-    try self.current();
+    if (self.fresh_current) {
+        self.fresh_current = false;
+    } else {
+        try self.current();
+    }
     const result = try self.allocator.create(Prepared);
     errdefer self.allocator.destroy(result);
     if (try self.fresh(Inspection.prepare, .{ self, sql })) |inspection| {
@@ -437,7 +469,11 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
 }
 
 fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
-    try self.validate(prepared);
+    if (self.fresh_prepared == prepared) {
+        self.fresh_prepared = null;
+    } else {
+        try self.validate(prepared);
+    }
     const read = try self.allocator.create(Read);
     errdefer self.allocator.destroy(read);
     read.* = .{ .host = self, .value = undefined, .prepared = prepared, .builder = try .init(self.allocator, self.config.limits.cycle_bytes) };
@@ -512,10 +548,10 @@ fn releasePins(self: *Self, read: *Read) void {
         client.connection = record.table.connection;
         self.runtime.read_pins.?.close(client, record) catch |err| {
             self.runtime.read_cleanup_failure.store(@intFromError(err), .release);
+            self.runtime.notify();
         };
         slot.* = null;
     };
-    self.runtime.notify();
 }
 pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.results.CommandCompletion {
     try self.validate(prepared);

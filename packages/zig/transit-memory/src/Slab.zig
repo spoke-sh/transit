@@ -24,6 +24,7 @@ mutex: std.atomic.Mutex = .unlocked,
 live_bytes: usize = 0,
 occupied_bytes: usize = 0,
 peak_occupied_bytes: usize = 0,
+dirty_bytes: usize = granule,
 reservations: usize = 0,
 refusals: usize = 0,
 
@@ -46,13 +47,16 @@ pub fn init(parent: std.mem.Allocator, capacity: usize) !Self {
 /// The caller must hold an exclusive lease on the supplied bytes.
 pub fn fromBuffer(bytes: []align(granule) u8) !Self {
     if (bytes.len < granule * 2) return error.InvalidWorkspaceCapacity;
-    var self: Self = .{ .parent = null, .buffer = bytes[0 .. bytes.len & ~@as(usize, granule - 1)] };
+    const slice = bytes[0 .. bytes.len & ~@as(usize, granule - 1)];
+    // The initial contents are unknown. The first erasure covers the entire
+    // reserve; later erasures only need bytes touched since that known-zero cut.
+    var self: Self = .{ .parent = null, .buffer = slice, .dirty_bytes = slice.len };
     self.block(0).* = .{ .size = self.buffer.len, .previous = 0 };
     return self;
 }
 pub fn deinit(self: *Self) void {
     std.debug.assert(self.live_bytes == 0 and self.occupied_bytes == 0);
-    std.crypto.secureZero(u8, self.buffer);
+    std.crypto.secureZero(u8, self.buffer[0..self.dirty_bytes]);
     if (self.parent) |parent| parent.free(self.buffer);
     self.* = undefined;
 }
@@ -66,7 +70,10 @@ pub fn reset(self: *Self, erase: bool) error{MemoryInUse}!void {
     self.lock();
     defer self.mutex.unlock();
     if (self.live_bytes != 0 or self.occupied_bytes != 0) return error.MemoryInUse;
-    if (erase) std.crypto.secureZero(u8, self.buffer);
+    if (erase) {
+        std.crypto.secureZero(u8, self.buffer[0..self.dirty_bytes]);
+        self.dirty_bytes = granule;
+    }
     self.block(0).* = .{ .size = self.buffer.len, .previous = 0 };
     self.first_free = 0;
 }
@@ -130,6 +137,7 @@ fn allocate(self: *Self, len: usize, alignment: usize) ?[*]u8 {
         self.live_bytes += len;
         self.occupied_bytes += size;
         self.peak_occupied_bytes = @max(self.peak_occupied_bytes, self.occupied_bytes);
+        self.dirty_bytes = @max(self.dirty_bytes, @min(self.buffer.len, offset + size + granule));
         return self.buffer.ptr + offset + granule;
     }
     return null;
@@ -195,6 +203,7 @@ fn resize(context: *anyopaque, bytes: []u8, alignment: std.mem.Alignment, len: u
     self.live_bytes = self.live_bytes - bytes.len + len;
     self.occupied_bytes = self.occupied_bytes - previous_size + item.size;
     self.peak_occupied_bytes = @max(self.peak_occupied_bytes, self.occupied_bytes);
+    self.dirty_bytes = @max(self.dirty_bytes, @min(self.buffer.len, offset + @max(previous_size, item.size) + granule));
     return true;
 }
 fn remap(context: *anyopaque, bytes: []u8, alignment: std.mem.Alignment, len: usize, ra: usize) ?[*]u8 {

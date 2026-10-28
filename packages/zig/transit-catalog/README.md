@@ -62,13 +62,19 @@ Table action or ownership, and its resource lifetime. It checks accumulated
 requirements again before disclosure. Metadata is filtered by current visibility;
 a saved binding, pin or cached result never grants access.
 
+Callers that have already observed their signing credential epoch can supply
+`DirectTableClient.credential_epoch` to avoid another identity lookup for each
+signature. The node still authenticates every claim against the current epoch
+and privileges. A stale epoch rejects; the client never refreshes or replays an
+operation implicitly. Leave it null to acquire the epoch before signing.
+
 `DirectClientToken.bind` records an account/token's original staged Table intent
 in the catalog WAL; `lookup` recovers it after a lost reply. Matching fingerprint
 retries return the first accepted intent under current rights. Binding does not
 admit or execute data. See the
 [token contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
-for identity, quota and uncertainty rules. SQL account orchestration still uses
-its separate ledger.
+for identity, quota and uncertainty rules. SQL account recovery uses these
+Catalog records independently of Station.
 
 `DirectTableBridge.Session` owns one immutable local intent. SQL `compile` and
 typed `prepare` return saved work; `load` and `forget` are local operations.

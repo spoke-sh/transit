@@ -12,6 +12,9 @@ const Record = struct { kind: Kind, meta: object.ObjectMeta, checks: [32]u8 };
 allocator: std.mem.Allocator,
 io: std.Io,
 dir: std.Io.Dir,
+keys_dir: std.Io.Dir,
+objects_dir: std.Io.Dir,
+locks_dir: std.Io.Dir,
 
 fn definition() [32]u8 {
     var bytes: [32]u8 = undefined;
@@ -29,22 +32,26 @@ fn sync(io: std.Io, dir: std.Io.Dir) !void {
     const file: std.Io.File = .{ .handle = opened.handle, .flags = .{ .nonblocking = false } };
     try file.sync(io);
 }
+fn syncIterated(io: std.Io, dir: std.Io.Dir) !void {
+    const file: std.Io.File = .{ .handle = dir.handle, .flags = .{ .nonblocking = false } };
+    try file.sync(io);
+}
 fn publish(io: std.Io, dir: std.Io.Dir, path: []const u8, bytes: []const u8, replace: bool) !void {
     var temporary = try dir.createFileAtomic(io, path, .{ .replace = replace, .permissions = .fromMode(0o600) });
     defer temporary.deinit(io);
     try temporary.file.writeStreamingAll(io, bytes);
     try temporary.file.sync(io);
     if (replace) try temporary.replace(io) else try temporary.link(io);
-    try sync(io, dir);
+    try syncIterated(io, dir);
 }
 
 pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: []const u8) !Self {
     try parent.createDirPath(io, path);
     var ancestor = std.fs.path.dirname(path);
     while (ancestor) |name| {
-        const directory = try parent.openDir(io, name, .{});
+        const directory = try parent.openDir(io, name, .{ .iterate = true });
         defer directory.close(io);
-        try sync(io, directory);
+        try syncIterated(io, directory);
         const next = std.fs.path.dirname(name);
         if (next != null and std.mem.eql(u8, name, next.?)) break;
         ancestor = next;
@@ -69,10 +76,19 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: 
         try publish(io, dir, ".definition", &definition(), false);
     }
     for ([_][]const u8{ "keys", "objects", "locks" }) |name| try dir.createDirPath(io, name);
-    try sync(io, dir);
-    return .{ .allocator = allocator, .io = io, .dir = dir };
+    try syncIterated(io, dir);
+    const keys_dir = try dir.openDir(io, "keys", .{ .iterate = true });
+    errdefer keys_dir.close(io);
+    const objects_dir = try dir.openDir(io, "objects", .{ .iterate = true });
+    errdefer objects_dir.close(io);
+    const locks_dir = try dir.openDir(io, "locks", .{ .iterate = true });
+    errdefer locks_dir.close(io);
+    return .{ .allocator = allocator, .io = io, .dir = dir, .keys_dir = keys_dir, .objects_dir = objects_dir, .locks_dir = locks_dir };
 }
 pub fn deinit(self: *Self) void {
+    self.locks_dir.close(self.io);
+    self.objects_dir.close(self.io);
+    self.keys_dir.close(self.io);
     self.dir.close(self.io);
     self.* = undefined;
 }
@@ -80,9 +96,7 @@ fn keyName(key: []const u8) [64]u8 {
     return std.fmt.bytesToHex(digest(key), .lower);
 }
 fn lockKey(self: *Self, key: []const u8) !std.Io.File {
-    var directory = try self.dir.openDir(self.io, "locks", .{});
-    defer directory.close(self.io);
-    const file = try directory.createFile(self.io, &keyName(key), .{ .read = true, .truncate = false, .permissions = .fromMode(0o600) });
+    const file = try self.locks_dir.createFile(self.io, &keyName(key), .{ .read = true, .truncate = false, .permissions = .fromMode(0o600) });
     errdefer file.close(self.io);
     try file.lock(self.io, .exclusive);
     return file;
@@ -92,15 +106,14 @@ fn contentName(key: []const u8, hash: [32]u8, checks: bool, bytes: *[144]u8) []c
     return std.fmt.bufPrint(bytes, "{s}-{s}.{s}", .{ keyName(key), std.fmt.bytesToHex(hash, .lower), suffix }) catch unreachable;
 }
 fn readRecord(self: *Self, key: []const u8) !?Record {
-    var directory = try self.dir.openDir(self.io, "keys", .{});
-    defer directory.close(self.io);
-    const file = directory.openFile(self.io, &keyName(key), .{ .follow_symlinks = false }) catch |err| switch (err) {
+    const file = self.keys_dir.openFile(self.io, &keyName(key), .{ .follow_symlinks = false }) catch |err| switch (err) {
         error.FileNotFound => return null,
         else => return err,
     };
     defer file.close(self.io);
-    var bytes: [512]u8 = undefined;
-    if (try file.length(self.io) != bytes.len or try file.readPositionalAll(self.io, &bytes, 0) != bytes.len) return error.CorruptObjectDescriptor;
+    var raw: [513]u8 = undefined;
+    if (try file.readPositionalAll(self.io, &raw, 0) != 512) return error.CorruptObjectDescriptor;
+    const bytes = raw[0..512];
     if (!std.mem.eql(u8, bytes[8..40], &definition())) return error.IncompatibleDefinition;
     if (!std.mem.eql(u8, bytes[0..8], "TOBJ\x01\x00\x00\x00") or !std.mem.eql(u8, bytes[480..512], &digest(bytes[0..480]))) return error.CorruptObjectDescriptor;
     const kind = std.enums.fromInt(Kind, bytes[40]) orelse return error.CorruptObjectDescriptor;
@@ -123,9 +136,7 @@ fn saveRecord(self: *Self, key: []const u8, record: Record) !void {
     bytes[88..120].* = record.checks;
     @memcpy(bytes[120..][0..key.len], key);
     bytes[480..512].* = digest(bytes[0..480]);
-    var directory = try self.dir.openDir(self.io, "keys", .{ .iterate = true });
-    defer directory.close(self.io);
-    try publish(self.io, directory, &keyName(key), &bytes, true);
+    try publish(self.io, self.keys_dir, &keyName(key), &bytes, true);
 }
 fn verify(file: std.Io.File, io: std.Io, bytes: []const u8) !void {
     if (try file.length(io) != bytes.len) return error.ObjectDigestMismatch;
@@ -146,7 +157,7 @@ fn content(self: *Self, directory: std.Io.Dir, filename: []const u8, bytes: []co
             // A retry can meet an earlier uncertain link. Establish durability
             // of that same content before publishing a new descriptor.
             try file.sync(self.io);
-            try sync(self.io, directory);
+            try syncIterated(self.io, directory);
         },
         else => return err,
     };
@@ -160,11 +171,9 @@ fn stage(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Record {
     }
     const checks = chunks[0 .. count * 32];
     const record: Record = .{ .kind = kind, .meta = .{ .size = bytes.len, .sha256 = digest(bytes) }, .checks = digest(checks) };
-    var directory = try self.dir.openDir(self.io, "objects", .{ .iterate = true });
-    defer directory.close(self.io);
     var filename: [144]u8 = undefined;
-    try self.content(directory, contentName(key, record.meta.sha256, false, &filename), bytes);
-    try self.content(directory, contentName(key, record.meta.sha256, true, &filename), checks);
+    try self.content(self.objects_dir, contentName(key, record.meta.sha256, false, &filename), bytes);
+    try self.content(self.objects_dir, contentName(key, record.meta.sha256, true, &filename), checks);
     return record;
 }
 pub fn putImmutable(self: *Self, key: []const u8, bytes: []const u8, expected: [32]u8) !object.ObjectMeta {
@@ -206,16 +215,14 @@ pub fn read(self: *Self, key: []const u8, offset: u64, length: u32, out: []u8) !
     const record = (try self.readRecord(key)) orelse return error.ObjectNotFound;
     if (offset > record.meta.size) return error.RangeOutOfBounds;
     const wanted: usize = @intCast(@min(length, record.meta.size - offset));
-    var directory = try self.dir.openDir(self.io, "objects", .{});
-    defer directory.close(self.io);
     var filename: [144]u8 = undefined;
-    const hashes = try directory.openFile(self.io, contentName(key, record.meta.sha256, true, &filename), .{ .follow_symlinks = false });
+    const hashes = try self.objects_dir.openFile(self.io, contentName(key, record.meta.sha256, true, &filename), .{ .follow_symlinks = false });
     defer hashes.close(self.io);
     var checks: [checks_bytes]u8 = undefined;
     const count: usize = @intCast(std.math.divCeil(u64, record.meta.size, chunk_bytes) catch unreachable);
     const checked = checks[0 .. count * 32];
     if (try hashes.length(self.io) != checked.len or try hashes.readPositionalAll(self.io, checked, 0) != checked.len or !std.mem.eql(u8, &digest(checked), &record.checks)) return error.ObjectDigestMismatch;
-    const file = try directory.openFile(self.io, contentName(key, record.meta.sha256, false, &filename), .{ .follow_symlinks = false });
+    const file = try self.objects_dir.openFile(self.io, contentName(key, record.meta.sha256, false, &filename), .{ .follow_symlinks = false });
     defer file.close(self.io);
     if (try file.length(self.io) != record.meta.size) return error.ObjectDigestMismatch;
     var scratch: [chunk_bytes]u8 = undefined;
@@ -237,13 +244,11 @@ pub fn delete(self: *Self, key: []const u8) !void {
     try object.validateKey(key);
     const lock = try self.lockKey(key);
     defer lock.close(self.io);
-    var directory = try self.dir.openDir(self.io, "keys", .{ .iterate = true });
-    defer directory.close(self.io);
-    directory.deleteFile(self.io, &keyName(key)) catch |err| switch (err) {
+    self.keys_dir.deleteFile(self.io, &keyName(key)) catch |err| switch (err) {
         error.FileNotFound => {},
         else => return err,
     };
-    try sync(self.io, directory);
+    try syncIterated(self.io, self.keys_dir);
     // Content and checks remain immutable. Removing their last descriptor does
     // not prove that a captured reader or retained snapshot has released them.
 }
@@ -260,17 +265,13 @@ pub fn reclaimImmutable(self: *Self, key: []const u8, expected: object.ObjectMet
     if (try self.readRecord(key)) |record| {
         if (record.kind != .immutable or !std.meta.eql(record.meta, expected)) return error.ImmutableObjectConflict;
     }
-    var keys = try self.dir.openDir(self.io, "keys", .{ .iterate = true });
-    defer keys.close(self.io);
-    var removed = try removeFile(self.io, keys, &keyName(key));
+    var removed = try removeFile(self.io, self.keys_dir, &keyName(key));
     // Revoke discovery durably before removing the bytes it described.
-    try sync(self.io, keys);
-    var objects = try self.dir.openDir(self.io, "objects", .{ .iterate = true });
-    defer objects.close(self.io);
+    try syncIterated(self.io, self.keys_dir);
     var filename: [144]u8 = undefined;
-    removed += try removeFile(self.io, objects, contentName(key, expected.sha256, false, &filename));
-    removed += try removeFile(self.io, objects, contentName(key, expected.sha256, true, &filename));
-    try sync(self.io, objects);
+    removed += try removeFile(self.io, self.objects_dir, contentName(key, expected.sha256, false, &filename));
+    removed += try removeFile(self.io, self.objects_dir, contentName(key, expected.sha256, true, &filename));
+    try syncIterated(self.io, self.objects_dir);
     return removed;
 }
 
@@ -294,22 +295,18 @@ pub fn confirmImmutable(self: *Self, key: []const u8, expected: object.ObjectMet
         offset += wanted;
     }
     if (!std.mem.eql(u8, &hash.finalResult(), &expected.sha256)) return error.ObjectDigestMismatch;
-    const objects = try self.dir.openDir(self.io, "objects", .{});
-    defer objects.close(self.io);
     var name: [144]u8 = undefined;
     // Both files must exist even for an empty object.
     for ([_]bool{ false, true }) |checks| {
-        const file = try objects.openFile(self.io, contentName(key, expected.sha256, checks, &name), .{ .follow_symlinks = false });
+        const file = try self.objects_dir.openFile(self.io, contentName(key, expected.sha256, checks, &name), .{ .follow_symlinks = false });
         defer file.close(self.io);
         try file.sync(self.io);
     }
-    try sync(self.io, objects);
-    const keys = try self.dir.openDir(self.io, "keys", .{});
-    defer keys.close(self.io);
-    const descriptor = try keys.openFile(self.io, &keyName(key), .{ .follow_symlinks = false });
+    try syncIterated(self.io, self.objects_dir);
+    const descriptor = try self.keys_dir.openFile(self.io, &keyName(key), .{ .follow_symlinks = false });
     defer descriptor.close(self.io);
     try descriptor.sync(self.io);
-    try sync(self.io, keys);
+    try syncIterated(self.io, self.keys_dir);
 }
 
 fn removeFile(io: std.Io, directory: std.Io.Dir, name: []const u8) !u64 {

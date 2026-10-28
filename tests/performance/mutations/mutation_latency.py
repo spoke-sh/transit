@@ -25,9 +25,10 @@ from harness.services import free_port
 
 class Console:
     """One persistent process, bounded simultaneous stdout/stderr draining."""
-    def __init__(self, fixture, config=None, executable=None):
+    def __init__(self, fixture, config=None, executable=None, mode='json'):
+        self.mode = mode
         args = ([executable, str(config)] if executable else
-                [fixture.cli, 'console', '--no-rc', '--format', 'json',
+                [fixture.cli, 'console', '--no-rc', '--format', mode,
                  *(['--config', str(config)] if config else [])])
         self.process = subprocess.Popen(args, cwd=fixture.root, stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -45,6 +46,7 @@ class Console:
         output = timing = failure = None
         phases = None
         query_frames = []
+        table_lines = []
         with selectors.DefaultSelector() as selector:
             for index, pipe in enumerate((self.process.stdout, self.process.stderr)):
                 selector.register(pipe, selectors.EVENT_READ, index)
@@ -69,6 +71,14 @@ class Console:
                         if index == 0:
                             if output is not None:
                                 raise ValueError('unexpected multiple result pages')
+                            if getattr(self, 'mode', 'json') == 'table':
+                                table_lines.append(line.decode())
+                                if len(table_lines) > 140:
+                                    raise ValueError('benchmark table row budget exceeded')
+                                if (re.fullmatch(rb'\d+ rows; complete coverage', line) or
+                                        line.startswith(b'Statement completed.')):
+                                    output = '\n'.join(table_lines) + '\n'
+                                continue
                             value = json.loads(line)
                             if query_frames or value.get('profile') == 'sql_result_v1':
                                 query_frames.append(value)

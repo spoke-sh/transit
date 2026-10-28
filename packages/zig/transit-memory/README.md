@@ -16,7 +16,11 @@ serializes admission and release and picks the smallest available fitting slot.
 Exhaustion returns `MemoryPoolExhausted`; it never grows or invalidates another
 borrower. Each payload still has one borrower, and all tasks must join before
 release. `reservedBytes` includes slot metadata and alignment padding. Explicit
-erasure on release clears the whole slot, including previously used bytes.
+erasure on release clears every byte used through its allocator, including
+freed, shrunk or rewound allocations and earlier leases released without erasure.
+The reserve starts zeroed; the used high-water range avoids repeatedly clearing
+untouched capacity. Owners that borrow the raw backing buffer must erase their
+own writes before returning the lease; those writes bypass allocator accounting.
 
 `Slab` supplies an allocator for independently lived objects inside one fixed
 reserve. It coalesces free ranges and serializes allocator metadata operations;
@@ -29,8 +33,10 @@ every object. Initialization rounds capacity down to a multiple of 64 bytes.
 Admission charges that full capacity and initializes allocator metadata without
 filling unused payload pages. Backing capacity is not a resident-page promise;
 the parent allocator and host determine page residency. Ordinary borrower
-allocations retain Zig's normal initialization behavior. Destruction and `reset(true)`
-still erase the complete reserve.
+allocations retain Zig's normal initialization behavior. The first erasure
+covers the complete reserve because its initial contents are unknown. Later
+`reset(true)` calls or destruction erase the used high-water range, including
+freed payloads, padding and old headers, without clearing untouched capacity again.
 `fromBuffer` borrows an exclusively leased aligned reserve; its backing owner
 remains responsible for accounting and release. `reset(true)` requires no live
 objects and erases freed payloads, padding and old headers before reassignment.

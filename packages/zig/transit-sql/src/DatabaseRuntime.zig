@@ -28,6 +28,7 @@ read_cleanup_failure: std.atomic.Value(u16) = .init(0),
 direct_work_failure: std.atomic.Value(u16) = .init(0),
 after: u64 = 0,
 cleanup_route: usize = 0,
+cleanup_swept_routes: usize = 0,
 activation: ?c.DirectClientToken.Progress = null,
 activation_record: ?c.DirectRecord.Reference = null,
 pub const Keys = struct { table: p.Ed25519.KeyPair };
@@ -175,22 +176,43 @@ pub fn tick(self: *Self) !bool {
         break;
     };
     if (page.next == null) self.after = 0;
-    if (self.read_pins) |*pins| {
-        if (self.cleanupClient() catch |err| blk: {
-            if (err == error.Canceled or err == error.Cancelled) return err;
-            self.read_cleanup_failure.store(@intFromError(err), .release);
-            break :blk null;
-        }) |caller| {
-            const cleaned = pins.tick(caller) catch |err| blk: {
-                if (err == error.StaleGatewayCoordinator or err == error.Canceled or err == error.Cancelled) return err;
+    if (!progressed) if (self.read_pins) |*pins| {
+        const route_count = self.execution.configuration.bindings.len + self.read_sources.len;
+        if (pins.dirty.swap(false, .acq_rel)) self.cleanup_swept_routes = 0;
+        // A dirty signal can arrive halfway through a route. Include one extra
+        // wrap so a successful sweep covers the prefix already passed too.
+        if (self.cleanup_swept_routes <= route_count or self.read_cleanup_failure.load(.acquire) != 0) {
+            var route_clean = true;
+            const previous_slot = pins.cleanup_slot;
+            var route_complete = false;
+            if (self.cleanupClient() catch |err| blk: {
+                if (err == error.Canceled or err == error.Cancelled) return err;
                 self.read_cleanup_failure.store(@intFromError(err), .release);
-                break :blk false;
-            };
-            if (cleaned) self.read_cleanup_failure.store(0, .release);
-            progressed = progressed or cleaned;
+                route_clean = false;
+                break :blk null;
+            }) |caller| {
+                const cleaned = pins.tick(caller) catch |err| blk: {
+                    if (err == error.StaleGatewayCoordinator or err == error.Canceled or err == error.Cancelled) return err;
+                    self.read_cleanup_failure.store(@intFromError(err), .release);
+                    route_clean = false;
+                    break :blk false;
+                };
+                progressed = progressed or cleaned;
+                route_complete = previous_slot != pins.cleanup_slot and pins.cleanup_slot == 0;
+            } else if (route_clean) {
+                // A disabled optional source has no cleanup connection.
+                pins.cleanup_slot = 0;
+                route_complete = true;
+            }
+            if (!route_clean) {
+                self.cleanup_swept_routes = 0;
+            } else if (route_complete) {
+                self.cleanup_swept_routes += 1;
+                if (self.cleanup_swept_routes > route_count) self.read_cleanup_failure.store(0, .release);
+            }
+            if (route_complete) self.cleanup_route = (self.cleanup_route + 1) % route_count;
         }
-        if (pins.cleanup_slot == 0) self.cleanup_route = (self.cleanup_route + 1) % (self.execution.configuration.bindings.len + self.read_sources.len);
-    }
+    };
     const was_ready = self.ready.swap(true, .release);
     if (!was_ready or progressed) self.notifyProgress();
     return progressed;
@@ -240,7 +262,7 @@ pub fn resumeOperation(self: *Self, observer: *g.Client, id: u64) !void {
 pub fn lookup(self: *Self, observer: *g.Client, nonce: [16]u8, fingerprint: ?[32]u8) !?g.OperationRecords.Operation {
     var source = try observer.source();
     const state = (try source.lookup(nonce, fingerprint)) orelse return null;
-    return try self.execution.operation(&source, state.id());
+    return try self.execution.operationFromState(state);
 }
 /// Repeat only observations or independently idempotent database requests with
 /// the same arguments. In particular, a token bind retains its frozen reference;
@@ -266,7 +288,9 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
         return previous;
     }
     try statement.checkValues(allocator, values);
-    try self.available(observer, deadline, g.Statement.validate, .{ statement, table });
+    if (statement.plan == .ddl) {
+        try self.available(observer, deadline, g.Statement.validate, .{ statement, table });
+    }
     var random: [8]u8 = undefined;
     try self.io.randomSecure(&random);
     const id = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
@@ -288,8 +312,7 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     };
     operation.* = receipt.position.next_lsn;
     self.notify();
-    var source = try observer.source();
-    return self.available(observer, deadline, g.DatabaseAccount.operation, .{ self.execution, &source, operation.*.? });
+    return try self.execution.operationFromState(c.DirectClientToken.Progress.initial(receipt));
 }
 pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !struct { terminal: g.Terminal, completion: g.results.CommandCompletion } {
     var nonce: [16]u8 = undefined;

@@ -66,7 +66,9 @@ pub fn admittedBinding(self: Self, binding: Binding) !void {
     return error.GatewayCatalogDenied;
 }
 pub fn operation(self: Self, source: *g.Client.Source, id: u64) !g.OperationRecords.Operation {
-    const state = try source.operation(id);
+    return self.operationFromState(try source.operation(id));
+}
+pub fn operationFromState(self: Self, state: c.DirectClientToken.Progress) !g.OperationRecords.Operation {
     const reference = state.receipt.binding.intent;
     if (reference == .external) return error.InvalidSqlOperationReference;
     const connection = reference.connection();

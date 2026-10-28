@@ -43,6 +43,7 @@ generation: u64,
 mutex: std.Io.Mutex = .init,
 entries: [capacity]?Entry = @splat(null),
 cleanup_slot: usize = 0,
+dirty: std.atomic.Value(bool) = .init(true),
 pub const capacity = 64;
 const format: u32 = 0x53515231;
 const Slot = struct { generation: u64, record: ?Record };
@@ -120,24 +121,39 @@ pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectT
         }
     };
     const index = for (self.entries, 0..) |slot, i| {
-        if (slot == null or (slot.?.users == 0 and std.meta.eql(slot.?.record.table.connection, client.connection))) break i;
+        if (slot) |entry| {
+            if (entry.users == 0 and std.meta.eql(entry.record.table.connection, client.connection) and
+                std.meta.eql(entry.record.table.interpretation.interpretation.object, table.interpretation.interpretation.object)) break i;
+        }
+    } else for (self.entries, 0..) |slot, i| {
+        if (slot == null) break i;
+    } else for (self.entries, 0..) |slot, i| {
+        if (slot.?.users == 0 and std.meta.eql(slot.?.record.table.connection, client.connection)) break i;
     } else return error.SqlReadLeaseCapacity;
+    errdefer self.dirty.store(true, .release);
     var state = (try self.open(client, index, true)) orelse return error.InvalidSqlReadRecovery;
     const previous = try self.read(client, state);
     // Eviction has selected an unborrowed entry. Stop advertising it before
     // releasing the durable pin: a lost release reply must not leave a warm hit
     // pointing at a pin that the owner may already have closed.
+    const cached = self.entries[index];
     self.entries[index] = null;
+    var selected = metadata;
     if (previous.record) |prior| {
-        var record = prior;
-        record.state = .closing;
-        state = try self.write(client, state, record);
-        try release(client, record);
+        var to_release = prior;
+        to_release.state = .closing;
+        state = try self.write(client, state, to_release);
+        if (cached) |entry| {
+            if (entry.record.operation == prior.operation and std.meta.eql(entry.record.table, prior.table)) {
+                to_release.handle = entry.record.handle;
+            }
+        }
+        try release(client, to_release);
+        const refreshed = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
+        defer refreshed.deinit();
+        selected = refreshed.value.result.lookup orelse return error.TableDefinitionChanged;
+        try table.check(client.connection, selected);
     }
-    const refreshed = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
-    defer refreshed.deinit();
-    const selected = refreshed.value.result.lookup orelse return error.TableDefinitionChanged;
-    try table.check(client.connection, selected);
     var random: [8]u8 = undefined;
     try self.io.randomSecure(&random);
     const operation = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
@@ -146,7 +162,6 @@ pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectT
     const pinned = try client.call(.{ .pin = .{ .object = table.interpretation.interpretation.object, .owner = record.owner(), .expected = record.expected } });
     defer pinned.deinit();
     record.handle = pinned.value.result.pin;
-    _ = try self.write(client, state, record);
     self.entries[index] = .{ .record = record, .users = 1 };
     return record;
 }
@@ -155,6 +170,7 @@ pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectT
 pub fn close(self: *Self, client: c.DirectTableClient, record: Record) !void {
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
+    errdefer self.dirty.store(true, .release);
     if (!std.meta.eql(client.connection, record.table.connection)) return error.CatalogIdentityConflict;
     for (&self.entries) |*slot| if (slot.*) |*entry| {
         if (entry.record.operation != record.operation) continue;
@@ -174,7 +190,13 @@ pub fn tick(self: *Self, client: c.DirectTableClient) !bool {
     var state = (try self.open(client, index, false)) orelse return false;
     const slot = try self.read(client, state);
     var record = slot.record orelse return false;
-    if (self.entries[index]) |entry| if (std.meta.eql(entry.record, record)) return false;
+    if (self.entries[index]) |entry| {
+        if (entry.record.operation == record.operation and
+            entry.record.generation == record.generation and
+            std.meta.eql(entry.record.gateway, record.gateway) and
+            std.meta.eql(entry.record.table, record.table) and
+            std.meta.eql(entry.record.expected, record.expected)) return false;
+    }
     record.state = .closing;
     state = try self.write(client, state, record);
     try release(client, record);
