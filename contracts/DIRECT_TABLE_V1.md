@@ -155,6 +155,7 @@ and the owner checks current Table rights under the publication policy epoch.
 This format is reserved: generic `record.stage` and `record.read` reject it with
 `TransactionOperationRequired`. CONNECT-only caller-record access cannot disclose
 server-owned cut evidence after a participant's read rights have been revoked.
+HTTP maps `TransactionOperationRequired` to `400 InvalidRequest`.
 
 Catalog recovery requires the explicit `coordination` field and validates its
 allocation transition. Earlier receipts reject under the current-v1 definition;
