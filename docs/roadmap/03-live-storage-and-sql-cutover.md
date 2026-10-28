@@ -597,9 +597,13 @@ layout use shared definition
 including the merged binary SQL result semantics. Six selected WAL checks cover
 bounded work, convergence across 17 partitions, retained suffixes and uncertain
 completion publication; 18 contract checks, 14 SQL client checks, 14 SQL protocol
-checks and 40 fast checks pass. Live aggregate qualification and the expanded
-process-death schedules are pending. Automatic native/direct object collection,
-installed maintenance qualification and the aggregate P4 gates remain open.
+checks and 40 fast checks pass. The five-test disk node aggregate passes: four
+Tables settle in 215 units with 33,575,190 peak private bytes, preserving logical
+positions, receipts and retained rows. Its later graph collection verifies 122
+reclaimed allocations. All 101 storage SIGKILL schedules pass, including cleanup
+completion metadata publication and sync. These results qualify this shared
+definition; automatic native/direct object collection, installed maintenance
+qualification and the aggregate P4 gates remain open.
 
 #### P5 — Qualify and reduce the remaining live read and wait costs
 

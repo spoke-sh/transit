@@ -209,7 +209,7 @@ def run(binary):
             assert call(directory, "table-trim") == {"archived": 3}
             expected.update(archived=3, tail=7, replayed=4)
             assert call(directory, "table-checkpoint-inspect") == expected
-    assert schedules == 92, schedules
+    assert schedules == 101, schedules
     print(f"Local storage: {schedules} SIGKILL schedules preserve acknowledged WAL data, "
           "fences, resumable trim, complete object descriptors, exact immutable retries "
           "and Table archival/compaction/checkpoints with original receipts, snapshots and logical history.")
