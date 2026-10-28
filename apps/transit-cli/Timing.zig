@@ -23,15 +23,16 @@ pub fn enter(self: *Self, phase: Phase) void {
 pub fn finish(self: *Self) ?Report {
     if (!self.enabled) return null;
     self.enter(self.phase);
-    return .{ .init = self.init, .interactive = self.interactive, .elapsed = self.elapsed };
+    return .{ .interactive = self.interactive, .elapsed = self.elapsed };
 }
 
 pub const Report = struct {
-    init: std.process.Init,
     interactive: bool,
     elapsed: [@typeInfo(Phase).@"enum".field_names.len]u64,
 
-    pub fn emit(self: Report) void {
+    // Deferred diagnostics can outlive the console's private I/O runtime.
+    // Retain measurements only; the reporting caller supplies live I/O.
+    pub fn emit(self: Report, io: std.Io) void {
         var total: u64 = 0;
         for (self.elapsed) |elapsed| total += elapsed;
         var buffer: [1024]u8 = undefined;
@@ -46,7 +47,7 @@ pub const Report = struct {
         }
         text.writeAll(")\n") catch return;
         var output_buffer: [1024]u8 = undefined;
-        var output = std.Io.File.stderr().writerStreaming(self.init.io, &output_buffer);
-        @import("Output.zig").write(self.init, &output.interface, text.buffered()) catch {};
+        var output = std.Io.File.stderr().writerStreaming(io, &output_buffer);
+        @import("Output.zig").writeIo(io, &output.interface, text.buffered()) catch {};
     }
 };
