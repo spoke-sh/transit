@@ -16,7 +16,7 @@ from interfaces.http.serving import Key, compact
 from interfaces.installation.server_application_faults import native
 
 
-def atomic_turn(root, key, exchange, retry, child, restart):
+def atomic_turn(root, key, inject, retry, child, restart):
     """One accepted turn retains its input, state, captured blocks and intents."""
     sequence = retry('/v1/query', native(key, 42, 0, {'identity': {}}))['principal_sequence']
 
@@ -72,14 +72,8 @@ def atomic_turn(root, key, exchange, retry, child, restart):
         pending['blocks'] = base64.b64encode(body).decode()
         saved = compact(pending)
         (root / 'pending-turn.json').write_bytes(saved)
-        (root / 'arm').write_text('/native/wal/')
-        try:
-            status, result = exchange('/v1/command', pending)
-            assert status == 503, (status, result)
-        except (OSError, HTTPException):
-            pass
-        assert int((root / 'fired').read_text()) == 1
-        receipt = retry('/v1/command', pending)
+        until = inject(pending, '/native/wal/', 1)
+        receipt = retry('/v1/command', pending, until=until)
         assert child.poll() is None, 'atomic turn replaced the process instead of its owner'
         version = dict(pid=source, input=input_id, index=0)
 
@@ -143,8 +137,8 @@ def run(node):
     child = None
     log_path = root / 'node.log'
 
-    def exchange(path, request):
-        connection = HTTPConnection('127.0.0.1', port, timeout=4)
+    def exchange(path, request, timeout=4):
+        connection = HTTPConnection('127.0.0.1', port, timeout=timeout)
         try:
             connection.request('POST', path, compact(request), {'Content-Type': 'application/json'})
             response = connection.getresponse()
@@ -152,18 +146,51 @@ def run(node):
         finally:
             connection.close()
 
-    def retry(path, request):
-        until = time.monotonic() + 15
+    def retry(path, request, *, until=None):
+        until = time.monotonic() + 15 if until is None else until
         while True:
             assert child.poll() is None, 'owner exited before recovery'
+            remaining = until - time.monotonic()
+            assert remaining > 0, 'original request did not resolve'
             try:
-                status, value = exchange(path, request)
+                status, value = exchange(path, request, timeout=min(4, remaining))
                 if status == 200:
                     return value
                 assert status in (409, 503), (status, value)
             except (OSError, HTTPException):
                 pass
             assert time.monotonic() < until, 'original request did not resolve'
+            time.sleep(.025)
+
+    def inject(request, selection, expected):
+        # Fault delivery and original-outcome recovery share the existing budget.
+        # A request can time out before reaching the selected durability barrier;
+        # that is not evidence that the injected fault occurred.
+        until = time.monotonic() + 15
+        saved = compact(request)
+        staging = root / 'arm.next'
+        staging.write_text(selection)
+        staging.replace(root / 'arm')
+        while True:
+            assert compact(request) == saved, 'fault retry changed the original request'
+            remaining = until - time.monotonic()
+            assert remaining > 0, 'selected fault was not observed within the recovery budget'
+            marker = root / 'fired'
+            observed = marker.read_text() if marker.exists() else ''
+            if not (root / 'arm').exists():
+                # The hook removes its arm before publishing the counter. Wait
+                # for that bounded publication even if the fourth fault has
+                # already stopped the owner after exhausting its reopen budget.
+                if observed == str(expected):
+                    return until
+                time.sleep(.025)
+                continue
+            assert child.poll() is None, 'owner exited before the selected fault'
+            try:
+                status, result = exchange('/v1/command', request, timeout=min(4, remaining))
+                assert status == 503, (status, result)
+            except (OSError, HTTPException):
+                pass
             time.sleep(.025)
 
     with log_path.open('w') as log:
@@ -186,19 +213,13 @@ def run(node):
                     subject=65536 + sequence, public_key=key.public,
                     permissions=1, pid=None)}, sequence + 1)
                 (root / 'pending.json').write_bytes(compact(pending))
-                (root / 'arm').write_text(selection)
-                try:
-                    status, result = exchange('/v1/command', pending)
-                    assert status == 503, (status, result)
-                except (OSError, HTTPException):
-                    pass
-                assert int((root / 'fired').read_text()) == sequence + 1
+                until = inject(pending, selection, sequence + 1)
                 if sequence == 3:
                     assert child.wait(timeout=15) != 0, 'reopen budget did not stop the owner'
                     child = None
                     assert 'LocalWalReopenBudget' in log_path.read_text()
                     break
-                receipt = retry('/v1/command', pending)
+                receipt = retry('/v1/command', pending, until=until)
                 assert child.pid == process, 'test replaced the node instead of reopening its owner'
                 assert retry('/v1/command', pending) == receipt, 'exact retry changed its receipt'
                 receipts.append(receipt)
@@ -221,7 +242,7 @@ def run(node):
                 child.wait(timeout=10)
                 start()
 
-            atomic_turn(root, key, exchange, retry, child, restart)
+            atomic_turn(root, key, inject, retry, child, restart)
         except BaseException:
             print(f'Retained local owner failure: {root}', file=sys.stderr)
             print(log_path.read_text()[-6000:], file=sys.stderr)

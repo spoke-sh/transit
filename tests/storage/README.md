@@ -29,6 +29,13 @@ Physical disk, process death, injected failure and modeled power loss are
 distinct evidence. Automatic runner records identify completed commands; archived
 results do not qualify current source.
 
+The local-owner recovery schedule publishes each fault selection atomically and
+requires its exact counter before treating a request as faulted. Fault delivery
+and receipt recovery share the existing 15-second original-outcome budget;
+earlier transport timeouts repeat the same saved signed request. The node keeps
+its two-second request deadline. An unobserved fault or an unresolved original
+outcome fails the schedule and retains the private installation.
+
 The direct Table service schedule measures backing bytes for a retained scan
 whose values the public caller verifies independently. Its response-pressure
 arm repeats that same immutable read on one bounded keep-alive connection with
