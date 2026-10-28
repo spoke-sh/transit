@@ -186,6 +186,8 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::table-dml-sql` | Compare general Table DML with independent PostgreSQL/ANTLR ASTs and exact typed intent bytes; no native admission claim |
 | `just test::model [--tail N]` | Checks the finite TLA+ model, removed guards and concrete Zig counterexample schedules |
 | `just test::wal-model [--lsns N]` | Exhausts the finite local WAL durability model and detects six independent ordering mutants |
+| `just test::transaction-decision-model` | Exhausts the original-decision journal model and detects six missing freeze, preparation, authority and recovery obligations |
+| `just test::table-transaction-model` | Exhausts five finite Table transaction programs, including acquisition interruption, and detects seven missing isolation/publication obligations |
 | `just test::console-model` | Checks editor interaction invariants, replays every finite-model edge against Zig, detects removed model guards and checks borrower release under explicit fairness |
 | `just test::statement-result-model [--rows N]` | Checks finite SQL result progress and session delivery, replays every progress edge against Zig and detects seven removed model guards |
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |

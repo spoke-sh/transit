@@ -25,14 +25,14 @@ ACTIONS = {"Init", "Freeze", "Prepare", "Commit", "Abort", "Observe",
            "LoseReply", "Recover", "Fence", "Policy", "Availability", "Conflict"}
 
 
-def counterexample(code, output, expected):
+def counterexample(code, output, expected, allowed_actions=ACTIONS):
     violation = re.search(r"Error: Invariant (\w+) is violated\.", output)
     states = [int(n) for n in re.findall(r"^State (\d+): ", output, re.M)]
     actions = re.findall(r'^/\\ last = "([^"]+)"$', output, re.M)
     if (code != 12 or not violation or violation[1] != expected or
             len(actions) < 2 or actions[0] != "Init" or
             states != list(range(1, len(actions) + 1)) or
-            not set(actions) <= ACTIONS or "Finished in " not in output):
+            not set(actions) <= allowed_actions or "Finished in " not in output):
         raise AssertionError(f"missing complete {expected} counterexample: {output[-4000:]}")
     return actions
 

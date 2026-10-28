@@ -190,6 +190,7 @@ jobs:
             .cache/verification/write-lifecycle-model/
             .cache/verification/wal-model/
             .cache/verification/transaction-decision-model/
+            .cache/verification/table-transaction-model/
             .cache/verification/console-model/
             .cache/verification/statement-result-model/
             .cache/verification/mutations/*.json

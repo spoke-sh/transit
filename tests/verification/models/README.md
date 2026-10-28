@@ -214,6 +214,64 @@ states the missing production owners. Source/configuration hashes, revision/dirt
 state, exact commands, TLC logs, completion counts and counterexamples remain
 under `.cache/verification/transaction-decision-model/` and CI artifacts.
 
+## Finite local Table transaction model
+
+Run `nix develop --command just test::table-transaction-model`. The formal lane
+runs [TableTransaction.tla](TableTransaction.tla) through five finite programs:
+write skew, a two-Table write with a read-only observer, savepoint rollback,
+read-your-writes and competing two-Table preparations. Each configuration has two
+original transactions and two Tables; it exhausts every enabled interleaving of
+the selected programs, rather than sampling a particular transaction schedule.
+Each Table holds a symbolic value identifying its last committed writer. That
+identity also represents its logical change version; this finite abstraction
+does not model arbitrary payloads or version reuse.
+
+Initially both Tables contain zero, no transaction has begun, and no participant
+barrier or decision exists. Begin takes a publication-excluding acquisition fence;
+individual pin steps capture data and definition versions. A crash can drop the
+fence between any pin steps. Resume must revalidate all already-pinned sources
+before continuing. Acquisition completion checks the resulting pair against an
+independent history of actual data/definition cuts. A changed partial acquisition
+can be aborted; this model does not silently replace its original pins.
+
+Statements read the retained cut with private writes overlaid. Savepoint rollback
+restores private data while preserving read dependencies and statement sequence.
+Freeze prevents further statements. Each written Table installs an exclusive
+predecessor barrier. Commit validates whole-Table logical read/write versions and
+definitions and changes one common decision; read-only transactions can finish
+against older data. Finalization copies the committed successor into each physical
+Table root independently. Effective reads resolve the common decision while
+finalization is incomplete. Abort publishes no private data.
+
+An independent serial-history predicate requires all committed external reads to
+fit at least one of the two possible serial orders, including reads performed
+before savepoint rollback. Other invariants check common-cut acquisition,
+read-your-writes, retained dependencies, current definitions, exclusive barriers
+and equality between effective Table visibility and the atomic publication oracle.
+Seven independent negative controls remove one corresponding obligation. Each
+must produce its named violation and a complete recognized action trace. The
+acquisition control permits resuming stale partial pins; the resulting mixed cut
+must fail even though each individual pin was valid when acquired.
+
+The pinned TLC configuration uses one worker, seed `1`, fingerprint `0`, a
+512 MiB heap and a 60-second budget per configuration. Terminal or blocked states
+are allowed: there is no fairness or liveness claim. Timeout, parser errors and
+incomplete exploration fail. Sources, exact configurations, command lines, logs,
+state counts and counterexamples live under `.cache/verification/table-transaction-model/`
+and are retained by CI. The [proof ledger](../../../docs/history/qualification/verification.md)
+records executed revisions and results separately.
+
+This is an algorithm model, not a production refinement. The separate decision
+model owns fencing, authority, original outcome and lost-reply behavior; the Table
+model assumes those journal obligations. Logical accepted state is durable between
+steps, while the modeled crash only releases the acquisition fence. Objects,
+retention, allocation, physical I/O, SQL evaluation, constraints, credentials,
+arbitrary programs and arbitrary-size histories require separate checks. There is
+no automatic production replay yet. The
+[component integration contract](../../../packages/zig/transit-storage/docs/transaction-decisions.md)
+identifies the runtime owners that must implement these transitions before
+installed transaction support is claimed.
+
 ## Finite SQL result models
 
 Run `nix develop --command just test::statement-result-model`. The ordinary

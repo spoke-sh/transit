@@ -9,6 +9,53 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Local Table transaction algorithm model — 2026-10-28
+
+At source [`c232888e9a66`](https://github.com/spoke-sh/transit/commit/c232888e9a66a28b664a9eb3beaa1edbc7f27f13),
+`nix develop --command just ci clean --lane formal` passes all eight tasks from
+committed source. The new
+[Table transaction model](../../../tests/verification/models/README.md#finite-local-table-transaction-model)
+exhausts five finite configurations with two transactions and two Tables:
+
+| Statement program | Distinct states exhausted |
+| --- | ---: |
+| Write skew | 18,706 |
+| Two-Table publication with a read-only observer | 22,315 |
+| Savepoint rollback | 25,114 |
+| Private read-your-writes | 19,850 |
+| Competing preparations | 36,378 |
+
+Each configuration includes interrupted incremental pin acquisition and
+definition changes. All seven independent missing-obligation controls produce
+their named invariant violation: serializability, retained read dependencies,
+atomic visibility, exclusive predecessor barriers, current definitions,
+read-your-writes and common-cut acquisition. The latter admits stale partial pins
+after acquisition loses its fence and detects a vector that never existed as a
+common data/definition cut. The original decision model separately exhausts
+3,227 states and detects its six existing negative controls.
+
+The locked TLC uses one worker, fingerprint/seed `0`/`1`, a 512 MiB heap and a
+60-second limit per configuration. There is no depth cutoff or fairness claim;
+blocked and terminal states are permitted. The runner rejects incomplete
+exploration, malformed traces, wrong invariant failures and tool errors. An
+earlier local edit failed parsing; it was corrected before this committed-source
+run and is not counted as passed.
+
+Source hashes, actual configurations, commands, logs, state counts and explicit
+counterexamples are retained locally under
+`.cache/ci/clean/c232888e9a66-transit-ci-79wt_k1g/verification/` and by the formal
+CI artifact. The clean timing/completion record is in the same directory's
+`formal.json`. These local paths are not portable artifact links. Task-ownership,
+CI-selection and invariant checks also pass; the documentation checker validates
+7,522 local links across 663 files at this source.
+
+This checks the selected finite algorithm, with atomic fenced journal decisions
+assumed from the separate decision model. It adds no production trace replay,
+implementation refinement, physical recovery experiment, retained-graph or
+resource qualification, constraint proof or installed transaction support.
+Arbitrary programs and transaction/Table cardinalities remain outside these
+finite configurations.
+
 ## Transaction admission and private Table evaluation — 2026-10-28
 
 At source [`6b6672b9881f`](https://github.com/spoke-sh/transit/commit/6b6672b9881f90f7477e20f8c28315f195bc826e),
