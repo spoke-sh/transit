@@ -14,7 +14,13 @@ export function pageContent(root: string, source: string): string {
   return text;
 }
 
-export function resolveLink(root: string, source: string, url: string, baseUrl: string): string {
+export function resolveLink(
+  root: string,
+  source: string,
+  url: string,
+  baseUrl: string,
+  revision = "main",
+): string {
   if (/^(?:[a-z][a-z\d+.-]*:|\/|#)/i.test(url)) return url;
   const [file, fragment] = url.split("#", 2);
   let target = path.resolve(root, path.dirname(source), decodeURIComponent(file!));
@@ -30,15 +36,15 @@ export function resolveLink(root: string, source: string, url: string, baseUrl: 
   // Downloads are files, not React-router pages. Docusaurus's pathname scheme
   // keeps ordinary navigation and base-path handling for these verified assets.
   if (spec) return `pathname://${baseUrl}specs/${spec.name}${suffix}`;
-  return `${repository}/blob/main/${relative}${suffix}`;
+  return `${repository}/blob/${revision}/${relative}${suffix}`;
 }
 
-export function repositoryLinks(options: { root: string; baseUrl: string }) {
+export function repositoryLinks(options: { root: string; baseUrl: string; revision?: string }) {
   return (tree: Root, file: { path: string }): void => {
     const source = path.relative(options.root, file.path).split(path.sep).join("/");
     visit(tree, ["link", "definition"], (node) => {
       if (node.type === "link" || node.type === "definition")
-        node.url = resolveLink(options.root, source, node.url, options.baseUrl);
+        node.url = resolveLink(options.root, source, node.url, options.baseUrl, options.revision);
     });
   };
 }

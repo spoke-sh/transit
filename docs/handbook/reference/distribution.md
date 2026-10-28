@@ -98,6 +98,38 @@ remain available; no server starts and no installation data changes. Switching a
 symlink back does not make an incompatible retained installation readable.
 Use the [local guide](../guides/quickstart.md) after installation.
 
+### Homebrew on Linux
+
+Each release includes `transit.rb`, generated from that release's executable
+archive hashes. Download the formula and `SHA256SUMS`, verify its digest, and
+place it in a local tap:
+
+```sh
+brew tap-new --no-git transit/releases
+cp transit.rb "$(brew --repository transit/releases)/Formula/transit.rb"
+brew install transit/releases/transit
+brew test transit/releases/transit
+```
+
+The formula selects x86_64 or ARM64 and installs into Homebrew's Cellar. It does
+not start a server or change retained data. Homebrew on macOS is not supported.
+The release workflow installs the exact formula using its checksummed candidate
+archive in Homebrew's download cache, then exercises Board, SQL and restart.
+
+## Versioned handbook and specifications
+
+`transit-handbook-<version>.tar.gz` contains a static handbook, local search and
+generated specification downloads matching the release's source and definition.
+After extracting it, serve its `site` directory locally:
+
+```sh
+python3 -m http.server --bind 127.0.0.1 --directory site 8000
+```
+
+Open `http://127.0.0.1:8000/`. Source-code links point to the exact Git commit;
+the archive's `build-info.json` records that identity. Serving the documentation
+does not start Transit or require an installation.
+
 ## Containers and Helm
 
 The local server container runs as UID/GID 65532. Its services retain their

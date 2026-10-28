@@ -16,6 +16,9 @@ on:
       - 'sdks/**'
       - 'bindings/**'
       - 'tasks/*release*'
+      - 'tasks/package_sdks.py'
+      - 'tasks/package_handbook.py'
+      - 'docs/handbook/**'
       - 'tasks/version.py'
       - 'tests/runner/test_release.py'
       - 'tests/runner/test_publication.py'
@@ -121,6 +124,20 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 14
+  sdk-loaders:
+    needs: sdk-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: sdk-consumer-inputs
+          path: .cache/sdk-release
+      - name: Load shipped SDK libraries and hosts without Nix
+        run: python3 -B tests/runner/launch.py tests/sdk/release_loader.py .cache/sdk-release
   sdk-consumers:
     needs: sdk-build
     runs-on: ubuntu-24.04
@@ -197,8 +214,81 @@ jobs:
         env:
           EXPECTED_REVISION: ${{ github.sha }}
         run: python3 -B tests/runner/launch.py tests/interfaces/installation/published.py --artifacts dist/release --version "$(cat VERSION)" --revision "$EXPECTED_REVISION"
+  handbook:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+      - run: nix develop .#docs --command just transit-docs::install
+      - name: Check and build the versioned handbook
+        env:
+          TRANSIT_DOCS_BASE_URL: /
+          TRANSIT_DOCS_REVISION: ${{ github.sha }}
+        run: nix develop .#docs --command just transit-docs::check
+      - run: python3 -B tasks/package_handbook.py docs/handbook/dist dist/handbook
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: handbook-release-artifacts
+          path: dist/handbook/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+  assemble:
+    needs: [build, sdk-build, handbook]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-artifacts
+          path: dist/release
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: sdk-release-artifacts
+          path: dist/sdks
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-arm64-artifacts
+          path: dist/arm64
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: handbook-release-artifacts
+          path: dist/handbook
+      - name: Assemble matching qualified artifacts
+        run: python3 -B tasks/assemble_release.py dist/release dist/sdks --arm64 dist/arm64 --handbook dist/handbook
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: assembled-release-artifacts
+          path: dist/release/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+  homebrew:
+    needs: assemble
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: assembled-release-artifacts
+          path: dist/release
+      - uses: Homebrew/actions/setup-homebrew@ae72030040bc05e2d65c41c577092cb98bc0a27e
+      - name: Install the exact formula with its checksummed candidate archive
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
+        run: python3 -B tasks/verify_release_brew.py dist/release
   publish:
-    needs: [qualification, build, installed, sdk-consumers, sdk-zig]
+    needs: [qualification, build, installed, sdk-consumers, sdk-zig, sdk-loaders, assemble, homebrew]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -213,18 +303,8 @@ jobs:
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: release-artifacts
+          name: assembled-release-artifacts
           path: dist/release
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: sdk-release-artifacts
-          path: dist/sdks
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: release-arm64-artifacts
-          path: dist/arm64
-      - name: Assemble matching qualified artifacts
-        run: python3 -B tasks/assemble_release.py dist/release dist/sdks --arm64 dist/arm64
       - name: Publish immutable image, chart and release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

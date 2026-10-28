@@ -6,9 +6,10 @@ from pathlib import Path
 import shutil
 
 from package_release import sha256
+from release_brew import formula
 
 
-def assemble(runtime, sdks, arm64=None):
+def assemble(runtime, sdks, arm64=None, handbook=None):
     manifest = json.loads((runtime / 'release-manifest.json').read_text())
     sdk = json.loads((sdks / 'sdk-manifest.json').read_text())
     for field in ('release', 'source_revision', 'definition'):
@@ -41,12 +42,29 @@ def assemble(runtime, sdks, arm64=None):
             raise ValueError('missing or duplicate ARM64 archive')
         manifest['platforms'] = {name: {key: data[key] for key in ('target', 'binaries')}
                                  for name, data in (('x86_64', manifest), ('aarch64', arm))}
+    handbook_files = set()
+    if handbook is not None:
+        docs = json.loads((handbook / 'handbook-manifest.json').read_text())
+        for field in ('release', 'source_revision', 'definition'):
+            if docs[field] != manifest[field]:
+                raise ValueError(f'handbook/runtime {field} mismatch')
+        handbook_files = set(docs['assets']) | {'handbook-manifest.json'}
+        if {path.name for path in handbook.iterdir()} != handbook_files:
+            raise ValueError('incomplete handbook archive set')
+        for name, digest in docs['assets'].items():
+            if Path(name).name != name or sha256(handbook / name) != digest or (runtime / name).exists():
+                raise ValueError(f'handbook archive checksum/path mismatch: {name}')
     for name in sorted(expected):
         shutil.copy2(sdks / name, runtime / name)
         manifest['assets'][name] = sha256(runtime / name)
     if arm_asset:
         shutil.copy2(arm64 / arm_asset, runtime / arm_asset)
         manifest['assets'][arm_asset] = sha256(runtime / arm_asset)
+        (runtime / 'transit.rb').write_text(formula(manifest))
+        manifest['assets']['transit.rb'] = sha256(runtime / 'transit.rb')
+    for name in sorted(handbook_files):
+        shutil.copy2(handbook / name, runtime / name)
+        manifest['assets'][name] = sha256(runtime / name)
     manifest['sdks'] = {key: sdk[key] for key in ('target', 'compiler', 'glibc_minimum', 'packages')}
     (runtime / 'release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     (runtime / 'SHA256SUMS').write_text(''.join(
@@ -59,5 +77,6 @@ if __name__ == '__main__':
     parser.add_argument('runtime', type=Path)
     parser.add_argument('sdks', type=Path)
     parser.add_argument('--arm64', required=True, type=Path)
+    parser.add_argument('--handbook', required=True, type=Path)
     args = parser.parse_args()
-    assemble(args.runtime, args.sdks, args.arm64)
+    assemble(args.runtime, args.sdks, args.arm64, args.handbook)

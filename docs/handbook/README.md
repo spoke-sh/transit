@@ -223,5 +223,12 @@ records successful deployments and direct public-content checks. Live browser
 coverage, controlled revert/republication and superseded-run recovery checks
 remain unqualified. Local Docusaurus preview does not verify GitHub's CDN routing
 or cache behavior.
-The site describes the checked-out source capabilities; release-versioned
-documentation and immutable release links are not provided by this package.
+The site describes the checked-out source capabilities.
+
+## Release snapshots
+
+`TRANSIT_DOCS_REVISION` pins repository source links to a full Git commit; it
+defaults to `main`. Release builds set `TRANSIT_DOCS_BASE_URL=/`, check the site,
+and archive `dist/` with matching source and contract metadata through
+`tasks/package_handbook.py`. The archive includes the generated specifications
+and local search index. Ordinary hosted builds retain their configured base path.
