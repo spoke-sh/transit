@@ -129,9 +129,15 @@ established behavior, limits and reasoning into the public owner with the change
   must not import handlers or claim protocol validation proves honest computation.
 - Keep deterministic transitions separate from storage, clocks, and effects.
   Make Zig allocation, ownership, lifetimes, errors, and resident bounds explicit.
-  Durable backlog is not an in-memory queue. Never silently discard accepted work.
+  Separate transient `scratch` arenas (reset per page, batch, or turn with
+  `.retain_capacity` or `FixedBufferAllocator`) from retained `output` allocations;
+  never initialize and free a heap-backed `ArenaAllocator` inside per-row or
+  per-record hot loops. Durable backlog is not an in-memory queue. Never silently
+  discard accepted work.
 - Keep durable collection size independent of resident memory. Bound pages,
   caches, operation batches and active work; enforce explicit deployment quotas.
+  Target zero steady-state OS/heap allocations after warmup on hot storage,
+  protocol, and vectorized query paths through reusable slabs and bounded arenas.
   Do not introduce fixed total-cardinality arrays, raise constants or require
   retention opt-in as a substitute for the paged durable-state foundation.
 - Enforce current scoped authorization separately from PID ownership, including
@@ -235,6 +241,49 @@ Start from the [SQL session contract](contracts/SQL_SESSION_V1.md),
   buffering, incomplete prefixes and cancellation racing with write completion.
   Until then, keep adapters to current APIs small and preserve their guarantees;
   do not introduce a competing console-only result protocol.
+
+### Resource control, vectorized strings and lookup tables: future implementation direction
+
+Design storage, query and protocol hot paths for predictable CPU cache residency,
+zero steady-state heap allocation after warmup, and first-class string/text
+execution. This is architectural direction across the
+[storage runtime](docs/handbook/internals/storage-runtime.md) and
+[query engine](docs/handbook/internals/query-engine.md), not a claim that a
+hierarchical `MeteredAllocator`, 16-byte string vector layout, or vectorized
+BM25 operator already exists in current builds.
+
+- **Zero steady-state heap allocation and per-morsel resource metering:**
+  Pre-allocate subsystem slabs and page/batch buffers at initialization and pass
+  explicit `scratch` (reset per page, batch, or turn with `.retain_capacity` or
+  `FixedBufferAllocator`) and `output` arenas through hot loops. Gate hot-path
+  operators with counting-allocator regression tests verifying zero OS/heap
+  allocations after warmup. Bound active memory, CPU cycles/ticks and storage
+  IOPS/bytes at `Batch` morsel boundaries so queries exceeding their budget
+  deterministically spill to Tier 2 NVMe scratch or fail with a typed budget
+  refusal without starving concurrent tenants or triggering process-wide OOMs.
+- **Cache-line-aligned vectors, 16-byte collation-prefixed strings and vectorized search:**
+  Keep `.tseg` page buffers, column vectors (`Batch`) and selection/validity
+  bitmasks 64-byte cache-line aligned and sized so active operator state fits in
+  L1d/L2 cache. Evolve variable-length string vectors toward 16-byte inline
+  headers (`[len: u32][collation_sort_prefix: 4B][inline_or_offset: 8B]`) whose
+  4-byte prefix stores the declared collation's normalized sort key
+  (`UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`), allowing equality, range,
+  `ORDER BY` and join probes to filter or short-circuit in registers before
+  touching out-of-line payloads. Push string equality, `IN (...)` and prefix
+  predicates into `.dictionary` codes and `.fsst` symbol tables, and structure
+  full-text inverted indexes into 256-document bitpacked posting blocks with
+  block-max BM25 impact weights evaluated via vectorized `MAXSCORE` / Block-Max
+  WAND pruning, SIMD relational/`.tdel` bitmask intersection and late
+  materialization.
+- **Compile-time (`comptime`) and immutable-artifact perfect hashing with wide SIMD comparisons:**
+  Use pure-Zig `comptime` perfect hash maps (`slot = (len + asso[key[i]] + asso[key[j]]) & mask`)
+  for closed compile-time keyword, header and directive sets instead of linear
+  `std.mem.eql` chains or runtime-allocated hash maps, and evaluate frozen
+  perfect hash directories for compiled SQL `WHERE col IN (...)` literal sets,
+  immutable `TableSchema` column lookups, and sealed `.tseg` dictionary/key
+  directories. Guarantee 16–64 bytes of trailing zero-padding on `.tseg` page
+  buffers and `Batch` arenas so internal `@Vector(16, u8)` SIMD string
+  comparisons execute unconditionally without 4 KiB page-boundary checks.
 
 ## Documentation and validation
 
