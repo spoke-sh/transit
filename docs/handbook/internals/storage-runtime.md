@@ -313,6 +313,8 @@ allocations before backend replacement.
 Retained and temporary workspace allocations share an explicit budget: 256 MiB
 in aggregate for ordinary work, 64 MiB for control, and 128/64 MiB respectively
 per workspace. These bounds are separate from parsed request/response budgets.
+They cover dynamic workspace allocations; fixed host/owner structures, native
+provider page caches and I/O buffers have separate bounds and are excluded.
 Exhaustion refuses the request and discards its workspace; it cannot discard
 accepted data or consume the other pool's reserve. Failed requests, including
 uncertain publication and denied final disclosure, also discard the borrowed

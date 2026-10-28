@@ -11,6 +11,120 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## Persistent console statement latency — 2026-10-28
 
+### Resident owners, foreground completion and snapshot acquisition
+
+This follow-up to [#211](https://github.com/spoke-sh/transit/issues/211) measures
+bounded resident catalog/Table owners, exact proof/principal reuse and
+acknowledged immutable-object reuse, then foreground completion of the original
+accepted INSERT/UPDATE/DELETE. It preserves separate Catalog acceptance and
+Table completion. The [storage account](../../handbook/internals/storage-runtime.md)
+and [SQL runtime](../../../packages/zig/transit-sql/docs/runtime.md) own the
+mechanisms and their authority, lifetime and recovery assumptions.
+
+Four successful unproxied installed workloads use the real persistent console
+with `.timer on`, ReleaseSafe, Zig `0.17.0-dev.2267+48abf1a34`, file-backed local
+storage, eight resident native pages and the unchanged two-second native attempt
+budget. The shared Linux x86_64 host reports 48 logical CPUs; starting load
+averages range from 3.0 to 9.7. Each run starts with an empty Table and verifies
+exact rows, schema, authoritative matched/changed counts, completion and typed
+readback after the mutation families. TRUNCATE is unsupported and unmeasured.
+
+The frozen control runtime is `67c44d32a0b7949362cfc369d504da9e74fc42ee`, with
+console `2650bccce`; its product sources equal the merged PR #214 baseline.
+The candidate gateway is `06246f539d3308a89d696e00f03f6c6515168464`; its node was
+built at `d20f32bdd` with identical affected node sources. Other executables,
+including the console, remain byte-identical. The later main integration
+`6d62b8e73` changes release/model work, not these runtime owners; clean CI rebuilds
+the integrated tree separately. Frozen identities are retained in
+`.cache/sql-performance/pin-repair/identity.json` (SHA-256
+`f75028340ac4bb0bee82b226213311135d6aa83ad3e5c700887fd7e2828db17d`).
+The measurement driver has SHA-256
+`b010c73b099d7bae706ac292aa7dbda4909f0027f60fc686e2f498c37ad5b3be`,
+and its statement helper has SHA-256
+`d274f444775c8d926ac037ce88a63469a7ea1eaa6a99bb88aaad200b80c624c1`.
+
+Reproduction uses the [console method](../../../tests/performance/README.md):
+`just test::console-latency --statements --repeat 5`, with each frozen executable
+set selected through the driver's explicit paths and `--binary-revision`.
+Diagnostics use a separate `--instrument` run. Control A precedes the failed
+experiments and repair below; repaired A, control B and repaired B then run
+sequentially. These are small samples on a shared host, not an isolated causal
+experiment or tail-latency qualification. The table uses ordinary medians of
+the raw timers (averaging the middle pair for six warm SELECTs).
+
+| Console timer median | Control A | Repaired A | Control B | Repaired B |
+| --- | ---: | ---: | ---: | ---: |
+| Warm SELECT, six samples | 250.5 ms | 90.5 ms | 216.5 ms | 92.5 ms |
+| INSERT, five samples | 501 ms | 362 ms | 2,055 ms | 338 ms |
+| SELECT after INSERT, five samples | 631 ms | 478 ms | 2,217 ms | 478 ms |
+| Changed UPDATE, five samples | 802 ms | 648 ms | 3,555 ms | 568 ms |
+| Unchanged UPDATE, five samples | 606 ms | 357 ms | 1,949 ms | 334 ms |
+| DELETE, five samples | 1,178 ms | 438 ms | 2,460 ms | 1,325 ms |
+| SELECT after DELETE, five samples | 710 ms | 754 ms | 3,587 ms | 2,983 ms |
+
+Warm SELECT improves by an observed 2.3–2.8×. Candidate DML polling wait is
+0–1 ms, but durable work remains in submission. The identical controls' INSERT
+medians differ fourfold. Repaired B DELETE samples are 381, 375, 2,186, 2,126
+and 1,325 ms; its following SELECTs reach 5,144 ms. Repaired A post-DELETE reads
+regress against control A. These data do not establish a reliable write speedup
+factor, nor achieve the 190 ms/19 ms INSERT targets or 10–20 ms warm SELECT target.
+
+All raw reports below are retained under ignored `.cache/sql-performance/` with
+source/binary hashes, host load, outputs and individual samples. `comparison.json`
+derives the table without discarding slower or failed experiments.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `unproxied-control-a.jsonl` | `d541e412872f38bc9d0025e7423f3533f1f3ca9b9c989dfb9e6cebecd7381979` |
+| `unproxied-repaired-a.jsonl` | `99f6be04c3cee3554b53bdf1773b58e417d9dde56303248b136dafefd0073282` |
+| `unproxied-control-b.jsonl` | `c0c44116ecf89a725c82639f486f99cee14d7ef562b4283917d31c7d2ebff715` |
+| `unproxied-repaired-b.jsonl` | `77bddc664e7efa797d06b5e691c0131178f707c45b5b26944b31edaa23236d00` |
+| `unproxied-candidate-a.jsonl` — before pin repair | `e268eed148ea29125bc49b096881c74f01663519db48f43ea70bcb13ed34a8a9` |
+| `diagnostic-candidate-a.jsonl` — before pin repair | `cdbf003b7fee872e9d255d01adb70e201f25cd95e683476657a2bf9b104e122c` |
+| `diagnostic-final.jsonl` — bootstrap failure | `519cc344f6fb7cf38967d30c913a4c6c8135a7fe829a7911c84b3604b43fa6a5` |
+| `diagnostic-final.stderr` | `6cc70c9001c2aeaf6888ac9b48e010605ea0da8b5356af695c8e17fff2c9ea03` |
+
+The pre-repair unproxied candidate fails a read after its fifth INSERT. A separate
+diagnostic run identifies `table:pin` returning `Conflict` with underlying
+`TableDataChanged` after the third UPDATE. The new bounded failure trace preserves
+completed native work even when the console statement fails. One preceding
+INSERT window includes 36 native attempts: token binding takes 51.88 ms,
+`commit_saved` 109.10 ms and staging 23 ms, with provider work of 45.17, 90.39
+and 16.45 ms respectively. Background and overlapping work are included; these
+are not additive exclusive wall-time stages. The evidence points toward remaining
+Catalog and durable publication cost, without proving a hardware sync floor.
+
+The snapshot repair permits at most four pre-result acquisitions. A conflict
+alone is insufficient: current inspection must prove the original pin absent at
+a strictly later frontier in the same partition, ruling out both earlier success
+and delayed acceptance. Closure is recorded before another identity is prepared;
+the exact object/definition is revalidated. Accepted or uncertain pins retain
+their identity, and an opened SELECT never restarts or changes its cut.
+
+The deterministic session schedule injects an actual concurrent INSERT between
+lookup and pinning, verifies absence before reacquisition, and independently
+checks the returned rows. Its second schedule replaces a successful pin reply
+with Conflict and requires all later attempts to preserve the original owner and
+frontier. The old gateway fails the first schedule (`pin-negative-control.log`,
+SHA-256 `576e07609d605a094d678c746e2efae918910c41a12a072c99c4f929e3216761`).
+The repaired gateway passes the full `sessions-basic` profile, including lost
+commit reply, immediate terminal counts, no-op/empty outcomes, retry of an old
+DELETE after reinsertion, revocation and restart (`pin-repair-sessions.log`,
+SHA-256 `30ea39a8fa9dc4096fa22506c65582873a9713d9292789933a27eec6d2eb07f0`).
+That component fixture uses a 30-second native budget, distinct from the installed
+measurements. Driver provenance reports `00938220c` plus the patch later committed
+as `06246f539`; the frozen product identities above identify the actual binaries.
+
+The later instrumented installed attempt fails during bootstrap: native
+authorization exceeds the unchanged two-second deadline and startup exhausts its
+restart budget. It produces no SQL samples; its installation remains at
+`/var/tmp/transit-server-proof-0xbmo9oy`. Successful unproxied runs do not erase
+this failure or establish its cause. Earlier exploratory resident/combined-owner
+bootstrap failures are retained at `/var/tmp/transit-server-proof-6cxqgw8m` and
+`/var/tmp/transit-server-proof-nodlxutr`; the identical combined binary later
+passes an instrumented three-repetition run. Installed startup and broader
+latency qualification remain open in #211.
+
 ### Write-lifecycle completion experiment
 
 The follow-up to [issue #211](https://github.com/spoke-sh/transit/issues/211)

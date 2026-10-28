@@ -476,6 +476,31 @@ Table completion boundaries until a common transaction envelope actually replace
 them. The [finite models](../../tests/verification/models/README.md#finite-sql-write-lifecycle-models)
 include both paths without treating the candidate as implemented.
 
+The resident-owner/direct-completion implementation delivers part of W4: bounded
+catalog and Table workspaces, suffix validation on changed history, exact proof
+verification reuse, principal projections tied to the complete native head, and
+foreground INSERT/UPDATE/DELETE completion through the original accepted intent.
+Successful foreground writes return authoritative counts without client polling;
+Catalog pending accounting still settles separately. Current authorization,
+activation fencing, recovery and control capacity remain independent gates.
+Repeated immutable publication can reuse an acknowledged object within the same
+exclusive owner epoch; first-publication durability barriers remain required.
+
+The installed persistent-console comparison observes warm SELECT medians of
+90.5–92.5 ms versus 216.5–250.5 ms in its controls, and INSERT medians of
+338–362 ms versus 501–2,055 ms. Write variation, slow post-DELETE reads and a
+separate installed-startup timeout prevent a general latency guarantee. The
+[qualification account](../history/qualification/performance.md#resident-owners-foreground-completion-and-snapshot-acquisition)
+preserves all samples and failures. Snapshot preparation now reconciles a raced
+pin only after proving the original acquisition absent and unable to succeed;
+accepted or uncertain cuts never change identity.
+
+W3/W7 qualification remains open alongside W5/W6 publication batching and a
+combined single-partition commit. Background pending scans, separate Catalog
+acceptance/settlement, cold snapshot replacement and first-publication work still
+cost time. The 190 ms then 19 ms INSERT targets and 10–20 ms warm SELECT target
+are not met by these samples. No runtime TRUNCATE support is added.
+
 ### Proposed TRUNCATE contract for implementation
 
 TRUNCATE remains unsupported by the current SQL execution contract. Its modeled
