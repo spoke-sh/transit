@@ -158,6 +158,45 @@ does not turn them into successful latency samples or complete this milestone.
 
 ### Delivery sequence and reviewable changes
 
+**Parallel close-out ownership after PR #199:** the user assigned the SQL/Station
+decoupling bridge to another agent. The storage continuation owns P4's remaining
+maintenance/retention/resource gates, P5's direct storage/read lifetimes and
+measurements, P6's storage inspection/configuration, and storage qualification
+and documentation in P8. SQL admission, client-token settlement, `ReadPins` and
+their replacement remain with the decoupling agent. This divides implementation
+ownership; it does not mark that bridge complete or remove the final integrated
+milestone gate.
+
+Use [PR #198](https://github.com/spoke-sh/transit/pull/198)'s `transit-memory`
+allocation probes, quotas and bounded workspaces when qualifying storage. Its
+client allocation gate is separate evidence; it establishes neither allocation
+freedom nor improved timing for Table/storage owners. The remaining storage
+close-out must:
+
+- Record attempted and successful backing allocations, growing resize/remap
+  attempts, retained and peak bytes, CPU time, storage requests/bytes, and
+  complete-operation latency for the exact measured boundary. Keep startup,
+  recovery, warm owner reuse, output retention and maintenance separate.
+- Freeze matched physical-disk controls for WAL and segment reads, point/bulk
+  acceptance, bounded scans, flush/archive/compaction and retained readers.
+  Compare idle and active maintenance; retain independent value/receipt oracles
+  and the same limits, durability, history and workload in both arms.
+- Remove measured hot-path allocation/replay/copy amplification using the shared
+  primitives, separating scratch from retained output. Qualify warm reuse,
+  alternating sizes, cache eviction, held outputs, quota refusal and failed
+  allocation without fallback. Keep zero-allocation claims scoped to paths with
+  sealed-probe and bypass-negative-control evidence; separately account for
+  `std.Io`, libc/OS, worker stacks and kernel file cache.
+- Demonstrate measured improvement with bounded aggregate resources and unchanged
+  recovery/authorization semantics. A lower allocation count alone is insufficient
+  if latency, retained memory or write amplification regresses. Publish raw
+  samples, source/build identities and unresolved limits before closing P4/P5/P8.
+
+The broader allocator, buffer-manager, provider and query-engine replacements
+retain their [performance roadmap owners](11-data-structures-and-performance.md).
+Storage measurement and focused fixes required for this installed cutover remain
+here; neither the later roadmap nor SQL decoupling substitutes for them.
+
 Each row is a logical PR-sized outcome, with smaller scoped commits inside it.
 Split a row further if its contract/implementation review becomes too large;
 keep its exit gate intact. No elapsed-time estimate is asserted before P0's
