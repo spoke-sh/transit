@@ -9,6 +9,87 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Database-owned SQL runtime — 2026-10-28
+
+Source `3b4737ebe` replaces SQL's Station account actors with Catalog-owned
+admission/progress, database activation fencing and persistent read-cache slots.
+The [runtime guide](../../../packages/zig/transit-sql/docs/runtime.md) and
+[direct Table contract](../../../contracts/DIRECT_TABLE_V1.md) own current semantics.
+Verification uses Linux x86_64 and pinned Zig `0.17.0-dev.2267+48abf1a34`.
+
+The full Catalog package run passes 99 tests. Its new schedules cover paged
+pending/history recovery, exact CAS retries, cancellation, current authorization,
+opaque complete bodies, retained byte/operation quotas, pending-capacity release
+and stale activation rejection. The mandatory-root-field schedule additionally
+rejects missing token, operation, pending and account-usage directories; it does
+not initialize missing persisted compatibility state.
+
+The disk-backed storage test `single partition autocommit` passes INSERT, UPDATE,
+unchanged UPDATE and DELETE with one Table data WAL append each. It loses replies,
+reopens the owner, repeats the exact original operation and verifies unchanged
+outcomes and append counts. This is a single-partition data-commit result;
+Catalog token acceptance and settlement remain separate control writes.
+
+The native HTTP proxy schedule passes lost token-acceptance and DDL/DML commit
+replies, process replacement, database-side stale request rejection, 31 retained
+operations over four pages, exact mutation counts, and cancellation before data
+admission. Its result-framing schedule preserves 70 rows in 32/32/6 batches,
+empty results and metadata under 17 allocation refusals, 15 exact repeats, two
+advanced-batch recoveries and three buffered-disclosure revocations. The proxy
+observes zero Station sends and zero Station turns for this database workload.
+Total fixture traffic includes background recovery and cannot be interpreted as
+an isolated statement cost.
+
+All seven SQL owner package checks plus the independent wire-byte oracle pass.
+The full query package passes 134 tests after regenerating the independent
+definition-bound source and bundle commitments. The complete fixture gate also
+passes its signing, handoff, exchange and native/port codec checks (143 codec
+cases). Initial runs exposed stale derived fixture hashes; updating the shared
+definition bytes alone was insufficient. Independent encoders regenerated the
+commitments before the owning checks were rerun.
+All 18 generated contract checks pass after the single current-definition cutover;
+3,417 diagnostic outcome projections pass. These checks do not by themselves
+qualify installed setup, optional captured-source execution or end-to-end latency.
+The first native fixture attempt used unsupported wire-profile DROP syntax; the
+replacement uses a supported unchanged UPDATE. The first session fault attempt
+omitted the native write token in its cache-invalidation setup; the correction
+submits once with a token and waits for that exact operation. Failed attempts
+remain in the local validation logs.
+
+Runtime source `239485ce4` passes the complete native session schedule: retained
+KV and Table results contain 41 rows in 32/9 batches, Document contains 12 rows,
+and exact batch retries survive SQL service restart. The schedule also passes
+original orphan-pin release, a three-second authority outage with readiness
+restoration, source capacity refusals, sticky cancellation, buffered disclosure
+revocation, session expiry, TLS/SCRAM, concurrent consoles and Unix peer access.
+The direct Table service passes 2,130 typed calls, including lost snapshot
+acquisition, warm reuse, replacement cleanup, delegated closure and current
+revocation. These file-backed restart schedules do not model power loss.
+
+Installed activation faults pass manager SIGKILL after activation reply loss,
+identity retention, higher-generation replacement, occupied-port refusal and
+credential revocation without credential recreation. Installed direct-operation
+faults pass blocked data execution with available controls, caller death,
+restart, exact original settlement and cancellation. The first multi-account
+installation run exposed startup-budget exhaustion while a credential was bound
+but its database grants were still absent. Source `fe1b34edb` keeps refreshing
+enrollment without initializing the denied account; its rerun reaches all three
+account enrollments. Further installed and wire results are recorded below.
+
+A separate clean checkout at `ac816e347` builds the native SQL integration but
+its framing subprocess exceeds the existing 300-second deadline while other
+validation is active. That attempt is failed, not qualified by the earlier native
+pass; its log is `/tmp/transit-clean-native.log`.
+
+Reproduction uses `zig build test` in `transit-catalog`, the filtered storage
+owner test, `just test::sql-wire-contracts`, `zig build test-sql-gateway
+-Doptimize=ReleaseSafe`, `zig build check-contracts` and
+`zig build test-diagnostic-outcomes`, all inside the pinned shell. Routine output
+is retained under `.cache/sql-cutover/`; the active fault/installation schedules
+use the registered SQL checks. Subsequent evidence below qualifies their final
+source separately. No interactive transaction, atomic multi-source cut, Stream,
+Queue or cross-build history migration is established by this cutover.
+
 ## Admitted result memory and transport reuse — 2026-10-28
 
 The completion branch builds on PR #198's reusable result, client and producer

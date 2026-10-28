@@ -20,8 +20,8 @@ not defer those decisions. Pull forward **Step 1 of
 (`transit-sql` $\perp$ `Station` decoupling) before implementing this milestone's
 transaction coordinator so `BEGIN`/`COMMIT`/`ROLLBACK` and autocommit SQL statements
 build directly on `DirectCatalog`, `TablePartition` and `TransitLog` (`TWAL1`)
-rather than layering over `Station` [`AccountRuntime.zig`](../../packages/zig/transit-sql/src/AccountRuntime.zig)
-or [`Ledger.zig`](../../packages/zig/transit-sql/src/Ledger.zig). Coordinate
+rather than layering over `Station` [`AccountRuntime.zig`](https://github.com/spoke-sh/transit/blob/fbbaeae12/packages/zig/transit-sql/src/AccountRuntime.zig)
+or [`Ledger.zig`](https://github.com/spoke-sh/transit/blob/fbbaeae12/packages/zig/transit-sql/src/Ledger.zig). Coordinate
 stream/queue outbox, consumer-checkpoint and durable-runtime turn composition
 with [Milestone 6](06-streams-queues-and-durable-runtime.md) and client contracts
 with the [early programming foundation](07-client-foundation-and-language-apis.md).
@@ -43,6 +43,51 @@ MVCC, OCC, catalog roots and immutable segments are candidate mechanisms, not
 proof of serializability or universal nonblocking execution. The local transcript
 has SHA-256 `b0f5d210a851e260d39fa7b114e7920a82060c9f96f3653662c52d2752f18b74`;
 the plan is self-contained and does not require that file.
+
+## Database runtime handoff — 2026-10-28
+
+The SQL database dependency on Station has been removed by the
+[database runtime cutover](06-streams-queues-and-durable-runtime.md#sql-database-runtime-cutover--2026-10-28).
+The transaction agent can begin the selected local Table profile against these
+owners without introducing an account actor:
+
+1. Extend the typed database contract first. `DirectClientToken` owns original
+   client identity and a paged operation directory; its acceptance LSN is a
+   Catalog receipt, **not** the Table commit LSN. Preserve both when defining
+   transaction/statement identities and uncertain commit settlement.
+2. Build participant preparation, common-decision visibility and original commit
+   recovery in `DirectCatalog`, `TablePartition` and `TransitLog`. The existing
+   `TablePartition.commit` / `commit_saved` path provides single-partition
+   autocommit with one data WAL append. Catalog acceptance/settlement remain
+   separate today; joining their semantics is explicit transaction work.
+3. Preserve current authorization and Catalog activation fencing. A gateway's
+   activation revision protects its database requests through the Catalog access
+   lock. Transaction participant leases and policy ordering must be enforced by
+   their owning database operations, not only by session-side checks.
+4. Replace independent read vectors with the selected common transaction cut.
+   `ReadCache` owns 64 persistent cache slots per route and bounded resident
+   borrows; a warm read reuses an exact Table cut. Those pins do not establish
+   atomic multi-Table visibility. Define transaction retention and pin lifetime
+   separately and preserve lost-acquisition recovery/current disclosure checks.
+5. Keep session/result composition in `transit-sql-service`, finite SQL execution
+   and recovery in `transit-sql`, and direct query execution in
+   `transit-query-direct`. Their public statement-result protocol remains the
+   consumer boundary. No interactive transaction syntax is implemented by this
+   decoupling change.
+
+Reserve the transaction envelope's state-mutation, log-append and guarded
+consumer-settlement participant categories now. First-class Stream/Queue storage
+and Station's transactional turn migration are still Milestone 6 work; do not
+pretend the existing actor turn or external captured-query lane is a transaction
+participant. Existing accepted Station work keeps its current recovery owner.
+
+Start verification with the Catalog quota/fence tests, the disk-backed
+single-partition autocommit test, native SQL lost-reply proof and installed
+SQL/source recovery schedules in the [qualification record](../history/qualification/sql.md#database-owned-sql-runtime--2026-10-28).
+Retain the current-v1 hard-cutover and generated-contract checks for every
+incompatible transaction format change. The remaining end-to-end control-path
+costs are measured separately from the single data commit; do not repeat old
+actor-turn latency as a measurement of this implementation.
 
 ## Experience and ownership
 

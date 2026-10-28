@@ -26,11 +26,11 @@ Follow the [declarative data lifecycle](01-declarative-data-lifecycle.md),
 Measured diagnostics in [Milestone 3 P5](03-live-storage-and-sql-cutover.md#implementation-plan--2026-10-27)
 establish two structural bottlenecks in the pre-cutover architecture:
 
-1. **Durable runtime concerns leaked into the database:** `transit-sql` routes
+1. **Durable runtime concerns leaked into the database:** `transit-sql` routed
    ordinary SQL DML admission, idempotency token binding and outcome recovery
-   through an account operation ledger ([`AccountRuntime.zig`](../../packages/zig/transit-sql/src/AccountRuntime.zig),
-   [`Ledger.zig`](../../packages/zig/transit-sql/src/Ledger.zig) and
-   [`Coordinator.zig`](../../packages/zig/transit-sql/src/Coordinator.zig))
+   through an account operation ledger ([`AccountRuntime.zig`](https://github.com/spoke-sh/transit/blob/fbbaeae12/packages/zig/transit-sql/src/AccountRuntime.zig),
+   [`Ledger.zig`](https://github.com/spoke-sh/transit/blob/fbbaeae12/packages/zig/transit-sql/src/Ledger.zig) and
+   [`Coordinator.zig`](https://github.com/spoke-sh/transit/blob/fbbaeae12/packages/zig/transit-sql/src/Coordinator.zig))
    implemented as a `Station` `GenServer` actor over a native KV state resource.
    Because [`STATE_V1`](../../contracts/STATE_V1.md) restricts each turn to four
    256-byte hex-encoded KV mutations, one instrumented 1-row `INSERT` observed 16
@@ -38,8 +38,8 @@ establish two structural bottlenecks in the pre-cutover architecture:
    work. That request count is not an isolated statement cost or a universal
    lower bound. The accepted data ultimately belongs to
    [`TablePartition`](../../packages/zig/transit-storage/src/TablePartition.zig),
-   while `SELECT` persists durable [`ReadPins`](../../packages/zig/transit-sql/src/ReadPins.zig)
-   and re-runs Table/catalog recovery on every request. In a distributed
+   while `SELECT` persisted durable [`ReadPins`](https://github.com/spoke-sh/transit/blob/fbbaeae12/packages/zig/transit-sql/src/ReadPins.zig)
+   and re-ran Table/catalog recovery on every request. In a distributed
    deployment where network hops carry millisecond latency, multi-turn actor
    mediation on the database path is untenable.
 2. **The durable runtime (`Station`) was built without first-class `STREAM` and `QUEUE` database primitives:**
@@ -294,14 +294,11 @@ from application runtime dependencies:
 - Both package build graphs reject transitive Station imports. Existing source
   checks and consumers move with their implementation owners.
 
-This establishes a package boundary, not completion of Step 1. SQL admission,
-account-token binding and recovery still use `AccountRuntime`/`Ledger`;
-`ReadPins` still journals durable acquisitions. Remaining Step 1 work must replace
-those owners with database-owned token/outcome records and lease-fenced snapshot
-cuts, migrate provisioning and configuration/captured-operation recovery, and
-perform the current-v1 cutover with lost-reply, authorization and installed
-latency evidence. No one-round-trip or faster SELECT claim follows from moving
-these modules. Streams, Queues and the Station transaction replacement remain
+At that source this established a package boundary, not completion of Step 1.
+SQL admission, account-token binding and recovery still used
+`AccountRuntime`/`Ledger`, and `ReadPins` still journaled durable acquisitions.
+The next slices below replace those owners. No latency claim follows from moving
+modules alone. Streams, Queues and the Station transaction replacement remain
 planned.
 
 ## Database-owned client-token bindings — 2026-10-27
@@ -315,14 +312,53 @@ expires identities at capacity. The shared definition changes with the mandatory
 stored directory/count. See the
 [direct token contract](../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings).
 
-This supplies original-intent selection and lookup for typed Table DDL/DML
-callers. It does **not** migrate SQL's `AccountRuntime`, `Ledger`, recovery
+That slice supplied original-intent selection and lookup for typed Table DDL/DML
+callers. It did **not** migrate SQL's `AccountRuntime`, `Ledger`, recovery
 scheduler or `ReadPins`, provide account-wide pending enumeration, or combine
 token acceptance with a single-partition row commit. Namespace, conditional
-name, configuration and captured-operation bindings still need their selected
-database ownership contract before the SQL runtime can switch as a whole.
-Database-owned snapshot leases and matched installed latency evidence remain
-outstanding. Step 1 and milestone 6 remain **In Progress**.
+name, configuration and captured-operation bindings still needed their selected
+database ownership contract before the SQL runtime could switch as a whole.
+Database-owned snapshot leases and matched latency evidence were outstanding.
+The runtime cutover below supersedes that intermediate status.
+
+## SQL database runtime cutover — 2026-10-28
+
+The account runtime cutover replaces SQL's `AccountRuntime`, `Ledger`,
+`Coordinator`, private KV upload records and local `ReadPins` journal. The current
+v1 definition is `transit.native.v1.database-sql-runtime.2026-10-28`; incompatible
+stored roots, saved requests and configurations reject before execution.
+
+| Boundary | Implemented owner |
+| --- | --- |
+| Complete frozen intents and opaque recovery bodies | `DirectIntent` and content-addressed `DirectRecord` in `transit-catalog` |
+| Account/client-token identity, bounded pending discovery and retained quotas | Catalog token, operation, pending and account-usage trees; immutable acceptance receipt plus compare-and-set progress |
+| Replacement fencing | Catalog activation revision checked under shared access for the entire database request; replacement requires exclusive access |
+| SQL DDL/DML recovery and cancellation | `transit-sql.DatabaseRuntime` observes the original domain operation independently of sessions |
+| Single-partition autocommit | `commit_saved` executes mutation and outcome in one Table WAL append, including unchanged updates; retry observes the same original operation |
+| Read cuts and cleanup | Bounded `ReadCache` borrows a warm exact Table cut, with Catalog recovery slots for cold acquisition, eviction and replacement |
+| SQL sessions, configuration and explicitly captured sources | `transit-sql-service` composes the independent database package with those optional owners |
+| Installed enrollment | One scoped Table identity, stable account and increasing Catalog activation generation; no SQL actor creation or ownership grants |
+
+`transit-sql`, `transit-query-direct` and `transit-catalog` reject transitive
+Station dependencies in their package builds. Captured Query/Station source
+adapters remain above this boundary and retain their existing execution contracts;
+they do not mediate database admission, finite Table queries or commit recovery.
+The native SQL proxy proof verifies zero Station sends/turns for database work.
+See the [qualification record](../history/qualification/sql.md#database-owned-sql-runtime--2026-10-28)
+for executed schedules and limits.
+
+The architecture prerequisite for Milestone 5 is now database-owned. Start that
+work from the [transaction handoff](05-transactions-and-atomic-composition.md#database-runtime-handoff--2026-10-28).
+Do not infer a catalog-wide transaction from these components: Catalog token
+acceptance and settlement remain separate from the partition data commit.
+`commit_saved` is one commit request and one data WAL append; total statement
+execution still includes validation, staging, Catalog acceptance and observation
+requests. Cold read-cache acquisition still persists a pin. The stronger Step 1
+latency target requires measuring and reducing those remaining control costs;
+this implementation does not claim a one-HTTP-request SQL statement.
+
+Streams, Queues, consumer settlement participants and the Station rebuild below
+remain planned. Completing database independence does not close the full milestone.
 
 ## Inherited Station cutover obligations
 

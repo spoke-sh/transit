@@ -85,7 +85,7 @@ The earlier review at source `94335c2a` identified the gap described by the loca
 after earlier rows, and the shared client already supplies `Pending` settlement.
 At that revision the console owned fetch iteration and rendered transport
 batches in slices;
-[Session.Read](../../packages/zig/transit-sql/src/Session.zig) emitted one row
+[Session.Read](../../packages/zig/transit-sql-service/src/Session.zig) emitted one row
 for several read variants, while
 [ReadBatch](../../packages/zig/transit-sql/src/ReadBatch.zig) inherited the Table
 batch limit. The transcript is diagnosis, not a current contract or measurement.
@@ -274,12 +274,12 @@ they are not fresh benchmark or test results.
 | Owner | Existing behavior to preserve | Work required |
 | --- | --- | --- |
 | [SQL protocol](../../packages/zig/transit-sql-protocol/src/root.zig) | Separate `completion`, `operation` and `batch` replies; nullable prepared schema; full logical types; cursor ordinals and source bases | Define their shared statement/result lifecycle, typed durable command completion, terminal row counts and metadata observation evidence |
-| [Session.Read](../../packages/zig/transit-sql/src/Session.zig) and [ReadBatch](../../packages/zig/transit-sql/src/ReadBatch.zig) | Seven variants: single Table, relational, probe, settings, inspection, source and captured; explicit owner lifetimes | Relational/settings/inspection/probe paths emit at most one row per pull; shared batch capacity is inherited from the direct Table batch |
-| [Registry](../../packages/zig/transit-sql/src/Registry.zig) | One cursor and one repeatable unacknowledged batch per native session; exact next-or-repeat ordinal handling; finite lease | Pulls one engine batch per native reply; encoding checks payload overflow after pulling; completion is a Boolean without an authoritative total-row field |
+| [Session.Read](../../packages/zig/transit-sql-service/src/Session.zig) and [ReadBatch](../../packages/zig/transit-sql/src/ReadBatch.zig) | Seven variants: single Table, relational, probe, settings, inspection, source and captured; explicit owner lifetimes | Relational/settings/inspection/probe paths emit at most one row per pull; shared batch capacity is inherited from the direct Table batch |
+| [Registry](../../packages/zig/transit-sql-service/src/Registry.zig) | One cursor and one repeatable unacknowledged batch per native session; exact next-or-repeat ordinal handling; finite lease | Pulls one engine batch per native reply; encoding checks payload overflow after pulling; completion is a Boolean without an authoritative total-row field |
 | [SQL client](../../packages/zig/transit-sql-client/README.md) | Owned parsed responses, exact definition/instance checks, no transport replay, existing `Pending` observation | Add reusable typed submission/settlement and result consumption; callers currently manage each response and fetch |
 | [Console](../../apps/transit-cli/Console.zig) and [Results](../../apps/transit-cli/Results.zig) | Exact logical decoding, streaming JSON, explicit partial-result errors, empty-terminal suppression | Console owns fetch/decode/count/close; text rendering starts a new table for slices of up to eight rows |
 | [PostgreSQL](../../packages/zig/transit-postgres/src/Session.zig) and [MySQL](../../packages/zig/transit-mysql/src/Session.zig) | Shared SQL execution and post-materialization validation; PostgreSQL portals; MySQL found-rows mapping | Consume the evolved shared outcomes and batches without changing upstream wire semantics or supported scalar profiles |
-| [Pin recovery](../../packages/zig/transit-sql/src/ReadPins.zig) | Journaled acquisition/release and current-authority recovery of durable Table pins | Preserve cleanup through reader exhaustion, faults, expiry and service replacement; session lease expiry alone does not expire a durable Table pin |
+| [Pin recovery](https://github.com/spoke-sh/transit/blob/fbbaeae12/packages/zig/transit-sql/src/ReadPins.zig) | Journaled acquisition/release and current-authority recovery of durable Table pins | Preserve cleanup through reader exhaustion, faults, expiry and service replacement; session lease expiry alone does not expire a durable Table pin |
 
 Current native limits are 32 rows, 1 MiB of canonical logical cell payload per
 batch and a 4 MiB message. `ReadBatch` currently inherits the smaller direct Table
