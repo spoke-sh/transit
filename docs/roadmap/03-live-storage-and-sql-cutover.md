@@ -1091,8 +1091,13 @@ the ordinary current-inspection checks. The typed row preserves bounded backlog
 completeness, archive/checkpoint/history frontiers and fixed compaction targets.
 Native console and database-wire adapters share this read-only implementation,
 without a new wire definition or maintenance authority. Reference grammar and
-completion checks pass; native/PostgreSQL/MySQL execution and post-buffer
-revocation checks are implemented but not yet executed at this source.
+completion checks pass. At `78ca34357`, the installed `sessions-basic` slice
+passes native/PostgreSQL/MySQL execution, fresh observations from the original
+prepared statement, exact buffered repeats and post-buffer revocation. The
+ReleaseSafe artifacts are built at `72e5f59cf`; subsequent changes correct the
+independent test oracle's exclusive-frontier comparison and NULL tag, plus
+documentation. The full handbook check and all 41 fast checks pass before those
+two small oracle corrections; clean interfaces qualification remains required.
 Backend/root, quota/failure observations and Board presentation remain open.
 This is a partial P6.3 delivery and does not close any P6 acceptance checkbox.
 
