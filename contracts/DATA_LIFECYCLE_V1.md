@@ -20,6 +20,83 @@ The separate [direct Table request contract](DIRECT_TABLE_V1.md) supplies signed
 envelopes and binary schema/row payloads for the internal node dispatcher. It
 reuses these identities and the current native authorization proof.
 
+[`Transaction`](../packages/zig/transit-protocol/src/Transaction.zig) defines
+neutral transaction bindings in the `transaction` schema group. Its types and
+validation are available independently of runtime transaction operations. They
+do not enable interactive SQL or change existing Table acceptance records.
+
+## Transaction bindings and evidence
+
+The neutral local profile names one catalog and branch one. `Identity.begin`
+is the original caller operation, independent of a SQL session, worker, name or
+storage epoch. `Begin` freezes the mode (`serializable` or `read_only`), selected
+Table directory, catalog name/definition observation and admitted limits.
+`explicit_tables` and `authorized_catalog_tables` distinguish the scope: a
+filtered authorized directory makes no claim about inaccessible Tables. The
+directory is immutable and paged, with an explicit count and content commitment;
+that count is not a resident array capacity. A later statement cannot extend it.
+
+`Limits` separates resident bytes, private workspace bytes, participant count,
+statement count and savepoint count from result/disclosure budgets. Each is
+nonzero. `Cut` binds the complete acquired source directory to `Begin` and its
+own acceptance position. Equal directory counts are a shape check, not proof of
+membership or acquisition. The future acquisition owner must verify every exact
+entry, durably retain WAL-inclusive cuts under ordered participant guards and
+publish the complete descriptor before releasing them. Interrupted acquisition
+cannot be returned as a complete cut.
+
+`TableGuard` binds the exact interpretation, accepted partition frontier and
+last logical-change frontier. `requireUnchanged` requires the same interpretation,
+partition and logical frontier, with no physical frontier regression. Physical
+flush, compaction and pin bookkeeping may advance without a conflict. Any
+logical Table change conflicts, including changes outside returned predicate
+rows and changes affecting absent keys. This is the conservative validation
+primitive for serializable transactions; its standalone validation does not
+provide isolation. Name/definition directory validation remains a separate
+coordinator obligation. Read-only transactions retain their original cut and
+do not require that it remain the latest data version.
+
+`Participant` reserves three categories: state guards/mutations, log appends and
+consumer/lease settlements. `requireLocalTable` accepts only Table state entries
+and rejects writes in read-only mode. Native KV/Document, Stream/Queue and native
+consumer participants remain unsupported. Typed outbox and checkpoint rows use
+ordinary Table mutations; an outbox record does not establish external delivery.
+No variant supplies authorization or a new storage owner.
+
+`Statement` has a transaction identity, nonzero sequence and frozen intent
+digest. Savepoint rollback may restore workspace state but cannot reuse a
+statement identity, forget observed conflict dependencies or retract disclosed
+rows. Statement results remain provisional until the transaction decision is
+observed. DDL, policy/configuration changes, captured jobs and external calls are
+outside this profile; their exclusion must never cause an implicit commit.
+
+`Attempt` freezes the original commit operation, retained cut, workspace,
+complete participant directory, write count and final statement sequence. It
+has the same scope/principal as begin and a different operation ID. `requireSame`
+compares every field; lost replies cannot authorize a replacement operation or
+freshly compiled work. `Prepared` binds one exact Table predecessor, successor
+content and participant WAL position to that attempt. Its position belongs to
+the predecessor partition and advances its accepted frontier.
+
+`Decision` records committed or aborted, the exact attempt, prepared-directory
+commitment, coordination-log position, coordinator epoch and policy epoch. A
+committed decision requires the complete write count; an abort may cover a
+prepared prefix. The runtime owner must additionally verify directory membership,
+every durable preparation and immutable successor, current policy and fencing
+under the commit guards before conditional decision publication. Commit is the
+common visibility point; participant finalization cannot be the publication
+protocol. A missing decision, deadline or transport EOF proves neither abort nor
+commit. `Observation` therefore separates unavailable, denied, not-observed and
+preparing from the recorded decision. A former caller may lack current permission
+to inspect a decision that already exists.
+
+Catalog acceptance, participant preparation and common decision positions name
+different logs and are never interchangeable scalar clocks. These descriptors
+require the exact current definition when decoded. They add no fallback format,
+conversion, transaction service endpoint, automatic retry or retention expiry.
+The [neutral fixture](../packages/zig/transit-protocol/src/fixtures/transaction-v1.json)
+uses three distinct log partitions and full-width original identity values.
+
 The [index lifecycle contract](INDEX_LIFECYCLE_V1.md) reuses the same object,
 definition, operation, source-cut and snapshot types for offline index metadata.
 It separates declaration, maintenance progress and exact published coverage;

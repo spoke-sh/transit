@@ -327,6 +327,7 @@ pub const SchemaTypes = struct {
     source_cut: SourceCut,
     snapshot: Snapshot,
     observation: Observation,
+    transaction: p.Transaction.SchemaTypes,
 };
 
 test {

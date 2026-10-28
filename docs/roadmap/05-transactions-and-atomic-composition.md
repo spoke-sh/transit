@@ -1,6 +1,6 @@
 # 5. Transactions, consistent snapshots and atomic composition
 
-[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · **Status:** Planned
+[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · **Status:** In Progress
 
 Let an application read a consistent basis, compose changes to supported data
 objects, and inspect one durable commit or abort decision through SQL and typed
@@ -107,9 +107,27 @@ actor-turn latency as a measurement of this implementation.
 This plan is based on committed `origin/main` at `87a10e4f2`, including the
 database-runtime cutover and storage resource follow-up. It does not incorporate
 uncommitted work from another checkout. All transaction work packages below are
-**planned**; existing component and installed evidence qualifies only its recorded
+**tracked below**; existing component and installed evidence qualifies only its recorded
 profile. Keep the milestone `Planned` until implementation starts, then update
 this header and the roadmap index together.
+
+### Work package status
+
+| Package | Outcome | Status |
+| --- | --- | --- |
+| P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types and validation; runtime/model correspondence remains open |
+| P1 | Database admission, original-token binding, transaction quotas and caller boundary | Planned |
+| P2 | Paged common-cut acquisition, pin recovery and private workspaces | Planned |
+| P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | Planned |
+| P4 | Restart/failure settlement, retained roots, cleanup and maintenance | Planned |
+| P5 | Provisional statement results, SQL session controls and shared client | Planned |
+| P6 | Typed Zig, console and PostgreSQL/MySQL adapters and inspection | Planned |
+| P7 | Savepoints, cursor invalidation and resource/failure schedules | Planned |
+| P8 | Table outbox/checkpoints and explicit participant extension handoff | Planned |
+| P9 | Installed caller, anomaly, recovery and resource qualification | Planned |
+
+The neutral types validate descriptor shape only. They establish no transaction
+service, acquired consistent cut, serializable execution or durable decision.
 
 ### Incoming handoffs and start gates
 
