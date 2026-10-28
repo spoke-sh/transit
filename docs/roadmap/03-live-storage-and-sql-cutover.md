@@ -556,6 +556,14 @@ and the backend's native/direct/payload maintenance owners.
   maintenance memory. Test aggregate budgets across many Tables and foreground
   readers, not just each component's allocator. Back off failures without a busy
   retry loop or permission bypass; retain enough control reserve to recover.
+  Qualify compaction eligibility and total bytes rewritten for packed segments,
+  sparse updates and deletes. The current scheduler's source-activity trigger
+  starts a pass over all pre-target live segment rows; with a small relocation
+  limit it can rewrite or split already packed segments after another write.
+  Select useful compaction work through bounded metadata inspection before
+  relocating rows, preserve restartable progress over skipped candidates, and
+  measure foreground latency and segment/write amplification. This is local
+  storage maintenance scope; broader indexes and group commit remain deferred.
 - [ ] P4.5 Exercise process death at accepted archive/checkpoint/flush/compaction
   and delete-progress boundaries, racing policy changes, pin release, new
   allocation/reuse, corrupt metadata, clock failure and injected I/O/quota errors.
