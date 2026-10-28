@@ -262,17 +262,85 @@ pub const Intent = struct {
             .alter, .drop => {},
         }
     }
-    pub fn digest(self: Intent, allocator: std.mem.Allocator) ![32]u8 {
-        const bytes = try allocator.alloc(u8, max_intent_bytes);
-        defer allocator.free(bytes);
-        var writer: std.Io.Writer = .fixed(bytes);
-        try std.json.Stringify.value(self, .{}, &writer);
-        var result = std.crypto.hash.sha2.Sha256.init(.{});
-        result.update("transit.catalog.ddl.intent.v1\x00");
-        result.update(writer.buffered());
-        return result.finalResult();
+    pub fn digest(self: Intent, _: std.mem.Allocator) ![32]u8 {
+        // Hash canonical JSON through a bounded stack buffer. A tiny declaration
+        // must not reserve the maximum WAL payload merely to compute its hash.
+        var scratch: [1024]u8 = undefined;
+        var output: IntentHash = .{ .writer = .{ .buffer = &scratch, .vtable = &.{ .drain = IntentHash.drain } } };
+        output.hash.update("transit.catalog.ddl.intent.v1\x00");
+        try std.json.Stringify.value(self, .{}, &output.writer);
+        try output.writer.flush();
+        return output.hash.finalResult();
     }
 };
+
+const IntentHash = struct {
+    writer: std.Io.Writer,
+    hash: std.crypto.hash.sha2.Sha256 = .init(.{}),
+    bytes: usize = 0,
+    limit: usize = max_intent_bytes,
+    fn drain(writer: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
+        const self: *IntentHash = @alignCast(@fieldParentPtr("writer", writer));
+        var size = std.math.mul(usize, data[data.len - 1].len, splat) catch return error.WriteFailed;
+        for (data[0 .. data.len - 1]) |part| size = std.math.add(usize, size, part.len) catch return error.WriteFailed;
+        const total = std.math.add(usize, writer.end, size) catch return error.WriteFailed;
+        if (total > self.limit - self.bytes) return error.WriteFailed;
+        self.hash.update(writer.buffered());
+        for (data[0 .. data.len - 1]) |part| self.hash.update(part);
+        for (0..splat) |_| self.hash.update(data[data.len - 1]);
+        self.bytes += total;
+        writer.end = 0;
+        return size;
+    }
+};
+
+test "streamed DDL hashes preserve canonical identity without allocating maximum intent storage" {
+    const t = std.testing;
+    var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    const name = try a.Name.init("x");
+    const drop: Intent = .{ .namespace = 1, .name = name, .action = .drop };
+    // Independent Python hashlib over compact JSON: namespace=1, Name len=1,
+    // bytes=[120]+[0]*62, action={drop:{}}; same domain prefix including NUL.
+    var expected: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&expected, "8d3730b1bbcc1380a41a6fbaebd51aac1ad41af12d88cf190737e41eb5fec75f");
+    try t.expectEqual(expected, try drop.digest(failing.allocator()));
+    const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 17, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
+    const escaped: [2048]u8 = @splat('\n');
+    const actions = [_]@FieldType(Intent, "action"){
+        .{ .create = .{ .schema = schema, .owner = 7 } },
+        .{ .rename = try a.Name.init("snow ☃") },
+        .{ .alter = .{ .add = .{ .name = "label", .type = .utf8, .default = .{ .value = .{ .atom = .{ .bytes = &escaped } } } } } },
+        .drop,
+    };
+    for (actions) |action| {
+        const intent: Intent = .{ .namespace = 1, .name = name, .action = action };
+        var buffer: [16384]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&buffer);
+        try std.json.Stringify.value(intent, .{}, &writer);
+        var expected_hash = std.crypto.hash.sha2.Sha256.init(.{});
+        expected_hash.update("transit.catalog.ddl.intent.v1\x00");
+        expected_hash.update(writer.buffered());
+        try t.expectEqual(expected_hash.finalResult(), try intent.digest(failing.allocator()));
+    }
+    try t.expectEqual(0, failing.alloc_index);
+}
+
+test "streamed intent hashing rejects the original exact byte bound" {
+    const t = std.testing;
+    var scratch: [7]u8 = undefined;
+    var output: IntentHash = .{ .limit = 37, .writer = .{ .buffer = &scratch, .vtable = &.{ .drain = IntentHash.drain } } };
+    try output.writer.splatByteAll('x', 37);
+    try output.writer.flush();
+    var expected: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(&@as([37]u8, @splat('x')), &expected, .{});
+    try t.expectEqual(expected, output.hash.finalResult());
+    try output.writer.writeByte('x');
+    try t.expectError(error.WriteFailed, output.writer.flush());
+    output = .{ .writer = .{ .buffer = &scratch, .vtable = &.{ .drain = IntentHash.drain } } };
+    try t.expectError(error.WriteFailed, output.writer.splatByteAll('x', max_intent_bytes + 1));
+    try t.expectEqual(0, output.bytes);
+}
 
 pub const Request = struct {
     binding: d.Binding,
