@@ -26,8 +26,30 @@ fn consume(executor: *sql.Executor, length: usize, wide: bool, retry: bool, prep
             if (bytes.len != 24000 or !std.mem.allEqual(u8, bytes, 'a' + @as(u8, @intCast(count % 26)))) return error.ChangedValue;
         }
         count += 1;
+        if (length == 16384 and count % 1024 == 0) try executor.client.io.sleep(.fromMilliseconds(1), .awake);
     }
     if (count != length or result.completion() == null or result.completion().?.rows != length) return error.IncompleteRelation;
+}
+fn retainedWindow(executor: *sql.Executor, workspace: *memory.Workspace) !void {
+    const window = blk: {
+        const outcome = try executor.execute("SELECT 70 wide once", null, .{});
+        defer outcome.deinit();
+        if (outcome.value != .rows) return error.ExpectedRows;
+        break :blk try sql.results.Window.readInto(workspace, &outcome.value.rows, 33);
+    };
+    defer window.deinit();
+    if (window.start != 0 or window.rows.len != 33 or window.stop != .row_limit or window.completion != null)
+        return error.ChangedRetainedWindow;
+    // Closing the source does not complete its prefix. Later statements reuse
+    // response/codec slots while this independent window keeps its own lease.
+    try consume(executor, 16384, false, false, false);
+    try window.validate();
+    for (window.rows, 0..) |row, index| {
+        if (row.len != 2 or row[0].value.atom.unsigned != index) return error.ChangedRetainedWindow;
+        const bytes = row[1].value.atom.bytes;
+        if (bytes.len != 24000 or !std.mem.allEqual(u8, bytes, 'a' + @as(u8, @intCast(index % 26))))
+            return error.ChangedRetainedWindow;
+    }
 }
 fn capacity(executor: *sql.Executor) !void {
     var retained: [4]sql.Response = undefined;
@@ -115,6 +137,8 @@ pub fn main(init: std.process.Init) !void {
     control.session = client.session;
     control.account = client.account;
     var executor: sql.Executor = .{ .client = &client, .control = &control, .config = config };
+    var window = try memory.Workspace.init(probe.allocator(), 1024 * 1024);
+    defer window.deinit();
     // Handshake, first TLS connection and finite worker admission are setup.
     try consume(&executor, 1, false, false, false);
     try std.Io.File.stdout().writeStreamingAll(io, "allocation_begin\n");
@@ -141,6 +165,7 @@ pub fn main(init: std.process.Init) !void {
             retained.?.value.command.outcome != .applied or retained.?.value.command.counts != null)
             return error.ChangedRetainedCompletion;
     }
+    if (!negative) try retainedWindow(&executor, &window);
     if (!negative) try interrupted(&executor);
     if (!negative) try settlement(&executor);
     var libc: [4]u64 = undefined;
@@ -149,6 +174,9 @@ pub fn main(init: std.process.Init) !void {
     const report = try std.json.Stringify.valueAlloc(init.gpa, .{
         .profile = "shared_sql_client_allocations",
         .statements = statements,
+        .long_result_rows = if (negative) @as(usize, 0) else 16384,
+        .retained_window_rows = if (negative) @as(usize, 0) else 33,
+        .window_reserved_bytes = window.buffer.len,
         .negative_control = negative,
         .libc_attempts = libc,
         .backing = probe.counts,

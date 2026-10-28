@@ -338,7 +338,9 @@ def main():
                         assert 'mmap' in calls and calls & {'clone', 'clone3'}, events
                         assert report['statements'] == 0 and state['queries'] == 1
                     else:
-                        assert report['statements'] == 300 and state['queries'] == 302
+                        assert report['statements'] == 300 and state['queries'] == 304
+                        assert report['long_result_rows'] == 16384 and report['retained_window_rows'] == 33
+                        assert report['window_reserved_bytes'] == 1048576
                         assert state['timeouts'] == state['cancellations'] == 1, state
                         assert state['writes'] == 1 and state['observations'] == 3 and state['opens'] == 2, state
                         assert state['prepares'] == state['releases'] == 30 and state['commands'] == 1, state

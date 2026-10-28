@@ -18,6 +18,10 @@ lost fetch ordinal, crosses the 256-request connection boundary and replaces idl
 sockets. Thirty statements prepare and bind an independently encoded parameter;
 a command completion stays retained through the run. Four retained responses
 force the next submission to fail before dispatch without damaging their data.
+A separate 33-row wide window spans two wire batches, survives early source
+close, and remains unchanged while a 16,384-row result streams through the same
+client with periodic consumer delays. Its independent 1 MiB reserve is charged
+throughout; the incomplete prefix never becomes a completed result.
 The peer also stalls partial responses for one timeout and one cancellation;
 an independent control connection confirms the exchange started before cancellation.
 A fresh read then checks that joined tasks returned their response and transport
