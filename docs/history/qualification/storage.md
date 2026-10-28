@@ -219,6 +219,81 @@ The final public-limit clarification and this section's initial account at
 `request-admission-final-docs.log`, SHA-256
 `f38fc1ee57095141ebdd7f2d3a99f49eae0e2601c82e9782c51d3ba23ad52d67`.
 
+### Installed slow clients and reserved recovery
+
+The follow-up asks whether ordinary capacity stays bounded while HTTP body reads
+or response writes remain blocked, and whether the original accepted operation
+can still be inspected. The complete `just test::direct-table-service` schedule
+passes 2,128 typed calls with the pressure driver committed at `def07bd0026c`.
+The node uses production source `05fda5b01`, shared definition
+`ce60856690e2f9c5d0dbc62a1c07f8331aba8909ce35e29c6f314064e444d9eb`,
+ReleaseSafe, the pinned Zig toolchain and physical disk under `/var/tmp`.
+The new caller first independently verifies the retained 64 KiB row and its
+original cut. Pressure reuses that signed immutable scan and the exact saved
+accepted-operation inspection; it submits no replacement mutation.
+
+Two incomplete body readers exhaust a 1 MiB ordinary budget. Separately, a
+client pipelines the same scan without consuming responses until the server's
+joined write retains exactly its 89,125-byte serialized response. Partial body
+readers then exhaust the shared capacity. Both schedules exercise disconnect
+and the configured five-second request deadline, require a typed `StorageQuota`
+refusal, resolve the unchanged original outcome through the independent control
+reserve, and observe ordinary use return to zero without replacing the owner.
+
+| Schedule | Ordinary limit (bytes) | Observed peak (bytes) | Control peak (bytes) | Ordinary use after cleanup |
+| --- | ---: | ---: | ---: | ---: |
+| Incomplete bodies, disconnect and deadline | 1,048,576 | 714,596 | 883,253 | 0 |
+| Retained response plus bodies, disconnect and deadline | 2,962,856 | 2,962,856 | 783,069 | 0 |
+
+The response schedule chooses its limit from the independently observed complete
+scan's private peak, within the public configuration bounds. The body schedule
+can refuse a growing allocation before consuming every byte. Socket buffers,
+provider caches, stacks, native requests and maintenance remain outside this
+budget. The recorded CPU/RSS/I/O observations are not a matched performance
+comparison; concurrent host work prevents latency attribution. The original
+CRUD/DDL, history, retained-reader, namespace, lost-reply, current-revocation and
+restart assertions all pass after restoring the default request configuration.
+The method belongs in the [storage test guide](../../../tests/storage/README.md).
+
+The separately executed local catalog suite also passes with the observation
+test committed at `0e8f04473`. It checks finite maintenance failure categories,
+counter saturation, preservation of the last failure after a successful step,
+and unchanged durable position/allocation accounting. Its existing disk schedules
+settle four Tables in 120 maintenance units, preserve retained obligations across
+collection/reopen/revocation, and reach idle for both collection owners. These
+results precede the rebase and do not qualify the new combined definition.
+
+The clean `experience` lane at `05fda5b01` passes Board checks, documentation,
+TypeScript bindings, observability and server logging, then fails the installed
+single-executable SELECT after successful CREATE, INSERT and two ALTER commands:
+`Conflict (55000): SqlServiceError`. Its installation remains private at
+`/var/tmp/transit-defaults-tq0vxi2z`. A separate installed direct-SQL schedule also
+fails its first SELECT, with state at `/var/tmp/transit-server-proof-aj15zj1h`.
+Two diagnostic attempts fail earlier in bootstrap with `AuthorityTimeout`, with
+and without owner request metrics. They execute no query and do not identify the
+cause of the SELECT failure. Their private installations remain at
+`/var/tmp/transit-server-proof-s9msgnhg` and
+`/var/tmp/transit-server-proof-ywdmj45x`. No failure is a successful timing sample.
+
+Raw logs remain under `.cache/milestone3/`:
+
+| Log | SHA-256 |
+| --- | --- |
+| `closeout-request-pressure-v2.log` | `f2652d760b20a28dde6ddedac3f4180734a6d019e17b9a4a054c268e2af85b6b` |
+| `closeout-owner-observation.log` | `c9c279891075cd1611aff19ef9806b2c353257ae958802496a7dd13b7e237bae` |
+| `closeout-clean-experience.log` | `23aa0c57aea85c3a8a614f0bcd82e0e9b105501e705bd7ca8de3acf5d8054610` |
+| `closeout-direct-tables.log` | `e26bb6858ea02cf79481de6d34692217c244d8b53e5c53ad6f1b215d785dc6db` |
+| `closeout-sql-conflict-trace.log` | `3f6a33ede9a5edee24fd6f50de69c525b1ea496de0508d0f51c86dc08fa3a11d` |
+| `closeout-sql-conflict-transport.log` | `e6e522dc7f81eb5027dd44a6cc3677079442542e0f1fe4e4f5ae75194cc6f7db` |
+
+After rebasing onto `2eea90c65`, the combined source at `8c16c4d7a600` uses
+definition `8d33a5642dfcc05496cfe1b6558cdc07246ec5f17790750a5f28cfe9c81b3a8f`.
+All 41 fast and 18 contract checks pass in clean checkouts. The raw log
+`closeout-rebased-clean-contracts.log` has SHA-256
+`f0967c3a686b042db59258a6a9411fff9afca6bcd4756eccb2d415ed7e67e5a4`;
+automatic completion records remain under `.cache/ci/clean/`. These scopes
+validate the regenerated definition and resources, not installed integration.
+
 ## Reusable private Table maintenance workspace — 2026-10-28
 
 The question is whether sequential maintenance units can reuse bounded private

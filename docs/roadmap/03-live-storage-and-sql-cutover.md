@@ -725,6 +725,17 @@ records exact source and evidence. Installed slow-write/cancellation exhaustion,
 combined foreground/maintenance pressure and whole-owner memory remain open;
 this partial result does not close P4.4 or the common-revision P8 gate.
 
+The next [installed pressure schedule](../history/qualification/storage.md#installed-slow-clients-and-reserved-recovery)
+passes incomplete-body and blocked-response exhaustion, disconnect and request
+deadline cleanup, and reserved inspection of the unchanged original operation.
+All 2,128 typed calls in its direct Table service schedule pass. Node observations
+and configured request budgets share the native contract; these observations
+distinguish unavailable data, independently sampled owner counters and durable
+Table progress. The rebased combined definition passes clean fast/contract
+checks. Whole-owner resources, combined maintenance pressure, matched latency
+and final dependent lanes remain required; the installed SQL SELECT conflicts
+remain integration blockers owned by the SQL continuation.
+
 **Gate:** the installed owner converges on eligible maintenance under a finite
 workload, resumes it after process death and preserves every retained obligation.
 Reclaim only objects proved unreachable; storage pressure never authorizes expiry.
