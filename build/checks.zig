@@ -346,6 +346,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     application_signing.has_side_effects = true;
     application_signing.stdio = .inherit;
     fixtures_step.dependOn(&application_signing.step);
+    const reactive_signing = b.addSystemCommand(&.{ "python3", "-B" });
+    reactive_signing.addFileArg(b.path("tests/runner/launch.py"));
+    reactive_signing.addFileArg(b.path("tests/interfaces/reactive/reactive_fixtures.py"));
+    reactive_signing.addArg("--check");
+    reactive_signing.has_side_effects = true;
+    reactive_signing.stdio = .inherit;
+    fixtures_step.dependOn(&reactive_signing.step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = application.module("transit_station_app") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving_http.module("transit_serving_http") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving.module("transit_serving") })).step);

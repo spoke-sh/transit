@@ -30,7 +30,14 @@ refusals: usize = 0,
 pub fn init(parent: std.mem.Allocator, capacity: usize) !Self {
     if (capacity < granule * 2) return error.InvalidWorkspaceCapacity;
     // Round down rather than silently exceeding a caller's admitted reserve.
-    const bytes = try parent.alignedAlloc(u8, .fromByteUnits(granule), capacity & ~@as(usize, granule - 1));
+    const size = capacity & ~@as(usize, granule - 1);
+    // This is backing capacity, not an initialized payload. Allocator.alloc
+    // poisons the entire slice in safe builds, faulting in every unused page.
+    // The parent still accounts for the full reserve; fromBuffer initializes
+    // its metadata and ordinary borrower allocations retain their own poisoning.
+    const pointer = parent.rawAlloc(size, .fromByteUnits(granule), @returnAddress()) orelse return error.OutOfMemory;
+    const bytes = @as([*]align(granule) u8, @alignCast(pointer))[0..size];
+    errdefer parent.free(bytes);
     var self = try fromBuffer(bytes);
     self.parent = parent;
     return self;
@@ -201,6 +208,26 @@ fn free(context: *anyopaque, bytes: []u8, alignment: std.mem.Alignment, _: usize
     self.live_bytes -= bytes.len;
     self.occupied_bytes -= self.block(offset).size;
     self.coalesce(offset);
+}
+
+test "slab admission charges its full reserve without touching unused payload bytes" {
+    const t = std.testing;
+    var backing: [8192]u8 align(granule) = @splat(0x5a);
+    var fixed: std.heap.FixedBufferAllocator = .init(&backing);
+    var budget: @import("Budget.zig") = .{ .parent = fixed.allocator(), .limit = backing.len };
+    var probe: @import("AllocationProbe.zig") = .{ .parent = budget.allocator() };
+    var slab = try init(probe.allocator(), backing.len);
+    try t.expectEqual(backing.len, budget.used);
+    try t.expectEqual(backing.len, probe.live_bytes);
+    try t.expect(std.mem.allEqual(u8, backing[granule..], 0x5a));
+    // Reassignment still erases the entire reserve, including unused bytes.
+    probe.begin(true);
+    try slab.reset(true);
+    try t.expect(std.mem.allEqual(u8, backing[granule..], 0));
+    try probe.verify();
+    slab.deinit();
+    try t.expectEqual(0, budget.used);
+    try t.expectEqual(0, probe.live_bytes);
 }
 
 test "slab retains independent values through varied alignment fragmentation and reuse" {

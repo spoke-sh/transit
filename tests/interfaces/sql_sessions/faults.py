@@ -129,6 +129,23 @@ class Faults:
             self.settings_fault = None
             return records
 
+    def wait_unready(self, client):
+        configuration = json.loads((client.root / 'sql-gateway.json').read_text())
+        deadline = time.monotonic() + 15
+        while True:
+            health = http.client.HTTPConnection('127.0.0.1', configuration['health_port'], timeout=3)
+            try:
+                health.request('GET', '/recovery')
+                response = health.getresponse()
+                response.read()
+                if response.status == 503:
+                    return
+                assert response.status == 200, response.status
+            finally:
+                health.close()
+            assert time.monotonic() < deadline, 'database account did not withdraw readiness'
+            time.sleep(.05)
+
     def check(self, client):
         before = self.failures
         self.fail_once = True
@@ -142,19 +159,7 @@ class Faults:
         self.fail_coordinator = configuration['accounts'][0]['execution']['table_principal']
         release = None
         try:
-            deadline = time.monotonic() + 15
-            while True:
-                health = http.client.HTTPConnection('127.0.0.1', configuration['health_port'], timeout=3)
-                try:
-                    health.request('GET', '/recovery')
-                    response = health.getresponse()
-                    response.read()
-                    if response.status == 503:
-                        break
-                finally:
-                    health.close()
-                assert time.monotonic() < deadline, 'database fence fault did not withdraw readiness'
-                time.sleep(.05)
+            self.wait_unready(client)
             release = threading.Timer(3, lambda: setattr(self, 'fail_coordinator', None))
             release.start()
             started = time.monotonic()

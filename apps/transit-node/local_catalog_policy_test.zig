@@ -105,7 +105,15 @@ fn dispatchWithSeed(service: anytype, action: c.DirectTableProtocol.Action, dele
     const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .borrow = input.borrow, .proof = signed };
     const bytes = try p.Json.valueAlloc(alloc, request);
     const parsed = try w.Request.parse(alloc, bytes);
-    const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, try service.execute(&arena, parsed.value));
+    const encoded = work: {
+        var temporary = std.heap.ArenaAllocator.init(t.allocator);
+        defer temporary.deinit();
+        break :work try service.execute(&temporary, t.allocator, parsed.value);
+    };
+    defer t.allocator.free(encoded);
+    // Decode only after all catalog/read scratch is gone. Revocation cases also
+    // verify that a separately allocated but denied response does not leak.
+    const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, encoded);
     errdefer response.deinit();
     try c.DirectTableClient.validateResponse(alloc, parsed.value, response.value);
     if (response.value.result == .lookup and response.value.result.lookup != null) {
@@ -144,8 +152,8 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
         host: *Host,
         engine: *Engine,
         configuration: D.Configuration,
-        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, request: c.DirectTableProtocol.Request) ![]const u8 {
-            return self.host.execute(self.engine.journal.backend.io, self.engine, arena, request);
+        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: c.DirectTableProtocol.Request) ![]const u8 {
+            return self.host.execute(self.engine.journal.backend.io, self.engine, arena, output_allocator, request);
         }
     };
     var options = service.options;
@@ -173,6 +181,22 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
     defer restored.deinit();
     try t.expectEqualDeep(cold.value.result, restored.value.result);
     std.debug.print("Name lookup WAL frames: cold {d}, warm {d}; revocation rechecked.\n", .{ cold_frames, warm_frames });
+}
+
+fn dispatchWithoutOutput(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action) !void {
+    const Adapter = struct {
+        service: *@import("LocalTableService.zig"),
+        engine: *Engine,
+        configuration: D.Configuration,
+        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, _: std.mem.Allocator, request: c.DirectTableProtocol.Request) ![]const u8 {
+            var failure = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+            const result = self.service.execute(arena, failure.allocator(), request);
+            try t.expect(failure.has_induced_failure);
+            return result;
+        }
+    };
+    var adapter: Adapter = .{ .service = service, .engine = service.engine, .configuration = service.configuration };
+    try t.expectError(error.OutOfMemory, dispatch(&adapter, action));
 }
 
 fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.DirectClientToken.Receipt {
@@ -235,7 +259,11 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.
     const row_admitted = try dispatch(&service, .{ .admit_rows = work });
     defer row_admitted.deinit();
     try t.expect(row_admitted.value.result.rows == .admitted);
-    const rows = try dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } });
+    // Output allocation fails after the accepted mutation. Inspect the exact
+    // original operation; never invent another identity or infer rejection.
+    try dispatchWithoutOutput(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } });
+    try t.expect(table_recovered == null);
+    const rows = try dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .inspect, .steps = 1 } });
     defer rows.deinit();
     try t.expectEqual(@as(u64, 1), rows.value.result.rows.committed.outcome.affected);
     const bulk_storage = try dispatch(&service, .{ .storage = .{ .object = binding.target, .pending_limit = 1 } });
@@ -1017,7 +1045,7 @@ const PhysicalPause = struct {
 fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAuthority.Name, expected: c.storage.TablePartition.Evidence, retained: c.storage.TablePartition.SnapshotHandle) !void {
     const Work = @import("LocalTableMaintenance.zig");
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
-    var work: Work = .{ .host = &host };
+    var work: Work = .{ .host = &host, .allocator = t.allocator };
     const settings: p.Storage.Maintenance = .{ .flush = .{ .enabled = true } };
     const request: g.Request = .{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .checkpoint };
     const signed = try g.sign(request, try key(17));
@@ -1092,7 +1120,7 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     try t.expectEqualDeep(old.rows[0].?.row(), point.row());
     // Fresh volatile work resumes from persisted discovery and observes no
     // pending rows in the already flushed Table. No accepted work is recreated.
-    var restarted: Work = .{ .host = &host };
+    var restarted: Work = .{ .host = &host, .allocator = t.allocator };
     const after = current.table.root;
     _ = try Work.step(&restarted, engine, settings, signed);
     try current.table.recover();
@@ -1140,7 +1168,8 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
     }
     try t.expect(before.items.len >= 4);
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
-    var work: Work = .{ .host = &host };
+    var allocations: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
+    var work: Work = .{ .host = &host, .allocator = allocations.allocator() };
     const settings: p.Storage.Maintenance = .{
         .flush = .{ .enabled = true, .rows = 1, .work_rows = 2 },
         .archive = .{ .enabled = true, .work_frames = 2 },
@@ -1158,7 +1187,7 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
         if (units == 4096) return error.FixtureBudget;
         if (units == 17) {
             // Lose scheduling/recovery hints once while accepted targets remain.
-            work = .{ .host = &host };
+            work = .{ .host = &host, .allocator = allocations.allocator() };
             host.table_recovery = @splat(null);
             idle = 0;
         }
@@ -1168,8 +1197,27 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
         };
         peak = @max(peak, work.last_peak_bytes);
         try t.expect(work.last_peak_bytes <= settings.resident_bytes);
+        try t.expectEqual(0, allocations.live_bytes);
         idle = if (progressed) 0 else idle + 1;
     }
+    const active_allocations = allocations.counts;
+    const active_peak = allocations.peak_bytes;
+    allocations.begin(false);
+    for (0..16) |_| try t.expect(!try Work.step(&work, engine, settings, signed));
+    try t.expectEqual(0, allocations.live_bytes);
+    const measurement = try std.json.Stringify.valueAlloc(t.allocator, .{
+        .boundary = "private_table_maintenance",
+        .tables = before.items.len,
+        .active_units = units,
+        .active = active_allocations,
+        .active_peak_bytes = active_peak,
+        .idle_units = 16,
+        .idle = allocations.counts,
+        .idle_peak_bytes = allocations.peak_bytes,
+        .retained_bytes = allocations.live_bytes,
+    }, .{});
+    defer t.allocator.free(measurement);
+    std.debug.print("Local Table maintenance backing allocations: {s}\n", .{measurement});
     for (before.items) |original| {
         var view = (try catalog.maintenanceOpen(t.allocator, original.object, guard)).?;
         defer view.deinit();

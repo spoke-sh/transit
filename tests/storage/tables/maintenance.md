@@ -33,6 +33,20 @@ process-lifetime peak RSS. Convert tick differences with the recorded clock rate
 Counter snapshots must belong to the same process incarnation. Readers are joined
 on success and killed/joined on failure; incomplete samples do not pass.
 
+Both arms enable the node's opt-in request metrics. The existing HTTP fixture
+collects `request_memory` from each direct response into bounded operation-label
+totals and maxima; it retains no request, row, key or credential bytes. Missing
+or invalid observations fail the measurement. The counted live bytes must equal
+the independently received HTTP response length, proving that no request scratch
+remains charged during transmission. Each phase records allocation,
+growing-resize and remap attempts, acquired bytes, and maximum live/peak bytes
+through the complete handler allocator before response transmission. Totals
+include concurrent inspection traffic, separated from `scan` by operation.
+Individual request maxima cannot be added to infer simultaneous node memory.
+They exclude provider/cache allocations, stacks and socket buffers. The
+live-at-response count includes memory held while waiting on the client; it
+does not measure post-cleanup leakage or response transmission cost.
+
 This is an installed-owner contention observation with an uncontrolled host page
 cache. Each arm restarts the node, but prior verification warms different paths;
 the active phase also waits for flush convergence. Report these scopes alongside
@@ -46,8 +60,34 @@ guarantee or a matched implementation speedup.
 Native/direct collection retains its default eligibility in both arms; these
 observations do not isolate its contribution. The measurements do not yet cover
 concurrent foreground writes, large Table cardinality, isolated collection cost,
-archive/compaction contention, allocator backing
-attempts or aggregate admission limits. Keep the existing
+archive/compaction contention, aggregate admission limits or allocations through
+every storage/provider owner. Keep the existing
 [owner benchmarks](../../performance/storage/storage_benchmark.md), allocator
 checks and collection/failure schedules separate; this schedule does not replace
 them or establish a zero-allocation read path.
+
+## Private maintenance allocation boundary
+
+Run `just test local-catalog` to exercise the composed local maintenance owner
+with its real disk backend. The
+[catalog policy fixture](../../../apps/transit-node/local_catalog_policy_test.zig)
+puts an allocation probe below the private Table maintenance budget.
+The schedule spans flush, archive,
+checkpoint, WAL cleanup and compaction across four Tables, then sixteen idle
+units. It discards volatile discovery and recovery hints once.
+This is not a process restart; the installed schedule above owns
+that failure boundary.
+
+The `Local Table maintenance backing allocations` record separates all work
+units, including startup, from subsequent idle units. The probe is unsealed:
+it records backing allocation and growing resize/remap attempts, successes,
+requested/acquired/released bytes and peak live bytes. Every unit must release
+its private allocations before the next begins. A zero retained-byte count is
+not a zero-allocation result. The
+[retained-workspace experiment](../../../docs/history/qualification/storage.md#reusable-private-table-maintenance-workspace--2026-10-28)
+records why reducing those counts alone did not justify keeping its reserve.
+
+This probe excludes native engine caches, provider I/O buffers, collection,
+foreground requests and worker stacks. Pair its counts and peak bytes with installed
+CPU/RSS/I/O and foreground measurements before making a resource improvement
+claim. It does not establish an aggregate node bound or zero-allocation storage.

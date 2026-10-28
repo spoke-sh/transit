@@ -75,6 +75,11 @@ across unrelated resources. Settings and inspection results have no retained
 data basis. Current rights govern metadata, every batch including repeats, and
 terminal counts.
 
+Protected session operations check current credentials and database access before
+account readiness. Revocation returns an access denial even when it also stops
+the account's recovery work. An authorized caller still requires a ready account
+and its current activation fence before execution or result disclosure.
+
 ## Durable work and recovery
 
 Mutations and explicitly captured queries carry a caller-generated 128-bit

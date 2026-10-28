@@ -1,5 +1,6 @@
 """Independent REACTIVE_V1 golden bytes; OpenSSL supplies Ed25519, not Zig."""
 from runner.paths import ROOT
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -45,5 +46,14 @@ def generate():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--check', action='store_true', help='Reject stale checked-in fixture bytes without rewriting them')
+    args = parser.parse_args()
     target = ROOT / 'packages/zig/transit-serving/src/fixtures/reactive-v1.json'
-    target.write_text(json.dumps(generate(), indent=2) + '\n')
+    expected = json.dumps(generate(), indent=2) + '\n'
+    if args.check:
+        if target.read_text() != expected:
+            raise SystemExit('Reactive fixture differs from the current definition; regenerate with tests/runner/launch.py tests/interfaces/reactive/reactive_fixtures.py')
+        print('Reactive lifecycle bytes and definition-bound signatures match the independent fixture.')
+    else:
+        target.write_text(expected)
