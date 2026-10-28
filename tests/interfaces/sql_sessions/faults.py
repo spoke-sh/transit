@@ -258,7 +258,11 @@ class Faults:
             self.pin_attempts, self.pin_states = [], []
             self.lose_pin_conflict_once = True
             client.call(dict(execute=dict(sql='SELECT id FROM native_sessions')), error='Conflict')
-            assert not self.lose_pin_conflict_once and len(self.pin_attempts) == 1, self.pin_attempts
+            assert not self.lose_pin_conflict_once and self.pin_attempts, self.pin_attempts
+            # Background cleanup may resolve the original unknown handle before
+            # releasing it. Every acquisition must still carry that same owner
+            # and exact frontier; an RPC count would reject legitimate cleanup.
+            assert all(item == self.pin_attempts[0] for item in self.pin_attempts), self.pin_attempts
             assert any(item['owner'] == self.pin_attempts[0]['owner'] and item['retained'] for item in self.pin_states), self.pin_states
             print('Snapshot preparation: raced unaccepted pin is proven absent before reacquisition; a lost accepted pin reply never switches identity.', flush=True)
         finally:
