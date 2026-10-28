@@ -1,4 +1,4 @@
-# 18. Clustered execution and storage-disaggregated placement
+# 20. Clustered execution and storage-disaggregated placement
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -20,7 +20,7 @@ declaration progress and freshness; rescheduling a healthy pod does not
 establish that a derived result is current.
 
 Extend the existing [transaction model](05-transactions-and-atomic-composition.md)
-and [provider/writer contracts](15-storage-providers-and-concurrency.md) to each
+and [provider/writer contracts](17-storage-providers-and-concurrency.md) to each
 advertised placement. Specify coordinator/participant movement, decision recovery,
 visibility and snapshot retention before advertising cross-host transactions.
 Moving computation does not widen the atomic domain automatically. Distributed
@@ -29,8 +29,8 @@ result meaning; neither partition arrival order nor worker completion is commit.
 
 ## Delivery sequence
 
-Require [replication and durable failover](16-replication-and-failover.md) and
-[operations, backup, restore and upgrades](17-operations-and-recovery.md) for the
+Require [replication and durable failover](18-replication-and-failover.md) and
+[operations, backup, restore and upgrades](19-operations-and-recovery.md) for the
 selected storage/deployment profile. They establish recoverable durable state,
 promotion rules and operational procedures before this milestone automates
 worker placement. The [statement-result milestone](04-statement-results-and-consumption.md)
@@ -79,7 +79,7 @@ or commit authority.
 
 ## Formal model follow-through
 
-Extend the [T3/T5/T7 and A3 candidates](14-formal-semantics-and-correspondence.md#later-ownership-and-extensions)
+Extend the [T3/T5/T7 and A3 candidates](16-formal-semantics-and-correspondence.md#later-ownership-and-extensions)
 where the selected placement and execution contracts require them. Check owner
 handoff, complete source/transaction coverage and preserved ordering/error
 semantics across worker replacement and repartitioning. Connect selected models

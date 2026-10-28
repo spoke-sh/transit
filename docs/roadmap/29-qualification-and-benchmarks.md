@@ -1,4 +1,4 @@
-# 27. Qualification and complete benchmarks
+# 29. Qualification and complete benchmarks
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,7 +10,7 @@ remains a gate for every preceding milestone.
 
 ## Remaining work
 
-- Execute the [formal semantics and correspondence suite](14-formal-semantics-and-correspondence.md)
+- Execute the [formal semantics and correspondence suite](16-formal-semantics-and-correspondence.md)
   with its selected provider, replication, recovery, placement, policy and review
   extensions at the common committed revision. Retain finite bounds, theorem
   premises/axioms, fairness and storage assumptions, implementation projections,
@@ -27,18 +27,25 @@ remains a gate for every preceding milestone.
   Serializable Snapshot Isolation (SSI), online phased table rewrites,
   segment-backed BM25 full-text and vector/hybrid search, interrupted builds,
   branch-aware compaction and retirement under current authorization.
-- Repeat the [data structures, query and runtime scorecard](10-data-structures-and-performance.md)
+- Repeat the [data structures, query and runtime scorecard](10-data-structures-and-performance.md),
+  [first-class strings, perfect hashing and vectorized search scorecard](11-vectorized-strings-and-search.md)
+  and [data-centric compilation and specialization scorecard](12-data-centric-compilation-and-specialization.md)
   at the common revision with installed callers, concurrent maintenance and
   durable runtime workloads. Include zero-steady-state-allocation hot-path
   verification, per-morsel CPU/memory/IOPS metering, 16-byte collation-prefixed
-  strings, `comptime`/immutable perfect hashing, leveled/tiered `.tseg` compaction
+  strings, compressed-domain `.dictionary`/`.fsst` evaluation, `comptime`/immutable
+  perfect hashing, vectorized 256-doc Block-Max BM25 and hybrid search, HyPer-style
+  data-centric push pipeline fusion, per-row-group dense non-null specialization,
+  `transit-app` AOT-compiled queries/views, leveled/tiered `.tseg` compaction
   bounds, `.tdel` tombstone reclamation, declarative partitioning/multi-dimensional
   clustering (`PARTITION BY`, `CLUSTER BY`), scan-resistant caching, external
   NVMe spill for window/join/sort operators and bitemporal `AS OF JOIN` merge
-  execution. Preserve numeric budgets, matched competitor versions/configurations,
-  raw samples and visible failures/regressions. Report leadership only for
-  reproduced equivalent workload profiles; a component win or reduced TPC workload
-  is not a universal database/runtime ranking.
+  execution. Preserve numeric budgets, matched competitor versions/configurations
+  (including HyPer/Umbra, DuckDB and ClickHouse baselines on the VLDB 2018
+  compiled-versus-vectorized microbenchmarks, ClickBench and the HTAP
+  CH-benCHmark), raw samples and visible failures/regressions. Report leadership
+  only for reproduced equivalent workload profiles; a component win or reduced
+  TPC workload is not a universal database/runtime ranking.
 
 - Qualify full declaration lifecycles: define data and computation, apply policy,
   inspect publication/results/progress, evolve dependencies and recover accepted
@@ -58,12 +65,12 @@ remains a gate for every preceding milestone.
   branch publication, complete dataflow commits and backup/PITR cuts. Earlier
   transaction correctness gates remain required; this is combined qualification.
 - Compose the [result-set](04-statement-results-and-consumption.md),
-  [replication](16-replication-and-failover.md) and
-  [operations](17-operations-and-recovery.md) evidence at the same revision:
+  [replication](18-replication-and-failover.md) and
+  [operations](19-operations-and-recovery.md) evidence at the same revision:
   complete/incomplete result delivery, failover, verified backups, restore
   activation and upgrades during real caller workloads and placement changes.
   Their focused acceptance gates remain required before this combined exercise.
-- Qualify [direct-client, Station and mixed applications](26-programming-model.md)
+- Qualify [direct-client, Station and mixed applications](28-programming-model.md)
   through real installed language packages, including cross-language typed service
   calls, original-operation recovery, explicit commit scopes and bounded host
   scheduling. Compare the same data/outcomes across modes; shared native code
@@ -78,7 +85,7 @@ remains a gate for every preceding milestone.
   offboarding, side-channel `type_error` non-leakage on RLS-filtered rows, agent
   attempts to approve their own work, destination movement and lost acceptance
   replies.
-- Compose the installed [Board workbench](22-board-reimplementation.md) with
+- Compose the installed [Board workbench](24-board-reimplementation.md) with
   those shared callers at the same revision. Compare catalog/preview/workbook,
   lineage and change-review evidence with independent public-operation results;
   include current authorization, uncertain transaction/publication recovery,
@@ -185,4 +192,4 @@ is qualification of that existing service, not implementing publication again:
    inferring a general GitHub CDN guarantee.
 
 These checks do not claim runtime qualification. Release-versioned documentation
-and immutable release links remain part of [release distribution](28-releases.md).
+and immutable release links remain part of [release distribution](30-releases.md).

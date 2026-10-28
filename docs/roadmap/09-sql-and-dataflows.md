@@ -120,7 +120,7 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   owns session control, atomicity/isolation, DDL/constraint interactions and
   transaction-bound plan invalidation; those features do not all become transaction
   syntax merely because they can execute in a transaction. SQL `MERGE` is separate
-  from branch merge. [Foreign relations](11-multi-model-and-foreign-relations.md)
+  from branch merge. [Foreign relations](13-multi-model-and-foreign-relations.md)
   now owns typed `COPY`/import/export and streaming CDC ingress together with its
   actual format adapters.
 - Extend the common dependency lifecycle to connections, sources and sinks,
@@ -136,7 +136,7 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
 
 ## Prerequisites and completion
 
-The later [reactive context milestone](24-reactive-context-and-agent-activation.md)
+The later [reactive context milestone](26-reactive-context-and-agent-activation.md)
 uses this scheduling and completed-result evidence for business conditions,
 durable application interests and MCP subscriptions/tasks. This owner supplies
 computation progress; a changed source or delivered notification alone cannot

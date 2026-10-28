@@ -20,11 +20,11 @@ milestone to acquire sound ownership. The
 the current boundaries.
 
 This milestone extracts the foundation from
-[language-native programming and mixed composition](26-programming-model.md).
+[language-native programming and mixed composition](28-programming-model.md).
 That later milestone retains the recorded source assessment, all three mixed
 capabilities (recorded effects, durable consumers and typed Station calls),
 Station behavior ergonomics and the complete installed cross-language journeys
-after outbound MCP. [Service/SDK coverage](13-service-and-sdk-coverage.md)
+after outbound MCP. [Service/SDK coverage](15-service-and-sdk-coverage.md)
 retains its delivered raw-client/console slices and operation/platform breadth;
 it expands over this package and API foundation rather than establishing a
 competing interface first. None of the split marks existing work complete.

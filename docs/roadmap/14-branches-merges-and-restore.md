@@ -1,4 +1,4 @@
-# 12. Branches, merges and restore
+# 14. Branches, merges and restore
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -10,7 +10,7 @@ model. Branching is the underlying versioning primitive within a realm. Branches
 never copy live process identities, grants or effect rights.
 
 Restore here means publishing earlier application data as a new forward successor
-under current authority. [Operations](17-operations-and-recovery.md) separately
+under current authority. [Operations](19-operations-and-recovery.md) separately
 owns backup capture, installation disaster recovery and runtime upgrades; a
 branch snapshot alone is not sufficient recovery material for an installation.
 
@@ -104,9 +104,9 @@ make all branching work constant-time.
 Branch creation, read, edit and merge have independent permissions under current
 realm policy. Support installations with all merging disabled, and protect
 destination heads against equivalent direct writes. This milestone establishes
-the native data/policy primitives; [enterprise identity](19-control-and-policy-plane.md)
+the native data/policy primitives; [enterprise identity](21-control-and-policy-plane.md)
 binds external subjects and delegated actors, and
-[reviewed collaboration](21-reviewed-data-collaboration.md) adds published
+[reviewed collaboration](23-reviewed-data-collaboration.md) adds published
 proposals, intent-bound approval and shared human/agent review. Reading or
 copying historical application data cannot restore historical grants.
 

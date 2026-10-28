@@ -1,4 +1,4 @@
-# 14. Formal semantics and implementation correspondence
+# 16. Formal semantics and implementation correspondence
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -11,8 +11,8 @@ checks, clearer ownership and simpler recovery or transformation logic.
 
 ## Prerequisites and timing
 
-Close phase II after [service and SDK coverage](13-service-and-sdk-coverage.md),
-before [provider and concurrent-writer qualification](15-storage-providers-and-concurrency.md).
+Close phase II after [service and SDK coverage](15-service-and-sdk-coverage.md),
+before [provider and concurrent-writer qualification](17-storage-providers-and-concurrency.md).
 Consume the delivered [storage](02-storage-and-query-performance.md),
 [live cutover](03-live-storage-and-sql-cutover.md),
 [statement results](04-statement-results-and-consumption.md),
@@ -22,8 +22,8 @@ Consume the delivered [storage](02-storage-and-query-performance.md),
 [indexes](08-indexing-and-access-paths.md),
 [managed computations](09-sql-and-dataflows.md),
 [selected structures and optimizations](10-data-structures-and-performance.md),
-[foreign relations](11-multi-model-and-foreign-relations.md) and
-[branches](12-branches-merges-and-restore.md).
+[foreign relations](13-multi-model-and-foreign-relations.md) and
+[branches](14-branches-merges-and-restore.md).
 
 Entry requires settled owning contracts, executable operations and focused
 failure evidence for each selected family. In particular, let statement-result
@@ -154,7 +154,7 @@ of layout and SIMD optimizations.
 Candidate: the discussion's `TransactionSSI.tla`, renamed for the chosen protocol.
 The initial planned local profile in [Milestone 5](05-transactions-and-atomic-composition.md)
 selects whole-object optimistic validation, while [Milestone 8](08-indexing-and-access-paths.md)
-and [Milestone 15](15-storage-providers-and-concurrency.md) escalate read-write
+and [Milestone 17](17-storage-providers-and-concurrency.md) escalate read-write
 concurrency to fine-grained key-range and predicate-level Serializable Snapshot
 Isolation (SSI / index-range `rw-antidependency` tracking). Model begin/read/private write,
 absent-key, index-range or predicate dependencies, cross-table `FOREIGN KEY` and
@@ -209,7 +209,7 @@ movement, withdrawal, reviewer revocation and duplicate execution. Approval must
 match the exact candidate and target expectation and satisfy the chosen current
 policy at publication. It is not a reservation. Human-only approval and delegated
 actor checks wait for the enterprise identity contract. Keep that extension with
-[reviewed collaboration](21-reviewed-data-collaboration.md); local branch-model
+[reviewed collaboration](23-reviewed-data-collaboration.md); local branch-model
 completion does not depend on that later experience.
 
 ### T7. Provider fencing, replication and failover
@@ -396,15 +396,15 @@ inherit a proof whose assumptions the new profile violates.
 
 | Owner | Candidate extension and boundary |
 | --- | --- |
-| [Providers and concurrent writers](15-storage-providers-and-concurrency.md) | T1/T7: actual permission/epoch enforcement, conditional publication and complete object/log coverage for each provider |
-| [Replication and failover](16-replication-and-failover.md) | T4/T7: replicated decisions, object availability, catch-up, promotion and stale-writer fencing under selected failures |
-| [Operations and recovery](17-operations-and-recovery.md) | T1/T4/T7: retained backup/PITR roots, consistent decisions and authority-safe restore/upgrade boundaries |
-| [Clustered execution](18-clustered-execution.md) | T3/T5/T7 and A3 where applicable: placement ownership, distributed coverage and preserved query/error semantics |
-| [Enterprise identity](19-control-and-policy-plane.md) | A6 and temporal checks: actor/subject binding, delegation attenuation, membership freshness and revocation |
-| [Reviewed publication](21-reviewed-data-collaboration.md) | T6/A4/A6: exact candidate/target approval, current reviewer authority and protected-destination enforcement |
-| [Reactive activation](24-reactive-context-and-agent-activation.md) | T5: durable interests, meaningful change conditions, checkpoint recovery and explicit coverage |
-| [Recorded integrations](25-recorded-mcp-integrations.md) | T4's effect boundary: authorized attempts, uncertain remote outcomes, capture and network-free replay |
-| [Complete qualification](27-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
+| [Providers and concurrent writers](17-storage-providers-and-concurrency.md) | T1/T7: actual permission/epoch enforcement, conditional publication and complete object/log coverage for each provider |
+| [Replication and failover](18-replication-and-failover.md) | T4/T7: replicated decisions, object availability, catch-up, promotion and stale-writer fencing under selected failures |
+| [Operations and recovery](19-operations-and-recovery.md) | T1/T4/T7: retained backup/PITR roots, consistent decisions and authority-safe restore/upgrade boundaries |
+| [Clustered execution](20-clustered-execution.md) | T3/T5/T7 and A3 where applicable: placement ownership, distributed coverage and preserved query/error semantics |
+| [Enterprise identity](21-control-and-policy-plane.md) | A6 and temporal checks: actor/subject binding, delegation attenuation, membership freshness and revocation |
+| [Reviewed publication](23-reviewed-data-collaboration.md) | T6/A4/A6: exact candidate/target approval, current reviewer authority and protected-destination enforcement |
+| [Reactive activation](26-reactive-context-and-agent-activation.md) | T5: durable interests, meaningful change conditions, checkpoint recovery and explicit coverage |
+| [Recorded integrations](27-recorded-mcp-integrations.md) | T4's effect boundary: authorized attempts, uncertain remote outcomes, capture and network-free replay |
+| [Complete qualification](29-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
 
 ## Completion evidence
 
@@ -420,7 +420,7 @@ Document the concrete development benefit: an ambiguity resolved, ownership or
 recovery logic simplified, duplicated reasoning removed, or an optimization
 justified under exact semantics. A theorem over an unrelated abstraction or a
 passing model without implementation correspondence is insufficient. The
-[common-revision qualification](27-qualification-and-benchmarks.md) repeats this
+[common-revision qualification](29-qualification-and-benchmarks.md) repeats this
 evidence with later extensions; it does not replace this milestone's execution.
 No new runtime guarantee, model pass, SQL interface or algorithm selection is
 established by this planning change.

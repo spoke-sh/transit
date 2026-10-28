@@ -27,8 +27,8 @@ cross-layer optimization and an integrated local performance checkpoint.
 Qualify database and existing native runtime paths together: Table/KV/Document
 operations, queries, committed change consumption, native message delivery,
 Station turns and accepted-work recovery. Use already qualified installed
-callers; broader [SDK coverage](13-service-and-sdk-coverage.md) and
-[mixed composition](26-programming-model.md) repeat the measures as they land.
+callers; broader [SDK coverage](15-service-and-sdk-coverage.md) and
+[mixed composition](28-programming-model.md) repeat the measures as they land.
 Do not make their future APIs prerequisites of this local milestone. Full
 distributed and complete TPC qualification stay with their later owners.
 
@@ -94,7 +94,7 @@ The current component benchmark inventory does not execute complete TPC suites.
    configured thresholds, preventing point and range lookups from degrading to
    $O(K \log N)$ across fragmented segments or accumulating unbounded tombstone
    overhead under update-heavy workloads. Coordinate with
-   [branches](12-branches-merges-and-restore.md) so compaction accounts for
+   [branches](14-branches-merges-and-restore.md) so compaction accounts for
    branch-shared segments and pinned snapshots. Equip the buffer pool and local
    NVMe segment cache with **scan-resistant eviction** (such as 2Q, ARC or
    W-TinyLFU) and **I/O token-bucket pacing** so sequential analytical scans,
@@ -106,7 +106,7 @@ The current component benchmark inventory does not execute complete TPC suites.
    counters—so queries exceeding their memory budget deterministically spill to
    Tier 2 NVMe or fail with a typed budget error rather than OOM-crashing the
    process, providing the local enforcement substrate for
-   [Hierarchical Workload Management (WLM)](19-control-and-policy-plane.md).
+   [Hierarchical Workload Management (WLM)](21-control-and-policy-plane.md).
 5. **Optimize the durable runtime and shared client path.** Measure admission,
    WAL append/sync, mailbox selection, dispatch/wakeup, turn commit, checkpoint,
    recovery and result delivery separately. Evaluate batching/group commit,
@@ -139,7 +139,7 @@ The current component benchmark inventory does not execute complete TPC suites.
 | Deletion and candidate sets: sparse arrays, dense bitmaps and Roaring-style containers | Sparse/dense/run-heavy distributions, intersection/union cost, version/deletion correctness, conversion and resident/storage overhead |
 | Join, window, temporal and aggregation working state: Swiss-style or Robin-Hood hashing, partitioned arenas, streaming `AS OF` merge and external NVMe spill | Key skew, collisions, bounded resize, larger-than-RAM execution (grace/hybrid hash join, external merge sort, window-frame spill), deterministic error behavior and checkpoint/recovery composition; an ephemeral hash table does not replace durable ordered roots by itself |
 | Compaction, partitioning, clustering and scan-resistant caching: leveled/tiered `.tseg` mergers, Z-order/Hilbert clustering keys and 2Q/ARC/W-TinyLFU caches | Overlapping-run bounds ($K_{\max}$), `.tdel` tombstone reclamation, multi-attribute segment pruning ratios, $O(1)$ partition-drop retention, OLTP cache hit-rate preservation during concurrent sequential scans and background I/O pacing |
-| Vector, string and encoded execution: 16-byte collation-prefixed inline strings ("German Strings"), compressed-domain `.dictionary`/`.fsst` kernels, `comptime`/immutable perfect hashing with 16-byte SIMD string comparisons, late materialization and batching | Independent encoded/decoded oracles, collation sort-prefix fidelity (`utf8_binary`, `ascii_ci`, `ebcdic_cp037`), trailing buffer padding guarantees (16–64 bytes) for branchless SIMD loads, CPU portability, allocation/copy counts and end-to-end gains over required storage codecs; no universal zero-copy assumption |
+| Vector and encoded execution: encoded column predicates, late materialization and batching (extended by [Milestone 11](11-vectorized-strings-and-search.md) for 16B collation-prefixed strings, perfect hashing and Block-Max BM25, and [Milestone 12](12-data-centric-compilation-and-specialization.md) for data-centric pipeline fusion and AOT specialization) | Independent encoded/decoded oracles, trailing buffer padding guarantees (16–64 bytes) for branchless SIMD loads, CPU portability, allocation/copy counts and end-to-end gains over required storage codecs; no universal zero-copy assumption |
 | Runtime dispatch, zero-steady-state-allocation slabs and resource metering: pre-allocated `scratch`/`output` arenas, hierarchical `MeteredAllocator` vtables, per-`Batch` morsel CPU/IOPS accounting, bounded queues and scheduler/wakeup structures | Zero steady-state heap allocations after warmup under counting-allocator gates, deterministic Tier 2 NVMe spill or typed budget refusal on exhaustion, durable completion latency/throughput, contention, starvation controls, overload/backpressure, recovery capacity and caller cancellation/uncertainty under mixed load |
 
 [BBTree](https://github.com/XiangpengHao/bbtree) and its
@@ -159,16 +159,10 @@ budget for every row group or a guaranteed false-positive rate.
 [Swiss-table design notes](https://abseil.io/about/design/swisstables) inform
 working-state comparisons; they do not supply Transit's durable publication,
 snapshot or ordered-iteration contract.
-[ConstexprCore/perfect_hash](https://github.com/ConstexprCore/perfect_hash)
-informs greedy association-table perfect hashing (`slot = (len + asso[key[i]] + asso[key[j]]) & mask`)
-and 16-byte SIMD shuffle-masked string comparisons for `comptime` keyword/header
-tables and immutable `.tseg` dictionary or `IN (...)` literal sets; wide SIMD
-loads must either operate on internal buffers with guaranteed 16–64 byte trailing
-padding or guard 4 KiB page boundaries explicitly.
 [Egres's resource-control architecture](https://manishrjain.com/egres/) informs
 per-query and per-tenant CPU tick, disk IOPS and Zig allocator byte metering;
 Transit binds those meters to `Fuze` batch morsels, Tier 2 NVMe spill thresholds
-and [Milestone 19's](19-control-and-policy-plane.md) Hierarchical Workload
+and [Milestone 21's](21-control-and-policy-plane.md) Hierarchical Workload
 Management (WLM) without replacing durable acceptance or authority boundaries.
 Keep upstream algorithms and license attribution separate from evidence for the
 selected Zig implementation.
@@ -209,13 +203,15 @@ scores.
 
 ## Continuing performance ownership
 
-[Foreign models](11-multi-model-and-foreign-relations.md),
-[branches](12-branches-merges-and-restore.md),
-[providers through clustered execution](15-storage-providers-and-concurrency.md),
-and [language composition](26-programming-model.md) extend this scorecard for their
+[First-class strings and search](11-vectorized-strings-and-search.md),
+[data-centric compilation and specialization](12-data-centric-compilation-and-specialization.md),
+[foreign models](13-multi-model-and-foreign-relations.md),
+[branches](14-branches-merges-and-restore.md),
+[providers through clustered execution](17-storage-providers-and-concurrency.md),
+and [language composition](28-programming-model.md) extend this scorecard for their
 new semantics and placements. Include index build/rebuild, historical-read and
 recovery interference rather than measuring only a steady-state hot lookup.
-The [combined qualification](27-qualification-and-benchmarks.md) owner repeats
+The [combined qualification](29-qualification-and-benchmarks.md) owner repeats
 database and runtime comparisons with the complete supported system and full
 benchmark drivers. It does not defer earlier measurement or regression gates.
 Publish supported limits and reproduced findings in the existing performance,
