@@ -300,9 +300,10 @@ test "streamed DDL hashes preserve canonical identity without allocating maximum
     const name = try a.Name.init("x");
     const drop: Intent = .{ .namespace = 1, .name = name, .action = .drop };
     // Independent Python hashlib over compact JSON: namespace=1, Name len=1,
-    // bytes=[120]+[0]*62, action={drop:{}}; same domain prefix including NUL.
+    // bytes="x" + 62 NULs, action={drop:{}}; same domain prefix including NUL.
+    // Zig JSON encodes this valid UTF-8 byte array as a string.
     var expected: [32]u8 = undefined;
-    _ = try std.fmt.hexToBytes(&expected, "8d3730b1bbcc1380a41a6fbaebd51aac1ad41af12d88cf190737e41eb5fec75f");
+    _ = try std.fmt.hexToBytes(&expected, "2b954fe77c9bc081ca58e185ff0df0d20854ed54b7209f2bfa1a54abac792660");
     try t.expectEqual(expected, try drop.digest(failing.allocator()));
     const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
     const schema: c.fuze.TableSchema.Schema = .{ .object = 17, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
