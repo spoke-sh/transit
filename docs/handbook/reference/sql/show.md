@@ -1,7 +1,7 @@
 # SHOW
 
-`SHOW` inspects registered settings, authorized catalog names and Table storage
-progress. The console and configured PostgreSQL/MySQL gateways support the forms
+`SHOW` inspects registered settings, authorized catalog names, node storage and
+Table storage progress. The console and configured PostgreSQL/MySQL gateways support the forms
 below. Query-only inspection retains its single-source Table scope.
 
 ```sql
@@ -11,6 +11,7 @@ SHOW query.statement_timeout;
 SHOW DATABASES;
 SHOW SCHEMAS;
 SHOW TABLES;
+SHOW STORAGE;
 SHOW STORAGE FOR items;
 ```
 
@@ -45,7 +46,8 @@ DATABASES and SCHEMAS emit name rows. The SQL adapters emit typed name rows. The
 storage admission bytes and limits, direct request/control allocation use and
 peaks, and maintenance executor state, counters, limit and last failure category.
 It requires realm-wide native inspection rights as well as the SQL session's
-database/schema access. Unavailable fields are NULL. These live counters are
+database/schema access in a direct catalog session. Query-source-only and Flight
+SELECT interfaces do not accept it. Unavailable fields are NULL. These live counters are
 independent observations; they are neither a data snapshot nor a whole-process
 memory measurement. Maintenance counters reset on owner replacement, and a last
 failure remains visible after subsequent successful steps. Accounted storage

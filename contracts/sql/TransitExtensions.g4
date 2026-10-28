@@ -240,9 +240,10 @@ privilege
     : CONNECT | USAGE | CREATE | SELECT | INSERT | UPDATE | DELETE
     ;
 
-// ALL is a contextual setting selector; execution reserves it for the listing.
+// ALL and bare STORAGE are contextual identifiers parsed by settingKey;
+// execution reserves them for settings listing and node storage inspection.
 showStatement
-    : SHOW (catalogKind | settingKey | STORAGE (FOR identifier)?)
+    : SHOW (catalogKind | settingKey | STORAGE FOR identifier)
     ;
 settingKey: identifier (DOT identifier)*;
 sessionSettingStatement
