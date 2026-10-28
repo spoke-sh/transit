@@ -1092,7 +1092,7 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     try t.expectEqualDeep(old.rows[0].?.row(), point.row());
     // Fresh volatile work resumes from persisted discovery and observes no
     // pending rows in the already flushed Table. No accepted work is recreated.
-    var restarted: Work = .{ .host = &host };
+    var restarted: Work = .{ .host = &host, .allocator = t.allocator };
     const after = current.table.root;
     _ = try Work.step(&restarted, engine, settings, signed);
     try current.table.recover();
