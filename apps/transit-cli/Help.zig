@@ -26,16 +26,6 @@ pub const server =
     \\  --no-ui        Run without Board for this invocation
     \\  --help         Show this help
     \\
-    \\The local bundle supplies defaults without a file. Override with the first transit.yaml found in
-    \\the current directory, home directory or /etc/transit. TRANSIT_ environment
-    \\variables override properties; use __ between nested field names.
-    \\Board starts by default with configuration version 1; --no-ui disables it.
-    \\Paths in the configuration resolve relative to its file.
-    \\
-    \\Creates a missing or empty installation; otherwise opens or resumes it.
-    \\Set startup.require_existing: true to require retained installation data.
-    \\Configuration: apps/transit-cli/docs/server.md
-    \\
 ;
 pub const console =
     \\Open an SQL console.
@@ -51,18 +41,5 @@ pub const console =
     \\  --config PATH        Console connection YAML file
     \\  --format table|json  Result display (overrides rc and connection settings)
     \\  --help               Show this help
-    \\
-    \\Default: connect to the local installation using transit.yaml or server defaults.
-    \\Merge /etc/transit/transitrc, ~/.transitrc and ./.transitrc settings.
-    \\--config overrides TRANSIT_CONSOLE_CONFIG and rc .connect.
-    \\Paths in the configuration resolve relative to its file.
-    \\Submit SQL with a semicolon. .help lists dot commands.
-    \\.execute FILE runs a JSON query object with sql and optional parameters.
-    \\.edit opens the latest SQL in $EDITOR; save and close to submit it.
-    \\Ctrl-R searches SQL and dot-command history in ~/.transit_history.
-    \\Esc cancels search or dismisses suggestions; Ctrl-C clears the draft.
-    \\YAML configures connections; .transitrc contains dot commands.
-    \\Each SELECT gets a fresh snapshot. Ctrl-C cancels active reads.
-    \\Use console .help for write routes and exact recovery after interruption.
     \\
 ;

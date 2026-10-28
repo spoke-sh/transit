@@ -95,7 +95,9 @@ and `logging.level` in server configuration.
 ### Help hierarchy
 
 Bare `transit` and `transit --help` list `server` and `console`.
-`transit server --help` and `transit console --help` show their options and defaults.
+`transit server --help` and `transit console --help` show usage and options. Configuration and operating guidance live in the
+[server](../../../apps/transit-cli/docs/server.md) and
+[console](../../../apps/transit-cli/docs/console.md) guides.
 Help requires no configuration, credentials, network or running server. It
 still rejects malformed supplied arguments, unknown options and duplicates.
 Help and version output exit successfully on stdout. Console `.help` provides

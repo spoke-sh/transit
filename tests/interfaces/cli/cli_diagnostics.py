@@ -84,11 +84,14 @@ for command in ('server',):
     invoke([command, '--format', 'json'], contains=('--format is not supported', f'transit {command} --help'))
     invoke([command, '--unknown=private-must-not-appear'], contains=('unexpected input at argument 2',))
     invoke([command, '--initialize'], contains=('unexpected input at argument 2',))
-    help_output = invoke([command, '--help'], 0, ('Server configuration file (overrides discovery)', 'startup.require_existing', '--no-ui')).stdout
+    help_output = invoke([command, '--help'], 0, ('Server configuration file (overrides discovery)', '--no-ui')).stdout
     assert b'--initialize' not in help_output
+    assert help_output.rstrip().endswith(b'--help         Show this help')
     invoke([command, '--config', 'private-must-not-appear', '--help'], 0)
 for args in ([], ['--help'], ['--version'], ['console', '--help']):
     invoke(args, 0)
+console_help = invoke(['console', '--help'], 0).stdout
+assert console_help.rstrip().endswith(b'--help               Show this help')
 root_help = invoke(['--help'], 0, ('Usage: transit COMMAND [OPTIONS]', 'Commands:', 'Options:')).stdout
 assert b'--initialize' not in root_help and b'--config' not in root_help
 commands = root_help.split(b'Commands:\n', 1)[1].split(b'\nOptions:', 1)[0]
@@ -104,7 +107,7 @@ invoke(['console', '-f', 'script.sql', '--parameters', 'bindings.json'], contain
 invoke(['console', '-c', 'SELECT * FROM items', '--parameters'], contains=('--parameters requires a file path',))
 invoke(['console', '-c', 'SELECT * FROM items', '--parameters', 'one', '--parameters', 'two'], contains=('--parameters can only be specified once',))
 invoke(['server', '--parameters', 'bindings.json'], contains=('--parameters is not supported',))
-invoke(['console', '--help'], 0, ('--parameters FILE', '.execute FILE'))
+invoke(['console', '--help'], 0, ('--parameters FILE', '--format table|json'))
 parameter_file = Path(ISOLATED.name) / 'parameters.json'
 for invalid in ('null', '{}', '[{"utf8": "private-must-not-appear", "unsigned":"1"}]',
                 '[{"unsigned":1}]', json.dumps([{'boolean': True}] * 66),

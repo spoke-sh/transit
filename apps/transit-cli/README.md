@@ -25,7 +25,7 @@ and reports its URL and accepted authorities in the ready record.
 The [public CLI reference](../../docs/handbook/reference/cli.md#output-philosophy-explain-locate-guide)
 defines concise errors, useful coordinates, recovery guidance, streams and exit
 statuses. Use `transit server --help` and `transit console --help` for supported
-options and configuration guidance. `just test::cli-diagnostics` checks the real executable's
+options. The component guides below cover configuration and operation. `just test::cli-diagnostics` checks the real executable's
 invocation and configuration failures without starting an installation.
 `transit console --format json` selects JSON SQL results on stdout. Errors and
 timing are human-readable on stderr. Server logging uses its configuration settings.
