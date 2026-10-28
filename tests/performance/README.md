@@ -75,8 +75,9 @@ service guarantees or complete deployment memory measurements.
 
 `just test::console-latency --statements --repeat 5` exercises one persistent
 `transit console --no-rc --format table` with `.timer on`. It verifies an empty
-SELECT, warm SELECTs, single-row INSERT completions and the complete updated
-contents after each write, then switches the same session to JSON for independent
+SELECT, warm SELECTs, single-row INSERT, UPDATE and DELETE completions, unchanged
+UPDATEs, zero-match UPDATE/DELETE and the complete contents after each changed
+write, then switches the same session to JSON for independent
 typed readback. Each sample retains the human output, total and phase timings;
 the summary uses empirical distributions without estimating tails from a small
 sample. The first external elapsed time includes connection startup; the console
@@ -85,6 +86,12 @@ console script path and table renderer, without terminal editor/PTY timing.
 The timer's submit phase includes server preparation and execution; a zero
 client compile phase does not mean the server did no planning. The wait phase
 includes observing durable completion, not just the client's polling sleep.
+
+`just test::console-latency-tls 5` runs the same value/count workload through the
+existing matching TLS SQL fixture without a proxy. This separate component
+control keeps that fixture's 30-second native request budget and records its
+binary/driver identities. It does not replace the default installation check
+or establish that a failed installed-server sample passed.
 
 Add `--instrument` in a separate run to count the SQL gateway's upstream native
 and Table operations, including Catalog token/record work and direct commits.

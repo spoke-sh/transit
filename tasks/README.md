@@ -148,6 +148,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::diagnostic-outcomes` | Execute retained outcome mappings, fact provenance and exact recovery actions against reviewed expectations. |
 | `just test::console-history` | Check real PTY reverse search, SQL/dot-command persistence, concurrent consoles, malformed records and file-failure fallback; included in `just check all` |
 | `just test::console-latency [--single --resident-pages N --worker-interval-ms N]` | Measure idle CPU and empty-Table SQL with frozen ReleaseSafe executables and isolated disk providers; optional cache/polling controls, no latency threshold |
+| `just test::console-latency-tls [REPEAT]` | Run persistent console SELECT/INSERT/UPDATE/DELETE through the matching TLS component fixture, with exact values/counts and timer phases |
 | `just test::server-single-executable` | Copy only `transit`; exercise bare server/console, Table lifecycle, automatic flush, restart persistence, default Board and owned role recovery without runtime PATH tools |
 | `just test::server-board`, `just test::server-board-package` | Qualify default embedded Board, explicit headless operation, retained inspection grants, recovery and the single-executable Nix package |
 | `just test::server-faults` | Add interrupted provisioning, native gateway denial/capacity and negative provider-rollback checks |

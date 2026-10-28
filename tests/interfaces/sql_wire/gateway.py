@@ -46,11 +46,22 @@ def directory(binaries):
         shutil.rmtree(root)
 
 
-def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all"):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-kv","sessions-table")
+def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all", repeat="5"):
+    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-kv","sessions-table","console-statements")
+    repeat = int(repeat)
+    assert 1 <= repeat <= 100
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
     binaries = dict(node=node, catalog=catalog, ledger=ledger, host=host, gateway=gateway,
                     configuration_host=configuration_host, console=str(Path(console).resolve()))
+    if slice == 'console-statements':
+        import hashlib
+        import platform
+        print(json.dumps(dict(profile='console_statements_tls_control', source=provenance(ROOT),
+                              binaries={role: identity(Path(path)) for role, path in binaries.items()},
+                              driver_sha256=hashlib.sha256((ROOT / 'tests/performance/console/statements.py').read_bytes()).hexdigest(),
+                              platform=platform.platform(), load=os.getloadavg(), repeat=repeat,
+                              native_request_timeout_ms=30000, instrumented=False,
+                              limits='TLS component control; not the default installed server. Small sequential samples; no isolated load or tail SLO.')), flush=True)
     with directory(binaries) as root:
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         session_port, native_port, sql_port, mysql_port, health_port, settings_port = free_ports(6)
@@ -107,7 +118,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             if settings_binding is not None:
                 configuration['settings'] = dict(url=settings_faults.url if settings_faults is not None else f'http://127.0.0.1:{settings_port}', binding=settings_binding)
             configuration['mysql_port'] = mysql_port
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table', 'console-statements'):
                 configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
                 configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv', 'sessions-table') else []
                 if session_faults is not None:
@@ -163,6 +174,10 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                     assert time.monotonic() < deadline
                     time.sleep(.02)
             from interfaces.sql_wire.clients import run as clients, run_cli, connection_options as client_options
+            if slice == 'console-statements':
+                from performance.console.statements import tls
+                tls(root, session_port, str(Path(console).resolve()), repeat)
+                return
             if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
                 from interfaces.sql_sessions.native import run as sessions
                 source_processes = {}
