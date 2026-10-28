@@ -66,9 +66,9 @@ const Host = struct {
             unavailable.tables.?.allocator = t.failing_allocator;
             const before = turn.decision;
             var detail: ?q.QueryFailure = null;
-            // The client's allocating JSON writer preserves WriteFailed.
+            // The client's allocating JSON writer reports OutOfMemory.
             // The adapter has capacity: this is not its durable budget failure.
-            try t.expectError(error.WriteFailed, q.UnifiedCapture.advanceBoundedDiagnostic(turn, continuation, unavailable, self.adapter, self.workspace, &cancellation, &detail));
+            try t.expectError(error.OutOfMemory, q.UnifiedCapture.advanceBoundedDiagnostic(turn, continuation, unavailable, self.adapter, self.workspace, &cancellation, &detail));
             try t.expect(turn.read_error == null and detail == null);
             try t.expectEqualDeep(before, turn.decision);
             // Keep signing/authority reads healthy and fail only allocation of
