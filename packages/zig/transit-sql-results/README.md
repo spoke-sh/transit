@@ -24,9 +24,17 @@ consulted again before destruction.
 `ResultSet` consumes a semantic source through `nextRow` or `nextBatch`. It owns
 progress validation and closes the source on exhaustion, failure or explicit
 closure. Borrowed rows last until the next advance or closure; schema and
-observation last until `deinit`. `Window.read` copies rows into an independently
-bounded owned view. A row or byte limit leaves the next row unread and does not
-establish completion. The caller can continue streaming or close the result.
+observation last until `deinit`. `Window.readInto` copies rows into a leased
+`transit-memory.Workspace`; `Window.read` reserves its own bounded storage.
+Both return one window owner by value, released with `deinit`. Keep a supplied
+workspace at a stable address until release. Retained windows prevent reuse;
+separate workspaces retain independent windows while the source advances or
+closes. The entire reserve, including unused capacity and row directories,
+remains charged. A failed partial row copy rolls back without delivering that
+row. A row or byte limit leaves the next row unread and does not establish
+completion. A previously received terminal survives truncation, but its count
+does not imply that the window contains every row. The caller can continue
+streaming or close the result.
 
 `Batch` separates value layout from result progress. `fromRows` borrows existing
 rows; `fromColumns` borrows cell columns, Fuze vector views or verified plain

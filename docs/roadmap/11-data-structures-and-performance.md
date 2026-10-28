@@ -366,6 +366,19 @@ overhead within the existing byte budget and test retained-capacity fragmentatio
 
 ### Delivery sequence and reviewable changes
 
+The merged [result models](../../tests/verification/models/README.md#finite-sql-result-models)
+constrain these changes: allocation/reset/release cannot create completion,
+alter result/schema/observation identity, receive an ordinal twice, or advance
+delivery for a row that did not fit. Known completion survives early release;
+received rows and delivered rows remain separate. Server slot reuse must retain
+the current ordinal and disclosure evidence until acknowledgment and must recheck
+current rights for cached repeats and terminal counts. Keep the deterministic
+`Progress` owner and its complete finite-edge replay in the affected validation.
+The established-session model is abstract and does not replay the native server;
+concrete retry/revocation checks remain required. Neither model proves scratch
+lifetimes or zero allocations, which require the separate lease, independent-copy,
+allocation-failure and retained-capacity schedules below.
+
 Every phase lands with its own measured scope and ordinary correctness checks.
 The proposed change groups below can be split further when an owner needs a
 separate contract review. They are execution order, not calendar promises.
