@@ -692,6 +692,17 @@ the handbook and all 41 committed-source clean fast checks pass. The
 preserves the negative control, per-arm measurements and limitations. This
 reduces working memory without closing aggregate admission or latency gates.
 
+At `d39d5a2d4`, direct request parsing, private work and successful serialized
+responses share a 256 MiB ordinary ceiling, with 128 MiB per request and an
+independent 64 MiB Table-control reserve. All seven local catalog/maintenance
+tests pass, including refusal of ordinary allocation while original-operation
+inspection and pin release retain control capacity. A held response consumes
+shared capacity until freed. The
+[request admission account](../history/qualification/storage.md#direct-request-admission-and-reserved-recovery-memory)
+records exact source and evidence. Installed slow-write/cancellation exhaustion,
+combined foreground/maintenance pressure and whole-owner memory remain open;
+this partial result does not close P4.4 or the common-revision P8 gate.
+
 **Gate:** the installed owner converges on eligible maintenance under a finite
 workload, resumes it after process death and preserves every retained obligation.
 Reclaim only objects proved unreachable; storage pressure never authorizes expiry.

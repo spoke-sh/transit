@@ -136,7 +136,9 @@ buffer. Small observations therefore do not reserve the 16 MiB maximum. This
 requires two encoding passes and still allocates request-owned output; it does
 not establish allocation-free reads. The current-authority fence runs after
 serialization, and the buffer lives through the joined response write.
-The local Table handler bounds all request-owned backing allocations: 128 MiB
+
+The local Table handler bounds request parsing, private work and successful
+response backing allocations: 128 MiB
 per ordinary request and 256 MiB shared across ordinary Table requests. Parsed
 input, catalog/row work, temporary arenas and the serialized response all consume
 that capacity. Reserved Table controls share a separate 64 MiB ceiling. Capacity
@@ -145,12 +147,15 @@ before transmission and response bytes remain charged until the write finishes
 or is cancelled. Exhaustion returns HTTP 503 with `StorageQuota` for ordinary
 work or `ControlCapacity` for reserved controls. An accepted mutation can precede
 that refusal: inspect its original operation instead of submitting new work.
+The small error reply is allocated after scratch cleanup, outside the exhausted
+budget.
 
 These limits exclude independently owned engine/provider caches, native requests,
 connection buffers, worker stacks and the kernel page cache. Table maintenance
 has its separate `storage.maintenance.resident_bytes` budget and one executor;
 it does not consume the request control reserve. The limits bound this allocation
 boundary, not total node RSS or storage I/O latency.
+
 Direct requests use the listener's ordinary request lanes. `X-Transit-Control: table` uses
 reserved admission only for exact operation inspection/cancellation and pin
 release; the parsed action is checked and native authorization still applies.

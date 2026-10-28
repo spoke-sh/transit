@@ -154,6 +154,57 @@ Baseline and candidate installed node SHA-256 identities are
 Both use caller SHA-256
 `d0c112df6eea920eed6e1a0a0e7f46c1ce3e8b51a770658c0b9575b8c4c05490`.
 
+### Direct request admission and reserved recovery memory
+
+At `d39d5a2d4ce14b2eef5d7e05dd2092daaf59e241`, the local listener meters
+parsing, private catalog work and successful response buffers through one
+request budget. Ordinary requests have a 128 MiB individual ceiling and share
+256 MiB across the listener; Table controls share an independent 64 MiB reserve.
+The [public node limits](../../../apps/transit-node/docs/growing.md#public-surface-and-limits)
+describe the refusal and original-operation recovery behavior. The budget owns
+no idle slab. Temporary work releases capacity before transmission, and the
+serialized response releases it after the joined write returns.
+
+The seven tests in `zig build test-local-catalog -Doptimize=ReleaseSafe
+--summary all` pass inside `nix develop`, against the local disk backend. The
+extended signed dispatcher schedule reserves every ordinary request byte, proves
+that a lookup fails allocation, and inspects the original committed INSERT after
+its reply allocation was deliberately lost. Pin release also succeeds while
+ordinary capacity is exhausted. Each control response survives destruction of
+scratch with only its encoded byte length charged; cleanup returns its accounting
+to zero. The existing final-authorization, retained-row, collection, maintenance
+and restart checks remain in the same run.
+
+The additional memory-owner unit holds an actual response buffer across another
+request's refusal, independently allocates control bytes, verifies the retained
+contents, then frees the response and admits the next ordinary allocation. This
+is allocation-lifetime evidence, not an installed slow-socket or cancellation
+fault schedule. Provider caches, native requests, socket buffers, stacks and
+maintenance are outside this request budget. Whole-owner memory, combined
+foreground/maintenance pressure and the complete installed fault matrix remain
+unqualified by these tests.
+
+The recovered fixture change at `2c7fbab25` also passes the Debug local catalog
+schedule without increasing the stack limit. The preceding main revision's
+[core and growth CI failures](https://github.com/spoke-sh/transit/actions/runs/40729895693)
+crash in the nested catalog authorization schedule. The fixture now keeps its
+large retained protocol responses in leak-checked heap owners, including the
+error-path temporaries created by `expectError`. This changes test ownership,
+not the public response representation.
+
+At `d39d5a2d4`, the ReleaseSafe node build, complete handbook check and all
+41 committed-source clean fast checks also pass. These selected results do not
+establish a complete clean integration pass or a latency improvement. The host
+also runs independent qualification work; elapsed times are not performance
+evidence. Raw logs remain under `.cache/milestone3/`:
+
+| Log | SHA-256 |
+| --- | --- |
+| `resumed-catalog-debug.log` | `49493e94584878da19e48628a90acf31d42692305d9e67faa172b808772a4bf2` |
+| `request-memory-catalog.log` | `7260441e19149f2938db1129fec708468c205fac9b21bac1dcd17f4d19b3e65d` |
+| `request-memory-docs.log` | `94fac7ba87ad0f2c996743345f7c00d250ac0ac1bedea13ad2b4f696bf5a7ea4` |
+| `request-memory-clean-fast.log` | `d6f31e074f5977d09bac0dcd51cf9a11b6b132c3aabe7da4ac03bb08e484c354` |
+
 ## Reusable private Table maintenance workspace — 2026-10-28
 
 The question is whether sequential maintenance units can reuse bounded private
