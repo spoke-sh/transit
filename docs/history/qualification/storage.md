@@ -159,6 +159,16 @@ also passes with 77 invariants, 75 classified bounds and 15 SDK scenarios.
 These are process-death boundaries with the host/page cache still alive, not
 power-loss evidence or the remaining aggregate contention/failure qualification.
 
+The complete storage package subsequently passes **137/137** ReleaseSafe tests
+against runtime source `81739ed54`, before the rebase onto `c8cf71496`. The
+pinned-shell command is `zig build test -Doptimize=ReleaseSafe --summary all`
+from `packages/zig/transit-storage`; the raw log is
+`.cache/milestone3/storage-full-ed98.log`. Test execution takes approximately ten
+minutes with a reported 38 MiB maximum RSS. This includes the retained read,
+schema, ordered interval, archive, checkpoint, compaction and WAL/object checks.
+It does not qualify the subsequently merged shared-memory/SQL changes or the
+complete installed/SDK lanes.
+
 ## Local foundation repository qualification — 2026-10-27
 
 The complete workspace `just check all` passes at clean committed source

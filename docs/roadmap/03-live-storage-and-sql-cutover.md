@@ -127,30 +127,32 @@ bounded consumption needed for this cutover, but leave the new shared
 Multi-object transactions, global snapshot atomicity, new SDK families and a
 Board redesign are outside this plan.
 
-**D5 — Preserve the installed runtime until the transaction-backed replacement
-(scope reconciliation after PR #196).** The user-defined
+**D5 — Decouple SQL here; retain private Station turns until their transactional
+replacement (scope reconciliation after PRs #196 and #197).** The
 [database/runtime separation](https://github.com/spoke-sh/transit/pull/196)
-places SQL account-ledger and read-pin replacement, declarative Streams/Queues,
-and the Station rebuild in
-[milestone 6](06-streams-queues-and-durable-runtime.md), after the
-[transaction foundation](05-transactions-and-atomic-composition.md). This
-supersedes treating removal of every Station dependency as a prerequisite to
-this milestone. General catalog Tables already use the direct owner; the
-remaining private Station Tables and SQL coordination still have callers and
-accepted-work obligations.
+assigns declarative Streams/Queues and the Station rebuild to
+[milestone 6](06-streams-queues-and-durable-runtime.md). The subsequent
+[sequencing refinement](https://github.com/spoke-sh/transit/pull/197) pulls SQL
+account-ledger and read-pin replacement forward into this milestone's P5,
+before the [transaction coordinator](05-transactions-and-atomic-composition.md).
+General catalog Tables already use the direct owner; remaining private Station
+Tables and SQL coordination still have callers and accepted-work obligations.
+The current progress PR delivers maintenance and recovery qualification; the
+SQL decoupling bridge remains unfinished work for this milestone.
 
 | Existing requirement | Work retained here | Replacement owner |
 | --- | --- | --- |
 | P1.5 private Station Tables | Audit callers and ownership, remove unused adapters, preserve current native atomic-turn recovery and document the remaining boundary | Milestone 6 migrates private Table/Query APIs, SDKs, examples and inspection records together onto declared data and transaction-backed turns |
-| P5 SQL admission and read pins | Measure and attribute end-to-end cost, resolve original uncertain outcomes, qualify direct storage/recovery/read lifetimes and avoid regressions | Milestone 6 replaces `AccountRuntime`, `Ledger`, `Coordinator` and per-query durable `ReadPins` with database-owned idempotency, snapshot cuts and lease fencing |
+| P5 SQL admission and read pins | Replace `AccountRuntime`, `Ledger`, `Coordinator` and per-query durable `ReadPins` with database-owned idempotency, snapshot cuts and lease fencing; preserve original outcomes and qualify matched costs | Milestone 6 Step 1 is pulled forward into this milestone's P5 bridge, before milestone 5 coordinator implementation |
 | P5.4 query-host/courier waiting | Preserve current wakeup, cancellation, fencing and shutdown behavior in affected installed checks; record remaining idle overhead | Milestone 6 replaces the polling runtime with Queue lease consumption and transactional outboxes; do not build a new scheduler around the superseded runtime here |
 
 Do not replace an atomic private Table turn with a direct Table write followed
 by a native turn: those are separate decisions until the transaction owner
 qualifies composition. Do not optimize old Table staging, SQL-text fragmentation
 or courier throughput as a substitute for the planned cutover. P1.4's current
-resource/recovery matrix, P4's safe maintenance, P5's direct storage cost and
-lifetime gates, P6 inspection and P8 common-revision qualification remain here.
+resource/recovery matrix, P4's safe maintenance, P5's SQL decoupling, direct
+storage cost and lifetime gates, P6 inspection and P8 common-revision
+qualification remain here.
 The measured SQL timeouts remain failures; moving the architectural replacement
 does not turn them into successful latency samples or complete this milestone.
 
@@ -229,7 +231,7 @@ across the two branches; neither branch may retain a parallel legacy definition.
 
 Remaining work here includes P0's baseline diagnosis, P1.5's current caller
 qualification, P4's aggregate resource/retention/failure matrix, P5's measured
-direct reader/recovery reuse, P6's storage views and P8's full common-revision
+direct reader/recovery reuse and SQL decoupling bridge, P6's storage views and P8's full common-revision
 qualification. The installed resource matrix and automatic maintenance scheduling
 are delivered below; D5 assigns the Station replacement to milestone 6.
 Coordinate P5 reader lifetime and P6 SQL inspection changes with
@@ -774,9 +776,10 @@ Owners: local Table service/catalog, direct query readers, shared SQL service,
   explicit rather than being reported as fixed by the ownership transfer.
 - [ ] P5.5 Establish matched live correctness/performance controls for point and
   bulk mutations, key/range/full scans, metadata, compatible ALTER and recovery
-  with maintenance active. Attribute remaining Station coordination separately;
-  do not optimize retired actor Table staging or start a general query-engine
-  rewrite here.
+  with maintenance active. Complete the database decoupling bridge below and
+  measure the removal of SQL's actor-ledger admission and durable read-pin
+  overhead. Preserve the original uncertain outcomes; do not optimize retired
+  actor Table staging or start a general query-engine rewrite here.
 
 **Gate:** independently verified installed results, bounded memory at retained
 sizes above caches, and measured reduction in the selected live amplification

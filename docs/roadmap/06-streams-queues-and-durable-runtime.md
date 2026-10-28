@@ -300,8 +300,8 @@ them back through the private engine or remove the catalog's separate
   together under one current-v1 cutover. Remove superseded storage/SDK surfaces;
   do not retain a parallel writable engine or rename it as a generic KV helper.
 - [ ] Carry the original SQL latency failures and saved-operation settlement
-  evidence from milestone 3 into matched before/after measurements of
-  database-owned idempotency and snapshot cuts. Request totals including
+  evidence into matched before/after measurements of database-owned idempotency
+  and snapshot cuts in Step 1, now pulled forward into milestone 3 P5. Request totals including
   background work must remain distinguishable from statement-attributable work.
   Preserve the distinction between [an accepted INSERT recovered by its original
   receipt and an incomplete SQL upload durably abandoned through original-identity
@@ -314,7 +314,9 @@ them back through the private engine or remove the catalog's separate
   eliminating a polling loop in source is not evidence of correct wakeups.
 
 Milestone 3 continues to own direct storage maintenance, read lifetimes,
-original-operation recovery, installed inspection and its final qualification.
+original-operation recovery, installed inspection and its final qualification,
+and now includes Step 1's SQL/database decoupling bridge. The private Station
+Table/Query migration and Queue-based runtime replacement remain here.
 These inherited tasks neither complete that milestone nor claim the replacement
 runtime is implemented.
 
