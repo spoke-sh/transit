@@ -357,6 +357,13 @@ requests. Cold read-cache acquisition still persists a pin. The stronger Step 1
 latency target requires measuring and reducing those remaining control costs;
 this implementation does not claim a one-HTTP-request SQL statement.
 
+The matched four-row wire comparison passes exact values/counts and observes
+lower p50 in all 12 mutation cases and 19 of 20 read cases; MySQL literal point
+lookup increases by 23%. Default installation/restart schedules also retain
+native bootstrap timeouts reproduced in the unchanged baseline. The linked
+qualification record keeps those failures and the broader latency/installation
+gates open. Milestone 5 can use the database owners described in the handoff.
+
 Streams, Queues, consumer settlement participants and the Station rebuild below
 remain planned. Completing database independence does not close the full milestone.
 

@@ -74,7 +74,9 @@ restart, exact original settlement and cancellation. The first multi-account
 installation run exposed startup-budget exhaustion while a credential was bound
 but its database grants were still absent. Source `fe1b34edb` keeps refreshing
 enrollment without initializing the denied account; its rerun reaches all three
-account enrollments. Further installed and wire results are recorded below.
+account enrollments. The complete configured lifecycle subsequently passes at
+`d036c9c8f`: three explicit roles, both TLS CLIs, Unicode/NULL data, credential
+rotation, disabled listeners, expired trust and exact original-operation recovery.
 
 A separate clean checkout at `ac816e347` builds the native SQL integration but
 its framing subprocess exceeds the existing 300-second deadline while other
@@ -86,9 +88,96 @@ owner test, `just test::sql-wire-contracts`, `zig build test-sql-gateway
 -Doptimize=ReleaseSafe`, `zig build check-contracts` and
 `zig build test-diagnostic-outcomes`, all inside the pinned shell. Routine output
 is retained under `.cache/sql-cutover/`; the active fault/installation schedules
-use the registered SQL checks. Subsequent evidence below qualifies their final
+use the registered SQL checks. The following evidence identifies subsequent
 source separately. No interactive transaction, atomic multi-source cut, Stream,
 Queue or cross-build history migration is established by this cutover.
+
+### Final recovery and shutdown checks
+
+The separate clean checkout passes all 41 fast checks at `aafcfddc4`, all 18
+contract checks with runtime source `453993076`, and the complete native SQL
+fault schedule at `17be31692`. The latter completes in 32.177 seconds with 1,488
+Table requests, zero Station sends/turns and one exact retry after token
+acceptance succeeds but its reply is replaced by a capacity refusal. Both retry
+attempts carry the identical frozen binding and return the same acceptance
+receipt. An initial version armed that fault on the fixture's manual enqueue
+path; that failed attempt did not exercise runtime admission and was corrected
+before the clean pass. The earlier 300-second failure remains a failed run;
+sequential validation does not establish an isolated-host latency guarantee.
+
+Runtime `453993076` also completes the driver, settings, authorization,
+credential/certificate, detached-operation, schema and wide-value phases of the
+full wire schedule. The 40 KiB row is submitted once and all ten cells are read
+back through both protocols. Its final drain fails the eight-second joined-exit
+bound: a read-cache cleanup catch consumes task cancellation. Source `f0e3d3d52`
+propagates cancellation from both cleanup-client resolution and pin cleanup,
+and stops the recovery worker without reporting cancellation as a domain
+failure. The native regression cancels an actual sleeping cleanup resolver,
+requires the task to join with its cancellation error, and rejects a successful
+return or a recorded cleanup failure. The complete native schedule against the
+rebuilt artifacts at `4e83bb2e` passes in 31.022 seconds with 1,505 requests and
+zero Station sends/turns; `cleanup_cancelled_and_joined` is true. All 41 fast checks also pass
+at `f0e3d3d52`, including diagnostic mappings, generated-source consistency,
+documentation links and whitespace.
+
+Installed direct-Table attempts exposed old fixture assumptions: handwritten
+signed requests omitted the new lease field, and diagnostic/data-operation IDs
+were compared directly with Catalog acceptance IDs. The corrected checks inspect
+the accepted immutable binding and preserve both identities. Additional attempts
+encounter native-bootstrap authority timeouts; unchanged `fbbaeae12` reproduces
+the same failures and exhausts its existing restart budget before SQL setup.
+The default direct-Table, SQL-lifetime and bundled-authentication schedules
+fail during native bootstrap at runtime source `f0e3d3d52`. A subsequent
+direct-Table run with fixture `4e83bb2e` passes schema changes, conditional DDL,
+namespace restrictions and the original diagnostic identity while the Query
+worker is stopped, then fails native grant re-enrollment after restart. It is
+incomplete, not a full installation pass. The core lifecycle also reaches its
+SQL checks but its earlier attempt uses the wrong account-profile path; the
+fixture now selects the public console account.
+
+The initial baseline/candidate controls ran on the shared host while another
+disk qualification was active. After it ends, initial bootstrap succeeds but
+a restart still fails. These observations do not prove the cause of every
+timeout. No deadline was increased and no uncertain mutation was resubmitted.
+
+The final complete wire run against rebuilt runtime `f0e3d3d52` and fixture
+checkout `4e83bb2e` passes in 246.900 seconds, followed by the separate fresh CLI
+fixture in 24.101 seconds. It passes both pinned native database drivers,
+settings/reload, selected roles, detached writes, credential and certificate
+rotation, the 40 KiB row, schema invalidation, capacity reserves and joined drain
+within the unchanged eight-second bound. The native-session follow-up at
+`70007e3e` also passes TLS/SCRAM, wide logical values, original-token recovery,
+concurrent consoles and buffered disclosure revocation. Its concurrent-read
+fixture recognizes both current session-admission and typed query-transport
+capacity diagnostics; any emitted prefix or exhausted deadline still fails.
+An earlier diagnostic assertion failed, and an interrupted fixture attempt is
+not counted as a pass.
+
+### Matched client-completion measurements
+
+The [retained comparison](../../../tests/evidence/sql-database-runtime-2026-10-28/README.md)
+contains the identical driver's raw reports, executable hashes, exact source and
+contract definitions, toolchain, commands and timing provenance. Control
+`fbbaeae12` and candidate checkout `70007e3e` (runtime `f0e3d3d52`) each complete
+400 measured reads and 36 mutations with independent expected rows, exact changed
+counts and cross-protocol readback. Owned runs are sequential after builds and
+correctness checks finish; ordinary background applications remain active.
+
+Across the four literal/prepared PostgreSQL/MySQL paths, mutation p50 ranges
+from 2,515.567–3,901.078 ms in the control to 1,019.320–1,679.165 ms in the
+candidate. All 12 mutation cases improve in this observation. Nineteen of 20
+read-case p50 values improve; **MySQL literal point lookup increases from
+532.494 to 655.049 ms (23.0%)**, with p95 increasing from 586.846 to 672.877 ms.
+The table retains that regression alongside the improved cases. Read p95 uses
+20 observations; three mutation observations do not establish a tail bound.
+
+These are client-completion observations over one four-row local-disk/TLS
+profile, not isolated allocator, CPU-cycle, I/O or operator measurements. They
+do not qualify cold-cache, maintenance-active, Flight or throughput profiles,
+or establish a causal attribution to one mechanism. The architecture dependency
+is removed, while the broader control-path latency/installed qualification
+obligations remain open. The SQL request still validates, stages, accepts and
+observes work around its single Table data commit; it is not one HTTP request.
 
 ## Admitted result memory and transport reuse — 2026-10-28
 
