@@ -46,7 +46,7 @@ def run(fixture):
                 completion = value['completion']
                 assert completion['outcome'] in (('applied', 'unchanged') if ok else ('rejected',)), completion
         if statement == 'SELECT transit_reload_conf()':
-            assert completion is not None and completion['kind'] == 'reload', completion
+            assert completion is not None and completion['kind'] == 'reload', (completion, result.stderr)
             assert completion['operation'] is not None and completion['counts'] is None, completion
             row = sql("SELECT * FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 1")[0]
             assert completion['pending_restart'] == (row['phase'] == 'pending_restart'), (completion, row)
@@ -174,13 +174,15 @@ def run(fixture):
         storage_values(storage_pending, 0, 1)
         assert all(row['source_line'] is None for row in storage_pending.values())
         assert node_storage() == original_storage, 'Reload applied restart-only storage settings'
+        # Discovery validates the local file before connecting. Use the saved
+        # public connection while asking the running owner to reject that file.
+        explicit = True
         fixture.config['storage']['maintenance']['archive']['work_frames'] = 9
         write()
         assert sql('SELECT transit_reload_conf()', ok=False)[0]['outcome']['phase'] == 'rejected'
         assert storage_rows() == storage_pending, 'Rejected storage settings replaced the accepted configuration'
         assert node_storage() == original_storage
         fixture.config['storage']['maintenance']['archive']['work_frames'] = 2
-        explicit = True
         fixture.path.write_text('private_unknown_setting: private-must-not-leak\n')
         rejected = sql('SELECT transit_reload_conf()', ok=False)[0]
         assert rejected['outcome']['phase'] == 'rejected', rejected
