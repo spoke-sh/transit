@@ -76,7 +76,9 @@ when an error occurs later. Empty aggregates and grouped-empty input retain the
 Every page, including cached rows and final completion, checks current native
 and catalog rights to every source. A denied noncontributing source still blocks
 disclosure. A source error or quota failure cannot silently advance, truncate or
-complete a result. The handle retains the original executor failure. Failure to
+complete a result. The handle retains the original executor failure at its
+requested ordinal; repeating that ordinal rechecks current source rights before
+returning the failure. Earlier and later ordinals reject. Failure to
 allocate/encode a response leaves the current native row available for retry at
 its same ordinal. Close remains available without source payload permission;
 a repeated close of the most recently closed reference succeeds. A closed ID

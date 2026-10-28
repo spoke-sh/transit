@@ -285,13 +285,16 @@ pub const Session = struct {
                 if (!active.read or next) {
                     if (active.pending) |*pending| pending.deinit();
                     active.pending = null;
+                    // Advancing acknowledges the previous row. Retain the
+                    // requested ordinal even when execution fails, so repeating
+                    // that fetch returns its original failure under current rights.
+                    active.ordinal = ordinal;
+                    active.read = true;
                     const value = active.query.next() catch |err| {
                         active.failure = err;
                         return err;
                     };
                     active.pending = value;
-                    active.ordinal = ordinal;
-                    active.read = true;
                 }
                 var fields: [r.max_outputs]f.Types.Field = undefined;
                 const schema = try active.query.execution.bound.plan.outputSchema(&fields);

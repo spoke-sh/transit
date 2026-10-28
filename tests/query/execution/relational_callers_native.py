@@ -226,6 +226,13 @@ def exercise(library, host, root, authority, service, profile, restart, policy, 
                 assert not page(reference, 0)['page']['complete_coverage']
                 failed = page(reference, 1, 'RelationalResultBudget')
                 assert page(reference, 1, 'RelationalResultBudget') == failed
+                page(reference, 0, 'InvalidQueryCursor')
+                page(reference, 2, 'InvalidQueryCursor')
+                policy(False)
+                try:
+                    page(reference, 1, 'AccessDenied')
+                finally: policy(True)
+                assert page(reference, 1, 'RelationalResultBudget') == failed
                 finish(action, reference)
                 query.close()
                 fixture.configuration['options']['output_rows'] = '1000'
