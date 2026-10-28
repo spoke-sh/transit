@@ -67,6 +67,50 @@ The logs are `/var/tmp/transit-m4-completion-wire-owners.log`,
 `/var/tmp/transit-m4-completion-sql-setup-faults.log`. These local paths are retained
 investigation records, not portable artifacts or evidence for later source.
 
+The first combined hosted run,
+[40604349889](https://github.com/spoke-sh/transit/actions/runs/40604349889) at
+`da4766c69`, passes core, formal, launchers and bindings-2 but fails four lanes.
+Python typing needs an explicit narrowing after scalar-kind validation; the
+installed DROP fixture still expects an English stderr rejection instead of the
+typed result; the owned JSON allocation fixture expects `WriteFailed` instead
+of `OutOfMemory`; and a repeated failed relational fetch loses its ordinal.
+The first three corrections preserve the existing runtime behavior. The fourth
+changes the reader: retain the requested ordinal before pulling, so a repeated
+failure rechecks current rights and returns the original failure. Earlier/skipped
+ordinals remain invalid; revocation takes precedence over the saved error.
+The subsequent combined qualification uses `9867579d1`, including all four fixes.
+These source identifiers describe the original pushed history before its
+documentation-only rebase.
+
+### Combined qualification
+
+[Run 40608960557](https://github.com/spoke-sh/transit/actions/runs/40608960557)
+passes all **108 ordinary tasks and seven Chromium tasks** at committed source
+`9867579d15994927ee4dc114fd0a7df0242d21de`. Each lane starts from a hosted checkout
+with dependency caches. Core, growth, interfaces, experience, launchers, formal
+and both SDK lanes pass. This includes the complete native SQL/session and
+PostgreSQL/MySQL schedules, relational repeat-failure/revocation regression,
+installed direct Tables and faults, SQL listeners/lifetimes, generated language
+resources, mixed SDK interoperability and embedded Board/reactive browser checks.
+The separate documentation-site job is unselected; the handbook check/build
+passes within experience. A cancelled intermediate run is not qualification.
+
+Production sources are unchanged between that CI revision and measured `8a866f513`;
+the latter adds the optional installed fault-fixture corrections executed above.
+The rebase onto `9ab9baee3` adds documentation and agent guidance only. After that
+rebase, locked `just transit-board::install` and `just check all` also pass locally,
+including generated contracts, native tests, 193 CLI diagnostic cases, Board and
+the handbook build. The log is
+`/var/tmp/transit-m4-completion-repository-check.log`. Committed-HEAD
+`just ci clean --check fast` passes all 40 groups at `b6a46b4b5`, with artifacts in
+`.cache/ci/clean/b6a46b4b57ab-transit-ci-bahdehuf`.
+
+The [matched performance qualification](performance.md#statement-result-batching-and-consumption--2026-10-27)
+records response amplification, first-output/terminal latency, memory and codec
+costs with independent values. These checks close the existing local result
+profile; they do not implement transactions, general continuous queries, new
+language-native SQL APIs, compression negotiation or arbitrary temporal proofs.
+
 ### Failed controls and recovery limits
 
 The initial lifetime/direct-Table runs fail during bootstrap on unavailable
