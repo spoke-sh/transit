@@ -125,6 +125,49 @@ bootstrap failures are retained at `/var/tmp/transit-server-proof-6cxqgw8m` and
 passes an instrumented three-repetition run. Installed startup and broader
 latency qualification remain open in #211.
 
+Focused owner checks pass: all 129 core package tests; the two-test local catalog
+policy schedule (including cold/warm reuse, external pin/release suffixes,
+retained reads, revocation, control capacity and zero budget after teardown);
+and three selected backend/proof-cache tests covering first-publication faults,
+same-epoch reuse, reopen/new epochs and exact proof keys. Their logs are
+`principal-tests.log` (SHA-256
+`d6770e80319c31a43897098b6fb57465a19646b099ba1566f9b32dda6f9ca147`),
+`candidate-build-policy.log` (SHA-256
+`971fa108680ed1f4fd73b9e6490efa76fb969c3c0dcc7f832ae498fa15ea8146`),
+and `candidate-storage-tests.log` (SHA-256
+`691c2e08b2815179e4dfd51d02b53374e1ddc635b27f17e18d5ae26052cc8342`).
+These are focused checks of the respective implementation commits, not a full
+installed or repository qualification.
+
+The final focused `sessions-basic` rerun passes at clean driver source
+`9ac5ad55d`, with the frozen candidate binaries above. It includes `f01dafdcf`'s
+oracle clarification: cleanup may repeat the original pin request, but every
+attempt must retain the exact owner and expected frontier. The log is
+`final-sessions-basic.log` (SHA-256
+`e767ec975bd1abd16a2cd46dd6c1d93b4e4b75fda3d86ab891784b42ac614055`).
+
+Clean `interfaces` at `6d62b8e73` passes SQL TLS (21.68 s), result allocation
+checks (180.55 s), gateway recovery (268.59 s) and PostgreSQL/MySQL gateway
+checks (887.27 s). The result-allocation negative control detects allocation;
+Unix/HTTP/HTTPS warm paths have zero measured backing-memory events. The wire
+checks include lost/detached writes, cancellation, revocation, credential and
+certificate rotation, capacity, retained data and a 40 KiB row. The following
+session task times out after 1,800 s while its helper builds the Document source
+fixture, before session assertions. Its node continues accepting setup work,
+but no completion is inferred. The lane fails after 3,243.70 s; later interface
+tasks are not reached. The clean checkout is `/var/tmp/transit-ci-zyqvd4b4`;
+`clean-interfaces.log` has SHA-256
+`4792b4d8e195a2287e57d7e25577892d9926db0e3fd2bbea4a60848dc6c0f538`.
+The focused session pass does not replace this failed lane.
+
+Clean fast checks at `9ac5ad55d` pass all 45 checks, including 7,569 local links
+across 664 files; the isolated checkout is `/var/tmp/transit-ci-0qm1r7fa`.
+The pinned documentation site check also passes types, tests and the production
+build. Their logs are `final-fast-check.log` (SHA-256
+`019cbf8e92b5afbc285aeeff9e4abd7247ae66edf24b0174b36285151708fb1a`)
+and `final-docs-check.log` (SHA-256
+`154591794c1137024f158dbe680447805e34915b06b64a6ac514f9eeccb1d6a9`).
+
 ### Write-lifecycle completion experiment
 
 The follow-up to [issue #211](https://github.com/spoke-sh/transit/issues/211)
