@@ -53,7 +53,7 @@ signature: [64]u8,
 /// renew this query by signing a replacement borrowed read.
 pub fn prepare(client: c.DirectTableClient, original: Grant, binding: Binding) !Self {
     if (client.delegation != null or client.closure != null or client.borrow != null or !std.meta.eql(client.connection, original.binding.connection)) return error.InvalidTableDelegation;
-    const native: c.station.client.AuthorizationClient = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = client.connection.role, .key = client.key };
+    const native: c.client.AuthorizationClient = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = client.connection.role, .key = client.key };
     const signed = (try native.proof(client.connection.audience, try binding.context(original, client.allocator))).signed;
     if (signed.claim.credential_epoch != original.proof.claim.credential_epoch) return error.InvalidTableDelegation;
     return .{ .binding = binding, .signature = signed.signature };

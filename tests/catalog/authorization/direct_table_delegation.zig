@@ -106,7 +106,7 @@ pub fn verify(client: c.DirectTableClient, state: State) !void {
     // The caller checks the returned references through the native owner. An
     // executor's publication uses a separate proof addressed to its worker;
     // this Table-service proof does not grant inspection of that audience.
-    const native: c.station.client.AuthorizationClient = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = client.connection.role, .key = client.key };
+    const native: c.client.AuthorizationClient = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = client.connection.role, .key = client.key };
     _ = try native.read(.{ .check = try reader.basis.authority.guard(.{ .signed = state.grant.proof }) });
     try t.expectEqual(@as(u64, 2), reader.basis.row_count);
     var page = (try reader.next(delegated, .{})).?;

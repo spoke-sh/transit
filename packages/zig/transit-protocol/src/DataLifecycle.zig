@@ -3,6 +3,20 @@
 const std = @import("std");
 const p = @import("root.zig");
 
+/// Bounds shared by named resource declarations and immutable publication.
+/// They describe stored data, independently of the worker that publishes it.
+pub const PublicationLimits = struct {
+    record_bytes: u32,
+    staging_bytes: u64,
+    staging_records: u32,
+    pub fn validate(self: PublicationLimits) !void {
+        if (self.record_bytes == 0 or self.staging_bytes < self.record_bytes or self.staging_records == 0) return error.InvalidPublicationLimits;
+    }
+};
+
+/// Maximum encoded node size in the current Document immutable index format.
+pub const document_index_node_bytes = 4096;
+
 /// Resource is the existing logical catalog authority, not a file/provider path.
 /// Catalog and object identifiers retain the full unsigned 64-bit range.
 pub const Scope = struct {

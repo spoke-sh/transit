@@ -15,14 +15,7 @@ pub const chunk_bytes = 256;
 pub const cleanup_chunks = 2;
 pub const State = enum(u8) { staging = 1, published = 2, abandoned = 3, retired = 4 };
 pub const Outcome = enum { changed, duplicate };
-pub const Limits = struct {
-    record_bytes: u32,
-    staging_bytes: u64,
-    staging_records: u32,
-    pub fn validate(self: Limits) !void {
-        if (self.record_bytes == 0 or self.staging_bytes < self.record_bytes or self.staging_records == 0) return error.InvalidPublicationLimits;
-    }
-};
+pub const Limits = p.DataLifecycle.PublicationLimits;
 pub const Spec = struct {
     format: u32,
     length: u32,

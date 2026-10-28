@@ -16,8 +16,8 @@ pub fn profile(comptime c: type, admin: anytype, scope: c.Model.Scope, registrar
     const schema = (try admin.authorization(.{ .register_object = .{ .domain = schema_domain, .owner = owner, .schema = a.reference(database), .binding = try a.binding(scope, .schema, 1) } })).?;
     return .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .database = database, .initial_schema = 1, .initial_schema_authority = schema };
 }
-pub fn loginRole(comptime c: type, wire: *c.station.client.Client, realm: u64, principal: u64, key: c.protocol.Ed25519.KeyPair) !u64 {
-    const client: c.station.client.AuthorizationClient = .{ .transport = wire, .realm = realm, .principal = principal, .key = key };
+pub fn loginRole(comptime c: type, wire: *c.client.Client, realm: u64, principal: u64, key: c.protocol.Ed25519.KeyPair) !u64 {
+    const client: c.client.AuthorizationClient = .{ .transport = wire, .realm = realm, .principal = principal, .key = key };
     return (try client.read(.identity)).body.authorization.body.identity.login_role;
 }
 pub fn grantDefaults(comptime c: type, admin: anytype, authority: c.TableAuthority.Profile, creator: u64, grantee: u64, privileges: u64) !void {

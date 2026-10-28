@@ -264,7 +264,7 @@ test "direct host session restores without I/O and preserves loaded work on allo
     const fixture = try p.Json.parseFromSlice(Fixture, a, @embedFile("fixtures/direct-table-intent-v1.json"));
     defer fixture.deinit();
     const bytes = try (c.DirectTableProtocol.Binary{ .base64 = fixture.value.base64 }).decode(a, c.DirectTableIntent.max_bytes);
-    var wire = c.station.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    var wire = c.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
     defer wire.deinit();
     const client: c.DirectTableClient = .{ .allocator = t.allocator, .authority = &wire, .service = &wire, .connection = fixture.value.saved.connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(1)) };
     var session: Session = .{ .allocator = t.allocator };

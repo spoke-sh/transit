@@ -2,7 +2,7 @@
 const std = @import("std");
 const c = @import("root.zig");
 const p = c.protocol;
-pub fn validatePage(entries: c.station.Turn.Page, after: p.Value, revision: u64) !void {
+pub fn validatePage(entries: p.Growth.Batch(p.Growth.Entry, p.Value), after: p.Value, revision: u64) !void {
     var previous = after;
     var ended = false;
     for (entries.entries) |slot| {

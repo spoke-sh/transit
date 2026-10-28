@@ -1,5 +1,10 @@
 # transit-catalog
 
+The catalog depends directly on the public protocol/client, Fuze and storage.
+It has no Station dependency: Table declaration, authorization, acceptance and
+retained reads use database owners. Named Document publication limits use the
+shared data contract; application initialization retains its separate owner.
+
 Named Tables, schemas and native KV/Document declarations, exported as
 `transit_catalog`. Catalog owns names, stable identities, exact operation
 bindings and dependencies. Fuze owns logical schemas and SQL/typed lowering;

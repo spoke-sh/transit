@@ -85,7 +85,7 @@ pub const Result = union(enum) {
     namespace_preview: struct { binding: NamespaceBinding, position: h.Position, current: ?v.Namespace, reason: n.Reason },
     namespace_observation: union(enum) { not_observed, operation: NamespaceOperation },
     policy_plan: PolicyPlan,
-    policy_prepared: c.station.client.AuthorizationChange.Client.Prepared,
+    policy_prepared: c.client.AuthorizationChange.Client.Prepared,
 };
 pub fn apply(allocator: Allocator, client: c.DirectTableClient, action: Action, location: ?*c.fuze.Sql.Location) !Result {
     switch (action) {
@@ -122,7 +122,7 @@ pub fn apply(allocator: Allocator, client: c.DirectTableClient, action: Action, 
             if (plan.action != .authorization) return error.InvalidAuthorizationPlan;
             // Freeze the originally selected role, then let the native owner
             // check current selection eligibility and the exact policy basis.
-            const change: c.station.client.AuthorizationChange.Client = .{ .authority = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = plan.role, .key = client.key } };
+            const change: c.client.AuthorizationChange.Client = .{ .authority = .{ .transport = client.authority, .realm = client.connection.scope.realm, .principal = client.connection.principal, .role = plan.role, .key = client.key } };
             return .{ .policy_prepared = try change.prepare(plan.expected_revision, plan.action.authorization) };
         },
     }

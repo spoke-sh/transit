@@ -72,7 +72,7 @@ pub const Table = struct { id: u64, schema: u64, authorization: u64 };
 /// The subject audience is that enclosing service/coordinator, independently of
 /// the owning PID of each Table whose privileges it checks.
 pub const Context = struct {
-    client: c.station.client.AuthorizationClient,
+    client: c.client.AuthorizationClient,
     subject: a.Subject,
     observed: ?*?a.Guard = null,
     /// Optional shared request allowance for raw, uncached readers. Both data
