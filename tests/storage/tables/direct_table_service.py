@@ -92,7 +92,7 @@ def run(node, caller, mode="tables", *artifacts):
                     data = response.read()
                     if self.path == "/table/v1":
                         if request_memory is not None:
-                            request_memory.observe(envelope["action"], response.getheader("x-transit-work"))
+                            request_memory.observe(envelope["action"], response.getheader("x-transit-work"), len(data))
                         fault["requests"] += 1
                         resource = envelope["action"].get("resource_operation")
                         if mode == "resources" and resource and resource["binding"]["operation"] in (80000, 80001) and resource["command"] != "inspect" and response.status == 200:

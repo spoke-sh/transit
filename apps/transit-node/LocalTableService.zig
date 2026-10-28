@@ -20,9 +20,10 @@ recovery_state: ?*D.RecoveryState = null,
 /// Inject a real authority change after response serialization in fault proofs.
 before_reply: ?struct { context: *anyopaque, run: *const fn (*anyopaque, *backend.DataAuthority.Engine) anyerror!void } = null,
 
-/// All borrowed result fields live in the request arena until the buffered
-/// response is sent. The final fence can discard it after a revocation race.
-pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request) ![]const u8 {
+/// Temporary results borrow the work arena. The caller owns the separately
+/// allocated response and may destroy the arena before sending it. The final
+/// fence can still discard that response after a revocation race.
+pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request) ![]const u8 {
     // An uncertain append, failed recovery or failed disclosure cannot leave a
     // warm Table hint behind. Full replay remains the next request's fallback.
     errdefer if (self.options.table_recovery) |slot| {
@@ -59,7 +60,8 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request)
     if (request.lease) |lease| try catalog.requireClientLease(lease, policy.policy());
     const result = try c.DirectTableDispatch.apply(allocator, &catalog, policy.policy(), request.action, request.delegation, .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource });
     const observed = try policy.observation();
-    const output = try c.protocol.Json.valueAllocBounded(allocator, w.Response{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = observed.revision, .subject = observed.subject, .result = result }, w.max_response_bytes);
+    const output = try c.protocol.Json.valueAllocBounded(output_allocator, w.Response{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = observed.revision, .subject = observed.subject, .result = result }, w.max_response_bytes);
+    errdefer output_allocator.free(output);
     if (self.before_reply) |inject| try inject.run(inject.context, self.engine);
     if (!std.meta.eql(try policy.observation(), observed)) return error.AuthorizationChanged;
     return output;

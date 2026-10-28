@@ -248,7 +248,6 @@ pub fn Host(comptime Provider: type) type {
 
             fn table(self: *Server, request: *std.http.Server.Request) !void {
                 if (comptime @hasDecl(Provider, "TableHost")) {
-                    const w = Provider.TableHost.Protocol;
                     const owner = self.lane.table orelse return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
                     if (request.head.method != .POST) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
                     if (try http.header(request, "x-transit-wait") != null) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
@@ -256,34 +255,10 @@ pub fn Host(comptime Provider: type) type {
                         if (!std.mem.eql(u8, hint, "table")) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
                         break :blk true;
                     } else false;
-                    var arena = std.heap.ArenaAllocator.init(self.allocator);
-                    defer arena.deinit();
-                    const allocator = arena.allocator();
-                    const bytes = request.readerExpectNone(&.{}).allocRemaining(allocator, .limited(w.max_request_bytes)) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody });
-                    const parsed = w.Request.parse(allocator, bytes) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-                    if (control and parsed.value.transport().control == null) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-                    self.read_only = !parsed.value.transport().mutation;
-                    self.uncertain_mutation = !self.read_only;
-                    self.observation.protocol_outcome = if (self.read_only) .read else .uncertain;
-                    self.observation.realm = parsed.value.connection.scope.realm;
-                    self.observation.operation = parsed.value.transport().operation;
-                    self.beginWork();
-                    const before = self.engine.head.position;
-                    const executed = execution: {
-                        defer {
-                            // Registrar commits share native authority with public
-                            // commands. Even a later failure must wake native waits.
-                            if (self.engine.head.position != before) {
-                                self.mutex.lockUncancelable(self.io);
-                                defer self.mutex.unlock(self.io);
-                                self.position.* = @max(self.position.*, self.engine.head.position);
-                                self.context.syncFromLane(self.lane);
-                                self.changed.publishAll(self.io);
-                            }
-                        }
-                        break :execution owner.execute(self.io, self.engine, &arena, parsed.value);
-                    };
-                    const response = executed catch |err| switch (err) {
+                    const response = self.tableWork(request, owner, control) catch |err| switch (err) {
+                        error.Canceled => return error.Canceled,
+                        error.InvalidBody => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody }),
+                        error.InvalidRequest => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
                         error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),
                         error.TableDefinitionChanged => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .TableDefinitionChanged }),
                         error.StaleClientLease, error.ClientTokenConflict, error.ClientBudgetConflict, error.ClientOperationConflict, error.ClientOperationPending => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
@@ -295,11 +270,48 @@ pub fn Host(comptime Provider: type) type {
                         error.ClientOperationMissing, error.InvalidDirectRecord, error.DirectRecordMissing, error.InvalidClientToken, error.InvalidPlanEncoding, error.InvalidProjection, error.InvalidTableBinary, error.TablePayloadTooLarge, error.InvalidTableMutationIntent, error.InvalidInsertRowIdentity, error.InvalidTableStatementIntent, error.InvalidTableAccessRequest, error.InvalidMutationPlan, error.MutationBatchTooLarge, error.UnsupportedTableMutationShape, error.TableBatchTooLarge, error.InvalidTableReadBudget, error.InvalidTableCursor, error.InvalidTableSnapshotCursor, error.TableReadBudgetTooSmall, error.InvalidTableKey, error.TableSchemaChanged => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
                         else => return self.failure(request, err),
                     };
+                    defer self.allocator.free(response);
                     // Typed results distinguish admission, commitment and reads;
                     // a successful HTTP exchange alone is not a native receipt.
                     self.observation.protocol_outcome = if (self.read_only) .read else .none;
                     return self.jsonBytes(request, .ok, response);
                 } else return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
+            }
+            /// All request parsing and catalog scratch ends before either a
+            /// success or failure response waits on the transport. The separately
+            /// allocated result crosses the final authority fence inside execute.
+            fn tableWork(self: *Server, request: *std.http.Server.Request, owner: anytype, control: bool) ![]const u8 {
+                const w = Provider.TableHost.Protocol;
+                var arena = std.heap.ArenaAllocator.init(self.allocator);
+                defer arena.deinit();
+                const allocator = arena.allocator();
+                const bytes = request.readerExpectNone(&.{}).allocRemaining(allocator, .limited(w.max_request_bytes)) catch |err| return switch (err) {
+                    error.OutOfMemory => err,
+                    else => error.InvalidBody,
+                };
+                const parsed = w.Request.parse(allocator, bytes) catch |err| return if (err == error.OutOfMemory) err else error.InvalidRequest;
+                if (control and parsed.value.transport().control == null) return error.InvalidRequest;
+                self.read_only = !parsed.value.transport().mutation;
+                self.uncertain_mutation = !self.read_only;
+                self.observation.protocol_outcome = if (self.read_only) .read else .uncertain;
+                self.observation.realm = parsed.value.connection.scope.realm;
+                self.observation.operation = parsed.value.transport().operation;
+                self.beginWork();
+                const before = self.engine.head.position;
+                return execution: {
+                    defer {
+                        // Registrar commits share native authority with public
+                        // commands. Even a later failure must wake native waits.
+                        if (self.engine.head.position != before) {
+                            self.mutex.lockUncancelable(self.io);
+                            defer self.mutex.unlock(self.io);
+                            self.position.* = @max(self.position.*, self.engine.head.position);
+                            self.context.syncFromLane(self.lane);
+                            self.changed.publishAll(self.io);
+                        }
+                    }
+                    break :execution owner.execute(self.io, self.engine, &arena, self.allocator, parsed.value);
+                };
             }
             fn failure(self: *Server, request: *std.http.Server.Request, err: anyerror) !void {
                 const denied = switch (err) {
