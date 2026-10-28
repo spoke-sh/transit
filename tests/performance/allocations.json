@@ -166,7 +166,7 @@
       ],
       "checks": [
         "tests/interfaces/sql/sql_gateway_native.zig",
-        "packages/zig/transit-sql/src/Registry.zig"
+        "packages/zig/transit-sql-service/src/Registry.zig"
       ],
       "backing": "Per-session Slab plus separate recovery reserve; cursor batch and request output have independent lifetimes.",
       "gaps": [

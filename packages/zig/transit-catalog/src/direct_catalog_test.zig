@@ -420,7 +420,7 @@ test "direct client token roots reject omitted durable directories and counters"
     const empty = try Records.Root.empty(try configuration());
     const bytes = try std.json.Stringify.valueAlloc(t.allocator, empty, .{});
     defer t.allocator.free(bytes);
-    for ([_][]const u8{ "client_tokens", "client_token_count" }) |field| {
+    for ([_][]const u8{ "client_tokens", "client_token_count", "client_operations", "client_pending", "client_accounts" }) |field| {
         const parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
         defer parsed.deinit();
         var object = parsed.value;

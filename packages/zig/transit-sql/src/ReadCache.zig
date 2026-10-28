@@ -124,6 +124,10 @@ pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectT
     } else return error.SqlReadLeaseCapacity;
     var state = (try self.open(client, index, true)) orelse return error.InvalidSqlReadRecovery;
     const previous = try self.read(client, state);
+    // Eviction has selected an unborrowed entry. Stop advertising it before
+    // releasing the durable pin: a lost release reply must not leave a warm hit
+    // pointing at a pin that the owner may already have closed.
+    self.entries[index] = null;
     if (previous.record) |prior| {
         var record = prior;
         record.state = .closing;
@@ -134,7 +138,6 @@ pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectT
     defer refreshed.deinit();
     const selected = refreshed.value.result.lookup orelse return error.TableDefinitionChanged;
     try table.check(client.connection, selected);
-    self.entries[index] = null;
     var random: [8]u8 = undefined;
     try self.io.randomSecure(&random);
     const operation = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;

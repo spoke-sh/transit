@@ -166,7 +166,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         fixture.start()
         fixture.ready(timeout=300)
         # An unfinished enrollment survives an ordinary stop without allocating
-        # another principal, ledger or key. Private records are observed, never edited.
+        # another principal, Catalog account or key. Private records are observed, never edited.
         wait_status(fixture, lambda s: account_state(s, 'owner') == 'awaiting_binding')
         retained = {name: (fixture.installation / 'sql/accounts' / name / 'account.json').read_bytes() for name in passwords}
         fixture.stop()
@@ -216,7 +216,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
                     if refused:
                         print(f'Local SQL: {protocol} refused {refused} empty data observations for capacity before recovery.', flush=True)
                     return result.stdout.strip()
-                assert not result.stdout and 'Native request capacity exhausted' in result.stderr and time.monotonic() < deadline, (result.stdout, result.stderr)
+                assert not result.stdout and 'Database capacity exhausted' in result.stderr and time.monotonic() < deadline, (result.stdout, result.stderr)
                 refused += 1
                 time.sleep(.2)
 
@@ -238,7 +238,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
             operation = re.search(r'Gateway operation ([0-9]+); sending SQL again creates new work', result.stderr)
             uncertain = any(message in result.stderr for message in (
                 'Request wait ended; admitted work requires outcome inspection',
-                'Native request capacity exhausted; inspect admitted writes before retrying SQL'))
+                'Database capacity exhausted; inspect admitted writes before retrying SQL'))
             assert not result.stdout and operation and uncertain, (result.stdout, result.stderr)
             original = int(operation[1])
             control = fixture.installation / f'sql/accounts/{name}/control.json'
@@ -337,7 +337,7 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         assert count('writer', protocol='mysql') == '0'
         print('Local SQL: MySQL-only exposure, disabled account, password rotation and DELETE passed.', flush=True)
 
-        # Lose the client response after an operation reaches the durable ledger.
+        # Lose the client response after an operation reaches the durable Catalog.
         # Observe its identity; never submit this SQL a second time.
         fixture.boundary.pause()
         before = {e['operation'] for e in controls('list')['entries']}

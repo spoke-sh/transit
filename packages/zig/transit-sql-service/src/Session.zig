@@ -298,7 +298,8 @@ fn currentOnce(self: *Self) !void {
 }
 /// Exact-current metadata reads may race a concurrent committed catalog turn.
 /// Retry only pure preparation/validation, retaining the original statement on
-/// validation. Never replay a query iterator, write, or signed native request.
+/// validation. An independently idempotent sticky cancellation may also retry
+/// against its original operation. Never replay a query iterator or SQL write.
 pub fn fresh(self: *Self, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
     return self.freshOn(.native, function, args);
 }

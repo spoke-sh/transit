@@ -1908,7 +1908,8 @@
       "errors": {
         "ExpectedControlArguments": 4,
         "GatewayControlSyncFailed": 1,
-        "IncompatibleDefinition": 1
+        "IncompatibleDefinition": 1,
+        "InvalidGatewayConfiguration": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -1986,6 +1987,7 @@
     },
     "apps/transit-sql-gateway/src/main.zig": {
       "errors": {
+        "AccessDenied": 1,
         "Canceled": 1,
         "Cancelled": 1,
         "ExpectedPrivateConfiguration": 1,

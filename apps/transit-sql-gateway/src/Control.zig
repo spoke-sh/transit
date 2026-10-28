@@ -37,6 +37,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostics: *g.que
     const config = parsed.value;
     if (config.version != 1 or config.definition != native.current_definition) return error.IncompatibleDefinition;
     try config.execution.validate();
+    if (config.timeout_ms == 0 or config.timeout_ms > 270000) return error.InvalidGatewayConfiguration;
     var table_key = try g.wire.readKey(init.gpa, init.io, config.table_key_file);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&table_key));
     var wire = g.wire.Client.init(init.gpa, init.io, config.native_url);

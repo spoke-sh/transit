@@ -164,7 +164,7 @@ pub fn resumeOperation(host: *g.Session, id: u64) !api.Operation {
 }
 pub fn cancel(host: *g.Session, id: u64) !api.Operation {
     _ = try host.fresh(load, .{ host, id });
-    try host.runtime.cancel(&host.observer, id);
+    try host.fresh(g.DatabaseRuntime.cancel, .{ host.runtime, &host.observer, id });
     return status(host, id);
 }
 

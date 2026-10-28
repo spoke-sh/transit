@@ -486,7 +486,10 @@ fn runAccount(runtime: *g.DatabaseRuntime, diagnostics: *telemetry.Runtime) void
     var direct_failure: u16 = 0;
     while (true) {
         const progressed = runtime.tick() catch |err| blk: {
-            if (!g.wire.Client.unavailable(err)) {
+            // Revocation withdraws readiness without discarding the worker.
+            // Restoration can resume the same accepted operations. A stale
+            // activation is a permanent fence and still stops this generation.
+            if (!g.wire.Client.unavailable(err) and !runtime.background.contended(err) and err != error.AccessDenied) {
                 runtime.ready.store(false, .release);
                 diagnostics.event(.{ .name = "sql.account.stopped", .level = .err, .outcome = .failed, .error_type = if (runtime.background.last_rejection) |cause| @tagName(cause) else @errorName(err) });
                 return;

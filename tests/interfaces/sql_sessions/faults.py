@@ -2,6 +2,7 @@
 import http.client
 import http.server
 import json
+import os
 import threading
 import time
 from urllib.parse import urlsplit
@@ -170,7 +171,7 @@ class Faults:
                 release.join()
         # Change the logical frontier so this open needs a new cache pin.
         # A warm SELECT intentionally performs no acquisition.
-        client.execute('INSERT INTO native_sessions VALUES (998, 1)')
+        client.terminal(client.execute('INSERT INTO native_sessions VALUES (998, 1)', list(os.urandom(16)))['operation'])
         self.fail_open = True
         try:
             before = self.failures
@@ -178,7 +179,7 @@ class Faults:
             assert self.failures > before
         finally:
             self.fail_open = False
-        client.execute('DELETE FROM native_sessions WHERE id = 998')
+        client.terminal(client.execute('DELETE FROM native_sessions WHERE id = 998', list(os.urandom(16)))['operation'])
         # The retained pin exists before this failed source open. Its successful
         # cleanup must not erase the capacity diagnosis from the read attempt.
         before = self.failures

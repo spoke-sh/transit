@@ -659,7 +659,7 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
         return self.response(allocator, .{ .operation = if (input.action == .cancel) try g.CapturedOperations.cancel(host, reference.id) else if (input.action == .@"resume") try g.CapturedOperations.resumeOperation(host, reference.id) else try g.CapturedOperations.status(host, reference.id) });
     }
     _ = try operationStatus(host, reference);
-    if (input.action == .cancel) try runtime.cancel(&host.observer, reference.id);
+    if (input.action == .cancel) try host.fresh(g.DatabaseRuntime.cancel, .{ runtime, &host.observer, reference.id });
     if (input.action == .@"resume") try runtime.resumeOperation(&host.observer, reference.id);
     return self.response(allocator, .{ .operation = try operationStatus(host, reference) });
 }
