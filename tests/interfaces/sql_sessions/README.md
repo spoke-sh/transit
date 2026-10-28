@@ -54,6 +54,14 @@ are traced. Measurement starts after finite initialization and ends before repor
 serialization; replacements and retries stay inside it. Counts from independent
 parent peer processes are not attributed to the Transit client.
 
+The separate `just test::sql-gateway` real-authority fixture injects response
+allocation failure into buffered data, empty and metadata results. It also
+fails framing after advancing across three data batches: retrying that ordinal
+must retain every exact row and report the final count once. Buffered repeats
+must remain byte-identical, while credential revocation must reject disclosure
+and clear the cursor. This proves producer failure/retry semantics; it does not
+attribute allocations in the composed source and authority services.
+
 Use `just test::sql-sessions` and the affected installed SQL task from the
 [test module](../../../tasks/test.just). Measurements describe elapsed work;
 they do not replace completion, authorization or recovery assertions.
