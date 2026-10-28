@@ -11,6 +11,76 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## Persistent console statement latency — 2026-10-28
 
+### Write-lifecycle completion experiment
+
+The follow-up to [issue #211](https://github.com/spoke-sh/transit/issues/211)
+extends the persistent console workload to changed, unchanged and zero-match
+UPDATE, DELETE, and typed readback after each mutation family. Exact rows,
+schema, matched/changed counts and verified completion remain acceptance
+conditions. TRUNCATE is modeled as a proposal and is not executed by this test.
+`just test::console-latency-tls 5` runs the same workload in the existing
+unproxied TLS component fixture, separate from the default installation.
+
+A foreground-completion experiment (`881e4d97c`) drives the accepted DML before
+returning submission, rereads pending/cancellation state and skips redundant
+pre-commit inspection. The comparison uses frozen ReleaseSafe binaries from
+`7cd91723efc3f7182ba757c202a8818633642b13` (whose tree equals merged PR #210),
+and the experiment binaries identified in the raw report. The measurement
+driver at `d0b552443616e6b7667b73406d266f86648b6784` has SHA-256
+`a770734b0f28375c768bec6e9259374c1a67f3b548b2667dc9d20874aa34d078`.
+Both complete workloads pass their independent oracles on the same shared
+Linux host, with file-backed local storage and a 30-second native request
+budget. These sequential five-write samples do not establish isolated causal
+effects, tail latency or a service guarantee.
+
+| Console timer median | Merged-build control | Foreground experiment |
+| --- | ---: | ---: |
+| Warm SELECT, six samples | 196 ms | 197 ms |
+| INSERT, five samples | 1,949 ms | 3,150 ms |
+| SELECT after INSERT, five samples | 2,131 ms | 1,905 ms |
+| Changed UPDATE, five samples | 3,606 ms | 4,489 ms |
+| Unchanged UPDATE, five samples | 1,852 ms | 3,172 ms |
+| DELETE, five samples | 2,406 ms | 3,710 ms |
+
+Foreground submission removes the reported wait phase but does not remove
+durable publication work. It regresses INSERT in this comparison; commit
+`9277de972` removes foreground execution and retains only the direct
+`commit_saved` recovery transition, which resolves the original receipt before
+execution without another inspection request. No 10× or 100× improvement is
+claimed from this experiment. Consolidating Catalog acceptance, data commit and
+pending settlement, and deferring immutable publication remain separate work.
+
+Raw reports under `.cache/write-lifecycle/` are
+`control-final-statements.jsonl` (SHA-256
+`33aa173662e2ad5b062a4dc7b4763bfdb675c664863bc4a447172fe36070b76f`)
+and `candidate-statements.jsonl` (SHA-256
+`e748570434d18cc53f535181d8c36b8895b2ccadd156f663fa2536308579e7a4`).
+Each includes executable hashes, source/driver attribution, host load, individual
+timers and exact outputs. The earlier `control-statements.jsonl` uses a prior
+driver without typed readback between mutation families and is not the matched
+control above.
+
+The default installed-server attempt still fails before SQL readiness: native
+`associate` requests exceed the unchanged two-second attempt budget, then
+startup exhausts its restart budget. `installed-statements.jsonl` (SHA-256
+`8cc93afb03a7b5322cc86eac1da897860ec158330112fecbcebeae253cb731ab`)
+contains provenance but no completed statement timings; the private failed
+installation is `/var/tmp/transit-server-proof-xecspoo2`. The TLS component
+comparison does not qualify that installation path.
+
+The first basic-session attempt passes the injected lost `commit_saved` reply
+and original terminal-count assertion, then fails during real console completion:
+an idle `touch` receives `SqlSessionBusy` after cancelled assistance and exits
+the terminal. Its retained log is `sessions-basic.log` (SHA-256
+`bff43e484a58ad6af71d5ec2fd88e73d39463f17c2a0d02d0d4b304d0719b0df`).
+A deterministic editor peer reproduces the exit with the old binary; the repair
+retries only `touch` on the next idle turn, preserving the session and leaving
+expiry/access-denial handling intact. The negative-control log is
+`keepalive-control.log` (SHA-256
+`4894e4cb5f008956960895473f2d1db2612133eb00e8a717303cc47205026b56`).
+
+### Original decoupling comparison
+
 The [console workload](../../../tests/performance/console/statements.py) exercises
 the actual persistent `transit console` with `.timer on`, the human table
 renderer, five single-row INSERTs, exact contents after each write, warm reads
