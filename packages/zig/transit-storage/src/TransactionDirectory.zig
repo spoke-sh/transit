@@ -66,7 +66,6 @@ pub const Page = struct {
     next: ?u64 = null,
 };
 
-allocator: std.mem.Allocator,
 objects: Objects.ObjectStore,
 index: TreeStore,
 root: Root,
@@ -77,7 +76,6 @@ pub fn init(allocator: std.mem.Allocator, objects: Objects.ObjectStore, identity
     try identity.validate();
     if (entry_limit == 0 or index_work_bytes == 0) return error.InvalidTransactionLimits;
     return .{
-        .allocator = allocator,
         .objects = objects,
         .index = try TreeStore.init(allocator, objects, resident_pages),
         .root = .{ .definition = p.Growth.current_definition, .identity = identity, .kind = kind, .entries = null, .count = 0, .writes = 0 },
@@ -145,12 +143,14 @@ fn load(self: *Self, comptime T: type, content: d.Content) !T {
     if (encoded.len != content.bytes or !std.mem.eql(u8, &hash(encoded), &content.sha256) or
         !std.mem.eql(u8, encoded[0..8], "TXDIR1\x00\x00")) return error.InvalidTransactionDirectory;
     if (!std.mem.eql(u8, encoded[8..40], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
-    const parsed = try std.json.parseFromSlice(T, self.allocator, encoded[40..], .{});
-    defer parsed.deinit();
+    var scratch: [max_object_bytes]u8 = undefined;
+    var fixed = std.heap.FixedBufferAllocator.init(&scratch);
+    const parsed = std.json.parseFromSliceLeaky(T, fixed.allocator(), encoded[40..], .{}) catch |err|
+        return if (err == error.OutOfMemory) error.TransactionDecodeLimit else err;
     var canonical: [max_object_bytes]u8 = undefined;
-    if (!std.mem.eql(u8, encoded, try encode(parsed.value, &canonical))) return error.InvalidTransactionDirectory;
+    if (!std.mem.eql(u8, encoded, try encode(parsed, &canonical))) return error.InvalidTransactionDirectory;
     // All directory types are fixed-size values and own no parsed slices.
-    return parsed.value;
+    return parsed;
 }
 
 fn reference(content: d.Content) !pages.Value {

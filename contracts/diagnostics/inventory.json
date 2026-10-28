@@ -27329,7 +27329,8 @@
         "InvalidTransactionLimits": 1,
         "InvalidTransactionPartition": 2,
         "LostAcknowledgement": 3,
-        "OutOfMemory": 1,
+        "OutOfMemory": 2,
+        "TransactionDecodeLimit": 1,
         "TransactionHistoryMissing": 1,
         "TransactionMemoryLimit": 1,
         "TransactionNotFrozen": 2,
@@ -27368,8 +27369,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 47,
-        "catch": 2
+        "try": 46,
+        "catch": 3
       },
       "imports": [
         "TablePartition.zig",
@@ -27388,6 +27389,8 @@
         "InvalidTransactionDirectory": 19,
         "InvalidTransactionLimits": 1,
         "MissingTransactionDirectory": 1,
+        "OutOfMemory": 1,
+        "TransactionDecodeLimit": 1,
         "TransactionIdentityConflict": 3,
         "TransactionParticipantLimit": 2
       },
@@ -27426,8 +27429,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 55,
-        "catch": 0
+        "try": 54,
+        "catch": 1
       },
       "imports": [
         "TransitObjectStore.zig",

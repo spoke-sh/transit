@@ -85,8 +85,11 @@ the participant when resolving the recorded decision.
 
 Each public journal operation meters its temporary heap allocations against
 `Begin.limits.resident_bytes`, including log-read output, directory caches and
-decoding. `resident_peak` reports the most recent operation's heap peak. Fixed
-16 KiB record/object encoding buffers live on the caller's stack; provider-owned
+index decoding. `resident_peak` reports the most recent operation's heap peak.
+Record decoding uses a 16 KiB fixed scratch allocator per call and returns owned
+fixed-size values; traversing entries creates no heap arena for those records.
+Scratch exhaustion returns `TransactionDecodeLimit`. Fixed 16 KiB record/object
+encoding, read and scratch buffers live on the caller's stack; provider-owned
 buffers, staged immutable bytes and caller input are separate. Configured
 exhaustion returns `TransactionMemoryLimit`; a parent allocator failure remains
 `OutOfMemory`. Both preserve the original accepted identity and recovery state.

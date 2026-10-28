@@ -122,14 +122,16 @@ fn encode(record: Record, output: []u8) ![]const u8 {
     return output[0 .. 40 + writer.end];
 }
 
-fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Record {
+fn decode(bytes: []const u8) !Record {
     if (bytes.len <= 40 or bytes.len > max_record_bytes or !std.mem.eql(u8, bytes[0..8], "TXDEC1\x00\x00")) return error.InvalidTransactionHistory;
     if (!std.mem.eql(u8, bytes[8..40], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
-    const parsed = try std.json.parseFromSlice(Record, allocator, bytes[40..], .{});
-    defer parsed.deinit();
+    var scratch: [max_record_bytes]u8 = undefined;
+    var fixed = std.heap.FixedBufferAllocator.init(&scratch);
+    const parsed = std.json.parseFromSliceLeaky(Record, fixed.allocator(), bytes[40..], .{}) catch |err|
+        return if (err == error.OutOfMemory) error.TransactionDecodeLimit else err;
     var canonical: [max_record_bytes]u8 = undefined;
-    if (!std.mem.eql(u8, bytes, try encode(parsed.value, &canonical))) return error.InvalidTransactionHistory;
-    return parsed.value;
+    if (!std.mem.eql(u8, bytes, try encode(parsed, &canonical))) return error.InvalidTransactionHistory;
+    return parsed;
 }
 
 /// A new physical owner checks every retained frame and immutable directory.
@@ -152,7 +154,7 @@ fn recoverBounded(self: *Self) !void {
         const frame = batch.frames[0];
         if (frame.header.partition_id != self.partition or frame.header.lsn != next or frame.header.kind != .policy_control)
             return error.InvalidTransactionHistory;
-        const record = try decode(self.allocator, frame.payload);
+        const record = try decode(frame.payload);
         if (!std.mem.eql(u8, &record.previous, &chain)) return error.InvalidTransactionHistory;
         switch (record.event) {
             .freeze => |binding| {
