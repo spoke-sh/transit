@@ -512,7 +512,7 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
         if (prepared.* == .native) {
             const token = input.token orelse return error.SqlAdmissionTokenRequired;
             slot.acceptance_possible = true;
-            const item = try host.runtime.admit(host.allocator, &host.observer, &host.table, &prepared.native, values, token, digest.?, host.deadline, &host.operation);
+            const item = try host.runtime.submit(host.allocator, &host.observer, &host.table, &prepared.native, values, token, digest.?, host.deadline, &host.operation);
             return .{ .operation = try host.fresh(g.DatabaseRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, item.id }) };
         }
         const result = try host.write(prepared, values);

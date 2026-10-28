@@ -219,7 +219,15 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     from interfaces.sql_sessions.storage import prepare_empty, after_insert
     storage_statement = prepare_empty(first)
     insert_token = list(os.urandom(16))
-    first.terminal(first.execute('INSERT INTO native_sessions VALUES (1, 170141183460469231731687303715884105727)', insert_token)['operation'])
+    if faults is not None:
+        before_commit_losses = faults.commit_reply_losses
+        faults.fail_commit_once = True
+    inserted = first.execute('INSERT INTO native_sessions VALUES (1, 170141183460469231731687303715884105727)', insert_token)['operation']
+    assert inserted['phase'] == 'terminal' and inserted['matched'] == inserted['changed'] == 1, inserted
+    if faults is not None:
+        assert faults.commit_reply_losses == before_commit_losses + 1
+        print(json.dumps(dict(profile='native_sql_foreground_completion', original_commit_reply_lost=True,
+                              terminal_in_submission=True, matched=1, changed=1)), flush=True)
     one = first.execute('SELECT * FROM native_sessions')['batch']
     assert one['rows'][0][1] == (b'\x03' + (2**127 - 1).to_bytes(16, 'little', signed=True)).hex(), one
     # Last-batch retries and a replaced HTTP connection retain the exact result.
