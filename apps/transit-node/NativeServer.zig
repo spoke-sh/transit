@@ -76,6 +76,7 @@ pub fn Host(comptime Provider: type) type {
             before_blocks: u64 = 0,
             before_block_bytes: u64 = 0,
             metrics: ?Work = null,
+            owner_memory: ?DirectRequestMemory.Report = null,
             work_failure: ?[]const u8 = null,
             read_only: bool = true,
             uncertain_mutation: bool = false,
@@ -94,14 +95,10 @@ pub fn Host(comptime Provider: type) type {
                 /// Backing allocations through the handler's allocator before
                 /// writing the response. Excludes separately owned engine/I/O
                 /// buffers; live bytes still belong to this in-flight request.
-                request_memory: ?struct {
-                    alloc_attempts: usize,
-                    growing_resize_attempts: usize,
-                    remap_attempts: usize,
-                    acquired_bytes: usize,
-                    live_bytes: usize,
-                    peak_bytes: usize,
-                } = null,
+                request_memory: ?DirectRequestMemory.Report = null,
+                /// Direct Catalog/Table allocation interval, including the
+                /// retained workspace. Separate from request/response backing.
+                owner_memory: ?DirectRequestMemory.Report = null,
             };
 
             fn beginWork(self: *Server) void {
@@ -142,6 +139,7 @@ pub fn Host(comptime Provider: type) type {
                         .staged_block_bytes = self.engine.page_store.block_payload_bytes_attempted - self.before_block_bytes,
                         .provider = delta,
                         .failure = self.work_failure,
+                        .owner_memory = self.owner_memory,
                     };
                     if (previous) |prior| {
                         inline for (.{ "wait_ns", "work_ns", "cache_hits", "cache_misses", "staged_pages", "staged_bytes", "staged_blocks", "staged_block_bytes" }) |field|
@@ -200,14 +198,7 @@ pub fn Host(comptime Provider: type) type {
                 var count: usize = 1;
                 if (self.metrics) |recorded| {
                     var metrics = recorded;
-                    if (self.allocation_probe) |probe| metrics.request_memory = .{
-                        .alloc_attempts = probe.counts.alloc_attempts,
-                        .growing_resize_attempts = probe.counts.growing_resize_attempts,
-                        .remap_attempts = probe.counts.remap_attempts,
-                        .acquired_bytes = probe.counts.acquired_bytes,
-                        .live_bytes = probe.live_bytes,
-                        .peak_bytes = probe.peak_bytes,
-                    };
+                    if (self.allocation_probe) |probe| metrics.request_memory = DirectRequestMemory.Report.capture(probe);
                     // Diagnostics are optional and never change the authority result.
                     if (std.json.Stringify.value(metrics, .{}, &metric_writer)) |_| {
                         headers[1] = .{ .name = "x-transit-work", .value = metric_writer.buffered() };
@@ -259,22 +250,25 @@ pub fn Host(comptime Provider: type) type {
                     } else false;
                     var budget = self.context.table_memory.request(self.allocator, control);
                     defer std.debug.assert(budget.used == 0);
-                    const response = self.tableWork(request, owner, control, budget.allocator()) catch |err| switch (err) {
-                        error.Canceled => return error.Canceled,
-                        error.OutOfMemory => return self.failure(request, if (budget.exhausted) (if (control) error.ControlCapacity else error.StorageQuota) else err),
-                        error.InvalidBody => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody }),
-                        error.InvalidRequest => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
-                        error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),
-                        error.TableDefinitionChanged => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .TableDefinitionChanged }),
-                        error.StaleClientLease, error.ClientTokenConflict, error.ClientBudgetConflict, error.ClientOperationConflict, error.ClientOperationPending, error.TransactionCatalogChanged, error.TransactionIdentityConflict => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
-                        error.ClientTokenCapacity, error.TransactionCapacity, error.TransactionAccountCapacity => return self.json(request, .service_unavailable, wire.protocol.ErrorResponse{ .err = .StorageQuota }),
-                        error.TransactionOperationRequired, error.InvalidTransactionBegin, error.InvalidTransactionDirectory, error.InvalidTransactionLimits, error.MissingTransactionDirectory, error.UnsupportedTransactionParticipant, error.ReadOnlyTransaction => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
-                        error.SourceChanged, error.DataIdentityConflict, error.CatalogObjectBusy, error.CatalogObservationChanged, error.TableDataChanged, error.TableHistoryConflict, error.NamedResourceNotAdmitted, error.NamedResourceAllocationUnreconciled, error.NamedResourceAllocationMismatch, error.NamedResourceIdentityConflict, error.NativeAllocationSequenceChanged, error.NativeAllocationBusy => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
-                        error.TableSnapshotReleased, error.TableSnapshotNotPinned => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .QueryExpired }),
-                        error.TableHistoryMissing, error.WalHistoryMissing, error.WalHistoryTrimmed => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .HistoryReclaimed }),
-                        error.InvalidTableBasis, error.TableHistoryRetentionRequired, error.IncompatibleColumnEncoding, error.IncompatibleColumnCollation, error.UnsupportedColumnCollation, error.IbmHfpUnderflow, error.IbmHfpOverflow, error.UnrepresentableEbcdic037 => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
-                        error.ClientOperationMissing, error.InvalidDirectRecord, error.DirectRecordMissing, error.InvalidClientToken, error.InvalidPlanEncoding, error.InvalidProjection, error.InvalidTableBinary, error.TablePayloadTooLarge, error.InvalidTableMutationIntent, error.InvalidInsertRowIdentity, error.InvalidTableStatementIntent, error.InvalidTableAccessRequest, error.InvalidMutationPlan, error.MutationBatchTooLarge, error.UnsupportedTableMutationShape, error.TableBatchTooLarge, error.InvalidTableReadBudget, error.InvalidTableCursor, error.InvalidTableSnapshotCursor, error.TableReadBudgetTooSmall, error.InvalidTableKey, error.TableSchemaChanged => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
-                        else => return self.failure(request, err),
+                    const response = self.tableWork(request, owner, control, budget.allocator()) catch |err| {
+                        self.work_failure = @errorName(err);
+                        switch (err) {
+                            error.Canceled => return error.Canceled,
+                            error.OutOfMemory => return self.failure(request, if (budget.exhausted) (if (control) error.ControlCapacity else error.StorageQuota) else err),
+                            error.InvalidBody => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody }),
+                            error.InvalidRequest => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
+                            error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),
+                            error.TableDefinitionChanged => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .TableDefinitionChanged }),
+                            error.StaleClientLease, error.ClientTokenConflict, error.ClientBudgetConflict, error.ClientOperationConflict, error.ClientOperationPending, error.TransactionCatalogChanged, error.TransactionIdentityConflict => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
+                            error.ClientTokenCapacity, error.TransactionCapacity, error.TransactionAccountCapacity => return self.json(request, .service_unavailable, wire.protocol.ErrorResponse{ .err = .StorageQuota }),
+                            error.TransactionOperationRequired, error.InvalidTransactionBegin, error.InvalidTransactionDirectory, error.InvalidTransactionLimits, error.MissingTransactionDirectory, error.UnsupportedTransactionParticipant, error.ReadOnlyTransaction => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
+                            error.SourceChanged, error.DataIdentityConflict, error.CatalogObjectBusy, error.CatalogObservationChanged, error.TableDataChanged, error.TableHistoryConflict, error.NamedResourceNotAdmitted, error.NamedResourceAllocationUnreconciled, error.NamedResourceAllocationMismatch, error.NamedResourceIdentityConflict, error.NativeAllocationSequenceChanged, error.NativeAllocationBusy => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
+                            error.TableSnapshotReleased, error.TableSnapshotNotPinned => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .QueryExpired }),
+                            error.TableHistoryMissing, error.WalHistoryMissing, error.WalHistoryTrimmed => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .HistoryReclaimed }),
+                            error.InvalidTableBasis, error.TableHistoryRetentionRequired, error.IncompatibleColumnEncoding, error.IncompatibleColumnCollation, error.UnsupportedColumnCollation, error.IbmHfpUnderflow, error.IbmHfpOverflow, error.UnrepresentableEbcdic037 => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
+                            error.ClientOperationMissing, error.InvalidDirectRecord, error.DirectRecordMissing, error.InvalidClientToken, error.InvalidPlanEncoding, error.InvalidProjection, error.InvalidTableBinary, error.TablePayloadTooLarge, error.InvalidTableMutationIntent, error.InvalidInsertRowIdentity, error.InvalidTableStatementIntent, error.InvalidTableAccessRequest, error.InvalidMutationPlan, error.MutationBatchTooLarge, error.UnsupportedTableMutationShape, error.TableBatchTooLarge, error.InvalidTableReadBudget, error.InvalidTableCursor, error.InvalidTableSnapshotCursor, error.TableReadBudgetTooSmall, error.InvalidTableKey, error.TableSchemaChanged => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
+                            else => return self.failure(request, err),
+                        }
                     };
                     defer budget.allocator().free(response);
                     // Typed results distinguish admission, commitment and reads;
@@ -316,7 +310,7 @@ pub fn Host(comptime Provider: type) type {
                             self.changed.publishAll(self.io);
                         }
                     }
-                    break :execution owner.execute(self.io, self.engine, &arena, backing, parsed.value);
+                    break :execution owner.executeMeasured(self.io, self.engine, &arena, backing, parsed.value, control, &self.owner_memory);
                 };
             }
             fn failure(self: *Server, request: *std.http.Server.Request, err: anyerror) !void {

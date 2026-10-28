@@ -3409,7 +3409,7 @@
         "CatalogObjectBusy": 1,
         "CatalogObjectMissing": 1,
         "CatalogObservationChanged": 1,
-        "CatalogRegistrationRequired": 7,
+        "CatalogRegistrationRequired": 8,
         "ClientOperationConflict": 2,
         "ClientOperationMissing": 4,
         "ClientOperationPending": 6,
@@ -3637,7 +3637,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 875,
+        "try": 877,
         "catch": 11
       },
       "imports": [
@@ -4083,7 +4083,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 179,
+        "try": 180,
         "catch": 1
       },
       "imports": [
@@ -27039,7 +27039,7 @@
         "LostAcknowledgement": 1,
         "MissingTableInterpretation": 2,
         "OutOfMemory": 3,
-        "PrivateTableWorkspace": 2,
+        "PrivateTableWorkspace": 3,
         "QueryConflict": 1,
         "QueryTypeError": 2,
         "StorageCandidateTooLarge": 1,
@@ -27196,6 +27196,7 @@
         "recover()": "<inferred>",
         "recoverSince()": "<inferred>",
         "recoveryState()": "<inferred>",
+        "refresh()": "<inferred>",
         "releaseSnapshot()": "<inferred>",
         "reply()": "<inferred>",
         "requireAdmissionBasis()": "<inferred>",
@@ -27232,7 +27233,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 626,
+        "try": 630,
         "catch": 16
       },
       "imports": [

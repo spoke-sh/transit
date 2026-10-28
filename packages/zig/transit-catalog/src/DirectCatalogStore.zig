@@ -98,7 +98,7 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
 
 pub fn refresh(self: *Self) !void {
     try self.ready();
-    if (try self.log.tail(self.root.configuration.partition) != self.root.next_lsn) try self.recover();
+    if (try self.log.tail(self.root.configuration.partition) != self.root.next_lsn) try self.recoverSince(try self.recoveryState());
 }
 
 fn successor(before: r.Root, after: r.Root) !void {

@@ -15,6 +15,12 @@ persisted or supplied by callers, and cannot bypass full recovery after physical
 owner replacement. An uncertain append prevents exporting a hint. Corruption in
 an earlier already-validated byte is detected when that byte is next accessed,
 or during cold recovery; prefix reuse does not continuously scrub history.
+A serialized live Table can use `refresh` before reuse. It checks the log tail
+and preserves owned declarations and verified index/segment buffers when the
+frontier is unchanged. A different tail validates the saved boundary and newer
+history through `recoverSince`; an uncertain owner requires recovery. The caller
+must keep the allocator and provider contexts alive until `deinit`, and must
+never reuse a private `TableWorkspace` as a public Table owner.
 The [direct catalog](../../transit-catalog/README.md) composes this component
 with name publication and native authorization. A configured local node exposes
 the signed [direct Table service](../../../../contracts/DIRECT_TABLE_V1.md),

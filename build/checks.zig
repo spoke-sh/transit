@@ -367,7 +367,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = catalog.module("transit_catalog") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = storage.module("transit_storage") })).step);
     const local_native_tests = b.addRunArtifact(b.addTest(.{ .root_module = local_backend.module("transit_backend_local") }));
-    const local_catalog_tests = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{
+    const local_catalog_tests = b.addRunArtifact(b.addTest(.{ .filters = b.option([]const []const u8, "local-catalog-filter", "Select local catalog tests during development") orelse &.{}, .root_module = b.createModule(.{
         .root_source_file = b.path("apps/transit-node/LocalCatalogPolicy.zig"),
         .target = target,
         .optimize = optimize,

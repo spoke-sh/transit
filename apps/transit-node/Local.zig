@@ -96,7 +96,8 @@ fn runOwner(init: std.process.Init, config: Config, mode: anytype, diagnostics: 
     try init.io.randomSecure(&snapshot_epoch);
     engine.snapshot_epoch = snapshot_epoch;
     var table: ?TableHost = if (config.table) |configured| try TableHost.init(init.gpa, init.io, configured, &engine) else null;
-    const lanes = try init.gpa.alloc(Lane, 10);
+    defer if (table) |*host| host.deinit();
+    const lanes = try init.gpa.alloc(Lane, TableHost.request_owners);
     defer init.gpa.free(lanes);
     var initialized: usize = 0;
     defer for (lanes[0..initialized]) |*lane| lane.pages.deinit();

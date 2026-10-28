@@ -236,9 +236,12 @@ recovery can advance the shared prefix; a failed uncertain append cannot export
 newer state. The next request resolves that suffix from the last validated
 prefix. Final native authorization remains independent of catalog recovery.
 
-For an unchanged nonempty catalog, this path reads one log boundary instead of
-the complete prefix and its referenced operations. Directory-root checks and
-the requested operation still require storage work. Constant retained cache
+A cold request workspace reads one log boundary instead of the complete prefix
+and its referenced operations. A retained `DirectCatalogStore` checks its live
+log tail; when unchanged, it preserves its verified root and index pages without
+reading that boundary again. A changed tail uses `recoverSince` before the next
+operation. Directory-root checks on recovery and the requested operation still
+require storage work. Constant retained cache
 size does not establish constant operation cost, Table recovery cost or restart
 time. A replacement owner always replays the full retained catalog. Reuse trusts
 previously validated interior frames during the live owner's lifetime; it is
@@ -292,11 +295,39 @@ forces eviction and name changes; the
 [native policy schedule](../../../apps/transit-node/local_catalog_policy_test.zig)
 checks revocation after buffering with a warm hint, and compares cold/warm name
 lookups through the host before replacing the native object's owner. These are component and
-composition checks, not a measured end-to-end speedup. Increasing page capacity
-alone would not remove repeated history validation; retaining complete Table
-owners could additionally reuse pages but requires separate allocator, lifetime
-and memory accounting. Prefix reuse deliberately retains no request allocator
-or provider handle.
+composition checks, not a measured end-to-end speedup. Prefix hints retain no
+request allocator or provider handle.
+
+The host also owns ten ordinary and two reserved control workspaces. Each
+[`LocalTableService.Resident`](../../../apps/transit-node/LocalTableService.zig)
+retains one catalog and at most one Table, including owned declaration, index
+pages and segment buffers. A free workspace is borrowed exclusively; the
+existing directory and Table locks still order operations. Its stable allocator
+and provider contexts outlive every borrowed view. Matching the complete original
+seed and partition permits Table reuse. `TablePartition.refresh` checks the live
+log tail and validates a changed suffix before serving; changing Tables evicts
+only volatile state. Nested views move their owners out of the slot, so they
+cannot alias a mutable cached Table. Workspace destruction releases all retained
+allocations before backend replacement.
+
+Retained and temporary workspace allocations share an explicit budget: 256 MiB
+in aggregate for ordinary work, 64 MiB for control, and 128/64 MiB respectively
+per workspace. These bounds are separate from parsed request/response budgets.
+Exhaustion refuses the request and discards its workspace; it cannot discard
+accepted data or consume the other pool's reserve. Failed requests, including
+uncertain publication and denied final disclosure, also discard the borrowed
+workspace. Every request obtains fresh native policy guards. The native policy
+schedule compares warm/cold lookups, observes externally appended pin/release
+records, reads a retained cut, and exercises control capacity after data quota
+exhaustion. Optional `owner_memory` diagnostics distinguish workspace allocation
+and retained bytes from request/response allocation.
+
+This reuse assumes accepted immutable content remains unchanged within the
+exclusive storage lifetime. It does not continuously rescan historical bytes.
+Full replacement recovery, suffix integrity checks and current authorization
+remain separate obligations. Persisted checkpoints can reduce replacement cost;
+retained owners reduce repeated live reads and allocation. Neither mechanism
+reduces the number of durable publications required by a new mutation.
 
 ### Optimistic current reads and retained cuts
 

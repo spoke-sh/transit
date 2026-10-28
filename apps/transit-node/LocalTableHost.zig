@@ -9,6 +9,8 @@ const w = c.DirectTableProtocol;
 pub const Protocol = w;
 const Self = @This();
 const stripe_count = 64;
+pub const request_owners = 10;
+const ResidentSlot = struct { mutex: std.Io.Mutex = .init, value: ?*Service.Resident = null };
 pub const Config = struct {
     catalog: c.DirectCatalog.Configuration,
     registrar: struct { principal: u64, seed_file: []const u8, role: ?u64 = null },
@@ -28,6 +30,20 @@ tables: [stripe_count]std.Io.Mutex = @splat(.init),
 /// their hint too; the resolved object/partition must still match at open.
 /// Collision causes full recovery, never a limit on durable Table population.
 table_recovery: [stripe_count]?c.storage.TablePartition.RecoveryState = @splat(null),
+residents: [request_owners]ResidentSlot = @splat(.{}),
+control_residents: [2]ResidentSlot = @splat(.{}),
+/// Retained caches and owner work have a separate aggregate bound from parsed
+/// requests/responses. Data exhaustion cannot consume the control reserve.
+resident_memory: @import("DirectRequestMemory.zig") = .{},
+
+/// The embedding owner joins every request before closing retained workspaces.
+pub fn deinit(self: *Self) void {
+    for (&self.residents) |*slot| if (slot.value) |resident| resident.destroy();
+    for (&self.control_residents) |*slot| if (slot.value) |resident| resident.destroy();
+    std.debug.assert(self.resident_memory.data.used.load(.acquire) == 0);
+    std.debug.assert(self.resident_memory.control.used.load(.acquire) == 0);
+    self.* = undefined;
+}
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *backend.DataAuthority.Engine) !Self {
     try config.catalog.validate();
@@ -95,6 +111,13 @@ fn stripe(action: w.Action) ?usize {
     };
 }
 pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request) ![]const u8 {
+    return self.executeCapacity(io, engine, arena, output_allocator, request, false);
+}
+pub fn executeCapacity(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool) ![]const u8 {
+    return self.executeMeasured(io, engine, arena, output_allocator, request, control, null);
+}
+pub fn executeMeasured(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report) ![]const u8 {
+    if (control and request.transport().control == null) return error.InvalidRequest;
     const write = exclusive(request.action);
     if (write) try self.directory.lock(io) else try self.directory.lockShared(io);
     defer if (write) self.directory.unlock(io) else self.directory.unlockShared(io);
@@ -112,8 +135,30 @@ pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, a
     }
     var options = self.options;
     if (index) |slot| options.table_recovery = &self.table_recovery[slot];
-    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered };
-    return service.execute(arena, output_allocator, request);
+    // Storage owners contain no request pointers and can serve any free lane.
+    // Their count is bounded independently of the durable Table population.
+    const slots: []ResidentSlot = if (control) &self.control_residents else &self.residents;
+    const resident = for (slots) |*slot| {
+        if (slot.mutex.tryLock()) break slot;
+    } else blk: {
+        try slots[0].mutex.lock(io);
+        break :blk &slots[0];
+    };
+    defer resident.mutex.unlock(io);
+    if (resident.value) |value| value.probe.begin(false) else resident.value = Service.Resident.create(engine.journal.backend.allocator, self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
+    errdefer {
+        resident.value.?.destroy();
+        resident.value = null;
+    }
+    defer if (memory_report) |report| {
+        report.* = @import("DirectRequestMemory.zig").Report.capture(&resident.value.?.probe);
+    };
+    var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value };
+    return service.execute(arena, output_allocator, request) catch |err| {
+        if (err == error.OutOfMemory and resident.value.?.memory.exhausted)
+            return if (control) error.ControlCapacity else error.StorageQuota;
+        return err;
+    };
 }
 
 test "projected and filtered Table reads share the retained object's host lock" {

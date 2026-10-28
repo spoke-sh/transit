@@ -209,7 +209,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::growing-load` | Measures independently offered public v1 requests, queueing, revocation latency, exact retries, state drain and restart |
 | `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and pinned native MinIO; retains each sample |
 | `just test::growing-service` | Qualifies the explicit v1 node/client profile, bounded state access and uncertain reply recovery on one CPU using ReleaseSafe binaries |
-| `just test::local-catalog` | Checks the internal direct catalog against signed native registrations, ownership changes and resource retirement on local disk |
+| `just test::local-catalog` | Checks the internal direct catalog against signed native registrations, ownership changes and resource retirement on local disk. For focused development use `zig build test-local-catalog -Dlocal-catalog-filter="test name"`; the task runs the full target |
 | `just test::node-recovery` | Qualifies read-only retained startup through provider connection loss and unavailability, finite exhaustion, and denied/missing/genesis rejection |
 | `just test::node-concurrency` | Uses provider barriers to check overlapping signed reads/commits, revocation during a read and one receipt for concurrent exact retries |
 | `just test::block-storage` | Checks immutable block/index primitives through disk restart, failed staging and corrupt/missing bytes; native turn and SQL integration are separate |

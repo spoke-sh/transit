@@ -587,21 +587,32 @@ exclusive owner and immutable log; do not persist it, accept it from a caller,
 or use it to skip recovery after replacement. An uncertain append prevents
 exporting newer state until recovery resolves the original history.
 
-The local host retains one such value across request arenas. It retains no
-permissions or response data: native rights and final disclosure checks still
-run for every request. This avoids replaying an unchanged catalog prefix for
-each operation. For object-scoped requests and automatic flushing it also retains
-at most 64 Table root/chain hints, one per serialized Table lock stripe.
-`Options.table_recovery` passes a borrowed hint slot into a request-local catalog;
-the embedding owner must serialize it until every returned view is closed.
-Each Table open rechecks its boundary, declaration and current top-level roots,
-then validates newer records. A collision evicts only volatile history state;
-durable Tables, pins and pending work have no corresponding population limit.
-Uncertain storage, failed recovery and failed request disclosure clear the hint.
-Directory scans and name resolution still open Tables without these host hints.
-Cold recovery and immutable page/segment reads retain their own costs; the hints
-neither authorize log trimming nor detect every
-change to an already-validated historical byte during the live owner's lifetime.
+A live Catalog can retain its verified index pages. `store.refresh` compares the
+current log frontier and validates any successor from its checked prefix. An
+unchanged frontier requires no boundary reread or cache reconstruction. This
+relies on the same exclusive physical-owner and immutable-history assumptions;
+replacement still performs full recovery, and uncertainty prevents warm reuse.
+
+The local host uses a bounded pool of serialized Catalog workspaces. Optional
+`Options.table_owner` borrows one movable `CachedTable` slot whose stable provider
+contexts and allocator outlive every view. The exact initial seed and partition
+must match before reuse. `TablePartition.refresh` checks the current frontier and
+validates a changed suffix; it retains decoded pages/declaration on an unchanged
+frontier. Closing a view returns only its owned Table state to that slot, with no
+request arena, policy or result pointers. A nested or different-Table view can
+replace a cached entry without releasing a durable pin or forgetting accepted
+work. The embedding host destroys all slots before closing their providers.
+
+Cold workspaces and physical maintenance can also use
+`Options.table_recovery`, a borrowed root/chain hint serialized until every view
+closes. The local host retains at most 64 hints. A cold open validates a matching
+hint's boundary, declaration and current roots; a collision performs ordinary
+recovery. These volatile capacities do not limit durable Table count. Failed
+requests discard their workspace and hint. Current native rights, lifetimes and
+final disclosure are checked independently of every cache. This mechanism does
+not continuously scrub already-validated historical bytes or authorize trimming.
+The [node guide](../../../../apps/transit-node/README.md) states aggregate and
+per-workspace memory limits and the separate request/response accounting.
 
 `admitRows`, `performRows`, `rowStatus` and `cancelRows` use the Table's durable
 operation records under current native rights. `applyRows` composes admission
