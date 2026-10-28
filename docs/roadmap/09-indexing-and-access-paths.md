@@ -1,4 +1,4 @@
-# 8. Indexing model, access paths and online maintenance
+# 9. Indexing model, access paths and online maintenance
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -16,8 +16,8 @@ Consume [data identities](01-declarative-data-lifecycle.md),
 [installed lifecycles](03-live-storage-and-sql-cutover.md),
 [statement outcomes](04-statement-results-and-consumption.md),
 [transactions](05-transactions-and-atomic-composition.md),
-[shared clients](06-client-foundation-and-language-apis.md) and
-[collations/historical catalogs](07-standards-and-catalogs.md).
+[shared clients](07-client-foundation-and-language-apis.md) and
+[collations/historical catalogs](08-standards-and-catalogs.md).
 Resolve index identity, key semantics, constraint dependencies and coverage with
 those owners before their dependent formats; this delivery position does not
 postpone foundational contract work.
@@ -33,7 +33,7 @@ indexes, pruning, range reads and local recovery. The transaction milestone owns
 every constraint and isolation guarantee it advertises. Neither can defer an
 unmet acceptance criterion here. This milestone adds the shared indexing model,
 secondary access paths, online lifecycle and basic planner integration. Later
-[performance work](10-data-structures-and-performance.md) compares and optimizes
+[performance work](11-data-structures-and-performance.md) compares and optimizes
 qualified implementations; a safe usable baseline is required here.
 
 At source `8309a0dc`, the storage component's
@@ -95,7 +95,7 @@ does not supply a portable cross-vendor indexing grammar.
    whole-Table aborts while still preventing phantoms and write skew. Enforce
    declarative row-level `CHECK` constraints and index-backed cross-table
    `FOREIGN KEY` constraints (`RESTRICT`, `NO ACTION`, `CASCADE`, `SET NULL`) from
-   [Milestone 7](07-standards-and-catalogs.md) within the transaction domain,
+   [Milestone 8](08-standards-and-catalogs.md) within the transaction domain,
    requiring supporting parent/child indexes so parent deletes/updates and child
    inserts validate without unindexed full-table scans or parent-delete /
    child-insert races. Build secondary indexes and execute **online phased Table
@@ -123,8 +123,8 @@ does not supply a portable cross-vendor indexing grammar.
    validate updates that enter or leave the indexed subset. Expression-key and
    spatial indexes require their own admitted profiles; segment-backed inverted
    full-text (BM25) and vector/hybrid search indexes are owned by
-   [multi-model and foreign relations](13-multi-model-and-foreign-relations.md)
-   and [reactive agent context](26-reactive-context-and-agent-activation.md).
+   [multi-model and foreign relations](14-multi-model-and-foreign-relations.md)
+   and [reactive agent context](27-reactive-context-and-agent-activation.md).
 5. **Integrate the planner and shared public operations.** Expose define, inspect,
    build/rebuild and retire/drop through owning typed operations and SQL adapters,
    using shared statement outcomes and original-operation recovery. Define DDL
@@ -167,21 +167,21 @@ success as winning a map microbenchmark. Record scoped results in the
 
 ## Later owners
 
-- [Managed computations](09-sql-and-dataflows.md) use complete source commits
+- [Managed computations](10-sql-and-dataflows.md) use complete source commits
   and compatible access paths without equating an index generation to a derived
   computation's completed revision.
-- [Multi-model access](13-multi-model-and-foreign-relations.md) qualifies graph
+- [Multi-model access](14-multi-model-and-foreign-relations.md) qualifies graph
   adjacency and selected document projections against this lifecycle; specialized
   index semantics and external-source coverage need independent evidence.
-- [Branches](14-branches-merges-and-restore.md) qualify sharing, divergence,
+- [Branches](15-branches-merges-and-restore.md) qualify sharing, divergence,
   constraint validation and GC reachability. Immutable reuse alone supplies no
   constant-time preparation, merge or historical-correctness guarantee.
-- [Providers](17-storage-providers-and-concurrency.md),
-  [replication](18-replication-and-failover.md),
-  [operations](19-operations-and-recovery.md) and
-  [clustered execution](20-clustered-execution.md) extend writer scope, copy/rebuild
+- [Providers](18-storage-providers-and-concurrency.md),
+  [replication](19-replication-and-failover.md),
+  [operations](20-operations-and-recovery.md) and
+  [clustered execution](21-clustered-execution.md) extend writer scope, copy/rebuild
   decisions, recovery readiness and distributed uniqueness explicitly.
-- [Board](24-board-reimplementation.md) presents shared definitions, progress,
+- [Board](25-board-reimplementation.md) presents shared definitions, progress,
   coverage and plans. Inspection remains read-only; administrative actions use
   separately authorized public operations.
 

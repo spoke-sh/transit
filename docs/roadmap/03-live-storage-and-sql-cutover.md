@@ -95,7 +95,7 @@ executables may remain supported deployment entry points over the same modules;
 the default local profile must no longer need them beside `transit`. Application
 workers and external connectors remain separately installed applications.
 Release signing, platform expansion and distribution channels remain in
-[milestone 30](30-releases.md).
+[milestone 31](31-releases.md).
 
 **D3 — Limit lazy evolution to edits with a proved projection.** Include
 non-key column rename, nullable/constant-default ADD COLUMN and supported
@@ -107,7 +107,7 @@ than converting every absent historical value to NULL. Key, type, codec,
 collation and constraint changes that require validation/reindexing retain an
 explicit bounded existing path or explicit refusal. General online rewrites,
 new constraints and arbitrary historical SQL remain in milestones
-[7](07-standards-and-catalogs.md) and [8](08-indexing-and-access-paths.md).
+[8](08-standards-and-catalogs.md) and [9](09-indexing-and-access-paths.md).
 
 **D4 — Compose maintenance; do not widen logical retention.** Automatic flush,
 archive/checkpoint, bounded compaction and safe collection operate within
@@ -116,9 +116,9 @@ default. Physical WAL trimming needs recoverable archive/checkpoint coverage;
 logical expiry needs explicit policy; deletion additionally needs a complete
 retained graph and read-lifetime fences. These are separate transitions.
 Automatic computation activation stays in
-[milestone 9](09-sql-and-dataflows.md), distributed providers/writers in
-[15](17-storage-providers-and-concurrency.md), and general cache/index/group-commit
-optimization in [10](10-data-structures-and-performance.md).
+[milestone 10](10-sql-and-dataflows.md), distributed providers/writers in
+[15](18-storage-providers-and-concurrency.md), and general cache/index/group-commit
+optimization in [11](11-data-structures-and-performance.md).
 
 The existing [SQL session contract](../../contracts/SQL_SESSION_V1.md) remains
 the result boundary. Fix storage/read ownership, current-policy disclosure and
@@ -986,7 +986,7 @@ to this installed integration owner. Preserve #108's original acceptance gates:
   identities, requested lifetime, actual result evidence and data-source
   freshness. SQL/SDK and Board projections reuse qualified operations; reading
   or explaining a declaration activates no work. Automatic scheduling stays
-  with [managed computations](09-sql-and-dataflows.md).
+  with [managed computations](10-sql-and-dataflows.md).
 
 Original lifecycle acceptance, retained from milestone 1:
 
@@ -1009,7 +1009,7 @@ Original lifecycle acceptance, retained from milestone 1:
   These are review questions; the implementation must define exact status types.
 
 Distributed-provider and concurrent-writer integration transfers explicitly to
-[milestone 17](17-storage-providers-and-concurrency.md), retaining #117/#121 and
+[milestone 18](18-storage-providers-and-concurrency.md), retaining #117/#121 and
 their #124 proof gates. This milestone remains In Progress. #108's delivered
 lifecycle acceptance is recorded separately; #110 retains the remaining installed
 storage, maintenance and performance obligations. Neither the split nor the
@@ -1077,8 +1077,8 @@ paged-manifest clarification of the original artifact gate.
    into the requested table definition, avoiding synchronous full-table segment
    rewrites on the interactive DDL path while deferring physical rewrites to
    background compaction or the phased online rewrite contract in
-   [historical catalogs](07-standards-and-catalogs.md) and
-   [online maintenance](08-indexing-and-access-paths.md).
+   [historical catalogs](08-standards-and-catalogs.md) and
+   [online maintenance](09-indexing-and-access-paths.md).
    Remove pre-commit mirrors, dummy leases/time, swallowed errors and borrowed
    command memory. Retire superseded Table staging/storage consumers through
    #112 rather than shipping dual writable authorities or silent fallbacks.
@@ -1115,7 +1115,7 @@ paged-manifest clarification of the original artifact gate.
 Record installed local baselines for durable data operations and native runtime
 work, separating admission, WAL sync, execution/turn commit, recovery and result
 delivery. Include candidate segments, range-read bytes and peak resident memory.
-The later [performance scorecard](10-data-structures-and-performance.md) extends
+The later [performance scorecard](11-data-structures-and-performance.md) extends
 these measurements; it cannot replace this cutover's existing matched controls
 with library-only timings or defer a missing bounded access path.
 

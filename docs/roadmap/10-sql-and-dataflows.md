@@ -1,4 +1,4 @@
-# 9. Managed computations and WAL-activated dataflows
+# 10. Managed computations and WAL-activated dataflows
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -7,6 +7,7 @@ source basis, completed revision and pending or blocked work while Transit owns
 the qualified scheduling, WAL-driven delta activation and recovery. Extend the
 [shared lifecycle](01-declarative-data-lifecycle.md),
 [four-tier storage hierarchy](02-storage-and-query-performance.md),
+[declarative streams, queues and durable runtime](06-streams-queues-and-durable-runtime.md),
 [SQL reference](../handbook/reference/sql.md) and
 [grammar inventory](../handbook/reference/sql/grammar-surface.md).
 
@@ -72,12 +73,12 @@ half-committed transaction as a completed result.
 
 ## Remaining work
 
-Consume [index coverage and access paths](08-indexing-and-access-paths.md) without
+Consume [index coverage and access paths](09-indexing-and-access-paths.md) without
 changing source cuts or completed-revision meaning. Preserve durable ordered
 operator roots, checkpoint/input progress and retained versions when adding
 mutable working-state acceleration. Establish finite/maintained correctness,
 spill and freshness baselines here; the
-[structure/planner/runtime owner](10-data-structures-and-performance.md) then
+[structure/planner/runtime owner](11-data-structures-and-performance.md) then
 compares optimized structures and integrated local workloads. Its later delivery
 cannot defer this milestone's bounded execution or activation/recovery gates.
 
@@ -123,7 +124,7 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   owns session control, atomicity/isolation, DDL/constraint interactions and
   transaction-bound plan invalidation; those features do not all become transaction
   syntax merely because they can execute in a transaction. SQL `MERGE` is separate
-  from branch merge. [Foreign relations](13-multi-model-and-foreign-relations.md)
+  from branch merge. [Foreign relations](14-multi-model-and-foreign-relations.md)
   now owns typed `COPY`/import/export and streaming CDC ingress together with its
   actual format adapters.
 - Extend the common dependency lifecycle to connections, sources and sinks,
@@ -139,13 +140,13 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
 
 ## Prerequisites and completion
 
-The later [reactive context milestone](26-reactive-context-and-agent-activation.md)
+The later [reactive context milestone](27-reactive-context-and-agent-activation.md)
 uses this scheduling and completed-result evidence for business conditions,
 durable application interests and MCP subscriptions/tasks. This owner supplies
 computation progress; a changed source or delivered notification alone cannot
 establish that an agent ran or a business action completed.
 
-Historical operations consume [catalog contracts](07-standards-and-catalogs.md).
+Historical operations consume [catalog contracts](08-standards-and-catalogs.md).
 Branch merge and SQL `MERGE` remain distinct. Fuze owns relational and incremental
 vector computation; Station and application owners coordinate stateful workflows
 and external effects above a generic kernel.

@@ -1081,7 +1081,7 @@ and sum rewrites remain excluded, with reasons in the model.
 
 The SQL reference now indexes unsupported INSERT/UPDATE/DELETE operations and
 separates types, functions/operators and streaming/effect boundaries. The
-[SQL and dataflows](../../roadmap/09-sql-and-dataflows.md) records proposed contracts and proof
+[SQL and dataflows](../../roadmap/10-sql-and-dataflows.md) records proposed contracts and proof
 gates; it does not establish executable mutation or continuous SQL support.
 
 Working-tree validation with the pinned Nix development shell:

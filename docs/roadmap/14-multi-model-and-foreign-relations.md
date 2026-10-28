@@ -1,11 +1,11 @@
-# 13. Multi-model and multi-format foreign relations
+# 14. Multi-model and multi-format foreign relations
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
 Compose KV, Table, Document, Graph and external dataset formats using the
 [`.tseg` codec and collation architecture](02-storage-and-query-performance.md),
-[standards/semantic contracts](07-standards-and-catalogs.md) and
-[declaration/dataflow lifecycle](09-sql-and-dataflows.md).
+[standards/semantic contracts](08-standards-and-catalogs.md) and
+[declaration/dataflow lifecycle](10-sql-and-dataflows.md).
 
 Use the shared object/definition identities, policy references and inspection
 model from the [data lifecycle](01-declarative-data-lifecycle.md). Every
@@ -25,8 +25,8 @@ participants in a native atomic commit.
 
 ## Delivery sequence
 
-Reuse [index identities, maintenance and coverage](08-indexing-and-access-paths.md)
-and [first-class strings and vectorized search](11-vectorized-strings-and-search.md)
+Reuse [index identities, maintenance and coverage](09-indexing-and-access-paths.md)
+and [first-class strings and vectorized search](12-vectorized-strings-and-search.md)
 for graph adjacency, admitted document projections, **segment-backed Full-Text
 Search (BM25)** and **Vector / Hybrid Search** across Tables, Documents and
 foreign projections. Qualify each specialized key/predicate, scoring/distance
@@ -34,8 +34,8 @@ function and source-refresh profile; ordered index support alone does not delive
 inverted full-text, document-path or vector search without the dedicated segment
 layouts and recall/exactness contracts below. External statistics and indexes
 must match the captured manifest and comparison semantics. Extend the
-[performance scorecard](10-data-structures-and-performance.md) and
-[string/search scorecard](11-vectorized-strings-and-search.md) with actual
+[performance scorecard](11-data-structures-and-performance.md) and
+[string/search scorecard](12-vectorized-strings-and-search.md) with actual
 foreign decoding, pruning, graph multiplicity, multi-model full-text/vector
 retrieval, streaming CDC ingestion and import/export costs.
 
@@ -44,12 +44,12 @@ retrieval, streaming CDC ingestion and import/export costs.
    behavior with no implicit conflict winner or silent default value.
 2. **Map finite property graphs over existing resources:** lower fixed-pattern
    SQL/PGQ through graph-aware `Fuze` operators and
-   [Milestone 10's](10-data-structures-and-performance.md) Diamond-Hardened /
+   [Milestone 11's](11-data-structures-and-performance.md) Diamond-Hardened /
    Worst-Case Optimal Joins (WCOJ) over `.tseg` adjacency/edge indexes so
    triangle and cyclic graph patterns avoid quadratic intermediate blowups while
    preserving parallel edges, self-loops, endpoint validity and multiplicity.
 3. **Compose segment-backed Full-Text Search (BM25) and Vector / Hybrid Retrieval across Tables, Documents and Graph projections:**
-   build on [Milestone 11's](11-vectorized-strings-and-search.md) 256-document
+   build on [Milestone 12's](12-vectorized-strings-and-search.md) 256-document
    Block-Max BM25 posting blocks, vectorized `MAXSCORE` / Block-Max WAND
    operators and ANN vector indexes to keep multi-model search and AI/agent
    retrieval inside Transit's data gravity, `SnapshotId` cuts, branches and

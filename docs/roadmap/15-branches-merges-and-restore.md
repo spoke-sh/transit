@@ -1,16 +1,16 @@
-# 14. Branches, merges and restore
+# 15. Branches, merges and restore
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
 Add isolated application-state branching, three-way merging and point-in-time
 restore built directly on the [immutable `.tseg` segment and Manifest architecture](02-storage-and-query-performance.md)
-and [historical catalog binding](07-standards-and-catalogs.md). The
+and [historical catalog binding](08-standards-and-catalogs.md). The
 [state model](../handbook/internals/state-model.md) owns the authority/lifetime
 model. Branching is the underlying versioning primitive within a realm. Branches
 never copy live process identities, grants or effect rights.
 
 Restore here means publishing earlier application data as a new forward successor
-under current authority. [Operations](19-operations-and-recovery.md) separately
+under current authority. [Operations](20-operations-and-recovery.md) separately
 owns backup capture, installation disaster recovery and runtime upgrades; a
 branch snapshot alone is not sufficient recovery material for an installation.
 
@@ -81,8 +81,8 @@ authority/process evidence separate from branchable application state.
 
 ## Policy and collaboration boundary
 
-Extend the [index lifecycle](08-indexing-and-access-paths.md) and
-[compaction/clustering policies](10-data-structures-and-performance.md) to
+Extend the [index lifecycle](09-indexing-and-access-paths.md) and
+[compaction/clustering policies](11-data-structures-and-performance.md) to
 branch-local definitions, generations and coverage. Share compatible immutable
 index and `.tseg` objects only with their exact source cuts, WAL overlays and
 retention roots. Revalidate uniqueness, row-level `CHECK` expressions and
@@ -96,7 +96,7 @@ manifests nor causes unmitigated $O(B)$ storage amplification across $B$ active
 branches. Rebuild or use another qualified path where coverage is missing;
 copying an index definition cannot publish readiness. Qualify parent/child
 rebuild, drop, branch-aware compaction and GC with retained readers. Extend the
-[performance scorecard](10-data-structures-and-performance.md) with snapshot
+[performance scorecard](11-data-structures-and-performance.md) with snapshot
 preparation/pinning, head publication, merge validation, cross-branch compaction
 amplification and index maintenance separately; immutable sharing alone does not
 make all branching work constant-time.
@@ -104,9 +104,9 @@ make all branching work constant-time.
 Branch creation, read, edit and merge have independent permissions under current
 realm policy. Support installations with all merging disabled, and protect
 destination heads against equivalent direct writes. This milestone establishes
-the native data/policy primitives; [enterprise identity](21-control-and-policy-plane.md)
+the native data/policy primitives; [enterprise identity](22-control-and-policy-plane.md)
 binds external subjects and delegated actors, and
-[reviewed collaboration](23-reviewed-data-collaboration.md) adds published
+[reviewed collaboration](24-reviewed-data-collaboration.md) adds published
 proposals, intent-bound approval and shared human/agent review. Reading or
 copying historical application data cannot restore historical grants.
 

@@ -1,4 +1,4 @@
-# 7. Standards, collations and historical catalogs
+# 8. Standards, collations and historical catalogs
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -60,7 +60,7 @@ over those contracts, rather than introducing a second snapshot representation.
    lazily on read by projecting each historical `.tseg` segment's recorded
    `DefinitionId` and 5-state `missing`/default cells into the active schema—from
    physical type or collation rewrites, which must execute through the recoverable
-   online phased rewrite lifecycle in [Milestone 8](08-indexing-and-access-paths.md)
+   online phased rewrite lifecycle in [Milestone 9](09-indexing-and-access-paths.md)
    rather than blocking large tables with synchronous full-table rewrites.
 6. **Expose historical inspection and explicit projections through shared operations:**
    distinguish metadata permission from row/segment access and report exact
@@ -69,7 +69,7 @@ over those contracts, rather than introducing a second snapshot representation.
 
 ## Boundaries and evidence
 
-Bind [index definitions and coverage](08-indexing-and-access-paths.md) to these
+Bind [index definitions and coverage](09-indexing-and-access-paths.md) to these
 same retained source/column identities, declared `FOREIGN KEY`/`CHECK` constraints
 and exact comparison/collation versions.
 Specify rejection or rebuild when an index cannot interpret a requested cut;

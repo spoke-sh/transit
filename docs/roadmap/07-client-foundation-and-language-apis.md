@@ -1,4 +1,4 @@
-# 6. Shared client foundation and language-native APIs
+# 7. Shared client foundation and language-native APIs
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,8 +10,9 @@ matrix or building collaboration adapters on those APIs.
 ## Prerequisites and split ownership
 
 Consume the [installed data lifecycle](03-live-storage-and-sql-cutover.md),
-[statement results](04-statement-results-and-consumption.md) and
-[transactions](05-transactions-and-atomic-composition.md). Contract and language
+[statement results](04-statement-results-and-consumption.md),
+[transactions](05-transactions-and-atomic-composition.md) and
+[declarative streams, queues and durable runtime](06-streams-queues-and-durable-runtime.md). Contract and language
 sketches begin with those owners; core data paths must not wait until this
 milestone to acquire sound ownership. The
 [caller reference](../handbook/reference/callers.md),
@@ -20,11 +21,11 @@ milestone to acquire sound ownership. The
 the current boundaries.
 
 This milestone extracts the foundation from
-[language-native programming and mixed composition](28-programming-model.md).
+[language-native programming and mixed composition](29-programming-model.md).
 That later milestone retains the recorded source assessment, all three mixed
 capabilities (recorded effects, durable consumers and typed Station calls),
 Station behavior ergonomics and the complete installed cross-language journeys
-after outbound MCP. [Service/SDK coverage](15-service-and-sdk-coverage.md)
+after outbound MCP. [Service/SDK coverage](16-service-and-sdk-coverage.md)
 retains its delivered raw-client/console slices and operation/platform breadth;
 it expands over this package and API foundation rather than establishing a
 competing interface first. None of the split marks existing work complete.
@@ -74,7 +75,7 @@ competing interface first. None of the split marks existing work complete.
    first, including concurrent facets through the shared host. Existing consumers
    in every affected language migrate coherently; the representative set does
    not excuse a broken existing binding. Broader new operation/platform coverage
-   remains milestone 13; full mixed and Station ergonomics remain milestone 26.
+   remains milestone 16; full mixed and Station ergonomics remain milestone 29.
    Apply the current-v1 cutover policy to incompatible ABI/stored semantics,
    regenerate fixtures, reject incompatible saved artifacts, and publish current
    behavior in caller/component/SDK owners as each slice lands.
@@ -84,9 +85,9 @@ competing interface first. None of the split marks existing work complete.
 Measure the representative installed clients' allocation/copy counts, bounded
 streaming, cancellation/settlement cost and durable completion latency against
 the same native operations. Carry these baselines into the later
-[performance scorecard](10-data-structures-and-performance.md). Shared declaration
+[performance scorecard](11-data-structures-and-performance.md). Shared declaration
 and progress conventions must accommodate the
-[indexing lifecycle](08-indexing-and-access-paths.md) without another client
+[indexing lifecycle](09-indexing-and-access-paths.md) without another client
 scheduler or recovery protocol; index-specific adapters arrive with that owner.
 
 Run real installed direct-client applications with no Station runner artifact.

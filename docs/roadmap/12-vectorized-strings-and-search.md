@@ -1,4 +1,4 @@
-# 11. First-class strings, perfect hashing and vectorized search execution
+# 12. First-class strings, perfect hashing and vectorized search execution
 
 [Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -17,10 +17,10 @@ Consume the qualified [local engine](02-storage-and-query-performance.md),
 [installed cutover](03-live-storage-and-sql-cutover.md),
 [results](04-statement-results-and-consumption.md),
 [transactions](05-transactions-and-atomic-composition.md),
-[collations and historical catalogs](07-standards-and-catalogs.md),
-[indexing](08-indexing-and-access-paths.md),
-[analytical SQL](09-sql-and-dataflows.md) and
-[data structures and resource metering](10-data-structures-and-performance.md).
+[collations and historical catalogs](08-standards-and-catalogs.md),
+[indexing](09-indexing-and-access-paths.md),
+[analytical SQL](10-sql-and-dataflows.md) and
+[data structures and resource metering](11-data-structures-and-performance.md).
 Start from [queries](../handbook/reference/queries.md),
 [tables](../handbook/reference/tables.md),
 [storage mechanisms](../handbook/internals/storage-runtime.md),
@@ -112,7 +112,7 @@ pins, `.tdel` deletion visibility and current-authority disclosure checks.
    pinned Table snapshot cut. Support reciprocal rank fusion (`RRF`) and
    calibrated linear score combination in `Fuze` without multiple round-trips or
    external search engines, preserving per-morsel CPU/memory/IOPS metering from
-   [Milestone 10](10-data-structures-and-performance.md).
+   [Milestone 11](11-data-structures-and-performance.md).
 
 ## Candidate structures and selection evidence
 
@@ -139,8 +139,8 @@ separate from evidence for Transit's Zig implementations.
   snapshots and `.tdel` deletions.
 - Hot-path string comparisons, dictionary probes and BM25 block evaluations run
   with zero steady-state heap allocations after warmup and enforce per-morsel
-  CPU, memory and IOPS budgets from [Milestone 10](10-data-structures-and-performance.md).
+  CPU, memory and IOPS budgets from [Milestone 11](11-data-structures-and-performance.md).
 - Benchmarks on ClickBench string-heavy queries (`LIKE`, `REGEXP`, `GROUP BY`
   strings, `IN (...)`) and standard information-retrieval workloads (BM25 top-$k$
   and filtered hybrid search) meet predeclared latency, throughput and
-  allocation budgets in the [qualification scorecard](29-qualification-and-benchmarks.md).
+  allocation budgets in the [qualification scorecard](30-qualification-and-benchmarks.md).
