@@ -1590,6 +1590,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .{ .name = "transit_io", .module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") },
         },
     }) });
+    allocation_client.root_module.addCSourceFile(.{ .file = b.path("tests/interfaces/sql/allocation_probe.c"), .flags = &.{ "-std=c11", "-fno-builtin", "-Wall", "-Wextra", "-Werror" } });
     build_test_step.dependOn(&allocation_client.step);
     const allocation_test = b.addSystemCommand(&.{ "python3", "-B" });
     allocation_test.addFileArg(b.path("tests/runner/launch.py"));

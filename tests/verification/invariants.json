@@ -2040,7 +2040,7 @@
       "owner": "contracts/TRANSIT_STORAGE_V1.md",
       "implementation": [
         "packages/zig/transit-storage/src/TablePartition.zig",
-        "packages/zig/transit-fuze/src/MemoryBudget.zig"
+        "packages/zig/transit-memory/src/Budget.zig"
       ],
       "profile": "Current native v1; serialized local Table owner, immutable retained history",
       "tasks": [
@@ -2090,7 +2090,7 @@
       "owner": "contracts/TRANSIT_STORAGE_V1.md",
       "implementation": [
         "packages/zig/transit-storage/src/TablePartition.zig",
-        "packages/zig/transit-fuze/src/MemoryBudget.zig"
+        "packages/zig/transit-memory/src/Budget.zig"
       ],
       "profile": "Current native v1; serialized local Table owner and explicit private build workspace",
       "scenarios": [

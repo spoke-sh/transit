@@ -4,6 +4,10 @@ const std = @import("std");
 const sql = @import("transit_sql_client");
 const memory = @import("transit_memory");
 const bounded_io = @import("transit_io");
+extern "c" fn transit_allocation_begin() c_int;
+extern "c" fn transit_allocation_end(*[4]u64) c_int;
+extern "c" fn transit_allocation_negative() void;
+fn negativeWorker() void {}
 
 fn consume(executor: *sql.Executor, length: usize, wide: bool, retry: bool) !void {
     var text: [80]u8 = undefined;
@@ -27,7 +31,8 @@ fn consume(executor: *sql.Executor, length: usize, wide: bool, retry: bool) !voi
 
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 3) return error.ExpectedEndpointAndCa;
+    if (args.len != 3 and args.len != 4) return error.ExpectedEndpointAndCa;
+    const negative = args.len == 4 and std.mem.eql(u8, args[3], "negative");
     var probe: memory.AllocationProbe = .{ .parent = init.gpa };
     const runtime = try bounded_io.Threaded.create(probe.allocator(), .{ .workers = 8, .task_bytes = 1024 * 1024, .environ = init.minimal.environ, .argv0 = .init(init.minimal.args) });
     defer runtime.destroy();
@@ -52,22 +57,38 @@ pub fn main(init: std.process.Init) !void {
     try consume(&executor, 1, false, false);
     try std.Io.File.stdout().writeStreamingAll(io, "allocation_begin\n");
     probe.begin(true);
-    for (0..300) |iteration| {
+    if (transit_allocation_begin() != 0) return error.UnsupportedAllocationObserver;
+    const statements: usize = if (negative) 0 else 300;
+    if (negative) {
+        transit_allocation_negative();
+        const page = try std.heap.page_allocator.alloc(u8, 2 * 1024 * 1024);
+        @memset(page, 0xa5);
+        std.mem.doNotOptimizeAway(page);
+        std.heap.page_allocator.free(page);
+        const worker = try std.Thread.spawn(.{}, negativeWorker, .{});
+        worker.join();
+    }
+    for (0..statements) |iteration| {
         if (iteration == 250) try io.sleep(.fromMilliseconds(600), .awake);
         const length = ([_]usize{ 0, 1, 31, 32, 33, 70 })[iteration % 6];
         try consume(&executor, length, iteration % 7 == 0, iteration == 299);
     }
-    try probe.verify();
+    var libc: [4]u64 = undefined;
+    if (transit_allocation_end(&libc) != 0) return error.UnsupportedAllocationObserver;
     try std.Io.File.stdout().writeStreamingAll(io, "allocation_end\n");
     const report = try std.json.Stringify.valueAlloc(init.gpa, .{
         .profile = "shared_sql_client_allocations",
-        .statements = 300,
+        .statements = statements,
+        .negative_control = negative,
+        .libc_attempts = libc,
         .backing = probe.counts,
         .reserved_bytes = probe.live_bytes,
         .requested_stack_bytes = runtime.workers * runtime.stack_bytes,
-        .scope = "Independent peer; client, HTTP/TLS or Unix, typed binary decoding, changing schemas, same-ordinal retries, idle replacement and connection turnover. Includes bounded I/O task records; OS mappings require separate observation. Excludes service computation and authority.",
+        .scope = "Independent peer; client, numeric-endpoint HTTP/TLS or Unix, typed binary decoding, changing schemas, same-ordinal retries, idle replacement and connection turnover. Includes bounded I/O tasks and interposable libc calls, paired with the driver mapping observer. Excludes service computation, authority and hostname resolution.",
     }, .{});
     defer init.gpa.free(report);
     try std.Io.File.stdout().writeStreamingAll(io, report);
     try std.Io.File.stdout().writeStreamingAll(io, "\n");
+    try probe.verify();
+    if (!negative and !std.mem.allEqual(u64, &libc, 0)) return error.UnexpectedLibcAllocation;
 }

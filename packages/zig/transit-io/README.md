@@ -1,5 +1,11 @@
 # Bounded I/O runtime
 
+Numeric IPv4/IPv6 endpoints resolve directly into caller-owned queue storage.
+They preserve address-family filtering, port and canonical-name lifetimes without
+calling libc's allocating resolver on reconnect. Hostnames retain the platform
+resolver's DNS/NSS behavior; those external allocations require a separate
+profile and are not covered by numeric-endpoint allocation checks.
+
 `transit_io.Threaded` owns the pinned Zig threaded I/O implementation, a fixed
 `transit-memory` slab for task/future records and an admitted worker count. Hosts
 choose the worker count, record capacity and stack size before accepting work.

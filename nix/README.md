@@ -7,6 +7,12 @@ OpenSSL for independent signed/TLS peers, the DuckDB, PostgreSQL (`psql`) and My
 and checksums live in [vite-plus.nix](vite-plus.nix). Linux and macOS on x86_64
 and aarch64 are configured; native checks on every platform are not claimed.
 
+Linux development and experience CI shells include `strace` from the existing
+locked nixpkgs input. Allocation checks trace only memory mappings, heap growth,
+thread creation and measurement markers; they do not record network payloads.
+This adds no input revision change to `flake.lock`. The toolchain check records
+the tracer version; actual tracing permission is checked by the allocation test.
+
 The cached `kubectl-transit` package targets the architecture's baseline CPU,
 as the runtime packages do. Nix outputs can move between builders and runners;
 the builder's optional CPU instructions must not become package requirements.

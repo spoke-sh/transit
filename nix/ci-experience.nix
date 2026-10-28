@@ -33,6 +33,7 @@ pkgs.mkShell {
     pkgs.nodejs_24
     pkgs.pnpm
   ]
+  ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.strace ]
   ++ pkgs.lib.optionals (pkgs.stdenv.hostPlatform.system == "x86_64-linux") [ minio ];
   shellHook = ''
     source ${./dev-environment.sh}

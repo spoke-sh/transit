@@ -150,6 +150,7 @@ def main():
     assert ".cache/verification/wal-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/console-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/statement-result-model/" in artifacts["with"]["path"].splitlines()
+    assert ".cache/allocations/runs/" in artifacts["with"]["path"].splitlines()
     for cache in {row["cache"] for row in workers}:
         assert sum(row["cache_writer"] for row in workers if row["cache"] == cache) == (0 if cache == 'formal' else 1)
     events = workflow.get("on", workflow.get(True))

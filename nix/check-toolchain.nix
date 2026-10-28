@@ -3,6 +3,7 @@
   lib,
   stdenv,
   patchelf,
+  strace,
   pkg-config,
   just,
   python3,
@@ -48,7 +49,10 @@ runCommand "transit-toolchain-check"
       kubectl-ate
       kubectl-transit
     ]
-    ++ lib.optionals stdenv.hostPlatform.isLinux [ patchelf ];
+    ++ lib.optionals stdenv.hostPlatform.isLinux [
+      patchelf
+      strace
+    ];
   }
   ''
     # The Nix build sandbox has no network: first-use setup must be self-contained.
@@ -60,6 +64,9 @@ runCommand "transit-toolchain-check"
     python3 -c 'import yaml; assert yaml.safe_load("enabled: true")["enabled"]'
     process-compose version > "$out/process-compose-version"
     openssl version > "$out/openssl-version"
+    ${lib.optionalString stdenv.hostPlatform.isLinux ''
+      strace --version > "$out/strace-version"
+    ''}
     psql --version > "$out/psql-version"
     mysql --version > "$out/mysql-version"
     zig version > "$out/zig-version"

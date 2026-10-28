@@ -15,10 +15,24 @@ operations; [contribution instructions](AGENTS.md) describe their test boundary.
 `just test::sql-result-allocations` runs 300 statements per transport against a
 finite-relation peer. It varies schemas, widths and batch counts, repeats one
 lost fetch ordinal, crosses the 256-request connection boundary and replaces idle
-sockets. A sealed allocator observes both client reserves and bounded I/O task
-storage after finite setup. This tests communication and result ownership, not
-service computation or current authorization; OS acquisition requires its own
-observer.
+sockets. HTTP/TLS peers use numeric IPv4 endpoints; DNS/NSS resolution is not
+qualified by this profile. A sealed allocator observes both client reserves and bounded I/O task
+storage after finite setup. On Linux/glibc the linked test-only interposer counts
+malloc/calloc/realloc/aligned allocation attempts; pinned `strace` observes all
+child threads' mappings, heap growth and worker creation in the same interval.
+A negative run deliberately calls libc, the direct page allocator and a new
+thread outside the Zig wrapper and must be detected. Missing permissions,
+unsupported platforms and incomplete traces cannot establish a pass. This tests
+communication and result ownership, not service computation or current
+authorization. Hidden allocators that neither cross an instrumented boundary nor
+grow the process heap remain outside the observation claim.
+
+The runner retains source/toolchain/binary identities, stdout, diagnostics,
+memory-only traces and process/thread-attributed events in a unique directory
+under `.cache/allocations/runs/`, including failures. No network writes or payloads
+are traced. Measurement starts after finite initialization and ends before report
+serialization; replacements and retries stay inside it. Counts from independent
+parent peer processes are not attributed to the Transit client.
 
 Use `just test::sql-sessions` and the affected installed SQL task from the
 [test module](../../../tasks/test.just). Measurements describe elapsed work;

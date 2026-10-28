@@ -6,6 +6,7 @@ pub const Threaded = struct {
     parent: std.mem.Allocator,
     records: memory.Slab,
     runtime: std.Io.Threaded,
+    vtable: std.Io.VTable,
     workers: usize,
     stack_bytes: usize,
     pub const Options = struct {
@@ -20,7 +21,7 @@ pub const Threaded = struct {
         _ = try std.math.mul(usize, options.workers, options.stack_bytes);
         const self = try parent.create(Threaded);
         errdefer parent.destroy(self);
-        self.* = .{ .parent = parent, .records = try .init(parent, options.task_bytes), .runtime = undefined, .workers = options.workers, .stack_bytes = options.stack_bytes };
+        self.* = .{ .parent = parent, .records = try .init(parent, options.task_bytes), .runtime = undefined, .vtable = undefined, .workers = options.workers, .stack_bytes = options.stack_bytes };
         errdefer self.records.deinit();
         self.runtime = .init(self.records.allocator(), .{
             .async_limit = .limited(options.workers),
@@ -30,11 +31,41 @@ pub const Threaded = struct {
             .argv0 = options.argv0,
         });
         errdefer self.runtime.deinit();
+        self.vtable = self.runtime.io().vtable.*;
+        self.vtable.netLookup = lookup;
         try self.warmWorkers();
         return self;
     }
     pub fn io(self: *Threaded) std.Io {
-        return self.runtime.io();
+        var result = self.runtime.io();
+        result.vtable = &self.vtable;
+        return result;
+    }
+    /// Numeric endpoints need no name service. The pinned glibc path otherwise
+    /// calls allocating getaddrinfo even for an IP literal on every reconnect.
+    /// Names retain the platform resolver's policy, cancellation and NSS behavior.
+    fn lookup(userdata: ?*anyopaque, host: std.Io.net.HostName, queue: *std.Io.Queue(std.Io.net.HostName.LookupResult), options: std.Io.net.HostName.LookupOptions) std.Io.net.HostName.LookupError!void {
+        const threaded: *std.Io.Threaded = @ptrCast(@alignCast(userdata));
+        const self: *Threaded = @fieldParentPtr("runtime", threaded);
+        const address = std.Io.net.IpAddress.parseIp4(host.bytes, options.port) catch
+            std.Io.net.IpAddress.parseIp6(host.bytes, options.port) catch
+            return threaded.io().vtable.netLookup(userdata, host, queue, options);
+        const io_ = self.io();
+        defer queue.close(io_);
+        if (options.family) |family| if (family != std.meta.activeTag(address)) return error.UnknownHostName;
+        queue.putOne(io_, .{ .address = address }) catch |err| switch (err) {
+            error.Closed => unreachable,
+            else => |failure| return failure,
+        };
+        if (options.canonical_name_buffer) |buffer| {
+            if (buffer.len >= host.bytes.len) {
+                @memcpy(buffer[0..host.bytes.len], host.bytes);
+                queue.putOne(io_, .{ .canonical_name = .{ .bytes = buffer[0..host.bytes.len] } }) catch |err| switch (err) {
+                    error.Closed => unreachable,
+                    else => |failure| return failure,
+                };
+            }
+        }
     }
     /// Backing records plus explicitly requested stacks. OS guard pages/TLS and
     /// pthread bookkeeping are reported by the host's separate mapping observer.
@@ -88,4 +119,29 @@ test "warmed I/O futures and cancellation reuse bounded records and workers" {
     }
     try probe.verify();
     try t.expectEqual(runtime.reservedBytes(), probe.live_bytes + runtime.workers * runtime.stack_bytes);
+}
+
+test "numeric lookup preserves address family port canonical lifetime and closure" {
+    const t = std.testing;
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    const runtime = try Threaded.create(probe.allocator(), .{ .workers = 2, .task_bytes = 64 * 1024 });
+    defer runtime.destroy();
+    const io_ = runtime.io();
+    probe.begin(true);
+    for ([_][]const u8{ "127.0.0.1", "192.0.2.7", "::1", "2001:db8::7" }) |text| {
+        const host: std.Io.net.HostName = .{ .bytes = text };
+        var results: [2]std.Io.net.HostName.LookupResult = undefined;
+        var queue: std.Io.Queue(std.Io.net.HostName.LookupResult) = .init(&results);
+        var canonical: [std.Io.net.HostName.max_len]u8 = undefined;
+        try host.lookup(io_, &queue, .{ .port = 5432, .canonical_name_buffer = &canonical });
+        const address = (try queue.getOne(io_)).address;
+        const expected = std.Io.net.IpAddress.parseIp4(text, 5432) catch try std.Io.net.IpAddress.parseIp6(text, 5432);
+        try t.expectEqualDeep(expected, address);
+        try t.expectEqualStrings(text, (try queue.getOne(io_)).canonical_name.bytes);
+        try t.expectError(error.Closed, queue.getOne(io_));
+        queue = .init(&results);
+        try t.expectError(error.UnknownHostName, host.lookup(io_, &queue, .{ .port = 1, .family = if (address == .ip4) .ip6 else .ip4 }));
+        try t.expectError(error.Closed, queue.getOne(io_));
+    }
+    try probe.verify();
 }

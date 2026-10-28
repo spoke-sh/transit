@@ -1,9 +1,11 @@
 """Independent finite-relation peer for client allocation checks, not SQL execution."""
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import socket
 from socketserver import ThreadingMixIn, UnixStreamServer
 import ssl
@@ -14,6 +16,7 @@ import tempfile
 import threading
 
 from runner.paths import ROOT
+from runner import capture
 from interfaces.sql_sessions.result_frame import encode_fixture, CONTENT_TYPE, ENCODING
 from query.logical.fuze_types import DEFINITION
 
@@ -133,19 +136,148 @@ def peer(mode, root):
         worker.join()
 
 
+def mappings(text):
+    """Retain attempted mappings/thread creation, including failed syscalls.
+
+    brk(NULL) queries are not growth. Shrinkage is distinguished from growth
+    using each process's preceding observation, including pre-interval calls.
+    An unknown starting break or incomplete trace fails rather than certifying.
+    """
+    active = False
+    markers = []
+    pending, breaks = {}, {}
+    events = []
+    for line in text.splitlines():
+        match = re.fullmatch(r'(\d+)\s+(\d+\.\d+)\s+(.*)', line)
+        if not match:
+            raise AssertionError(f'unparsed trace: {line}')
+        pid, timestamp, call = match.groups()
+        measured = active
+        if '<unfinished ...>' in call:
+            assert pid not in pending
+            pending[pid] = (call.split('<unfinished ...>')[0], measured, timestamp)
+            continue
+        if call.startswith('<... '):
+            resume = re.match(r'<\.\.\. (\w+) resumed>(.*)', call)
+            assert resume and pid in pending
+            prefix, measured, timestamp = pending.pop(pid)
+            assert prefix.startswith(resume[1] + '(')
+            call = prefix + resume[2]
+        if call.startswith(('+++ ', '--- ')):
+            continue
+        syscall = re.match(r'(\w+)\((.*)\)\s+= (.*)', call)
+        assert syscall, call
+        name, args, result = syscall.groups()
+        if name == 'prctl':
+            if 'PR_SET_NAME, "alloc_begin"' in args:
+                assert not markers and result == '0'
+                active = True
+                markers.append('begin')
+            elif 'PR_SET_NAME, "alloc_end"' in args:
+                assert markers == ['begin'] and result == '0'
+                active = False
+                markers.append('end')
+            continue
+        assert name in ('mmap', 'mmap2', 'mremap', 'brk', 'clone', 'clone3'), name
+        if name == 'brk':
+            previous = breaks.get(pid)
+            observed = int(result.split()[0], 16)
+            breaks[pid] = observed
+            if args in ('NULL', '0'):
+                continue
+            if measured:
+                assert previous is not None, 'unknown starting heap break'
+            if previous is not None and observed <= previous:
+                continue
+        if measured:
+            events.append(dict(thread=int(pid), timestamp=timestamp, syscall=name,
+                               arguments=args, result=result))
+    assert not pending and markers == ['begin', 'end'], 'incomplete allocation interval'
+    return events
+
+
+def trace_controls():
+    begin = '1 1.000 prctl(PR_SET_NAME, "alloc_begin") = 0\n'
+    end = '1 3.000 prctl(PR_SET_NAME, "alloc_end") = 0\n'
+    assert mappings(begin + end) == []
+    trace = ('1 0.500 brk(NULL) = 0x1000\n' + begin +
+             '2 2.000 mmap(NULL, 4096, PROT_READ, MAP_PRIVATE, -1, 0 <unfinished ...>\n'
+             '1 2.100 brk(0x2000) = 0x2000\n'
+             '2 2.200 <... mmap resumed>) = 0x3000\n' + end)
+    assert {event['syscall'] for event in mappings(trace)} == {'brk', 'mmap'}
+    for malformed in (begin, end, begin + begin + end, begin + 'unparsed\n' + end,
+                      begin + '1 2.000 mmap(NULL <unfinished ...>\n' + end):
+        try:
+            mappings(malformed)
+        except AssertionError:
+            continue
+        raise AssertionError('incomplete/malformed trace accepted')
+
+
 def main():
     binary = str(Path(sys.argv[1]).resolve())
-    for mode in ('unix', 'http', 'https'):
-        with tempfile.TemporaryDirectory(prefix='transit-result-allocations-') as directory:
-            with peer(mode, Path(directory)) as (endpoint, ca, state):
-                result = subprocess.run([binary, endpoint, ca], capture_output=True, text=True, timeout=120)
-                print(result.stdout, end='', flush=True)
-                assert result.returncode == 0, result.stderr
-                report = json.loads(result.stdout.splitlines()[-1])
-                assert report['statements'] == 300 and state['queries'] == 301
-                assert state['requests'] > 256 and state['retries'] > 0 and state['turnovers'] > 0, state
-                assert report['backing']['alloc_attempts'] == report['backing']['growing_resize_attempts'] == report['backing']['remap_attempts'] == 0
-                print(f'{mode}: {state}', flush=True)
+    if sys.platform != 'linux' or not shutil.which('strace'):
+        raise SystemExit('Linux allocation observer requires the pinned strace; no OS-level pass recorded')
+    destination = capture.directory(ROOT / '.cache/allocations/sql-client.json')
+    evidence = capture.provenance(ROOT) | dict(status='inconclusive', profiles=[],
+        binary_sha256=capture.identity(Path(binary))['sha256'],
+        strace=str(Path(shutil.which('strace')).resolve()),
+        observation='Zig backing attempts; interposable glibc attempts; traced mapping, brk growth and worker attempts in all child threads. Not hidden allocator calls that neither cross these boundaries nor grow the heap.')
+    sources = [ROOT / 'tests/interfaces/sql/allocation_probe.c', Path(__file__),
+               ROOT / 'tests/interfaces/sql/sql_result_allocations.zig']
+    for package in ('transit-memory', 'transit-io', 'transit-sql-client', 'transit-sql-results', 'transit-sql-protocol'):
+        sources.extend((ROOT / 'packages/zig' / package / 'src').rglob('*.zig'))
+    evidence['source_sha256'] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
+    report_path = destination / 'evidence.json'
+    capture.write_json(report_path, evidence)
+    try:
+        trace_controls()
+        for mode, negative in (('unix', True), ('unix', False), ('http', False), ('https', False)):
+            name = mode + ('-negative' if negative else '')
+            trace = destination / (name + '.trace')
+            profile = dict(name=name, completed=False)
+            evidence['profiles'].append(profile)
+            capture.write_json(report_path, evidence)
+            with tempfile.TemporaryDirectory(prefix='transit-result-allocations-') as directory:
+                with peer(mode, Path(directory)) as (endpoint, ca, state):
+                    command = ['strace', '-f', '-ttt', '-o', str(trace), '-e',
+                               'trace=mmap,mremap,brk,clone,clone3,prctl', binary, endpoint, ca]
+                    if negative:
+                        command.append('negative')
+                    cancelled = threading.Event()
+                    timer = threading.Timer(120, cancelled.set)
+                    timer.start()
+                    try:
+                        result = capture.run(command, cwd=ROOT, log=destination / (name + '.log'),
+                                             result=profile, capture_stdout=True, cancelled=cancelled)
+                    finally:
+                        timer.cancel()
+                        timer.join()
+                    report = json.loads(result.stdout.splitlines()[-1])
+                    profile.update(client=report, peer=dict(state), trace=capture.identity(trace))
+                    events = mappings(trace.read_text())
+                    profile['memory_events'] = events
+                    assert result.returncode == 0, profile
+                    assert report['backing']['alloc_attempts'] == report['backing']['growing_resize_attempts'] == report['backing']['remap_attempts'] == 0
+                    if negative:
+                        assert all(count > 0 for count in report['libc_attempts']), report
+                        calls = {event['syscall'] for event in events}
+                        assert 'mmap' in calls and calls & {'clone', 'clone3'}, events
+                        assert report['statements'] == 0 and state['queries'] == 1
+                    else:
+                        assert report['statements'] == 300 and state['queries'] == 301
+                        assert state['requests'] > 256 and state['retries'] > 0 and state['turnovers'] > 0, state
+                        assert report['libc_attempts'] == [0, 0, 0, 0] and events == [], profile
+                    profile['status'] = 'passed'
+                    print(f'{name}: {state}; memory events={len(events)}, libc attempts={report["libc_attempts"]}', flush=True)
+            capture.write_json(report_path, evidence)
+        evidence['status'] = 'passed'
+    except BaseException as failure:
+        evidence['failure'] = str(failure)
+        raise
+    finally:
+        capture.write_json(report_path, evidence)
+        print(f'Allocation evidence: {destination}', flush=True)
 
 
 if __name__ == '__main__':
