@@ -2860,8 +2860,13 @@ test "transaction common cut resumes lost pins and original publication on disk"
     const before = catalog.store.root;
     try t.expectEqualDeep(published, try catalog.acquireTransaction(binding.key, access.policy()));
     try t.expectEqualDeep(before, catalog.store.root);
+    const progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+    var output = std.heap.ArenaAllocator.init(t.allocator);
+    defer output.deinit();
+    try t.expectError(error.TransactionOperationRequired, catalog.directRecord(output.allocator(), .{ .stage = .{ .scope = binding.key.scope(), .format = c.DirectTransaction.Acquired.format, .bytes = .{ .base64 = "" } } }, access.policy()));
     access.denied_metadata = 110;
     try t.expectError(error.CatalogDenied, catalog.acquireTransaction(binding.key, access.policy()));
+    try t.expectError(error.TransactionOperationRequired, catalog.directRecord(output.allocator(), .{ .read = progress.record.? }, access.policy()));
 }
 
 test "transaction acquisition refuses a changed recovered pin and preserves its original cut" {

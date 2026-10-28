@@ -755,6 +755,12 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
     if (!scope.connection.matches(self.config()) or scope.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     const current = try self.guard(allocator, policy, null, null, .database);
     try check(current);
+    const format = switch (request) {
+        inline .stage, .read => |value| value.format,
+    };
+    // The cut is server-owned evidence. Generic caller records only check
+    // CONNECT and cannot bypass its complete current Table disclosure checks.
+    if (format == c.DirectTransaction.Acquired.format) return error.TransactionOperationRequired;
     const result: c.DirectRecord.Result = switch (request) {
         .stage => |value| blk: {
             const bytes = try value.bytes.decode(allocator, c.DirectRecord.max_bytes);

@@ -149,6 +149,9 @@ the cut position must equal the progress revision and follow begin admission in
 that same catalog partition. No signed acquisition operation is exposed by this
 record format. The embedding host must hold the catalog/Table publication fence,
 and the owner checks current Table rights under the publication policy epoch.
+This format is reserved: generic `record.stage` and `record.read` reject it with
+`TransactionOperationRequired`. CONNECT-only caller-record access cannot disclose
+server-owned cut evidence after a participant's read rights have been revoked.
 
 Catalog recovery requires the explicit `coordination` field and validates its
 allocation transition. Earlier receipts reject under the current-v1 definition;
