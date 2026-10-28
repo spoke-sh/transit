@@ -115,6 +115,16 @@ class Fixture(LocalInstallation):
             if page['next'] is None:
                 return entries
             after = page['next']
+    def sql_progress(self, identity):
+        from interfaces.installation.server_sql import call
+        configured = self.config.get('executables', {}).get('sql_gateway')
+        gateway = [configured] if configured else [self.cli, '__transit_role_v1', 'sql_gateway']
+        profile = self.installation / 'sql/accounts/owner/control.json'
+        observed = json.loads(call([*gateway, 'control', profile, 'status', identity['id']], retry_observation=True))
+        receipt = observed['operation']['receipt']
+        assert str(receipt['position']['next_lsn']) == str(identity['id']), observed
+        assert receipt['binding']['key']['account'] == identity['account'], observed
+        return observed
     def revoke_table_writes(self):
         # Current native domain grants own Table permissions. The old catalog
         # policy record is no longer an authorization source.
@@ -243,7 +253,8 @@ def run(cli, node, host):
                               input='.info\n', capture_output=True, text=True, timeout=30)
         assert info.returncode == 0 and json.loads(info.stdout)['database'] == 'transit', info
         # Kill a console after its exact direct binding is dispatched while
-        # Table execution is refused. Native ledger/control remains available.
+        # Table execution is refused. Database recovery controls remain available.
+        prior_operations = {entry['identity']['id'] for entry in fixture.sql_operations()}
         fixture.boundary.pause()
         pending = subprocess.Popen([fixture.cli, 'console', '--no-rc', '-c',
                                     'INSERT INTO items (id, value) VALUES (3, 300)'],
@@ -259,11 +270,14 @@ def run(cli, node, host):
                 binding = json.loads(fixture.boundary.observed.read_text())
                 inventory = fixture.sql_operations()
                 unfinished = [entry for entry in inventory
-                              if int(entry['identity']['id']) == binding['identity']['operation']
+                              if entry['identity']['id'] not in prior_operations
                               and entry['phase'] not in ('terminal', 'abandoned')]
                 if unfinished:
+                    assert len(unfinished) == 1, unfinished
                     saved_write = unfinished[-1]
                     operation = saved_write['identity']['id']
+                    progress = fixture.sql_progress(saved_write['identity'])
+                    assert progress['operation']['receipt']['binding']['intent']['table']['binding'] == binding
                     break
                 assert pending.poll() is None and time.monotonic() < deadline, 'write was not admitted'
                 time.sleep(.05)

@@ -212,7 +212,10 @@ def run(cli, node, host, board, gateway):
                     diagnostic = completion['diagnostic']
                     assert diagnostic['code'] == 'schema.drop_restricted' and diagnostic['evidence'] == 'domain_status', diagnostic
                     assert 'dependency' in diagnostic['message'], diagnostic
-                    assert diagnostic['identity']['id'] == completion['operation']['id'], completion
+                    progress = fixture.sql_progress(completion['operation'])
+                    accepted = progress['operation']['receipt']['binding']['intent']['namespace_change']['binding']
+                    assert int(diagnostic['identity']['id']) == accepted['operation'], completion
+                    assert progress['terminal']['operation'] == accepted['operation'], progress
                 finally:
                     peer.close()
             except subprocess.TimeoutExpired as error:
