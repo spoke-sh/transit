@@ -10,6 +10,7 @@ pub const Store = adapter.Store;
 pub const PageStore = adapter.PackedPageStore;
 pub const Engine = core.growing.Engine(Store, PageStore);
 const Maintenance = @import("GrowingMaintenance.zig");
+pub const CollectionCursor = struct {};
 // Admission admits four reads, two controls and four long polls. Each admitted
 // request exclusively owns one lane; idle HTTP connections own no lane.
 const lane_count = 10;
@@ -175,7 +176,7 @@ pub fn maintain(engine: *Engine, authorized: core.growing.Head) !bool {
     return true;
 }
 
-pub fn collect(engine: *Engine, config: Maintenance.Config, key: core.Ed25519.KeyPair, request: *g.Request) !bool {
+pub fn collect(engine: *Engine, config: Maintenance.Config, key: core.Ed25519.KeyPair, request: *g.Request, _: *CollectionCursor) !bool {
     var collection = adapter.StorageCollection.init(engine.journal.journal);
     const saved = try collection.current();
     if (saved != null and saved.?.phase != .complete) {

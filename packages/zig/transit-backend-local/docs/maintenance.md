@@ -9,6 +9,11 @@ separate ownership; this collector does not delete them.
 Use the same `Backend`, `Store`, `PageStore` and native engine for collection.
 Submit an authorized native `storage_fence`, then call `StorageCollection.start`
 with its accepted record position. `current` exposes the private progress record.
+Automatic callers first capture the allocation queue's `source_activity`, submit
+the fence, then call `startAtActivity` with that original activity value. It stays
+fixed even when later allocations enter the inventory. `start` records zero
+automatic activity coverage. Both operations retain the same graph, epoch and
+time gates; activity selects work and cannot authorize deletion.
 Repeated `step` calls with a trusted `Time.Sample` perform bounded work:
 
 1. Mark accepted history roots and the cut's live captured roots into a paged

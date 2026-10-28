@@ -1017,13 +1017,46 @@ that scan. It adds durable writes and inherits WAL recovery/trim I/O. Control
 capacity must cover its progress and mark pages. File-length accounting remains
 conservative after uncertainty and does not measure filesystem blocks or inodes.
 
+Automatic scheduling must distinguish new allocation activity from the work of
+collection itself. Let `A` be the persisted count of source allocation intents,
+and `C` the activity target captured before a pass's accepted storage fence.
+The [native](../../../packages/zig/transit-backend-local/src/NativeAllocations.zig)
+and [direct](../../../packages/zig/transit-backend-local/src/DataAllocations.zig)
+FIFO records carry `A` with each append. Mark allocations, retained-item carries
+and empty-prefix progress preserve it. Using the FIFO tail instead would count
+those writes as fresh work and could keep collection running after sources stop.
+The [local scheduler](../../../apps/transit-node/LocalCollection.zig) also excludes
+its own fence candidates from source activity while preserving their allocation
+inventory and ordinary epoch checks.
+
+Each pass persists `C` independently of the later observed inventory end. This
+is conservative: arrivals after `C` can trigger another pass even if this pass
+already retained them. Capturing activity after the fence would instead risk
+counting protected new-epoch allocations as completed work. A new pass requires
+the configured difference between `A` and the completed target, or an aborted
+mark. Incomplete work resumes first; completed graph work finishes physical FIFO
+cleanup before replacement. Assuming finite source activity, successful bounded
+units, sufficient quota and available trusted time, bookkeeping alone cannot
+restart a settled pass. Its last work/mark objects remain inventoried for a later
+eligible pass; this rule does not promise immediate reclamation of its own marks.
+
+The source-activity tests in the
+[allocation owner](../../../packages/zig/transit-backend-local/src/data_allocations_test.zig)
+and native/direct collection owners below exercise carry, trim, reopen, excluded
+marks and later arrivals. The
+[node schedule](../../../apps/transit-node/local_collection_test.zig) exercises
+both owners, restart, revocation and idle convergence through the pinned
+`just test::local-catalog` task. These finite controls do not establish a maximum
+installed completion time; graph size, interval, I/O and foreground work remain
+independent costs.
+
 The [native disk tests](../../../packages/zig/transit-backend-local/src/collection_test.zig)
 and [process-death harness](../../../tests/storage/local/local_native_collection_faults.py)
 check current and retained values, relocation, old creators, corrupt metadata,
 FIFO sync uncertainty and resumed deletion. Reproduction and executed outcomes
 are recorded in the [proof ledger](../../history/qualification/README.md). These finite controls
-do not prove arbitrary filesystem rollback or power-loss behavior, and automatic
-installed scheduling is separate from the component mechanism. No latency or
+do not prove arbitrary filesystem rollback or power-loss behavior. Automatic
+node scheduling composes this component mechanism and needs its own controls. No latency or
 throughput claim follows from its bounded resident state.
 
 Direct Table and catalog objects pose an additional ownership problem: their
@@ -1140,7 +1173,7 @@ has independent native/direct profiles. The
 owns reproduction commands, including signed policy composition. The
 [executed account](../../history/qualification/storage.md#retained-direct-data-graph-and-physical-collection--2026-10-27)
 records the integrated disk and failure outcomes. These finite schedules do not
-prove arbitrary power loss, and automatic installed scheduling remains separate. Exact formats and
+prove arbitrary power loss or qualify every installed scheduling/failure combination. Exact formats and
 retention roots are owned by the
 [storage contract](../../../contracts/TRANSIT_STORAGE_V1.md#local-direct-data-collection).
 

@@ -184,4 +184,5 @@ test {
     _ = @import("LocalTableHost.zig");
     _ = @import("LocalTableMaintenance.zig");
     _ = @import("GrowingMaintenance.zig");
+    _ = @import("local_collection_test.zig");
 }

@@ -2306,6 +2306,8 @@
         "open()": "<inferred>",
         "put()": "<inferred>",
         "putNative()": "<inferred>",
+        "putNativeTracked()": "<inferred>",
+        "putTracked()": "<inferred>",
         "read()": "<inferred>",
         "recoverySource()": "<inferred>",
         "requiresRecovery()": "<inferred>",
@@ -2352,13 +2354,14 @@
         "latest()": "<inferred>",
         "open()": "<inferred>",
         "record()": "<inferred>",
+        "recordTracked()": "<inferred>",
         "remove()": "<inferred>",
         "trim()": "<inferred>",
         "trimUnit()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
+        "try": 41,
         "catch": 1
       },
       "imports": [
@@ -2399,7 +2402,7 @@
         "FileNotFound": 1,
         "IncompleteHistory": 2,
         "InvalidDataAllocation": 1,
-        "InvalidStorageCollection": 8,
+        "InvalidStorageCollection": 9,
         "InvalidStorageGraph": 1,
         "NoStorageFence": 3,
         "OutOfMemory": 1,
@@ -2423,6 +2426,7 @@
         "Collector().<return>.reserve()": "<inferred>",
         "Collector().<return>.save()": "<inferred>",
         "Collector().<return>.start()": "<inferred>",
+        "Collector().<return>.startAtActivity()": "<inferred>",
         "Collector().<return>.step()": "<inferred>",
         "Collector().<return>.sweep()": "<inferred>",
         "Collector().<return>.trim()": "<inferred>"
@@ -2631,13 +2635,14 @@
         "open()": "<inferred>",
         "read()": "<inferred>",
         "record()": "<inferred>",
+        "recordTracked()": "<inferred>",
         "remove()": "<inferred>",
         "trim()": "<inferred>",
         "trimUnit()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
+        "try": 37,
         "catch": 2
       },
       "imports": [
@@ -2745,7 +2750,7 @@
         "HistoryReclaimed": 1,
         "IncompleteHistory": 1,
         "InvalidNativeAllocation": 1,
-        "InvalidStorageCollection": 8,
+        "InvalidStorageCollection": 9,
         "InvalidStorageGraph": 2,
         "NoStorageFence": 3,
         "StorageMaintenanceBudget": 1
@@ -2769,6 +2774,7 @@
         "save()": "<inferred>",
         "scopeKey()": "<inferred>",
         "start()": "<inferred>",
+        "startAtActivity()": "<inferred>",
         "step()": "<inferred>",
         "sweep()": "<inferred>",
         "trim()": "<inferred>"
@@ -13667,7 +13673,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"8ff47b20d7761074cdb7c086959a7d205b304477cee8f5d910f9502ab6717675\""
+          "@\"068aa25ef2626855f313426665bc773ee43efd5e6260183a03753cc368497271\""
         ],
         "Effect.phase": [
           "pending",

@@ -57,6 +57,38 @@ fn cleanup(f: *Fixture, collection: *Collection) !void {
     return error.FixtureBudget;
 }
 
+test "direct collection source activity excludes mark work and preserves arrivals after its trigger" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var f: Fixture = .{};
+    try f.open(tmp.dir, true);
+    defer f.close();
+    var collection: Collection = .{ .backend = &f.owner };
+    try f.owner.put("fixture/live", "retained", false);
+    const live = (try f.owner.objects.objectStore().head("fixture/live")).?;
+    const encoded = try std.json.Stringify.valueAlloc(t.allocator, Graph.Work{ .key = try .init("fixture/live"), .meta = live }, .{});
+    defer t.allocator.free(encoded);
+    var data: local.DataStore = .{ .backend = &f.owner };
+    _ = try data.log().append(1, 0, 1, f.engine.head.authorization.revision + 1, .row_delta, encoded);
+    const trigger = (try f.owner.data_allocations.current()).source_activity;
+    const fence = try f.submit(.{ .storage_fence = {} });
+    try f.owner.put("fixture/late", "later source", false);
+    const later = try f.owner.data_allocations.current();
+    try t.expect(later.source_activity > trigger);
+    try t.expectError(error.InvalidStorageCollection, collection.startAtActivity(&f.engine, fence, later.source_activity + 1));
+    try collection.startAtActivity(&f.engine, fence, trigger);
+    try until(&f, &collection, .wait);
+    const saved = (try collection.current()).?;
+    try t.expectEqual(trigger, saved.source_activity);
+    const marked = try f.owner.data_allocations.current();
+    try t.expect(marked.tail > later.tail);
+    try t.expectEqual(later.source_activity, marked.source_activity);
+    f.close();
+    try f.open(tmp.dir, false);
+    try t.expectEqualDeep(saved, (try collection.current()).?);
+    try t.expect((try f.owner.data_allocations.current()).source_activity > saved.source_activity);
+}
+
 test "direct collection resumes deletion while preserving accepted and newer reused content" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

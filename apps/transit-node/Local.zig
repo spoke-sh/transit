@@ -6,6 +6,8 @@ const telemetry = @import("transit_observability").telemetry;
 const server = @import("NativeServer.zig");
 const Maintenance = @import("GrowingMaintenance.zig");
 const TableMaintenance = @import("LocalTableMaintenance.zig");
+const Collection = @import("LocalCollection.zig");
+pub const CollectionCursor = Collection.Cursor;
 pub const TableHost = @import("LocalTableHost.zig");
 const Self = @This();
 pub const Store = backend.Store;
@@ -182,10 +184,8 @@ pub fn maintain(engine: *Engine, authorized: core.growing.Head) !bool {
     return (try engine.journal.maintainUnit(authorized)).complete;
 }
 
-pub fn collect(_: *Engine, _: Maintenance.Config, _: core.Ed25519.KeyPair, _: *core.protocol.Growth.Request) !bool {
-    // The backend exposes explicit native collection; this runtime does not
-    // schedule it. Logical lifecycle progress is not physical reclamation.
-    return false;
+pub fn collect(engine: *Engine, config: Maintenance.Config, key: core.Ed25519.KeyPair, request: *core.protocol.Growth.Request, cursor: *CollectionCursor) !bool {
+    return Collection.step(cursor, engine, config, key, request);
 }
 
 pub fn reclaimPayload(engine: *Engine, value: core.protocol.Growth.Payload, signed: core.protocol.Growth.SignedRequest) !void {

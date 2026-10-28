@@ -61,8 +61,8 @@ after current rows have moved to segments.
 The direct `flush` operation executes one bounded unit at an explicit saved
 acceptance cut. Its completion condition excludes later writes; repeating the
 same target after uncertainty resolves accepted physical coverage. Inspection
-does not initiate work. Automatic physical Table garbage collection remains a
-separate integration obligation. The [Table reference](tables.md) and
+does not initiate work. Automatic physical object collection separately checks
+retained roots, epoch fences and read-lifetime grace. The [Table reference](tables.md) and
 [direct owner guide](../../../packages/zig/transit-catalog/docs/direct-catalog.md)
 describe the caller operations; native resource storage below has a separate
 acceptance and maintenance boundary.
@@ -174,10 +174,10 @@ These quotas measure reserved encoded segment bytes; provider metadata, work
 ledgers, snapshots, WAL and filesystem headroom have separate costs.
 
 The local CLI profile composes the native log and object store inside the node.
-Lifecycle maintenance and accepted-floor trimming run in that owner; local
-automatic immutable-object collection is not scheduled. The local backend exposes
-[native collection and bounded compaction](../../../packages/zig/transit-backend-local/docs/maintenance.md)
-as explicit component operations. They preserve native history and captures,
+Lifecycle maintenance, accepted-floor trimming and automatic native/direct
+immutable-object collection run in that owner. The backend's
+[collection operations](../../../packages/zig/transit-backend-local/docs/maintenance.md)
+preserve native history and captures,
 reject old creators by accepted epoch, and resume physical object deletion from
 a durable intent. Direct Table and catalog guards also retain the epoch acquired
 before staging: an intervening storage fence rejects publication, while a fresh

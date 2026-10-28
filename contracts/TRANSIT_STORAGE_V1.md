@@ -816,13 +816,18 @@ No page or block reference grants access independently of native authorization.
 Every native creation first appends an allocation intent to
 `native-allocations/queue/`, a separate segmented `LocalWal`. FIFO records use
 partition zero, writer/policy epoch one and `manifest_checkpoint` frames. Their
-224-byte payload is `TNALQ1` plus two zeros at `0..8`, definition at `8..40`,
+232-byte payload is `TNALQ1` plus two zeros at `0..8`, definition at `8..40`,
 little-endian record position and consumed-prefix cursor at `40..48` and `48..56`,
-an item-present byte at `56`, seven zeros, and a 160-byte allocation at `64..224`
+an item-present byte at `56`, seven zeros, a little-endian source-activity counter
+at `64..72`, and a 160-byte allocation at `72..232`
 (all zero when absent). The payload position equals its LSN; the cursor cannot
 exceed that position. Carrying a live item and advancing the cursor share one
 append. At most 64 empty progress records can be collapsed by one cursor advance.
 Consumed prefixes are physically trimmed only after their progress is durable.
+New source allocation intents increment the activity counter in the same append.
+Collection mark allocations, retained-item carries and empty-prefix progress
+preserve it. Exact marker retries add no activity. The counter cannot exceed the
+native counter bound or position plus one; trimming does not reset it.
 
 An exact intent marker lives at
 `native-allocations/<16 hex epoch>-<kind>-<64 hex location>`. Its 160 bytes contain
@@ -870,10 +875,11 @@ and exclude `native/`; the epoch is nonzero and within the native counter bound.
 The marker filename must match the decoded key hash.
 
 `data-allocations/queue/` is a separate segmented `LocalWal`, using partition
-zero, writer/policy epoch one and `manifest_checkpoint` frames. Its 576-byte
+zero, writer/policy epoch one and `manifest_checkpoint` frames. Its 584-byte
 payload contains `TDALQ1` plus two zeros at `0..8`, the definition at `8..40`,
 little-endian position and consumed-prefix cursor at `40..48` and `48..56`, an
-item-present byte at `56`, seven zeros, and the 512-byte allocation at `64..576`
+item-present byte at `56`, seven zeros, a little-endian source-activity counter
+at `64..72`, and the 512-byte allocation at `72..584`
 (all zero when absent). Position equals LSN, and cursor cannot exceed position.
 One append atomically advances the cursor and optionally carries a retained
 item; one empty-prefix advance reads at most 64 records. Queue append and latest
@@ -881,6 +887,8 @@ marker publication are durable before content creation. An uncertain attempt can
 leave duplicate intents. Removal must match the latest marker exactly, so an
 older item cannot erase a newer reuse. Missing queue history with existing
 markers rejects; an existing owner never recreates a missing inventory directory.
+The activity counter follows the native FIFO rules above. New source creation or
+reuse intents increment it; collection's own work/mark allocations do not.
 
 Direct creation holds a shared creation/reclamation fence through inventory
 recording and object publication. Private inventory updates serialize separately
@@ -902,7 +910,7 @@ The latest accepted native WAL entry is the recovery root. A native accepted
 history floor can authorize trimming older frames while retaining that entry.
 Exact retry records and durable captures remain in its catalog. This adapter's
 trim does not collect objects or dispatch effects. `StorageCollection` records
-its accepted fence cut, FIFO end, root/traversal cursor, paged mark root and exact
+its accepted fence cut, FIFO end, source-activity target, root/traversal cursor, paged mark root and exact
 pending deletion in a definition-bound `.native-collection` JSON body of at most
 256 KiB followed by its 32-byte SHA-256. Replacement syncs the file and parent
 directory. A complete mark protects retained journal roots, current live captures
@@ -911,6 +919,12 @@ Deletion waits beyond the fence's upper time plus five minutes of snapshot life
 and sixty seconds of request grace, and requires a persisted native time floor
 beyond that boundary. Pending deletion resumes the same immutable identity;
 FIFO consume, not a transient counter, establishes completed inventory progress.
+The mandatory source-activity target cannot exceed the inventory end. Automatic
+callers capture it before submitting the storage fence and pass that fixed value
+to `startAtActivity`; allocations arriving after that observation stay eligible
+for later work. Explicit `start` claims no automatic activity coverage and records
+zero. Mark-page allocations remain inventoried without increasing source
+activity. These counters select work and grant no deletion authority.
 Native compaction preserves logical values and captured roots through the core
 `storage_compact` operation. Standalone payload publication, Table collection and
 automatic installed maintenance retain separate owners.
@@ -930,7 +944,10 @@ or archive frame, without recursively owning that frame's obsolete roots.
 The definition-bound `.data-collection` checkpoint is a JSON body of at most
 256 KiB followed by its SHA-256. It stores the native cut, grace, owner cursor,
 separate paged physical/typed marks, paged FIFO roots and positions, active owned
-graph work, fixed allocation end and exact pending deletion. Replacement syncs
+graph work, fixed allocation end, mandatory source-activity target and exact
+pending deletion. The target follows the native collection rules above: it is
+captured before the fence and cannot exceed the inventory end. Work/mark objects
+remain inventoried without increasing source activity. Replacement syncs
 the file and parent directory. A work item is at most 128 KiB: `TDWORK1` plus NUL,
 32 definition bytes and owned JSON; its immutable key is
 `data-maintenance/<sha256>.work`. Queue keys are eight-byte big-endian positions;

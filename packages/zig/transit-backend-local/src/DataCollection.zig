@@ -33,6 +33,7 @@ pub fn Collector(comptime Graph: type) type {
             work: Marks.State = .{},
             active: ?Graph.Work = null,
             inventory_end: u64,
+            source_activity: u64,
             pending: ?struct { cursor: u64, allocation: Allocations.Allocation } = null,
             retained_objects: u64 = 0,
             reclaimed_objects: u64 = 0,
@@ -53,7 +54,7 @@ pub fn Collector(comptime Graph: type) type {
             defer parsed.deinit();
             const state = parsed.value;
             try state.work.validate();
-            if ((state.pending != null) != (state.phase == .deleting) or state.cut.storage_epoch < 2 or
+            if ((state.pending != null) != (state.phase == .deleting) or state.cut.storage_epoch < 2 or state.source_activity > state.inventory_end or
                 state.cuts.epoch != state.cut.storage_epoch or !std.mem.eql(u8, &state.cuts.genesis, &state.cut.genesis) or
                 (state.phase != .mark and state.active != null) or
                 (state.phase != .mark and state.phase != .complete and (!state.cuts.complete or state.work.queue != null))) return error.InvalidStorageCollection;
@@ -92,6 +93,12 @@ pub fn Collector(comptime Graph: type) type {
         }
 
         pub fn start(self: *Self, engine: anytype, fence_position: u64) !void {
+            return self.startAtActivity(engine, fence_position, 0);
+        }
+
+        /// Activity is captured before the native fence, not from this later
+        /// inventory observation. New-epoch work cannot disappear into this pass.
+        pub fn startAtActivity(self: *Self, engine: anytype, fence_position: u64, activity: u64) !void {
             if (engine.journal.backend != self.backend or engine.page_store.backend != self.backend) return error.InvalidStorageCollection;
             try self.backend.collection.lock(self.backend.io);
             defer self.backend.collection.unlock(self.backend.io);
@@ -106,12 +113,13 @@ pub fn Collector(comptime Graph: type) type {
             if (try self.current()) |previous| if (previous.phase != .complete) return error.ActiveStorageCollection;
             const grace = try std.math.add(u64, now.upper(), core.protocol.Growth.snapshot_lifetime_ms + 60_000);
             if (grace > core.protocol.max_counter) return error.InvalidStorageCollection;
-            const end = blk: {
+            const inventory = blk: {
                 try self.backend.data_inventory.lock(self.backend.io);
                 defer self.backend.data_inventory.unlock(self.backend.io);
-                break :blk (try self.backend.data_allocations.current()).tail;
+                break :blk try self.backend.data_allocations.current();
             };
-            try self.save(.{ .definition = core.protocol.Growth.current_definition, .phase = .mark, .cut = cut, .grace_until_ms = grace, .cuts = try Cuts.init(cut), .inventory_end = end });
+            if (activity > inventory.source_activity) return error.InvalidStorageCollection;
+            try self.save(.{ .definition = core.protocol.Growth.current_definition, .phase = .mark, .cut = cut, .grace_until_ms = grace, .cuts = try Cuts.init(cut), .inventory_end = inventory.tail, .source_activity = activity });
         }
 
         fn mark(self: *Self, allocator: std.mem.Allocator, state: *State, data: *DataStore, index: *storage.TreeStore) !void {
@@ -224,7 +232,7 @@ pub fn Collector(comptime Graph: type) type {
             try engine.validateTime(now);
             var state = (try self.current()) orelse return false;
             if (!std.mem.eql(u8, &state.cut.genesis, &engine.head.genesis) or state.cut.storage_epoch > engine.head.storage_epoch) return error.InvalidStorageCollection;
-            var data: DataStore = .{ .backend = self.backend, .control = true };
+            var data: DataStore = .{ .backend = self.backend, .control = true, .track_activity = false };
             var memory: MemoryBudget = .{ .parent = self.backend.allocator, .limit = step_resident_bytes };
             var index = try storage.TreeStore.init(memory.allocator(), data.objects(), 1);
             defer index.deinit();

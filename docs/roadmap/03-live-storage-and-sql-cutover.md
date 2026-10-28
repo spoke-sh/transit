@@ -602,8 +602,26 @@ Tables settle in 215 units with 33,575,190 peak private bytes, preserving logica
 positions, receipts and retained rows. Its later graph collection verifies 122
 reclaimed allocations. All 101 storage SIGKILL schedules pass, including cleanup
 completion metadata publication and sync. These results qualify this shared
-definition; automatic native/direct object collection, installed maintenance
-qualification and the aggregate P4 gates remain open.
+definition; they do not establish the installed maintenance or aggregate P4 gates.
+
+The live executor now also schedules native and direct object collection with
+independent cursors. Each persisted allocation FIFO counts source activity
+separately from mark pages, retained-item carries and fence bookkeeping. The
+scheduler captures that activity before accepting the collection fence, so later
+allocations remain eligible for another pass. An unfinished pass resumes before
+a new one starts, and completed passes drain bounded FIFO cleanup before idling.
+Current maintenance authority, retained roots, creator epochs and the six-minute
+reader grace continue to own deletion decisions. This stored-format cutover uses
+shared definition
+`068aa25ef2626855f313426665bc773ee43efd5e6260183a03753cc368497271`.
+Four selected backend activity checks, 18 contract checks and 40 fast checks pass.
+The six-test disk node aggregate also passes: automatic collection survives
+revocation and reopen, removes both native and direct orphans, and settles after
+162 units without further fences or progress writes across repeated idle checks.
+The same aggregate retains the Table maintenance and retained-graph assertions
+above; the production node builds. Installed process-death/convergence,
+foreground contention and aggregate resource qualification remain open. These
+results do not close P4.
 
 #### P5 — Qualify and reduce the remaining live read and wait costs
 

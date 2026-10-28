@@ -11,6 +11,8 @@ const Objects = storage.TransitObjectStore;
 
 backend: *Backend,
 control: bool = false,
+/// Collection's own work/mark objects retain inventory without new source activity.
+track_activity: bool = true,
 observe: @import("Diagnostics.zig") = .{},
 
 pub fn log(self: *Self) Log.Log {
@@ -111,7 +113,7 @@ fn putImpl(self: *Self, key: []const u8, bytes: []const u8, expected: [32]u8) !O
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     if (!std.mem.eql(u8, &digest, &expected)) return error.ObjectDigestMismatch;
     self.observe.metrics.request_payload_bytes +|= bytes.len;
-    try self.backend.put(key, bytes, self.control);
+    try self.backend.putTracked(key, bytes, self.control, self.track_activity);
     return .{ .size = bytes.len, .sha256 = expected };
 }
 fn conditional(_: *anyopaque, _: []const u8, _: Objects.Condition, _: []const u8) !bool {

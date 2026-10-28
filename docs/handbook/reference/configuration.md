@@ -302,8 +302,14 @@ The Ursula maintenance process begins another physical pass after
 `storage.maintenance.collection_every_records` allocation-ledger records
 (default 1,024). Its `storage.maintenance.compact` setting enables bounded native
 block/page relocation before collection and defaults to false in bare node
-configuration. Local native/direct immutable-object collection uses explicit
-component operations; the node does not schedule it. Retention remains independent: unlimited
+configuration. The local node uses the same threshold separately for native and
+direct source allocation intents. Its counters exclude collection marks,
+retained-item carries, progress records and maintenance-generated fences. A pass
+captures its activity target before accepting the epoch fence; later activity
+remains eligible. Incomplete passes resume across restart, and completed passes
+finish bounded inventory cleanup before admitting another pass. Current
+maintenance privilege and a trusted clock remain required for collection.
+Retention remains independent: unlimited
 history keeps its original roots, even after compaction. See
 [storage](storage.md#failure-and-maintenance) for ownership, recovery and the
 separate provider/disk costs excluded from these allocation counters.

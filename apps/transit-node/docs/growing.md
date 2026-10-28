@@ -192,9 +192,14 @@ most one segment. The scheduler retains its selected checkpoint target until
 cleanup completes. Lifecycle scans alternate with physical work; native trim,
 collection and Table work rotate through a bounded pass that skips idle classes.
 A failed class advances the rotation before its next attempt. Incomplete cleanup
-therefore cannot occupy every maintenance turn. Local immutable objects
-remain retained; direct Table compaction changes current placement without
-collecting old objects. Standalone
+therefore cannot occupy every maintenance turn. Native and direct immutable-object
+collection have independent durable progress and alternate bounded units. Source
+allocation activity selects a new pass; marking and FIFO bookkeeping do not
+retrigger it. An incomplete pass resumes before a replacement can start, and
+completed graph work finishes its inventory WAL cleanup before another pass.
+Each unit checks current maintenance privilege. Deletion additionally requires
+complete marks, accepted storage epochs and the trusted read-lifetime grace.
+Direct Table compaction changes placement without expiring old roots. Standalone
 payloads have their own opted-in retirement lifecycle: local maintenance confirms
 physical removal under the current native authority fence before publishing
 deletion evidence. It retains the permanent creation-attempt marker. Payloads

@@ -152,6 +152,10 @@ pub fn reserve(self: *Self, bytes: usize, control: bool) !void {
 }
 
 pub fn put(self: *Self, key: []const u8, bytes: []const u8, control: bool) !void {
+    return self.putTracked(key, bytes, control, true);
+}
+
+pub fn putTracked(self: *Self, key: []const u8, bytes: []const u8, control: bool, source: bool) !void {
     try dataKey(key);
     if (bytes.len > storage.TransitObjectStore.max_object_bytes) return error.ObjectTooLarge;
     var digest: [32]u8 = undefined;
@@ -189,7 +193,7 @@ pub fn put(self: *Self, key: []const u8, bytes: []const u8, control: bool) !void
         }
         // Persist a new epoch even for deduplicated content. The old allocation
         // cannot authorize deletion after this key is reused by newer work.
-        _ = try self.data_allocations.record(allocation);
+        _ = try self.data_allocations.recordTracked(allocation, source);
     }
     // Private immutable publication is per-key. Disk syncs must not hold the
     // quota/journal mutex or delay unrelated native reads and control work.
@@ -204,6 +208,10 @@ pub fn dataKey(key: []const u8) !void {
 /// Record the allocation before any object bytes. The accepted epoch fences
 /// delayed creators, including those whose previous publication was uncertain.
 pub fn putNative(self: *Self, epoch: u64, kind: @FieldType(Allocations.Allocation, "kind"), address: [32]u8, bytes: []const u8, control: bool) !void {
+    return self.putNativeTracked(epoch, kind, address, bytes, control, true);
+}
+
+pub fn putNativeTracked(self: *Self, epoch: u64, kind: @FieldType(Allocations.Allocation, "kind"), address: [32]u8, bytes: []const u8, control: bool, source: bool) !void {
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     const allocation: Allocations.Allocation = .{ .epoch = epoch, .kind = kind, .address = address, .meta = .{ .size = bytes.len, .sha256 = digest } };
@@ -224,7 +232,7 @@ pub fn putNative(self: *Self, epoch: u64, kind: @FieldType(Allocations.Allocatio
                 try self.reserve(bytes.len + checks * 32 + 1536 + Allocations.record_bytes, control);
             }
         }
-        _ = try self.allocations.record(allocation);
+        _ = try self.allocations.recordTracked(allocation, source);
     }
     var key: [96]u8 = undefined;
     _ = try self.objects.objectStore().putImmutable(try allocation.key(&key), bytes, digest);

@@ -7,9 +7,9 @@ const Files = @import("LocalFiles.zig");
 const Self = @This();
 pub const Name = [83]u8;
 pub const record_bytes = 160;
-pub const QueueHead = struct { tail: u64, cursor: u64 };
-pub const QueueRecord = struct { position: u64, cursor: u64, item: ?Allocation };
-pub const queue_record_bytes = 64 + record_bytes;
+pub const QueueHead = struct { tail: u64, cursor: u64, source_activity: u64 };
+pub const QueueRecord = struct { position: u64, cursor: u64, source_activity: u64, item: ?Allocation };
+pub const queue_record_bytes = 72 + record_bytes;
 pub const Allocation = struct {
     epoch: u64,
     kind: enum(u8) { page = 'p', block = 'b' },
@@ -88,6 +88,11 @@ pub fn deinit(self: *Self) void {
     self.directory.close(self.io);
 }
 pub fn record(self: *Self, allocation: Allocation) !bool {
+    return self.recordTracked(allocation, true);
+}
+/// Physical maintenance records its allocations for safe reclamation without
+/// counting its own bookkeeping as new work that should trigger another pass.
+pub fn recordTracked(self: *Self, allocation: Allocation, source: bool) !bool {
     const encoded = try allocation.encode();
     const name = allocation.name();
     var bytes: [record_bytes]u8 = undefined;
@@ -103,7 +108,8 @@ pub fn record(self: *Self, allocation: Allocation) !bool {
     // An uncertain append creates no content. A retry without its exact marker
     // may add a duplicate intent; collection safely consumes both references.
     const head = try self.current();
-    try self.append(.{ .position = head.tail, .cursor = head.cursor, .item = allocation });
+    const activity = try std.math.add(u64, head.source_activity, @intFromBool(source));
+    try self.append(.{ .position = head.tail, .cursor = head.cursor, .source_activity = activity, .item = allocation });
     try Files.save(self.io, self.directory, &name, &encoded, false);
     return true;
 }
@@ -115,15 +121,16 @@ pub fn read(self: *Self, name: Name) !?Allocation {
     return allocation;
 }
 fn append(self: *Self, entry: QueueRecord) !void {
-    if (entry.cursor > entry.position) return error.InvalidAllocationHistory;
+    if (entry.position == std.math.maxInt(u64) or entry.cursor > entry.position or entry.source_activity > core.protocol.max_counter or entry.source_activity > entry.position + 1) return error.InvalidAllocationHistory;
     var bytes: [queue_record_bytes]u8 = @splat(0);
     bytes[0..8].* = "TNALQ1\x00\x00".*;
     bytes[8..40].* = core.protocol.Growth.definition_bytes;
     std.mem.writeInt(u64, bytes[40..48], entry.position, .little);
     std.mem.writeInt(u64, bytes[48..56], entry.cursor, .little);
+    std.mem.writeInt(u64, bytes[64..72], entry.source_activity, .little);
     if (entry.item) |item| {
         bytes[56] = 1;
-        bytes[64..].* = try item.encode();
+        bytes[72..].* = try item.encode();
     }
     _ = try self.queue.log().append(0, entry.position, 1, 1, .manifest_checkpoint, &bytes);
 }
@@ -135,14 +142,16 @@ pub fn at(self: *Self, position: u64) !QueueRecord {
     const bytes = frame.payload;
     if (frame.header.partition_id != 0 or frame.header.lsn != position or frame.header.kind != .manifest_checkpoint or frame.header.writer_epoch != 1 or frame.header.policy_epoch != 1 or bytes.len != queue_record_bytes) return error.InvalidAllocationHistory;
     if (!std.mem.eql(u8, bytes[8..40], &core.protocol.Growth.definition_bytes)) return error.IncompatibleDefinition;
-    if (!std.mem.eql(u8, bytes[0..8], "TNALQ1\x00\x00") or !std.mem.allEqual(u8, bytes[57..64], 0) or bytes[56] > 1 or (bytes[56] == 0 and !std.mem.allEqual(u8, bytes[64..], 0))) return error.InvalidAllocationHistory;
-    const entry: QueueRecord = .{ .position = std.mem.readInt(u64, bytes[40..48], .little), .cursor = std.mem.readInt(u64, bytes[48..56], .little), .item = if (bytes[56] == 1) try Allocation.decode(bytes[64..]) else null };
-    if (entry.position != position or entry.cursor > position) return error.InvalidAllocationHistory;
+    if (!std.mem.eql(u8, bytes[0..8], "TNALQ1\x00\x00") or !std.mem.allEqual(u8, bytes[57..64], 0) or bytes[56] > 1 or (bytes[56] == 0 and !std.mem.allEqual(u8, bytes[72..], 0))) return error.InvalidAllocationHistory;
+    const entry: QueueRecord = .{ .position = std.mem.readInt(u64, bytes[40..48], .little), .cursor = std.mem.readInt(u64, bytes[48..56], .little), .source_activity = std.mem.readInt(u64, bytes[64..72], .little), .item = if (bytes[56] == 1) try Allocation.decode(bytes[72..]) else null };
+    if (position == std.math.maxInt(u64) or entry.position != position or entry.cursor > position or entry.source_activity > core.protocol.max_counter or entry.source_activity > position + 1) return error.InvalidAllocationHistory;
     return entry;
 }
 pub fn current(self: *Self) !QueueHead {
     const tail = try self.queue.log().tail(0);
-    return .{ .tail = tail, .cursor = if (tail == 0) 0 else (try self.at(tail - 1)).cursor };
+    if (tail == 0) return .{ .tail = 0, .cursor = 0, .source_activity = 0 };
+    const latest = try self.at(tail - 1);
+    return .{ .tail = tail, .cursor = latest.cursor, .source_activity = latest.source_activity };
 }
 /// The caller serializes queue operations. A carry and cursor advance share one
 /// accepted WAL record, so uncertainty cannot lose or double-consume ownership.
@@ -150,7 +159,7 @@ pub fn consume(self: *Self, cursor: u64, expected: ?Allocation, keep: bool) !voi
     const head = try self.current();
     if (head.cursor != cursor or cursor >= head.tail or (keep and expected == null)) return error.AllocationConflict;
     if (!std.meta.eql((try self.at(cursor)).item, expected)) return error.AllocationConflict;
-    try self.append(.{ .position = head.tail, .cursor = cursor + 1, .item = if (keep) expected else null });
+    try self.append(.{ .position = head.tail, .cursor = cursor + 1, .source_activity = head.source_activity, .item = if (keep) expected else null });
 }
 /// Collapse at most 64 empty records in one progress append. Internal progress
 /// frames therefore shrink across collections instead of retaining peak history.
@@ -161,7 +170,7 @@ pub fn consumeEmpty(self: *Self, end: u64) !void {
         if ((try self.at(cursor)).item != null) break;
     }
     if (cursor == head.cursor) return error.AllocationConflict;
-    try self.append(.{ .position = head.tail, .cursor = cursor, .item = null });
+    try self.append(.{ .position = head.tail, .cursor = cursor, .source_activity = head.source_activity, .item = null });
 }
 pub fn trim(self: *Self) !void {
     const head = try self.current();
