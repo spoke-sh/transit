@@ -22,7 +22,7 @@ before_reply: ?struct { context: *anyopaque, run: *const fn (*anyopaque, *backen
 
 /// All borrowed result fields live in the request arena until the buffered
 /// response is sent. The final fence can discard it after a revocation race.
-pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request, output: []u8) ![]const u8 {
+pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request) ![]const u8 {
     // An uncertain append, failed recovery or failed disclosure cannot leave a
     // warm Table hint behind. Full replay remains the next request's fallback.
     errdefer if (self.options.table_recovery) |slot| {
@@ -59,12 +59,10 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request,
     if (request.lease) |lease| try catalog.requireClientLease(lease, policy.policy());
     const result = try c.DirectTableDispatch.apply(allocator, &catalog, policy.policy(), request.action, request.delegation, .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource });
     const observed = try policy.observation();
-    var writer: std.Io.Writer = .fixed(output[0..@min(output.len, w.max_response_bytes)]);
-    var encoder: std.json.Stringify = .{ .writer = &writer };
-    try c.protocol.Json.write(w.Response{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = observed.revision, .subject = observed.subject, .result = result }, &encoder);
+    const output = try c.protocol.Json.valueAllocBounded(allocator, w.Response{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = observed.revision, .subject = observed.subject, .result = result }, w.max_response_bytes);
     if (self.before_reply) |inject| try inject.run(inject.context, self.engine);
     if (!std.meta.eql(try policy.observation(), observed)) return error.AuthorizationChanged;
-    return writer.buffered();
+    return output;
 }
 
 fn executeDdl(raw: *anyopaque, catalog: *D, binding: d.Binding, policy: D.Policy, steps: u16) !D.Observation {

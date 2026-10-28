@@ -14064,23 +14064,26 @@
       "errors": {
         "InvalidJsonConstant": 1,
         "InvalidJsonShape": 11,
-        "OutOfMemory": 1
+        "OutOfMemory": 1,
+        "WriteFailed": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "allocationSchedule()": "<inferred>",
+        "boundedAllocationSchedule()": "<inferred>",
         "parseFromSlice()": "<inferred>",
         "parseFromSliceOwned()": "<inferred>",
         "parseWithOptions()": "<inferred>",
         "shape()": "anyerror",
         "validateShape()": "anyerror",
         "valueAlloc()": "<inferred>",
+        "valueAllocBounded()": "<inferred>",
         "write()": "std . Io . Writer . Error"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 30,
+        "try": 34,
         "catch": 2
       },
       "imports": [
