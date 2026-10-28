@@ -154,7 +154,7 @@ defmodule Transit.Station.Sdk.Runner do
     :application.load(:transit_station_sdk)
 
     case :application.get_key(:transit_station_sdk, :vsn) do
-      {:ok, ~c"0.2.0"} ->
+      {:ok, ~c"0.0.1"} ->
         :ok
 
       _ ->

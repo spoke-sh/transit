@@ -101,7 +101,7 @@ defmodule Transit.Client do
     :application.load(:transit_client)
 
     case :application.get_key(:transit_client, :vsn) do
-      {:ok, ~c"0.2.0"} -> :ok
+      {:ok, ~c"0.0.1"} -> :ok
       _ -> {:error, %Transit.Client.Error{kind: :incompatible_native, phase: :client_sdk_version}}
     end
   end

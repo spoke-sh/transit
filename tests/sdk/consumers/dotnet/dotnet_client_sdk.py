@@ -17,13 +17,13 @@ def run(node, cli, library, artifacts):
         source.mkdir()
         feed = target / 'feed'
         feed.mkdir()
-        for name in ('Transit.Client.0.2.0.nupkg', 'Transit.Native.Client.0.2.0.nupkg'):
+        for name in ('Transit.Client.0.0.1.nupkg', 'Transit.Native.Client.0.0.1.nupkg'):
             shutil.copy2(Path(artifacts).resolve() / name, feed / name)
         environment = dict(os.environ, NUGET_PACKAGES=str(target / 'packages'), DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1')
         project = source / 'Consumer.csproj'
         project.write_text('''<Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
-<ItemGroup><PackageReference Include="Transit.Client" Version="[0.2.0]" /></ItemGroup>
+<ItemGroup><PackageReference Include="Transit.Client" Version="[0.0.1]" /></ItemGroup>
 </Project>\n''')
         config = ET.Element('configuration')
         sources = ET.SubElement(config, 'packageSources')

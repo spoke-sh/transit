@@ -216,6 +216,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) app.root_module.addImport("transit_serving", serving.module("transit_serving"));
         app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (comptime std.mem.eql(u8, entry[0], "transit")) {
+            app.root_module.addOptions("build_version", @import("version.zig").options(b));
             // The native debug linker reserves large sparse section gaps in
             // this executable. Pack ELF output with pinned LLVM/LLD while
             // retaining debug information and the executable admission bound.

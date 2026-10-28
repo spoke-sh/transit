@@ -2,7 +2,7 @@
   runCommand,
   transit,
 }:
-runCommand "transit-local-0.1.0"
+runCommand "transit-local-${transit.version}"
   {
     passthru = {
       inherit transit;

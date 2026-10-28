@@ -1,6 +1,6 @@
 # Transit Java client
 
-Independent typed raw Transit APIs for Java 21, version 0.2.0. The SDK owns public
+Independent typed raw Transit APIs for Java 21, version 0.0.1. The SDK owns public
 records, bounded scheduling and packaging; the shared Zig client owns signing,
 operation identities, protocol validation and exact retry. It does not depend on
 Station or select credentials automatically.

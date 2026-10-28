@@ -17,8 +17,8 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
         environment = {k: v for k, v in os.environ.items() if k not in ('RUBYLIB', 'RUBYOPT', 'GEM_HOME', 'GEM_PATH', 'TRANSIT_HOST')}
         environment.update(GEM_HOME=str(target / 'gems'), GEM_PATH=f'{target / "gems"}:{default}')
         files = [Path(artifacts).resolve() / name for name in (
-            'transit-native-client-0.2.0-x86_64-linux.gem', 'transit-client-0.2.0.gem',
-            'transit-native-station-0.2.0-x86_64-linux.gem', 'transit-station-0.2.0.gem', 'transit-sdk-examples-0.2.0.gem')]
+            'transit-native-client-0.0.1-x86_64-linux.gem', 'transit-client-0.0.1.gem',
+            'transit-native-station-0.0.1-x86_64-linux.gem', 'transit-station-0.0.1.gem', 'transit-sdk-examples-0.0.1.gem')]
         subprocess.run(['gem', 'install', '--local', '--no-document', '--ignore-dependencies', *files], env=environment, cwd=target, check=True)
         values = target / 'handler_tables.rb'
         shutil.copyfile(root / 'tests/sdk/consumers/ruby/ruby_handler_tables.rb', values)

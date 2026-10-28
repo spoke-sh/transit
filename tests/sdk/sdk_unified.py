@@ -125,7 +125,7 @@ def install(root, languages):
         subprocess.run([sys.executable, '-m', 'venv', '--without-pip', venv], check=True, env=env)
         python = str(venv/'bin/python')
         subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index',
-            '--find-links', str(ROOT/'.cache/bindings/Debug/wheels'), 'transit-station==0.2.0'], check=True, env=env, stdout=subprocess.DEVNULL)
+            '--find-links', str(ROOT/'.cache/bindings/Debug/wheels'), 'transit-station==0.0.1'], check=True, env=env, stdout=subprocess.DEVNULL)
         script = root/'consumer.py'
         shutil.copyfile(ROOT/'tests/sdk/consumers/python/python_unified_sdk.py', script)
         subprocess.run([python, '-B', script, 'codecs', root/'fixtures.json'], check=True, env=env, cwd=root, timeout=90)
@@ -149,14 +149,14 @@ def install_python_direct(root, packages):
     subprocess.run([sys.executable, '-m', 'venv', '--without-pip', venv], check=True, env=env)
     python = str(venv/'bin/python')
     subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index',
-        '--find-links', str(packages), 'transit-station==0.2.0'], check=True, env=env, stdout=subprocess.DEVNULL)
+        '--find-links', str(packages), 'transit-station==0.0.1'], check=True, env=env, stdout=subprocess.DEVNULL)
     script = root/'consumer.py'; shutil.copyfile(ROOT/'tests/sdk/consumers/python/python_direct_capture.py', script)
     return lambda endpoint, profile, phase: subprocess.run([python, '-B', script, endpoint, str(profile), phase], cwd=root, env=env, check=True, timeout=120)
 
 
 def install_node(root, fixtures, packages=ROOT/'.cache/bindings/Debug/node', *, direct=False):
     root.mkdir()
-    dependencies = {f'@transit/{name}': 'file:' + str(packages/f'transit-{name}-0.2.0.tgz')
+    dependencies = {f'@transit/{name}': 'file:' + str(packages/f'transit-{name}-0.0.1.tgz')
         for name in ('client', 'native-client', 'station', 'native-station')}
     manifest = dict(private=True, type='module', packageManager=json.loads((ROOT/'package.json').read_text())['packageManager'],
         dependencies={**dependencies, 'apache-arrow': '21.2.0'}, pnpm=dict(overrides=dependencies))
@@ -182,8 +182,8 @@ def install_ruby(root, fixtures, packages=ROOT/'.cache/bindings/Debug/ruby', *, 
     env = {k: v for k, v in os.environ.items() if k not in ('RUBYLIB', 'RUBYOPT', 'GEM_HOME', 'GEM_PATH', 'TRANSIT_HOST')}
     env.update(GEM_HOME=str(root/'gems'), GEM_PATH=f'{root / "gems"}:{default}')
     files = [packages/name for name in (
-        'transit-native-client-0.2.0-x86_64-linux.gem', 'transit-client-0.2.0.gem',
-        'transit-native-station-0.2.0-x86_64-linux.gem', 'transit-station-0.2.0.gem')]
+        'transit-native-client-0.0.1-x86_64-linux.gem', 'transit-client-0.0.1.gem',
+        'transit-native-station-0.0.1-x86_64-linux.gem', 'transit-station-0.0.1.gem')]
     subprocess.run(['gem', 'install', '--local', '--no-document', '--ignore-dependencies', *files], env=env, cwd=root, check=True, stdout=subprocess.DEVNULL)
     script = root/'consumer.rb'
     shutil.copyfile(ROOT/'tests/sdk/consumers/ruby'/('ruby_direct_capture.rb' if direct else 'ruby_unified_sdk.rb'), script)
@@ -201,7 +201,7 @@ def install_rust(root, fixtures, packages=ROOT/'.cache/bindings/Debug/rust', *, 
     root.mkdir()
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
     for name in names:
-        with tarfile.open(packages/f'{name}-0.2.0.crate') as archive:
+        with tarfile.open(packages/f'{name}-0.0.1.crate') as archive:
             archive.extractall(root/'vendor', filter='data')
     (root/'src').mkdir()
     shutil.copyfile(ROOT/'tests/sdk/consumers/rust'/('rust_direct_capture.rs' if direct else 'rust_unified_sdk.rs'), root/'src/main.rs')
@@ -210,14 +210,14 @@ name = "transit-unified-proof"
 version = "0.1.0"
 edition = "2024"
 [dependencies]
-transit-client = "=0.2.0"
-transit-station-sdk = { version = "=0.2.0", features = ["arrow"] }
+transit-client = "=0.0.1"
+transit-station-sdk = { version = "=0.0.1", features = ["arrow"] }
 serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
 [patch.crates-io]
 '''
-    manifest += ''.join(f'{name} = {{ path = "vendor/{name}-0.2.0" }}\n' for name in names)
+    manifest += ''.join(f'{name} = {{ path = "vendor/{name}-0.0.1" }}\n' for name in names)
     (root/'Cargo.toml').write_text(manifest)
-    lock = root/'vendor/transit-station-sdk-0.2.0/Cargo.lock'
+    lock = root/'vendor/transit-station-sdk-0.0.1/Cargo.lock'
     shutil.copyfile(lock, root/'Cargo.lock')
     env = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
     subprocess.run(['cargo', 'check', '--offline'], cwd=root, env=env, check=True)
@@ -336,7 +336,7 @@ def install_c(root, fixtures, language, packages=ROOT / '.cache/bindings/Debug/c
 def install_java(root, fixtures, packages=ROOT/'.cache/bindings/Debug/java', *, direct=False):
     root.mkdir(); lib = root/'lib'; lib.mkdir()
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
-    for name in (*[f'{name}-0.2.0.jar' for name in names], 'gson-2.12.1.jar'):
+    for name in (*[f'{name}-0.0.1.jar' for name in names], 'gson-2.12.1.jar'):
         shutil.copy2(packages/name, lib/name)
     env = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
     name = 'JavaDirectCapture' if direct else 'JavaUnifiedSdk'
@@ -359,13 +359,13 @@ def install_dotnet(root, fixtures, packages=ROOT/'.cache/bindings/Debug/dotnet',
     import xml.etree.ElementTree as ET
     root.mkdir(); source = root/'source'; source.mkdir(); feed = root/'feed'; feed.mkdir()
     for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
-        name = f'{package}.0.2.0.nupkg'; shutil.copy2(packages/name, feed/name)
+        name = f'{package}.0.0.1.nupkg'; shutil.copy2(packages/name, feed/name)
     env = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
     env.update(NUGET_PACKAGES=str(root/'packages'), DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1')
     project = source/'Consumer.csproj'
     project.write_text('''<Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
-<ItemGroup><PackageReference Include="Transit.Client" Version="[0.2.0]" /><PackageReference Include="Transit.Station.Sdk" Version="[0.2.0]" /></ItemGroup>
+<ItemGroup><PackageReference Include="Transit.Client" Version="[0.0.1]" /><PackageReference Include="Transit.Station.Sdk" Version="[0.0.1]" /></ItemGroup>
 </Project>''')
     config = ET.Element('configuration'); sources = ET.SubElement(config, 'packageSources'); ET.SubElement(sources, 'clear')
     ET.SubElement(sources, 'add', key='local-built', value=str(feed)); ET.ElementTree(config).write(source/'NuGet.Config', encoding='utf-8', xml_declaration=True)
@@ -390,7 +390,7 @@ def install_beam(root, fixtures, language, packages=ROOT / '.cache/bindings/Debu
     names = ['transit_native_client', 'transit_client', 'transit_native_station', 'transit_station_sdk']
     if language == 'elixir': names += ['transit_client_elixir', 'transit_station_elixir']
     for name in names:
-        with tarfile.open(packages/f'{name}-0.2.0.tar.gz') as archive: archive.extractall(lib, filter='data')
+        with tarfile.open(packages/f'{name}-0.0.1.tar.gz') as archive: archive.extractall(lib, filter='data')
     env = {k: v for k, v in os.environ.items() if k not in ('ERL_LIBS', 'ERL_FLAGS', 'TRANSIT_HOST')}
     env.update(ERL_LIBS=str(lib), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
     controller = 'beam_direct_capture' if direct else 'beam_unified_controller'

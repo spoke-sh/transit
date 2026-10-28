@@ -1,7 +1,7 @@
 .{
     .name = .transit_sql,
     .fingerprint = 0x10699c4423eddfd2,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{ .transit_client = .{ .path = "../transit-client" }, .transit_query_direct = .{ .path = "../transit-query-direct" }, .transit_memory = .{ .path = "../transit-memory" }, .transit_sql_results = .{ .path = "../transit-sql-results" }, .transit_sql_protocol = .{ .path = "../transit-sql-protocol" }, .transit_catalog = .{ .path = "../transit-catalog" } },
     .paths = .{ "build.zig", "build.zig.zon", "src" },

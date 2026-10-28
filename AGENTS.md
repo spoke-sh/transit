@@ -70,6 +70,10 @@ established behavior, limits and reasoning into the public owner with the change
   `EBCDIC`), and collations ($\kappa$: `UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`,
   `ICU:<locale>`) orthogonal in query and storage design. Zone maps and B-tree
   sort keys must respect the declared column collation so range pruning is sound.
+- Keep Transit-owned package versions and exact internal dependency pins aligned
+  with the root `VERSION`; follow the [release workflow](build/README.md#changing-the-release-version).
+  Run `python3 -B tasks/version.py` after changing manifests. Keep release SemVer,
+  Git provenance and protocol-definition identity separate; never move a published tag.
 - Follow the [versioning policy](docs/handbook/reference/versioning.md). Before Transit
   1.0, every Transit-owned protocol, wire format, schema and ABI has one current
   definition named v1. Breaking changes replace that definition through a hard

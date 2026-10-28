@@ -1,7 +1,7 @@
 # Elixir client usage
 
 Build with `nix develop .#bindings -c just bindings::beam-build`. Extract the three
-`transit_client_elixir`, `transit_client` and `transit_native_client` version 0.2.0
+`transit_client_elixir`, `transit_client` and `transit_native_client` version 0.0.1
 OTP tarballs into an ordinary library directory and set `ERL_LIBS` to it. Run an
 Elixir consumer with `elixir app.exs`; standard OTP resolution discovers the
 matching native port. The exact core dependency is also declared by `mix.exs`.

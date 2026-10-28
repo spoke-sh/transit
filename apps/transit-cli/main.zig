@@ -1,6 +1,7 @@
 //! Local server and shared SQL console entrypoint.
 const std = @import("std");
 const Diagnostic = @import("Diagnostic.zig");
+const build_version = @import("build_version");
 pub fn main(init: std.process.Init) !void {
     var diagnostic: Diagnostic = .{};
     dispatch(init, &diagnostic) catch |err| {
@@ -23,7 +24,7 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
     const options = try @import("Options.zig").parseDiagnosed(args[1..], init.environ_map.get("TRANSIT_CONSOLE_CONFIG"), diagnostic);
     if (options.command == .help or options.help) return @import("Options.zig").writeHelp(init.io, options);
     return switch (options.command) {
-        .version => std.Io.File.stdout().writeStreamingAll(init.io, "Transit development; CLI contract 1\n"),
+        .version => std.Io.File.stdout().writeStreamingAll(init.io, "Transit " ++ build_version.release ++ " (git " ++ build_version.revision ++ "; CLI contract 1)\n"),
         .console => @import("Console.zig").run(init, options, diagnostic),
         .server => @import("server/Server.zig").run(init, options, diagnostic),
         .help => unreachable,

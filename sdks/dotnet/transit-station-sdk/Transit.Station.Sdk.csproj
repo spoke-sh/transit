@@ -3,14 +3,14 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>0.2.0</Version><PackageId>Transit.Station.Sdk</PackageId>
+    <Version>0.0.1</Version><PackageId>Transit.Station.Sdk</PackageId>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>Typed scoped handlers over the shared Zig Station implementation.</Description>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Transit.Client" Version="[0.2.0]" />
-    <PackageReference Include="Transit.Native.Station" Version="[0.2.0]" />
+    <PackageReference Include="Transit.Client" Version="[0.0.1]" />
+    <PackageReference Include="Transit.Native.Station" Version="[0.0.1]" />
     <EmbeddedResource Include="contract.json" LogicalName="transit.station.contract.json" />
     <None Update="README.md" Pack="true" PackagePath="" />
     <None Update="docs/USAGE.md" Pack="true" PackagePath="docs" />

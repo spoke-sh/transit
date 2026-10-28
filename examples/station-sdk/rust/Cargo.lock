@@ -109,7 +109,7 @@ dependencies = [
 
 [[package]]
 name = "transit-client"
-version = "0.2.0"
+version = "0.0.1"
 dependencies = [
  "libloading",
  "serde_json",
@@ -118,15 +118,15 @@ dependencies = [
 
 [[package]]
 name = "transit-native-client"
-version = "0.2.0"
+version = "0.0.1"
 
 [[package]]
 name = "transit-native-station"
-version = "0.2.0"
+version = "0.0.1"
 
 [[package]]
 name = "transit-sdk-examples-rust"
-version = "0.2.0"
+version = "0.0.1"
 dependencies = [
  "serde_json",
  "transit-client",
@@ -135,7 +135,7 @@ dependencies = [
 
 [[package]]
 name = "transit-station-sdk"
-version = "0.2.0"
+version = "0.0.1"
 dependencies = [
  "libloading",
  "serde",

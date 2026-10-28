@@ -14,7 +14,7 @@ started later. `QueryRequester` validates provenance and streams
 owned IPC segments to its application callback.
 
 Build from the bindings shell with `just bindings::java-build`. Install
-`transit-sdk-examples-0.2.0.jar` plus the JAR dependencies in the
+`transit-sdk-examples-0.0.1.jar` plus the JAR dependencies in the
 [SDK guide](../../../sdks/java/transit-station-sdk/docs/USAGE.md) into `lib/`.
 Run the actual installed CLI roles:
 

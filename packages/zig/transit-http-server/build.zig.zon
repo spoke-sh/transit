@@ -1,7 +1,7 @@
 .{
     .name = .transit_http_server,
     .fingerprint = 0x4102d21f5dd8a591,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{},
     .paths = .{ "build.zig", "build.zig.zon", "src" },

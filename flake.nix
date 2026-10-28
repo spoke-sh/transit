@@ -15,6 +15,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       zig-overlay,
       ursula-overlay,
@@ -38,7 +39,10 @@
           };
           kubectl-transit = pkgs.callPackage ./nix/kubectl-transit.nix { inherit zig; };
           vite-plus = pkgs.callPackage ./nix/vite-plus.nix { };
-          transit = pkgs.callPackage ./nix/transit.nix { inherit zig vite-plus; };
+          transit = pkgs.callPackage ./nix/transit.nix {
+            inherit zig vite-plus;
+            sourceRevision = self.rev or self.dirtyRev or "unknown";
+          };
           minio = pkgs.callPackage ./nix/minio.nix { };
           ursula = import ./nix/ursula.nix { upstream = ursula-overlay.packages.${system}.ursula; };
           reference = pkgs.callPackage ./nix/reference-tools.nix {

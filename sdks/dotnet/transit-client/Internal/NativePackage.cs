@@ -42,7 +42,7 @@ internal sealed class NativePackage : IDisposable
             }
             string component = family == "client" ? "Client" : "Station";
             Assembly artifact = Assembly.Load($"Transit.Native.{component}");
-            if (artifact.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion != "0.2.0") throw Value.Incompatible("native-artifact-version");
+            if (artifact.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion != "0.0.1") throw Value.Incompatible("native-artifact-version");
             string embedded = $"embedded:{artifact.ManifestModule.ModuleVersionId}:{family}";
             lock (Images) {
                 if (Images.TryGetValue(embedded, out var existing)) { Library = existing.Library; return; }

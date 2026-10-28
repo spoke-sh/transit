@@ -35,7 +35,7 @@ final class Bridge implements Worker.State<Void> {
         } catch (RuntimeException | Error error) { bridge.close(); throw error; }
     }
     private Bridge(JsonObject config, Path nativeHost) {
-        if (!"0.2.0".equals(Client.class.getPackage().getImplementationVersion())) throw incompatible("client-sdk-version");
+        if (!"0.0.1".equals(Client.class.getPackage().getImplementationVersion())) throw incompatible("client-sdk-version");
         JsonObject schemas = resource("/io/transit/sdk/client/schemas.json");
         resource("/io/transit/sdk/station/schemas.json").entrySet().forEach(entry -> schemas.add(entry.getKey(), entry.getValue()));
         JsonObject limits = resource("/io/transit/sdk/station/contract.json").getAsJsonObject("limits");

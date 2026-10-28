@@ -21,7 +21,7 @@ public final class NativeArtifact implements AutoCloseable {
         Path directory = null;
         try (InputStream version = NativeArtifact.class.getResourceAsStream(root + "version");
              InputStream binary = NativeArtifact.class.getResourceAsStream(root + "transit-" + family + "-host")) {
-            if (version == null || binary == null || !new String(version.readNBytes(32), StandardCharsets.US_ASCII).equals("0.2.0\n")) throw Values.incompatible("native-artifact-version");
+            if (version == null || binary == null || !new String(version.readNBytes(32), StandardCharsets.US_ASCII).equals("0.0.1\n")) throw Values.incompatible("native-artifact-version");
             directory = Files.createTempDirectory("transit-java-native-", PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
             Path executable = directory.resolve("transit-" + family + "-host");
             Files.copy(binary, executable);

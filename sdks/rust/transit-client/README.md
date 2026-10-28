@@ -27,8 +27,8 @@ The existing M9 `transit-station` crate remains unchanged while the separate
 typed Station SDK is built. See the [Rust design](../../../docs/history/sdk/RUST.md).
 
 Enter `nix develop .#bindings` and run `just bindings::rust-build` to create
-`.cache/bindings/rust/transit-client-0.2.0.crate` and its matching
-`transit-native-client` artifact. Extract both, add `transit-client = "=0.2.0"`
+`.cache/bindings/rust/transit-client-0.0.1.crate` and its matching
+`transit-native-client` artifact. Extract both, add `transit-client = "=0.0.1"`
 to the consumer, and use ordinary `[patch.crates-io]` path entries pointing at the
 two extracted package directories until registry release is qualified. Build
 with the supplied lockfile. No repository-relative source imports are required.

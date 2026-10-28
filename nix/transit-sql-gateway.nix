@@ -10,7 +10,7 @@
 assert openssl.version == "3.6.4";
 stdenv.mkDerivation {
   pname = "transit-sql-gateway";
-  version = "0.1.0";
+  inherit (transit) version;
   inherit (transit) src;
   nativeBuildInputs = [
     zig

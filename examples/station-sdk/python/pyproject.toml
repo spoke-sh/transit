@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "transit-sdk-examples"
-version = "0.2.0"
+version = "0.0.1"
 requires-python = ">=3.13"
-dependencies = ["transit-station==0.2.0"]
+dependencies = ["transit-station==0.0.1"]
 
 [project.scripts]
 transit-python-counter = "transit_sdk_examples.counter:main"

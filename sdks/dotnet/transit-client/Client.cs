@@ -5,7 +5,7 @@ namespace Transit.Client;
 /// <summary>Independent raw client. Native work stays owned after await cancellation.</summary>
 public sealed class Client : IDisposable, IAsyncDisposable
 {
-    public const string Version = "0.2.0";
+    public const string Version = "0.0.1";
     private sealed class State(ClientConfig config) : IWorkerState<Shutdown>
     {
         internal readonly Bridge Bridge = new(config);

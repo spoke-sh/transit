@@ -129,10 +129,10 @@ importers:
   examples/station-sdk/typescript:
     dependencies:
       '@transit/client':
-        specifier: workspace:0.2.0
+        specifier: workspace:0.0.1
         version: link:../../../sdks/ts/transit-client
       '@transit/station':
-        specifier: workspace:0.2.0
+        specifier: workspace:0.0.1
         version: link:../../../sdks/ts/transit-station-sdk
     devDependencies:
       '@types/node':
@@ -224,7 +224,7 @@ importers:
   sdks/ts/transit-client:
     dependencies:
       '@transit/native-client':
-        specifier: workspace:0.2.0
+        specifier: workspace:0.0.1
         version: link:../transit-native-client
       ajv:
         specifier: 8.20.0
@@ -244,10 +244,10 @@ importers:
   sdks/ts/transit-station-sdk:
     dependencies:
       '@transit/client':
-        specifier: workspace:0.2.0
+        specifier: workspace:0.0.1
         version: link:../transit-client
       '@transit/native-station':
-        specifier: workspace:0.2.0
+        specifier: workspace:0.0.1
         version: link:../transit-native-station
       ajv:
         specifier: 8.20.0

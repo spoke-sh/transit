@@ -12,8 +12,11 @@ explicit-submit terminal session; `-c SQL`, `-f FILE` and stdin run batch input.
 These are the only public commands. `--help` and `--version` need no configuration,
 credentials, running installation or network. Unknown commands/options, repeated
 options, positional leftovers and incompatible versions fail before effects.
-Version output identifies the executable and command-contract version; it is
-not a promise about remote capabilities or a release tag.
+Version output is `Transit <semver> (git <revision>; CLI contract 1)` followed
+by a newline. The revision is the full build-source commit, with `-dirty` for
+modified source, or `unknown` when provenance is unavailable. It identifies the
+artifact, not remote capabilities or protocol compatibility. See the
+[versioning policy](../docs/handbook/reference/versioning.md#software-releases).
 
 Server configuration overlays built-in defaults with one selected file, then
 typed environment values. With no explicit `--config`, the first existing

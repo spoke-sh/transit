@@ -1,7 +1,7 @@
 .{
     .name = .transit_serving,
     .fingerprint = 0xede453b05fba298,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{ .transit_station = .{ .path = "../transit-station" }, .transit_query = .{ .path = "../transit-query" } },
     .paths = .{ "build.zig", "build.zig.zon", "src" },

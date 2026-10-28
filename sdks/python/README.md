@@ -17,7 +17,7 @@ output directory as an explicit local package source; no public registry release
 is available. The native wheels supply the shared libraries and ports.
 
 ```sh
-python -m pip install --no-index --find-links /path/to/wheels transit-client==0.2.0 transit-station==0.2.0
+python -m pip install --no-index --find-links /path/to/wheels transit-client==0.0.1 transit-station==0.0.1
 ```
 
 Import raw callers from `transit_client` and framework APIs from `transit_station`.

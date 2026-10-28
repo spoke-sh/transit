@@ -16,7 +16,7 @@ LIST defaults. Table completion and application bookkeeping can require separate
 turns under the four-write budget.
 
 Build with `nix develop .#bindings -c just bindings::dotnet-build` and reference
-`Transit.Sdk.Examples` 0.2.0 from the local NuGet feed. Its dependencies install the
+`Transit.Sdk.Examples` 0.0.1 from the local NuGet feed. Its dependencies install the
 public SDKs and separate native artifacts. Build a normal console consumer named
 `Consumer` with exact references to `Transit.Client`, `Transit.Station.Sdk` and
 `Transit.Sdk.Examples`, then run the installed example executable using that

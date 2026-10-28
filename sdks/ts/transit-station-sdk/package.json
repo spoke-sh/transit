@@ -1,6 +1,6 @@
 {
   "name": "@transit/station",
-  "version": "0.2.0",
+  "version": "0.0.1",
   "files": [
     "dist",
     "README.md",
@@ -18,8 +18,8 @@
     }
   },
   "dependencies": {
-    "@transit/client": "workspace:0.2.0",
-    "@transit/native-station": "workspace:0.2.0",
+    "@transit/client": "workspace:0.0.1",
+    "@transit/native-station": "workspace:0.0.1",
     "ajv": "8.20.0"
   },
   "devDependencies": {

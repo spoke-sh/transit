@@ -1,7 +1,7 @@
 .{
     .name = .transit_sql_gateway_app,
     .fingerprint = 0x9d0a57fbae611594,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
         .transit_memory = .{ .path = "../../packages/zig/transit-memory" },

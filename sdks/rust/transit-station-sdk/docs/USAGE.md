@@ -1,6 +1,6 @@
 # Rust Station SDK
 
-`transit-station-sdk = "=0.2.0"` exports `transit_station_sdk`; it depends on
+`transit-station-sdk = "=0.0.1"` exports `transit_station_sdk`; it depends on
 version-matched `transit-client` and `transit-native-station` artifacts. Locally,
 extract the crates built by `just bindings::rust-build` and use ordinary Cargo
 `[patch.crates-io]` entries for those crates and `transit-native-client`. No loader

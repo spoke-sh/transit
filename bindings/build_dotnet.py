@@ -20,7 +20,7 @@ def build(output, names, native_prefix):
             shutil.copytree(source, target, dirs_exist_ok=True)
             manifest, = target.glob('*.csproj')
             project = ET.parse(manifest)
-            assert project.findtext('PropertyGroup/Version') == '0.2.0'
+            assert project.findtext('PropertyGroup/Version') == (ROOT / 'VERSION').read_text().strip()
             if name.startswith('transit-native-'):
                 family = name.removeprefix('transit-native-')
                 (target / 'native').mkdir()

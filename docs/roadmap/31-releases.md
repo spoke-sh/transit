@@ -1,6 +1,6 @@
 # 31. Release distribution
 
-[Roadmap](README.md) · **Status:** Planned
+[Roadmap](README.md) · **Status:** In Progress
 
 Publish a qualified tagged revision with one artifact/compatibility manifest.
 Existing [Nix packages](../../nix/README.md) and
@@ -9,6 +9,18 @@ Existing [Nix packages](../../nix/README.md) and
 Consume the qualified [operations and upgrade procedures](20-operations-and-recovery.md).
 This milestone packages and verifies their installation experience; operational
 recovery, compatibility and conversion semantics remain with that owner.
+
+## Delivered foundation
+
+- Server and console help end after their options; component guides retain the
+  configuration and operating instructions.
+- One `VERSION` baseline (`0.0.1`) aligns runtime, SDK and package metadata.
+  The CLI embeds Git provenance; Nix passes its source revision explicitly.
+  CI checks package consistency and exact clean release tags. See the
+  [release policy](../handbook/reference/versioning.md#software-releases).
+
+Artifact publication, portable platform qualification and installed onboarding
+remain subject to the delivery sequence and release gate below.
 
 ## Delivery sequence
 

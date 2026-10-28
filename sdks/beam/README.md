@@ -11,7 +11,7 @@ the [source build instructions](../../bindings/README.md#build-and-verification)
 Native artifacts require that build's Nix runtime closure. Other platforms and
 portable native distributions are not supplied.
 
-Extract the local 0.2.0 OTP tarballs into an ordinary library directory and
+Extract the local 0.0.1 OTP tarballs into an ordinary library directory and
 set `ERL_LIBS` to it. Raw Erlang clients use `transit_client` with
 `transit_native_client`; Station adds `transit_station_sdk` and
 `transit_native_station`. Elixir also uses `transit_client_elixir` and

@@ -19,7 +19,7 @@ open(App, Override, Config, Contract) ->
     catch _:_ -> file:delete(File), file:del_dir(Directory), transit_sdk_value:fail(incompatible_native, native_start) end.
 executable(App, undefined) ->
     case application:load(App) of ok -> ok; {error, {already_loaded, App}} -> ok; _ -> transit_sdk_value:fail(incompatible_native, native_package) end,
-    case application:get_key(App, vsn) of {ok, "0.2.0"} -> ok; _ -> transit_sdk_value:fail(incompatible_native, native_package_version) end,
+    case application:get_key(App, vsn) of {ok, "0.0.1"} -> ok; _ -> transit_sdk_value:fail(incompatible_native, native_package_version) end,
     case code:priv_dir(App) of
         Dir when is_list(Dir) ->
             Name = case App of transit_native_client -> "transit-client-host"; transit_native_station -> "transit-station-host" end,

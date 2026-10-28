@@ -9,7 +9,7 @@ import java.util.concurrent.CompletableFuture;
 
 /** Independent raw Transit client. Every operation admits at most one owned job. */
 public final class Client implements AutoCloseable {
-    public static final String VERSION = "0.2.0";
+    public static final String VERSION = "0.0.1";
     private static final class State implements Worker.State<Shutdown> {
         final Port port;
         AdmissionReceipt lastAdmission;

@@ -13,9 +13,11 @@
   vite-plus,
   openssl,
   pkg-config,
+  sourceRevision ? "unknown",
 }:
 assert openssl.version == "3.6.4";
 let
+  version = lib.trim (builtins.readFile ../VERSION);
   # Seed Zig's package directory from fixed-output downloads. The build itself
   # runs offline and verifies the same package identities as build.zig.zon.
   dependencies = [
@@ -71,14 +73,14 @@ let
   frontendDeps = fetchPnpmDeps {
     pnpm = frontendPnpm;
     pname = "transit-board";
-    version = "0.1.0";
+    inherit version;
     src = sources.frontendDependencies;
     fetcherVersion = 3;
     hash = "sha256-4BLKRRPbJSCXwxrBCHlJ380XpiPmT7gg9MerGRAt3g4=";
   };
   boardAssets = stdenvNoCC.mkDerivation {
     pname = "transit-board-assets";
-    version = "0.1.0";
+    inherit version;
     src = sources.boardAssets;
     nativeBuildInputs = [
       python3
@@ -100,7 +102,7 @@ let
 in
 stdenv.mkDerivation {
   pname = "transit";
-  version = "0.1.0";
+  inherit version;
   inherit src;
   nativeBuildInputs = [
     zig
@@ -115,13 +117,14 @@ stdenv.mkDerivation {
   '';
   buildPhase = ''
     runHook preBuild
-    zig build transit transit-node transit-query-host transit-board -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
+    zig build transit transit-node transit-query-host transit-board -Dsource-revision=${lib.escapeShellArg sourceRevision} -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
     runHook postBuild
   '';
   doInstallCheck = true;
   installCheckPhase = ''
     runHook preInstallCheck
     "$out/bin/transit" --help
+    test "$("$out/bin/transit" --version)" = "Transit ${version} (git ${sourceRevision}; CLI contract 1)"
     "$out/bin/transit" server --help
     "$out/bin/transit" console --help
     runHook postInstallCheck

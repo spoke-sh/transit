@@ -17,8 +17,8 @@ def run(node, cli, library, artifacts):
     for language, source, compiler in [('C', 'c_client_sdk.c', 'cc'), ('C++', 'cpp_client_sdk.cpp', 'c++')]:
         def install(target):
             prefix = target / 'installed'
-            packages = ['transit-native-client-c-0.2.0-linux-x86_64', 'transit-client-c-0.2.0-linux-x86_64']
-            if language == 'C++': packages.append('transit-client-cpp-0.2.0')
+            packages = ['transit-native-client-c-0.0.1-linux-x86_64', 'transit-client-c-0.0.1-linux-x86_64']
+            if language == 'C++': packages.append('transit-client-cpp-0.0.1')
             for package in packages:
                 with tarfile.open(artifacts / f'{package}.tar.gz') as archive: archive.extractall(prefix, filter='data')
             environment = {k: v for k, v in os.environ.items() if k not in ('LD_LIBRARY_PATH', 'LIBRARY_PATH', 'CPATH', 'CPLUS_INCLUDE_PATH', 'C_INCLUDE_PATH')}

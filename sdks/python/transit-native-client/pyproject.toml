@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "transit-native-client"
-version = "0.2.0"
+version = "0.0.1"
 requires-python = ">=3.13"
 description = "Version-matched Linux x86_64 Transit native SDK artifacts"
 

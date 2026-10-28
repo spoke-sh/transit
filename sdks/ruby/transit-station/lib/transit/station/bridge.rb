@@ -26,7 +26,7 @@ module Transit
       def initialize(configuration, executable)
         unless executable
           require 'transit/native_station'
-          raise IncompatibleNative, 'Native Station gem version mismatch' unless NativeStation::VERSION == '0.2.0'
+          raise IncompatibleNative, 'Native Station gem version mismatch' unless NativeStation::VERSION == '0.0.1'
           executable = NativeStation::HOST
         end
         schemas = Internal::SCHEMAS.merge(JSON.parse(File.binread(File.join(__dir__, 'schemas.json'))))
@@ -48,7 +48,7 @@ module Transit
           raise
         end
       rescue LoadError
-        raise IncompatibleNative, 'Install transit-native-station 0.2.0 or supply native_host'
+        raise IncompatibleNative, 'Install transit-native-station 0.0.1 or supply native_host'
       end
       def prepare
         port.request({ 'growing_prepare' => (Time.now.to_r * 1000).to_i + 30_000 }, phase: :prepare_turn, response: 'GrowingEvent')

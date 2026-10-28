@@ -2,7 +2,7 @@
 
 Build with `nix develop .#bindings -c just bindings::dotnet-build`. Configure a
 NuGet source pointing at `.cache/bindings/dotnet` and reference
-`Transit.Station.Sdk` version `[0.2.0]`. NuGet resolves the exact public client and
+`Transit.Station.Sdk` version `[0.0.1]`. NuGet resolves the exact public client and
 separate native dependencies. Reference `Transit.Client` directly when using its
 public types. The qualified target is .NET 8/Linux x86_64 in the pinned bindings
 shell; these native artifacts require the Nix runtime closure. Registry

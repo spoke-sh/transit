@@ -1,5 +1,5 @@
 {application, transit_station_sdk, [
  {description, "Typed scoped Station runners and state/query helpers"},
- {vsn, "0.2.0"}, {modules, []}, {registered, []},
+ {vsn, "0.0.1"}, {modules, []}, {registered, []},
  {applications, [kernel, stdlib, transit_client, transit_native_station]}, {env, []}
 ]}.

@@ -37,7 +37,7 @@ catalog(#transit_config{url=Url,profile=native_v1,timeout_ms=Timeout,native_host
         <<"catalog_client">>=>#{<<"definition">>=>maps:get(<<"definition">>,transit_sdk_value:contract(transit_station_sdk)),<<"connection">>=>Connection,<<"timeout_ms">>=>Timeout,<<"service_url">>=>Service}},Override).
 create(Config, Override) ->
     case application:load(transit_client) of ok -> ok; {error, {already_loaded, transit_client}} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package) end,
-    case application:get_key(transit_client, vsn) of {ok, "0.2.0"} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package_version) end,
+    case application:get_key(transit_client, vsn) of {ok, "0.0.1"} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package_version) end,
     RawContract = transit_sdk_value:contract(transit_client), StationContract = transit_sdk_value:contract(transit_station_sdk),
     Contract = StationContract#{<<"limits">> => maps:merge(maps:get(<<"limits">>, RawContract),maps:get(<<"limits">>, StationContract)),
         <<"schemas">> := maps:merge(maps:get(<<"schemas">>, RawContract), maps:get(<<"schemas">>, StationContract))},

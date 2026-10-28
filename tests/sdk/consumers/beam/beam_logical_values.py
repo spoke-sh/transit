@@ -19,7 +19,7 @@ def run(artifacts):
         library.mkdir()
         identities = {}
         for package in ('transit_native_client', 'transit_client', 'transit_client_elixir', 'transit_native_station', 'transit_station_sdk', 'transit_station_elixir'):
-            name = f'{package}-0.2.0.tar.gz'
+            name = f'{package}-0.0.1.tar.gz'
             source = Path(artifacts).resolve() / name
             identities[name] = hashlib.sha256(source.read_bytes()).hexdigest()
             with tarfile.open(source) as archive:

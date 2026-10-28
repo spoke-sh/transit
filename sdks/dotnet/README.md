@@ -12,7 +12,7 @@ Native artifacts require that build's Nix runtime closure. Other platforms and
 portable native distributions are not supplied.
 
 Add the local NuGet output directory as a package source and reference the
-0.2.0 SDK packages. Their exact dependencies include `Transit.Native.Client`
+0.0.1 SDK packages. Their exact dependencies include `Transit.Native.Client`
 and `Transit.Native.Station`. NuGet restores these into an ordinary external
 project; publication to NuGet.org is not available.
 

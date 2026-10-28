@@ -1,6 +1,6 @@
 # Transit .NET Station SDK
 
-Version 0.2.0 adds typed synchronous `IHandler<T>` callbacks, scoped KV/Table
+Version 0.0.1 adds typed synchronous `IHandler<T>` callbacks, scoped KV/Table
 helpers, bounded `Task` runner operations and owned query IPC over the shared
 Zig implementation. The independent [raw client](../transit-client/README.md)
 owns the shared worker/packaging helpers; it does not depend on Station. Generated
@@ -10,7 +10,7 @@ The public runner is qualified under [Language SDKs](../../../docs/handbook/refe
 `just bindings::dotnet-sdk-test`: clean NuGet consumers, all mutation gates, exact
 host-loss recovery, cancellation/join, retained Tables and original query IPC.
 Build from `nix develop .#bindings` with `just bindings::dotnet-build`. The package targets .NET 8/Linux x86_64 and
-uses exact `Transit.Client` and `Transit.Native.Station` 0.2.0 dependencies.
+uses exact `Transit.Client` and `Transit.Native.Station` 0.0.1 dependencies.
 Native artifacts require the pinned Nix closure. Registry publication and foreign
 Substrate worker images remain outside qualification.
 

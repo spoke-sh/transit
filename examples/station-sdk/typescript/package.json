@@ -1,6 +1,6 @@
 {
   "name": "@transit/sdk-examples",
-  "version": "0.2.0",
+  "version": "0.0.1",
   "bin": {
     "transit-node-counter": "dist/cli.js"
   },
@@ -16,8 +16,8 @@
     }
   },
   "dependencies": {
-    "@transit/client": "workspace:0.2.0",
-    "@transit/station": "workspace:0.2.0"
+    "@transit/client": "workspace:0.0.1",
+    "@transit/station": "workspace:0.0.1"
   },
   "devDependencies": {
     "@types/node": "24.0.0",

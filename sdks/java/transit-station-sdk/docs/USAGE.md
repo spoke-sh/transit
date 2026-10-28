@@ -1,8 +1,8 @@
 # Java Station usage
 
 Build with `nix develop .#bindings -c just bindings::java-build`. Install
-`transit-client-0.2.0.jar`, `transit-native-client-0.2.0.jar`,
-`transit-station-sdk-0.2.0.jar`, `transit-native-station-0.2.0.jar` and
+`transit-client-0.0.1.jar`, `transit-native-client-0.0.1.jar`,
+`transit-station-sdk-0.0.1.jar`, `transit-native-station-0.0.1.jar` and
 `gson-2.12.1.jar` into an application's `lib/`. Compile with
 `javac --release 21 -cp 'lib/*'` and run with `java -cp 'lib/*:classes' Main`.
 The independent JARs include POM manifests with direct, versioned dependencies.

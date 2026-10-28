@@ -15,7 +15,7 @@ def run(node, cli, library, artifacts):
         environment = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
         lib = target / 'lib'
         lib.mkdir()
-        for name in ('transit-client-0.2.0.jar', 'transit-native-client-0.2.0.jar', 'gson-2.12.1.jar'):
+        for name in ('transit-client-0.0.1.jar', 'transit-native-client-0.0.1.jar', 'gson-2.12.1.jar'):
             shutil.copy2(Path(artifacts).resolve() / name, lib / name)
         source = target / 'JavaClientSdk.java'
         shutil.copy2(root / 'tests/sdk/consumers/java/JavaClientSdk.java', source)
@@ -44,7 +44,7 @@ public final class ArtifactCheck {
 ''')
         subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(lib / '*'), '-d', str(classes), str(smoke)], env=environment, cwd=target, check=True)
         smoke.unlink()
-        raw_classpath = os.pathsep.join(map(str, (classes, lib / 'transit-client-0.2.0.jar', lib / 'gson-2.12.1.jar')))
+        raw_classpath = os.pathsep.join(map(str, (classes, lib / 'transit-client-0.0.1.jar', lib / 'gson-2.12.1.jar')))
         subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', raw_classpath, 'ArtifactCheck'], env=environment, cwd=target, check=True, timeout=20)
         bad = target / 'bad-native.jar'
         with zipfile.ZipFile(bad, 'w') as jar:

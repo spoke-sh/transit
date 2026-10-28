@@ -22,7 +22,7 @@ def install(target, language, environment):
     artifacts = {}
     if language == 'python':
         for path in (ROOT / '.cache/bindings/Debug/wheels').glob('*.whl'):
-            if path.name.split('-')[1] != '0.2.0' or path.name.split('-')[0] not in ('transit_client', 'transit_native_client', 'transit_station', 'transit_native_station'): continue
+            if path.name.split('-')[1] != '0.0.1' or path.name.split('-')[0] not in ('transit_client', 'transit_native_client', 'transit_station', 'transit_native_station'): continue
             shutil.copy2(path, packages / path.name)
             artifacts[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
             if path.name.startswith('transit_station-'):
@@ -33,14 +33,14 @@ def install(target, language, environment):
         venv = target / 'venv'
         subprocess.run([sys.executable, '-m', 'venv', '--without-pip', str(venv)], env=environment, check=True)
         python = str(venv / 'bin/python')
-        subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', str(packages), 'transit-station==0.2.0'], env=environment, check=True, stdout=subprocess.DEVNULL)
+        subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', str(packages), 'transit-station==0.0.1'], env=environment, check=True, stdout=subprocess.DEVNULL)
         script = target / 'consumer.py'
         shutil.copy2(ROOT / 'tests/sdk/consumers/python/python_relational_sdk.py', script)
         commands = [(f'python-{mode}', [python, '-B', str(script), mode]) for mode in ('sync', 'async')]
     elif language == 'node':
         dependencies = {}
         for name in ('client', 'native-client', 'station', 'native-station'):
-            path = ROOT / '.cache/bindings/Debug/node' / f'transit-{name}-0.2.0.tgz'
+            path = ROOT / '.cache/bindings/Debug/node' / f'transit-{name}-0.0.1.tgz'
             copy = packages / path.name
             shutil.copy2(path, copy)
             artifacts[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()

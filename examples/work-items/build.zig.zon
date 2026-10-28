@@ -1,7 +1,7 @@
 .{
     .name = .transit_work_items,
     .fingerprint = 0xd43abc62ae25fdff,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{ .transit_sdk = .{ .path = "../../sdks/zig" } },
     .paths = .{ "build.zig", "build.zig.zon", "WorkItems.zig", "main.zig", "operator.zig" },

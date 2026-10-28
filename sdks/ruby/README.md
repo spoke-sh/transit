@@ -11,7 +11,7 @@ the [source build instructions](../../bindings/README.md#build-and-verification)
 Native artifacts require that build's Nix runtime closure. Other platforms and
 portable native distributions are not supplied.
 
-Install the locally built 0.2.0 gems with their `transit-native-client` and
+Install the locally built 0.0.1 gems with their `transit-native-client` and
 `transit-native-station` dependencies:
 
 ```sh

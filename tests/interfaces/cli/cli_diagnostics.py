@@ -88,8 +88,11 @@ for command in ('server',):
     assert b'--initialize' not in help_output
     assert help_output.rstrip().endswith(b'--help         Show this help')
     invoke([command, '--config', 'private-must-not-appear', '--help'], 0)
-for args in ([], ['--help'], ['--version'], ['console', '--help']):
+for args in ([], ['--help'], ['console', '--help']):
     invoke(args, 0)
+version_output = invoke(['--version'], 0, env=NO_TOOLS_ENV, binary=str(ISOLATED_CLI)).stdout
+release = (ROOT / 'VERSION').read_text().strip().encode()
+assert re.fullmatch(rb'Transit ' + re.escape(release) + rb' \(git (?:[0-9a-f]{40}(?:-dirty)?|unknown); CLI contract 1\)\n', version_output), version_output
 console_help = invoke(['console', '--help'], 0).stdout
 assert console_help.rstrip().endswith(b'--help               Show this help')
 root_help = invoke(['--help'], 0, ('Usage: transit COMMAND [OPTIONS]', 'Commands:', 'Options:')).stdout

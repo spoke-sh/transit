@@ -1,7 +1,7 @@
 .{
     .name = .transit_station,
     .fingerprint = 0x2bda3839723e85f9,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{ .transit_client = .{ .path = "../transit-client" }, .transit_fuze = .{ .path = "../transit-fuze" } },
     .paths = .{ "build.zig", "build.zig.zon", "src" },
