@@ -13,6 +13,10 @@ The [development workflow calibration](development-workflow-2026-10-27/README.md
 retains selected automatic measurements for CI cost thresholds and package-build
 concurrency beyond ordinary artifact retention, including the failed cold attempt.
 
+The [SQL result comparison](sql-results-2026-10-27/README.md) retains matched
+pre/post-result-model measurements, independent value commitments, instrumented
+request counts and isolated codec allocations for the batching qualification.
+
 The earlier generated-output archive remains available at its
 [original source revision](https://github.com/spoke-sh/transit/tree/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results).
 The [file disposition map](../../docs/roadmap/development-workflow-migration.json)

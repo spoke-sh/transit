@@ -9,6 +9,104 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Statement result batching and consumption — 2026-10-27
+
+The [retained reports](../../../tests/evidence/sql-results-2026-10-27/README.md)
+compare frozen control `7d30e2c502c29243424617155b51296d6d778861` with candidate
+`8a866f513a015f7487f67e07bbcaa82fa48b6275`. Both contain the same early live-storage
+cutover: storage/core/log/object-store sources are unchanged between the arms.
+Both use Zig `0.17.0-dev.2267+48abf1a34`, ReleaseSafe, native disk storage and the
+same measurement driver. Subsequent rebasing adds documentation/guidance only.
+The 24-core/48-thread AMD Threadripper 3960X host has 130,380,296,192 bytes of RAM;
+background user processes remain active. Owned builds and disk proofs finish
+before the sequential measurements. Recorded one-minute loads range from 6.9
+to 9.0. This is one matched pair with repeated queries, not isolated or randomized
+host qualification.
+
+`console_latency.py --rows 70 --repeat 3 --representations` seeds deterministic
+integer/text rows, verifies exact console output, then independently decodes native
+results. Historical mode is explicit and confined to the frozen control driver.
+There is no production fallback decoder. All 46 native cross-run comparisons,
+including the separate instrumented and slow-consumer cases, match schema hashes,
+row multisets, counts and canonical cell bytes. Row order is not assumed for
+unordered SQL. The three native timing samples per query give these medians:
+
+| Query | Batches control → candidate | First batch ms | Terminal ms | Response body bytes control → candidate |
+| --- | --- | --- | --- | --- |
+| 70 integer rows | 9 → 3 | 429 → 698 | 2,120 → 1,572 | about 12,900 → 2,688 |
+| 70 integer/text rows | 9 → 3 | 439 → 736 | 2,088 → 1,610 | about 23,200 → 8,384 |
+| 70 grouped count rows | 71 → 3 | 3,398 → 7,174 | 22,347 → 12,104 | about 63,900 → 3,392 |
+| DESCRIBE, two rows | 3 → 1 | 197 → 339 | 508 → 340 | about 2,240 → 2,560 |
+| SHOW TABLES, two rows | 3 → 1 | 160 → 352 | 359 → 352 | about 1,450 → 832 |
+
+Candidate data batches are 32 + 32 + 6, matching `ceil(70/32)` without an empty
+terminal fetch. The grouped control emits 70 one-row batches and an empty
+terminal: it detects the amplification that the new batching removes. The
+canonical payloads remain 630, 5,635 and 1,260 bytes. Binary framing removes most
+result-body expansion on data queries, but DESCRIBE grows because its small
+payload does not amortize the typed columns, alignment and observation evidence.
+Larger batches delay first disclosure in every sampled query. These costs are
+part of the result, not hidden by the improved completion times.
+
+Separate console measurements include process startup, rendering and pipe output.
+Median total/first-output milliseconds are 2,201/488 → 1,688/762 for narrow text,
+2,254/506 → 1,681/783 for wide JSON and 19,775/3,037 → 9,687/5,762 for grouped JSON.
+Sampled console peak RSS falls from roughly 16–17 MiB to 14–15 MiB. Sampling every
+20 ms can miss short peaks and does not measure aggregate deployment memory.
+Grouped node CPU falls from 22.05–24.47 to 11.23–12.67 seconds in those windows;
+the counters include background work. A 50-ms delay between pulls completes wide
+native output in 2,571 → 1,673 ms, with the same values and three bounded candidate
+batches. Width sampling never collects the full relation.
+
+The separate `--repeat 1 --instrument` pair includes a loopback proxy and node
+metrics. Physical Table scans stay at nine per 70-row query in both arms; SQL
+batching does not enlarge storage pages. Narrow/wide native attempts fall from
+511/526 to 363/359. For grouping, attempts fall 4,315 → 1,810, authorization reads
+1,107 → 405, Table checks 289 → 23 and check-set calls 429 → 299. Owner provider
+operations fall 88,577 → 56,075 for grouping. These are whole-window counts with
+background recovery included, not exclusively query-attributed disk I/O. Reduced
+batch disclosure count does not remove the current-authorization boundary;
+[fault/security qualification](sql.md#transport-independent-statement-results--2026-10-27)
+separately verifies revocation after buffering and on repeated/terminal reads.
+
+### Codec allocation and compression controls
+
+`just test::sql-wire-encoding` measures actual TSR1/TCP1 production encoding and
+decoding of 10,000 rows with seven scalar/NULL columns, one warmup and five samples.
+Independent values, borrowed variable bytes and terminal counts are checked; every
+batch releases all accounted allocations. The one-row control versus 32-row batches
+produces 10,000 → 313 frames and 19,200,256 → 3,680,704 bytes. Median encode/decode
+times are 792.8/438.5 → 615.4/405.6 ms. Encoder allocations fall 30,001 → 1,565,
+decoder allocations 10,002 → 314. Encoder accounted peak grows 18,328 → 63,475 bytes;
+decoder peak remains 10,162 bytes, excluding its borrowed frame. Maximum frame size
+grows 2,176 → 12,032 bytes. This excludes sockets, SQL, source authority and storage,
+and does not establish zero allocations after warmup. PostgreSQL/MySQL scalar
+controls remain in the same raw report with their narrower representation scope.
+
+The separate PyArrow experiment round-trips all 6,195 bytes of length-framed wide
+canonical cells. With candidate batch boundaries, row/column layouts compress to
+1,535/1,375 bytes with LZ4 and 672/765 with Zstd. These are one-shot payload results;
+codec times are retained, but framing, negotiation, Arrow IPC and network costs are
+excluded. They do not justify enabling compression universally. The current
+native profile still admits identity encoding only.
+
+### Controls that do not qualify the comparison
+
+An earlier `f5a43c353` baseline predates the live-storage integration and cannot
+attribute a speedup to result batching. Initial setup used an oversized INSERT
+and failed before the driver split seeds into 20-row statements. A manually
+interrupted self-join supplies no complete sample. The codec's first assertion
+incorrectly required allocator counts to be identical despite possible in-place
+arena growth; the corrected report retains per-sample allocation arrays. Earlier
+codec timings overlapped a build and are excluded from the timing comparison.
+
+The matched control's diagnostic startup also encountered unavailable authority
+replies; later private write observations measure admission/completion but are
+not the fresh matched workload. The [SQL account](sql.md#failed-controls-and-recovery-limits)
+preserves startup, write-timeout and original-outcome limits. All four retained
+installed measurement runs and the isolated codec run finish successfully; no
+failed or incomplete run is substituted for one of these samples.
+
 ## Complete-history mutation cost
 
 The [complete-history campaign](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-12/README.md)
@@ -2176,4 +2274,3 @@ takes 1,794.4 seconds and readback 17.5 seconds; its probe-image virtual peaks a
 distinct from `wait4` RSS including inherited pre-exec driver memory. Retained
 bytes exceed the process ceiling, not host RAM. Native growth and the complete
 growth matrix remain unproved; this run also predates compact evidence staging.
-
