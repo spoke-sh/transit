@@ -908,6 +908,17 @@ records all scopes and limits. Clean lanes are still pending. This adds no
 latency target, deadline increase or claim that aggregate maintenance or the
 installed zero-allocation gate is complete.
 
+At `89e88a39b`, the direct Table service allocates the encoded response size
+instead of a 16 MiB buffer for every request. A count pass preserves the exact
+wire limit, followed by serialization and the existing current-authority fence.
+All 64 protocol tests, six local catalog/maintenance tests and 41 fast checks
+pass. The installed foreground schedule also passes with the same saved source,
+driver hashes and configuration. Node lifetime peak RSS is 60,338,176 bytes in
+the control and 75,059,200 bytes during flushing; median scans are 1.319 and
+1.208 seconds respectively. The [follow-up account](../history/qualification/storage.md#response-allocation-follow-up)
+retains both runs and their uncontrolled-host limits. This is a measured
+allocation reduction, not closure of P4/P5's aggregate or latency gates.
+
 **Post-integration priority — 2026-10-27:** after merging PR #188, the user
 reports slow single-row INSERT and roughly 0.5-second queries against `items`.
 These are user observations, not an attributed benchmark. Start P5.1's ordinary
