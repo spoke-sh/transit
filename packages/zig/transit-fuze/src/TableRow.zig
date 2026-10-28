@@ -62,6 +62,22 @@ pub const Row = struct {
         const bytes = try t.Codec.encode(.{ .value = .{ .structure = self.cells } }, field, output[header_bytes..]);
         return output[0 .. header_bytes + bytes.len];
     }
+    /// Exact canonical size for read-page budgets, without materializing another
+    /// copy of the row. Validation and the standalone value bound match encode.
+    pub fn encodedSize(self: Row, schema: s.Schema) !usize {
+        try self.identity.validate();
+        try schema.validateRow(self.cells);
+        _ = try schema.layoutFingerprint();
+        var fields: [s.max_columns]t.Field = undefined;
+        var names: [s.max_columns][16]u8 = undefined;
+        const field: t.Field = .{ .name = "row", .type = try schema.storageType(&fields, &names) };
+        var scratch: [256]u8 = undefined;
+        var counter: std.Io.Writer.Discarding = .init(&scratch);
+        try t.Codec.write(.{ .value = .{ .structure = self.cells } }, field, &counter.writer);
+        const size = counter.fullCount();
+        if (size > t.Codec.max_bytes) return error.WriteFailed;
+        return header_bytes + @as(usize, @intCast(size));
+    }
 };
 pub const Owned = struct {
     value: t.Codec.Decoded,

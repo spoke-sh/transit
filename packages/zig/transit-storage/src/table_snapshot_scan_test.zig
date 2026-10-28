@@ -431,6 +431,24 @@ test "Table snapshot pages enforce byte budgets and recheck rights after bufferi
     try t.expectError(error.InvalidTableSnapshotCursor, table.scanSnapshot(t.allocator, handle, forged, .{}, access.guard()));
     forged.source = empty.content;
     try t.expectError(error.InvalidTableSnapshotCursor, table.scanSnapshot(t.allocator, handle, forged, .{}, access.guard()));
+    // The caller's page allocation budget is independent of the maximum wire
+    // row size. Counting bytes must not reserve a maximum-sized row buffer.
+    var output: f.MemoryBudget = .{ .parent = t.allocator, .limit = 128 * 1024 };
+    var page = try table.scanSnapshot(output.allocator(), handle, null, .{}, access.guard());
+    defer page.deinit();
+    var encoded: [4096]u8 = undefined;
+    const exact_bytes = (try page.rows[0].?.row().encode(definition.schema, &encoded)).len;
+    try t.expectEqual(exact_bytes, page.encoded_bytes);
+    var ranged = try table.rangeSnapshot(output.allocator(), handle, .{}, null, .{ .encoded_bytes = @intCast(exact_bytes) }, access.guard());
+    defer ranged.deinit();
+    try t.expectEqual(1, ranged.count);
+    try t.expectEqual(exact_bytes, ranged.encoded_bytes);
+    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+    const plan: f.LogicalQuery.Plan = .{ .schema = try definition.schema.rowType(&fields), .source_basis = @splat(3), .collations = .fromTable(definition.schema), .projection = &.{ 0, 1 } };
+    var filtered = try table.scanSnapshotFiltered(output.allocator(), handle, plan, null, .{ .encoded_bytes = @intCast(exact_bytes) }, access.guard());
+    defer filtered.deinit();
+    try t.expectEqual(1, filtered.page.count);
+    try t.expectEqual(exact_bytes, filtered.page.encoded_bytes);
 }
 
 test "current Table observations are bounded owned read-only pages with final authorization" {

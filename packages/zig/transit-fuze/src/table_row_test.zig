@@ -19,6 +19,7 @@ const row: r.Row = .{ .identity = .{ .origin = 7, .operation = 12, .ordinal = 0 
 test "row envelopes bind physical layouts, preserve IEEE signs and own decoded nested values" {
     var bytes: [4096]u8 = undefined;
     const encoded = try row.encode(schema, &bytes);
+    try e.expectEqual(encoded.len, try row.encodedSize(schema));
     var decoded = try r.decode(e.allocator, schema, encoded);
     defer decoded.deinit();
     try e.expectEqualDeep(row.identity, decoded.identity);
@@ -87,6 +88,7 @@ test "independent Python physical row and composite-key framing oracle" {
     var expected: [4096]u8 = undefined;
     var actual: [4096]u8 = undefined;
     const oracle_row: r.Row = .{ .identity = row.identity, .cells = &values };
+    try e.expectEqual(parsed.value.row_hex.len / 2, try oracle_row.encodedSize(selected));
     try e.expectEqualSlices(u8, try std.fmt.hexToBytes(&expected, parsed.value.row_hex), try oracle_row.encode(selected, &actual));
     try e.expectEqualSlices(u8, try std.fmt.hexToBytes(&expected, parsed.value.key_hex), try r.encodeKey(selected, &values, &actual));
     _ = try std.fmt.hexToBytes(&digest, parsed.value.key_digest);
@@ -125,4 +127,26 @@ test "row identity is independent of duplicate payloads and rejects unallocated 
     try e.expectEqual(std.math.Order.lt, std.mem.order(u8, &try row.identity.encode(), &try duplicate.identity.encode()));
     duplicate.identity.origin = 0;
     try e.expectError(error.InvalidRowIdentity, duplicate.encode(schema, &second));
+    try e.expectError(error.InvalidRowIdentity, duplicate.encodedSize(schema));
+}
+
+test "row size counting preserves wide binary values and validation bounds without output storage" {
+    const large_schema: s.Schema = .{ .object = 5, .revision = 1, .next_column = 2, .columns = &.{
+        .{ .id = 1, .name = "payload", .type = .binary, .nullable = false },
+    }, .primary_key = &.{} };
+    const payload = try e.allocator.alloc(u8, (t.Limits{}).value_bytes + 1);
+    defer e.allocator.free(payload);
+    @memset(payload, 0xa5);
+    const output = try e.allocator.alloc(u8, r.max_bytes);
+    defer e.allocator.free(output);
+    for ([_]usize{ 0, 1, 255, 256, 257, 65536, (t.Limits{}).value_bytes }) |size| {
+        const values = [_]Cell{.{ .value = .{ .atom = .{ .bytes = payload[0..size] } } }};
+        const candidate: r.Row = .{ .identity = row.identity, .cells = &values };
+        const encoded = try candidate.encode(large_schema, output);
+        try e.expectEqual(encoded.len, try candidate.encodedSize(large_schema));
+    }
+    const too_wide = [_]Cell{.{ .value = .{ .atom = .{ .bytes = payload } } }};
+    const invalid: r.Row = .{ .identity = row.identity, .cells = &too_wide };
+    try e.expectError(error.ValueBudgetExceeded, invalid.encode(large_schema, output));
+    try e.expectError(error.ValueBudgetExceeded, invalid.encodedSize(large_schema));
 }

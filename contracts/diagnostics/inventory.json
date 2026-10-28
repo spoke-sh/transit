@@ -10843,7 +10843,8 @@
         "RowBufferTooSmall": 2,
         "TableRowTooLarge": 1,
         "TableSchemaChanged": 1,
-        "UnsupportedTableRowDefinition": 1
+        "UnsupportedTableRowDefinition": 1,
+        "WriteFailed": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -10852,6 +10853,7 @@
         "Identity.encode()": "<inferred>",
         "Identity.validate()": "<inferred>",
         "Row.encode()": "<inferred>",
+        "Row.encodedSize()": "<inferred>",
         "Row.storageKey()": "<inferred>",
         "decode()": "<inferred>",
         "encodeKey()": "<inferred>",
@@ -10861,7 +10863,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 44,
+        "try": 49,
         "catch": 0
       },
       "imports": [
@@ -27044,7 +27046,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 610,
+        "try": 607,
         "catch": 14
       },
       "imports": [

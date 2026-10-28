@@ -420,6 +420,10 @@ or renewing a pin. `scanSnapshot` returns at most eight owned rows and at most
 the requested canonical row-byte budget (up to 16 MiB). Decoding scratch and
 transport envelopes have separate budgets. A first row larger than the requested
 allowance fails explicitly; a later row continues on the next page.
+Page sizing streams the canonical row envelope into a bounded counting writer.
+It validates the same row and value limits without reserving a maximum-sized
+row buffer or copying every payload a second time. Owned result cells, verified
+segment caches and decoding work still consume their separate allocations.
 
 Each cursor binds the immutable snapshot content and an existing 20-byte row
 identity. It cannot continue another snapshot or current head. Returned values own
