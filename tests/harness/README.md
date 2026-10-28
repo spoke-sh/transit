@@ -68,6 +68,13 @@ could otherwise consume the selected public port. Another process can still take
 a released discovery port. Startup fails in that case; the fixture does not
 retry with a different endpoint or replace the conflicting process.
 
+Callers that investigate uncertain accepted work can select
+`Fixture(retain_on_failure=True)`. It joins the provider and keeps failed private
+state at its original path under `/var/tmp`, outside an enclosing Nix shell's
+temporary directory. Successful fixtures are removed. The Board query schedule
+uses this option so a browser failure preserves the original installation;
+credentials remain private and retained state is not a successful proof.
+
 Run `python3 -B tests/harness/test_services.py` inside `nix develop`; the fast
 check includes these controls. Fixture changes also require the affected real
 backend schedules, such as `just test::storage` and

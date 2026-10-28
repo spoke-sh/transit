@@ -12,8 +12,14 @@ from .phases import phase
 
 class Fixture:
     """An isolated owned disk store, reusable by service and storage proofs."""
-    def __init__(self, storage_config=None):
-        self.directory = tempfile.TemporaryDirectory(prefix="transit-storage-")
+    def __init__(self, storage_config=None, *, retain_on_failure=False):
+        self.retain_on_failure = retain_on_failure
+        # Keep the original absolute paths: saved installation profiles can bind
+        # them. Nix's temporary directory disappears when its shell exits.
+        self.directory = tempfile.TemporaryDirectory(
+            prefix="transit-storage-", dir="/var/tmp" if retain_on_failure else None,
+            delete=not retain_on_failure,
+        )
         self.root = Path(self.directory.name)
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
         self.env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2")
@@ -76,4 +82,7 @@ path = "{self.root / 'wal'}"
             self.log.seek(0)
             sys.stderr.write(self.log.read()[-12000:])
         self.log.close()
-        self.directory.cleanup()
+        if exc_type and self.retain_on_failure:
+            print(f"Failed private installation retained at {self.root}", file=sys.stderr)
+        else:
+            self.directory.cleanup()
