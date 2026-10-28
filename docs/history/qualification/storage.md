@@ -150,6 +150,26 @@ Node SHA-256 is
 `5f18a7bb7fe4ea689fb604a4d675f898a81c40d65ecdbe8063505d74bdf1027f`;
 the caller remains `d6d1f6b5e2787edb1c8ceab27d19fe89cc0c90f87c42b0fcb62bb0e87469ddf6`.
 
+The final per-unit implementation at
+`749e9ae89a49c4d417317760d1305e114669277b` passes the same installed schedule.
+Active RSS returns to 53,841,920 bytes, with lifetime peak RSS of 75,329,536
+bytes. Active scan minimum/median/maximum durations are 1.160/1.214/4.131
+seconds; node CPU is 20.62 seconds. The disabled arm ends at 53,694,464
+resident bytes. Kernel reads remain zero and writes increase by 11,550,720
+bytes during flushing. The original 258 rows, ten packed segments, fixed
+maintenance targets, restart checks and idle convergence all pass. Flush
+convergence takes 8.146 seconds and archive/compaction recovery plus
+verification take 22.443 seconds. The full handbook build and all 41
+committed-source clean fast checks also pass at that revision.
+
+These observations support releasing the private memory between units; they
+do not establish improved latency over the baseline. The final installed log is
+`.cache/milestone3/maintenance-budget-restored-installed.log`, SHA-256
+`0e3e76741426b613ee53635259c11c47228db6e2ef076c4022c66e74fca4e058`.
+Node SHA-256 is
+`fa18e100992cbf8f424dc48aaf1411b95187b86f0a2af3a813cec2e1666a2787`;
+the caller and profile identities remain unchanged.
+
 ## Installed packaging recovery and repository qualification — 2026-10-28
 
 At frozen source `4d778efa9ffc5a8ad3e012bcecee1cc9887621db`, the committed-source
