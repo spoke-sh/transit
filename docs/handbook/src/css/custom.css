@@ -275,6 +275,9 @@
   }
 }
 @media (max-width: 480px) {
+  .docs-hero h1 {
+    font-size: clamp(2rem, 10vw, 3rem);
+  }
   .reference-grid {
     grid-template-columns: 1fr;
   }

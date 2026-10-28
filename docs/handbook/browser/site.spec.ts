@@ -247,7 +247,7 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
   page,
   baseURL,
 }, testInfo) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 320, height: 844 });
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto(baseURL!);
   await expect(
