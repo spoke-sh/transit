@@ -119,7 +119,7 @@ class Fixture(LocalInstallation):
         from interfaces.installation.server_sql import call
         configured = self.config.get('executables', {}).get('sql_gateway')
         gateway = [configured] if configured else [self.cli, '__transit_role_v1', 'sql_gateway']
-        profile = self.installation / 'sql/accounts/owner/control.json'
+        profile = self.installation / 'sql/accounts' / self.console_config()['account'] / 'control.json'
         observed = json.loads(call([*gateway, 'control', profile, 'status', identity['id']], retry_observation=True))
         receipt = observed['operation']['receipt']
         assert str(receipt['position']['next_lsn']) == str(identity['id']), observed
