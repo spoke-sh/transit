@@ -1018,6 +1018,7 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     const Work = @import("LocalTableMaintenance.zig");
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
     var work: Work = .{ .host = &host, .allocator = t.allocator };
+    defer work.deinit();
     const settings: p.Storage.Maintenance = .{ .flush = .{ .enabled = true } };
     const request: g.Request = .{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .checkpoint };
     const signed = try g.sign(request, try key(17));
@@ -1093,6 +1094,7 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     // Fresh volatile work resumes from persisted discovery and observes no
     // pending rows in the already flushed Table. No accepted work is recreated.
     var restarted: Work = .{ .host = &host, .allocator = t.allocator };
+    defer restarted.deinit();
     const after = current.table.root;
     _ = try Work.step(&restarted, engine, settings, signed);
     try current.table.recover();
@@ -1142,6 +1144,7 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
     var allocations: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
     var work: Work = .{ .host = &host, .allocator = allocations.allocator() };
+    defer work.deinit();
     const settings: p.Storage.Maintenance = .{
         .flush = .{ .enabled = true, .rows = 1, .work_rows = 2 },
         .archive = .{ .enabled = true, .work_frames = 2 },
@@ -1155,11 +1158,12 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
     var idle: usize = 0;
     var units: usize = 0;
     var peak: usize = 0;
+    var startup_allocations: c.fuze.memory.AllocationProbe.Counts = .{};
     while (idle < before.items.len * 4 + 8) : (units += 1) {
         if (units == 4096) return error.FixtureBudget;
         if (units == 17) {
             // Lose scheduling/recovery hints once while accepted targets remain.
-            work = .{ .host = &host, .allocator = allocations.allocator() };
+            work = .{ .host = &host, .allocator = allocations.allocator(), .workspace = work.workspace };
             host.table_recovery = @splat(null);
             idle = 0;
         }
@@ -1169,17 +1173,33 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
         };
         peak = @max(peak, work.last_peak_bytes);
         try t.expect(work.last_peak_bytes <= settings.resident_bytes);
-        try t.expectEqual(0, allocations.live_bytes);
+        try t.expectEqual(settings.resident_bytes, allocations.live_bytes);
+        try t.expectEqual(0, work.workspace.?.live_bytes);
+        if (units == 0) {
+            startup_allocations = allocations.counts;
+            allocations.begin(true);
+        } else try allocations.verify();
         idle = if (progressed) 0 else idle + 1;
     }
     const active_allocations = allocations.counts;
     const active_peak = allocations.peak_bytes;
-    allocations.begin(false);
+    // Negative control: bypassing the retained workspace must hit the sealed
+    // backing allocator before opening a catalog or accepting more work.
+    {
+        const workspace = work.workspace;
+        work.workspace = null;
+        defer work.workspace = workspace;
+        try t.expectError(error.OutOfMemory, Work.step(&work, engine, settings, signed));
+        try t.expectError(error.BackingAllocationAfterWarmup, allocations.verify());
+    }
+    allocations.begin(true);
     for (0..16) |_| try t.expect(!try Work.step(&work, engine, settings, signed));
-    try t.expectEqual(0, allocations.live_bytes);
+    try allocations.verify();
+    try t.expectEqual(settings.resident_bytes, allocations.live_bytes);
     const measurement = try std.json.Stringify.valueAlloc(t.allocator, .{
         .boundary = "private_table_maintenance",
         .tables = before.items.len,
+        .startup = startup_allocations,
         .active_units = units,
         .active = active_allocations,
         .active_peak_bytes = active_peak,

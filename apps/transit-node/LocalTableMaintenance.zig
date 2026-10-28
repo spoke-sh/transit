@@ -7,12 +7,16 @@ const backend = @import("transit_backend_local");
 const Host = @import("LocalTableHost.zig");
 const g = c.protocol.Growth;
 const P = c.storage.TablePartition;
+const Slab = c.fuze.memory.Slab;
 const Self = @This();
 
 host: *Host,
 /// Private Table workspace backing; provider and engine caches have their own
 /// lifetimes and are accounted separately from this allocation boundary.
 allocator: std.mem.Allocator,
+/// One private reserve shared by sequential Table work classes. All borrowers
+/// finish within step; no catalog, row or allocator escapes into a later unit.
+workspace: ?Slab = null,
 cursors: struct {
     flush: c.DirectCatalog.MaintenanceCursor = .{},
     archive: c.DirectCatalog.MaintenanceCursor = .{},
@@ -48,14 +52,29 @@ pub const Class = enum {
 };
 const Age = struct { object: u64, since_ms: i64 };
 
+pub fn deinit(self: *Self) void {
+    if (self.workspace) |*workspace| workspace.deinit();
+    self.* = undefined;
+}
+
 pub fn step(raw: *anyopaque, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, signed: g.SignedRequest) !bool {
     const self: *Self = @ptrCast(@alignCast(raw));
     try settings.validate();
-    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = settings.resident_bytes };
-    defer self.last_peak_bytes = memory.peak;
+    self.last_peak_bytes = 0;
     self.last_rows = 0;
     self.last_object = null;
     self.last_class = null;
+    if (!settings.flush.enabled and !settings.archive.enabled and !settings.compact) return false;
+    // These settings require owner restart. Do not grow a live reserve or fall
+    // back to the heap when a unit exhausts its bounded private capacity.
+    if (self.workspace == null) self.workspace = try Slab.init(self.allocator, settings.resident_bytes);
+    const workspace = &self.workspace.?;
+    if (workspace.buffer.len != (settings.resident_bytes & ~@as(usize, Slab.granule - 1))) return error.InvalidStorageBudget;
+    var memory: c.fuze.MemoryBudget = .{ .parent = workspace.allocator(), .limit = workspace.buffer.len };
+    defer {
+        self.last_peak_bytes = memory.peak;
+        std.debug.assert(memory.used == 0 and workspace.live_bytes == 0);
+    }
     // Independently advance each class before I/O. Idle classes can be skipped
     // in one finite rotation; hot or failed work cannot own the next turn too.
     for (0..4) |_| {
@@ -63,8 +82,9 @@ pub fn step(raw: *anyopaque, engine: *backend.DataAuthority.Engine, settings: c.
         self.next_class = selected.next();
         if (!selected.enabled(settings)) continue;
         self.last_class = selected;
+        const refusals = workspace.refusals;
         const worked = self.unit(memory.allocator(), engine, settings, selected, signed) catch |err| {
-            if (err == error.OutOfMemory and memory.exhausted) return error.StorageMaintenanceBudget;
+            if (err == error.OutOfMemory and (memory.exhausted or workspace.refusals != refusals)) return error.StorageMaintenanceBudget;
             return err;
         };
         if (worked) return true;
@@ -184,4 +204,23 @@ test "physical flush age hints cannot delay evicted Tables or track durable card
     try t.expect(!work.eligible(1, .{}, 6004, settings));
     try t.expect(work.eligible(1, .{ .rows = settings.rows }, 6004, settings));
     try t.expect(work.eligible(1, .{ .rows = 1, .bytes = settings.bytes }, 6004, settings));
+}
+
+test "disabled maintenance and failed workspace admission leave storage and discovery untouched" {
+    const t = std.testing;
+    var probe: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
+    var work: Self = .{ .host = undefined, .allocator = probe.allocator() };
+    defer work.deinit();
+    probe.begin(true);
+    // Neither path may dereference an engine, host or authority request.
+    try t.expect(!try step(&work, undefined, .{}, undefined));
+    try probe.verify();
+    const cursors = work.cursors;
+    try t.expectError(error.OutOfMemory, step(&work, undefined, .{ .flush = .{ .enabled = true } }, undefined));
+    try t.expectError(error.BackingAllocationAfterWarmup, probe.verify());
+    try t.expectEqual(1, probe.counts.alloc_attempts);
+    try t.expectEqual(0, probe.live_bytes);
+    try t.expect(work.workspace == null and work.last_class == null);
+    try t.expectEqual(.flush, work.next_class);
+    try t.expectEqualDeep(cursors, work.cursors);
 }
