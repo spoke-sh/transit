@@ -117,8 +117,8 @@ this header and the roadmap index together.
 | --- | --- | --- |
 | P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types and validation; runtime/model correspondence remains open |
 | P1 | Database admission, original-token binding, transaction quotas and caller boundary | Planned |
-| P2 | Paged common-cut acquisition, pin recovery and private workspaces | Planned |
-| P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | Planned |
+| P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: immutable paged participant directories; acquisition and workspace integration remain open |
+| P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | In progress: fenced decision journal with exact preparation membership; Table preparation and visibility integration remain open |
 | P4 | Restart/failure settlement, retained roots, cleanup and maintenance | Planned |
 | P5 | Provisional statement results, SQL session controls and shared client | Planned |
 | P6 | Typed Zig, console and PostgreSQL/MySQL adapters and inspection | Planned |
@@ -128,6 +128,12 @@ this header and the roadmap index together.
 
 The neutral types validate descriptor shape only. They establish no transaction
 service, acquired consistent cut, serializable execution or durable decision.
+The storage directory and decision-journal components have separate disk/recovery
+checks and an explicit [integration contract](../../packages/zig/transit-storage/docs/transaction-decisions.md).
+Their verification callbacks are not yet connected to Table owners. Catalog
+admission, common-cut acquisition, private workspace/savepoint execution,
+Table predecessor barriers, common-decision visibility, retained-graph integration
+and public callers must land before an installed transaction profile is claimed.
 
 ### Incoming handoffs and start gates
 
