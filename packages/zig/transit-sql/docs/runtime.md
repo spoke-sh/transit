@@ -49,8 +49,16 @@ Single-partition DML uses `commit_saved`: the partition evaluates the complete
 frozen intent and publishes its rows, indexes and outcome in one `TWAL1` append.
 `commit_saved` resolves an original receipt before execution, so ordinary DML
 recovery calls it directly without an additional pre-commit inspection request.
-The pending record supplies the original frozen reference and current
-cancellation state. An uncertain reply still leaves accepted work with the
+`DatabaseRuntime.submit` and the synchronous wire execution path attempt that
+same operation in the submitting request, within the existing statement and
+native request budgets. A successful foreground response projects the freshly
+authorized owner outcome directly, without waiting for background enumeration
+or another status RPC. The pending record supplies the original frozen reference
+and current cancellation state. Background recovery is notified after the
+foreground attempt, including failure or lost acknowledgement, and separately
+settles the Catalog pending index. It may race the foreground attempt; both use
+the identical frozen reference and resolve the same owner receipt. Terminal
+completion does not claim that pending-accounting cleanup has already finished. An uncertain reply still leaves accepted work with the
 recovery owner. Status and lookup remain observation-only, and disclosure
 retains current authorization.
 

@@ -20883,7 +20883,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 123,
+        "try": 122,
         "catch": 9
       },
       "imports": [
@@ -21270,6 +21270,7 @@
         "ReadSources.resolve()": "anyerror",
         "activate()": "<inferred>",
         "admit()": "<inferred>",
+        "admitWithWake()": "<inferred>",
         "advance()": "<inferred>",
         "attachReadCache()": "<inferred>",
         "available()": "<inferred>",
@@ -21277,17 +21278,21 @@
         "cleanupClient()": "<inferred>",
         "execute()": "<inferred>",
         "fence()": "<inferred>",
+        "foreground()": "<inferred>",
         "init()": "<inferred>",
         "lookup()": "<inferred>",
+        "project()": "<inferred>",
+        "requireRoute()": "<inferred>",
         "resumeOperation()": "<inferred>",
         "status()": "<inferred>",
+        "submit()": "<inferred>",
         "tick()": "<inferred>",
         "waitIdle()": "<inferred>",
         "waitProgress()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 72,
+        "try": 83,
         "catch": 8
       },
       "imports": [

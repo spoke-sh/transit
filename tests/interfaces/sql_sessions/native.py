@@ -224,6 +224,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         faults.fail_commit_once = True
     inserted = first.execute('INSERT INTO native_sessions VALUES (1, 170141183460469231731687303715884105727)', insert_token)['operation']
     submitted = inserted
+    assert submitted['phase'] == 'terminal', submitted
     inserted = first.terminal(inserted)
     assert inserted['identity'] == submitted['identity'] and inserted['matched'] == inserted['changed'] == 1, inserted
     if faults is not None:
@@ -240,6 +241,27 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     # Invalid cursor sequencing clears the cursor, never reopens its snapshot.
     first.call(dict(fetch=dict(cursor=one['cursor'], batch=one['batch'])), error='SqlResultIncomplete')
     after_insert(first, storage_statement, root, postgres)
+    # A successful foreground DML response already contains the owner's exact
+    # terminal counts. No status polling is needed to finish these statements.
+    def completed(sql, matched, changed):
+        token = list(os.urandom(16))
+        outcome = first.execute(sql, token)['operation']
+        assert outcome['phase'] == 'terminal' and outcome['outcome'] == 'applied', outcome
+        assert (outcome['matched'], outcome['changed']) == (matched, changed), outcome
+        return token, outcome
+    completed('INSERT INTO native_sessions VALUES (2, 20)', 1, 1)
+    completed('UPDATE native_sessions SET value = 21 WHERE id = 2', 1, 1)
+    completed('UPDATE native_sessions SET value = 21 WHERE id = 2', 1, 0)
+    deleted_token, deleted = completed('DELETE FROM native_sessions WHERE id = 2', 1, 1)
+    completed('DELETE FROM native_sessions WHERE id = 2', 0, 0)
+    completed('INSERT INTO native_sessions VALUES (2, 22)', 1, 1)
+    original = second.execute('DELETE FROM native_sessions WHERE id = 2', deleted_token)['operation']
+    assert original == deleted, (original, deleted)
+    retained = first.execute('SELECT value FROM native_sessions WHERE id = 2')['batch']
+    assert retained['complete'] and retained['rows'] == [[(b'\x03' + (22).to_bytes(16, 'little', signed=True)).hex()]], retained
+    first.call(dict(close_result=retained['cursor']))
+    completed('DELETE FROM native_sessions WHERE id = 2', 1, 1)
+    print('Foreground DML: immediate terminal INSERT/UPDATE/DELETE counts, no-op/empty outcomes and original DELETE retry after reinsertion passed.', flush=True)
     desc = first.execute('DESCRIBE native_sessions')['batch']
     assert desc['rows'] and len(desc['rows'][0]) == 9
     assert desc['observation']['metadata']['kind'] == 'catalog'

@@ -1686,6 +1686,16 @@ terminal decision. Retained snapshot roots remain valid after logical row remova
 The separate token model captures first-reference wins across Tables; the row
 model captures selection conflicts and original-count recovery after later writes.
 
+Foreground `DatabaseRuntime.submit`/`execute` and background `advance` use the
+same `commit_saved` owner operation for non-cancelled DML. Scheduling that call
+inside the submitting request changes neither the split acceptance/commit model
+nor its original-identity guard. A foreground result is projected only from the
+owner's newly authorized terminal response. Pending accounting can settle later;
+interrupted submission always wakes recovery. Concurrent foreground/background
+attempts resolve the same receipt. The real native-session schedule checks direct
+terminal counts and a deleted operation retried after reinsertion; the lifecycle
+model abstracts scheduling and does not establish that request's latency.
+
 Atomic durable publication is an explicit assumption of this abstraction. For
 its use in an implementation, every published root must have either durable
 immutable dependencies or enough retained WAL information to reconstruct them.

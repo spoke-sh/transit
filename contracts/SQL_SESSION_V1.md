@@ -112,7 +112,11 @@ returns a temporary statement handle, result schema and parameter descriptors;
 `describe` rechecks authority. `release` closes a prepared handle. `execute`
 accepts SQL directly or a prepared handle, and typed bound parameters. Native
 mutations require an admission token and SQL text so retries remain meaningful
-after a session disappears. The client can retain preparation for reads without
+after a session disappears. INSERT, UPDATE and DELETE attempt foreground
+completion within the request's existing budgets. An `operation` response may
+already be terminal with verified owner counts; Catalog pending-index settlement
+can finish separately. Interrupted execution retains the same accepted operation
+for recovery. Status reads do not execute pending work. The client can retain preparation for reads without
 making it durable. Adapter-specific admission restrictions remain in the wire
 adapters; the native codec preserves Fuze logical types.
 
