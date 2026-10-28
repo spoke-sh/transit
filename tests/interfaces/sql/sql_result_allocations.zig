@@ -47,6 +47,33 @@ fn capacity(executor: *sql.Executor) !void {
     }
 }
 
+fn stalledCall(client: *sql.Client) !void {
+    const response = try client.call(.{ .assist = .{ .text = "allocation_probe_cancel", .cursor = 0 } });
+    defer response.deinit();
+    return error.ExpectedCancellation;
+}
+fn interrupted(executor: *sql.Executor) !void {
+    const client = executor.client;
+    const timeout_ms = client.timeout_ms;
+    client.timeout_ms = 100;
+    if (client.call(.{ .assist = .{ .text = "allocation_probe_timeout", .cursor = 0 } })) |response| {
+        response.deinit();
+        return error.ExpectedTimeout;
+    } else |err| if (err != error.SqlRequestTimeout) return err;
+    client.timeout_ms = timeout_ms;
+    var future = try client.io.concurrent(stalledCall, .{client});
+    defer _ = future.cancel(client.io) catch {};
+    // The independent peer answers only after writing a partial response on
+    // the data connection. Cancellation therefore joins an actual exchange.
+    const barrier = try executor.control.call(.{ .assist = .{ .text = "allocation_probe_barrier", .cursor = 0 } });
+    defer barrier.deinit();
+    if (barrier.value.result != .closed) return error.InvalidBarrier;
+    if (future.cancel(client.io)) |_| return error.ExpectedCancellation else |err| if (err != error.Canceled) return err;
+    // A fresh read after both failed non-mutating calls verifies that response
+    // slots and transport buffers became reusable only after the tasks joined.
+    try consume(executor, 33, false, false, false);
+}
+
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 3 and args.len != 4) return error.ExpectedEndpointAndCa;
@@ -97,6 +124,7 @@ pub fn main(init: std.process.Init) !void {
             retained.?.value.command.outcome != .applied or retained.?.value.command.counts != null)
             return error.ChangedRetainedCompletion;
     }
+    if (!negative) try interrupted(&executor);
     var libc: [4]u64 = undefined;
     if (transit_allocation_end(&libc) != 0) return error.UnsupportedAllocationObserver;
     try std.Io.File.stdout().writeStreamingAll(io, "allocation_end\n");

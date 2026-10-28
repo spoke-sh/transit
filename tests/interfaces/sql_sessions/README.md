@@ -18,6 +18,10 @@ lost fetch ordinal, crosses the 256-request connection boundary and replaces idl
 sockets. Thirty statements prepare and bind an independently encoded parameter;
 a command completion stays retained through the run. Four retained responses
 force the next submission to fail before dispatch without damaging their data.
+The peer also stalls partial responses for one timeout and one cancellation;
+an independent control connection confirms the exchange started before cancellation.
+A fresh read then checks that joined tasks returned their response and transport
+storage. These failed non-mutating calls do not establish statement completion.
 HTTP/TLS peers use numeric IPv4 endpoints; DNS/NSS resolution is not
 qualified by this profile. A sealed allocator observes both client reserves and bounded I/O task
 storage after finite setup. On Linux/glibc the linked test-only interposer counts

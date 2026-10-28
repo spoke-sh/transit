@@ -32,10 +32,11 @@ def schema(wide):
 @contextmanager
 def peer(mode, root):
     definition = re.search(r'\b([a-f0-9]{64})\b', (ROOT / 'packages/zig/transit-protocol/src/Growth.zig').read_text()).group(1)
-    state = dict(requests=0, queries=0, retries=0, turnovers=0, prepares=0, releases=0, commands=0)
+    state = dict(requests=0, queries=0, retries=0, turnovers=0, prepares=0, releases=0, commands=0, timeouts=0, cancellations=0)
     active = {}
     dropped = set()
     lock = threading.Lock()
+    partial = threading.Event()
     observation = dict(metadata=dict(kind='probe', consistency='session', namespace=None, definitions=[], configuration_revision=None, session_settings=None, source=None))
 
     class Handler(BaseHTTPRequestHandler):
@@ -60,6 +61,30 @@ def peer(mode, root):
                 result = dict(hello=dict(encoding=ENCODING, session_lease_ms=30000, maximum_message=4194304, maximum_batch=1048576, maximum_rows=32, capabilities=[]))
             elif action == 'open':
                 result = dict(opened=dict(session=[3] * 32, account=[4] * 32, database='transit', proof=''))
+            elif action == 'assist':
+                assert value['text'] in ('allocation_probe_timeout', 'allocation_probe_cancel', 'allocation_probe_barrier')
+                if value['text'] == 'allocation_probe_barrier':
+                    assert partial.wait(10), 'cancellation never reached the partial response'
+                    result = dict(closed={})
+                else:
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Content-Length', '128')
+                    self.end_headers()
+                    self.wfile.write(b'{')
+                    self.wfile.flush()
+                    if value['text'] == 'allocation_probe_cancel':
+                        state['cancellations'] += 1
+                        partial.set()
+                    else:
+                        state['timeouts'] += 1
+                    self.connection.settimeout(10)
+                    try:
+                        assert self.connection.recv(1) == b'', 'cancelled connection was reused'
+                    except (ConnectionResetError, ssl.SSLError):
+                        pass
+                    self.close_connection = True
+                    return
             elif action in ('close', 'close_result', 'touch'):
                 result = dict(closed={})
                 if action == 'close_result':
@@ -280,7 +305,8 @@ def main():
                         assert 'mmap' in calls and calls & {'clone', 'clone3'}, events
                         assert report['statements'] == 0 and state['queries'] == 1
                     else:
-                        assert report['statements'] == 300 and state['queries'] == 301
+                        assert report['statements'] == 300 and state['queries'] == 302
+                        assert state['timeouts'] == state['cancellations'] == 1, state
                         assert state['prepares'] == state['releases'] == 30 and state['commands'] == 1, state
                         assert state['requests'] > 256 and state['retries'] > 0 and state['turnovers'] > 0, state
                         assert report['libc_attempts'] == [0, 0, 0, 0] and events == [], profile
