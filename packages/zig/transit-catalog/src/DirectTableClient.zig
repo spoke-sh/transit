@@ -29,22 +29,28 @@ pub const Attempt = struct {
     pub const Mutation = struct { action: std.meta.Tag(w.Action), identity: ?p.DataLifecycle.Operation };
     fn begin(self: *Attempt, request: w.Request) void {
         if (!request.transport().mutation) return;
-        self.mutation = .{ .action = std.meta.activeTag(request.action), .identity = switch (request.action) {
-            .stage => |value| value.intent.work.binding().identity,
-            .admit_saved => |value| value.binding.identity,
-            inline .admit_ddl, .admit_rows, .admit_statement, .operation => |value| value.binding.identity,
-            inline .name_assertion, .namespace_operation, .dependency_operation, .resource_operation => |value| value.binding.identity(),
-            inline .pin, .retain_history => |value| value.owner,
-            .release => |value| value.handle.owner,
-            else => null,
-        } };
+        self.mutation = .{
+            .action = std.meta.activeTag(request.action),
+            .identity = switch (request.action) {
+                // A raced token may select a different original operation. Never
+                // label the proposed operation as the accepted recovery identity.
+                .client_token => null,
+                .stage => |value| value.intent.work.binding().identity,
+                .admit_saved => |value| value.binding.identity,
+                inline .admit_ddl, .admit_rows, .admit_statement, .operation => |value| value.binding.identity,
+                inline .name_assertion, .namespace_operation, .dependency_operation, .resource_operation => |value| value.binding.identity(),
+                inline .pin, .retain_history => |value| value.owner,
+                .release => |value| value.handle.owner,
+                else => null,
+            },
+        };
     }
     /// A service denial, conflict, malformed response or output allocation
     /// failure can follow acceptance. Only a validated owner outcome settles
     /// domain work; an error code cannot turn this attempt into rejection.
     pub fn failure(self: Attempt, cause: anyerror, native: ?p.ErrorCode) !?p.Diagnostic {
         const mutation = self.mutation orelse return null;
-        var result = try p.Diagnostic.init("catalog.direct_outcome_unknown", .unavailable, .submit, .unknown, if (mutation.identity != null) .saved_intent else .none, if (mutation.identity != null) "The direct operation outcome is unknown. Preserve its original saved binding and inspect that operation under current rights before deciding how to continue." else if (mutation.action == .flush) "The physical flush outcome is unknown. Preserve the original object and exclusive acceptance cut. Inspect current storage coverage or repeat that same target under current rights." else "The catalog initialization outcome is unknown. Inspect the catalog under the original connection and current rights before deciding how to continue.");
+        var result = try p.Diagnostic.init("catalog.direct_outcome_unknown", .unavailable, .submit, .unknown, if (mutation.identity != null) .saved_intent else .none, if (mutation.identity != null) "The direct operation outcome is unknown. Preserve its original saved binding and inspect that operation under current rights before deciding how to continue." else if (mutation.action == .client_token) "The client-token binding outcome is unknown. Preserve the original account, token and request fingerprint. Look up that token under current rights and use only its accepted intent reference." else if (mutation.action == .flush) "The physical flush outcome is unknown. Preserve the original object and exclusive acceptance cut. Inspect current storage coverage or repeat that same target under current rights." else "The catalog initialization outcome is unknown. Inspect the catalog under the original connection and current rights before deciding how to continue.");
         result.cause = try p.Diagnostic.Code.init(@errorName(cause));
         if (mutation.identity) |identity| result.identity = .{ .domain = .catalog, .id = .init(identity.operation), .realm = .init(identity.scope.realm), .resource = .init(identity.scope.resource) };
         try result.text(.operation, .caller, @tagName(mutation.action));

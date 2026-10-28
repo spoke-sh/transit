@@ -73,3 +73,4 @@ test {
 pub const testing = if (@import("builtin").is_test) struct {
     pub const Authority = @import("TestAuthority.zig");
 } else struct {};
+pub const DirectClientToken = @import("DirectClientToken.zig");

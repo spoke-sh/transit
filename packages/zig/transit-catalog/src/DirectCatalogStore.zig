@@ -88,7 +88,7 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
         next = record.root;
         chain = r.hash(frame.payload);
     }
-    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies }) |slot| if (slot) |reference| {
+    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens }) |slot| if (slot) |reference| {
         _ = try self.index.load(reference);
     };
     self.root = next;
@@ -179,6 +179,8 @@ fn operationAt(self: *Self, basis: r.Root, binding: p.DataLifecycle.Binding) !?r
 }
 
 fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    if (record.action == .client_token) return self.clientTokenTransition(before, record);
+    if (!std.meta.eql(before.client_tokens, record.root.client_tokens) or before.client_token_count != record.root.client_token_count) return error.InvalidDirectCatalogTransition;
     if (record.action != .resource and !std.meta.eql(before.native_allocations, record.root.native_allocations)) return error.InvalidDirectCatalogTransition;
     if (record.action == .dependency) return self.dependencyTransition(before, record);
     if (!std.meta.eql(before.dependents, record.root.dependents) or !std.meta.eql(before.dependencies, record.root.dependencies)) return error.InvalidDirectCatalogTransition;
@@ -227,6 +229,38 @@ fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
             if (after_pending != null) return error.InvalidDirectCatalogTransition;
         } else if (!std.meta.eql(before_pending, after_pending)) return error.InvalidDirectCatalogTransition;
     }
+}
+
+pub fn clientToken(self: *Self, key: c.DirectClientToken.Key) !?c.DirectClientToken.Receipt {
+    try self.ready();
+    return self.clientTokenAt(self.root, key);
+}
+fn clientTokenAt(self: *Self, basis: r.Root, key: c.DirectClientToken.Key) !?c.DirectClientToken.Receipt {
+    try key.validate();
+    if (!key.connection.matches(basis.configuration)) return error.DataIdentityConflict;
+    const value = try self.tree().get(basis.client_tokens, try pages.Key.init(&try key.digest())) orelse return null;
+    if (value.len != 8) return error.InvalidClientToken;
+    const at = std.mem.readInt(u64, value.data[0..8], .little);
+    if (at == 0 or at >= basis.next_lsn) return error.InvalidClientToken;
+    var batch = try self.log.read(self.allocator, basis.configuration.partition, at, 1);
+    defer batch.deinit();
+    if (batch.frames.len != 1) return error.CatalogHistoryMissing;
+    const record = try decodeFrame(self.allocator, batch.frames[0], basis.configuration.partition, at);
+    if (record.action != .client_token or !std.meta.eql(record.root.configuration, basis.configuration)) return error.InvalidClientToken;
+    try key.requireSame(record.action.client_token.binding.key);
+    return record.action.client_token;
+}
+fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    const accepted = record.action.client_token;
+    if (try self.clientTokenAt(before, accepted.binding.key) != null or
+        record.root.client_token_count != try std.math.add(u64, before.client_token_count, 1)) return error.InvalidDirectCatalogTransition;
+    var unchanged = record.root;
+    unchanged.next_lsn = before.next_lsn;
+    unchanged.client_tokens = before.client_tokens;
+    unchanged.client_token_count = before.client_token_count;
+    if (!std.meta.eql(unchanged, before)) return error.InvalidDirectCatalogTransition;
+    const value = try self.tree().get(record.root.client_tokens, try pages.Key.init(&try accepted.binding.key.digest())) orelse return error.InvalidDirectCatalogTransition;
+    if (value.len != 8 or std.mem.readInt(u64, value.data[0..8], .little) != before.next_lsn) return error.InvalidDirectCatalogTransition;
 }
 
 pub fn resourceRecord(self: *Self, at: u64) !c.DirectResource.Operation {

@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "ed98a1fb80bc80e2534856d1eea5caeae705df1bff8e0347aa20009c935f58de"
+definition = "2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -291,6 +291,30 @@ native_reference = {
     "namespace": 1, "binding": binding,
     "content": {"bytes": len(saved_bytes), "sha256": list(hashlib.sha256(saved_bytes).digest())},
 }
+# Client-token identity excludes a proposed target, operation, role and credential.
+# Independent signing proves the complete request still binds all those fields.
+token_key = {"definition": definition, "connection": request_input["connection"],
+             "account": [11] * 32, "token": [12] * 16}
+token_binding = {"key": token_key, "fingerprint": [13] * 32, "intent": native_reference}
+token_input = {**request_input, "action": {"client_token": {"bind": token_binding}}}
+token_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(token_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-token-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    token_request = {**token_input, "proof": {"claim": token_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(token_claim)).digest())}}
+validator.validate(token_request)
+for field in ("definition", "connection", "account", "token"):
+    invalid = copy.deepcopy(token_request)
+    del invalid["action"]["client_token"]["bind"]["key"][field]
+    assert not validator.is_valid(invalid), field
+for field in ("fingerprint", "intent"):
+    invalid = copy.deepcopy(token_request)
+    del invalid["action"]["client_token"]["bind"][field]
+    assert not validator.is_valid(invalid), field
+token_digest = hashlib.sha256(b"transit.catalog.client-token.v1\0" +
+    struct.pack("<4Q", 42, 3, 2**64 - 1, 4) + bytes([11] * 32) + bytes([12] * 16)).digest()
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-client-token-v1.json",
+        (json.dumps({"request": token_request, "public_key": public_key, "key_digest": list(token_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
 host_reference = copy.deepcopy(native_reference)
 host_reference["connection"]["scope"]["catalog"] = str(2**64 - 1)
 host_reference["connection"]["branch"] = "1"

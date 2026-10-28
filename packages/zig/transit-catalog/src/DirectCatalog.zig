@@ -25,6 +25,9 @@ pub const Properties = r.Properties;
 pub const Options = struct {
     resident_pages: usize = 16,
     index_work_bytes: usize = 64 * 1024 * 1024,
+    /// Durable token capacity, independent of the bounded resident page cache.
+    /// Exhaustion refuses new bindings; it never forgets accepted identities.
+    client_token_quota: u64 = 1_000_000,
     table: P.Options = .{},
     /// Optional same-storage-owner hint, serialized by the embedding host.
     /// No request allocations, permission or retained read are cached here.
@@ -140,7 +143,7 @@ options: Options,
 lose_table_reply: bool = false,
 
 pub fn init(allocator: std.mem.Allocator, configuration: Configuration, control_log: s.TransitLog.Log, control_objects: s.TransitObjectStore.ObjectStore, data_log: s.TransitLog.Log, data_objects: s.TransitObjectStore.ObjectStore, options: Options) !Self {
-    if (options.index_work_bytes == 0) return error.InvalidStorageBudget;
+    if (options.index_work_bytes == 0 or options.client_token_quota == 0) return error.InvalidStorageBudget;
     return .{ .allocator = allocator, .store = try Store.init(allocator, configuration, control_log, control_objects, options.resident_pages), .data_log = data_log, .data_objects = data_objects, .options = options };
 }
 pub fn deinit(self: *Self) void {
@@ -712,19 +715,21 @@ pub fn readCurrent(self: *Self, allocator: std.mem.Allocator, request: c.DirectT
 /// Unlike preparation, this does not demand a current definition: admission and
 /// recovery preserve the original expectation and its eventual recorded result.
 pub fn checkOperation(self: *Self, binding: d.Binding, namespace_id: u64, policy: Policy) !void {
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    try check(try self.operationGuard(arena.allocator(), binding, namespace_id, policy));
+}
+fn operationGuard(self: *Self, allocator: std.mem.Allocator, binding: d.Binding, namespace_id: u64, policy: Policy) !P.Guard {
     try self.requireInitialized();
     try self.original(policy, binding);
     try c.Model.nativeId(namespace_id);
-    var arena = std.heap.ArenaAllocator.init(self.allocator);
-    defer arena.deinit();
-    try check(try self.guard(arena.allocator(), policy, null, null, .database));
+    try check(try self.guard(allocator, policy, null, null, .database));
     const namespace_value = try self.authorizationSchema(namespace_id);
-    try check(try self.guard(arena.allocator(), policy, namespace_value, null, .schema));
+    try check(try self.guard(allocator, policy, namespace_value, null, .schema));
     if (binding.action == .create) {
         const native = try policy.registered(policy.context, .table, binding.target.object);
         const target: ?a.Table = if (native) |value| .{ .id = binding.target.object, .schema = namespace_id, .authorization = value.reference.id } else null;
-        try check(try self.guard(arena.allocator(), policy, namespace_value, target, .create_table));
-        return;
+        return self.guard(allocator, policy, namespace_value, target, .create_table);
     }
     const target_entry = try self.entry(binding.target.object) orelse return error.CatalogDenied;
     if (target_entry.seed == null) return error.CatalogDenied;
@@ -739,7 +744,58 @@ pub fn checkOperation(self: *Self, binding: d.Binding, namespace_id: u64, policy
         .drop => .drop,
         .create => unreachable,
     };
-    try check(try self.guard(arena.allocator(), policy, namespace_value, view.properties.target(binding.target.object), access));
+    return self.guard(allocator, policy, namespace_value, view.properties.target(binding.target.object), access);
+}
+
+/// Atomically selects the first complete direct intent for a caller token.
+/// This neither admits nor executes that intent. Even an exact retry rechecks
+/// the original target's current rights before disclosing its reference.
+pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Policy) !?c.DirectClientToken.Receipt {
+    try self.requireInitialized();
+    try request.validate();
+    const key = request.key();
+    if (!key.connection.matches(self.config()) or key.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const database = try self.guard(arena.allocator(), policy, null, null, .database);
+    try check(database);
+    if (try self.store.clientToken(key)) |receipt| {
+        const reference = receipt.binding.intent;
+        const current = try self.operationGuard(arena.allocator(), reference.binding, reference.namespace, policy);
+        try check(current);
+        if (request == .bind) try receipt.binding.retry(request.bind);
+        try check(current);
+        return receipt;
+    }
+    if (request == .lookup) {
+        try check(database);
+        return null;
+    }
+    const binding = request.bind;
+    const reference = binding.intent;
+    const current = try self.operationGuard(arena.allocator(), reference.binding, reference.namespace, policy);
+    try check(current);
+    if (self.store.root.client_token_count >= self.options.client_token_quota) return error.ClientTokenCapacity;
+    // Verify immutable bytes before accepting the reference. Loading is bounded
+    // by the direct-intent contract and grants no execution authority.
+    var intent = try c.DirectTableIntentStore.load(self.allocator, self.data_objects, reference);
+    defer intent.deinit();
+    if (intent.parsed.value.work == .ddl) _ = try self.preview(try intent.parsed.value.work.ddl.native(arena.allocator(), self.config()), policy);
+    try check(current);
+    const operation_objects = if (intent.parsed.value.work == .ddl) self.store.objects else self.data_objects;
+    try c.OperationBinding.claim(self.allocator, operation_objects, reference.binding);
+    try self.store.index.begin(self.options.index_work_bytes);
+    defer self.store.index.end();
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    next.client_token_count = try std.math.add(u64, next.client_token_count, 1);
+    const receipt: c.DirectClientToken.Receipt = .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = next.next_lsn } };
+    var at: [8]u8 = undefined;
+    std.mem.writeInt(u64, &at, self.store.root.next_lsn, .little);
+    next.client_tokens = try self.store.tree().put(next.client_tokens, try pages.Key.init(&try key.digest()), try pages.Value.init(&at));
+    try self.store.publish(next, .{ .client_token = receipt }, current);
+    try check(current);
+    return receipt;
 }
 
 pub fn initialize(self: *Self, policy: Policy) !void {

@@ -5,6 +5,13 @@ durable resource. The catalog owner controls schema changes and row publication.
 Current database, schema and Table grants use native authorization; a name,
 retained snapshot or cached schema grants neither access nor execution rights.
 
+Typed direct callers can bind a staged Table mutation to a durable client token
+and recover its original intent after a lost reply. The catalog checks the
+request fingerprint and current permissions. A token receipt establishes the
+binding; the Table operation supplies admission and completion evidence. See the
+[client-token contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings).
+SQL sessions retain their separate account operation lifecycle.
+
 The [console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
 routes CREATE, ALTER, DROP, INSERT, UPDATE, DELETE and supported SELECT statements
 through that catalog. An authorized new Table is discoverable without editing a

@@ -62,6 +62,14 @@ retained Table cardinality. Exceeding either records a `work_limit` rejection
 without publishing a row prefix. Index staging and physical storage quotas are
 separate. Captured queries and language SDK adapters still require migration.
 
+`table.client_token_quota` defaults to 1,000,000 durable client-token bindings
+per catalog and must be positive. It limits new acceptance independently of the
+resident page cache. Existing bindings remain readable and retryable under
+current rights at capacity; the node never expires them to admit new work.
+Changing this deployment quota does not alter accepted identities. The
+[token contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
+distinguishes binding an intent from executing it.
+
 Genesis may opt into `admission_ceiling` (2–65,536 journal positions) and
 `control_reserve` (0–65,536 further positions; default 4,096). The ceiling is
 unset by default. These are finite deployment quotas, independent of retained

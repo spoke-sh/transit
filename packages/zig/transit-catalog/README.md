@@ -62,6 +62,14 @@ Table action or ownership, and its resource lifetime. It checks accumulated
 requirements again before disclosure. Metadata is filtered by current visibility;
 a saved binding, pin or cached result never grants access.
 
+`DirectClientToken.bind` records an account/token's original staged Table intent
+in the catalog WAL; `lookup` recovers it after a lost reply. Matching fingerprint
+retries return the first accepted intent under current rights. Binding does not
+admit or execute data. See the
+[token contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
+for identity, quota and uncertainty rules. SQL account orchestration still uses
+its separate ledger.
+
 `DirectTableBridge.Session` owns one immutable local intent. SQL `compile` and
 typed `prepare` return saved work; `load` and `forget` are local operations.
 Persist saved work before staging, and the complete returned reference before

@@ -176,7 +176,7 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
     std.debug.print("Name lookup WAL frames: cold {d}, warm {d}; revocation rechecked.\n", .{ cold_frames, warm_frames });
 }
 
-fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !void {
+fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.DirectClientToken.Receipt {
     const w = c.DirectTableProtocol;
     var service: @import("LocalTableService.zig") = .{ .engine = engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
     var recovered = blk: {
@@ -371,6 +371,35 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     try t.expectEqual(native_before_stage, engine.head.position);
     try t.expectEqual(staged.value.result.staged.content.bytes, engine.journal.observe.metrics.request_payload_bytes - staged_bytes_before);
     try (try saved.reference(1)).requireSame(staged.value.result.staged);
+    const token_binding: c.DirectClientToken.Binding = .{
+        .key = .{ .definition = g.current_definition, .connection = saved.parsed.value.connection, .account = @splat(4), .token = @splat(5) },
+        .fingerprint = @splat(6),
+        .intent = staged.value.result.staged,
+    };
+    const bound = try dispatch(&service, .{ .client_token = .{ .bind = token_binding } });
+    defer bound.deinit();
+    try t.expectEqual(native_before_stage, engine.head.position);
+    try t.expectEqualDeep(token_binding, bound.value.result.client_token.?.binding);
+    var duplicate = token_binding;
+    duplicate.intent.binding.identity.operation += 1000;
+    const original_token = try dispatch(&service, .{ .client_token = .{ .bind = duplicate } });
+    defer original_token.deinit();
+    try t.expectEqualDeep(bound.value.result.client_token, original_token.value.result.client_token);
+    duplicate.fingerprint[0] ^= 1;
+    try t.expectError(error.ClientTokenConflict, dispatch(&service, .{ .client_token = .{ .bind = duplicate } }));
+    // A receipt accepted before policy revocation cannot be disclosed. Recovery
+    // after restoring rights returns that same reference, without native turns.
+    var lost = token_binding;
+    lost.key.token = @splat(7);
+    var schema_authority = config.authority.initial_schema_authority;
+    service.before_reply = .{ .context = &schema_authority, .run = Revoke.run };
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .client_token = .{ .bind = lost } }));
+    service.before_reply = null;
+    try t.expectError(error.Forbidden, dispatch(&service, .{ .client_token = .{ .lookup = lost.key } }));
+    _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(schema_authority), .owner = owner_role } });
+    const recovered_token = try dispatch(&service, .{ .client_token = .{ .lookup = lost.key } });
+    defer recovered_token.deinit();
+    try t.expectEqualDeep(lost, recovered_token.value.result.client_token.?.binding);
     const unstaged_position = try dispatch(&service, .{ .lookup = .{ .namespace = 1, .name = ddl.name } });
     defer unstaged_position.deinit();
     try t.expectEqualDeep(basis.value.result.lookup.?.position, unstaged_position.value.result.lookup.?.position);
@@ -384,6 +413,7 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !vo
     defer private_result.deinit();
     try t.expectEqual(@as(u64, 1), private_result.value.result.rows.committed.outcome.affected);
     try t.expectError(error.Forbidden, dispatch(&service, .{ .pin = .{ .object = binding.target, .owner = .{ .scope = config.scope, .principal = 101, .operation = 205 }, .expected = private_result.value.result.rows.committed.outcome.position } }));
+    return recovered_token.value.result.client_token.?;
 }
 
 fn delegatedDispatch(service: *@import("LocalTableService.zig"), snapshot: c.DirectTableProtocol.Snapshot, source: c.DirectTableProtocol.Source, owner_role: u64, native_table: u64) !void {
@@ -1192,7 +1222,7 @@ test "local catalog checks real native registrations, current ownership and exac
     defer catalog.deinit();
     try catalog.recover();
     try catalog.initialize(policy.policy());
-    try directDispatch(&engine, config, role);
+    const token_receipt = try directDispatch(&engine, config, role);
     try prerequisiteDispatch(&engine, config, role);
     try namespaceDispatch(&engine, config, role);
     try dependencyDispatch(&engine, config, role);
@@ -1331,6 +1361,10 @@ test "local catalog checks real native registrations, current ownership and exac
     defer resolved.deinit();
     try t.expectEqual(@as(u64, 8), resolved.table.root.interpretation.object.object);
     try collectDirect(&engine, &catalog);
+    try t.expectEqualDeep(token_receipt, (try catalog.clientToken(.{ .lookup = token_receipt.binding.key }, policy.policy())).?);
+    var token_intent = try c.DirectTableIntentStore.load(t.allocator, catalog.data_objects, token_receipt.binding.intent);
+    defer token_intent.deinit();
+    try token_receipt.binding.intent.requireSame(try token_intent.reference(1));
     try t.expect((try catalog.status(request.binding, policy.policy())) == .committed);
     try t.expect((try catalog.rowStatus(succeeding.binding, policy.policy())) == .committed);
     var collected_view = (try catalog.resolve(t.allocator, 1, intent.name, policy.policy())).?;

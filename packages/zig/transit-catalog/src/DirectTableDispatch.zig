@@ -68,6 +68,7 @@ fn historySource(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, de
 }
 pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
     switch (action) {
+        .client_token => |value| return .{ .client_token = try catalog.clientToken(value, policy) },
         .initialize => {
             try catalog.initialize(policy);
             return .initialized;
