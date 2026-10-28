@@ -14,6 +14,7 @@ const header_bytes = 40;
 pub const Entry = union(enum) {
     participant: x.Participant,
     prepared: x.Prepared,
+    source: struct { guard: x.TableGuard, pin: @import("TableSnapshot.zig").Handle },
 
     pub fn object(self: Entry) d.Object {
         return switch (self) {
@@ -23,6 +24,7 @@ pub const Entry = union(enum) {
                 .settlement => |settlement| settlement.object,
             },
             .prepared => |prepared| prepared.object,
+            .source => |source| source.guard.source.interpretation.object,
         };
     }
 
@@ -34,6 +36,11 @@ pub const Entry = union(enum) {
                 try prepared.validate();
                 if (!std.meta.eql(identity, prepared.attempt.transaction)) return error.TransactionIdentityConflict;
             },
+            .source => |source| {
+                try source.guard.validate();
+                try source.pin.content.validate();
+                if (!std.meta.eql(source.pin.owner, identity.begin)) return error.TransactionIdentityConflict;
+            },
         }
     }
 
@@ -41,11 +48,12 @@ pub const Entry = union(enum) {
         return switch (self) {
             .participant => |participant| participant != .state or participant.state.access == .write,
             .prepared => true,
+            .source => false,
         };
     }
 };
 
-pub const Kind = enum { participants, preparations };
+pub const Kind = enum { participants, preparations, sources };
 pub const Root = struct {
     definition: p.Growth.Definition,
     identity: x.Identity,
@@ -57,7 +65,8 @@ pub const Root = struct {
     pub fn validate(self: Root) !void {
         try self.identity.validate();
         if ((self.entries == null) != (self.count == 0) or self.writes > self.count or
-            (self.kind == .preparations and self.writes != self.count)) return error.InvalidTransactionDirectory;
+            (self.kind == .preparations and self.writes != self.count) or
+            (self.kind == .sources and self.writes != 0)) return error.InvalidTransactionDirectory;
     }
 };
 
@@ -177,7 +186,12 @@ fn loadEntry(self: *Self, key: pages.Key, value: pages.Value) !Entry {
 
 fn requireEntry(self: *Self, entry: Entry) !void {
     try entry.validate(self.root.identity);
-    if ((self.root.kind == .participants) != (entry == .participant)) return error.InvalidTransactionDirectory;
+    const kind: Kind = switch (entry) {
+        .participant => .participants,
+        .prepared => .preparations,
+        .source => .sources,
+    };
+    if (self.root.kind != kind) return error.InvalidTransactionDirectory;
 }
 
 pub fn get(self: *Self, object: u64) !?Entry {

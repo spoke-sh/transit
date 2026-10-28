@@ -75,9 +75,11 @@ noncanonical bytes, missing/foreign definitions and invalid scope. Objects are
 addressed as `transaction-directory/<sha256>.data`, where the digest covers the
 entire encoded object. The object descriptor's size and digest must match.
 
-A root stores `definition`, transaction identity, directory kind (`participants`
-or `preparations`), optional immutable B-tree root, entry count and write count.
-An entry is a tagged neutral participant or preparation. Tree keys encode the
+A root stores `definition`, transaction identity, directory kind (`participants`,
+`preparations` or `sources`), optional immutable B-tree root, entry count and write count.
+An entry is a tagged neutral participant, preparation, or acquired source
+(`guard` and Table snapshot `pin`). A source pin's owner must equal the original
+begin operation; source directories have zero writes. Tree keys encode the
 nonzero object ID as eight big-endian bytes; values encode the object byte length
 as eight little-endian bytes followed by its 32-byte digest. Tree pages retain
 their ordinary definition/digest checks. Entry kind and identity must match the

@@ -4,6 +4,55 @@ const std = @import("std");
 const c = @import("root.zig");
 const p = c.protocol;
 
+/// The catalog publishes this immutable record only after every selected pin
+/// has been checked under one database publication fence. The position is the
+/// catalog acceptance of that complete cut, never a participant commit LSN.
+pub const Acquired = struct {
+    definition: p.Growth.Definition,
+    cut: p.Transaction.Cut,
+    coordination: u64,
+
+    pub const format: u32 = 0x54584331;
+    pub const max_bytes = 16 * 1024;
+
+    pub fn validate(self: Acquired, receipt: c.DirectClientToken.Receipt) !void {
+        try receipt.validate();
+        try self.cut.validate();
+        if (receipt.binding.intent != .transaction or
+            receipt.coordination != self.coordination or self.cut.acquired.partition != receipt.position.partition or
+            self.cut.acquired.next_lsn <= receipt.position.next_lsn) return error.InvalidTransactionCut;
+        try receipt.binding.intent.transaction.begin.requireSame(self.cut.begin);
+    }
+
+    pub fn stage(self: Acquired, objects: c.storage.TransitObjectStore.ObjectStore, receipt: c.DirectClientToken.Receipt) !c.DirectRecord.Reference {
+        try self.validate(receipt);
+        var bytes: [max_bytes]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        var encoder: std.json.Stringify = .{ .writer = &writer };
+        try p.Json.write(self, &encoder);
+        return c.DirectRecord.store(objects, receipt.binding.key.scope(), format, writer.buffered());
+    }
+
+    pub fn load(allocator: std.mem.Allocator, objects: c.storage.TransitObjectStore.ObjectStore, state: c.DirectClientToken.Progress) !Acquired {
+        const record = state.record orelse return error.TransactionCutNotAcquired;
+        if (record.format != format or record.content.bytes > max_bytes or
+            !std.meta.eql(record.scope, state.receipt.binding.key.scope())) return error.InvalidTransactionCut;
+        const bytes = try c.DirectRecord.load(allocator, objects, record);
+        defer allocator.free(bytes);
+        var scratch: [max_bytes]u8 = undefined;
+        var fixed = std.heap.FixedBufferAllocator.init(&scratch);
+        const value = try std.json.parseFromSliceLeaky(Acquired, fixed.allocator(), bytes, .{});
+        try value.validate(state.receipt);
+        if (!std.meta.eql(value.cut.acquired, state.revision)) return error.InvalidTransactionCut;
+        var canonical: [max_bytes]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&canonical);
+        var encoder: std.json.Stringify = .{ .writer = &writer };
+        try p.Json.write(value, &encoder);
+        if (!std.mem.eql(u8, bytes, writer.buffered())) return error.InvalidTransactionCut;
+        return value;
+    }
+};
+
 pub const Reference = struct {
     connection: c.DirectTableProtocol.Connection,
     namespace: u64,

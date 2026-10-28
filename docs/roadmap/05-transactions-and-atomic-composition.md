@@ -117,7 +117,7 @@ this header and the roadmap index together.
 | --- | --- | --- |
 | P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types, validation, finite decision-journal and local Table isolation/publication models; runtime correspondence remains open |
 | P1 | Database admission, original-token binding, transaction quotas and caller boundary | In progress: original-token begin admission, coordination partition reservation, limits and signed caller fixture; execution admission and settlement remain open |
-| P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: immutable paged directories and private Table DML/read-your-writes evaluator; common-cut acquisition, durable workspace ownership and quotas remain open |
+| P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: paged catalog common-cut acquisition with original-pin recovery and private Table evaluator; host/caller integration, durable workspace ownership and aggregate quotas remain open |
 | P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | In progress: fenced decision journal with exact preparation membership; Table preparation and visibility integration remain open |
 | P4 | Restart/failure settlement, retained roots, cleanup and maintenance | Planned |
 | P5 | Provisional statement results, SQL session controls and shared client | Planned |
@@ -136,7 +136,10 @@ The storage directory and decision-journal components have separate disk/recover
 checks and an explicit [integration contract](../../packages/zig/transit-storage/docs/transaction-decisions.md).
 Their verification callbacks are not yet connected to Table owners. Catalog
 begin admission now reserves a coordination partition through the original-token
-owner and retains its selected directory pages. Common-cut acquisition, private workspace/savepoint execution,
+owner and retains its selected directory pages. The catalog component acquires a
+paged common cut under an embedding host's publication fence and retains its
+source directory; its original-pin and policy-epoch checks do not yet establish
+an installed transaction service. Host integration, private workspace/savepoint execution,
 Table predecessor barriers, common-decision visibility, retained-graph integration
 and public callers must land before an installed transaction profile is claimed.
 

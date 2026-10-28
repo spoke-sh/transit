@@ -140,6 +140,16 @@ pending flag and exact repeats. Transaction-owned operations must preserve their
 workspace and original decision; generic client bookkeeping cannot replace them.
 The admission interface alone does not provide interactive SQL transactions.
 
+The catalog component's common-cut acquisition publishes a `DirectRecord` with
+format `0x54584331`. Its canonical JSON contains mandatory `definition`, `cut`
+and `coordination`; its encoded size is at most 16 KiB. The neutral cut binds the
+original begin, an immutable `sources` directory and its catalog acceptance
+position. The coordination partition must match the original token receipt;
+the cut position must equal the progress revision and follow begin admission in
+that same catalog partition. No signed acquisition operation is exposed by this
+record format. The embedding host must hold the catalog/Table publication fence,
+and the owner checks current Table rights under the publication policy epoch.
+
 Catalog recovery requires the explicit `coordination` field and validates its
 allocation transition. Earlier receipts reject under the current-v1 definition;
 there is no inferred partition or default. Retained Catalog history roots the
