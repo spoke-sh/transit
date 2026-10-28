@@ -35,9 +35,9 @@ def validate(sample, owner, rows, operation):
                                           ['verify'] if owner == 'table' else ['measure'])
     require([phase['name'] for phase in phases] == names, 'Incomplete phase coverage')
     for phase in phases:
+        common.validate_allocations(phase)
         common.validate_inventory(phase, owner, operation != 'ingest')
         require(phase['elapsed_ns'] > 0, 'Missing phase timing')
-        require(phase['peak_live_bytes'] >= max(phase['baseline_live_bytes'], phase['end_live_bytes']), 'Invalid allocation peak')
         require(all(value >= 0 for value in phase['counters'].values()), 'Invalid owner counters')
         if owner == 'table':
             require(phase['timed_appends'] == phase['counters']['wal_appends'], 'Incomplete append attribution')

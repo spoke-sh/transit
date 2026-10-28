@@ -2537,8 +2537,6 @@ pub fn scanSnapshotFiltered(self: *Self, allocator: std.mem.Allocator, handle: S
     errdefer result.deinit();
     var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
     const projected = try selected.projectedSchema(schema, &columns);
-    const scratch = try allocator.alloc(u8, f.TableRow.max_bytes);
-    defer allocator.free(scratch);
     const batch = try self.tree().scan(frozen.root.identities, cursor);
     var previous = cursor;
     for (batch.entries) |slot| {
@@ -2589,8 +2587,8 @@ pub fn scanSnapshotFiltered(self: *Self, allocator: std.mem.Allocator, handle: S
                 row = try self.readRowWithColumns(allocator, frozen.root, schema, key, value, .point, selected);
                 if (!std.meta.eql(identity, row.?.row().identity)) return error.InvalidTableRowReference;
             }
-            const encoded = try row.?.row().encode(projected, scratch);
-            if (encoded.len > limits.encoded_bytes - result.page.encoded_bytes) {
+            const encoded_bytes = try row.?.row().encodedSize(projected);
+            if (encoded_bytes > limits.encoded_bytes - result.page.encoded_bytes) {
                 if (result.page.count == 0) return error.TableReadBudgetTooSmall;
                 result.page.next = .{ .source = source, .after = previous.?.data[0..f.TableRow.Identity.encoded_bytes].* };
                 break;
@@ -2599,7 +2597,7 @@ pub fn scanSnapshotFiltered(self: *Self, allocator: std.mem.Allocator, handle: S
             result.page.rows[result.page.count] = row;
             row = null;
             result.page.count += 1;
-            result.page.encoded_bytes += @intCast(encoded.len);
+            result.page.encoded_bytes += @intCast(encoded_bytes);
         }
         result.examined += 1;
         previous = entry.key;
@@ -2664,8 +2662,6 @@ pub fn rangeSnapshot(self: *Self, allocator: std.mem.Allocator, handle: Snapshot
         .total_rows = frozen.root.live_rows,
     };
     errdefer result.deinit();
-    const scratch = try allocator.alloc(u8, f.TableRow.max_bytes);
-    defer allocator.free(scratch);
     while (try self.orderedKeys().seek(frozen.root.ordered_rows, if (previous) |*key| .{ .key = key.slice(), .inclusive = false } else range.lower, range.upper)) |entry| {
         if (result.count == limits.rows) {
             result.next = .{ .source = handle.content, .interval = interval, .after = previous.? };
@@ -2678,8 +2674,8 @@ pub fn rangeSnapshot(self: *Self, allocator: std.mem.Allocator, handle: Snapshot
         defer if (!moved) row.deinit();
         var key_bytes: [f.Collation.max_sort_key_bytes]u8 = undefined;
         if (!std.mem.eql(u8, entry.key.slice(), try row.row().storageKey(frozen.schema.schema, &key_bytes))) return error.InvalidTableRowReference;
-        const encoded = try row.row().encode(frozen.schema.schema, scratch);
-        if (encoded.len > limits.encoded_bytes - result.encoded_bytes) {
+        const encoded_bytes = try row.row().encodedSize(frozen.schema.schema);
+        if (encoded_bytes > limits.encoded_bytes - result.encoded_bytes) {
             if (result.count == 0) return error.TableReadBudgetTooSmall;
             result.next = .{ .source = handle.content, .interval = interval, .after = previous.? };
             break;
@@ -2687,7 +2683,7 @@ pub fn rangeSnapshot(self: *Self, allocator: std.mem.Allocator, handle: Snapshot
         result.rows[result.count] = row;
         moved = true;
         result.count += 1;
-        result.encoded_bytes += @intCast(encoded.len);
+        result.encoded_bytes += @intCast(encoded_bytes);
         previous = entry.key;
     }
     // Empty ranges, completion metadata and buffered values all require current
@@ -2811,8 +2807,6 @@ fn scanRootColumns(self: *Self, allocator: std.mem.Allocator, basis: Root, schem
     const batch = try self.tree().scan(basis.identities, cursor);
     var result: RowPage = .{};
     errdefer result.deinit();
-    const scratch = try allocator.alloc(u8, f.TableRow.max_bytes);
-    defer allocator.free(scratch);
     var previous: ?pages.Key = cursor;
     for (batch.entries) |slot| {
         const entry = slot orelse break;
@@ -2827,8 +2821,8 @@ fn scanRootColumns(self: *Self, allocator: std.mem.Allocator, basis: Root, schem
         var moved = false;
         defer if (!moved) row.deinit();
         if (!std.mem.eql(u8, entry.key.data[0..entry.key.len], &try row.row().identity.encode())) return error.InvalidTableRowReference;
-        const encoded = try row.row().encode(projected_schema, scratch);
-        if (encoded.len > limits.encoded_bytes - result.encoded_bytes) {
+        const encoded_bytes = try row.row().encodedSize(projected_schema);
+        if (encoded_bytes > limits.encoded_bytes - result.encoded_bytes) {
             if (result.count == 0) return error.TableReadBudgetTooSmall;
             result.next = previous.?.data[0..f.TableRow.Identity.encoded_bytes].*;
             break;
@@ -2836,7 +2830,7 @@ fn scanRootColumns(self: *Self, allocator: std.mem.Allocator, basis: Root, schem
         result.rows[result.count] = row;
         moved = true;
         result.count += 1;
-        result.encoded_bytes += @intCast(encoded.len);
+        result.encoded_bytes += @intCast(encoded_bytes);
         previous = entry.key;
     }
     if (result.next == null) if (batch.next) |key| {

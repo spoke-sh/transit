@@ -260,11 +260,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
     }) });
     b.step("declarative-benchmark", "Build declarative workload component benchmarks").dependOn(&b.addInstallArtifact(declarative_benchmark, .{}).step);
-    const benchmark_allocator = b.createModule(.{
-        .root_source_file = b.path("tests/performance/query/Allocator.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
     const storage_benchmark = b.addExecutable(.{ .name = "transit-storage-benchmark", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/performance/storage/storage_benchmark.zig"),
         .target = target,
@@ -272,7 +267,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{ .{ .name = "transit_storage", .module = b.dependency("transit_storage", .{ .target = target, .optimize = optimize }).module("transit_storage") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") } },
     }) });
     const storage_benchmark_options = b.addOptions();
-    storage_benchmark.root_module.addImport("benchmark_allocator", benchmark_allocator);
+    storage_benchmark.root_module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
     const storage_body_bytes = b.option(u32, "storage-benchmark-body-bytes", "Deterministic storage probe payload bytes (16..65536)") orelse 1024;
     if (storage_body_bytes < 16 or storage_body_bytes > 65536) @panic("storage-benchmark-body-bytes must be 16..65536");
     storage_benchmark_options.addOption(u32, "body_bytes", storage_body_bytes);

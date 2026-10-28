@@ -302,6 +302,15 @@ test "streamed DDL hashes preserve canonical identity without allocating maximum
     // Independent Python hashlib over compact JSON: namespace=1, Name len=1,
     // bytes="x" + 62 NULs, action={drop:{}}; same domain prefix including NUL.
     // Zig JSON encodes this valid UTF-8 byte array as a string.
+    const canonical = comptime json: {
+        var bytes: []const u8 = "{\"namespace\":1,\"name\":{\"len\":1,\"bytes\":\"x";
+        for (0..62) |_| bytes = bytes ++ "\\u0000";
+        break :json bytes ++ "\"},\"action\":{\"drop\":{}}}";
+    };
+    var canonical_buffer: [1024]u8 = undefined;
+    var canonical_writer: std.Io.Writer = .fixed(&canonical_buffer);
+    try std.json.Stringify.value(drop, .{}, &canonical_writer);
+    try t.expectEqualStrings(canonical, canonical_writer.buffered());
     var expected: [32]u8 = undefined;
     _ = try std.fmt.hexToBytes(&expected, "2b954fe77c9bc081ca58e185ff0df0d20854ed54b7209f2bfa1a54abac792660");
     try t.expectEqual(expected, try drop.digest(failing.allocator()));

@@ -34,6 +34,7 @@ def validate(sample, owner, rows, operation, limit):
     final = 'init' if operation == 'init' else 'verify-all' if owner == 'table' else 'measure'
     require([phase['name'] for phase in phases] == ['physical_open', 'recover', final], 'Incomplete phase coverage')
     for phase in phases:
+        common.validate_allocations(phase)
         common.validate_inventory(phase, owner, operation != 'init')
         require(phase['elapsed_ns'] > 0, 'Missing timing')
         require(max(phase['baseline_live_bytes'], phase['end_live_bytes']) <= phase['peak_live_bytes'] <= limit, 'Invalid allocation accounting')

@@ -7,7 +7,7 @@ const core = @import("transit_core");
 const local = @import("transit_backend_local");
 const p = core.protocol;
 const g = p.Growth;
-const Tracker = @import("benchmark_allocator");
+const Tracker = @import("transit_memory").AllocationProbe;
 const P = s.TablePartition;
 const Engine = core.growing.Engine(local.Store, local.PageStore);
 const rows_per_segment = 16;
@@ -67,6 +67,7 @@ const Phase = struct {
     elapsed_ns: i96,
     allocations: usize,
     allocated_bytes: usize,
+    backing: Tracker.Counts,
     baseline_live_bytes: usize,
     peak_live_bytes: usize,
     end_live_bytes: usize,
@@ -89,7 +90,7 @@ const Meter = struct {
     append_calls: usize = 0,
     fn begin(self: *Meter, before: Counters) void {
         self.before = before;
-        self.tracker.reset();
+        self.tracker.begin(false);
         self.baseline = self.tracker.live_bytes;
         self.append_ns = 0;
         self.append_calls = 0;
@@ -97,7 +98,7 @@ const Meter = struct {
     }
     fn end(self: *Meter, name: []const u8, after: Counters) void {
         const elapsed = self.start.durationTo(std.Io.Clock.awake.now(self.io)).toNanoseconds();
-        self.phases[self.count] = .{ .name = name, .elapsed_ns = elapsed, .allocations = self.tracker.allocations, .allocated_bytes = self.tracker.allocated_bytes, .baseline_live_bytes = self.baseline, .peak_live_bytes = self.tracker.peak_bytes, .end_live_bytes = self.tracker.live_bytes, .counters = after.difference(self.before), .wal_append_ns = if (self.timed_log) self.append_ns else null, .timed_appends = self.append_calls };
+        self.phases[self.count] = .{ .name = name, .elapsed_ns = elapsed, .allocations = self.tracker.counts.alloc_successes, .allocated_bytes = self.tracker.counts.acquired_bytes, .backing = self.tracker.counts, .baseline_live_bytes = self.baseline, .peak_live_bytes = self.tracker.peak_bytes, .end_live_bytes = self.tracker.live_bytes, .counters = after.difference(self.before), .wal_append_ns = if (self.timed_log) self.append_ns else null, .timed_appends = self.append_calls };
         self.count += 1;
     }
 };
@@ -442,7 +443,7 @@ pub fn main(init: std.process.Init) !void {
     const rows = try std.fmt.parseInt(usize, args[5], 10);
     if (rows == 0 or rows > 1048576) return error.InvalidArguments;
     if (!std.mem.eql(u8, args[4], "--rows")) return error.InvalidArguments;
-    var tracker: Tracker = .{ .backing = init.gpa };
+    var tracker: Tracker = .{ .parent = init.gpa };
     var meter: Meter = .{ .io = init.io, .tracker = &tracker };
     const directory = try std.Io.Dir.cwd().openDir(init.io, args[3], .{});
     defer directory.close(init.io);

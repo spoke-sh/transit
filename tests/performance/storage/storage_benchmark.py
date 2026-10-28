@@ -152,6 +152,28 @@ def execute(binary, owner, operation, directory, rows, mode, cpu, timeout):
                     involuntary_switches=usage.ru_nivcsw)
 
 
+def validate_allocations(phase):
+    counts = phase.get('backing')
+    names = ('alloc_attempts', 'alloc_successes', 'resize_attempts', 'resize_successes',
+             'growing_resize_attempts', 'remap_attempts', 'remap_successes', 'frees',
+             'requested_bytes', 'acquired_bytes', 'released_bytes', 'forbidden_attempts')
+    require(isinstance(counts, dict) and all(type(counts.get(name)) is int and counts[name] >= 0 for name in names),
+            'Missing or invalid backing allocation counts')
+    for kind in ('alloc', 'resize', 'remap'):
+        require(counts[f'{kind}_successes'] <= counts[f'{kind}_attempts'], 'Allocation successes exceed attempts')
+    require(counts['growing_resize_attempts'] <= counts['resize_attempts'], 'Invalid growing resize count')
+    require(counts['forbidden_attempts'] == 0, 'Unsealed owner measurement reports forbidden allocations')
+    require(counts['acquired_bytes'] <= counts['requested_bytes'], 'Acquired bytes exceed requested growth')
+    names = ('baseline_live_bytes', 'end_live_bytes', 'peak_live_bytes', 'allocations', 'allocated_bytes')
+    require(all(type(phase.get(name)) is int and phase[name] >= 0 for name in names), 'Invalid allocation bytes')
+    require(phase['allocations'] == counts['alloc_successes'] and
+            phase['allocated_bytes'] == counts['acquired_bytes'], 'Allocation totals disagree with backing counts')
+    available = phase['baseline_live_bytes'] + counts['acquired_bytes']
+    require(phase['end_live_bytes'] == available - counts['released_bytes'], 'Live allocation bytes do not balance')
+    require(max(phase['baseline_live_bytes'], phase['end_live_bytes']) <= phase['peak_live_bytes'] <= available,
+            'Invalid allocation peak')
+
+
 def validate_inventory(phase, owner, read_only=False):
     counters = phase['counters']
     names = ('inventory_wal_appends', 'inventory_wal_bytes', 'inventory_wal_syncs', 'inventory_wal_startup_frames')
@@ -185,9 +207,9 @@ def validate(sample, owner, operation, rows, mode, variant):
     require(names == ['physical_open', 'recover', operation], 'Missing, duplicate or reordered phases')
     require(record['image_peak_rss_kib'] > 0, 'Missing executable RSS')
     for phase in record['phases']:
+        validate_allocations(phase)
         validate_inventory(phase, owner, operation == 'measure')
         require(phase['elapsed_ns'] > 0, 'Missing phase timing')
-        require(phase['peak_live_bytes'] >= max(phase['baseline_live_bytes'], phase['end_live_bytes']), 'Invalid allocation peak')
         require(all(value >= 0 for value in phase['counters'].values()), 'Invalid owner counters')
     if operation == 'measure':
         require(all(phase['counters']['wal_appends'] == 0 and phase['counters']['object_puts'] == 0 for phase in record['phases']), 'Read unexpectedly publishes work')
