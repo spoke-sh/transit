@@ -9,6 +9,51 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Installed packaging recovery and repository qualification — 2026-10-28
+
+At frozen source `4d778efa9ffc5a8ad3e012bcecee1cc9887621db`, the committed-source
+clean core lane passes all 28 tasks. The clean experience lane passes Board,
+handbook, Node bindings, observability and server logging, then fails the
+single-executable packaging check: the bare console's five-statement input
+exceeds its existing 90-second deadline. Later experience tasks and the queued
+growth lane do not run. The core and experience schedulers were deliberately
+paused while separate focused qualifications ran; their elapsed times are not
+normal CI cost measurements.
+
+The failed private installation is preserved at
+`/var/tmp/transit-defaults-76to68v2`, with a stopped pre-reopen copy at
+`/var/tmp/transit-m3-single-before-_fcw13_j`. Reopening the original directory
+with its original executable and configuration preserves installation and
+provisioning identity. Public operation inspection finds CREATE 81 and INSERT
+130 applied, and ALTER 178 active. A subsequent observation reports ALTER 178
+applied under that same identity; no statement is resubmitted. Read-only
+`DESCRIBE packaging_probe` verifies schema revision 2 and the ADD-time default
+of 7. The later default change and SELECT were not submitted by the timed-out
+console. This establishes original-operation recovery, not successful completion
+of that packaging attempt or the cause of its timeout.
+
+Executable SHA-256 is
+`83bad48fa4670ef0212c57cf69545e968bf82f9632cddaad339277115b6aff30`, under shared
+definition `2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188`.
+A fresh diagnostic control with those identical executable bytes and the
+`21fd03b93` driver passes the default startup/console, segment publication and
+restart-value checks. Its five-statement console phase takes 29.449 seconds;
+the unchanged deadline is 90 seconds. Half-second public recovery-health
+observations remain ready during that control. The driver now retains partial
+console stdout/stderr on failure and each startup's stderr separately. This
+control excludes the later Board interruption schedule and does not replace
+the failed clean lane or qualify subsequent implementation changes.
+
+Raw records remain under `.cache/milestone3/`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `rebased-4d778efa9-clean-core.log` | `a646aa911e29ee23ed4a321e3852cbf013cdddfc1c4d2a47aae91915b554ebf4` |
+| `rebased-4d778efa9-clean-experience.log` | `236fea7ce9ff141defc42980e938bc0ca7223a2d50b148f3edf2b02ae8c6f852` |
+| `single-executable-original-inspection.log` | `3f807b5d3203f81dba61881383d295182f09903dee2cbfe1e69fc2fe08d988d8` |
+| `single-executable-control.log` | `4f663b846acfd066ffb3102ddb498013ab4b7d06b84e6079c0f02f924951bb9f` |
+| `single-executable-health.jsonl` | `4e0b71f5263b90dce73af1eeb110f954611bb3fe4218c0de75cd4cd09a7c3eba` |
+
 ## Collection progress across clock failure — 2026-10-28
 
 At `aa8b68bae61281d108502899aabe952ce766b1e8`,
