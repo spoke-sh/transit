@@ -48,6 +48,21 @@ def run(fixture, repeat, probes, *, config=None):
                                   attempts=attempts, stdout=value)), flush=True)
             return value
 
+        def typed_readback(case):
+            shell.process.stdin.write(b'.mode json\n')
+            shell.process.stdin.flush()
+            shell.mode = 'json'
+            value = call(case, 'SELECT * FROM items;')
+            actual = sorted(tuple(int(cell['value']['atom']['signed']) for cell in row)
+                            for row in value['rows'])
+            assert actual == expected, (actual, expected)
+            assert int(value['complete']['rows']) == len(expected), value
+            assert [field['name'] for field in value['schema']['type']['structure']] == ['id', 'value']
+            assert all(field['type'] == {'int64': {}} for field in value['schema']['type']['structure'])
+            shell.process.stdin.write(b'.mode table\n')
+            shell.process.stdin.flush()
+            shell.mode = 'table'
+
         verify_table(call('select_cold', 'SELECT * FROM items;'), expected)
         verify_table(call('select_warm', 'SELECT * FROM items;'), expected)
         for index in range(1, repeat + 1):
@@ -56,6 +71,7 @@ def run(fixture, repeat, probes, *, config=None):
             expected.append((index, index * 10))
             verify_table(call('select_after_write', 'SELECT * FROM items;'), expected)
             verify_table(call('select_warm', 'SELECT * FROM items;'), expected)
+        typed_readback('select_json_after_insert')
         # Exercise changed/no-op/zero-match outcomes and read-after-write for
         # the other executable DML kinds. TRUNCATE has no execution contract.
         for index in range(1, repeat + 1):
@@ -67,6 +83,7 @@ def run(fixture, repeat, probes, *, config=None):
             assert output == 'Statement completed. Matched 1; changed 0.\n', output
         output = call('update_empty', 'UPDATE items SET value = 0 WHERE id = -1;')
         assert output == 'Statement completed. Matched 0; changed 0.\n', output
+        typed_readback('select_json_after_update')
         for index in range(1, repeat + 1):
             output = call('delete', f'DELETE FROM items WHERE id = {index};')
             assert output == 'Statement completed. Matched 1; changed 1.\n', output
@@ -74,15 +91,7 @@ def run(fixture, repeat, probes, *, config=None):
             verify_table(call('select_after_delete', 'SELECT * FROM items;'), expected)
         output = call('delete_empty', 'DELETE FROM items WHERE id = -1;')
         assert output == 'Statement completed. Matched 0; changed 0.\n', output
-        # A second presentation of the same contents checks typed values and
-        # verified completion independently, through the very same SQL session.
-        shell.process.stdin.write(b'.mode json\n')
-        shell.process.stdin.flush()
-        shell.mode = 'json'
-        value = call('select_json', 'SELECT * FROM items;')
-        actual = sorted(tuple(int(cell['value']['atom']['signed']) for cell in row)
-                        for row in value['rows'])
-        assert actual == expected, actual
+        typed_readback('select_json_after_delete')
         print(json.dumps(dict(phase='statement_summary', distributions={
             case: distribution(values) for case, values in samples.items()})), flush=True)
     finally:
