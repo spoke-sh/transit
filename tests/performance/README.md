@@ -35,6 +35,12 @@ new run after a path migration; qualify and freeze a matching comparison basis.
 
 ## SQL result consumption
 
+The [allocation coverage inventory](allocations.json) records owner boundaries,
+warmup limits and pending qualification. Its entries are scope declarations,
+not passing evidence. `transit-memory`'s allocation probe counts attempts as well
+as successes and can forbid backing allocation/growth after warmup. Counters
+inside one owner do not establish process-wide or OS-level allocation behavior.
+
 `just test::console-latency --rows 70 --repeat 3` creates an owned local Table
 with fixed integers and deterministic variable-width text. It checks narrow,
 wide, relational and metadata results, records first-output/terminal time and

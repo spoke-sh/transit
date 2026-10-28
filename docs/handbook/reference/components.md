@@ -22,6 +22,7 @@ the implementations listed below remain shared runtime libraries.
 
 | Package / module | Owns | Direct package dependencies |
 | --- | --- | --- |
+| [transit-memory](../../../packages/zig/transit-memory/README.md) / `transit_memory` | Backing-allocation accounting and bounded memory primitives | None |
 | [transit-http-server](../../../packages/zig/transit-http-server/README.md) / `transit_http_server` | Bounded HTTP/1.1 and WebSocket framing, concurrent socket ownership, control reserve and joined deadlines; consumed by Board and serving | None |
 | [transit-station-app](../../../packages/zig/transit-station-app/README.md) / `transit_station_app` | neutral definitions, shared compiler, signed conditional publication, bounded host contract and upload continuation | transit-serving |
 | [transit-serving](../../../packages/zig/transit-serving/README.md) / `transit_serving` | admission/current reads; session controls, Table watch coverage and generated reactive contracts | transit-station, transit-query |

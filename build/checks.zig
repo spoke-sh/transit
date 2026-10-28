@@ -560,6 +560,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("test-http-transport", "Qualify single-send HTTP/TLS against independent peers").dependOn(&http_transport_test.step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_bindings.module("station_abi") })).step);
+    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
     components_step.dependOn(&b.addRunArtifact(tests).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = telemetry.module("telemetry") })).step);
@@ -1572,6 +1573,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_postgres", .module = b.dependency("transit_postgres", .{ .target = target, .optimize = optimize }).module("transit_postgres") }, .{ .name = "transit_mysql", .module = b.dependency("transit_mysql", .{ .target = target, .optimize = optimize }).module("transit_mysql") } },
     }) });
+    sql_wire_encoding.root_module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
     build_test_step.dependOn(&sql_wire_encoding.step);
     const encoding_cost = b.addRunArtifact(sql_wire_encoding);
     encoding_cost.has_side_effects = true;

@@ -2,6 +2,7 @@
 const std = @import("std");
 const pg = @import("transit_postgres");
 const my = @import("transit_mysql");
+const Probe = @import("transit_memory").AllocationProbe;
 const rows = 10000;
 fn columns(comptime Column: type) [7]Column {
     var result: [7]Column = undefined;
@@ -80,6 +81,8 @@ fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values
         encode_ms: [5]f64 = undefined,
         decode_ms: [5]f64 = undefined,
         encode_allocations: [5]usize = undefined,
+        encode_backing: [5]Probe.Counts = undefined,
+        decode_backing: [5]Probe.Counts = undefined,
         decode_allocations: [5]usize = undefined,
         encoder_peak_bytes: [5]usize = undefined,
         decoder_peak_bytes: [5]usize = undefined,
@@ -88,8 +91,8 @@ fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values
     for ([_]usize{ 1, api.max_rows }, &samples) |maximum, *sample| {
         sample.* = .{ .batch_rows = maximum };
         for (0..6) |iteration| {
-            var encode_counter = std.testing.FailingAllocator.init(init.gpa, .{});
-            var decode_counter = std.testing.FailingAllocator.init(init.gpa, .{});
+            var encode_counter = Probe{ .parent = init.gpa };
+            var decode_counter = Probe{ .parent = init.gpa };
             var encode_memory: r.fuze.MemoryBudget = .{ .parent = encode_counter.allocator(), .limit = 16 * 1024 * 1024 };
             var decode_memory: r.fuze.MemoryBudget = .{ .parent = decode_counter.allocator(), .limit = 16 * 1024 * 1024 };
             var encoded: std.heap.ArenaAllocator = .init(encode_memory.allocator());
@@ -160,8 +163,10 @@ fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values
                 sample.encode_ms[iteration - 1] = @as(f64, @floatFromInt(encode_ns)) / 1e6;
                 sample.decode_ms[iteration - 1] = @as(f64, @floatFromInt(decode_ns)) / 1e6;
                 if (sample.framed_bytes != bytes) return error.UnstableEncodingSize;
-                sample.encode_allocations[iteration - 1] = encode_counter.alloc_index;
-                sample.decode_allocations[iteration - 1] = decode_counter.alloc_index;
+                sample.encode_allocations[iteration - 1] = encode_counter.counts.alloc_successes;
+                sample.decode_allocations[iteration - 1] = decode_counter.counts.alloc_successes;
+                sample.encode_backing[iteration - 1] = encode_counter.counts;
+                sample.decode_backing[iteration - 1] = decode_counter.counts;
                 sample.encoder_peak_bytes[iteration - 1] = encode_memory.peak;
                 sample.decoder_peak_bytes[iteration - 1] = decode_memory.peak;
             }
@@ -179,7 +184,7 @@ fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values
         .repetitions = 5,
         .optimize = @tagName(@import("builtin").mode),
         .samples = samples,
-        .limits = "Actual TSR1/TCP1 encode/decode with independent scalar checks; one-row control versus full batches, initial schema/observation and verified terminal count. Counts allocator calls, not resize attempts. Encoder peak includes columns, scratch and frame; decoder peak excludes the borrowed input frame and stack/schema buffers. Each batch releases all accounted allocations. Timings exclude fixture generation and independent verification; include codec validation and initial metadata. No socket, service, query or storage work; no network throughput guarantee.",
+        .limits = "Actual TSR1/TCP1 encode/decode with independent scalar checks; one-row control versus full batches, initial schema/observation and verified terminal count. Counts backing allocation, resize and remap attempts and successes, frees and bytes. Encoder peak includes columns, scratch and frame; decoder peak excludes the borrowed input frame and stack/schema buffers. Each batch releases all accounted allocations. Timings exclude fixture generation and independent verification; include codec validation and initial metadata. No socket, service, query or storage work; no network throughput guarantee.",
     }, .{});
     defer init.gpa.free(output);
     try std.Io.File.stdout().writeStreamingAll(init.io, output);

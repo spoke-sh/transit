@@ -1,6 +1,6 @@
 # 11. Data structures, query optimization and runtime performance
 
-[Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Allocation guidance #194](https://github.com/spoke-sh/transit/issues/194) · **Status:** Planned
+[Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Allocation guidance #194](https://github.com/spoke-sh/transit/issues/194) · **Status:** In Progress
 
 Make declared data operations and durable runtime work fast under explicit
 latency, throughput, memory and recovery budgets. Pursue leadership against
@@ -42,8 +42,8 @@ The current component benchmark inventory does not execute complete TPC suites.
 
 The [issue #194 implementation plan](#implementation-plan-for-issue-194)
 sequences allocation removal in existing paths and tracks the related string,
-search and compilation work through its numbered owners. It is proposed work;
-the milestone remains Planned.
+search and compilation work through its numbered owners. Phases A–E are accepted early implementation work; the broader milestone
+prerequisites and later phases remain outstanding.
 
 ## Delivery sequence
 
@@ -247,11 +247,13 @@ benchmark and Internals owners as implementation lands.
 
 ## Implementation plan for issue #194
 
-**Review status: proposed.** Source inspection uses `e377f2945`, which includes
+**Review status: accepted for phases A–E; implementation in progress.**
+Source inspection uses `e377f2945`, which includes
 [PR #193](https://github.com/spoke-sh/transit/pull/193). This plan proposes how to implement
 [issue #194](https://github.com/spoke-sh/transit/issues/194) through the existing
-milestone owners. It adds no current allocation guarantee and does not change
-the status of milestones 3, 10, 11 or 12.
+milestone owners. The early result-path work precedes milestone 5; it adds no
+current allocation guarantee or claim that the remaining performance milestone
+prerequisites are complete. Phases F–J remain planned with their owning milestones.
 
 Applications need to ingest declared data, query an exact source basis and
 consume complete results under explicit resource policies. The target is zero
@@ -621,5 +623,4 @@ qualification history. Keep this plan and the issue checklist synchronized.
 Review defaults are: implement A–E first; retain existing byte/row limits; allow
 internal reservations from bounded preallocated storage; enforce zero backing
 allocation attempts; and keep the issue open until F–J and the full guidance
-have their required evidence. Implementation has not started as part of this
-planning change.
+have their required evidence. Phases A–E are authorized for implementation.
