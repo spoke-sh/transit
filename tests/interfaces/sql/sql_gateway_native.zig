@@ -123,6 +123,67 @@ fn runtimeWorker(runtime: *gateway.AccountRuntime) !void {
         if (!progressed) try runtime.waitIdle(2);
     }
 }
+fn sessionFraming(init: std.process.Init, runtime: *gateway.AccountRuntime, directory: []const u8) !void {
+    const api = gateway.session_protocol;
+    var configuration = try support.load(gateway.Configuration, init, directory, "sql-gateway.json");
+    configuration.limits.connections = 2;
+    configuration.limits.connections_per_account = 2;
+    configuration.limits.authentications = 1;
+    try configuration.validate();
+    const credential = try gateway.Session.loadCredential(init.gpa, init.io, &configuration.accounts[0]);
+    var sessions = try gateway.Registry.init(init.gpa, init.io, &configuration, &.{runtime}, @splat(71));
+    defer sessions.deinit();
+    const cases = [_]struct { sql: []const u8, rows: u32 }{
+        .{ .sql = "SELECT value FROM wire_data", .rows = 3 },
+        .{ .sql = "SELECT value FROM wire_data WHERE id = 999", .rows = 0 },
+        .{ .sql = "DESCRIBE wire_data", .rows = 2 },
+    };
+    var refused: usize = 0;
+    var repeats: usize = 0;
+    for (cases) |case| {
+        const slot = try sessions.create(0, credential, "data", .transit, true);
+        slot.mutex.unlock(init.io);
+        defer {
+            slot.mutex.lockUncancelable(init.io);
+            sessions.remove(slot);
+            slot.mutex.unlock(init.io);
+        }
+        const request: api.Request = .{ .version = 1, .definition = native.current_definition, .instance = sessions.instance, .session = slot.id, .action = .{ .execute = .{ .sql = case.sql } } };
+        const first = try sessions.request(init.gpa, init.gpa, request, .{});
+        defer init.gpa.free(first);
+        const frame = try api.ResultFrame.parseBorrowed(init.arena.allocator(), first);
+        if (frame.rows != case.rows or frame.ordinal != 0 or frame.completion == null or frame.completion.?.rows != case.rows) return error.InvalidFramingProof;
+        var fetch = request;
+        fetch.action = .{ .fetch = .{ .cursor = frame.cursor, .batch = frame.ordinal } };
+        for (0..3) |_| {
+            // Only the response allocator fails. Session validation, current
+            // rights and retained cursor storage use their real independent owners.
+            var failing = std.testing.FailingAllocator.init(init.gpa, .{ .fail_index = 0 });
+            if (sessions.request(failing.allocator(), init.gpa, fetch, .{})) |bytes| {
+                init.gpa.free(bytes);
+                return error.ExpectedFramingRefusal;
+            } else |err| if (err != error.OutOfMemory) return err;
+            refused += 1;
+            if (slot.cursor == null) return error.LostRetainedBatch;
+            const repeated = try sessions.request(init.gpa, init.gpa, fetch, .{});
+            defer init.gpa.free(repeated);
+            if (!std.mem.eql(u8, first, repeated)) return error.ChangedRetainedBatch;
+            repeats += 1;
+        }
+        // A buffered frame, including empty terminal counts and metadata, is
+        // not authorization. A fresh credential denial must disclose no frame.
+        var revoked = credential;
+        revoked.enabled = false;
+        try support.save(init, directory, "gateway-credential.json", revoked);
+        defer support.save(init, directory, "gateway-credential.json", credential) catch unreachable;
+        if (sessions.request(init.gpa, init.gpa, fetch, .{})) |bytes| {
+            init.gpa.free(bytes);
+            return error.DisclosedRevokedBatch;
+        } else |err| if (err != error.InvalidAuthentication) return err;
+        if (slot.cursor != null) return error.RetainedDeniedCursor;
+    }
+    return support.print(init, .{ .framing_refusals = refused, .exact_repeats = repeats, .revoked_results = cases.len });
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len < 4) return error.Usage;
@@ -230,9 +291,14 @@ pub fn main(init: std.process.Init) !void {
         }
         return support.print(init, .{ .raw_denied = true });
     }
-    if (std.mem.eql(u8, mode, "runtime")) {
+    if (std.mem.eql(u8, mode, "runtime") or std.mem.eql(u8, mode, "session-framing")) {
         const runtime = try gateway.AccountRuntime.init(init.gpa, init.io, args[1], registry, config.writer.generation, "state", .{ .worker = try roleKey(2000), .ingress = try roleKey(2001), .coordinator = try roleKey(2003), .table = try tableKey(config) }, 5000);
         defer runtime.deinit();
+        if (std.mem.eql(u8, mode, "session-framing")) {
+            const parent = try std.Io.Dir.cwd().openDir(init.io, directory, .{});
+            defer parent.close(init.io);
+            try runtime.attachReadPins(parent, &.{});
+        }
         var worker = try init.io.concurrent(runtimeWorker, .{runtime});
         defer worker.cancel(init.io) catch |err| if (err != error.Cancelled and err != error.Canceled) {
             std.debug.print("Runtime failed: {s}\n", .{@errorName(err)});
@@ -242,6 +308,7 @@ pub fn main(init: std.process.Init) !void {
             try deadline.check(init.io);
             try init.io.sleep(.fromMilliseconds(2), .awake);
         }
+        if (std.mem.eql(u8, mode, "session-framing")) return sessionFraming(init, runtime, directory);
         var observer = try client(&wire, registry, 2001);
         const detached_nonce: [16]u8 = @splat(177);
         const detach = args.len > 5 and std.mem.eql(u8, args[5], "detach");

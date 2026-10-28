@@ -293,6 +293,11 @@ def run(node, catalog, gateway):
             call(gateway, 'run')
             assert call(gateway, 'status', result['detached'])['phase'] == 'abandoned'
             assert set(stale_reads) == {'admission', 'detached'}, stale_reads
+            # The helper runs the real Registry/Session against this authority.
+            # This port is configuration only; the framing proof opens no listener.
+            call(gateway, 'app-config', 5432)
+            framing = call(gateway, 'session-framing')
+            assert framing == dict(framing_refusals=9, exact_repeats=9, revoked_results=3), framing
             assert not failures, failures
             print(json.dumps(dict(profile='native_gateway_ledger', operations=33,
                                   lost_receipts=sorted(replayed | recovered), exact_resubmissions=sorted(replayed),
@@ -300,7 +305,7 @@ def run(node, catalog, gateway):
                                   direct_outcome_recovered=recovered_data, direct_reexecuted=repeated_data,
                                   receipt_inspectors={name: sorted(principals) for name, principals in receipt_inspectors.items()},
                                   exact_counts=True, ingress_pipeline=pipeline, stale_reads=stale_reads,
-                                  detached_replies=detached_replies, turns=turns, sends=sends,
+                                  detached_replies=detached_replies, framing=framing, turns=turns, sends=sends,
                                   seconds=round(time.monotonic()-started, 3))))
         finally:
             if sys.exc_info()[0] and failures:
