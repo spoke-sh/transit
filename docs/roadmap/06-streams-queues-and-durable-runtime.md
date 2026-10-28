@@ -304,6 +304,26 @@ latency evidence. No one-round-trip or faster SELECT claim follows from moving
 these modules. Streams, Queues and the Station transaction replacement remain
 planned.
 
+## Database-owned client-token bindings — 2026-10-27
+
+The next Step 1 slice adds `DirectClientToken`: an authenticated principal/account/
+token and request fingerprint bind to one complete immutable Table intent in the
+direct catalog WAL. Its paged index survives replacement, rejects conflicting
+fingerprints, returns the original winner of racing preparations and rechecks
+current rights. The deployment quota is independent of resident pages and never
+expires identities at capacity. The shared definition changes with the mandatory
+stored directory/count. See the
+[direct token contract](../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings).
+
+This supplies original-intent selection and lookup for typed Table DDL/DML
+callers. It does **not** migrate SQL's `AccountRuntime`, `Ledger`, recovery
+scheduler or `ReadPins`, provide account-wide pending enumeration, or combine
+token acceptance with a single-partition row commit. Namespace, conditional
+name, configuration and captured-operation bindings still need their selected
+database ownership contract before the SQL runtime can switch as a whole.
+Database-owned snapshot leases and matched installed latency evidence remain
+outstanding. Step 1 and milestone 6 remain **In Progress**.
+
 ## Inherited Station cutover obligations
 
 The [milestone 3 boundary and caller inventory](03-live-storage-and-sql-cutover.md#p1--complete-live-ownership-reopen-and-payload-recovery)
