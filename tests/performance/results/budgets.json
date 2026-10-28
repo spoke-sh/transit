@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "paired_samples": 5,
+  "median_time_ratio_max": 1.05,
+  "native_backing_attempts_max": 0,
+  "native_owner_reserved_bytes_max": 16777216
+}

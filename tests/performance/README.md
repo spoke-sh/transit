@@ -10,6 +10,7 @@
 | Structural page experiments | [Geometry/codec runner](storage/page_layout.py), [native probe](storage/page_layout.zig); private variants, without provider I/O or native latency claims |
 | Offered load and scale | [Load driver](load/growing_load.py), [scale matrix](scale/scale.json), [matrix runner](scale/scale.py) |
 | Console and mutation latency | [Console runner](console/console_latency.py), [mutation runner](mutations/mutation_latency.py), [transport probe](../harness/http_probe.py) |
+| Result codec allocations and paired costs | [Method and budgets](results/README.md), [comparison runner](results/codecs.py) |
 
 Use the existing `just test` benchmark commands. Python entry points use
 [the test launcher](../runner/README.md); pass the matching built binary and the
