@@ -156,3 +156,50 @@ pub fn summary(self: Self) g.LedgerRecords.Summary {
         .unchanged => .unchanged,
     };
 }
+
+/// Project already verified owner evidence for native and database adapters.
+/// The SQL operation identity is distinct from the direct owner's operation.
+pub fn completion(self: Self, command: g.results.Command, operation: g.results.Operation) !g.results.CommandCompletion {
+    try self.validate();
+    const expected: @FieldType(Self, "kind") = switch (command) {
+        .insert, .update, .delete => .dml,
+        .create_table, .drop_table => if (self.kind == .catalog_assertion) .catalog_assertion else .ddl,
+        .alter_table => .ddl,
+        .create_schema, .alter_schema, .drop_schema => .namespace_change,
+        else => return error.InvalidGatewayTerminal,
+    };
+    if (self.kind != expected) return error.InvalidGatewayTerminal;
+    const result: g.results.CommandCompletion = .{
+        .kind = command,
+        .outcome = switch (self.state) {
+            .applied => .applied,
+            .unchanged => .unchanged,
+            .rejected => .rejected,
+            .cancelled => .cancelled,
+        },
+        .counts = .{ .matched = self.matched, .changed = self.changed },
+        .operation = operation,
+        .pending_restart = false,
+        .diagnostic = null,
+    };
+    try result.validate();
+    return result;
+}
+
+test "command projection preserves matched and changed counts and the SQL identity" {
+    const t = std.testing;
+    var terminal: Self = .{ .kind = .dml, .identity = @splat(3), .resource = 1, .principal = 2, .operation = 55, .object = 4, .state = .applied, .matched = 7, .changed = 0, .partition = 1, .next_lsn = 9, .resulting_revision = 2 };
+    const operation: g.results.Operation = .{ .account = @splat(8), .id = 99 };
+    const completion_value = try terminal.completion(.update, operation);
+    try t.expectEqualDeep(operation, completion_value.operation.?);
+    try t.expectEqual(.update, completion_value.kind);
+    try t.expectEqualDeep(g.results.Counts{ .matched = 7, .changed = 0 }, completion_value.counts.?);
+    try t.expectError(error.InvalidGatewayTerminal, terminal.completion(.create_table, operation));
+    terminal.changed = 8;
+    try t.expectError(error.InvalidGatewayTerminal, terminal.completion(.update, operation));
+    terminal = .{ .kind = .catalog_assertion, .identity = @splat(3), .resource = 1, .principal = 2, .operation = 55, .object = 0, .state = .unchanged, .partition = 1, .next_lsn = 9 };
+    const absent = try terminal.completion(.drop_table, operation);
+    try t.expectEqual(.unchanged, absent.outcome);
+    try t.expectEqualDeep(g.results.Counts{ .matched = 0, .changed = 0 }, absent.counts.?);
+    try t.expectError(error.InvalidGatewayTerminal, terminal.completion(.alter_table, operation));
+}

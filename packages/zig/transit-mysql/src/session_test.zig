@@ -4,6 +4,8 @@ const f = m.gateway.fuze;
 const Host = struct {
     allocator: std.mem.Allocator,
     writes: usize = 0,
+    outcome: m.gateway.results.Outcome = .applied,
+    invalid_counts: bool = false,
     value: u64 = 0,
     allocation_failed: bool = false,
     diagnostic_state: [5]u8 = "0A000".*,
@@ -42,10 +44,10 @@ const Host = struct {
         return error.UnexpectedRead;
     }
     pub fn closeRead(_: *Host, _: *Read) void {}
-    pub fn write(self: *Host, _: *Prepared, values: []const ?f.Types.Values.Atom) !struct { kind: enum { update }, count: u64, changed: u64 } {
+    pub fn write(self: *Host, _: *Prepared, values: []const ?f.Types.Values.Atom) !m.gateway.results.CommandCompletion {
         self.writes += 1;
         self.value = @intCast(values[0].?.unsigned);
-        return .{ .kind = .update, .count = 1, .changed = 0 };
+        return .{ .kind = .update, .outcome = self.outcome, .counts = .{ .matched = 1, .changed = if (self.invalid_counts) 2 else 0 }, .operation = .{ .account = @splat(7), .id = 42 }, .pending_restart = false, .diagnostic = null };
     }
     pub fn begin(_: *Host) !void {}
     pub fn end(_: *Host) void {}
@@ -68,6 +70,22 @@ const Transport = struct {
 const Engine = m.Session.Engine(Host, Transport);
 const execute_new = "\x17\x01\x00\x00\x00\x00\x01\x00\x00\x00\x00\x01\x08\x80\xff\xff\xff\xff\xff\xff\xff\xff";
 const execute_again = "\x17\x01\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00";
+test "OK requires a successful typed completion with valid owner counts" {
+    const t = std.testing;
+    for ([_]m.gateway.results.Outcome{ .rejected, .cancelled, .applied }) |outcome| {
+        var host: Host = .{ .allocator = t.allocator, .outcome = outcome, .invalid_counts = outcome == .applied };
+        var transport: Transport = .{ .allocator = t.allocator };
+        defer transport.bytes.deinit(t.allocator);
+        var engine = try Engine.init(t.allocator, &host, &transport, .{}, m.Handshake.required);
+        defer engine.deinit();
+        _ = try engine.handle("\x16UPDATE");
+        transport.bytes.clearRetainingCapacity();
+        _ = try engine.handle(execute_new);
+        const packet = (try m.Frame.decode(transport.bytes.items, 1, m.gateway.Limits.max_frame_bytes)).?;
+        try t.expectEqual(@as(u8, 255), packet.payload[0]);
+        try t.expectEqual(@as(usize, 1), host.writes);
+    }
+}
 test "native capacity refusal projects a MySQL resource error without execution" {
     var host: Host = .{ .allocator = std.testing.allocator, .diagnostic_state = "53000".* };
     var transport: Transport = .{ .allocator = std.testing.allocator };

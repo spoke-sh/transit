@@ -42,6 +42,7 @@ class Applications(Fixture):
                 assert report['gateway_url'] == self.url, report
                 assert report['allowed_hosts'] == [f'127.0.0.1:{port}', f'localhost:{port}'] + self.config.get('gateway_allowed_hosts', []), report
                 self.management = Path(report['management_config'])
+                self.ready_sql(deadline)
                 return report
         raise TimeoutError(f'Application neighborhood readiness: {self.root}')
 

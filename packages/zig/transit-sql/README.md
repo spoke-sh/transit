@@ -4,6 +4,14 @@ Shared logical SQL sessions, account recovery, budgets and credential verificati
 above the public query and catalog owners. The module is `transit_sql`; SQL compilation,
 source snapshots and mutation authority stay with Fuze, Query and Catalog.
 
+`Session.write` returns the shared `CommandCompletion` used by native SQL,
+PostgreSQL and MySQL. Command kind comes from the retained intent; matched and
+changed counts come from verified owner evidence. PostgreSQL projects matched
+counts into its command tag. MySQL selects changed counts for UPDATE unless the
+client requests found rows. Session settings carry no applicable row counts.
+An adapter rejects invalid counts or a non-success outcome before writing a
+successful command terminator.
+
 `Type.from` admits int64, uint64, finite float64, Boolean, UTF-8 and binary fields.
 `Type.value` validates a cell against its exact descriptor. SQL NULL requires
 nullability; missing, type-error and conflict cells return distinct errors.

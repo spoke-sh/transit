@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import secrets
 from types import TracebackType
-from typing import Any, Callable, Literal, TypeVar
+from typing import Any, Callable, Literal, TypeVar, cast
 from transit_client._native import Library, encode, seed
 from transit_client._worker import Worker, owned_await
 from transit_client.errors import IncompatibleNative, UnsupportedCapability, native_error
@@ -14,7 +14,7 @@ from transit_client.types import integer
 from .catalog_values import Connection, Basis, Snapshot, Position, ObjectIdentity
 from . import catalog_values as v
 from .table import RowIdentity
-from .logical_values import ScalarType
+from .logical_values import ScalarKind, ScalarType
 
 T = TypeVar('T')
 
@@ -149,7 +149,7 @@ def _description(value: object) -> Description:
         kind, payload = v._variant(item['type'])
         if kind not in ('int64', 'uint64', 'utf8') or payload != {} or v._boolean(item['optional']):
             raise ValueError('Unsupported relational output type')
-        columns.append(Column(v._text(item['name'], 255), ScalarType(kind), v._boolean(item['nullable'])))
+        columns.append(Column(v._text(item['name'], 255), ScalarType(cast(ScalarKind, kind)), v._boolean(item['nullable'])))
     join = value['join']
     if join not in (None, 'inner', 'left'): raise ValueError('Invalid relational join')
     return Description(v._digest(value['plan']), tuple(sources), tuple(columns), join, v._boolean(value['grouped']))

@@ -5,6 +5,8 @@ const f = g.fuze;
 const Host = struct {
     allocator: std.mem.Allocator,
     writes: usize = 0,
+    outcome: g.results.Outcome = .applied,
+    invalid_counts: bool = false,
     snapshots: usize = 0,
     closed: usize = 0,
     data: [2]i64 = .{ 1, 2 },
@@ -77,9 +79,9 @@ const Host = struct {
         self.closed += 1;
         self.allocator.destroy(value);
     }
-    pub fn write(self: *Host, _: *Prepared, _: []const ?f.Types.Values.Atom) !struct { kind: pg.Backend.Completion, count: u64 } {
+    pub fn write(self: *Host, _: *Prepared, _: []const ?f.Types.Values.Atom) !g.results.CommandCompletion {
         self.writes += 1;
-        return .{ .kind = .update, .count = 1 };
+        return .{ .kind = .update, .outcome = self.outcome, .counts = .{ .matched = 1, .changed = if (self.invalid_counts) 2 else 0 }, .operation = .{ .account = @splat(7), .id = 42 }, .pending_restart = false, .diagnostic = null };
     }
     pub fn begin(_: *Host) !void {}
     pub fn end(_: *Host) void {}
@@ -100,6 +102,25 @@ const Transport = struct {
 const Engine = pg.Session.Engine(Host, Transport);
 const bind_body = "\x00s\x00\x00\x00\x00\x00\x00\x00";
 const execute_all = "\x00\x00\x00\x00\x00";
+test "command frames require a successful typed completion with valid owner counts" {
+    const t = std.testing;
+    for ([_]g.results.Outcome{ .applied, .unchanged, .rejected, .cancelled }) |outcome| {
+        for ([_]bool{ false, true }) |invalid| {
+            var host: Host = .{ .allocator = t.allocator, .outcome = outcome, .invalid_counts = invalid };
+            var transport: Transport = .{ .allocator = t.allocator };
+            defer transport.bytes.deinit(t.allocator);
+            var engine = try Engine.init(t.allocator, &host, &transport, .{});
+            defer engine.deinit();
+            _ = try engine.handle('Q', "WRITE\x00");
+            const observed = try tags(t.allocator, transport.bytes.items);
+            defer t.allocator.free(observed);
+            const success = !invalid and (outcome == .applied or outcome == .unchanged);
+            try t.expectEqualStrings(if (success) "CZ" else "EZ", observed);
+            if (success) try t.expect(std.mem.indexOf(u8, transport.bytes.items, "UPDATE 1\x00") != null);
+            try t.expectEqual(@as(usize, 1), host.writes);
+        }
+    }
+}
 fn tags(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
     var out: std.ArrayList(u8) = .empty;
     errdefer out.deinit(allocator);

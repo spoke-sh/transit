@@ -206,7 +206,13 @@ def run(cli, node, host, board, gateway):
                     peer_console('DROP SCHEMA application_archive;\nCREATE SCHEMA application_archive;\n')
                     assert schemas() == existing_schemas | {'application_archive'}
                     blocked = peer_console('DROP SCHEMA public;\n', expected=1)
-                    assert 'dependency' in blocked.stderr, blocked
+                    completion = json.loads(blocked.stdout)['completion']
+                    assert completion['kind'] == 'drop_schema' and completion['outcome'] == 'rejected', completion
+                    assert completion['counts'] == dict(matched='0', changed='0'), completion
+                    diagnostic = completion['diagnostic']
+                    assert diagnostic['code'] == 'schema.drop_restricted' and diagnostic['evidence'] == 'domain_status', diagnostic
+                    assert 'dependency' in diagnostic['message'], diagnostic
+                    assert diagnostic['identity']['id'] == completion['operation']['id'], completion
                 finally:
                     peer.close()
             except subprocess.TimeoutExpired as error:

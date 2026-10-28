@@ -174,7 +174,7 @@ def node(real, directory, args):
                             frozen = json.loads(saved.read_text())
                             if body.hex() == frozen['body']:
                                 assert data.hex() == frozen['receipt']
-                                (directory / ('retried-' + saved.stem[8:])).touch()
+                                (directory / ('retried-' + saved.stem[8:])).write_text(json.dumps(dict(peer=os.getpid(), node=process.pid)))
                         if envelope['request']['principal'] >= 2**52 and ('turn' in envelope['request']['command'] or 'turn_with_versions' in envelope['request']['command']):
                             frozen_worker = directory / 'accepted-worker.json'
                             if not frozen_worker.exists():
@@ -192,7 +192,7 @@ def node(real, directory, args):
                                     armed.write_text(json.dumps(selection))
                                 matches = selection.get('change') is not None and authorization.get('publish') == selection['change']
                             if matches:
-                                frozen = dict(body=body.hex(), receipt=data.hex())
+                                frozen = dict(body=body.hex(), receipt=data.hex(), peer=os.getpid(), node=process.pid)
                                 (directory / ('dropped-' + selected + '.json')).write_text(json.dumps(frozen))
                                 armed.unlink()
                                 # Hold the reply so the test can kill management

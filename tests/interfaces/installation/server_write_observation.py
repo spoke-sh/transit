@@ -16,7 +16,7 @@ from interfaces.cli.table_console import atom
 def run(fixture):
     connection = fixture.console_config()
     upstream_path = connection['endpoint'][5:]
-    state = dict(mode=None, observations=[], executions=[], entered=threading.Event(), release=threading.Event())
+    state = dict(mode=None, observations=[], executions=[], attempts=[], entered=threading.Event(), release=threading.Event())
 
     class Upstream(HTTPConnection):
         def connect(self):
@@ -32,6 +32,7 @@ def run(fixture):
             body = self.rfile.read(int(self.headers['Content-Length']))
             request = json.loads(body)
             action = next(iter(request['action']))
+            state['attempts'].append((action, time.monotonic()))
             if action == 'execute':
                 state['executions'].append(request['action']['execute'])
             if state['mode'] == 'refuse_execute' and action == 'execute':
@@ -48,8 +49,14 @@ def run(fixture):
                 if action in ('execute', 'status'):
                     observed = json.loads(data).get('result', {})
                     state['observations'].append((action, {key: observed.get('operation', {}).get(key) for key in ('phase', 'outcome', 'blocked')}, observed.get('err', {}).get('code')))
+                if state['mode'] == 'drop_status' and action == 'execute':
+                    # Admission must finish before withholding execution. The
+                    # next observation, not a wall-clock timer, releases it.
+                    fixture.boundary.pause()
                 if state['mode'] == 'drop_'+action:
                     state['mode'] = None
+                    if action == 'status':
+                        fixture.boundary.resume()
                     self.close_connection = True
                     return
                 if state['mode'] == 'hold_execute' and action == 'execute':
@@ -74,10 +81,17 @@ def run(fixture):
         thread.start()
         try:
             config = fixture.root/'observation-console.json'
-            config.write_text(json.dumps(dict(connection, endpoint='unix:'+str(path), request_timeout_ms=5000)))
             def invoke(text, expected=0):
+                # Real admission uses the ordinary console budget. Expiry is
+                # injected separately, before acceptance, with a shorter bound.
+                selected = dict(connection, endpoint='unix:'+str(path))
+                if state['mode'] == 'refuse_execute':
+                    selected['request_timeout_ms'] = 5000
+                config.write_text(json.dumps(selected))
+                started = time.monotonic()
                 value = subprocess.run([fixture.cli, 'console', '--no-rc', '--format', 'json', '--config', str(config)], input=text+'\n', text=True, capture_output=True, timeout=60, cwd=fixture.root)
-                assert value.returncode == expected, (state['observations'][-8:], value)
+                attempts = [(action, stamp - started) for action, stamp in state['attempts'] if stamp >= started]
+                assert value.returncode == expected, (time.monotonic() - started, attempts, state['observations'][-8:], value)
                 return value
             def applied(value):
                 completion = json.loads(value.stdout)['completion']
@@ -87,21 +101,15 @@ def run(fixture):
             applied(invoke('INSERT INTO items (id,value) VALUES (-81,810);'))
             applied(invoke('DELETE FROM items WHERE id=-81;'))
             for mode, key in [('drop_execute', -82), ('drop_status', -83)]:
-                if mode == 'drop_status':
-                    fixture.boundary.pause()
                 before = len(state['executions'])
                 state['mode'] = mode
                 try:
-                    if mode == 'drop_status':
-                        wake = threading.Timer(.5, fixture.boundary.resume)
-                        wake.start()
                     completed = invoke(f'INSERT INTO items (id,value) VALUES ({key},820);')
                 finally:
                     if mode == 'drop_status':
-                        wake.cancel()
-                        wake.join(timeout=5)
                         fixture.boundary.resume()
                 applied(completed)
+                assert state['mode'] is None, 'The selected reply-loss boundary was not reached'
                 assert len(state['executions']) == before+1, 'Console automatically replayed SQL'
                 token = state['executions'][-1]['token']
                 operation = fixture.sql_session(dict(status=dict(token=token)))['operation']
@@ -113,6 +121,7 @@ def run(fixture):
             failed = invoke('INSERT INTO items VALUES (-84,840);', 1)
             assert 'Could not confirm' in failed.stderr and 'may apply changes twice' in failed.stderr
             token = state['executions'][-1]['token']
+            assert json.loads(failed.stdout)['unresolved']['token'] == token
             assert len(state['executions']) == before+1
             fixture.sql_session(dict(status=dict(token=token)), error='MissingGatewayOperation')
             assert atom(fixture.console('SELECT COUNT(*) FROM items WHERE id=-84;\n')[-1], 'unsigned') == '0'

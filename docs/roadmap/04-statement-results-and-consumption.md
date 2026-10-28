@@ -1,6 +1,6 @@
 # 4. SQL statement results and client consumption
 
-[Roadmap](README.md) · **Status:** In Progress
+[Roadmap](README.md) · **Status:** Completed
 
 Let a caller execute a statement and inspect one authoritative command outcome
 or consume one logical typed result set, independently of storage pages, execution
@@ -15,10 +15,10 @@ retry, raw decoding and settlement polling belong below that interface. Faster
 batching and a single rendered table support this goal; they do not complete the
 milestone without that abstraction.
 
-## Progress integration boundary
+## Delivered integration boundary
 
-The implementation is being published as a progress PR before milestone closure,
-so milestone 3 can integrate against concrete shared interfaces. The boundary is
+PR #190 supplies concrete shared interfaces for milestone 3 integration; the
+completion branch finishes the database adapters and qualification. The boundary is
 `transit-sql-results` for logical schemas, row/column batches, observation evidence
 and terminal progress; `transit-sql-client.Executor` owns submission/settlement and
 returns the common result reader. Ordinary consumers do not operate native fetch
@@ -38,13 +38,15 @@ consumers or replacing independent cuts with an atomic-snapshot claim. Changes t
 source buffers must keep borrowed values alive until copying/encoding completes.
 SQL binary frames are transient representations and acquire no storage authority.
 
-The progress PR does not close this milestone. Remaining work includes the full
-combined-revision clean qualification, installed lifecycle/fault reruns and the
-paired seeded performance report. The retained installed ALTER operation from an
-earlier failed run remains an unresolved original attempt, not a passing outcome.
-Storage changes integrated from milestone 3 must be attributed separately in the
-final performance comparison. Compression remains an experiment; the implemented
-native result profile admits identity encoding only.
+The [installed/fault qualification](../history/qualification/sql.md#transport-independent-statement-results--2026-10-27)
+and [paired seeded measurements](../history/qualification/performance.md#statement-result-batching-and-consumption--2026-10-27)
+record executed outcomes and limits. The
+[combined qualification](../history/qualification/sql.md#combined-qualification)
+passes all ordinary and Chromium checks, with a separate local full check after
+the documentation-only rebase. The retained installed ALTER operation from an earlier failed run
+remains an unresolved original attempt, not a passing outcome. Both performance
+arms include the same early milestone 3 storage cutover. Compression remains an
+experiment; the implemented native result profile admits identity encoding only.
 
 ## Prerequisites and scope
 
@@ -106,11 +108,12 @@ result-reader delivery.
 
 ## Implementation plan
 
-Prepared on 2026-10-27 against `5962c10d2`, the merge of
-[PR #188](https://github.com/spoke-sh/transit/pull/188). This is the proposed
-implementation and qualification plan. Implementation began after user review
-on 2026-10-27. Unchecked delivery gates remain outstanding; proposed APIs and
-planned checks do not establish implemented or qualified behavior.
+The original plan was prepared on 2026-10-27 against `5962c10d2`, the merge of
+[PR #188](https://github.com/spoke-sh/transit/pull/188). Implementation began after
+user review that day. The checked gates below record delivery against that plan;
+its API sketches retain their planning context. Current interfaces and limits
+belong to the linked contracts, public references and package guides, with
+executed evidence in qualification history.
 
 ### Executable outcomes
 
@@ -533,9 +536,9 @@ branch diff before its coordinated current-v1 cutover is ready to merge.
 - [x] Resolve metadata observation evidence against `SessionSettings`,
   `SessionInspection` and their catalog/configuration owners. Agree the M3 P6
   extension seam and the M5 attribution/cursor hooks without adding those features.
-- [ ] Freeze independent fixtures for empty/multi-batch results, owner count
+- [x] Freeze independent fixtures for empty/multi-batch results, owner count
   semantics, retries, malformed evidence and uncertainty before changing consumers.
-- [ ] Capture the current native/console/database-adapter workload with pinned
+- [x] Capture the current native/console/database-adapter workload with pinned
   builds, cold/warm settings, data/schema shapes and actual limits. Record fetches,
   source/authority calls, transferred bytes, first-row/terminal latency and peak
   resident memory. Keep baseline results in qualification evidence, not this plan.
@@ -565,7 +568,7 @@ Owners: proposed `transit-sql-results`, `transit-sql-protocol` types/codec/schem
 - [x] Preserve exact next-or-repeat acknowledgement, final-batch repetition and
   single-borrower serialization. Make terminal/resource-close transitions explicit
   so repeatability does not retain the executing reader or reopen a snapshot.
-- [ ] Add independent contract fixtures and deterministic transition tests for
+- [x] Add independent contract fixtures and deterministic transition tests for
   duplicate/lost/out-of-order requests, initial/final empty results, cancellation,
   count mismatch and incomplete outcomes. Keep format fixtures independent of
   production encoders when they serve as an oracle.
@@ -590,10 +593,10 @@ Owners: `ReadBatch`, `Session.Read`, `Registry`, `SessionSettings`,
 - [x] Make metadata and relational paths use the same builder as single-Table,
   source and captured reads. Preserve source-specific execution work budgets and
   diagnostics; adapters cannot convert a work-limit failure into exhaustion.
-- [ ] Validate authority after buffering in every native and wire disclosure path,
+- [x] Validate authority after buffering in every native and wire disclosure path,
   including repeats and final counts. Test mutation of credentials/roles/object
   policy between acquisition and serialization.
-- [ ] Close executing reads/pins on terminal, failure, explicit close and expiry.
+- [x] Close executing reads/pins on terminal, failure, explicit close and expiry.
   Retain existing cleanup records on unavailable/denied release; prove later
   authorized recovery without treating a session lease as durable-pin expiry.
 
@@ -640,12 +643,12 @@ Owners: CLI `Console`/`Results`, SQL gateway composition,
 - [x] Implement one-table streaming rendering with bounded sampling and explicit
   truncation. Preserve JSON value fidelity and truthful terminal coverage/counts.
   Exercise empty results and byte/row cutoffs between and within transport batches.
-- [ ] Migrate PostgreSQL command tags and portal suspension/resumption without
+- [x] Migrate PostgreSQL command tags and portal suspension/resumption without
   acknowledging undisclosed buffered rows. Preserve each Execute row limit and
   current validation after materialization/resumption.
-- [ ] Migrate MySQL OK/result termination and found-rows mapping. Keep scalar
+- [x] Migrate MySQL OK/result termination and found-rows mapping. Keep scalar
   rejections, text/binary formats, finite frame budgets and disconnect cleanup.
-- [ ] Audit all repository consumers of changed definitions/messages, including
+- [x] Audit all repository consumers of changed definitions/messages, including
   fixtures and installed tests. Route semantic changes through shared types;
   keep adapters for unaffected query APIs small and explicit.
 
@@ -667,14 +670,14 @@ stored semantics, their current definition and affected consumers ship together.
 - [x] Run the existing schema/contract generators from their owners, including
   `just contract::sql-session-generate`, and the other generators identified by
   the definition dependency inventory. Do not hand-edit derived schemas.
-- [ ] Reconcile with the latest M3 definition and reader/inspection changes,
+- [x] Reconcile with the latest M3 definition and reader/inspection changes,
   resolving both source and semantic conflicts. Prove no fallback decoding,
   silent data reset, fresh dispatch of retained work or manufactured completion.
 - [x] Update current behavior in the SQL session/gateway contracts, query/SQL
   references, client/service READMEs and CLI console guide. Add supported budgets,
   ownership examples, incomplete-result handling and exact recovery limits.
   Update consolidated Internals reasoning where it changes, following its standard.
-- [ ] Register meaningful checks with existing domain owners/tasks and preserve
+- [x] Register meaningful checks with existing domain owners/tasks and preserve
   generated coverage/invariant inventories. Keep `tests/README.md` navigational;
   execution records belong in qualification history with raw evidence links.
 
@@ -761,22 +764,22 @@ unrun profiles explicitly rather than treating focused passes as whole-system
 qualification. Run documentation links, whitespace and generated-resource checks
 with the corresponding changes.
 
-- [ ] The formal transport-independent result model, semantic contract/library
+- [x] The formal transport-independent result model, semantic contract/library
   and executable correspondence checks are delivered; communication independence
   and the ordinary consumer abstraction gate pass.
-- [ ] Every existing SQL statement family has typed, owner-attributed results and
+- [x] Every existing SQL statement family has typed, owner-attributed results and
   documented count/observation semantics.
-- [ ] All seven read variants satisfy batching, ownership, current-authority and
+- [x] All seven read variants satisfy batching, ownership, current-authority and
   cleanup gates, including byte-bound and incomplete cases.
-- [ ] Shared client owns consumption and settlement; Console and existing adapters
+- [x] Shared client owns consumption and settlement; Console and existing adapters
   no longer implement competing lifecycle semantics.
-- [ ] Installed native console and database clients pass independent correctness,
+- [x] Installed native console and database clients pass independent correctness,
   recovery and bounded-memory proofs at the final revision.
-- [ ] Performance evidence demonstrates the selected amplification reduction and
+- [x] Performance evidence demonstrates the selected amplification reduction and
   records latency/memory tradeoffs under matched controls.
-- [ ] One current definition, generated consumers and public documentation agree;
+- [x] One current definition, generated consumers and public documentation agree;
   remaining M3/M5/M6 work has not been silently added to completion claims.
-- [ ] Record executed commands, revision, environment, raw evidence and limitations
+- [x] Record executed commands, revision, environment, raw evidence and limitations
   in [qualification history](../history/qualification/README.md), then mark this
   milestone and its roadmap index row **Completed** together.
 

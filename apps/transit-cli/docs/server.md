@@ -368,6 +368,14 @@ two-second attempt deadline. Shutdown gives each child one second for SIGTERM,
 then kills its group and joins it. These are physical lifecycle bounds, not
 extensions of accepted operation lifetimes.
 
+During initial native provisioning and saved-request recovery, unavailable
+replies retry within a 30-second stage window while owned children remain alive.
+The manager retains the exact signed request and resolves its receipt before
+deriving another operation. Each transport attempt keeps its two-second bound;
+denials, rollback, local transport denial and exited children fail the stage.
+Exhausting the window retains the pending request and enters the same finite
+restart policy. An unavailable reply alone does not establish process death.
+
 Source, requester and courier idle intervals start at 100 ms and double up to
 one second, resetting on activity. Idle receives wait for bounded authorized
 process/output notifications, then revalidate current state. Timeouts reconcile

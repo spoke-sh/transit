@@ -486,7 +486,7 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
         }
         const result = try host.write(prepared, values);
         try host.validate(prepared);
-        return .{ .completion = .{ .kind = result.kind, .outcome = .applied, .counts = null, .operation = null, .pending_restart = false, .diagnostic = null } };
+        return .{ .completion = result };
     }
     var id: api.Id = undefined;
     try self.io.randomSecure(&id);

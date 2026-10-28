@@ -51,17 +51,24 @@ class Fixture(LocalInstallation):
                 self.activation, self.markers = activation, markers
                 with self.http.open(self.url + "/health", timeout=5) as response:
                     assert response.status == 200
-                if self.config.get('sql', {}).get('native', {}).get('local', True):
-                    status_file = self.installation / 'sql/status.json'
-                    while True:
-                        if status_file.exists():
-                            status = json.loads(status_file.read_text())
-                            if status.get('service', {}).get('state') == 'accepting':
-                                break
-                        assert self.process.poll() is None and time.monotonic() < deadline, 'Local SQL did not become ready'
-                        time.sleep(.05)
+                self.ready_sql(deadline)
                 return report
         raise TimeoutError(f"Server readiness at {self.root}")
+
+    def ready_sql(self, deadline):
+        # The core ready record precedes SQL admission. Fault schedules must
+        # finish the current startup before deliberately killing another role.
+        if not self.config.get('sql', {}).get('native', {}).get('local', True):
+            return
+        status_file = self.installation / 'sql/status.json'
+        while True:
+            assert self.process.poll() is None, Path(self.logs[-1].name).read_text()
+            if status_file.exists():
+                status = json.loads(status_file.read_text())
+                if status.get('service', {}).get('state') == 'accepting':
+                    return
+            assert time.monotonic() < deadline, 'Local SQL did not become ready'
+            time.sleep(.05)
 
     def refusal(self, message):
         args = [self.cli, "server", "--config", str(self.path)]

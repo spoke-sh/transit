@@ -37,13 +37,19 @@ def run(fixture):
                                 env={'PATH': '/unavailable'}, text=True, capture_output=True, timeout=30)
         assert (result.returncode == 0) == ok, (statement, result)
         output = []
+        completion = None
         for value in results(map(json.loads, result.stdout.splitlines())):
             if 'schema' in value:
                 output.extend(records(value))
             elif 'completion' in value and 'outcome' in value['completion']:
-                assert value['completion']['outcome'] in ('applied', 'unchanged')
+                assert completion is None, value
+                completion = value['completion']
+                assert completion['outcome'] in (('applied', 'unchanged') if ok else ('rejected',)), completion
         if statement == 'SELECT transit_reload_conf()':
+            assert completion is not None and completion['kind'] == 'reload', completion
+            assert completion['operation'] is not None and completion['counts'] is None, completion
             row = sql("SELECT * FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 1")[0]
+            assert completion['pending_restart'] == (row['phase'] == 'pending_restart'), (completion, row)
             output.append(dict(outcome=row))
         return output
     def setting(name):

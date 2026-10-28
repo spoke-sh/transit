@@ -144,6 +144,27 @@ fn ready(self: *Self, address: []const u8) !void {
     }
     return error.RoleReadinessTimeout;
 }
+fn provision(self: *Self, comptime operation: fn (*Installation) anyerror!void) !void {
+    // These owners persist their exact request before dispatch and resolve it
+    // before deriving another. An unavailable reply is not a dead node: keep
+    // the live owner and its warm state while replaying that retained request.
+    const started = std.Io.Clock.awake.now(self.init.io);
+    const wire = self.installation.wire;
+    const timeout = wire.timeout_ms;
+    defer wire.timeout_ms = timeout;
+    while (true) {
+        if (Signals.interrupted()) return error.ServerStopped;
+        const elapsed = started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds();
+        wire.timeout_ms = @min(timeout, @as(u32, @intCast(@max(1, 30000 - elapsed))));
+        operation(self.installation) catch |err| {
+            if (self.installation.failed or !q.wire.Client.unavailable(err) or err == error.AuthorityTransportDenied or !self.allAlive()) return err;
+            if (started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 30000) return err;
+            try self.init.io.sleep(.fromMilliseconds(100), .awake);
+            continue;
+        };
+        return;
+    }
+}
 fn cycle(self: *Self) !void {
     var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
     defer arena.deinit();
@@ -157,13 +178,13 @@ fn cycle(self: *Self) !void {
     self.diagnostic.atFile(config.installation);
     const had_tables = @import("Tables.zig").configured(installation);
     try self.node(allocator);
-    try installation.flush();
+    try self.provision(Installation.flush);
     self.active_role = .sql;
-    try Sql.recover(installation);
+    try self.provision(Sql.recover);
     const applications = if (config.applications != null) try @import("Applications.zig").create(self.init, installation, self.executable) else null;
     defer if (applications) |manager| manager.destroy();
     if (applications) |manager| try manager.recover();
-    try installation.provision();
+    try self.provision(Installation.provision);
     if (!had_tables) {
         // The initial native bootstrap establishes stable scope and native
         // domains. Restart this owned node once with that exact Table profile
@@ -171,7 +192,7 @@ fn cycle(self: *Self) !void {
         self.processes[@backingInt(Role.node)].stop(self.init.io);
         try self.node(allocator);
     }
-    if (self.ui) try installation.provisionBoard();
+    if (self.ui) try self.provision(Installation.provisionBoard);
     try self.worker(allocator, .source);
     try self.worker(allocator, .requester);
     const connection = installation.connection();
