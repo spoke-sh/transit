@@ -139,6 +139,10 @@ combines that evidence at one revision.
 Performance measurement and amplification work remains tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76), alongside the reopened
 milestone trackers above.
+The proposed [allocation-guidance implementation plan](10-data-structures-and-performance.md#implementation-plan-for-issue-194)
+tracks [issue #194](https://github.com/spoke-sh/transit/issues/194), starting with
+reusable result delivery and extending zero allocations after warmup through
+storage, query execution, strings/search and compilation in milestones 10–12.
 Standards, multi-model and branching work is tracked in
 [issue #31](https://github.com/spoke-sh/transit/issues/31).
 

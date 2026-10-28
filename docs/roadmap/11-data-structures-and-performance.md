@@ -1,6 +1,6 @@
 # 11. Data structures, query optimization and runtime performance
 
-[Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Planned
+[Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Allocation guidance #194](https://github.com/spoke-sh/transit/issues/194) · **Status:** Planned
 
 Make declared data operations and durable runtime work fast under explicit
 latency, throughput, memory and recovery budgets. Pursue leadership against
@@ -39,6 +39,11 @@ Start from [performance](../handbook/reference/performance.md),
 [execution](../handbook/internals/execution-model.md) and the
 [benchmark tooling](../../tests/performance/declarative/README.md).
 The current component benchmark inventory does not execute complete TPC suites.
+
+The [issue #194 implementation plan](#implementation-plan-for-issue-194)
+sequences allocation removal in existing paths and tracks the related string,
+search and compilation work through its numbered owners. It is proposed work;
+the milestone remains Planned.
 
 ## Delivery sequence
 
@@ -239,3 +244,382 @@ database and runtime comparisons with the complete supported system and full
 benchmark drivers. It does not defer earlier measurement or regression gates.
 Publish supported limits and reproduced findings in the existing performance,
 benchmark and Internals owners as implementation lands.
+
+## Implementation plan for issue #194
+
+**Review status: proposed.** Source inspection uses `e377f2945`, which includes
+[PR #193](https://github.com/spoke-sh/transit/pull/193). This plan proposes how to implement
+[issue #194](https://github.com/spoke-sh/transit/issues/194) through the existing
+milestone owners. It adds no current allocation guarantee and does not change
+the status of milestones 3, 10, 11 or 12.
+
+Applications need to ingest declared data, query an exact source basis and
+consume complete results under explicit resource policies. The target is zero
+steady-state backing heap/OS allocations after finite warmup, with bounded
+resident memory and unchanged accepted-work recovery. Stable Table, schema,
+operation, result and snapshot identities remain with their existing owners;
+a reusable buffer, pool slot or cache generation grants no data authority.
+
+The first delivery checkpoint is the existing result path: the service builds
+and retains batches, the transport transfers them, and the shared client and
+console consume them. The second covers installed storage, query execution and
+durable runtime work. The third extends the same allocation gates to the
+string/search and compiled execution capabilities as their prerequisites land.
+The issue stays open across those checkpoints. Completing its first checkpoint
+does not complete the broader guidance or this milestone's unrelated optimizer
+and workload obligations.
+
+### Allocation contract and measurement boundary
+
+Each tested profile declares its owner lifetime, maximum active concurrency,
+input/schema/row/byte bounds, reserve capacities, finite warmup schedule and
+measurement interval before execution. Keep these definitions in the owning
+contracts/component guides when implemented, with machine-readable cases in
+the performance harness.
+
+| Quantity | Required meaning and acceptance |
+| --- | --- |
+| Backing allocation | A request reaching the heap/page allocator below reusable pools. After warmup: zero allocation attempts, zero remap attempts and zero capacity-growing resize attempts, including unsuccessful attempts followed by a fallback. |
+| Scratch reservation | A bounded bump/free-list reservation within already owned storage. Record it separately; it may occur per row/batch without acquiring new heap memory. |
+| OS memory acquisition | Attribute mapping/growth and worker-stack/TLS allocation to the relevant process and thread. Verify independently when making an OS-level claim; the kernel's ordinary network/file bookkeeping is not a claim about Transit user-space allocations. |
+| Live versus reserved bytes | Count reserved backing capacity, metadata, allocator headers, alignment, padding, transport state and worker stacks. A reset can reduce live contents while reserved bytes remain charged. |
+| Borrowed bytes | Record the backing owner and lifetime. Charge physical storage once; child quotas may constrain a borrow without counting it twice in process totals. |
+| Setup and admission | Measure process initialization, connection/TLS authentication, pool reservation and initial plan binding separately. Repeated statements, fetches, shape changes, normal connection turnover and retries cannot restart warmup. |
+| Growth beyond an admitted envelope | Reuse another already reserved size class, spill through an implemented bounded owner, or return the owning typed budget refusal. No silent fallback to the general allocator or reinterpretation as a successful partial result. |
+
+The fixed allocation budget is zero; it is not a percentage reduction. Define
+latency/throughput regression budgets from matched baseline samples before
+implementation. Retain the existing 32-row/1 MiB canonical-cell result limit,
+4 MiB native message bound and configurable client resident limit (currently
+at most 16 MiB). These describe different quantities; no plan step enlarges
+them to hide allocation churn. A valid large server batch can still exceed a
+client's smaller admitted memory allowance and must fail visibly.
+
+Warmup reserves/touches the declared workspace and exercises its reset path.
+It must not scan the complete dataset or grow with retained row count. Subsequent
+checks vary values, schema shapes and batch sizes within the declared limits,
+including cache misses on previously unseen keys. Runtime-created sessions and
+queries obtain reusable slots from a bounded host reserve. Unsupported capacity
+or an unqualified external runtime path remains an explicit open item; it cannot
+be omitted from a broader zero-allocation claim.
+
+### Inspected starting points
+
+These observations identify implementation work, not a complete allocation
+profile. Phase A records actual counts through all allocator layers.
+
+| Owner | Observed work and proposed change |
+| --- | --- |
+| [BatchBuilder](../../packages/zig/transit-sql-results/src/BatchBuilder.zig), [Window](../../packages/zig/transit-sql-results/src/Window.zig) | Batch reset frees all arena capacity; windows allocate an owner, row directory and copied cells. Introduce reusable bounded workspaces while preserving detached window lifetime and the unread next row. |
+| [ResultColumns](../../packages/zig/transit-sql-protocol/src/ResultColumns.zig), [ResultFrame](../../packages/zig/transit-sql-protocol/src/ResultFrame.zig) | Columns allocate directories/pages and the frame encoder allocates aligned output. Add caller-owned encode/parse destinations and persistent validation scratch. Keep the current wire bytes and full validation. |
+| [NativeResult](../../packages/zig/transit-sql-client/src/NativeResult.zig), [Executor](../../packages/zig/transit-sql-client/src/Executor.zig) | Each batch releases its arena/response; each statement creates outcome/result owners. Reuse stable client slots and separate statement metadata from batch/frame lifetime. |
+| [SQL Client](../../packages/zig/transit-sql-client/src/Client.zig) | Each call builds JSON request bytes, an owned parse arena and an exact-sized aligned receive body; HTTP also builds a URL. Reuse buffers and precompute endpoint targets. Audit the independent HTTP allocator, TLS, timers and `std.Io.Select` tasks. Idle replacement and the request-per-connection limit make reconnect part of repeated consumption. |
+| [Registry](../../packages/zig/transit-sql/src/Registry.zig), [Session](../../packages/zig/transit-sql/src/Session.zig), [SourceSession](../../packages/zig/transit-sql/src/SourceSession.zig), [native gateway](../../apps/transit-sql-gateway/src/Native.zig) | Cursor/source arenas free capacity and the gateway creates a request arena. Reserve session/cursor/request slots and retain the latest disclosed batch independently of the request socket. |
+| [PhysicalCodecs](../../packages/zig/transit-fuze/src/PhysicalCodecs.zig), [TSegReader](../../packages/zig/transit-fuze/src/TSegReader.zig) | Reusable inner decode scratch already exists, but page/group owners, directories, encoded pages and some codec temporaries still allocate. Pass persistent page/group workspaces through the full source path. |
+| [RowAllocator](../../packages/zig/transit-fuze/src/RowAllocator.zig), [ComputePool](../../packages/zig/transit-query/src/ComputePool.zig) | The row cache falls back to its parent for large/simultaneous allocations. The worker pool already reserves bounded workers/stacks. Preserve that foundation and remove fallback allocation within admitted profiles. |
+| [MemoryBudget](../../packages/zig/transit-fuze/src/MemoryBudget.zig), [NvmeCache](../../packages/zig/transit-storage/src/NvmeCache.zig) | Existing accounting distinguishes configured exhaustion from parent OOM. Cache misses allocate buffers/keys/directories; hits hash and copy cached bytes. Extend accounting to reserved capacity and introduce bounded immutable cache leases. |
+
+The [retained codec baseline](../../tests/evidence/sql-results-2026-10-27/README.md)
+records 30,001 → 1,565 encoder and 10,002 → 314 decoder allocation calls for
+10,000 rows when moving from one-row to 32-row batches. It excludes sockets,
+service execution, source authorization and storage. Preserve that evidence and
+its hashes; generate new reports for the new measurement boundary.
+
+### Ownership and resource model
+
+Introduce a small shared Zig memory library only for the real cross-package
+primitives used by Fuze, storage and clients: bounded aligned slabs, workspace
+leases, hierarchical accounting and deterministic budget failures. The proposed
+package name is `transit-memory`; it depends on the standard library and has its
+own manifest, modules and tests. It contains no clocks, I/O, SQL, authority or
+application policy. Domain owners continue to select limits and expose failures.
+Move shared accounting rather than maintaining divergent Fuze/storage copies;
+do not create a storage-to-Fuze dependency to reuse an allocator.
+
+Use the following lifetimes, with stable owner addresses and explicit leases:
+
+| Owner | Retained contents | Reset/release boundary |
+| --- | --- | --- |
+| Host/account reserve | Bounded worker, session, connection and control slots | After all borrowers/tasks join; idle slots return to the bounded reserve |
+| Statement slot | Outcome identity, logical schema, observation and plan metadata | Outcome release; an active outcome prevents slot reuse |
+| Result batch lease | Frame bytes, column views, recursive descriptors and row scratch | Next advance or close after every documented borrow ends |
+| Server cursor lease | Latest logical/encoded batch and disclosure evidence | Next acknowledged ordinal or cursor closure; repeated fetch retains the same evidence |
+| Request scratch | Control JSON, framing/validation temporaries and bounded diagnostics | Request completion/cancellation join; separate from the cursor and control transport |
+| Materialized window / Arrow export | Explicit copied rows or a lease on immutable buffers | Independent release by the consumer; retained exports constrain pool capacity |
+| Cache lease | Immutable verified page/chunk plus key, interpretation and generation | Final reader release before eviction/reuse |
+
+The host bound is the shared reserve plus admitted concurrency times each slot's
+reserved capacity, with separate worker, transport and control reserves. It must
+not contain a term proportional to total results, accepted backlog or durable
+collection size. Nested budgets restrict the same backing storage without
+double-charging process totals. Pool exhaustion never overwrites a borrowed
+frame, revokes an Arrow reference, drops accepted work or expires retained data.
+
+Use fixed or reusable size-class storage where a hard guarantee is required.
+In the pinned Zig 0.17 standard library, `ArenaAllocator.reset(.retain_capacity)`
+can consolidate/reallocate and return false after freeing capacity. Exercise
+that during warmup and test the returned state; replacing `.free_all` text alone
+does not establish zero allocations. Reserve sufficient alignment/descriptor
+overhead within the existing byte budget and test retained-capacity fragmentation.
+
+### Delivery sequence and reviewable changes
+
+Every phase lands with its own measured scope and ordinary correctness checks.
+The proposed change groups below can be split further when an owner needs a
+separate contract review. They are execution order, not calendar promises.
+
+| Phase | Depends on | Reviewable outcome |
+| --- | --- | --- |
+| A. Allocation contract and baseline | Merged result model; current installed owners | Complete inventory, measured profiles and failing negative controls |
+| B. Bounded memory primitives | A | Shared accounted reserves/leases and deterministic allocation guard |
+| C. Logical batches and binary codecs | B | Zero-allocation warmed builder/encoder/decoder under varied legal inputs |
+| D. Shared client and consumers | C | Reusable statement/result/transport/window owners and client gates |
+| E. SQL producer and gateways | C; D for composed proof | Reusable service/request/cursor storage and complete disclosure/retry proof |
+| F. Source, storage and durable runtime | B; coordinate current storage work | Zero-allocation supported scans, ingestion, flush, turns and recovery workspaces |
+| G. Cache leases and resource metering | B, F | Safe immutable reuse, bounded pressure/spill and CPU/I/O accounting |
+| H. Strings, lookup and search | B, F, G; milestones 7–9 where required | Milestone 11 implementations satisfy the same allocation/semantic gates |
+| I. Fusion and specialization | B, G, qualified H inputs; milestone 9 | Milestone 12 implementations satisfy the same gates, including code storage |
+| J. Combined qualification | A–I and prerequisite capabilities | One-revision installed evidence for full issue closure |
+
+**A — Instrument before changing allocation behavior.** Extend the existing
+codec and query measurement harnesses with attempted/successful alloc, free,
+resize and remap counts, reserved/live/peak bytes, phase boundaries and owner
+identities. The current query tracker excludes `std.Io` internals and its libc
+interposer targets the external comparator; neither proves all Transit process
+allocations. Add a shared test-only allocator guard through explicit test modules,
+including negative controls that allocate through each vtable entry and bypass
+one wrapper. Audit direct page/OS allocation sites and thread attribution.
+For the installed Linux profile, collect process/thread-attributed memory-mapping
+and heap-growth events alongside allocator counters; validate the observation
+with deliberate direct-page and worker-creation negative controls. Report missing
+tracing permissions or unsupported platforms as gaps in the OS-level claim.
+Keep fixture/oracle preparation and report serialization outside the measured
+interval; keep actual request encoding, source work and rendering inside their
+declared profiles. Preserve unfinished/failed samples rather than averaging them
+into successes. A produces a coverage manifest of every hot-path owner, transport,
+operation family and its open gaps.
+
+**B — Establish reserves and accounting.** Implement aligned reusable buffers,
+bounded size-class/free-list arenas and generation-checked leases with stable
+owners. Capacity is chosen at admission, never from total result cardinality.
+Account alignment, padding, fragmentation, directory entries and retained slack.
+Define all-or-nothing parent/child reservations, concurrent accounting and the
+order in which capacity returns. Preserve the current distinction between a
+configured budget refusal and parent OOM; errors must not depend on a stale
+earlier failed resize. Tests cover initialization failure at each allocation,
+exhaustion, interleaved borrowers, reset failure, double release, stale leases and
+teardown. A guard forbids backing allocation/growth after warmup while repeated
+slot acquisition/release continues successfully.
+
+**C — Remove result-builder and codec churn.** Give `BatchBuilder` reusable
+row/recursive-value storage and a transactional append checkpoint so a row that
+does not fit consumes no delivery progress or permanently stranded capacity.
+Keep the next row with its source and retain independent owned copies where
+scratch can change. Provide caller-owned frame writing and directory parsing,
+with checked sizing and existing TSR1/TCP1 alignment/validation. Bound encoding,
+schema/observation serialization and nested conflict-detail scratch together;
+avoid a temporary allocation for every column. Use `PhysicalCodecs` workspace
+entry points to carry reuse through validation, not just the outer wrapper.
+Start with unchanged wire bytes and identity compression. Prove all supported
+logical types/five states, 0/1/31/32/33 and long result sequences, byte boundaries,
+malformed frames and allocation-failure cleanup against independent values.
+
+**D — Reuse shared-client state across statements.** Replace per-call
+`std.json.Parsed` ownership in the hot adapter with an explicit response lease
+over a reusable request/receive/parse workspace. Proposed API names are reviewed
+with the implementation; the essential contract is that reuse waits for all
+documented borrowers. Keep the public result model independent of transport.
+Use client-owned outcome/result slots so `deinit` releases a lease while the
+workspace survives for the next statement. Preserve the existing single-borrower
+and active-cursor rules. Retained command metadata and independent windows consume
+explicit slot capacity; refuse exhaustion rather than silently invalidating them.
+Keep schema/observation stable through outcome release and preserve independent
+control access during cancellation and settlement.
+
+Precompute validated HTTP targets; write bounded control JSON into reserved
+storage; receive into aligned capacity with a separate actual-length slice.
+Inspect and qualify HTTP/TLS connection pools, timer tasks and the pinned I/O
+runtime. Exercise idle reconnects and more than 256 requests so connection
+replacement cannot escape the measurement. An unresolved TLS/runtime allocation
+remains a failed profile, not a permitted hidden fallback. Join reads before
+resetting buffers on timeout/cancellation. Reuse console formatting and window
+storage without accumulating a relation for column widths. Migrate all affected
+Zig callers together; preserve explicit owned-copy operations for consumers
+whose lifetime requires them, backed by their bounded reusable storage.
+
+**E — Reuse producer and gateway workspaces.** Reserve request slots in the
+gateway and cursor/batch slots in `Registry`/`Session`; make request scratch and
+retained cursor output independent. Reuse source-page, builder, codec and frame
+storage through native, PostgreSQL and MySQL adapters. A failed encoding or
+send must retain the existing cursor's correct ordinal/outcome; a repeat cannot
+advance the source or count rows twice. Preserve fresh rights checks for every
+disclosure, including repeats, metadata, zero rows and terminal counts. Keep
+accepted writes and their recovery lane independent of socket buffers. Releasing
+or reassigning slots erases secrets and prevents cross-account payload exposure.
+Qualify the complete current delivery path at the existing budgets, including
+authentication/control progress while data slots are full. Component success
+can land first; the composed SQL allocation gate waits for F wherever source
+or authority work still allocates.
+
+**F — Carry reuse through source and durable owners.** Split implementation
+reviews by query/read ownership, direct Table ingestion/flush, native WAL/turns,
+and KV/Document operations. Coordinate with
+[#128](https://github.com/spoke-sh/transit/issues/128),
+[#116](https://github.com/spoke-sh/transit/issues/116) and the active
+[installed storage cutover](03-live-storage-and-sql-cutover.md) before changing
+shared reader or buffer APIs. Inventory each full caller path, including
+authorization/catalog reads and error construction.
+
+Extend `TSegReader`/physical codecs with caller-owned encoded/decoded workspace
+leases; keep detached results and retained Arrow exports pinned until release.
+Replace the 4 KiB row allocator's heap fallback inside admitted profiles with
+bounded reserved alternatives; do not just increase its constant. Reuse
+per-partition WAL encoding/checksum, memtable, flush/segment, range/index and
+publication scratch while maintaining independent control capacity. Pool slots
+bound concurrent active work, not the count of stored rows/objects. Preserve
+sync/acknowledgement timing, fencing, atomic publication, retained cuts and exact
+recovery. Exercise cache churn, rotations, repeated flush/compaction, checkpoint
+replay and more retained data than resident slots. Recovered processes get a
+new explicit startup phase; recovery's paged working loops still need their own
+zero-allocation gate.
+
+**G — Make cache reuse and resource pressure composable.** First add immutable
+verified cache leases with a size-class directory and bounded key/metadata slots.
+Readers must hold a lifetime guarantee; pointer/version checks alone cannot
+make concurrent access to reused bytes safe. Specify locking/reclamation and
+prove the lease protocol before introducing the proposed swizzling/optimistic
+reads and lock-free cooling path. Record any concurrency profile still pending.
+Retain scan-resistant eviction and qualify mixed hot lookups and cold scans;
+previously unseen keys must reuse slots without backing allocation.
+
+Verify immutable input against the appropriate trusted object/page commitment
+at admission/reload. The present cache hashes cached bytes on hits, so removing
+that behavior requires an explicit integrity/fault-model review, not deletion
+of a failing corruption test. Disk corruption still rejects/reloads; untrusted
+buffers are fully validated; cache generation and interpretation bind every
+lease. Memory-corruption assumptions and any separate scrub policy belong in
+the storage account. Do not claim the existing buffer cache is a durable NVMe
+store without implementing and qualifying that owner.
+
+Compose parent/tenant/query memory reservations with per-morsel CPU work and
+I/O byte/operation charging. Clocks/device counters stay in effectful hosts;
+deterministic execution consumes explicit budget charges. CPU ticks are measured
+evidence, not deterministic cross-hardware replay values. Define maximum charge
+granularity/overshoot, fairness and cancellation. Add bounded NVMe spill only
+for operators with an owned spill format/lifecycle, disk quota and crash cleanup;
+other exhausted operators use a typed budget refusal. Never turn allocation
+pressure into expiry, accepted-work loss or an unbounded cleanup queue.
+
+**H — Apply the contract to strings and search.** Keep implementation in
+[milestone 11](11-vectorized-strings-and-search.md), with separately reviewable
+changes for string layout, lookup tables, encoded predicates, full-text indexes
+and execution, and hybrid composition. Ship usable closed-set `comptime` lookup
+work early when it depends only on B; keep index/search work behind its actual
+schema, collation, index-maintenance and SQL prerequisites.
+
+Define tagged short/long 16-byte layouts, offset/handle bounds, immutable payload
+leases and relocation rules. Require a scalar collation oracle: raw byte length
+is not lexical order, a prefix collision needs a full-key comparison, and
+collation-equivalent strings can have different byte lengths. Only use
+prefix/length shortcuts whose soundness is proved for that collation. Do not
+enable ICU or other unsupported semantics by adding a fast representation.
+Internal 16–64-byte padding must be allocated, initialized and charged. External
+inputs require bounds-safe loads/copying; remaining on the same 4 KiB page alone
+does not make an out-of-bounds access valid.
+
+Bound perfect-hash construction and verify exact non-member rejection; use a
+qualified bounded lookup strategy for key sets that cannot be constructed within
+budget. Keep dictionaries, FSST validation, filter masks and late materialization
+under the same workspace lease. For BM25, first define tokenizer/index
+identity, maintenance and snapshot/deletion coverage, then 256-document posting
+blocks, conservative score upper bounds, bounded top-k state and SIMD pruning.
+Compare complete scores/order/ties with unpruned execution before accepting
+Block-Max WAND. Hybrid composition waits for the qualified ANN/index owner and
+one supported snapshot model. Every new operator starts with allocation gates;
+future syntax and algorithms do not become current supported capabilities.
+
+**I — Apply the contract to fusion and compilation.** Keep implementation in
+[milestone 12](12-data-centric-compilation-and-specialization.md). Review fused
+interpreter instructions and pipeline boundaries first, then per-group dense
+specialization, directory-tagged/prefetched joins, projection-specialized codecs,
+adaptive compilation and AOT separately. Retain the reference interpreter and
+independent scalar fixtures; compare values, five-state attribution, checked
+overflow, LIMIT short-circuiting, checkpoint bytes and current disclosure rights.
+`null_count == 0` alone does not establish a dense value-only group. Fusion must
+preserve ordered failure frontiers and resource-meter boundaries.
+
+Reserve compile scratch and executable-code cache capacity before measurement.
+Adaptive tier-up at a morsel boundary cannot allocate a new mapping after
+warmup. Specify W^X transitions, eviction, code leases, cancellation and thread
+quiescence. Measure binding, code generation and permission changes separately;
+precompiled dispatch does not make all planning latency zero. Enabling a stencil
+or AOT path requires exact definition/type/codec/collation compatibility; stale
+artifacts reject before execution under the current-v1 policy. Only use a
+same-semantics qualified execution path where the owning contract explicitly
+allows that choice. No fallback may reinterpret incompatible accepted work.
+
+**J — Close against combined evidence.** Run the coverage manifest at one
+committed revision with the same capacities, durability and independent result
+oracles. Include retained windows/Arrow references, mixed tenants, slow readers,
+cache misses, spill, source changes, control traffic and exact retries. Reconcile
+component allocator totals with process-level acquisition evidence and disclose
+any instrumentation blind spots. Preserve new raw reports with source, compiler,
+binary, fixture, harness and host identities. Link the completed implementation
+and evidence for every issue checklist item. An unexecuted or unsupported required
+profile keeps that item open, even when another profile is faster.
+
+### Verification matrix and publication gates
+
+| Layer | Required cases | Gate |
+| --- | --- | --- |
+| Allocator/lease units | Warm/reset/reuse, failing alloc/resize/remap, fragmentation, concurrent reservations, stale leases and teardown | Zero forbidden backing attempts; correct accounting and no live borrow reuse |
+| Codec/result units | All types/states, empty/final batches, byte/row limits, alternating sizes, nested payloads, malformed input, window/Arrow retention | Independent value and completion agreement; zero backing attempts within the admitted envelope |
+| Shared client/service | Repeated statements and prepared binds; Unix, loopback HTTP and TLS; more than 256 requests; idle reconnect; same-ordinal retry; cancellation and EOF | Measured profile covers transport/runtime allocations and preserves original identity and incomplete outcomes |
+| Authorization/recovery | Revocation after buffering, repeated metadata/terminal requests, retained accepted writes, process replacement and failed cleanup | No unauthorized disclosure, new submission identity, lost accepted work or manufactured completion |
+| Storage/runtime | New keys, cache eviction, WAL rotation, flush/compaction, cold reads, bounded recovery and quota pressure | Zero steady-state workspace growth; durable data exceeds resident capacity; recovery/control progress preserved |
+| String/compiled execution | Adversarial prefixes, collations, unpadded boundaries, five states, arithmetic failures, top-k ties, tier-up and code eviction | Oracle equivalence plus allocation/budget gates on every enabled path |
+| Installed mixed workload | Repeated and growing data at fixed concurrency, retained exports, slow consumers, metadata/control and background work | Bounded total reserved memory, zero attributed backing growth and predeclared performance budgets |
+
+For deterministic allocation checks, include multiple result lengths from empty
+through at least 16,384 rows, repeated statements after one warmup, and declared
+single/concurrent-owner schedules. Vary allocation patterns rather than replaying
+only the largest batch. Use a negative control that reintroduces one allocation
+to prove each gate fails. Test a valid workload just outside each configured
+capacity and verify typed refusal or qualified spill without data loss.
+
+Use the existing task owners first: package `zig build test` inside the pinned
+shell; `just test::sql-wire-contracts`, `just test::sql-wire-encoding`,
+`just test::sql-sessions`, `just test::sql-wire-gateway` and `just test::server-sql-lifetimes`
+for protocol/client changes; installed SQL checks for the composed path; and
+the named storage/growth/fault tasks for the affected durable owners. Extend
+the [task inventory](../../tests/runner/suite.json) only when a new executable
+allocation gate exists. Run affected committed-HEAD `just ci clean --lane NAME`
+checks before pushing implementation changes. Result/client/gateway work needs
+core/interfaces/experience coverage; query/storage work adds growth; shared
+contracts and bindings add their dependent lanes. Full issue closure combines
+the applicable lanes and independent workload/fault evidence at one revision.
+
+Keep instrumentation runs separate from uninstrumented timing comparisons.
+Freeze setup, warmup, workload seeds and numeric regression budgets before
+optimizing. Report first-row and verified-terminal latency, throughput, CPU/I/O,
+transport/copy bytes, all allocation attempts and reserved memory. The earlier
+larger-batch first-row regression remains part of the baseline; do not increase
+batch sizes or drop authorization checks to pass a timing gate. No SQL transport
+compression is enabled by this plan; future codec negotiation must carry the
+same allocation, decompression and ownership bounds through its own contract.
+
+The early workspace work should leave current wire/storage definitions unchanged.
+Any incompatible public ABI, wire, schema, stored format or accepted-work meaning
+requires the existing current-v1 hard cutover, shared definition replacement,
+consumer/fixture regeneration and foreign-definition rejection. Do not add
+parallel legacy result profiles or retain a superseded API as a compatibility
+shim.
+
+Update current behavior in the owning result/client/storage/performance guides
+with each qualified change, mechanisms in Internals, and executed evidence in
+qualification history. Keep this plan and the issue checklist synchronized.
+Review defaults are: implement A–E first; retain existing byte/row limits; allow
+internal reservations from bounded preallocated storage; enforce zero backing
+allocation attempts; and keep the issue open until F–J and the full guidance
+have their required evidence. Implementation has not started as part of this
+planning change.

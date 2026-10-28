@@ -13,6 +13,11 @@ groups.
 
 ## Prerequisites and scope
 
+The proposed [issue #194 implementation plan](10-data-structures-and-performance.md#implementation-plan-for-issue-194)
+defines the shared allocation contract and sequences this milestone's string,
+lookup and search gates in phase H. This milestone retains ownership of those
+capabilities and their prerequisites; the plan does not establish support.
+
 Consume the qualified [local engine](02-storage-and-query-performance.md),
 [installed cutover](03-live-storage-and-sql-cutover.md),
 [results](04-statement-results-and-consumption.md),
