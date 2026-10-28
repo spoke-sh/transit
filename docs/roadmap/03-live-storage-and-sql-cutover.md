@@ -911,7 +911,14 @@ flushed into ten segments and fixed-target archive/compaction recovery after
 SIGKILL. The first active retained scan takes 5.085 seconds, compared with
 1.602–1.780 seconds for control scans; node lifetime peak RSS reaches
 121,298,944 bytes. The [qualification account](../history/qualification/storage.md#foreground-reads-during-automatic-table-flushing--2026-10-28)
-records all scopes and limits. Clean lanes are still pending. This adds no
+records all scopes and limits. The clean core lane passes all 28 tasks at this
+source. Clean experience passes five tasks, then the single-executable console
+exceeds its 90-second deadline; later experience tasks and growth do not run.
+The original accepted ALTER completes after reopening the preserved installation
+with the identical binary and identity. A separate fresh control passes the
+unchanged default workflow, but does not establish the timeout's cause or
+replace the failed lane. The [packaging recovery account](../history/qualification/storage.md#installed-packaging-recovery-and-repository-qualification--2026-10-28)
+preserves those distinct outcomes. This adds no
 latency target, deadline increase or claim that aggregate maintenance or the
 installed zero-allocation gate is complete.
 
