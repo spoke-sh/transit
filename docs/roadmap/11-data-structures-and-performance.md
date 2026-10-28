@@ -247,7 +247,7 @@ benchmark and Internals owners as implementation lands.
 
 ## Implementation plan for issue #194
 
-**Review status: accepted for phases A–E; implementation in progress.**
+**Review status: phases A–E implemented; scoped qualification recorded below.**
 Source inspection uses `e377f2945`, which includes
 [PR #193](https://github.com/spoke-sh/transit/pull/193). This plan proposes how to implement
 [issue #194](https://github.com/spoke-sh/transit/issues/194) through the existing
@@ -275,8 +275,11 @@ and workload obligations.
 
 The A–E implementation exposes `transit-memory` and `transit-io` as independently
 buildable libraries and adopts them in result, client, console, SQL session and
-gateway owners. Final committed-source qualification is in progress. Issue #194
-stays open for F–J; this checkpoint does not complete the broader milestone.
+gateway owners. The [executed qualification](../history/qualification/sql.md#admitted-result-memory-and-transport-reuse--2026-10-28)
+records the passing allocation, lifetime, protocol and recovery profiles and the
+remaining clean-lane/installed-startup failures. Issue #194 stays open for F–J;
+this checkpoint does not complete the broader milestone or establish a passing
+whole-repository qualification.
 
 | Area | Implemented scope | Qualification boundary |
 | --- | --- | --- |
@@ -296,7 +299,8 @@ constrain completion and delivery; they do not establish allocation behavior.
 
 The [paired codec gate](../../tests/performance/results/README.md) freezes a 5%
 median regression limit for native encode/decode and unchanged database-protocol
-controls. The executed five-pair comparison passed all eight cases; earlier
+controls. The [retained five-pair comparison](../history/qualification/performance.md#result-reserves-and-codec-costs--2026-10-28)
+passed all eight cases; earlier
 unmatched samples included a slower full-batch encoder and cannot establish a
 regression or speedup. Codec results exclude source, transport and storage work.
 Existing larger-batch first-output latency costs remain recorded in the

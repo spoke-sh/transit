@@ -9,6 +9,87 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Admitted result memory and transport reuse — 2026-10-28
+
+The completion branch builds on PR #198's reusable result, client and producer
+owners. Source `b0cfcdbe` includes process-wide OpenSSL storage, prestarted
+gateway workers, distinct-worker crypto cleanup, extended lifetime/failure
+schedules and the installed bootstrap correction. The rebase onto `69f1c67d3`
+changes documentation and diagnostic validation inputs; it preserves the runtime
+and probe inputs used by the allocation, codec, wire and native-session runs.
+The bootstrap correction is qualified separately below. The pinned environment
+is Linux x86_64 with Zig `0.17.0-dev.2267+48abf1a34`.
+
+The executed scopes are:
+
+- The client allocation gate passes in a clean checkout of pre-rebase
+  `293448483`: Unix and numeric IPv4 HTTP/HTTPS each execute 305 queries and
+  1,453 requests with four connection turnovers. A 16,384-row stream runs while
+  an independent 33-row wide window remains retained; an Arrow slice survives
+  100 other response-slot uses. Prepared calls, exact retry, response exhaustion,
+  cancellation and original-token settlement remain in the schedule. Every
+  profile reports zero backing allocation/growing-resize/remap attempts, zero
+  observed libc allocation calls and zero observed memory-acquisition events.
+  The deliberate bypass control records libc calls and three OS events. This
+  peer proves client semantics, not durable service acceptance.
+- The real-authority producer schedule passes 17 response allocation refusals,
+  15 byte-identical repeats, two recoveries after advancing to a new batch and
+  three revocations of buffered results. Independent values verify 70 rows in
+  32/32/6 batches, empty results and metadata. Existing lost-receipt, fenced
+  replacement and original-operation recovery assertions remain intact.
+- The required TLS gate passes 100 fresh connections for each PostgreSQL/MySQL
+  upgrade path, alternating TLS 1.2 and 1.3. Crypto peaks at 2,128,128 bytes in
+  its admitted 16 MiB reserve with zero backing growth. Worker-thread exchanges
+  and all 12 existing trust, framing and deadline cases pass. The separate
+  `transit-io` tests verify cleanup on four distinct workers before reserve
+  release; TLS allocator units cover failed reallocation, concurrent borrowers,
+  erasure and foreign initialization refusal.
+- The full independent wire-client schedule passes settings/reload, revocation,
+  retained write identity, certificate rotation, wide values, capacity,
+  cancellation and drain. Its first capacity run failed because client close
+  preceded server cleanup; the fixture now observes peer closure before beginning
+  the next capacity schedule. The eight normal and four authentication limits,
+  ninth-connection refusal and control-progress assertions are unchanged.
+- Native sessions pass KV, Document and Table result recovery after service
+  restart, byte-identical retries, pin/page refusal recovery, current denial of
+  buffered data/empty/metadata disclosures and console completion. All 38
+  standalone package checks, 18 generated-contract checks and the handbook
+  check/build also pass. The six-task clean formal lane passes at pre-rebase
+  `c04cb2377b83`; the result-model inputs are unchanged. These models do not
+  establish buffer lifetimes or allocation behavior.
+
+The [paired codec comparison](performance.md#result-reserves-and-codec-costs--2026-10-28)
+passes the predeclared 5% median limit in all eight cases and preserves its raw
+report, binary hashes and exact source reconstruction. It excludes service,
+transport and source/storage costs. The
+[coverage inventory](../../../tests/performance/allocations.json) identifies
+component-only and pending owners: hostname resolution, AccountRuntime work,
+source/authority/storage allocation and composed service OS attribution are not
+qualified by these passes. Reserved stacks and retained capacity are charged
+capacity, not measured RSS. No whole-service zero-allocation claim follows.
+
+Two broader runs remain failed or incomplete. The clean interfaces lane passes
+the expanded client allocation gate, then times out after 300 seconds while
+seeding the existing native gateway history, before the added producer cases.
+That failure does not establish a cause or qualify the rest of the lane. The
+installed SQL run first exposes `LocalTableMaintenanceRequiresOwner`: initial
+native-only bootstrap disabled flushing but left archive/compaction enabled.
+The launcher now defers all three policies until its existing Table-owner
+restart. A frozen installed executable reaches native health with that config,
+and enabling a physical policy without its owner still rejects. The full rerun
+then fails with `AuthorityTimeout` during association recovery before the SQL
+gateway starts. Its new assertion that all configured policies return after
+Table activation is not reached. No deadline, workload or owner check is relaxed.
+
+Local investigation logs are `/var/tmp/transit-completion-clean-interfaces.log`,
+`/var/tmp/transit-advanced-framing-proof.log`,
+`/var/tmp/transit-completion-required-tls.log`,
+`/var/tmp/transit-completion-wire-gateway-fixed.log`,
+`/var/tmp/transit-completion-native-sessions.log`,
+`/var/tmp/transit-completion-clean-formal.log` and
+`/var/tmp/transit-completion-installed-sql-fixed.log`. These are local records,
+not portable artifacts or a claim that all clean lanes pass at one revision.
+
 ## Transport-independent statement results — 2026-10-27
 
 The [result contract](../../../contracts/SQL_RESULTS_V1.md),
