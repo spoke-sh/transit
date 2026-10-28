@@ -9,6 +9,25 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Collection progress across clock failure — 2026-10-28
+
+At `aa8b68bae61281d108502899aabe952ce766b1e8`,
+`zig build test-local-catalog -Doptimize=ReleaseSafe --summary all` passes all
+six disk-backed local catalog/maintenance checks. The existing automatic
+collection schedule now makes the trusted clock fail while both native and
+direct collectors wait for reader grace, then removes the clock entirely.
+Neither case advances the accepted native position or either collection's
+persisted progress, and both known orphan objects remain present. Restoring the
+clock continues the existing revocation, regrant, reopen, fixed-target, eligible
+deletion and eventual-idle assertions. The six-minute grace is unchanged.
+
+The raw log is `.cache/milestone3/collection-clock-local-catalog.log`, SHA-256
+`75bc334572823d2eabf94a655b6f92a25a81e786d21b8668f4f20e88602928e6`.
+All 41 fast checks also pass. This exercises the local owner's controlled clock
+and durable progress, not a wall-clock process-death schedule or the complete
+installed failure/resource matrix. It does not close the broader maintenance
+qualification gate.
+
 ## Foreground reads during automatic Table flushing — 2026-10-28
 
 At clean source `4d778efa9ffc5a8ad3e012bcecee1cc9887621db`,
