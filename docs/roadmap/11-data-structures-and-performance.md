@@ -93,11 +93,14 @@ The current component benchmark inventory does not execute complete TPC suites.
    fallibility, multiplicity and any specified result ordering. `EXPLAIN` remains
    non-executing; observed execution counters come from a separately authorized,
    explicit execution.
-4. **Enforce LSM/segment compaction invariants, LeanStore/Umbra-inspired zero-copy buffer management, scan-resistant caching and fine-grained resource metering.**
+4. **Enforce LSM/segment compaction invariants, shared `TablePartition`/`StreamPartition`/`QueuePartition` `.tseg` + Roaring-bitmap structures, LeanStore/Umbra-inspired zero-copy buffer management, scan-resistant caching and fine-grained resource metering.**
    Specify and qualify leveled/size-tiered `.tseg` compaction policies that bound
-   the maximum number of overlapping `.tseg` runs per key range ($K_{\max}$) and
+   the maximum number of overlapping `.tseg` runs per key range ($K_{\max}$),
    trigger segment rewrite/merge when `.tdel` deletion-vector ratios exceed
-   configured thresholds, preventing point and range lookups from degrading to
+   configured thresholds, and reclaim sealed `QueuePartition` `.tseg` segments in
+   $O(1)$ once their `.tack` Roaring-bitmap state vectors mark all offsets
+   acknowledged ([Milestone 6](06-streams-queues-and-durable-runtime.md)),
+   preventing point and range lookups from degrading to
    $O(K \log N)$ across fragmented segments or accumulating unbounded tombstone
    overhead under update-heavy workloads. Coordinate with
    [branches](15-branches-merges-and-restore.md) so compaction accounts for

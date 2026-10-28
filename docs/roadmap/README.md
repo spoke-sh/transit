@@ -83,8 +83,8 @@ combines that evidence at one revision.
 | 2 | [Local durable storage, `.tseg` segments and bounded queries](02-storage-and-query-performance.md) | Completed ([#109](https://github.com/spoke-sh/transit/issues/109)) | Durable native local WAL/object storage across all owners, bounded segments/readers, logical history, codecs/collations and safe local publication |
 | 3 | [Executable data lifecycles and live storage/SQL cutover](03-live-storage-and-sql-cutover.md) | In Progress ([#110](https://github.com/spoke-sh/transit/issues/110); [implementation plan](03-live-storage-and-sql-cutover.md#implementation-plan--2026-10-27)) | Installed direct Table and named KV/Document/computation lifecycles, lazy `.tseg` schema projection, local storage/SQL wiring and exact restart recovery |
 | 4 | [SQL statement results and client consumption](04-statement-results-and-consumption.md#implementation-plan) | Completed | Formal transport-independent result model, shared client consumption, bounded batches/readers and verified completion |
-| 5 | [Transactions, consistent snapshots and atomic composition](05-transactions-and-atomic-composition.md) | Planned | Consistent reads, supported multi-object SQL/SDK transactions, savepoints, durable commit recovery and transactional outbox |
-| 6 | [Declarative streams, queues and durable runtime architecture](06-streams-queues-and-durable-runtime.md) | Planned | Database/SQL decoupled from `Station` turns, first-class `STREAM` (`PRODUCE INTO` / `CONSUME ... FROM`) and `QUEUE` (`ENQUEUE INTO` / `CLAIM ... FROM` / `ACK` / `NACK`) primitives over `TransitLog`/`.tseg` with Roaring-bitmap ack vectors and timer wheels, and `Station` re-architected over database primitives and transactions |
+| 5 | [Transactions, consistent snapshots and atomic composition](05-transactions-and-atomic-composition.md) | Planned | Consistent reads, supported multi-object SQL/SDK transactions, three-primitive commit envelope (state mutations/guards, `STREAM`/`QUEUE` log appends and `_lease_epoch`-guarded `QUEUE` `ACK` / `STREAM` `COMMIT OFFSET`), savepoints and durable commit recovery |
+| 6 | [Declarative streams, queues and durable runtime architecture](06-streams-queues-and-durable-runtime.md) | Planned | Database/SQL decoupled from `Station` turns (Step 1 pulled forward to close M3 P5), first-class `STREAM` (`PRODUCE INTO` / `CONSUME ... FROM` / `STREAM_SLICE`) and `QUEUE` (`ENQUEUE INTO` / `CLAIM ... FROM` / `ACK` / `NACK`) over shared `TablePartition`/`StreamPartition`/`QueuePartition` `.tseg` + `.tdel`/`.tack` Roaring bitmaps and timer wheels, and `Station` turns executed as standard M5 transactions |
 | 7 | [Shared client foundation and language-native APIs](07-client-foundation-and-language-apis.md) | Planned | Reusable data packages, bounded shared client infrastructure and idiomatic direct APIs before SDK expansion |
 | 8 | [Standards, collations and historical catalogs](08-standards-and-catalogs.md) | Planned | Capability evidence, declarative `CHECK`/`FOREIGN KEY` catalog bindings, collation-preserving history and exact retained catalog/data interpretation |
 | 9 | [Indexing model, access paths and online maintenance](09-indexing-and-access-paths.md) | Planned | Shared index definitions, bounded ordered/covering/partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement and recoverable online index/table builds |
@@ -191,43 +191,59 @@ lacking first-class `STREAM` and `QUEUE` database primitives. Inserting
 [Milestone 5](05-transactions-and-atomic-composition.md) shifts subsequent
 milestones to `7–31` and establishes three architectural foundations:
 
-1. **Decouple the database from the durable runtime (`transit-sql` $\perp$ `Station`):**
+1. **Decouple the database from the durable runtime (`transit-sql` $\perp$ `Station` — pulled forward to close [Milestone 3 P5](03-live-storage-and-sql-cutover.md#implementation-plan--2026-10-27) before [Milestone 5](05-transactions-and-atomic-composition.md) coordinator implementation):**
    Remove `Station` `GenServer`, `AccountRuntime`, `Ledger` and `Coordinator`
-   from `transit-sql`, `transit-sql-gateway` and `transit-query-host`. Move
-   client token idempotency (`(AccountId, ClientToken) -> OperationId, CommitLSN`),
-   snapshot cut acquisition and lease fencing directly into `DirectCatalog`,
-   `TablePartition` and [Milestone 5 transaction logs](05-transactions-and-atomic-composition.md)
+   from `transit-sql`, `transit-sql-gateway` and `transit-query-host` before
+   building [Milestone 5's](05-transactions-and-atomic-composition.md)
+   `BEGIN`/`COMMIT`/`ROLLBACK` coordinator so interactive transactions are never
+   layered on top of 16-turn actor ledgers. Move client token idempotency
+   (`(AccountId, ClientToken) -> OperationId, CommitLSN`), snapshot cut
+   acquisition and lease fencing directly into `DirectCatalog`, `TablePartition`
+   and [Milestone 5 transaction logs](05-transactions-and-atomic-composition.md)
    so single-partition SQL writes commit in one round-trip to `TransitLog`
    (`TWAL1`) and `SELECT` reads hot lease-cached partition state without writing
    per-query `ReadPins` to disk.
-2. **Elevate `STREAM` and `QUEUE` to first-class declarative catalog primitives with dedicated grammar and literature-backed storage:**
+2. **Elevate `STREAM` and `QUEUE` to first-class declarative catalog primitives with dedicated grammar and shared `TablePartition` / `StreamPartition` / `QueuePartition` storage:**
    Add `STREAM` and `QUEUE` alongside `TABLE`, `KV` and `DOCUMENT`, using
-   explicit workload-specific verbs decoupled from relational table syntax:
-   - **Streams (`CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `COMMIT OFFSET`):**
-     Partitioned append-only event logs over `TransitLog` (`TWAL1`) automatically
-     tiered to immutable `.tseg` segments in `TransitObjectStore`
-     ([Kafka](https://kafka.apache.org/) / [Pulsar](https://pulsar.apache.org/) /
-     [WarpStream](https://www.warpstream.com/) model), with zero-copy buffer-pool
-     tail reading and consumer-group watermark tracking.
+   explicit workload-specific verbs decoupled from relational table syntax and
+   sharing the `TWAL1` + `.tseg` + Roaring-bitmap engine in `transit-storage`:
+   - **Streams (`CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `COMMIT OFFSET` and read-only `STREAM_SLICE(...)`):**
+     `StreamPartition` stores partitioned append-only event logs over `TransitLog`
+     (`TWAL1`) automatically tiered to immutable `.tseg` segments in
+     `TransitObjectStore` ([Kafka](https://kafka.apache.org/) /
+     [Pulsar](https://pulsar.apache.org/) / [WarpStream](https://www.warpstream.com/)
+     model), with zero-copy buffer-pool tail reading and consumer-group watermark
+     tracking. Operational consumption uses `CONSUME ... FROM`, while side-effect-
+     free relational `SELECT` joins and bitemporal `AS OF JOIN` backtests in
+     [Milestone 10](10-sql-and-dataflows.md) read bounded historical `.tseg`
+     ranges through an explicit `STREAM_SLICE(stream, ...)` table-valued function.
    - **Queues (`CREATE QUEUE`, `ENQUEUE INTO`, `CLAIM ... FROM ... WITH LEASE`, `ACK`, `NACK`, `EXTEND LEASE`):**
-     Log-structured competing and `key_fifo` queues ([Kafka KIP-932 Share Groups](https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka),
-     [RocketMQ](https://rocketmq.apache.org/) and Pulsar `Key_Shared`) that store
-     payloads once in `TWAL1`/`.tseg` and track per-offset `Available`,
-     `Acquired`, `Acked` and `Archived/DLQ` states via compressed **Roaring
-     Bitmaps**, an in-memory fenced lease heap (`_lease_epoch`), a lock-free
-     `key_fifo` entity-key affinity table, and a **Hashed Hierarchical Timing
-     Wheel** (Varghese & Lauck, SOSP 1987) for `visible_at` delays and retry
-     backoff without B-tree page rewrite amplification.
-3. **Re-architect `Station` on top of declarative Queues, Streams, Tables/KV and Transactions:**
+     `QueuePartition` composes `StreamPartition`'s append-only `TWAL1`/`.tseg`
+     payload storage with a **`.tack` Roaring-bitmap state vector** (reusing the
+     exact `.tdel` bitmap machinery in `transit-storage` to track per-offset
+     `Available`, `Acquired`, `Acked` and `Archived/DLQ` states as compact `TWAL1`
+     delta frames and sealed sidecars, following
+     [Kafka KIP-932 Share Groups](https://cwiki.apache.org/confluence/display/KAFKA/KIP-932%3A+Queues+for+Kafka),
+     [RocketMQ](https://rocketmq.apache.org/) and Pulsar `Key_Shared`), an
+     in-memory fenced lease heap (`_lease_epoch`), a lock-free `key_fifo`
+     entity-key affinity table, and a **Hashed Hierarchical Timing Wheel**
+     (Varghese & Lauck, SOSP 1987) for `visible_at` delays and retry backoff
+     without B-tree page rewrite amplification.
+3. **Unify the [Milestone 5](05-transactions-and-atomic-composition.md) transaction commit envelope so a `Station` turn is simply a database transaction:**
    Following the virtual-actor and durable-execution literature
    ([Restate](https://restate.dev/), [Temporal](https://temporal.io/),
    [DBOS](https://www.dbos.dev/) and [Orleans](https://www.microsoft.com/en-us/research/project/orleans-virtual-actors/)),
-   a `Station` behavior's inbox is a declared `key_fifo` `QUEUE`, its state lives
+   [Milestone 5's](05-transactions-and-atomic-composition.md) commit envelope
+   natively supports three participant primitives from the outset:
+   `(1) TABLE/KV/DOCUMENT state mutations and conflict guards`,
+   `(2) STREAM PRODUCE / QUEUE ENQUEUE log appends`, and
+   `(3) _lease_epoch-guarded QUEUE ACK / STREAM COMMIT OFFSET settlements`.
+   A `Station` behavior's inbox is a declared `key_fifo` `QUEUE`, its state lives
    in declared `TABLE`/`KV`/`DOCUMENT` objects (retiring the 256-byte value and
    4-mutation per-turn limits of `STATE_V1`), its replay journal and effect
    outbox are declared `STREAM`s/`QUEUE`s, and each handler turn commits atomically
-   as a single [Milestone 5 transaction](05-transactions-and-atomic-composition.md)
-   without external `courier` polling.
+   as a standard [Milestone 5 transaction](05-transactions-and-atomic-composition.md)
+   with zero bespoke actor turn-commit protocol or external `courier` polling.
 
 ## Fine-grained resource control, vectorized text, perfect hashing and data-centric compilation review — 2026-10-27
 

@@ -256,36 +256,49 @@ direction across the [data model](docs/handbook/reference/data-model.md),
 claim that `CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `CREATE QUEUE`,
 `ENQUEUE INTO`, or `CLAIM ... FROM` already exist in current builds.
 
-- **Decouple `transit-sql` and the database from `Station` actor turns:**
-  Do not route SQL DDL/DML admission, idempotency token deduplication, or
-  snapshot pins through `Station` `GenServer` actors or `STATE_V1` 256-byte KV
-  turns. Enforce client operation idempotency (`(AccountId, ClientToken) -> OperationId, CommitLSN`),
+- **Decouple `transit-sql` and the database from `Station` actor turns before building interactive transactions:**
+  Do not route SQL DDL/DML admission, idempotency token deduplication, snapshot
+  pins, or [Milestone 5](docs/roadmap/05-transactions-and-atomic-composition.md)
+  `BEGIN`/`COMMIT`/`ROLLBACK` coordination through `Station` `GenServer` actors
+  (`AccountRuntime`, `Ledger`) or `STATE_V1` 256-byte KV turns. Enforce client
+  operation idempotency (`(AccountId, ClientToken) -> OperationId, CommitLSN`),
   snapshot cuts, and `policy_epoch` lease fencing directly in `DirectCatalog`,
   `TablePartition`, and the transaction log so single-partition writes commit in
   one round-trip to `TransitLog` (`TWAL1`) and `SELECT` reads hot lease-cached
   partition state.
-- **First-class declarative `STREAM` and `QUEUE` primitives with dedicated grammar:**
+- **First-class declarative `STREAM` and `QUEUE` primitives with dedicated grammar and shared `TablePartition` / `StreamPartition` / `QueuePartition` storage:**
   Elevate `STREAM` and `QUEUE` to catalog-declared data primitives alongside
   `TABLE`, `KV`, and `DOCUMENT`, using explicit workload verbs decoupled from
-  relational table `INSERT`/`SELECT` syntax:
-  - **Streams (`CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `COMMIT OFFSET`):**
-    Append-only, partitioned, schema-bound event logs over `TransitLog` (`TWAL1`)
-    automatically tiered to `.tseg` segments in `TransitObjectStore` with
-    zero-copy buffer-pool tail reads and consumer-group watermark tracking.
+  relational table `INSERT`/`SELECT` syntax and sharing the `.tseg` + Roaring-
+  bitmap engine in `transit-storage`:
+  - **Streams (`CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `COMMIT OFFSET` and read-only `STREAM_SLICE(...)`):**
+    `StreamPartition` stores append-only, partitioned, schema-bound event logs
+    over `TransitLog` (`TWAL1`) automatically tiered to `.tseg` segments in
+    `TransitObjectStore` with zero-copy buffer-pool tail reads and consumer-group
+    watermark tracking. Keep stateful stream consumption (`CONSUME ... FROM`)
+    distinct from side-effect-free relational queries over historical stream
+    segments (`SELECT ... FROM STREAM_SLICE(...)`).
   - **Queues (`CREATE QUEUE`, `ENQUEUE INTO`, `CLAIM ... FROM ... WITH LEASE`, `ACK`, `NACK`, `EXTEND LEASE`):**
-    Log-structured competing and `key_fifo` queues storing payloads once in
-    `TWAL1`/`.tseg` and tracking per-offset `Available`, `Acquired`, `Acked`, and
-    `Archived/DLQ` states via compressed Roaring Bitmaps, an in-memory fenced
-    lease heap (`_lease_epoch`), a lock-free `key_fifo` entity-key affinity
-    table, and a Hashed Hierarchical Timing Wheel for `visible_at` delays and
-    retry backoff without B-tree page rewrite amplification.
-- **Re-architect `Station` on top of Queues, Streams, Tables/KV and Transactions:**
-  Model a `Station` behavior's inbox as a declared `key_fifo` `QUEUE`, its state
-  as declared `TABLE`/`KV`/`DOCUMENT` objects (without 256-byte value or 4-key
-  mutation ceilings), and its replay journal and effect outbox as declared
-  `STREAM`s/`QUEUE`s, committing inbox lease `ACK`s, state mutations, and
-  outbound `PRODUCE`/`ENQUEUE` intents atomically in a single database
-  transaction without external `courier` polling.
+    `QueuePartition` composes `StreamPartition`'s append-only `TWAL1`/`.tseg`
+    payload storage with a `.tack` Roaring-bitmap state vector (sharing `.tdel`'s
+    Roaring bitmap implementation to track per-offset `Available`, `Acquired`,
+    `Acked`, and `Archived/DLQ` states and reclaim fully acked `.tseg` segments
+    in $O(1)$), an in-memory fenced lease heap (`_lease_epoch`), a lock-free
+    `key_fifo` entity-key affinity table, and a Hashed Hierarchical Timing Wheel
+    for `visible_at` delays and retry backoff without B-tree page rewrite
+    amplification.
+- **Unify the transaction commit envelope so a `Station` turn is simply a database transaction:**
+  Include three native participant primitives in [Milestone 5's](docs/roadmap/05-transactions-and-atomic-composition.md)
+  transaction commit envelope from the start: `(1) TABLE/KV/DOCUMENT state
+  mutations and conflict guards`, `(2) STREAM PRODUCE / QUEUE ENQUEUE log
+  appends`, and `(3) _lease_epoch-guarded QUEUE ACK / STREAM COMMIT OFFSET
+  settlements`. Model a `Station` behavior's inbox as a declared `key_fifo`
+  `QUEUE`, its state as declared `TABLE`/`KV`/`DOCUMENT` objects (without
+  256-byte value or 4-key mutation ceilings), and its replay journal and effect
+  outbox as declared `STREAM`s/`QUEUE`s, committing inbox lease `ACK`s, state
+  mutations, and outbound `PRODUCE`/`ENQUEUE` intents atomically in a single
+  standard transaction with zero bespoke turn-commit protocol or external
+  `courier` polling.
 
 ### Resource control, vectorized strings, perfect hashing and data-centric compilation: future implementation direction
 

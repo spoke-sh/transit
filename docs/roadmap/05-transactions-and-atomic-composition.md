@@ -15,11 +15,16 @@ Follow [statement results](04-statement-results-and-consumption.md), the
 [storage foundation](02-storage-and-query-performance.md). Resolve atomic-domain,
 isolation and snapshot contracts with [data lifecycle](01-declarative-data-lifecycle.md)
 and #125/#111 before dependent persistent formats; the delivery position does
-not defer those decisions. Coordinate stream/queue outbox, consumer-checkpoint
-and durable-runtime turn composition with
-[declarative streams, queues and durable runtime](06-streams-queues-and-durable-runtime.md)
-and client contracts with the
-[early programming foundation](07-client-foundation-and-language-apis.md).
+not defer those decisions. Pull forward **Step 1 of
+[declarative streams, queues and durable runtime](06-streams-queues-and-durable-runtime.md)**
+(`transit-sql` $\perp$ `Station` decoupling) before implementing this milestone's
+transaction coordinator so `BEGIN`/`COMMIT`/`ROLLBACK` and autocommit SQL statements
+build directly on `DirectCatalog`, `TablePartition` and `TransitLog` (`TWAL1`)
+rather than layering over `Station` [`AccountRuntime.zig`](../../packages/zig/transit-sql/src/AccountRuntime.zig)
+or [`Ledger.zig`](../../packages/zig/transit-sql/src/Ledger.zig). Coordinate
+stream/queue outbox, consumer-checkpoint and durable-runtime turn composition
+with [Milestone 6](06-streams-queues-and-durable-runtime.md) and client contracts
+with the [early programming foundation](07-client-foundation-and-language-apis.md).
 
 At source `7f9343cc`, the [SQL reference](../handbook/reference/sql.md) and
 [session contract](../../contracts/SQL_SESSION_V1.md) do not offer interactive
@@ -107,10 +112,19 @@ executable syntax or implemented transaction support.
    orphan collection and backpressure without deleting accepted history. Recheck
    current access on reads, buffered disclosure and commit; an old snapshot never
    preserves old privileges.
-4. **Establish atomic publication and decision recovery.** Specify the
-   linearization point, participant preparation/durability, visible commit cut,
-   contiguous history and original outcome receipts. No participant's staged
-   data becomes visible before the common decision. A single coordination-log
+4. **Establish atomic publication, participant primitives and decision recovery.**
+   Specify the linearization point, participant preparation/durability, visible
+   commit cut, contiguous history and original outcome receipts. Structure the
+   transaction commit envelope around **three native participant primitives** from
+   the outset:
+   1. **State mutations and conflict guards** (`TABLE`, `KV` and `DOCUMENT` writes
+      plus read/predicate/version guards),
+   2. **Log appends** (`STREAM` `PRODUCE INTO` and `QUEUE` `ENQUEUE INTO` records,
+      including `visible_at` and `dedup_key`), and
+   3. **Consumer and lease settlements** (`QUEUE` `ACK` guarded by `_lease_epoch`
+      and `STREAM` `COMMIT OFFSET`).
+   No participant's staged data, appended records or lease settlements become
+   visible before the common decision. A single coordination-log
    record is insufficient without participant/object availability and recovery
    rules; avoid a global realm CAS for every unrelated write. Recover interrupted
    decisions, fence former coordinators/writers and preserve policy ordering.
@@ -129,16 +143,17 @@ executable syntax or implemented transaction support.
    [connector](../handbook/reference/connectors.md) intent/attempt/capture and
    uncertainty rules, secret references and network-free replay. Branches and
    restored history must not silently activate old intents. Preserve native
-   one-KV-resource turns: direct writes inside a handler remain independent unless
-   an explicitly extended owning contract qualifies composition. Define when a
-   durable consumer's checkpoint and mutations share this domain; otherwise
-   expose separately recoverable steps. [Milestone 6](06-streams-queues-and-durable-runtime.md)
-   decouples `transit-sql` from `Station` actor turns, introduces first-class
-   declarative `STREAM` (`PRODUCE INTO` / `CONSUME ... FROM`) and `QUEUE`
-   (`ENQUEUE INTO` / `CLAIM ... FROM` / `ACK` / `NACK`) primitives, and
-   re-architects `Station` turns to commit inbox Queue lease `ACK`s, Table/KV/Document
-   state mutations and outbox `PRODUCE`/`ENQUEUE` intents atomically over this
-   transaction foundation. Do not automatically rerun application
+   one-KV-resource turns until cutover: direct writes inside a handler remain
+   independent unless an explicitly extended owning contract qualifies composition.
+   Define when a durable consumer's checkpoint and mutations share this domain;
+   otherwise expose separately recoverable steps. Because Step 4's commit envelope
+   natively unifies state mutations/guards, `STREAM`/`QUEUE` log appends and
+   `_lease_epoch`-guarded `QUEUE` `ACK` / `STREAM` `COMMIT OFFSET` settlements,
+   **a `Station` actor or workflow turn in [Milestone 6](06-streams-queues-and-durable-runtime.md)
+   requires zero bespoke turn-commit protocol**: it executes as a standard
+   transaction combining `(3) ACK inbox queue lease under _lease_epoch` +
+   `(1) mutate Table/KV/Document state` + `(2) PRODUCE/ENQUEUE outbound messages
+   and connector effect intents`. Do not automatically rerun application
    callbacks containing arbitrary I/O after a conflict or uncertain commit.
 6. **Deliver shared callers and the current-v1 cutover.** Put execution and
    decision recovery in the owning service and reusable submission/settlement in
