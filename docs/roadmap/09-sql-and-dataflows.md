@@ -90,7 +90,10 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   with cycle detection and explicit work budgets) and set operations (`UNION [ALL]`,
   `INTERSECT`, `EXCEPT`); **Rich Aggregates** (`AVG`, `MIN`, `MAX`, `STDDEV`,
   exact and approximate quantiles/`PERCENTILE_CONT`, `ARRAY_AGG`/`STRING_AGG`);
-  temporal/interval arithmetic; and **deterministic, resource-bounded scalar and
+  temporal/interval arithmetic; **compile-time (`comptime`) and plan-bound
+  perfect-hash lookup tables** for SQL keywords and constant `WHERE col IN (...)`
+  string literal sets (paired with 16-byte SIMD vector comparisons inside the
+  `Batch` arena); and **deterministic, resource-bounded scalar and
   table User-Defined Functions (UDFs)** (SQL expression macros and sandboxed
   in-engine Wasm UDFs executing directly over vectorized `Fuze` column batches
   without round-tripping through `128 KiB` `Station` actor mailboxes). Preserve

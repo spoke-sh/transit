@@ -52,14 +52,20 @@ The current component benchmark inventory does not execute complete TPC suites.
    as the durable-work boundary. Publish baseline gaps and failed/unexecuted cases
    alongside wins. Benchmarks and focused improvements begin in earlier milestones;
    this owner expands and compares them at a common local revision.
-2. **Evaluate and deliver physical structures against their real lifetimes.**
+2. **Evaluate and deliver physical structures and zero-steady-state-allocation hot paths against their real lifetimes.**
    Use the candidate matrix below, maintaining a simple independent oracle and
    matched baseline for each replacement. Preserve collation, five-state errors,
    stable row/version identity, current authorization and atomic publication.
-   Separate short-lived working state from immutable retained/checkpoint state.
-   Qualify allocation failure, resize/split/merge, reclamation and restart before
-   reporting a faster replacement. Keep CPU cache-line layout, storage pages,
-   execution vectors and wire/display batches independently budgeted.
+   Separate short-lived working state from immutable retained/checkpoint state,
+   and enforce **explicit `scratch` versus `output` allocator discipline**:
+   pre-allocate worker, partition and batch slabs/arenas and reset `scratch`
+   workspaces with `.retain_capacity` so steady-state hot loops (ingestion,
+   `.tseg` flush, point/range lookups, vectorized scans and wire batching) perform
+   zero OS/heap allocations after warmup, verified by counting-allocator unit
+   gates. Qualify allocation failure, resize/split/merge, reclamation and restart
+   before reporting a faster replacement. Keep 64-byte CPU cache-line alignment,
+   L1d/L2 working-set residency, storage pages, execution vectors and wire/display
+   batches independently budgeted.
 3. **Deliver statistics, physical plan selection, partitioning and clustering layouts.**
    Maintain bounded, inspectable statistics with source/definition provenance:
    row/distinct counts, histograms/distributions, relevant correlations, declared
@@ -81,7 +87,7 @@ The current component benchmark inventory does not execute complete TPC suites.
    Rewrites preserve checked arithmetic, fallibility, multiplicity and any
    specified result ordering. `EXPLAIN` remains non-executing; observed execution
    counters come from a separately authorized, explicit execution.
-4. **Enforce LSM/segment compaction invariants, `.tdel` read-amplification bounds and scan-resistant caching.**
+4. **Enforce LSM/segment compaction invariants, `.tdel` read-amplification bounds, scan-resistant caching and fine-grained resource metering.**
    Specify and qualify leveled/size-tiered `.tseg` compaction policies that bound
    the maximum number of overlapping `.tseg` runs per key range ($K_{\max}$) and
    trigger segment rewrite/merge when `.tdel` deletion-vector ratios exceed
@@ -93,18 +99,27 @@ The current component benchmark inventory does not execute complete TPC suites.
    NVMe segment cache with **scan-resistant eviction** (such as 2Q, ARC or
    W-TinyLFU) and **I/O token-bucket pacing** so sequential analytical scans,
    bulk imports, online index builds and background compactions cannot evict hot
-   OLTP index/memtable pages or saturate disk bandwidth.
+   OLTP index/memtable pages or saturate disk bandwidth. Pair cache and I/O
+   pacing with **fine-grained per-query and per-tenant resource metering**—chaining
+   a hierarchical `MeteredAllocator` vtable for exact byte accounting with
+   per-`Batch` morsel CPU cycle/tick charging and storage range-read/write IOPS
+   counters—so queries exceeding their memory budget deterministically spill to
+   Tier 2 NVMe or fail with a typed budget error rather than OOM-crashing the
+   process, providing the local enforcement substrate for
+   [Hierarchical Workload Management (WLM)](19-control-and-policy-plane.md).
 5. **Optimize the durable runtime and shared client path.** Measure admission,
    WAL append/sync, mailbox selection, dispatch/wakeup, turn commit, checkpoint,
    recovery and result delivery separately. Evaluate batching/group commit,
-   allocation/copy reduction, queue/scheduler layout, worker-local caches and
-   contention removal while preserving accepted identity, ordering, fairness,
-   fencing and input/state/output atomicity. Specify acknowledgement timing for
-   group commit; delayed persistence cannot masquerade as durable acceptance.
-   Bound active work and reserve control/recovery capacity under overload. Direct
-   data access stays independent of actor mailbox limits when no actor logic is
-   invoked. In-process rates are separate from durable disk and installed caller
-   rates; effect replay never dispatches to improve a score.
+   allocation/copy reduction, `comptime` perfect hashing with 16-byte SIMD string
+   comparisons for SQL lexing and wire-protocol header/parameter dispatch,
+   queue/scheduler layout, worker-local caches and contention removal while
+   preserving accepted identity, ordering, fairness, fencing and input/state/output
+   atomicity. Specify acknowledgement timing for group commit; delayed persistence
+   cannot masquerade as durable acceptance. Bound active work and reserve
+   control/recovery capacity under overload. Direct data access stays independent
+   of actor mailbox limits when no actor logic is invoked. In-process rates are
+   separate from durable disk and installed caller rates; effect replay never
+   dispatches to improve a score.
 6. **Qualify selected implementations and maintain regression gates.** Run mixed
    database/runtime load with background index builds, flush, compaction and
    maintained computations. Establish sustained throughput at declared tail-
@@ -119,13 +134,13 @@ The current component benchmark inventory does not execute complete TPC suites.
 | Work and candidate | Evidence required before selection |
 | --- | --- |
 | Hot ordered indexes: cache-conscious B/B+ trees, adaptive radix trees, compact prefixes, SIMD and batched probes | Point/range/mixed-write workloads, composite and collated keys, collision/full-key checks, version visibility, contention, allocation failure and memory reclamation under growth and shrink |
-| Immutable indexes: paged prefix trees, sparse directories and segment-level routing | Actual index depth, candidate segments, range requests and bytes fetched under cold/warm caches, projected columns, compaction and retained snapshots; no universal one/two-read claim |
+| Immutable indexes: paged prefix trees, sparse directories, per-segment minimal perfect hashing / association tables and segment-level routing | Actual index depth, single-probe equality versus binary-search cost, candidate segments, range requests and bytes fetched under cold/warm caches, projected columns, compaction and retained snapshots; no universal one/two-read claim |
 | Membership filters: cardinality-sized conventional or split-block Bloom filters | False-positive rate, bits per distinct key, hash/collation consistency, filter loading/build cost and net I/O avoided across skew and saturation; no false negatives |
 | Deletion and candidate sets: sparse arrays, dense bitmaps and Roaring-style containers | Sparse/dense/run-heavy distributions, intersection/union cost, version/deletion correctness, conversion and resident/storage overhead |
 | Join, window, temporal and aggregation working state: Swiss-style or Robin-Hood hashing, partitioned arenas, streaming `AS OF` merge and external NVMe spill | Key skew, collisions, bounded resize, larger-than-RAM execution (grace/hybrid hash join, external merge sort, window-frame spill), deterministic error behavior and checkpoint/recovery composition; an ephemeral hash table does not replace durable ordered roots by itself |
 | Compaction, partitioning, clustering and scan-resistant caching: leveled/tiered `.tseg` mergers, Z-order/Hilbert clustering keys and 2Q/ARC/W-TinyLFU caches | Overlapping-run bounds ($K_{\max}$), `.tdel` tombstone reclamation, multi-attribute segment pruning ratios, $O(1)$ partition-drop retention, OLTP cache hit-rate preservation during concurrent sequential scans and background I/O pacing |
-| Vector and encoded execution: compact strings, dictionary-aware kernels, late materialization and batching | Independent encoded/decoded oracles, CPU portability, allocation/copy counts and end-to-end gains over required storage codecs; no universal zero-copy assumption |
-| Runtime dispatch and coordination: bounded queues, scheduler/wakeup structures and batching | Durable completion latency/throughput, contention, starvation controls, overload/backpressure, recovery capacity and caller cancellation/uncertainty under mixed load |
+| Vector, string and encoded execution: 16-byte collation-prefixed inline strings ("German Strings"), compressed-domain `.dictionary`/`.fsst` kernels, `comptime`/immutable perfect hashing with 16-byte SIMD string comparisons, late materialization and batching | Independent encoded/decoded oracles, collation sort-prefix fidelity (`utf8_binary`, `ascii_ci`, `ebcdic_cp037`), trailing buffer padding guarantees (16–64 bytes) for branchless SIMD loads, CPU portability, allocation/copy counts and end-to-end gains over required storage codecs; no universal zero-copy assumption |
+| Runtime dispatch, zero-steady-state-allocation slabs and resource metering: pre-allocated `scratch`/`output` arenas, hierarchical `MeteredAllocator` vtables, per-`Batch` morsel CPU/IOPS accounting, bounded queues and scheduler/wakeup structures | Zero steady-state heap allocations after warmup under counting-allocator gates, deterministic Tier 2 NVMe spill or typed budget refusal on exhaustion, durable completion latency/throughput, contention, starvation controls, overload/backpressure, recovery capacity and caller cancellation/uncertainty under mixed load |
 
 [BBTree](https://github.com/XiangpengHao/bbtree) and its
 [design discussion](https://blog.xiangpeng.systems/posts/bbtree/) are named
@@ -143,8 +158,20 @@ provides sizing guidance; a 256-bit block is an implementation unit, not a fixed
 budget for every row group or a guaranteed false-positive rate.
 [Swiss-table design notes](https://abseil.io/about/design/swisstables) inform
 working-state comparisons; they do not supply Transit's durable publication,
-snapshot or ordered-iteration contract. Keep upstream algorithms and license
-attribution separate from evidence for the selected Zig implementation.
+snapshot or ordered-iteration contract.
+[ConstexprCore/perfect_hash](https://github.com/ConstexprCore/perfect_hash)
+informs greedy association-table perfect hashing (`slot = (len + asso[key[i]] + asso[key[j]]) & mask`)
+and 16-byte SIMD shuffle-masked string comparisons for `comptime` keyword/header
+tables and immutable `.tseg` dictionary or `IN (...)` literal sets; wide SIMD
+loads must either operate on internal buffers with guaranteed 16–64 byte trailing
+padding or guard 4 KiB page boundaries explicitly.
+[Egres's resource-control architecture](https://manishrjain.com/egres/) informs
+per-query and per-tenant CPU tick, disk IOPS and Zig allocator byte metering;
+Transit binds those meters to `Fuze` batch morsels, Tier 2 NVMe spill thresholds
+and [Milestone 19's](19-control-and-policy-plane.md) Hierarchical Workload
+Management (WLM) without replacing durable acceptance or authority boundaries.
+Keep upstream algorithms and license attribution separate from evidence for the
+selected Zig implementation.
 
 ## Workload scorecard and completion evidence
 

@@ -47,11 +47,21 @@ streaming CDC ingestion and import/export costs.
    keep search and AI/agent retrieval inside Transit's data gravity, `SnapshotId`
    cuts, branches and `policy_epoch` governance rather than forcing exports to
    external search or vector engines:
-   - **Inverted Full-Text Indexes (BM25):** build immutable inverted-index segments
-     (tokenized term dictionaries, Roaring-bitmap/posting lists, positional/field
-     weights and BM25 length-normalized scoring) over Table text columns and
-     Document blocks, respecting declared collations/analyzers, `.tdel` deletion
-     vectors and online snapshot-to-tail maintenance.
+   - **Inverted Full-Text Indexes (BM25) and Fully-Vectorized Search Execution:**
+     build immutable inverted-index segments over Table text columns and Document
+     blocks, respecting declared collations/analyzers, `.tdel` deletion vectors
+     and online snapshot-to-tail maintenance. Taking architectural inspiration from
+     [turbopuffer's fully-vectorized search engine](https://turbopuffer.com/blog/fully-vectorized-search-engine),
+     partition posting lists into fixed-size **256-document posting blocks**
+     aligned with `.tseg` row-group granularity (using SIMD-bitpacked doc-ID deltas
+     and term frequencies) paired with **block-max BM25 impact weights** (`max_tf`,
+     `min_doc_len` upper bounds acting as zone maps for posting blocks). Evaluate
+     multi-term lexical queries through a **vectorized `MAXSCORE` / Block-Max WAND**
+     operator in `Fuze` that skips entire 256-doc blocks unable to beat the current
+     top-$k$ threshold, intersects surviving blocks directly with relational
+     predicate bitmasks and `.tdel` deletion vectors in SIMD registers, and uses
+     late materialization so text/document payloads are decoded only for surviving
+     top-$k$ hits.
    - **Vector Similarity and Hybrid Search:** support fixed-dimension vector/embedding
      columns in `.tseg` with exact SIMD distance kernels (`L2`, cosine, inner
      product) and bounded disk-backed quantized/graph ANN index segments (such as

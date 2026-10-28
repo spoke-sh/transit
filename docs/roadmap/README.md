@@ -93,8 +93,8 @@ combines that evidence at one revision.
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
 | 9 | [Managed computations and WAL-activated dataflows](09-sql-and-dataflows.md) | Planned | Complete analytical SQL (window functions, CTEs, subqueries, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress and WAL-driven managed computations |
-| 10 | [Data structures, query optimization and runtime performance](10-data-structures-and-performance.md) | Planned | Measured structures, statistics/costing, declarative partitioning/clustering keys, LSM/`.tseg` compaction bounds, scan-resistant caching and comparative workload scorecards |
-| 11 | [Multi-model and multi-format foreign relations](11-multi-model-and-foreign-relations.md) | Planned | Document/graph projections, native BM25 full-text and vector/hybrid search, foreign formats, streaming CDC ingress and typed COPY/import/export |
+| 10 | [Data structures, query optimization and runtime performance](10-data-structures-and-performance.md) | Planned | Zero-steady-state-allocation hot paths, per-morsel CPU/memory/IOPS metering, 16B collation-prefixed strings, perfect hashing, statistics/costing, partitioning/clustering, LSM/`.tseg` compaction bounds, scan-resistant caching and workload scorecards |
+| 11 | [Multi-model and multi-format foreign relations](11-multi-model-and-foreign-relations.md) | Planned | Document/graph projections, vectorized block-max BM25 full-text and vector/hybrid search, foreign formats, streaming CDC ingress and typed COPY/import/export |
 | 12 | [Branches, merges and restore](12-branches-merges-and-restore.md) | Planned | Durable multi-commit branches, logical three-way merge with `FOREIGN KEY`/`CHECK` verification, branch-aware compaction/GC and forward restore under current authority |
 | 13 | [Service and SDK coverage](13-service-and-sdk-coverage.md) | In Progress | Preserved Go raw/console slices and broader service, language, type and platform coverage over the shared API foundation |
 | 14 | [Formal semantics and implementation correspondence](14-formal-semantics-and-correspondence.md) | Planned | Selected temporal models and algebraic proofs over delivered local contracts, connected to production behavior before distributed extensions |
@@ -156,8 +156,8 @@ evidence rather than assuming every preceding number is a technical dependency.
 | I | Retain exact data interpretation | 7 | Qualify historical catalog/data bindings, declarative `CHECK`/`FOREIGN KEY` constraints, lazy `.tseg` schema projection, collation and encoding fidelity, current permissions and explicit capability evidence over the earlier snapshot contracts |
 | I | Declare and maintain indexes | 8 | Qualify ordered, covering and partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement, online index/table build recovery and snapshot-specific coverage through shared callers |
 | II | Maintain declared computations | 9 | Qualify complete analytical SQL (windows, CTEs, subqueries, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress, service-owned activation, complete-commit change consumption, bounded operator state and recovered completed revisions |
-| II | Optimize database and runtime work | 10 | Establish workload/competitor baselines and numeric budgets, compare structures, deliver statistics/planning, partitioning/clustering keys, LSM/`.tseg` compaction bounds, scan-resistant caching and runtime improvements, and pass installed correctness/resource/performance gates |
-| II | Compose data models and history | 11–12 | Qualify foreign COPY/projections, streaming CDC ingress, native BM25 full-text and vector/hybrid search, multi-commit branches, branch-aware compaction/GC and conditional forward publication with `FOREIGN KEY`/uniqueness/constraint evidence and measured costs |
+| II | Optimize database and runtime work | 10 | Establish workload/competitor baselines and numeric budgets, deliver zero-steady-state-allocation hot-path arenas, per-morsel CPU/memory/IOPS metering, 16B collation-prefixed strings, `comptime`/immutable perfect hashing, statistics/planning, partitioning/clustering keys, LSM/`.tseg` compaction bounds and scan-resistant caching, and pass installed correctness/resource/performance gates |
+| II | Compose data models and history | 11–12 | Qualify foreign COPY/projections, streaming CDC ingress, vectorized block-max BM25 full-text and vector/hybrid search, multi-commit branches, branch-aware compaction/GC and conditional forward publication with `FOREIGN KEY`/uniqueness/constraint evidence and measured costs |
 | II | Expand qualified interfaces | 13 | Extend the language/service/platform matrix over the existing foundation; preserve delivered Go raw and console evidence and reject unsupported transaction/feed profiles |
 | II | Establish formal semantics and correspondence | 14 | Select settled local contracts, execute temporal/algebraic checks with implementation replay or independent fixtures, challenge them with negative controls and assign later extensions |
 | III | Qualify distributed infrastructure | 15–18 | Real providers, KMS/BYOK envelope encryption at rest and writer fencing/fine-grained distributed SSI, then replication, backup/PITR/upgrade procedures and automatic placement/distributed queries; repeat transaction and native-owner recovery across each failure profile |
@@ -172,6 +172,66 @@ Track first-three-milestone acceptance and explicitly transferred scope through
 this sequence; retain original diagnoses, delivered evidence and incomplete
 checks. #123 corrects current documentation as implementation changes, and #124
 owns traceable installed acceptance. No planning edit changes their runtime status.
+
+## Fine-grained resource control, vectorized text and perfect-hashing review — 2026-10-27
+
+A performance-architecture review of Zig resource control, first-class text
+execution and compile-time/immutable lookup structures refines the scope of the
+existing storage, indexing, query-optimization, search and workload-management
+milestones without changing milestone numbers or statuses:
+
+1. **Zero steady-state heap allocation on hot paths and fine-grained per-morsel resource metering:**
+   Rather than fixed total-cardinality static arrays that would violate Transit's
+   paged durable-state model, hot paths target zero steady-state OS/heap allocations
+   after warmup by pairing pre-allocated subsystem slabs with explicit `scratch`
+   (reset per step/page with `.retain_capacity`) and `output` arenas.
+   [Milestone 3](03-live-storage-and-sql-cutover.md) (P5) and
+   [Milestone 4](04-statement-results-and-consumption.md) replace per-row
+   `OwnedRow` arena churn on storage/SQL read paths with batch-reused arenas and
+   borrowed verified slices; [Milestone 10](10-data-structures-and-performance.md)
+   enforces counting-allocator regression gates, 64-byte cache-line alignment and
+   L1d/L2 working-set budgets across `Fuze` vectors and `.tseg` pages. Taking
+   inspiration from [Egres](https://manishrjain.com/egres/),
+   [Milestone 10](10-data-structures-and-performance.md) and
+   [Milestone 19](19-control-and-policy-plane.md) chain a hierarchical
+   `MeteredAllocator` vtable with per-`Batch` morsel CPU cycle/tick and storage
+   IOPS/byte accounting so runaway queries deterministically spill to Tier 2 NVMe
+   or return a typed budget refusal at batch boundaries without noisy-neighbor
+   starvation or process-wide OOMs.
+2. **First-class strings and fully-vectorized block-max BM25 search:**
+   [Milestone 10](10-data-structures-and-performance.md) upgrades `Fuze` string
+   columns to 16-byte inline "German Strings"
+   (`[len: u32][collation_sort_prefix: 4B][inline_or_offset: 8B]`), storing a
+   4-byte collation-normalized sort prefix (`utf8_binary`, `ascii_ci` or
+   `ebcdic_cp037`) so equality, range, `ORDER BY` and join probes resolve most
+   comparisons in 64-bit integer/SIMD registers before dereferencing out-of-line
+   bytes, alongside compressed-domain string kernels pushing `=`, `IN (...)` and
+   prefix/substring predicates directly into `.dictionary` codes and `.fsst` symbol
+   tables. Taking architectural inspiration from
+   [turbopuffer's fully-vectorized search engine](https://turbopuffer.com/blog/fully-vectorized-search-engine),
+   [Milestone 11](11-multi-model-and-foreign-relations.md) structures `.tseg`
+   inverted full-text indexes into 256-document bitpacked posting blocks aligned
+   with `.tseg` row groups and equipped with block-max BM25 impact weights
+   (`max_tf`, `min_doc_len` upper bounds), evaluated via vectorized `MAXSCORE` /
+   Block-Max WAND operators in `Fuze` that prune non-competitive blocks, intersect
+   relational and `.tdel` bitmasks in SIMD registers, and defer payload decoding
+   through late materialization.
+3. **Compile-time (`comptime`) and immutable-artifact perfect hashing with wide SIMD string comparisons:**
+   Applying the greedy association-table perfect-hash construction
+   (`slot = (len + asso[key[i]] + asso[key[j]]) & mask`) and branchless 16-byte
+   SIMD vector comparison from
+   [ConstexprCore/perfect_hash](https://github.com/ConstexprCore/perfect_hash),
+   [Milestone 9](09-sql-and-dataflows.md) and
+   [Milestone 10](10-data-structures-and-performance.md) evaluate pure-Zig
+   `comptime` perfect hash maps for SQL lexer/DDL keywords and wire-protocol
+   headers/settings, plus runtime-frozen perfect hash tables for compiled SQL
+   `WHERE col IN (...)` literal lists, immutable `TableSchema` column-name
+   bindings, and sealed `.tseg` dictionary pages and primary-key directories
+   ([Milestone 8](08-indexing-and-access-paths.md) /
+   [Milestone 10](10-data-structures-and-performance.md)). By guaranteeing 16–64
+   bytes of trailing zero-padding on `.tseg` page buffers and `Batch` arenas,
+   internal string comparisons can execute unconditional 16-byte `@Vector(16, u8)`
+   loads and shuffle masks without 4 KiB page-boundary branches.
 
 ## Enterprise database and governance review — 2026-10-25
 

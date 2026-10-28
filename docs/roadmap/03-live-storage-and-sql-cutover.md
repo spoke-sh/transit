@@ -586,9 +586,12 @@ Owners: local Table service/catalog, direct query readers, shared SQL service,
   replacement. Eviction closes only volatile state; it cannot release a durable
   pin or lose pending work. Current permission checks remain per disclosure.
 - [ ] P5.3 Qualify live point/range/projected/filter/relational reads across WAL,
-  flushed and compacted data with small caches and spill limits. Preserve
-  skipped-row coverage, original error positions, empty pages, LIMIT, owned
-  buffers, cancellation, incomplete prefixes and post-buffer revocation.
+  flushed and compacted data with small caches and spill limits. Replace per-row
+  `OwnedRow` arena initialization on hot read pages with page- or batch-scoped
+  reusable arenas (`reset(.retain_capacity)`) and borrowed verified slices where
+  lifetimes permit, preserving skipped-row coverage, original error positions,
+  empty pages, LIMIT, owned buffers, cancellation, incomplete prefixes and
+  post-buffer revocation.
   Measure the existing eight-row direct page bound before proposing a change;
   widening a constant alone is not an access-path improvement.
 - [ ] P5.4 Complete or explicitly resolve keep-armed query-host waiting. Keep

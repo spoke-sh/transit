@@ -68,14 +68,18 @@ does not supply a portable cross-vendor indexing grammar.
    acceleration index from a constraint-owned index: dropping or rebuilding the
    physical structure cannot silently remove a uniqueness guarantee. Define
    permitted combinations and reject unsupported ones before accepting work.
-2. **Deliver bounded ordered access over hot and immutable data.** Implement
-   single-column and composite primary/secondary equality and range access,
-   nonunique entries and constraint-backed unique indexes in the supported local
-   transaction domain. Bind entries to stable row/version identities, including
-   keyless Tables, and qualify MVCC visibility and deletion handling. Evaluate
-   mutable ordered structures separately from paged immutable layouts. Support
-   separately published secondary-index objects where appropriate so adding an
-   index need not rewrite base data. Specify manifest references and compaction
+2. **Deliver bounded ordered and exact-match access over hot and immutable data.**
+   Implement single-column and composite primary/secondary equality and range
+   access, nonunique entries and constraint-backed unique indexes in the
+   supported local transaction domain. Bind entries to stable row/version
+   identities, including keyless Tables, and qualify MVCC visibility and
+   deletion handling. Evaluate mutable ordered structures separately from paged
+   immutable layouts, and evaluate per-segment or per-row-group minimal perfect
+   hash / compact association-table equality directories sealed at `.tseg` flush
+   time alongside sorted primary-key directories and column dictionaries so
+   point lookups and dictionary ID resolution avoid binary-search branch
+   mispredictions. Support separately published secondary-index objects where
+   appropriate so adding an index need not rewrite base data. Specify manifest references and compaction
    remapping; do not freeze a `.tidx` format or BBTree node layout by name alone.
    Bound candidate-segment discovery, index pages, row fetches, batches and
    resident memory. Report overlapping-segment costs and cold/warm I/O; a fast
