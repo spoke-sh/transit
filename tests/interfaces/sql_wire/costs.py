@@ -1,9 +1,14 @@
 """Native/provider attempt attribution through the existing bounded HTTP probe."""
+from contextlib import ExitStack
 import json
+import os
+import socket
 import time
 
 import psycopg
 import mysql.connector
+
+from interfaces.sql_wire.lifecycle import close_observed
 
 
 def run(postgres,mysql_options,native,probe):
@@ -15,7 +20,16 @@ def run(postgres,mysql_options,native,probe):
         elapsed=round((time.perf_counter_ns()-start)/1e6,3)
         after=probe.snapshot()
         observations.append(dict(path=name,elapsed_ms=elapsed,counters=dict(after-before)))
-    with psycopg.connect(**postgres) as pg, mysql.connector.connect(**mysql_options) as my:
+    with ExitStack() as cleanup, psycopg.connect(**postgres) as pg, mysql.connector.connect(**mysql_options) as my:
+        # Retain descriptors solely to join peer closure after both client
+        # contexts finish. A returned close() does not release the server's
+        # authenticated slot or finish clearing its session reserve.
+        peers = [cleanup.enter_context(socket.socket(fileno=os.dup(descriptor)))
+                 for descriptor in (pg.pgconn.socket, my._socket.sock.fileno())]
+        # This stack exits after the client contexts, preserving their normal
+        # transaction and protocol teardown before observing EOF.
+        for peer in peers:
+            cleanup.callback(close_observed, peer.fileno(), lambda: None)
         text=my.cursor()
         prepared=my.cursor(prepared=True)
         sample('idle_100ms',lambda:time.sleep(.1))
