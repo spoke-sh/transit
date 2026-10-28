@@ -69,10 +69,20 @@ and filesystem metadata. Kernel child block-I/O counters have their separate
 whole-process scope. A lower Table replay count does not bypass WAL startup
 validation or establish constant-time restart.
 
-Allocation measurements count backing-allocator requests and simultaneous live
-bytes, including arena backing slack. Each phase records the allocations already
-live at its start; its peak is total tracked live bytes, not an incremental delta.
-They exclude stack, allocator metadata, `std.Io` internals and the kernel cache.
+Allocation measurements use the shared `transit-memory` `AllocationProbe` around
+the allocator supplied to the storage owners. Each phase's `backing` object
+records allocation, resize and remap attempts and successes, growing resize
+attempts, frees, requested growth bytes, acquired bytes and released bytes.
+Failed requests and retries remain visible. `allocations` counts successful
+alloc calls; `allocated_bytes` includes successful allocation and resize/remap
+growth. Neither is an attempt count. Validators require complete counters,
+consistent totals and balanced live bytes.
+
+Each phase records the allocations already live at its start; its peak is total
+tracked live bytes, including arena backing slack, not an incremental delta.
+These probes are unsealed measurement intervals; they do not enforce a
+zero-allocation budget. They exclude stack, allocator metadata, allocations
+through other allocators (including `std.Io` internals), libc/OS and the kernel cache.
 Executable `VmHWM` supplies whole-process peak RSS. Separate `wait4` RSS includes
 the launcher's inherited pre-exec image. The 2 GiB virtual address-space ceiling
 is not an RSS or cache limit. These fixture sizes exceed configured owner caches;

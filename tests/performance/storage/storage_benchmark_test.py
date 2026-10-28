@@ -10,6 +10,13 @@ import performance.storage.storage_ingest_benchmark as ingestion
 import storage.local.storage_growth as growth
 
 
+def allocation_counts(acquired, released):
+    return dict(alloc_attempts=1, alloc_successes=1, resize_attempts=0, resize_successes=0,
+                growing_resize_attempts=0, remap_attempts=0, remap_successes=0,
+                frees=1, requested_bytes=acquired, acquired_bytes=acquired,
+                released_bytes=released, forbidden_attempts=0)
+
+
 class CacheConditions(unittest.TestCase):
     def test_transient_conditioning_is_recorded_before_exact_success(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -39,6 +46,7 @@ class CacheConditions(unittest.TestCase):
 class Reports(unittest.TestCase):
     def sample(self):
         phase = dict(elapsed_ns=100, peak_live_bytes=16, baseline_live_bytes=0,
+                     allocations=1, allocated_bytes=16, backing=allocation_counts(16, 16),
                      end_live_bytes=0, counters=dict(wal_appends=0, object_puts=0,
                                                    table_replay_frames=0, inventory_wal_appends=0,
                                                    inventory_wal_bytes=0, inventory_wal_syncs=0,
@@ -96,6 +104,43 @@ class Reports(unittest.TestCase):
         with self.assertRaises(ValueError):
             driver.summary(samples, 31)
 
+    def test_failed_attempts_and_in_place_growth_remain_visible(self):
+        sample = self.sample()
+        phase = sample['record']['phases'][-1]
+        # One successful 8-byte allocation, one failed 40-byte request, one
+        # failed 8-byte resize, then a successful 8-byte remap and a final free.
+        phase['backing'].update(alloc_attempts=2, resize_attempts=1, growing_resize_attempts=1,
+                                remap_attempts=1, remap_successes=1, requested_bytes=64)
+        self.validate(sample)
+        self.assertEqual(1, phase['allocations'])
+        self.assertEqual(16, phase['allocated_bytes'])
+
+    def test_missing_or_impossible_allocation_accounting_rejects(self):
+        original = self.sample()
+        for name in original['record']['phases'][0]['backing']:
+            for value in (None, -1, True):
+                bad = copy.deepcopy(original)
+                counts = bad['record']['phases'][0]['backing']
+                if value is None:
+                    del counts[name]
+                else:
+                    counts[name] = value
+                with self.subTest(name=name, value=value), self.assertRaises(ValueError):
+                    self.validate(bad)
+        for name, value in [('alloc_successes', 2), ('resize_successes', 1), ('remap_successes', 1),
+                            ('growing_resize_attempts', 1), ('requested_bytes', 15),
+                            ('released_bytes', 17), ('forbidden_attempts', 1)]:
+            bad = copy.deepcopy(original)
+            bad['record']['phases'][0]['backing'][name] = value
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.validate(bad)
+        for name, value in [('allocations', 0), ('allocated_bytes', 17), ('peak_live_bytes', 17),
+                            ('baseline_live_bytes', -1), ('end_live_bytes', 1), ('backing', None)]:
+            bad = copy.deepcopy(original)
+            bad['record']['phases'][0][name] = value
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.validate(bad)
+
 
 class IngestionReports(unittest.TestCase):
     def sample(self, owner='table', operation='ingest'):
@@ -108,6 +153,7 @@ class IngestionReports(unittest.TestCase):
         for name in names:
             appends = 2 if name == 'prepare' else 1 if name in ('commit', 'ingest') else 0
             phases.append(dict(name=name, elapsed_ns=100, baseline_live_bytes=10, end_live_bytes=20,
+                               allocations=1, allocated_bytes=20, backing=allocation_counts(20, 10),
                                peak_live_bytes=30, counters=dict(wal_appends=appends, wal_syncs=appends, object_puts=appends,
                                    inventory_wal_appends=appends if owner == 'native' else 0,
                                    inventory_wal_bytes=appends * 512 if owner == 'native' else 0,
@@ -133,7 +179,7 @@ class IngestionReports(unittest.TestCase):
 
     def test_durable_phase_and_timer_attribution(self):
         for owner in ('table', 'native'):
-            for change in ('missing', 'append', 'sync', 'timer', 'memory'):
+            for change in ('missing', 'append', 'sync', 'timer', 'memory', 'backing'):
                 bad = self.sample(owner)
                 phase = bad['record']['phases'][-1]
                 if change == 'missing':
@@ -144,6 +190,8 @@ class IngestionReports(unittest.TestCase):
                     phase['counters']['wal_syncs'] = 0
                 elif change == 'timer':
                     phase['wal_append_ns'] = 101
+                elif change == 'backing':
+                    del phase['backing']
                 else:
                     phase['peak_live_bytes'] = 1
                 with self.subTest(owner=owner, change=change), self.assertRaises(ValueError):
@@ -219,6 +267,10 @@ class GrowthReports(unittest.TestCase):
                 bad['record']['phases'][-1][field] = value
                 with self.assertRaises(ValueError):
                     growth.validate(bad, owner, 32, 'verify', limit)
+            bad = copy.deepcopy(original)
+            del bad['record']['phases'][-1]['backing']
+            with self.assertRaises(ValueError):
+                growth.validate(bad, owner, 32, 'verify', limit)
             bad = copy.deepcopy(original)
             bad['record']['phases'][-1]['counters']['wal_appends'] = 1
             with self.assertRaises(ValueError):
