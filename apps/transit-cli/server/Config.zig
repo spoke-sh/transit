@@ -129,7 +129,7 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
     };
     if (self.query.statement_timeout_ceiling != 0 and (self.query.statement_timeout == 0 or self.query.statement_timeout > self.query.statement_timeout_ceiling)) return diagnostic.invalidField("query.statement_timeout", "must not exceed the configured ceiling", null);
     if (self.version != 1) return diagnostic.invalidField("version", "must be 1", null);
-    if (@import("builtin").os.tag != .linux) return diagnostic.invalidField("platform", "must be Linux x86_64", null);
+    if (@import("builtin").os.tag != .linux) return diagnostic.invalidField("platform", "must be Linux", null);
     {
         var board = self.board orelse Board{};
         inline for (@typeInfo(Ports).@"struct".field_names) |name| if (board.port == @field(self.ports, name)) return diagnostic.invalidField("board.port and ports." ++ name, "must be different", null);

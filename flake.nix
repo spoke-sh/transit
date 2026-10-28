@@ -83,7 +83,10 @@
             ;
         }
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
-          inherit (toolchains.${system}) transit-local transit-release minio;
+          inherit (toolchains.${system}) transit-local minio;
+        }
+        // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-linux" system) {
+          inherit (toolchains.${system}) transit-release;
         }
       );
 

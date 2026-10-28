@@ -17,7 +17,8 @@ while [ "$#" -gt 0 ]; do
 done
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64) platform=linux-x86_64 ;;
-  *) fail 'release executables currently support Linux x86_64; macOS and Windows require runtime portability work' ;;
+  Linux:aarch64|Linux:arm64) platform=linux-aarch64 ;;
+  *) fail 'release executables support Linux x86_64 and ARM64; macOS and Windows require runtime portability work' ;;
 esac
 for tool in tar sha256sum awk mktemp readlink; do
   command -v "$tool" >/dev/null 2>&1 || fail "$tool is required"

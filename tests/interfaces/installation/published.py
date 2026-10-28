@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import platform
 import re
 import subprocess
 import tempfile
@@ -54,7 +55,8 @@ def run(version, revision, artifacts=None):
         identity = subprocess.check_output([str(prefix / 'bin/transit'), '--version'],
                                            cwd=root, env={'PATH': '/unavailable'}, text=True).strip()
         assert identity == f'Transit {version} (git {revision}; CLI contract 1)', identity
-        for name, expected in manifest['binaries'].items():
+        binaries = manifest.get('platforms', {}).get(platform.machine(), manifest)['binaries']
+        for name, expected in binaries.items():
             actual = hashlib.sha256((prefix / 'bin' / name).read_bytes()).hexdigest()
             assert actual == expected['sha256'], name
         runtime(prefix)

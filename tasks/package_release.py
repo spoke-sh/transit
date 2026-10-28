@@ -5,6 +5,7 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
+import platform
 import shutil
 import subprocess
 import tarfile
@@ -36,6 +37,9 @@ def archive(source, destination, prefix, epoch):
 
 
 def package(prefix, output):
+    architecture = platform.machine()
+    if platform.system() != 'Linux' or architecture not in ('x86_64', 'aarch64'):
+        raise ValueError('release packaging requires its native Linux x86_64/ARM64 runner')
     version = (ROOT / 'VERSION').read_text().strip()
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     if subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT):
@@ -50,7 +54,7 @@ def package(prefix, output):
     epoch = int(subprocess.check_output(['git', 'show', '-s', '--format=%ct', 'HEAD'], cwd=ROOT))
     definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
     manifest = dict(version=1, release=version, source_revision=revision, definition=definition,
-                    target='x86_64-linux-musl', optimize='ReleaseSafe', source_date_epoch=epoch,
+                    target=f'{architecture}-linux-musl', optimize='ReleaseSafe', source_date_epoch=epoch,
                     flake_lock_sha256=sha256(ROOT / 'flake.lock'), binaries={})
     with tempfile.TemporaryDirectory(prefix='transit-package-') as temporary:
         stage = Path(temporary) / 'bundle'
@@ -66,7 +70,7 @@ def package(prefix, output):
         shutil.copytree(prefix / 'share/transit/notices', stage / 'notices')
         shutil.copy2(ROOT / 'transit.yaml.example', stage / 'transit.yaml.example')
         (stage / 'build-info.json').write_text(json.dumps(manifest, indent=2) + '\n')
-        name = f'transit-{version}-linux-x86_64'
+        name = f'transit-{version}-linux-{architecture}'
         archive(stage, output / f'{name}.tar.gz', name, epoch)
         # Helm's ordinary archive carries checkout mtimes. Normalize its tar/gzip
         # metadata so retries can compare bytes before touching registry tags.

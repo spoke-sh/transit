@@ -9,7 +9,7 @@ existing installation.
 ## Artifacts and platforms
 
 The [release workflow](../../../.github/workflows/release.yml) builds a static
-Linux x86_64 bundle using the pinned Zig compiler, musl and OpenSSL 3.6.4. Its
+Linux x86_64 and ARM64 bundles using the pinned Zig compiler, musl and OpenSSL 3.6.4. Its
 executables do not require Nix or host shared libraries. The archive includes
 `transit` with embedded Board assets, `transit-admin`, `transit-node`,
 `transit-query-host`, `transit-board`, `transit-delivery` and
@@ -17,7 +17,7 @@ executables do not require Nix or host shared libraries. The archive includes
 
 | Distribution | Location for a published version |
 | --- | --- |
-| Executables | GitHub Release asset `transit-<version>-linux-x86_64.tar.gz` |
+| Executables | GitHub Release asset `transit-<version>-linux-x86_64.tar.gz` and `transit-<version>-linux-aarch64.tar.gz` |
 | Integrity and identity | `SHA256SUMS` and `release-manifest.json` on the same GitHub Release |
 | Local server container | `ghcr.io/spoke-sh/transit:<version>` |
 | Standalone component containers | `ghcr.io/spoke-sh/transit-node:<version>`, with the same naming rule for the other bundled executables |
@@ -25,8 +25,9 @@ executables do not require Nix or host shared libraries. The archive includes
 
 macOS and Windows executables are not produced. The local supervisor requires
 Linux process groups and parent-death signals; console editing requires Linux
-terminal/inotify APIs, and the authority clock uses Linux `adjtimex`. Other Linux
-architectures require separate build and installed-runtime qualification.
+terminal/inotify APIs, and the authority clock uses Linux `adjtimex`. Container images and native SDK packages target x86_64. Both executable
+architectures have native build and installed-runtime jobs; additional Linux
+architectures require separate qualification.
 The Substrate runtime-controller image needs its pinned provider CLI and remains
 outside this artifact set.
 
@@ -77,7 +78,7 @@ curl --proto '=https' --tlsv1.2 -fsSL \
 
 Assets become available only after that tag's publication succeeds. A source
 checkout or workflow dry run does not create a public release. The installer
-requires Linux x86_64, `curl`, `tar`, `sha256sum` and ordinary POSIX utilities.
+requires Linux x86_64 or ARM64, `curl`, `tar`, `sha256sum` and ordinary POSIX utilities.
 Checksums detect corrupted downloads; they share the release host's trust.
 
 For an offline installation, download the archive, `SHA256SUMS` and `install.sh`
