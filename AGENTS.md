@@ -242,31 +242,36 @@ Start from the [SQL session contract](contracts/SQL_SESSION_V1.md),
   Until then, keep adapters to current APIs small and preserve their guarantees;
   do not introduce a competing console-only result protocol.
 
-### Resource control, vectorized strings and lookup tables: future implementation direction
+### Resource control, vectorized strings, perfect hashing and data-centric compilation: future implementation direction
 
 Design storage, query and protocol hot paths for predictable CPU cache residency,
-zero steady-state heap allocation after warmup, and first-class string/text
-execution. This is architectural direction across the
+zero steady-state heap allocation after warmup, first-class string/text execution
+and data-centric pipeline fusion. This is architectural direction across the
 [storage runtime](docs/handbook/internals/storage-runtime.md) and
 [query engine](docs/handbook/internals/query-engine.md), not a claim that a
-hierarchical `MeteredAllocator`, 16-byte string vector layout, or vectorized
-BM25 operator already exists in current builds.
+hierarchical `MeteredAllocator`, 16-byte string vector layout, vectorized BM25
+operator, or AOT query compiler already exists in current builds.
 
-- **Zero steady-state heap allocation and per-morsel resource metering:**
+- **Zero steady-state heap allocation, per-morsel resource metering and LeanStore/Umbra buffer management:**
   Pre-allocate subsystem slabs and page/batch buffers at initialization and pass
   explicit `scratch` (reset per page, batch, or turn with `.retain_capacity` or
   `FixedBufferAllocator`) and `output` arenas through hot loops. Gate hot-path
   operators with counting-allocator regression tests verifying zero OS/heap
-  allocations after warmup. Bound active memory, CPU cycles/ticks and storage
-  IOPS/bytes at `Batch` morsel boundaries so queries exceeding their budget
-  deterministically spill to Tier 2 NVMe scratch or fail with a typed budget
-  refusal without starving concurrent tenants or triggering process-wide OOMs.
-- **Cache-line-aligned vectors, 16-byte collation-prefixed strings and vectorized search:**
+  allocations after warmup. In `NvmeCache` and RAM buffer pools, verify chunk
+  checksums once upon admission/load into variable size-class page slabs
+  ($64\text{ KiB}, 128\text{ KiB}, 256\text{ KiB}, \dots$) and expose swizzled or
+  optimistically version-latched zero-copy slices with lock-free cooling eviction
+  rather than re-hashing or `@memcpy`-ing on every read hit. Bound active memory,
+  CPU cycles/ticks and storage IOPS/bytes at `Batch` morsel boundaries so queries
+  exceeding their budget deterministically spill to Tier 2 NVMe scratch or fail
+  with a typed budget refusal without starving concurrent tenants or triggering
+  process-wide OOMs.
+- **Cache-line-aligned vectors, 16-byte Umbra/German collation-prefixed strings and vectorized search:**
   Keep `.tseg` page buffers, column vectors (`Batch`) and selection/validity
   bitmasks 64-byte cache-line aligned and sized so active operator state fits in
-  L1d/L2 cache. Evolve variable-length string vectors toward 16-byte inline
-  headers (`[len: u32][collation_sort_prefix: 4B][inline_or_offset: 8B]`) whose
-  4-byte prefix stores the declared collation's normalized sort key
+  L1d/L2 cache. Evolve variable-length string vectors toward 16-byte Umbra/German
+  inline headers (`[len: u32][collation_sort_prefix: 4B][inline_or_offset: 8B]`)
+  whose 4-byte prefix stores the declared collation's normalized sort key
   (`UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`), allowing equality, range,
   `ORDER BY` and join probes to filter or short-circuit in registers before
   touching out-of-line payloads. Push string equality, `IN (...)` and prefix
@@ -284,6 +289,21 @@ BM25 operator already exists in current builds.
   directories. Guarantee 16–64 bytes of trailing zero-padding on `.tseg` page
   buffers and `Batch` arenas so internal `@Vector(16, u8)` SIMD string
   comparisons execute unconditionally without 4 KiB page-boundary checks.
+- **Data-centric pipeline fusion, Flying-Start adaptive tier-up and AOT query compilation:**
+  Combine vectorized `Batch` morsels (for SIMD scans and software-prefetched
+  `@prefetch` CedarDB-style directory-tagged hash-join probes) with HyPer/Umbra
+  data-centric push pipelines inside each morsel so multi-atom predicates,
+  checked arithmetic, projections and aggregate accumulators stay in registers
+  without materializing intermediate `scratch` arrays per AST node. Dispatch
+  between a branchless Dense Non-Null Fast Path (`null_count == 0` and empty
+  `.tdel`) and the Five-State Tagged General Path per `.tseg` row group while
+  preserving ordered failure frontiers. Start ad-hoc SQL at $0\,\mu\text{s}$
+  compile latency via `comptime` fused superinstruction dispatch ("Flying Start")
+  and tier up mid-query at a `Batch` morsel boundary to Copy-and-Patch machine
+  stencils only when the runtime morsel CPU tick/row counter crosses a threshold
+  (no runtime LLVM dependency), while extending `transit-app` to compile declared
+  application queries, views and Zig UDFs ahead of time into schema-monomorphized
+  Zig modules.
 
 ## Documentation and validation
 

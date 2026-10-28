@@ -226,7 +226,7 @@ Here, formalization means explicit types, state transitions, invariants and the
 mapping from communication behavior to those semantics. A TLA+ model checker is
 not a substitute for that domain abstraction. Broader temporal model checking and
 refinement proofs remain candidates for
-[milestone 14](14-formal-semantics-and-correspondence.md), after these contracts
+[milestone 16](16-formal-semantics-and-correspondence.md), after these contracts
 settle; they are not a new prerequisite for this delivery. The correspondence
 checks above establish their tested schedules, not a proof of arbitrary network
 histories, allocator correctness, authorization services or storage behavior.

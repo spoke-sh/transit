@@ -75,7 +75,7 @@ executable syntax or implemented transaction support.
    participant guards for the first local Table profile. Because whole-Table
    read conflict detection aborts concurrent read-write transactions touching
    disjoint keys on the same Table, [indexing and access paths](08-indexing-and-access-paths.md)
-   and [concurrent-writer qualification](15-storage-providers-and-concurrency.md)
+   and [concurrent-writer qualification](17-storage-providers-and-concurrency.md)
    explicitly own the progression to fine-grained key-range and predicate-level
    Serializable Snapshot Isolation (SSI / index-range conflict tracking) over the
    same transaction session and recovery contract; neither can weaken the
@@ -165,20 +165,20 @@ parent/child foreign-key histories in later qualification.
 [dataflows](09-sql-and-dataflows.md) consume complete transaction changes without
 publishing half a multi-object update. General `MERGE`/upsert and prepared-plan
 features stay with SQL composition; this milestone owns their transaction
-interactions. [Foreign relations](11-multi-model-and-foreign-relations.md) owns
+interactions. [Foreign relations](13-multi-model-and-foreign-relations.md) owns
 typed `COPY`/import/export and its adapters. Foreign observations are not
 automatically transactional participants, and exporting bytes cannot be undone
 by local rollback.
 
-[Branches](12-branches-merges-and-restore.md) own multi-commit histories, merge
-validation and forward restore. [Investigations](20-published-resources-and-investigations.md)
+[Branches](14-branches-merges-and-restore.md) own multi-commit histories, merge
+validation and forward restore. [Investigations](22-published-resources-and-investigations.md)
 own retained multi-call bases, including honestly independent source vectors.
 Neither requires keeping an interactive transaction open for hours or days.
 
 The first qualified deployment is an explicitly bounded atomic domain over the
-local foundations. [Provider/concurrent-writer qualification](15-storage-providers-and-concurrency.md),
-[replication](16-replication-and-failover.md), [operations](17-operations-and-recovery.md)
-and [clustered execution](18-clustered-execution.md) extend and requalify decision
+local foundations. [Provider/concurrent-writer qualification](17-storage-providers-and-concurrency.md),
+[replication](18-replication-and-failover.md), [operations](19-operations-and-recovery.md)
+and [clustered execution](20-clustered-execution.md) extend and requalify decision
 durability, fencing and placement. Design all experiences together without
 claiming arbitrary distributed atomicity before those profiles execute.
 

@@ -1,4 +1,4 @@
-# 11. Multi-model and multi-format foreign relations
+# 13. Multi-model and multi-format foreign relations
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -26,48 +26,44 @@ participants in a native atomic commit.
 ## Delivery sequence
 
 Reuse [index identities, maintenance and coverage](08-indexing-and-access-paths.md)
+and [first-class strings and vectorized search](11-vectorized-strings-and-search.md)
 for graph adjacency, admitted document projections, **segment-backed Full-Text
-Search (BM25)** and **Vector / Hybrid Search**. Qualify each specialized
-key/predicate, scoring/distance function and source-refresh profile; ordered index
-support alone does not deliver inverted full-text, document-path or vector search
-without the dedicated segment layouts and recall/exactness contracts below. External
-statistics and indexes must match the captured manifest and comparison semantics.
-Extend the [performance scorecard](10-data-structures-and-performance.md) with
-actual foreign decoding, pruning, graph multiplicity, full-text/vector retrieval,
-streaming CDC ingestion and import/export costs.
+Search (BM25)** and **Vector / Hybrid Search** across Tables, Documents and
+foreign projections. Qualify each specialized key/predicate, scoring/distance
+function and source-refresh profile; ordered index support alone does not deliver
+inverted full-text, document-path or vector search without the dedicated segment
+layouts and recall/exactness contracts below. External statistics and indexes
+must match the captured manifest and comparison semantics. Extend the
+[performance scorecard](10-data-structures-and-performance.md) and
+[string/search scorecard](11-vectorized-strings-and-search.md) with actual
+foreign decoding, pruning, graph multiplicity, multi-model full-text/vector
+retrieval, streaming CDC ingestion and import/export costs.
 
 1. **Define explicit Document-to-SQL and richer multi-model projections with stable identities:**
    specify `missing`/`null`/`conflict`/`type_error` and arithmetic overflow
    behavior with no implicit conflict winner or silent default value.
 2. **Map finite property graphs over existing resources:** lower fixed-pattern
-   SQL/PGQ through graph-aware `Fuze` operators over `.tseg` adjacency/edge
-   indexes, preserving parallel edges, self-loops, endpoint validity and
-   multiplicity.
-3. **Deliver native segment-backed Full-Text Search (BM25) and Vector / Hybrid Retrieval over Tables and Documents:**
-   keep search and AI/agent retrieval inside Transit's data gravity, `SnapshotId`
-   cuts, branches and `policy_epoch` governance rather than forcing exports to
-   external search or vector engines:
-   - **Inverted Full-Text Indexes (BM25) and Fully-Vectorized Search Execution:**
-     build immutable inverted-index segments over Table text columns and Document
-     blocks, respecting declared collations/analyzers, `.tdel` deletion vectors
-     and online snapshot-to-tail maintenance. Taking architectural inspiration from
-     [turbopuffer's fully-vectorized search engine](https://turbopuffer.com/blog/fully-vectorized-search-engine),
-     partition posting lists into fixed-size **256-document posting blocks**
-     aligned with `.tseg` row-group granularity (using SIMD-bitpacked doc-ID deltas
-     and term frequencies) paired with **block-max BM25 impact weights** (`max_tf`,
-     `min_doc_len` upper bounds acting as zone maps for posting blocks). Evaluate
-     multi-term lexical queries through a **vectorized `MAXSCORE` / Block-Max WAND**
-     operator in `Fuze` that skips entire 256-doc blocks unable to beat the current
-     top-$k$ threshold, intersects surviving blocks directly with relational
-     predicate bitmasks and `.tdel` deletion vectors in SIMD registers, and uses
-     late materialization so text/document payloads are decoded only for surviving
-     top-$k$ hits.
-   - **Vector Similarity and Hybrid Search:** support fixed-dimension vector/embedding
-     columns in `.tseg` with exact SIMD distance kernels (`L2`, cosine, inner
-     product) and bounded disk-backed quantized/graph ANN index segments (such as
-     DiskANN/HNSW with explicit exact-oracle recall reporting), composable with
-     relational predicates, temporal `AS OF` cuts, security-barrier RLS and BM25
-     lexical scores in a single hybrid query plan.
+   SQL/PGQ through graph-aware `Fuze` operators and
+   [Milestone 10's](10-data-structures-and-performance.md) Diamond-Hardened /
+   Worst-Case Optimal Joins (WCOJ) over `.tseg` adjacency/edge indexes so
+   triangle and cyclic graph patterns avoid quadratic intermediate blowups while
+   preserving parallel edges, self-loops, endpoint validity and multiplicity.
+3. **Compose segment-backed Full-Text Search (BM25) and Vector / Hybrid Retrieval across Tables, Documents and Graph projections:**
+   build on [Milestone 11's](11-vectorized-strings-and-search.md) 256-document
+   Block-Max BM25 posting blocks, vectorized `MAXSCORE` / Block-Max WAND
+   operators and ANN vector indexes to keep multi-model search and AI/agent
+   retrieval inside Transit's data gravity, `SnapshotId` cuts, branches and
+   `policy_epoch` governance:
+   - **Document and Multi-Model Inverted Indexes (BM25):** extend `.tseg`
+     inverted-index segments over Document blocks and projected JSON/structured
+     paths, respecting declared collations/analyzers, `.tdel` deletion vectors,
+     online snapshot-to-tail maintenance, SIMD bitmask intersection with
+     relational/graph predicates and late materialization.
+   - **Multi-Model Vector Similarity and Hybrid Search:** compose fixed-dimension
+     vector/embedding columns and disk-backed quantized/graph ANN index segments
+     (such as DiskANN/HNSW with explicit exact-oracle recall reporting) across
+     Table, Document and Graph queries with temporal `AS OF` cuts,
+     security-barrier RLS and BM25 lexical scores in a single hybrid query plan.
 4. **Implement multi-format `FOREIGN TABLE` and `COPY` readers over POSIX and `TransitObjectStore` (S3/GCS/R2):**
    - **Analytical columnar formats (`PARQUET`, `ARROW_IPC`):** use qualified
      borrowed layouts or bounded decoding for column chunks/dictionaries, with

@@ -84,12 +84,15 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
 - **Deliver the complete analytical and relational SQL surface in Fuze:** expand
   beyond two-table equijoins to multi-way joins ($>2$ tables), non-equi/range
   joins, `SEMI` (`EXISTS`/`IN`), `ANTI` (`NOT EXISTS`) and `LATERAL` joins with
-  correlated subquery decorrelation; **Window Functions** (`OVER (PARTITION BY ...
-  ORDER BY ... ROWS/RANGE/GROUPS BETWEEN ...)`), ranking/lag/lead/frame functions
-  and `QUALIFY`; **Common Table Expressions** (`WITH` and bounded `WITH RECURSIVE`
-  with cycle detection and explicit work budgets) and set operations (`UNION [ALL]`,
-  `INTERSECT`, `EXCEPT`); **Rich Aggregates** (`AVG`, `MIN`, `MAX`, `STDDEV`,
-  exact and approximate quantiles/`PERCENTILE_CONT`, `ARRAY_AGG`/`STRING_AGG`);
+  universal dependent-join (`D-Join`) correlated subquery unnesting (Neumann &
+  Kemper, BTW 2015) so arbitrary correlated subqueries lower algebraically to
+  set-oriented hash or merge joins rather than $O(N \times M)$ nested loops;
+  **Window Functions** (`OVER (PARTITION BY ... ORDER BY ... ROWS/RANGE/GROUPS
+  BETWEEN ...)`), ranking/lag/lead/frame functions and `QUALIFY`; **Common Table
+  Expressions** (`WITH` and bounded `WITH RECURSIVE` with cycle detection and
+  explicit work budgets) and set operations (`UNION [ALL]`, `INTERSECT`,
+  `EXCEPT`); **Rich Aggregates** (`AVG`, `MIN`, `MAX`, `STDDEV`, exact and
+  approximate quantiles/`PERCENTILE_CONT`, `ARRAY_AGG`/`STRING_AGG`);
   temporal/interval arithmetic; **compile-time (`comptime`) and plan-bound
   perfect-hash lookup tables** for SQL keywords and constant `WHERE col IN (...)`
   string literal sets (paired with 16-byte SIMD vector comparisons inside the
@@ -120,7 +123,7 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   owns session control, atomicity/isolation, DDL/constraint interactions and
   transaction-bound plan invalidation; those features do not all become transaction
   syntax merely because they can execute in a transaction. SQL `MERGE` is separate
-  from branch merge. [Foreign relations](11-multi-model-and-foreign-relations.md)
+  from branch merge. [Foreign relations](13-multi-model-and-foreign-relations.md)
   now owns typed `COPY`/import/export and streaming CDC ingress together with its
   actual format adapters.
 - Extend the common dependency lifecycle to connections, sources and sinks,
@@ -136,7 +139,7 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
 
 ## Prerequisites and completion
 
-The later [reactive context milestone](24-reactive-context-and-agent-activation.md)
+The later [reactive context milestone](26-reactive-context-and-agent-activation.md)
 uses this scheduling and completed-result evidence for business conditions,
 durable application interests and MCP subscriptions/tasks. This owner supplies
 computation progress; a changed source or delivered notification alone cannot

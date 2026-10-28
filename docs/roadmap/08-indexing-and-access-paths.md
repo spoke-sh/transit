@@ -123,8 +123,8 @@ does not supply a portable cross-vendor indexing grammar.
    validate updates that enter or leave the indexed subset. Expression-key and
    spatial indexes require their own admitted profiles; segment-backed inverted
    full-text (BM25) and vector/hybrid search indexes are owned by
-   [multi-model and foreign relations](11-multi-model-and-foreign-relations.md)
-   and [reactive agent context](24-reactive-context-and-agent-activation.md).
+   [multi-model and foreign relations](13-multi-model-and-foreign-relations.md)
+   and [reactive agent context](26-reactive-context-and-agent-activation.md).
 5. **Integrate the planner and shared public operations.** Expose define, inspect,
    build/rebuild and retire/drop through owning typed operations and SQL adapters,
    using shared statement outcomes and original-operation recovery. Define DDL
@@ -170,18 +170,18 @@ success as winning a map microbenchmark. Record scoped results in the
 - [Managed computations](09-sql-and-dataflows.md) use complete source commits
   and compatible access paths without equating an index generation to a derived
   computation's completed revision.
-- [Multi-model access](11-multi-model-and-foreign-relations.md) qualifies graph
+- [Multi-model access](13-multi-model-and-foreign-relations.md) qualifies graph
   adjacency and selected document projections against this lifecycle; specialized
   index semantics and external-source coverage need independent evidence.
-- [Branches](12-branches-merges-and-restore.md) qualify sharing, divergence,
+- [Branches](14-branches-merges-and-restore.md) qualify sharing, divergence,
   constraint validation and GC reachability. Immutable reuse alone supplies no
   constant-time preparation, merge or historical-correctness guarantee.
-- [Providers](15-storage-providers-and-concurrency.md),
-  [replication](16-replication-and-failover.md),
-  [operations](17-operations-and-recovery.md) and
-  [clustered execution](18-clustered-execution.md) extend writer scope, copy/rebuild
+- [Providers](17-storage-providers-and-concurrency.md),
+  [replication](18-replication-and-failover.md),
+  [operations](19-operations-and-recovery.md) and
+  [clustered execution](20-clustered-execution.md) extend writer scope, copy/rebuild
   decisions, recovery readiness and distributed uniqueness explicitly.
-- [Board](22-board-reimplementation.md) presents shared definitions, progress,
+- [Board](24-board-reimplementation.md) presents shared definitions, progress,
   coverage and plans. Inspection remains read-only; administrative actions use
   separately authorized public operations.
 
