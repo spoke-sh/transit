@@ -79,6 +79,24 @@ expiry/access-denial handling intact. The negative-control log is
 `keepalive-control.log` (SHA-256
 `4894e4cb5f008956960895473f2d1db2612133eb00e8a717303cc47205026b56`).
 
+The complete console-history/editor/outcome suite then passes with the repaired
+pre-rebase binary, including two busy renewals, a successful renewal and a
+subsequent access denial without session reopening or SQL submission. Its log
+is `keepalive-final.log` (SHA-256
+`2b7a6d3087d87b011dbd47bdc027dd964c653064e2a534397f07c0f41fbbb122`).
+An earlier attempt exits 130 in the multiline Ctrl-C schedule before reaching
+that case; `keepalive-final-signal-failure.log` retains the failure. No runtime
+change occurs between these two attempts.
+
+Clean interface qualification at `e983417a1` passes TLS and SQL allocation
+checks, then stops at the SQL gateway recovery oracle's prohibition on any
+repeated `commit_saved` RPC. The revised oracle distinguishes an explicit
+`execute` from resolution through `commit_saved`: the latter must carry the
+identical complete frozen reference and return the identical original durable
+receipt, with exact rows and mutation counts checked independently. The failed
+checkout and logs remain at `/var/tmp/transit-ci-d9x508hi`; this attempt is not
+reported as a lane pass.
+
 ### Original decoupling comparison
 
 The [console workload](../../../tests/performance/console/statements.py) exercises
