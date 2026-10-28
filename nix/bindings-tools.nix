@@ -4,6 +4,8 @@
     go
     rustc
     cargo
+    patchelf
+    binutils
     rustfmt
     ruby
     jdk

@@ -45,3 +45,12 @@ before changing these boundaries.
 [binding_port_fixture.py](binding_port_fixture.py) is a retained adversarial peer
 with no current executable consumer. It does not contribute to the registered
 host-boundary proof; any reuse requires current contract and task registration.
+## Release artifacts
+
+`release.py` dispatches the existing isolated raw-client and Station consumer
+schedules over the portable packages produced by `bindings/release.py`.
+`release_zig.py` extracts the public source archive, builds its real application
+and reuses the installation/replacement proof against the static runtime.
+These focused checks belong to the release workflow; their presence is not
+evidence of a passing publication.
+

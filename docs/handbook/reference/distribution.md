@@ -28,8 +28,33 @@ Linux process groups and parent-death signals; console editing requires Linux
 terminal/inotify APIs, and the authority clock uses Linux `adjtimex`. Other Linux
 architectures require separate build and installed-runtime qualification.
 The Substrate runtime-controller image needs its pinned provider CLI and remains
-outside this artifact set. SDK registry publication is separate from the runtime
-bundle; the matching SDK manifests remain available in source.
+outside this artifact set.
+
+## SDK packages
+
+GitHub Releases contain `transit-sdk-<language>-<version>-linux-x86_64.tar.gz`
+for `python`, `node`, `rust`, `ruby`, `c`, `java`, `dotnet`, `beam` and `go`.
+Each archive groups the language's native client, ordinary client, available
+Station adapter and examples. C includes C++ headers; BEAM includes Erlang and
+Elixir packages. Go provides the ordinary client only. Install the ordinary
+client and its native dependency independently of the optional Station packages.
+Follow the language's [installation guide](sdks.md) using the extracted package
+files as a local package source. Public npm, PyPI, crates.io and other registry
+publication is not enabled.
+
+Native SDK libraries and helper processes require Linux x86_64 with glibc 2.28
+or newer. They use the system loader and archive-relative library paths, without
+Nix dependencies. Language runtimes and their documented dependencies remain
+separate requirements. `sdk-manifest.json` identifies the compiler, native target,
+contract definition and SHA-256 digest of every language package; the main
+release manifest and `SHA256SUMS` cover the enclosing archives.
+
+`transit-sdk-zig-<version>-source.tar.gz` preserves the public SDK's relative
+shared-package dependencies and the work-items application. Build it with the
+compiler recorded in the manifest and the [Zig SDK instructions](../../../sdks/zig/README.md).
+The release workflow builds that application outside the checkout and exercises
+installation, interrupted provisioning, current grants, retained data and
+compatible worker replacement against the installed runtime.
 
 ## Install a published release
 

@@ -41,9 +41,19 @@ shared modules directly. No runtime package imports the SDK tree.
 ## Build and verification
 
 Enter `nix develop .#bindings` for the locked language tools. These packages target
-Linux x86_64 and are built from this checkout. Native packages retain their local
-Nix runtime linkage. Public registries and other platform artifacts are not
-provided by these build tasks.
+Linux x86_64 and are built from this checkout. Ordinary development builders
+retain their selected native prefix's linkage. `just bindings::release-build DIR`
+builds a separate ReleaseSafe, baseline-CPU native prefix for glibc 2.28 and newer,
+verifies its loader and dependency closure, and packages each language through
+the same owning builders. Those artifacts do not require Nix at runtime.
+`just bindings::release-test DIR RUNTIME` executes the installed raw-client and
+available Station schedules against the selected runtime. C covers C/C++ and
+BEAM covers Erlang/Elixir; Go provides the raw client only.
+
+The [distribution workflow](../docs/handbook/reference/distribution.md) attaches
+language package archives and a Zig source dependency closure to GitHub Releases.
+It does not publish to language registries. `sdk-manifest.json` records the
+source/definition, pinned compiler, platform and each packaged file's checksum.
 
 The Python wheel, Node tarball, Ruby gem, Java JAR, .NET NuGet, Rust crate, Go, BEAM OTP and C/C++ archive builders require `--native-prefix PATH`
 to package libraries and hosts from an explicitly selected Zig install prefix. For example,

@@ -13,6 +13,8 @@ on:
       - 'flake.*'
       - 'nix/**'
       - 'charts/**'
+      - 'sdks/**'
+      - 'bindings/**'
       - 'tasks/*release*'
       - 'tasks/version.py'
       - 'tests/runner/test_release.py'
@@ -20,6 +22,9 @@ on:
       - 'tests/runner/test_version_build.py'
       - 'tests/interfaces/installation/release.py'
       - 'tests/interfaces/installation/published.py'
+      - 'tests/interfaces/installation/server_applications.py'
+      - 'tests/sdk/release*.py'
+      - 'tests/sdk/consumer_registry.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -70,8 +75,94 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
-  installed:
+  sdk-build:
     needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-artifacts
+          path: dist/release
+      - name: Unpack matching runtime
+        run: mkdir -p .cache/runtime && tar -xf "dist/release/transit-$(cat VERSION)-linux-x86_64.tar.gz" --strip-components=1 -C .cache/runtime
+      - name: Install locked language dependencies
+        run: nix develop .#bindings --command vp install --frozen-lockfile
+      - name: Build portable SDK packages
+        run: nix develop .#bindings --command just bindings::release-build .cache/sdk-release
+      - name: Package SDK archives and dependency closure
+        run: python3 -B tasks/package_sdks.py .cache/sdk-release dist/sdks --notices .cache/runtime/notices
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sdk-consumer-inputs
+          path: .cache/sdk-release/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sdk-release-artifacts
+          path: dist/sdks/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+  sdk-consumers:
+    needs: sdk-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, node, rust, ruby, c, java, dotnet, beam, go]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-artifacts
+          path: dist/release
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: sdk-consumer-inputs
+          path: .cache/sdk-release
+      - name: Restore executable modes and unpack runtime
+        run: |
+          chmod +x .cache/sdk-release/native/bin/* .cache/sdk-release/c-sdk/bin/*
+          mkdir -p .cache/runtime
+          tar -xf "dist/release/transit-$(cat VERSION)-linux-x86_64.tar.gz" --strip-components=1 -C .cache/runtime
+      - name: Qualify installed raw client and available Station adapter
+        env:
+          LANGUAGE: ${{ matrix.language }}
+        run: nix develop .#bindings --command just bindings::release-test .cache/sdk-release .cache/runtime --language "$LANGUAGE"
+  sdk-zig:
+    needs: sdk-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-artifacts
+          path: dist/release
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: sdk-release-artifacts
+          path: dist/sdks
+      - name: Build the public application and qualify installation and replacement
+        run: |
+          mkdir -p .cache/runtime
+          tar -xf "dist/release/transit-$(cat VERSION)-linux-x86_64.tar.gz" --strip-components=1 -C .cache/runtime
+          nix develop .#bindings --command just bindings::release-zig "dist/sdks/transit-sdk-zig-$(cat VERSION)-source.tar.gz" .cache/runtime
+  installed:
+    needs: [build, sdk-build]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -87,7 +178,7 @@ jobs:
           EXPECTED_REVISION: ${{ github.sha }}
         run: python3 -B tests/runner/launch.py tests/interfaces/installation/published.py --artifacts dist/release --version "$(cat VERSION)" --revision "$EXPECTED_REVISION"
   publish:
-    needs: [qualification, build, installed]
+    needs: [qualification, build, installed, sdk-consumers, sdk-zig]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -104,6 +195,12 @@ jobs:
         with:
           name: release-artifacts
           path: dist/release
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: sdk-release-artifacts
+          path: dist/sdks
+      - name: Assemble matching qualified artifacts
+        run: python3 -B tasks/assemble_release.py dist/release dist/sdks
       - name: Publish immutable image, chart and release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
