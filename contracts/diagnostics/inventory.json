@@ -4711,7 +4711,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 28,
+        "try": 29,
         "catch": 0
       },
       "imports": [
@@ -19808,7 +19808,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 12,
+        "try": 13,
         "catch": 1
       },
       "imports": [
@@ -20735,7 +20735,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 124,
+        "try": 123,
         "catch": 9
       },
       "imports": [
@@ -20850,6 +20850,7 @@
         "fresh()": "<inferred>",
         "freshOn()": "<inferred>",
         "init()": "<inferred>",
+        "initOptions()": "<inferred>",
         "loadCredential()": "<inferred>",
         "openRead()": "<inferred>",
         "prepare()": "<inferred>",
@@ -21080,7 +21081,8 @@
         "Configuration.digest()": "<inferred>",
         "Configuration.validate()": "<inferred>",
         "admittedBinding()": "<inferred>",
-        "operation()": "<inferred>"
+        "operation()": "<inferred>",
+        "operationFromState()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
@@ -21291,7 +21293,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 37,
         "catch": 0
       },
       "imports": [
@@ -26301,11 +26303,12 @@
         "saveRecord()": "<inferred>",
         "stage()": "<inferred>",
         "sync()": "<inferred>",
+        "syncIterated()": "<inferred>",
         "verify()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 88,
+        "try": 81,
         "catch": 9
       },
       "imports": [
@@ -27358,10 +27361,12 @@
     "packages/zig/transit-storage/src/TableWorkspace.zig": {
       "errors": {
         "InvalidTransactionWorkspace": 3,
+        "OutOfMemory": 2,
         "ReadOnlyTransaction": 1,
         "TableSnapshotNotPinned": 1,
         "TableSnapshotReleased": 1,
         "TransactionIdentityConflict": 4,
+        "TransactionMemoryLimit": 3,
         "TransactionStatementConflict": 3,
         "TransactionStatementLimit": 1
       },
@@ -27375,21 +27380,25 @@
       "error_returns": {
         "State.validate()": "<inferred>",
         "execute()": "<inferred>",
+        "executeBounded()": "<inferred>",
         "get()": "<inferred>",
         "init()": "<inferred>",
+        "initBounded()": "<inferred>",
+        "memoryFailure()": "anyerror",
         "requireSource()": "<inferred>",
         "rollback()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 2,
       "propagation": {
-        "try": 21,
-        "catch": 0
+        "try": 22,
+        "catch": 3
       },
       "imports": [
         "TableDeclaration.zig",
         "TableDmlIntent.zig",
         "TablePartition.zig",
         "std",
+        "transit_fuze",
         "transit_protocol"
       ]
     },

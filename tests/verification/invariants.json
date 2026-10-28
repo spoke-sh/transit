@@ -2261,7 +2261,7 @@
         "packages/zig/transit-storage/src/TablePartition.zig",
         "packages/zig/transit-storage/src/table_partition_test.zig"
       ],
-      "profile": "Single retained Table, private row and predicate evaluation, disk-backed object reopen and explicit build-budget refusal",
+      "profile": "Single retained Table, private row and predicate evaluation, disk-backed object reopen and evaluator-lifetime resident accounting",
       "tasks": [
         "check::native"
       ],
@@ -2269,7 +2269,7 @@
         "Private inserts and predicate updates read their own writes while public Table roots and WAL frontiers remain unchanged",
         "Private rollback preserves consumed statement sequences and operation receipts; readonly writes and released-pin reads refuse",
         "Disk reopen restores private segment rows from an explicitly saved state while public Table recovery contains only original accepted rows",
-        "An outer counting budget covers the component test lifetime and a small build allowance refuses without a public prefix"
+        "A shared evaluator budget meters initialization, retained caches and builders; acquisition, statement and independent build-cap refusals leave no public prefix and parent OOM remains distinct"
       ],
       "limits": "No installed workspace owner, durable statement/result settlement, common-cut acquisition, aggregate transaction quota, retained workspace graph, segment identity reservation, Table preparation, SQL or savepoint/cursor interface is established. The embedding host must retain the borrowed owner and persist state/counters/results before exposing completion.",
       "model": null,

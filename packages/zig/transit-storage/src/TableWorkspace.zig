@@ -7,6 +7,7 @@ const d = p.DataLifecycle;
 const P = @import("TablePartition.zig");
 const Dml = @import("TableDmlIntent.zig");
 const Declaration = @import("TableDeclaration.zig");
+const MemoryBudget = @import("transit_fuze").MemoryBudget;
 const Self = @This();
 
 pub const State = struct {
@@ -37,6 +38,8 @@ pub const Outcome = union(enum) {
 };
 
 table: P,
+/// Stable address: Table caches and builders retain this allocator across calls.
+memory: *MemoryBudget,
 /// The embedding host serializes this borrowed owner's lifetime and refresh.
 owner: *P,
 begin: x.Begin,
@@ -48,6 +51,18 @@ changed: bool,
 /// a workspace can read it. Restoration rechecks the same retained source.
 pub fn init(allocator: std.mem.Allocator, owner: *P, begin: x.Begin, source: P.SnapshotHandle, previous: ?State, guard: P.Guard) !Self {
     try begin.validate();
+    if (begin.limits.resident_bytes <= @sizeOf(MemoryBudget)) return error.TransactionMemoryLimit;
+    const memory = try allocator.create(MemoryBudget);
+    errdefer allocator.destroy(memory);
+    memory.* = .{ .parent = allocator, .limit = @intCast(begin.limits.resident_bytes - @sizeOf(MemoryBudget)) };
+    return initBounded(memory, owner, begin, source, previous, guard) catch |err| {
+        std.debug.assert(memory.used == 0);
+        return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+    };
+}
+
+fn initBounded(memory: *MemoryBudget, owner: *P, begin: x.Begin, source: P.SnapshotHandle, previous: ?State, guard: P.Guard) !Self {
+    const allocator = memory.allocator();
     if (!std.meta.eql(source.owner, begin.identity.begin)) return error.TransactionIdentityConflict;
     var snapshot = try owner.inspectSnapshot(allocator, source, guard);
     defer snapshot.deinit();
@@ -73,12 +88,20 @@ pub fn init(allocator: std.mem.Allocator, owner: *P, begin: x.Begin, source: P.S
         table.root = prior.root;
         last = prior.last_statement;
     }
-    return .{ .table = table, .owner = owner, .begin = begin, .source = source, .last_statement = last, .changed = if (previous) |prior| prior.changed else false };
+    return .{ .table = table, .memory = memory, .owner = owner, .begin = begin, .source = source, .last_statement = last, .changed = if (previous) |prior| prior.changed else false };
 }
 
 pub fn deinit(self: *Self) void {
     self.table.deinit();
+    std.debug.assert(self.memory.used == 0);
+    self.memory.parent.destroy(self.memory);
     self.* = undefined;
+}
+
+/// Lifetime heap peak, including the stable budget context. Borrowed owner,
+/// provider and caller-owned result allocations have independent owners.
+pub fn residentPeak(self: *const Self) usize {
+    return self.memory.peak + @sizeOf(MemoryBudget);
 }
 
 pub fn state(self: *const Self) State {
@@ -92,13 +115,23 @@ fn requireSource(self: *Self, guard: P.Guard) !void {
 }
 
 pub fn get(self: *Self, allocator: std.mem.Allocator, key: []const u8, guard: P.Guard) !?P.OwnedRow {
+    self.memory.exhausted = false;
     try self.requireSource(guard);
-    return self.table.get(allocator, key, guard);
+    return self.table.get(allocator, key, guard) catch |err| return self.memoryFailure(err);
 }
 
 /// The caller publishes the returned private state through its transaction
 /// owner. Even a successful statement result is explicitly provisional.
 pub fn execute(self: *Self, statement: x.Statement, request: Dml.Request, guard: P.Guard) !Outcome {
+    self.memory.exhausted = false;
+    return self.executeBounded(statement, request, guard) catch |err| return self.memoryFailure(err);
+}
+
+fn memoryFailure(self: *const Self, err: anyerror) anyerror {
+    return if (err == error.OutOfMemory and self.memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn executeBounded(self: *Self, statement: x.Statement, request: Dml.Request, guard: P.Guard) !Outcome {
     try self.requireSource(guard);
     try statement.validate();
     try request.validate();

@@ -3523,14 +3523,32 @@ test "transaction workspace predicate DML and budget refusal preserve the public
         try t.expect(workspace.changed);
         try t.expectEqualDeep(public, table.root);
         try t.expectEqual(public.next_lsn, try wal.log().tail(17));
+        try t.expect(workspace.residentPeak() <= begin.limits.resident_bytes);
     }
     try t.expectEqual(@as(usize, 0), memory.used);
     try t.expect(memory.peak <= memory.limit);
-    // An admitted budget too small for this implementation produces an explicit
-    // statement refusal. It cannot accept a public prefix or imply rollback.
+    // Acquisition shares the resident allowance with retained evaluator state.
+    // Both configured exhaustion and parent failure release every allocation.
     var small = begin;
     small.limits.resident_bytes = 4096;
-    var workspace = try s.TableWorkspace.init(t.allocator, &table, small, pin, null, access.guard());
+    try t.expectError(error.TransactionMemoryLimit, s.TableWorkspace.init(t.allocator, &table, small, pin, null, access.guard()));
+    var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    try t.expectError(error.OutOfMemory, s.TableWorkspace.init(failing.allocator(), &table, begin, pin, null, access.guard()));
+    small.limits.resident_bytes = 1024 * 1024;
+    {
+        var limited = try s.TableWorkspace.init(t.allocator, &table, small, pin, null, access.guard());
+        defer limited.deinit();
+        const before = limited.table.root;
+        const two: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+        try t.expectError(error.TransactionMemoryLimit, workspaceInsert(&limited, 1, 2, &two, access.guard()));
+        try t.expectEqualDeep(before, limited.table.root);
+        try t.expectEqual(@as(u64, 1), limited.last_statement);
+        try t.expect(limited.residentPeak() <= small.limits.resident_bytes);
+    }
+    // A smaller independent Table build cap refuses the statement without
+    // accepting a public prefix or implying transaction rollback.
+    table.options.build_resident_bytes = 4096;
+    var workspace = try s.TableWorkspace.init(t.allocator, &table, begin, pin, null, access.guard());
     defer workspace.deinit();
     const two: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
     const refused = try workspaceInsert(&workspace, 1, 2, &two, access.guard());

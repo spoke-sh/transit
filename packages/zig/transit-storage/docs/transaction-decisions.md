@@ -56,13 +56,20 @@ The transaction host separately owns persistent savepoint names, read/conflict
 dependencies, cursor invalidation and original statement-result recovery.
 Workspace rollback neither publishes an abort nor cancels external work.
 
-The existing Table build and index-work budgets are capped by the requested
-resident allowance. Reader caches, caller-owned output, provider buffers and
-the retained workspace byte quota remain separate host responsibilities. Small
-allowances can reject even a small statement because the Table encoder reserves
-bounded row and segment buffers. The component checks exercise the existing
-64 MiB Table build allowance and an explicit 4 KiB refusal; they do not establish
-an installation-wide transaction memory or workspace-storage bound.
+One stable budget meters the evaluator's heap allocations from initialization
+through destruction, including its private Table caches, mutation builders and
+budget context. `residentPeak` reports that lifetime peak. Configured exhaustion
+returns `TransactionMemoryLimit`; parent allocation failure remains `OutOfMemory`.
+The Table's smaller independent build budget can also return a provisional
+statement rejection with `work_limit`. Borrowed Table owners, caller-owned
+output, provider buffers, stack capacity and retained workspace bytes have
+separate owners. The host must reserve their capacity and aggregate concurrent
+workspaces; one evaluator's allowance is not an installation-wide limit.
+
+Small allowances can reject even a small statement because the Table encoder
+reserves bounded row and segment buffers. The component checks exercise the
+existing 64 MiB Table allowance, refuse initialization with 4 KiB, and refuse
+a statement under an independent 4 KiB build cap without public acceptance.
 
 Before service use, the transaction owner must durably publish every accepted
 workspace state, failed statement sequence and result, retain its referenced
