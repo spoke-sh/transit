@@ -50,6 +50,48 @@ tail. A complete older 64-byte header rejects; it is never silently truncated.
 Missing or foreign definition bytes reject. Checksums do not establish permission or an accepted
 application operation; the owning acceptance record supplies that binding.
 
+## Transaction directory and decision records
+
+The storage components use the neutral [transaction bindings](DATA_LIFECYCLE_V1.md#transaction-bindings-and-evidence).
+Their [integration contract](../packages/zig/transit-storage/docs/transaction-decisions.md)
+separates these formats from installed transaction execution.
+
+`TransactionDirectory` objects start with `TXDIR1` followed by two zero bytes,
+then the mandatory 32-byte shared definition at offsets `8..40`, then canonical
+typed JSON. Total object size is at most 16 KiB. Canonical JSON uses declaration
+order, explicit nulls and integer arrays for fixed byte arrays. Decoding rejects
+noncanonical bytes, missing/foreign definitions and invalid scope. Objects are
+addressed as `transaction-directory/<sha256>.data`, where the digest covers the
+entire encoded object. The object descriptor's size and digest must match.
+
+A root stores `definition`, transaction identity, directory kind (`participants`
+or `preparations`), optional immutable B-tree root, entry count and write count.
+An entry is a tagged neutral participant or preparation. Tree keys encode the
+nonzero object ID as eight big-endian bytes; values encode the object byte length
+as eight little-endian bytes followed by its 32-byte digest. Tree pages retain
+their ordinary definition/digest checks. Entry kind and identity must match the
+root, and its object ID must match the key. Count is durable cardinality, not
+resident capacity. Sealing a root grants no acceptance or retention authority.
+
+`TransactionDecisionLog` records start with `TXDEC1` followed by two zero bytes,
+the same mandatory definition and canonical JSON within 16 KiB total. JSON stores
+`definition`, previous-record SHA-256 and an event: `freeze` containing the exact
+begin/attempt binding, or `decision` containing the original neutral decision.
+They use `TWAL1` `policy_control` frames in one dedicated catalog-reserved
+partition. The only accepted sequence is freeze at LSN 0, then optionally one
+decision at LSN 1. The first previous digest is zero; the second hashes the entire
+first payload. Decision position is that partition's exclusive frontier 2, and
+its coordinator/policy epochs must equal the enclosing WAL header.
+
+Commit requires complete exact preparation membership and the embedding owner's
+held conflict, authority and participant-availability checks. Abort uses an empty
+preparation directory and retains the complete potential-participant work list
+in the original attempt. Neither terminal outcome can be overwritten. Incomplete
+or inaccessible history cannot establish abort. Recovery verifies the exact
+binding and all referenced directory evidence without staging or dispatching.
+No trimming, compatibility conversion or automatic deletion is defined for
+these records. The components do not change current Table acceptance formats.
+
 ## Table acceptance records and indexes
 
 `TablePartition` is a single-owner storage component. Its

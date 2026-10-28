@@ -54,6 +54,11 @@ and the catalog's retained dependency graph.
   acceptance log must publish it and establish retention before collection.
   `staged_pages`/`staged_bytes` count acknowledged staging calls and their encoded
   bytes, including immutable deduplication; they do not count device writes.
+- `TransactionDirectory.zig` and `TransactionDecisionLog.zig`: Paged private
+  participant/preparation commitments and a fenced original-attempt decision
+  journal. Their [integration contract](docs/transaction-decisions.md) requires
+  catalog admission, Table preparation/common-decision visibility and retained
+  graph ownership before runtime use. They expose no installed SQL transaction.
 - `OrderedKeyIndex.zig`: Full ordered keys up to 4 KiB, mapped to row hashes
   through immutable 64-byte key chunks over `TreeStore`. Point lookup and
   inclusive/exclusive range seeking use bounded paths; mutation candidates share

@@ -84,16 +84,29 @@ fn proofWithSeed(engine: *Engine, context: [32]u8, seed: u8) !a.Proof {
     return a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = 101, .credential_epoch = (try engine.principal(101)).credential_epoch, .role = null, .audience = 100, .context = context }, try key(seed));
 }
 
-fn dispatch(service: anytype, action: c.DirectTableProtocol.Action) !std.json.Parsed(c.DirectTableProtocol.Response) {
+// These schedules retain many responses across nested revocation callbacks.
+// Keep the large protocol union off their stacks, including expectError's
+// temporary error unions, while retaining leak-checked ownership of every reply.
+const Response = struct {
+    owner: *std.json.Parsed(c.DirectTableProtocol.Response),
+    value: *const c.DirectTableProtocol.Response,
+
+    fn deinit(self: Response) void {
+        self.owner.deinit();
+        t.allocator.destroy(self.owner);
+    }
+};
+
+fn dispatch(service: anytype, action: c.DirectTableProtocol.Action) !Response {
     return dispatchDelegated(service, action, null);
 }
-fn dispatchDelegated(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation) !std.json.Parsed(c.DirectTableProtocol.Response) {
+fn dispatchDelegated(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation) !Response {
     return dispatchBorrowed(service, action, delegation, null);
 }
-fn dispatchBorrowed(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow) !std.json.Parsed(c.DirectTableProtocol.Response) {
+fn dispatchBorrowed(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow) !Response {
     return dispatchWithSeed(service, action, delegation, borrow, 29);
 }
-fn dispatchWithSeed(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow, seed: u8) !std.json.Parsed(c.DirectTableProtocol.Response) {
+fn dispatchWithSeed(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow, seed: u8) !Response {
     const w = c.DirectTableProtocol;
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
@@ -113,7 +126,9 @@ fn dispatchWithSeed(service: anytype, action: c.DirectTableProtocol.Action, dele
     defer t.allocator.free(encoded);
     // Decode only after all catalog/read scratch is gone. Revocation cases also
     // verify that a separately allocated but denied response does not leak.
-    const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, encoded);
+    const response = try t.allocator.create(std.json.Parsed(w.Response));
+    errdefer t.allocator.destroy(response);
+    response.* = try p.Json.parseFromSliceOwned(w.Response, t.allocator, encoded);
     errdefer response.deinit();
     try c.DirectTableClient.validateResponse(alloc, parsed.value, response.value);
     if (response.value.result == .lookup and response.value.result.lookup != null) {
@@ -143,7 +158,7 @@ fn dispatchWithSeed(service: anytype, action: c.DirectTableProtocol.Action, dele
         try t.expectError(error.InvalidTableResponse, c.DirectTableClient.validateResponse(alloc, parsed.value, altered));
     }
     try t.expectEqualDeep(signed.claim.context, response.value.context);
-    return response;
+    return .{ .owner = response, .value = &response.value };
 }
 
 fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, native_table: u64, owner_role: u64) !void {

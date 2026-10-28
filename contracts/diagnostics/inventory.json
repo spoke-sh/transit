@@ -14352,6 +14352,96 @@
         "root.zig"
       ]
     },
+    "packages/zig/transit-protocol/src/Transaction.zig": {
+      "errors": {
+        "IncompleteTransactionCut": 1,
+        "InvalidTransactionAttempt": 1,
+        "InvalidTransactionBegin": 1,
+        "InvalidTransactionDecision": 1,
+        "InvalidTransactionGuard": 2,
+        "InvalidTransactionLimits": 1,
+        "InvalidTransactionPreparation": 1,
+        "InvalidTransactionStatement": 1,
+        "ReadOnlyTransaction": 1,
+        "TransactionConflict": 1,
+        "TransactionIdentityConflict": 3,
+        "UnsupportedTransactionDomain": 1,
+        "UnsupportedTransactionParticipant": 2
+      },
+      "outcomes": {
+        "Decision.outcome": [
+          "committed",
+          "aborted"
+        ],
+        "Mode": [
+          "serializable",
+          "read_only"
+        ],
+        "Observation": [
+          "unavailable",
+          "denied",
+          "not_observed",
+          "preparing",
+          "decided"
+        ],
+        "Participant": [
+          "state",
+          "append",
+          "settlement"
+        ],
+        "Participant.append.kind": [
+          "stream",
+          "queue"
+        ],
+        "Participant.settlement.kind": [
+          "stream_offset",
+          "queue_ack"
+        ],
+        "Participant.state.access": [
+          "read",
+          "write"
+        ],
+        "Participant.state.kind": [
+          "table",
+          "kv",
+          "document"
+        ],
+        "Selection": [
+          "explicit_tables",
+          "authorized_catalog_tables"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Attempt.requireSame()": "<inferred>",
+        "Attempt.validate()": "<inferred>",
+        "Begin.requireSame()": "<inferred>",
+        "Begin.validate()": "<inferred>",
+        "Cut.validate()": "<inferred>",
+        "Decision.requireAttempt()": "<inferred>",
+        "Decision.validate()": "<inferred>",
+        "Directory.validate()": "<inferred>",
+        "Identity.requireObject()": "<inferred>",
+        "Identity.validate()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "Observation.validate()": "<inferred>",
+        "Participant.requireLocalTable()": "<inferred>",
+        "Participant.validate()": "<inferred>",
+        "Prepared.validate()": "<inferred>",
+        "Statement.validate()": "<inferred>",
+        "TableGuard.requireUnchanged()": "<inferred>",
+        "TableGuard.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 44,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/Value.zig": {
       "errors": {
         "InvalidCharacter": 3,
@@ -14581,6 +14671,7 @@
         "Schema.zig",
         "State.zig",
         "Storage.zig",
+        "Transaction.zig",
         "Value.zig",
         "std"
       ]
@@ -27228,6 +27319,126 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/TransactionDecisionLog.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidTransactionAttempt": 1,
+        "InvalidTransactionDecision": 1,
+        "InvalidTransactionDirectory": 2,
+        "InvalidTransactionHistory": 8,
+        "InvalidTransactionLimits": 1,
+        "InvalidTransactionPartition": 2,
+        "LostAcknowledgement": 3,
+        "OutOfMemory": 2,
+        "TransactionDecodeLimit": 1,
+        "TransactionHistoryMissing": 1,
+        "TransactionMemoryLimit": 1,
+        "TransactionNotFrozen": 2,
+        "TransactionRecoveryRequired": 2
+      },
+      "outcomes": {
+        "Record.event": [
+          "freeze",
+          "decision"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.requireSame()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Verification.participant()": "anyerror",
+        "Verification.prepared()": "anyerror",
+        "abort()": "<inferred>",
+        "abortBounded()": "<inferred>",
+        "append()": "<inferred>",
+        "commit()": "<inferred>",
+        "commitBounded()": "<inferred>",
+        "decode()": "<inferred>",
+        "directory()": "<inferred>",
+        "encode()": "<inferred>",
+        "freeze()": "<inferred>",
+        "freezeBounded()": "<inferred>",
+        "init()": "<inferred>",
+        "observe()": "<inferred>",
+        "observeBounded()": "<inferred>",
+        "participants()": "<inferred>",
+        "preparations()": "<inferred>",
+        "ready()": "<inferred>",
+        "recover()": "<inferred>",
+        "recoverBounded()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 46,
+        "catch": 3
+      },
+      "imports": [
+        "TablePartition.zig",
+        "TransactionDirectory.zig",
+        "TransitLog.zig",
+        "TransitObjectStore.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/TransactionDirectory.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "IncompleteTransactionPreparation": 2,
+        "InvalidTransactionDirectory": 19,
+        "InvalidTransactionLimits": 1,
+        "MissingTransactionDirectory": 1,
+        "OutOfMemory": 1,
+        "TransactionDecodeLimit": 1,
+        "TransactionIdentityConflict": 3,
+        "TransactionParticipantLimit": 2
+      },
+      "outcomes": {
+        "Entry": [
+          "participant",
+          "prepared"
+        ],
+        "Kind": [
+          "participants",
+          "preparations"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Entry.validate()": "<inferred>",
+        "Root.validate()": "<inferred>",
+        "commitment()": "<inferred>",
+        "contentOf()": "<inferred>",
+        "encode()": "<inferred>",
+        "entryKey()": "<inferred>",
+        "get()": "<inferred>",
+        "init()": "<inferred>",
+        "keyObject()": "<inferred>",
+        "load()": "<inferred>",
+        "loadEntry()": "<inferred>",
+        "objectKey()": "<inferred>",
+        "page()": "<inferred>",
+        "put()": "<inferred>",
+        "reference()": "<inferred>",
+        "requireComplete()": "<inferred>",
+        "requireEntry()": "<inferred>",
+        "restore()": "<inferred>",
+        "seal()": "<inferred>",
+        "stage()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 54,
+        "catch": 1
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/TransitLog.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -27375,9 +27586,27 @@
         "TableSnapshot.zig",
         "TableStorageRoots.zig",
         "TableStorageWalk.zig",
+        "TransactionDecisionLog.zig",
+        "TransactionDirectory.zig",
         "TransitLog.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig"
+      ]
+    },
+    "packages/zig/transit-storage/src/transaction_test_support.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-tls-server/src/LocalTrust.zig": {

@@ -9,6 +9,56 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Transaction decision components — 2026-10-28
+
+At source [`de13724093d5`](https://github.com/spoke-sh/transit/commit/de13724093d5535914b53759ecdae43d01882554),
+the storage library supplies immutable paged participant directories and a
+fenced journal for one frozen original transaction attempt and one decision.
+The [integration contract](../../../packages/zig/transit-storage/docs/transaction-decisions.md)
+defines their actual boundary and the remaining catalog/Table obligations.
+
+`nix develop --command just ci clean --lane formal` passes all seven tasks from
+committed source without inherited workspace build outputs. The
+[decision model](../../../tests/verification/models/README.md#finite-transaction-decision-model)
+exhausts 3,227 distinct states from 22,394 generated states with one attempt,
+two written participants and two coordinator epochs. All six independent
+missing-obligation controls produce their named invariant violations and complete
+recognized counterexamples. The locked tools are TLA+ 1.7.4/TLC 2.19 with one
+worker, seed `1`, fingerprint `0`, a 512 MiB heap and a 60-second limit per run.
+There is no depth cutoff, fairness assumption or liveness claim.
+
+`nix develop --command just ci clean --check contracts` passes all 18 generated
+contract and independent fixture checks at the same source. Focused component
+checks pass 71 protocol tests and ten storage tests selected by `transaction`.
+The complete storage package run passes 149 tests. The latter began before the
+fixed-scratch decoder change; the focused ten-test run exercises that change.
+These runs cover exact retry, disk reopen, complete preparation membership,
+pre/post-append errors, current authorization callbacks, fencing and memory
+refusal. They do not include installed transaction callers.
+
+Raw clean records are retained locally under
+`.cache/ci/clean/de13724093d5-transit-ci-736nqa89/` (formal) and
+`.cache/ci/clean/de13724093d5-transit-ci-7uafacge/` (contracts). The formal record
+includes source/configuration hashes, exact commands, completion and
+counterexamples under `verification/transaction-decision-model/`. These local
+paths are not portable links; the formal CI artifact retains that directory.
+The decision model SHA-256 is
+`47a34b71e4cfd11d9117eb93d639a0d12f171a695e1519ceac5388d60c879487`.
+
+The model assumes atomic conditional log append and truthful participant
+verification while the host holds all required guards. Its operation-boundary
+mapping is reviewed, without automatic Zig trace replay or a refinement proof.
+Component tests supply verification callbacks rather than actual Table prepare
+owners. No consistent-cut acquisition, common Table visibility, serializability,
+SQL transaction, retained-graph integration, process-death or power-loss result
+follows from these checks.
+
+An earlier clean core attempt crashes in the local catalog authorization test;
+the same failure reproduces at original base `87a10e4f2`. The dependency
+[`2c7fbab25`](https://github.com/spoke-sh/transit/commit/2c7fbab25b35481cdd97f41ff35db822cf3ae89e)
+moves retained test responses out of nested stack frames. The formal/contract
+results above do not qualify the complete core lane or that test's runtime.
+
 ## SQL result progress and session models — 2026-10-27
 
 At source [`50a83f2c2130`](https://github.com/spoke-sh/transit/commit/50a83f2c21301cdd915aa2c7e0ae2d937e95c626),

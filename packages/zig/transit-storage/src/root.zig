@@ -22,6 +22,8 @@ pub const TableSnapshot = @import("TableSnapshot.zig");
 pub const TablePartitionRecord = @import("TablePartitionRecord.zig");
 pub const TablePartition = @import("TablePartition.zig");
 pub const TableDmlIntent = @import("TableDmlIntent.zig");
+pub const TransactionDirectory = @import("TransactionDirectory.zig");
+pub const TransactionDecisionLog = @import("TransactionDecisionLog.zig");
 
 test {
     _ = TransitLog;
@@ -43,4 +45,6 @@ test {
     _ = @import("table_operation_test.zig");
     _ = @import("table_statement_test.zig");
     _ = @import("table_snapshot_scan_test.zig");
+    _ = @import("transaction_directory_test.zig");
+    _ = @import("transaction_decision_test.zig");
 }

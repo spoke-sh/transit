@@ -2202,6 +2202,29 @@
       "limits": "Safety only with no fairness or liveness claim. The row bound limits exploration, not production data size. Progress replay does not establish all Zig histories or protocol correspondence. The session model starts after a successful initial execute response and abstracts current authorization as an atomic disclosure predicate. SQL computation, types/codecs, u64 overflow, scratch ownership, real transport, durable settlement, storage and transactions remain separate checks.",
       "model": "tests/verification/models/StatementResult.tla",
       "qualification": "Executed bounds and checks are recorded in docs/history/qualification/verification.md; generated source/configuration hashes, graphs, logs and counterexamples are retained under .cache/verification/statement-result-model/ and CI artifacts."
+    },
+    {
+      "id": "TRANSACTION-01",
+      "claim": "One frozen original attempt has at most one durable decision, gated by complete preparations, current authority and coordinator fencing; unavailable replies never establish abort",
+      "owner": "contracts/TRANSIT_STORAGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TransactionDecisionLog.zig",
+        "packages/zig/transit-storage/src/TransactionDirectory.zig",
+        "packages/zig/transit-storage/src/transaction_decision_test.zig"
+      ],
+      "profile": "Storage component journal and finite one-attempt model; two abstract written participants and two coordinator epochs",
+      "tasks": [
+        "test::transaction-decision-model",
+        "check::native"
+      ],
+      "scenarios": [
+        "Exhaustive decision-state exploration and six independent missing-obligation counterexamples",
+        "Exact lost-reply recovery, commit/abort races and stale coordinator refusal",
+        "Preparation membership, availability/current-authority callback refusal and bounded allocation"
+      ],
+      "limits": "The model assumes atomic conditional log append and truthful participant verification under a common guard. Component tests supply verification callbacks, not actual Table owners. No installed transactions, consistent-cut acquisition, Table preparation/visibility, serializability, SQL, retention integration, liveness, power-loss experiment or implementation refinement is established. Model counterexamples are not automatically replayed against Zig.",
+      "model": "tests/verification/models/TransactionDecision.tla",
+      "qualification": "Execution evidence is retained under .cache/verification/transaction-decision-model/ and CI artifacts. The component integration contract records the remaining host obligations."
     }
   ]
 }

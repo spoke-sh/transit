@@ -137,6 +137,23 @@ def generated():
         for item in (lifecycle['binding'], lifecycle['commit']['binding'],
                      lifecycle['snapshot'], lifecycle['resource_initialization']):
             item['definition'] = definition
+        transaction_path = FIXTURES / 'transaction-v1.json'
+        transaction = json.loads(transaction_path.read_text())
+
+        def transaction_definition(value):
+            if isinstance(value, dict):
+                for name, child in value.items():
+                    if name == 'definition':
+                        value[name] = definition
+                    else:
+                        transaction_definition(child)
+            elif isinstance(value, list):
+                for child in value:
+                    transaction_definition(child)
+
+        transaction_definition(transaction)
+        results[transaction_path] = transaction
+        lifecycle['transaction'] = transaction
         results[lifecycle_path] = lifecycle
 
         serving_path = ROOT / 'packages/zig/transit-serving/src/fixtures/serving-v1.json'

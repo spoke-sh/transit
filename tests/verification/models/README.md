@@ -167,6 +167,53 @@ proof. The model does not cover object descriptors, multiple owners, replication
 retention policy, arbitrary corruption or arbitrary-size executions. Executed
 results belong to the [proof ledger](../../../docs/history/qualification/README.md).
 
+## Finite transaction decision model
+
+Run `nix develop --command just test::transaction-decision-model`. The ordinary
+formal lane owns this check and retains its evidence directory. The locked TLC
+uses one worker, seed `1`, fingerprint `0`, a 512 MiB heap and a 60-second limit
+per configuration. `--seconds N` changes that limit; every safe run must exhaust
+its queue, and every negative control must report its named invariant and a
+complete recognized action trace. Timeouts and malformed/tool output fail.
+
+[TransactionDecision.tla](TransactionDecision.tla) asks whether one original
+attempt can retain one truthful decision through preparation, authority changes,
+coordinator replacement and lost replies. It starts unfrozen, with no prepared
+participants or decision, an authorized first-epoch coordinator and unknown
+caller knowledge. Its finite domains contain two written participants, two
+epochs, commit/abort outcomes and Boolean availability, conflict and permission.
+Preparation is monotone. Recovery adopts the current epoch without changing the
+original attempt or decision. Losing a reply changes knowledge only.
+
+Invariants require freezing before a decision, complete preparation before
+commit, one immutable original decision, current publication/disclosure authority,
+fenced publication and truthful terminal observations. Six independent controls
+remove freezing, preparation completeness, epoch fencing, publication authority,
+decision stability and disclosure checks. Each must produce its named invariant
+violation. No fairness or liveness assumption is made. Repeated failures,
+revocation and unavailable participants may prevent progress indefinitely.
+
+The journal's operation boundaries provide a reviewed correspondence:
+`TransactionDecisionLog.freeze` checks the frozen binding and participant
+directory; `commit` verifies complete membership and calls current owner checks
+under the supplied guard; `append` uses the conditional, epoch-fenced log;
+terminal `commit`/`abort` retries return the original decision; `observe` checks
+current authority; `recover` reconstructs history without dispatch. The
+[component tests](../../../packages/zig/transit-storage/src/transaction_decision_test.zig)
+exercise these operations with disk reopen, lost replies, pre/post-append failure,
+stale epochs, missing preparations and denied callbacks. They do not automatically
+replay model counterexamples or establish complete edge correspondence.
+
+Atomic conditional append and truthful verification while all participant/name/
+policy guards remain held are model assumptions. The model abstracts identities,
+payloads, descriptor integrity and memory. It establishes no consistent-cut
+acquisition, Table predecessor barrier, common Table visibility, serializability,
+SQL transaction, retention integration, distributed decision or filesystem proof.
+The [integration contract](../../../packages/zig/transit-storage/docs/transaction-decisions.md)
+states the missing production owners. Source/configuration hashes, revision/dirty
+state, exact commands, TLC logs, completion counts and counterexamples remain
+under `.cache/verification/transaction-decision-model/` and CI artifacts.
+
 ## Finite SQL result models
 
 Run `nix develop --command just test::statement-result-model`. The ordinary

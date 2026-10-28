@@ -1,6 +1,6 @@
 # 5. Transactions, consistent snapshots and atomic composition
 
-[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · **Status:** Planned
+[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · **Status:** In Progress
 
 Let an application read a consistent basis, compose changes to supported data
 objects, and inspect one durable commit or abort decision through SQL and typed
@@ -26,7 +26,8 @@ stream/queue outbox, consumer-checkpoint and durable-runtime turn composition
 with [Milestone 6](06-streams-queues-and-durable-runtime.md) and client contracts
 with the [early programming foundation](07-client-foundation-and-language-apis.md).
 
-At source `7f9343cc`, the [SQL reference](../handbook/reference/sql.md) and
+At the implementation-plan base `87a10e4f2` (fetched `origin/main` on
+2026-10-28), the [SQL reference](../handbook/reference/sql.md) and
 [session contract](../../contracts/SQL_SESSION_V1.md) do not offer interactive
 `BEGIN`/`COMMIT`/`ROLLBACK` sessions. The
 [native state contract](../../contracts/STATE_V1.md#read-bases-and-atomic-turns)
@@ -100,6 +101,128 @@ actor-turn latency as a measurement of this implementation.
 | Transactional outbox | Data changes and durable message/connector intents publish atomically; delivery, execution and external outcomes complete separately |
 | Branches, reviewed publication and investigations | Reuse snapshot/conditional-publication primitives with their own history, retention, policy and lifetime contracts |
 | Replicated or distributed deployment | Preserve the same decision, isolation and visibility semantics under the later qualified failure and placement profiles |
+
+## Implementation plan — 2026-10-28
+
+This plan is based on committed `origin/main` at `87a10e4f2`, including the
+database-runtime cutover and storage resource follow-up. It does not incorporate
+uncommitted work from another checkout. All transaction work packages below are
+**tracked below**; existing component and installed evidence qualifies only its recorded
+profile. Keep the milestone `Planned` until implementation starts, then update
+this header and the roadmap index together.
+
+### Work package status
+
+| Package | Outcome | Status |
+| --- | --- | --- |
+| P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types, validation and finite decision-journal model; complete local isolation/runtime correspondence remains open |
+| P1 | Database admission, original-token binding, transaction quotas and caller boundary | Planned |
+| P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: immutable paged participant directories; acquisition and workspace integration remain open |
+| P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | In progress: fenced decision journal with exact preparation membership; Table preparation and visibility integration remain open |
+| P4 | Restart/failure settlement, retained roots, cleanup and maintenance | Planned |
+| P5 | Provisional statement results, SQL session controls and shared client | Planned |
+| P6 | Typed Zig, console and PostgreSQL/MySQL adapters and inspection | Planned |
+| P7 | Savepoints, cursor invalidation and resource/failure schedules | Planned |
+| P8 | Table outbox/checkpoints and explicit participant extension handoff | Planned |
+| P9 | Installed caller, anomaly, recovery and resource qualification | Planned |
+
+The neutral types validate descriptor shape only. They establish no transaction
+service, acquired consistent cut, serializable execution or durable decision.
+The storage directory and decision-journal components have separate disk/recovery
+checks and an explicit [integration contract](../../packages/zig/transit-storage/docs/transaction-decisions.md).
+Their verification callbacks are not yet connected to Table owners. Catalog
+admission, common-cut acquisition, private workspace/savepoint execution,
+Table predecessor barriers, common-decision visibility, retained-graph integration
+and public callers must land before an installed transaction profile is claimed.
+
+### Incoming handoffs and start gates
+
+| Owner and status at this base | Available input | Required action and gate for this milestone |
+| --- | --- | --- |
+| [M1](01-declarative-data-lifecycle.md), Completed | Stable identities, exact definitions, frozen operations, WAL-inclusive cuts and the selected local transaction algorithm | Carry the selected profile into executable contracts and neutral fixtures in P0. Descriptor validation is not consistent-cut acquisition or a transaction proof. |
+| [M2](02-storage-and-query-performance.md), Completed | Local WAL/object durability, paged Table history, immutable data and retained roots | Extend the actual acceptance, recovery and retained-graph owners in P2–P4; do not infer that existing single-Table durability already covers a common decision. |
+| [M3](03-live-storage-and-sql-cutover.md#implementation-plan--2026-10-27), In Progress | Installed direct Tables, lazy schema projection, WAL reads, automatic maintenance, database-owned SQL and single-executable packaging | Implementation can start from these merged owners. Preserve P1 native-resource/caller boundaries and P4 maintenance/retention checks. Coordinate P5 read/wait costs and P6 inspection; require affected installed recovery and resource gates at M5 P9. M3 P4–P6 and P8 remain independently open. |
+| [M4](04-statement-results-and-consumption.md#delivered-integration-boundary), Completed | `transit-sql-results`, `Executor`, bounded `ResultSet`, typed counts and immutable observation evidence | Extend the shared model with provisional transaction attribution and decision evidence in P0/P5. Keep completion, delivery and closure separate. Do not rebuild submission/fetch/recovery in each adapter. |
+| [M6 Step 1](06-streams-queues-and-durable-runtime.md#sql-database-runtime-cutover--2026-10-28), In Progress | `DirectClientToken`, `DatabaseRuntime`, activation fencing, `ReadCache`, `commit_saved`, and build checks excluding Station from database packages | The architectural prerequisite is delivered. Preserve the one-data-append fast path and measure complete control-path cost; its remaining performance/installation gates are not prerequisites for drafting P0, nor are they automatically passed by this plan. |
+| [M11 / #194](11-data-structures-and-performance.md#implementation-plan-for-issue-194), In Progress | Admitted result/client/service reserves and `transit-memory` / `transit-io` owners | Budget transaction work separately from result and recovery capacity; coordinate source/storage allocation work with F–J. Rebase its older `AccountRuntime` references onto `DatabaseRuntime`; they are not an instruction to restore actors. |
+| [M16](16-service-and-sdk-coverage.md), In Progress; [M7](07-client-foundation-and-language-apis.md), Planned | Existing console, wire adapters and SDKs; agreed future shared-client direction | M5 delivers typed Zig and native SQL transaction callers plus the existing PostgreSQL/MySQL mappings. Review language ownership now; broad new language/Flight transaction coverage remains with M7/M16. |
+| [M17 T4](17-formal-semantics-and-correspondence.md#t4-transaction-decisions-isolation-and-atomic-outbox-publication), In Progress | Model/checker infrastructure and an explicit transaction candidate | Select the local OCC/decision model and production correspondence during P0, replay its counterexamples in P3/P4, and retain its bounded assumptions. Later SSI and distributed proofs do not substitute for the local gate. |
+
+The storage follow-up at this base deliberately **does not adopt** the reusable
+128 MiB private maintenance reserve: installed RSS increased without a clear
+latency/CPU benefit. Consume the retained slab initialization and request-lifetime
+fixes, and the [measured tradeoff](03-live-storage-and-sql-cutover.md#p4--schedule-archival-checkpoints-compaction-and-collection).
+Do not copy a large reserve into every transaction to satisfy an allocation
+counter. Count admitted capacity, resident pages, OS memory, foreground latency
+and background work together.
+
+### Selected delivery profile and exclusions
+
+The [foundation decision](01-declarative-data-lifecycle.md#selected-transaction-session-extension)
+is the starting algorithm, not an open-ended mechanism search:
+
+- One catalog, its existing branch-one profile, and one fenced local database
+  authority; multiple Tables may participate. No new branch lifecycle or remote
+  coordinator is required. Data and schema identities remain distinct from
+  names, SQL sessions, account activations and storage epochs.
+- Serializable read/write transactions use a retained common cut and conservative
+  whole-Table logical-version validation. Validate every read and written Table,
+  including absent-key/predicate/constraint reads. Physical flush, compaction,
+  pin bookkeeping and recovery must not create false logical conflicts. There
+  is no snapshot-isolation fallback. Do not advertise strict serializability or
+  real-time ordering without separately proving it.
+- Read-only transactions use the same common-cut acquisition and pin ownership;
+  they need no write preparation and may finish on their retained cut despite
+  later data commits. Current grants still govern every disclosure.
+- Typed begin can select an explicit Table set; ordinary interactive SQL begin
+  selects the authorized catalog Table set under one stable name/definition
+  basis. A later statement cannot silently extend that cut. Reject an omitted,
+  newly created or newly accessible object before executing the statement.
+  Record the exact scope so a filtered catalog cut is never described as covering
+  inaccessible Tables. Catalog-wide acquisition must page even when the directory
+  exceeds every resident cache.
+- DML, supported finite Table reads, existing primary-key/NOT NULL constraints,
+  savepoints, typed Table outbox records and same-domain Table consumer checkpoints
+  form the first executable scope. DDL, GRANT/configuration changes, captured
+  jobs, native KV/Document sources, native input acknowledgments and arbitrary
+  external calls cannot join it. No statement implicitly commits to accommodate
+  an excluded operation. Metadata results retain their proper catalog/settings
+  evidence rather than inventing data rows or data-snapshot authority.
+- Native KV/Document participation and the Stream/Queue/Station composition
+  remain explicit extension obligations. P0 fixes the three participant
+  categories; P8 provides the common interface and handoff to M6. An extension
+  does not execute merely because its variant is present in a fixture.
+
+The local Table delivery gate is useful before M6 is complete. It is not proof
+of the broader multi-model or Station outcomes in [Experience and ownership](#experience-and-ownership).
+Track those outcomes individually at P8/P9; do not close them through a blanket
+“transactions implemented” status or make M6 wait for its own completed migration
+before it can consume the qualified Table coordinator.
+
+### Implementation owners and contract changes
+
+Names in this table identify existing owners; proposed transaction modules and
+operations acquire exact names and manifests in P0. Reuse the dependency direction
+and package interfaces, without imports from sibling source directories.
+
+| Boundary | Existing implementation to extend | Contract and review responsibility |
+| --- | --- | --- |
+| Neutral identities, source basis and receipts | `transit-protocol` data lifecycle types | [Data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md): transaction/begin/statement/attempt identities, consistency scope, participant directory commitment, decision evidence and incompatible-definition rejection |
+| Catalog admission, names, authorization and recovery directory | [Direct catalog](../../packages/zig/transit-catalog/docs/direct-catalog.md), `DirectClientToken`, `DirectCatalogStore`, `DirectStorageGraph` | [Direct requests](../../contracts/DIRECT_TABLE_V1.md) and [catalog](../../contracts/CATALOG_V1.md): original token binding, paged transaction/pin/cleanup indexes, fenced decision ownership and complete retained roots |
+| Durable participant state and commit visibility | [Storage](../../packages/zig/transit-storage/README.md), `TablePartition`, `TransitLog`, object and recovery owners | [Storage](../../contracts/TRANSIT_STORAGE_V1.md): private preparation, predecessor barriers, immutable objects, one common decision, logical history, replay and checkpoint/trim rules |
+| Private evaluation and read-your-writes | [Direct query](../../packages/zig/transit-query-direct/README.md), Fuze and Table mutation builders | Existing query/DML types plus a bounded transaction overlay; no raw provider credentials in query execution and no duplicate evaluator |
+| Database scheduling and session attachment | [DatabaseRuntime](../../packages/zig/transit-sql/docs/runtime.md), `Statement`, `ReadCache`, `transit-sql-service.Session` | Durable recovery lives below temporary sessions. Transaction control uses public database operations; session handles/leases are not commit authority. |
+| Logical outcomes and caller ownership | [Results](../../packages/zig/transit-sql-results/README.md), [shared client](../../packages/zig/transit-sql-client/README.md), typed direct client | [SQL results](../../contracts/SQL_RESULTS_V1.md) and [SQL sessions](../../contracts/SQL_SESSION_V1.md): provisional evidence, exact decision settlement, cursor closure and bounded ownership |
+| Grammar and adapters | SQL parser/compiler, console, `transit-postgres`, `transit-mysql`, public Zig SDK | [Grammar](../../contracts/sql/README.md), [gateway contract](../../contracts/SQL_GATEWAY_V1.md), [caller boundary](../handbook/reference/callers.md): shared control semantics, accurate capability/error mappings and generated resources |
+| Local hosting, maintenance and inspection | `apps/transit-node`, local backend, SQL gateway, existing public read surfaces | [Storage](../handbook/reference/storage.md), [retention](../handbook/reference/retention.md), [security](../handbook/reference/security.md): prepare/decision retention, bounded recovery, current-policy checks and read-only inspection |
+
+Catalog acceptance LSN, each participant's prepare/data LSN, the common decision
+position and SQL statement completion are different evidence. Preserve them as
+typed, scoped fields; never compare positions from different logs as one scalar
+clock. Reuse the current Catalog token directory rather than creating a second
+session deduplication authority. Common-decision records may use a dedicated
+database coordination partition, selected in P0; unrelated single-partition
+autocommit must not acquire a new global durable root dependency.
 
 ## Delivery sequence
 
