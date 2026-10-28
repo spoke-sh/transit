@@ -241,28 +241,44 @@ pub fn lookup(self: *Self, observer: *g.Client, nonce: [16]u8, fingerprint: ?[32
     const state = (try source.lookup(nonce, fingerprint)) orelse return null;
     return try self.execution.operation(&source, state.id());
 }
+/// Repeat only observations or independently idempotent database requests with
+/// the same arguments. In particular, a token bind retains its frozen reference;
+/// this helper never resubmits SQL or chooses another accepted identity.
+fn available(self: *Self, observer: *g.Client, deadline: Deadline, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !@typeInfo(@typeInfo(@TypeOf(function)).@"fn".return_type.?).error_union.payload {
+    const started = std.Io.Clock.awake.now(self.io);
+    while (true) {
+        try deadline.check(self.io);
+        return @call(.auto, function, args) catch |err| {
+            if (!wire.Client.unavailable(err) or observer.transport.last_rejection == .StorageQuota or
+                started.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= self.background.timeout_ms) return err;
+            try self.io.sleep(.fromMilliseconds(20), .awake);
+            continue;
+        };
+    }
+}
 pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.OperationRecords.Operation {
     try deadline.check(self.io);
-    try self.fence(observer);
+    try self.available(observer, deadline, Self.fence, .{ self, observer });
     table.lease = self.lease();
-    if (try self.lookup(observer, nonce, if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint)) |previous| {
+    if (try self.available(observer, deadline, Self.lookup, .{ self, observer, nonce, if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint })) |previous| {
         operation.* = previous.id;
         return previous;
     }
     try statement.checkValues(allocator, values);
-    try statement.validate(table);
+    try self.available(observer, deadline, g.Statement.validate, .{ statement, table });
     var random: [8]u8 = undefined;
     try self.io.randomSecure(&random);
     const id = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
-    var intent = try statement.bindWrite(allocator, table, values, id);
+    var intent = try self.available(observer, deadline, g.Statement.bindWrite, .{ statement, allocator, table, values, id });
     defer intent.deinit();
     if (try intent.workBytes() > self.execution.configuration.intent_bytes) return error.GatewayRecordTooLarge;
-    const reference = try intent.stage(table.*, statement.namespace);
-    const receipt = c.DirectClientToken.bind(table.*, .{ .key = .{ .definition = p.Growth.current_definition, .connection = table.connection, .account = self.execution.configuration.account, .token = nonce }, .fingerprint = if (std.mem.allEqual(u8, &fingerprint, 0)) try reference.digest() else fingerprint, .intent = reference, .budget = self.execution.configuration.budget(self.execution.configuration.reservation()) }) catch |err| {
+    const reference = try self.available(observer, deadline, g.Statement.Write.stage, .{ &intent, table.*, statement.namespace });
+    const binding: c.DirectClientToken.Binding = .{ .key = .{ .definition = p.Growth.current_definition, .connection = table.connection, .account = self.execution.configuration.account, .token = nonce }, .fingerprint = if (std.mem.allEqual(u8, &fingerprint, 0)) try reference.digest() else fingerprint, .intent = reference, .budget = self.execution.configuration.budget(self.execution.configuration.reservation()) };
+    const receipt = self.available(observer, deadline, c.DirectClientToken.bind, .{ table.*, binding }) catch |err| {
         // A concurrent first submission may have won after the initial lookup.
         // Reconcile only the same token; never invent a new operation.
         if (observer.transport.contended(err)) {
-            if (try self.lookup(observer, nonce, if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint)) |previous| {
+            if (try self.available(observer, deadline, Self.lookup, .{ self, observer, nonce, if (std.mem.allEqual(u8, &fingerprint, 0)) null else fingerprint })) |previous| {
                 operation.* = previous.id;
                 return previous;
             }
@@ -272,18 +288,18 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     operation.* = receipt.position.next_lsn;
     self.notify();
     var source = try observer.source();
-    return self.execution.operation(&source, operation.*.?);
+    return self.available(observer, deadline, g.DatabaseAccount.operation, .{ self.execution, &source, operation.*.? });
 }
 pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !struct { terminal: g.Terminal, completion: g.results.CommandCompletion } {
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
     const item = try self.admit(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation);
     var source = try observer.source();
-    const state = try source.operation(item.id);
+    const state = try self.available(observer, deadline, g.Client.Source.operation, .{ &source, item.id });
     const intent = state.receipt.binding.intent;
     while (true) {
         try deadline.check(self.io);
-        const response = try intent.operation(table.*, .inspect, 1);
+        const response = try self.available(observer, deadline, c.DirectIntent.Reference.operation, .{ intent, table.*, .inspect, 1 });
         defer response.deinit();
         if (try g.Terminal.fromReference(intent, response.value.result)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = item.id }) };
         self.notify();

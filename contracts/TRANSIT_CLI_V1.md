@@ -487,14 +487,14 @@ a separate API and does not satisfy this cursor-assistance contract.
 ### Console write routes and recovery
 
 The SQL service supplies enrolled account/database bindings. CREATE/ALTER/DROP
-and INSERT/UPDATE/DELETE share the Table compiler and account coordinator used by
+and INSERT/UPDATE/DELETE share the Table compiler and database runtime used by
 PostgreSQL and MySQL. Configuration never grants rights. Native and catalog
 permissions are checked independently; query access does not imply mutation
-access. One Table operation per account advances at a time through the bounded
-pending ledger. Independent read sessions do not own that ledger's recovery lock.
+access. Each recovery tick advances one original Table operation from the
+Catalog's paged pending directory. Independent read sessions do not own recovery.
 
-The ledger retains frozen intents, exact signed steps, receipts and outcomes
-before their dependent actions. A reply lost after admission is recovered by its
+The Catalog retains complete frozen intents, original token bindings and progress;
+the data owner retains its commit outcome. A reply lost after admission is recovered by its
 original token, including from a new session. Retrying SQL with a new token creates
 new work. Cancellation does not undo published mutations, and quota pressure does
 not delete accepted work. The [SQL session contract](SQL_SESSION_V1.md) and
@@ -507,13 +507,13 @@ The installed bundle fingerprints its SQL gateway even when disabled. Nullable
 The default `sql.native.local: true` starts the shared SQL service and provisions
 its local peer account once. With local native access disabled, no native HTTP
 listener, no wire listener and no retained enrollment, startup creates no SQL-only
-identity, credential, ledger or process. Listener/account/TLS settings require
+identity, credential, operation history or process. Listener/account/TLS settings require
 restart and use the shared configuration registry and environment precedence.
 
 SQL enrollment checkpoints a definition-bound installation identity, exact
 pending root requests and completed receipts before deriving dependent work.
-Separate sequence owners serve worker, ingress, coordinator, control, Table and
-private-reader lanes. Application and SQL setup serialize unresolved root work;
+Each SQL account uses one scoped database principal. Catalog records own its
+activation fence, operation history and snapshot recovery. Application and SQL setup serialize unresolved root work;
 public administration uses a separate explicitly privileged principal. Account
 role and catalog bindings remain immutable. Public authorization preparation and
 apply explicitly publish login binding and data access. Ordinary startup does
@@ -524,17 +524,20 @@ resolution separately requires database CONNECT and schema USAGE. A generated
 `catalog-access.json` proposes those discovery rights for explicit preparation
 and apply. Refreshing its policy basis never applies the proposal.
 
-Initialization runs without listeners, followed by a distinct fresh native
-activation for admission. Core readiness and SQL readiness are independent; the
+Credential enrollment does not establish database access. Initialization waits
+for explicit CONNECT and schema USAGE grants without exhausting the startup
+failure budget or blocking another account's enrollment. Runtime startup
+publishes a strictly increasing Catalog activation generation. Core readiness and SQL readiness are independent; the
 ready record links the atomically published SQL status file. That file carries
 states, actual accepting ports, public CA path and per-account control profiles,
 never passwords or signing keys. Missing or invalid listener trust cannot grant
 admission or prevent listener-free recovery of previously accepted operations.
 
 Disable/remove stops new admission after restart while preserving enrolled
-identities, original bindings, ledger records and pending controls. Retained
-unsettled accounts continue under their current native rights; settled removed
-accounts need no resident worker. Fixed setup receipt arrays describe only finite
+identities, original bindings, Catalog records and pending controls. Retained
+unsettled accounts continue under their current rights; removed accounts with
+pending writes or snapshot cleanup retain recovery. Settled removed accounts
+need no resident worker. Fixed setup receipt arrays describe only finite
 setup stages. Account-history scans page through one retained record at a time;
 active/recovering accounts have an explicit deployment quota.
 
@@ -542,7 +545,7 @@ Managed trust is checkpointed before PEM publication. Supplied trust must have a
 valid matching key/leaf, a verified chain to the advertised CA, TLS server usage
 and localhost/127.0.0.1 SANs. A salted password verifier is established once from
 an explicit private file. Later password rotation uses the existing signed-control
-profile's credential operation, independently from data privileges and ledger
+profile's credential operation, independently from data privileges and account
 identity. The [local SQL guide](../apps/transit-cli/docs/sql.md) owns configuration,
 client commands, bounds and recovery usage; the [gateway contract](SQL_GATEWAY_V1.md)
 owns wire semantics and retained operation evidence.

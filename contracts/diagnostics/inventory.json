@@ -1631,6 +1631,7 @@
     },
     "apps/transit-cli/server/Sql.zig": {
       "errors": {
+        "AccessDenied": 1,
         "AuthorityRollback": 1,
         "GatewayConfigurationChanged": 1,
         "GatewayConnectionCapacity": 1,
@@ -1668,8 +1669,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 83,
-        "catch": 4
+        "try": 82,
+        "catch": 5
       },
       "imports": [
         "../Diagnostic.zig",
@@ -20972,6 +20973,7 @@
         "admit()": "<inferred>",
         "advance()": "<inferred>",
         "attachReadCache()": "<inferred>",
+        "available()": "<inferred>",
         "cancel()": "<inferred>",
         "cleanupClient()": "<inferred>",
         "execute()": "<inferred>",
@@ -20986,8 +20988,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 67,
-        "catch": 7
+        "try": 69,
+        "catch": 8
       },
       "imports": [
         "root.zig",

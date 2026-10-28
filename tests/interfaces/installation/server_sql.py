@@ -247,10 +247,12 @@ def run(cli, node, host, board, gateway, *, bundle=None):
                 assert remaining > 0, ('Original SQL operation did not complete', original)
                 observed = json.loads(call([*gateway, 'control', control, 'status', str(original)],
                     timeout=remaining, retry_observation=True))
-                assert observed['operation']['operation'] == original, observed
+                assert observed['operation']['receipt']['position']['next_lsn'] == original, observed
                 if observed['terminal'] is not None:
                     terminal = observed['terminal']
-                    assert terminal['operation'] == original and terminal['kind'] == kind and terminal['state'] == 'applied', observed
+                    binding = observed['operation']['receipt']['binding']['intent']['table']['binding']
+                    assert terminal['operation'] == binding['identity']['operation'], observed
+                    assert terminal['kind'] == kind and terminal['state'] == 'applied', observed
                     assert terminal['matched'] == terminal['changed'] == rows, observed
                     print(f'Local SQL: {protocol} recovered original {kind} operation {original} after its connection wait ended; SQL was sent once.', flush=True)
                     return
@@ -259,6 +261,14 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         profile = fixture.installation / 'sql/accounts/owner/control.json'
         def controls(*args):
             return json.loads(call([*gateway, 'control', profile, *map(str, args)], retry_observation=True))
+
+        def inventory():
+            page = controls('list')
+            entries = [entry for entry in page['entries'] if entry]
+            while page['next'] is not None:
+                page = controls('list', page['next'])
+                entries.extend(entry for entry in page['entries'] if entry)
+            return entries
 
         assert pg('SELECT 1') == mysql('SELECT 1') == '1'
         assert pg('SHOW DATABASES') == 'transit'
@@ -340,17 +350,18 @@ def run(cli, node, host, board, gateway, *, bundle=None):
         # Lose the client response after an operation reaches the durable Catalog.
         # Observe its identity; never submit this SQL a second time.
         fixture.boundary.pause()
-        before = {e['operation'] for e in controls('list')['entries']}
+        before = {e['id'] for e in inventory()}
         lost = subprocess.Popen([*mysql_args(), "INSERT INTO shared_rows (id,label) VALUES (2,'retained')"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             deadline = time.monotonic()+180
             operation = None
             while time.monotonic() < deadline:
-                fresh = [e for e in controls('list')['entries'] if e['operation'] not in before and e['phase'] in ('active', 'terminal')]
+                fresh = [e for e in inventory() if e['id'] not in before]
                 if fresh and fixture.boundary.observed.exists():
                     assert len(fresh) == 1
-                    assert fresh[0]['phase'] == 'active', 'The proof must interrupt accepted, unfinished work'
-                    operation = fresh[0]['operation']; break
+                    observed = controls('status', fresh[0]['id'])
+                    assert observed['operation']['pending'] and observed['terminal'] is None, 'The proof must interrupt accepted, unfinished work'
+                    operation = fresh[0]['id']; break
                 assert lost.poll() is None, lost.communicate()
                 time.sleep(.3)
             assert operation is not None

@@ -12,7 +12,7 @@ compatible build.
 | `native_url` | Signed native HTTP endpoint accessible from the private deployment |
 | `tls_mode` | `disabled`, `optional` or `required` (default); independent of account authentication |
 | `certificate_file`, `certificate_key_file` | PEM server chain and private key; clients verify the chain and hostname |
-| `activation_directory` | Persistent private directory containing exclusive native-generation activation markers |
+| `activation_directory` | Private service directory for account-generation reuse markers and saved configuration reload requests; the Catalog owns the authoritative activation fence and snapshot recovery |
 | `spill_directory` | Private bounded query spill location |
 | `bind_address` | IPv4 listener address; default 127.0.0.1 |
 | `postgres_port`, `mysql_port` | Optional distinct nonzero ports; omit both to run retained-operation recovery without SQL admission |
@@ -155,7 +155,7 @@ and Kubernetes/Substrate placement with persistent activation storage, separate
 spill, verified client TLS and explicit native replacement. Keep SQL and health
 listeners private to their intended clients and operators. Kubernetes readiness
 uses `/health`; liveness uses `/live`. A failed activation must be repaired
-through native ownership and retained operation evidence, not by removing its
+through Catalog activation and retained operation evidence, not by removing its
 activation marker or repeatedly restarting the same generation.
 
 ## Signed operator controls

@@ -1,4 +1,4 @@
-//! Compact projection of the direct owner's terminal evidence. A SQL ledger
+//! Compact projection of the direct owner's terminal evidence. A SQL progress
 //! record grants no disclosure rights: callers reobserve the original binding.
 const std = @import("std");
 const g = @import("root.zig");

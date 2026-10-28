@@ -165,10 +165,12 @@ New roles start without data rights. Grant their database/schema access and
 Table privileges explicitly using the examples below. The generated
 `authorization.yaml` and `catalog.yaml` select a separate private administrator
 with root-role membership; protect their seed as full administrative access.
-SQL receives separate worker, ingress, coordinator and Table
-credentials. Account initialization and normal admission use separate fenced
-activations. One initialized account can serve connections while others await
-authorization.
+SQL receives one scoped database credential per account. Credential binding and
+database access are separate: initialization waits for explicit CONNECT and
+schema USAGE grants, without spending the service startup-failure budget or
+blocking another account's enrollment. Catalog activation generations fence
+replacement runtimes. One initialized account can serve connections while
+others await authorization.
 
 ## Connect and share a Table
 
@@ -305,13 +307,14 @@ Set an account's `enabled` to false or remove its declaration to prevent its nex
 login after restart. These changes preserve the account's credentials, immutable
 catalog binding and accepted work. Completed removed accounts remain
 inspectable through their retained control profiles without a resident worker.
-Accounts with unsettled operations continue recovery with current worker rights.
+Accounts with unsettled operations or cached pins retain recovery under current
+database rights until those obligations close.
 
 With both listeners disabled, retained workers require no PEM files and open no
 SQL sockets. The private `/recovery` probe describes worker readiness; `/health`
 also requires configured SQL admission. Disabling a listener is not cancellation.
 A bounded shutdown stops accepting connections, drains tasks and joins workers;
-native generations fence replacements. Revoked worker authority must be restored
+Catalog activation revisions fence replacements. Revoked database authority must be restored
 by an explicit operator decision before recovery can progress.
 
 SQL setup or worker failures leave core administration available. The supervisor

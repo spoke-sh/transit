@@ -31,6 +31,8 @@ def run(node, catalog, gateway):
         committed = None
         recovered = False
         repeated = False
+        capacity_binding = capacity_receipt = None
+        capacity_repeats = 0
         sends = turns = table_calls = 0
         failures = []
         upstream = threading.local()
@@ -43,6 +45,7 @@ def run(node, catalog, gateway):
             def log_message(self, *_): pass
             def do_POST(self):
                 nonlocal armed, accepted, committed, recovered, repeated, sends, turns, table_calls
+                nonlocal capacity_binding, capacity_receipt, capacity_repeats
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 connection = getattr(upstream, 'conn', None)
                 if connection is None:
@@ -61,6 +64,19 @@ def run(node, catalog, gateway):
                         action = request['action']
                         operation = action.get('operation')
                         saved = action.get('commit_saved')
+                        binding = action.get('client_token', {}).get('bind')
+                        if status == 200 and binding and 'table' in binding['intent']:
+                            if capacity_binding is None:
+                                # Acceptance happened, but its response looks
+                                # temporarily unavailable. The runtime may only
+                                # repeat this exact frozen binding and token.
+                                capacity_binding = binding
+                                capacity_receipt = json.loads(data)['result']['client_token']
+                                status, data = 503, b'{"err":"HttpCapacity"}'
+                            elif binding['key'] == capacity_binding['key']:
+                                assert binding == capacity_binding
+                                assert json.loads(data)['result']['client_token'] == capacity_receipt
+                                capacity_repeats += 1
                         if status == 200 and operation and committed and operation['binding'] == committed[0]:
                             if operation['command'] == 'inspect':
                                 assert json.loads(data)['result'] == committed[1]
@@ -179,11 +195,13 @@ def run(node, catalog, gateway):
             framing = call(gateway, 'session-framing')
             assert framing == dict(framing_refusals=17, exact_repeats=15, advanced_recoveries=2, revoked_results=3), framing
             assert sends == turns == 0, 'SQL database work dispatched Station messages or turns'
+            assert capacity_repeats == 1, capacity_repeats
             assert not failures, failures
             print(json.dumps(dict(profile='native_sql_database', exact_token_recovery=True,
                                   fenced_replacements=2, direct_outcome_recovered=recovered,
                                   direct_reexecuted=repeated, exact_counts=True, history=history,
-                                  framing=framing, station_sends=sends, station_turns=turns,
+                                  framing=framing, exact_capacity_retries=capacity_repeats,
+                                  station_sends=sends, station_turns=turns,
                                   table_requests=table_calls, seconds=round(time.monotonic()-started, 3))))
         finally:
             if authority is not None:

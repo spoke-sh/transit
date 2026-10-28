@@ -13,6 +13,13 @@ reference before preparation; a conflicting fingerprint rejects. A missing
 reply leaves acceptance uncertain and requires inspection of that same token.
 Staging alone neither accepts work nor authorizes dispatch.
 
+Temporary transport/capacity failures retry observations and the same immutable
+staging or token-binding request within the native request timeout and statement
+deadline. A retry preserves the frozen intent, data-operation identity and token;
+it never submits SQL as new work. Retained quota refusals, changed definitions
+and authorization denial do not enter this availability retry. Exhaustion keeps
+the original uncertainty and recovery identity.
+
 Catalog owns the paged token, operation and pending indexes. Pending enumeration
 reads eight entries per route and keeps at most 64 candidates for the account's
 eight routes. Terminal history does not determine resident memory. A CAS update
@@ -47,8 +54,8 @@ one WAL append across all owners. DDL and cancelled work retain their explicit
 owner transitions. Lost replies recover the original owner outcome before any
 further execution. Interactive transactions are not implemented here.
 
-`ReadCache` retains up to 64 Table cuts in memory and Catalog recovery slots per
-connection route. A read checks the current definition and logical change
+`ReadCache` retains up to 64 Table cuts in memory across the account and 64
+Catalog recovery slots per connection route. A read checks the current definition and logical change
 frontier, then borrows an unchanged cut without another pin or durable slot
 write. Every page and buffered disclosure still checks current authorization.
 A cold acquisition records its exact owner and expected cut before acquiring the
