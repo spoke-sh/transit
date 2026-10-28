@@ -755,6 +755,12 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
     if (!scope.connection.matches(self.config()) or scope.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     const current = try self.guard(allocator, policy, null, null, .database);
     try check(current);
+    const format = switch (request) {
+        inline .stage, .read => |value| value.format,
+    };
+    // The cut is server-owned evidence. Generic caller records only check
+    // CONNECT and cannot bypass its complete current Table disclosure checks.
+    if (format == c.DirectTransaction.Acquired.format) return error.TransactionOperationRequired;
     const result: c.DirectRecord.Result = switch (request) {
         .stage => |value| blk: {
             const bytes = try value.bytes.decode(allocator, c.DirectRecord.max_bytes);
@@ -899,6 +905,10 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     const current = try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy);
     try check(current);
     if (request != .update) return .{ .state = state };
+    // Transaction workspace, cancellation and settlement belong to the
+    // transaction owner. Generic client bookkeeping cannot replace that state
+    // or manufacture a cancellation request while the original attempt lives.
+    if (state.receipt.binding.intent == .transaction) return error.TransactionOperationRequired;
     const value = request.update;
     if (state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
     if (!std.meta.eql(state.revision, value.expected)) return error.ClientOperationConflict;
@@ -944,6 +954,132 @@ fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, polic
             .operation => |operation| if (operation.phase == .admitted) return error.ClientOperationPending,
         },
     }
+}
+
+const CutFence = struct {
+    underlying: P.Guard,
+    epoch: *?P.Guard.Fence,
+
+    fn guard(self: *CutFence) P.Guard {
+        return .{ .context = self, .acquire = acquire, .release = release };
+    }
+    fn acquire(context: *anyopaque) !P.Guard.Fence {
+        const self: *CutFence = @ptrCast(@alignCast(context));
+        const fence = try self.underlying.acquire(self.underlying.context);
+        errdefer self.underlying.release(self.underlying.context);
+        if (self.epoch.*) |accepted_fence| {
+            if (!std.meta.eql(accepted_fence, fence)) return error.TransactionAuthorityChanged;
+        } else self.epoch.* = fence;
+        return fence;
+    }
+    fn release(context: *anyopaque) void {
+        const self: *CutFence = @ptrCast(@alignCast(context));
+        self.underlying.release(self.underlying.context);
+    }
+};
+
+fn transactionTableGuard(root: P.Root) p.Transaction.TableGuard {
+    return .{ .source = .{ .interpretation = root.interpretation, .accepted = .{ .partition = root.partition, .next_lsn = root.next_lsn } }, .changed_lsn = root.changed_lsn };
+}
+
+/// The host must exclude all catalog/Table publication throughout this call,
+/// including transaction decisions. Individual policy guards need not nest:
+/// their epochs must agree with the guard held through the final catalog append.
+/// A crash can leave original pins but cannot publish a partial common cut.
+pub fn acquireTransaction(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !c.DirectTransaction.Acquired {
+    try self.requireInitialized();
+    try key.validate();
+    if (!key.connection.matches(self.config()) or key.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    const state = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (state.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(state.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.acquireTransactionBounded(state, policy) catch |err| {
+        return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+    };
+}
+
+fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress, policy: Policy) !c.DirectTransaction.Acquired {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var epoch: ?P.Guard.Fence = null;
+    var state = admitted;
+    const begin = state.receipt.binding.intent.transaction.begin;
+    var selected = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer selected.deinit();
+    try selected.restore(begin.tables);
+    var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer sources.deinit();
+    const previous = if (state.record != null) try c.DirectTransaction.Acquired.load(self.allocator, self.data_objects, state) else null;
+    if (previous) |acquired| try sources.restore(acquired.cut.sources);
+    var count: u64 = 0;
+    var after: ?u64 = null;
+    while (true) {
+        const page = try selected.page(after);
+        for (page.entries) |slot| if (slot) |entry_value| {
+            _ = scratch.reset(.retain_capacity);
+            const participant = entry_value.participant;
+            try participant.requireLocalTable(begin);
+            if (participant.state.access != .read) return error.InvalidTransactionBegin;
+            const expected = participant.state.guard.source;
+            var access = try self.snapshotAccess(scratch.allocator(), expected.interpretation.object, begin.identity.begin, policy, false);
+            defer access.view.deinit();
+            var checked: CutFence = .{ .underlying = access.current, .epoch = &epoch };
+            const guard_value = checked.guard();
+            const pin_state = try access.view.table.pinState(begin.identity.begin, guard_value);
+            const pin = if (pin_state.handle) |retained| blk: {
+                if (pin_state.released) return error.TableSnapshotReleased;
+                break :blk retained;
+            } else blk: {
+                if (previous != null) return error.TableSnapshotNotPinned;
+                if (access.view.table.root.retired or !std.meta.eql(expected.interpretation, access.view.table.root.interpretation) or expected.accepted.partition != access.view.table.root.partition) return error.TransactionConflict;
+                access.view.table.lose_reply = self.lose_table_reply;
+                break :blk try access.view.table.pin(begin.identity.begin, pin_state.position, guard_value);
+            };
+            var frozen = try access.view.table.inspectSnapshot(self.allocator, pin, guard_value);
+            defer frozen.deinit();
+            const basis = transactionTableGuard(frozen.root);
+            if (!std.meta.eql(expected.interpretation, basis.source.interpretation) or expected.accepted.partition != basis.source.accepted.partition) return error.TransactionConflict;
+            if (previous == null) {
+                // Pins recovered after a lost acquisition reply are not moved
+                // forward. All old logical/definition bases must still agree.
+                if (access.view.table.root.retired) return error.TransactionConflict;
+                try basis.requireUnchanged(transactionTableGuard(access.view.table.root));
+                try sources.put(.{ .source = .{ .guard = basis, .pin = pin } });
+            } else {
+                const source = (try sources.get(entry_value.object().object) orelse return error.IncompleteTransactionCut).source;
+                if (!std.meta.eql(source.guard, basis) or !std.meta.eql(source.pin, pin)) return error.InvalidTransactionCut;
+            }
+            count = try std.math.add(u64, count, 1);
+            if (count > begin.tables.count) return error.InvalidTransactionDirectory;
+        };
+        after = page.next orelse break;
+    }
+    if (count != begin.tables.count or sources.root.count != count) return error.IncompleteTransactionCut;
+    _ = scratch.reset(.retain_capacity);
+    var publication: CutFence = .{ .underlying = try self.guard(scratch.allocator(), policy, null, null, .database), .epoch = &epoch };
+    if (previous) |acquired| {
+        try check(publication.guard());
+        return acquired;
+    }
+    if (!state.pending or state.cancel) return error.InvalidTransactionCut;
+    try self.store.index.begin(self.options.index_work_bytes);
+    defer self.store.index.end();
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    state.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    const acquired: c.DirectTransaction.Acquired = .{ .definition = p.Growth.current_definition, .cut = .{ .begin = begin, .sources = try sources.seal(), .acquired = state.revision }, .coordination = state.receipt.coordination.? };
+    state.record = try acquired.stage(self.data_objects, state.receipt);
+    try state.validate();
+    try self.store.clientIndices(&next, state);
+    try self.store.publish(next, .{ .client_token = state }, publication.guard());
+    try check(publication.guard());
+    return acquired;
 }
 
 pub fn initialize(self: *Self, policy: Policy) !void {

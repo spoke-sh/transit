@@ -1,6 +1,6 @@
 {
   "begin": {
-    "definition": "901eb98b9b23d159d20c3216ca2c160c0cf303c8b3f751d8ace5c91562904fa8",
+    "definition": "f6e7696ff8788e92814cd877a989121f7d2a5089c445b5155de22eff01f270d2",
     "identity": {
       "begin": {
         "scope": {
@@ -69,7 +69,7 @@
   },
   "cut": {
     "begin": {
-      "definition": "901eb98b9b23d159d20c3216ca2c160c0cf303c8b3f751d8ace5c91562904fa8",
+      "definition": "f6e7696ff8788e92814cd877a989121f7d2a5089c445b5155de22eff01f270d2",
       "identity": {
         "begin": {
           "scope": {
@@ -232,8 +232,6 @@
               5
             ]
           },
-          "manifest": null,
-          "checkpoint_lsn": 0,
           "accepted": {
             "partition": 9,
             "next_lsn": 10
@@ -295,7 +293,7 @@
   },
   "prepared": {
     "attempt": {
-      "definition": "901eb98b9b23d159d20c3216ca2c160c0cf303c8b3f751d8ace5c91562904fa8",
+      "definition": "f6e7696ff8788e92814cd877a989121f7d2a5089c445b5155de22eff01f270d2",
       "transaction": {
         "begin": {
           "scope": {
@@ -491,8 +489,6 @@
             5
           ]
         },
-        "manifest": null,
-        "checkpoint_lsn": 0,
         "accepted": {
           "partition": 9,
           "next_lsn": 10
@@ -545,7 +541,7 @@
   "observation": {
     "decided": {
       "attempt": {
-        "definition": "901eb98b9b23d159d20c3216ca2c160c0cf303c8b3f751d8ace5c91562904fa8",
+        "definition": "f6e7696ff8788e92814cd877a989121f7d2a5089c445b5155de22eff01f270d2",
         "transaction": {
           "begin": {
             "scope": {

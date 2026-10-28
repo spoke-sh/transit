@@ -97,7 +97,17 @@ pub const Cut = struct {
 /// One selected Table's immutable basis and logical conflict frontier. The pin
 /// receipt and physical accepted frontier may advance without a logical change.
 pub const TableGuard = struct {
-    source: d.SourceCut,
+    /// A logical comparison basis, not a claim of contiguous WAL/history
+    /// coverage. The source directory separately carries its exact live pin.
+    source: struct {
+        interpretation: d.Definition,
+        accepted: d.Position,
+
+        pub fn validate(self: @This()) !void {
+            try self.interpretation.validate();
+            try self.accepted.validate();
+        }
+    },
     changed_lsn: u64,
 
     pub fn validate(self: TableGuard) !void {

@@ -20,6 +20,7 @@ const Access = struct {
     denied_resource: ?u64 = null,
     denied_metadata: ?u64 = null,
     deny_create: bool = false,
+    epoch_change_at: usize = std.math.maxInt(usize),
     allocation_binding: ?c.DirectResource.Binding = null,
     allocation_id: ?u64 = null,
     initialization: ?p.DataLifecycle.ResourceInitialization = null,
@@ -47,7 +48,7 @@ const Access = struct {
             if (value.access.denied_metadata) |id| if (std.meta.eql(requirement.object, a.reference(id))) return error.CatalogDenied;
         };
         if (value.requested.subject.principal() != 1 or value.requested.requirements[0].?.object.id != profile.database) return error.CatalogDenied;
-        return .{ .writer_epoch = 1, .policy_epoch = 1 };
+        return .{ .writer_epoch = 1, .policy_epoch = if (value.access.calls >= value.access.epoch_change_at) 2 else 1 };
     }
     fn release(_: *anyopaque) void {}
     fn registered(context: *anyopaque, kind: a.Kind, id: u64) !?p.Authorization.Object {
@@ -2612,7 +2613,7 @@ fn transactionToken(catalog: *D, operation: u64, token: u8, count: u64) !c.Direc
     defer directory.deinit();
     for (0..count) |i| try directory.put(.{ .participant = .{ .state = .{
         .kind = .table,
-        .guard = .{ .source = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = i + 1000 }, .revision = 1, .digest = @splat(1) }, .manifest = null, .checkpoint_lsn = 0, .accepted = .{ .partition = i + 1000, .next_lsn = 1 } }, .changed_lsn = 1 },
+        .guard = .{ .source = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = i + 1000 }, .revision = 1, .digest = @splat(1) }, .accepted = .{ .partition = i + 1000, .next_lsn = 1 } }, .changed_lsn = 1 },
         .access = .read,
     } } });
     const reference: c.DirectTransaction.Reference = .{ .connection = connection, .namespace = 1, .begin = .{
@@ -2675,7 +2676,14 @@ test "transaction admission recovers original token and exclusive partition afte
     try t.expectEqual(@as(u64, 3), table.table.root.partition);
     try t.expectEqualDeep(receipt, (try catalog.clientToken(.{ .bind = binding }, access.policy())).?);
     const progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
-    try t.expectError(error.ClientOperationPending, catalog.clientProgress(.{ .update = .{ .key = binding.key, .expected = progress.revision, .pending = false, .cancel = false, .record = null } }, access.policy()));
+    const record = try c.DirectRecord.store(objects.objectStore(), binding.key.scope(), 1, "not transaction state");
+    const protected = catalog.store.root;
+    for ([_]bool{ false, true }) |pending| for ([_]bool{ false, true }) |cancel| for ([_]?c.DirectRecord.Reference{ null, record }) |replacement| {
+        try t.expectError(error.TransactionOperationRequired, catalog.clientProgress(.{ .update = .{ .key = binding.key, .expected = progress.revision, .pending = pending, .cancel = cancel, .record = replacement } }, access.policy()));
+        try t.expectEqualDeep(protected, catalog.store.root);
+    };
+    try catalog.recover();
+    try t.expectEqualDeep(progress, (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?);
     access.deny_at = access.calls + 1;
     try t.expectError(error.CatalogDenied, catalog.clientToken(.{ .lookup = binding.key }, access.policy()));
 }
@@ -2692,6 +2700,10 @@ test "transaction admission refusals do not allocate partitions or consume token
     const binding = try transactionToken(&catalog, 55, 1, 9);
     const before = catalog.store.root;
     var changed = binding;
+    changed.intent.transaction.begin.selection = .authorized_catalog_tables;
+    try t.expectError(error.InvalidTransactionBegin, catalog.clientToken(.{ .bind = changed }, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    changed = binding;
     changed.intent.transaction.begin.limits.workspace_bytes = catalog.options.transaction_limits.workspace_bytes + 1;
     try t.expectError(error.TransactionCapacity, catalog.clientToken(.{ .bind = changed }, access.policy()));
     changed = binding;
@@ -2768,4 +2780,252 @@ test "transaction admission retains selected directory pages through the catalog
         .declaration => return error.UnexpectedDeclaration,
     };
     try t.expect(pages > 1);
+}
+
+fn selectedTransaction(catalog: *D, access: *Access, count: usize) !c.DirectClientToken.Binding {
+    var binding = try transactionToken(catalog, 9000, 1, 0);
+    binding.intent.transaction.begin.limits.resident_bytes = 16 * 1024 * 1024;
+    const identity = binding.intent.transaction.begin.identity;
+    var selected = try s.TransactionDirectory.init(t.allocator, catalog.data_objects, identity, .participants, 100, 1, 1024 * 1024);
+    defer selected.deinit();
+    for (0..count) |i| {
+        var buffer: [32]u8 = undefined;
+        const name = try std.fmt.bufPrint(&buffer, "selected_{d}", .{i});
+        const create = try creation(i + 10, i + 100, name);
+        _ = try catalog.admit(create, access.policy());
+        _ = try catalog.perform(create.binding, access.policy());
+        var view = (try resolve(catalog, access, name)).?;
+        defer view.deinit();
+        const root = view.table.root;
+        try selected.put(.{ .participant = .{ .state = .{ .kind = .table, .access = .read, .guard = .{ .source = .{ .interpretation = root.interpretation, .accepted = .{ .partition = root.partition, .next_lsn = root.next_lsn } }, .changed_lsn = root.changed_lsn } } } });
+    }
+    binding.intent.transaction.begin.tables = try selected.seal();
+    binding.intent.transaction.begin.catalog.next_lsn = catalog.store.root.next_lsn;
+    _ = try catalog.clientToken(.{ .bind = binding }, access.policy());
+    return binding;
+}
+
+test "transaction common cut resumes lost pins and original publication on disk" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var binding: c.DirectClientToken.Binding = undefined;
+    var published: c.DirectTransaction.Acquired = undefined;
+    var access: Access = .{};
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        binding = try selectedTransaction(&catalog, &access, 11);
+        const admitted = catalog.store.root;
+        catalog.lose_table_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.acquireTransaction(binding.key, access.policy()));
+        try t.expectEqualDeep(admitted, catalog.store.root);
+    }
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        catalog.store.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.acquireTransaction(binding.key, access.policy()));
+        catalog.store.lose_reply = false;
+        try catalog.recover();
+        published = try catalog.acquireTransaction(binding.key, access.policy());
+        try t.expectEqual(@as(u64, 11), published.cut.sources.count);
+        var sources = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), binding.intent.transaction.begin.identity, .sources, 100, 1, 1024 * 1024);
+        defer sources.deinit();
+        try sources.restore(published.cut.sources);
+        var after: ?u64 = null;
+        var count: usize = 0;
+        while (true) {
+            const page = try sources.page(after);
+            for (page.entries) |slot| if (slot) |entry| {
+                // Every empty Table was created at 1 and pinned exactly once.
+                try t.expectEqual(@as(u64, 1), entry.source.guard.source.accepted.next_lsn);
+                try t.expectEqual(@as(u64, 2), try wal.log().tail(entry.source.guard.source.accepted.partition));
+                count += 1;
+            };
+            after = page.next orelse break;
+        }
+        try t.expectEqual(@as(usize, 11), count);
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    const before = catalog.store.root;
+    try t.expectEqualDeep(published, try catalog.acquireTransaction(binding.key, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    const progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+    var output = std.heap.ArenaAllocator.init(t.allocator);
+    defer output.deinit();
+    try t.expectError(error.TransactionOperationRequired, catalog.directRecord(output.allocator(), .{ .stage = .{ .scope = binding.key.scope(), .format = c.DirectTransaction.Acquired.format, .bytes = .{ .base64 = "" } } }, access.policy()));
+    access.denied_metadata = 110;
+    try t.expectError(error.CatalogDenied, catalog.acquireTransaction(binding.key, access.policy()));
+    try t.expectError(error.TransactionOperationRequired, catalog.directRecord(output.allocator(), .{ .read = progress.record.? }, access.policy()));
+}
+
+test "transaction acquisition refuses a changed recovered pin and preserves its original cut" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 2);
+    catalog.lose_table_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.acquireTransaction(binding.key, access.policy()));
+    catalog.lose_table_reply = false;
+    var view = (try resolve(&catalog, &access, "selected_0")).?;
+    defer view.deinit();
+    const before_pin = try catalog.pinState(view.table.root.interpretation.object, binding.intent.transaction.begin.identity.begin, access.policy());
+    const rename = try edit(&view, 999, .{ .rename = try a.Name.init("renamed") });
+    _ = try catalog.admit(rename, access.policy());
+    _ = try catalog.perform(rename.binding, access.policy());
+    try t.expectError(error.TransactionConflict, catalog.acquireTransaction(binding.key, access.policy()));
+    const after_pin = try catalog.pinState(view.table.root.interpretation.object, binding.intent.transaction.begin.identity.begin, access.policy());
+    try t.expectEqualDeep(before_pin.handle, after_pin.handle);
+    try t.expect((try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?.record == null);
+}
+
+test "transaction acquisition refuses mixed policy epochs before cut publication" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 2);
+    const before = catalog.store.root;
+    access.epoch_change_at = access.calls + 5;
+    try t.expectError(error.TransactionAuthorityChanged, catalog.acquireTransaction(binding.key, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    const acquired = try catalog.acquireTransaction(binding.key, access.policy());
+    try t.expectEqual(@as(u64, 2), acquired.cut.sources.count);
+}
+
+fn insertSelected(catalog: *D, access: *Access, operation: u64) !P.Evidence {
+    return insertSelectedTable(catalog, access, "selected_0", operation);
+}
+
+fn insertSelectedTable(catalog: *D, access: *Access, name: []const u8, operation: u64) !P.Evidence {
+    var view = (try resolve(catalog, access, name)).?;
+    defer view.deinit();
+    const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = view.table.root.interpretation.object, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = @splat(3) };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = @intCast(operation) } } }};
+    return (try catalog.applyRows(.{ .binding = binding, .interpretation = view.table.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(binding.identity, 0), .cells = &cells }, .expect = .absent } }}, .ingestion = .point }, access.policy())).committed;
+}
+
+test "transaction common cut preserves WAL rows across physical flush and rejects new logical changes during resume" {
+    for ([_]bool{ false, true }) |change| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        const binding = try selectedTransaction(&catalog, &access, 2);
+        const inserted = try insertSelected(&catalog, &access, 500);
+        catalog.lose_table_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.acquireTransaction(binding.key, access.policy()));
+        catalog.lose_table_reply = false;
+        _ = try catalog.flushStorage(.{ .object = inserted.binding.target, .through = inserted.outcome.position }, access.policy());
+        if (change) {
+            _ = try insertSelected(&catalog, &access, 501);
+            // A's original pin contains only 500. B acquires 502 strictly
+            // after A changes, so old-A/new-B never existed as one common cut.
+            // This is the finite model's interrupted-acquisition obligation
+            // exercised against the real catalog and Table pin owners.
+            _ = try insertSelectedTable(&catalog, &access, "selected_1", 502);
+            try t.expectError(error.TransactionConflict, catalog.acquireTransaction(binding.key, access.policy()));
+            try t.expect((try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?.record == null);
+            continue;
+        }
+        const acquired = try catalog.acquireTransaction(binding.key, access.policy());
+        var sources = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), binding.intent.transaction.begin.identity, .sources, 100, 0, 1);
+        defer sources.deinit();
+        try sources.restore(acquired.cut.sources);
+        const source = (try sources.get(10)).?.source;
+        try t.expectEqual(inserted.outcome.position.next_lsn, source.guard.changed_lsn);
+        _ = try insertSelected(&catalog, &access, 501);
+        // Reobserving an acquired cut neither follows later data nor re-pins it.
+        try t.expectEqualDeep(acquired, try catalog.acquireTransaction(binding.key, access.policy()));
+        var rows = try catalog.scanRows(t.allocator, inserted.binding.target, source.pin, null, .{}, access.policy());
+        defer rows.deinit();
+        try t.expectEqual(@as(u8, 1), rows.count);
+        try t.expectEqual(@as(i64, 500), rows.rows[0].?.row().cells[0].value.atom.signed);
+    }
+}
+
+test "transaction common cut source pages remain reachable through catalog history" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 17);
+    const acquired = try catalog.acquireTransaction(binding.key, access.policy());
+    var workspace: @import("direct_storage_graph_test.zig").Workspace = .{};
+    defer workspace.deinit();
+    try workspace.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+    var at: usize = 0;
+    var steps: usize = 0;
+    while (at < workspace.jobs.items.len) : (at += 1) {
+        var work = workspace.jobs.items[at];
+        while (!try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &workspace)) {
+            steps += 1;
+            if (steps > 10000) return error.FixtureBudget;
+        }
+    }
+    var sources = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), binding.intent.transaction.begin.identity, .sources, 100, 0, 1);
+    defer sources.deinit();
+    try sources.restore(acquired.cut.sources);
+    var walker = try c.DirectCatalogWalk.init(catalog.store.root, .{ .reference = sources.root.entries.?, .kind = .pages_only });
+    var count: usize = 0;
+    while (try walker.next(t.allocator, &sources.index)) |edge| switch (edge) {
+        .page => |page| {
+            var name: [96]u8 = undefined;
+            try t.expect(workspace.marks.contains(try s.TreeStore.key(page.reference.location, &name)));
+            count += 1;
+        },
+        .declaration => return error.UnexpectedDeclaration,
+    };
+    try t.expect(count > 1);
+}
+
+test "transaction acquisition meters temporary memory and authorizes before revealing a budget refusal" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var binding = try transactionToken(&catalog, 800, 1, 0);
+    binding.intent.transaction.begin.limits.resident_bytes = 1024;
+    _ = try catalog.clientToken(.{ .bind = binding }, access.policy());
+    const before = catalog.store.root;
+    try t.expectError(error.TransactionMemoryLimit, catalog.acquireTransaction(binding.key, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, catalog.acquireTransaction(binding.key, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
 }

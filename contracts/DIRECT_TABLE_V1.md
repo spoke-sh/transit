@@ -118,7 +118,10 @@ owner. External records fix their connection, namespace, operation and immutable
 A transaction reference fixes the connection, selected namespace and
 `Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog
 observation, the complete paged selection of read-only Table descriptors and
-configured limits. It atomically reserves the next unused partition with the
+configured limits. Admission accepts `explicit_tables`; it rejects the neutral
+`authorized_catalog_tables` variant until server-owned catalog discovery supplies
+that selection. Caller-supplied membership cannot certify complete authorized
+catalog coverage. It atomically reserves the next unused partition with the
 token receipt. `coordination` contains that partition only for a transaction;
 other receipts require explicit null. A repeated token returns its original
 partition. A begin operation cannot reserve another partition through a different
@@ -134,8 +137,25 @@ and 1,024 savepoints. These admission ceilings do not preallocate those resource
 the operation's token budget separately charges account capacity. A capacity or
 stale-Catalog refusal does not allocate a partition or accept a token. Generic
 intent execution rejects transaction references with `TransactionOperationRequired`.
-Generic progress updates cannot settle them without a transaction owner outcome.
+Generic progress updates reject transaction entries with
+`TransactionOperationRequired`, including changes to the record, cancellation,
+pending flag and exact repeats. Transaction-owned operations must preserve their
+workspace and original decision; generic client bookkeeping cannot replace them.
 The admission interface alone does not provide interactive SQL transactions.
+
+The catalog component's common-cut acquisition publishes a `DirectRecord` with
+format `0x54584331`. Its canonical JSON contains mandatory `definition`, `cut`
+and `coordination`; its encoded size is at most 16 KiB. The neutral cut binds the
+original begin, an immutable `sources` directory and its catalog acceptance
+position. The coordination partition must match the original token receipt;
+the cut position must equal the progress revision and follow begin admission in
+that same catalog partition. No signed acquisition operation is exposed by this
+record format. The embedding host must hold the catalog/Table publication fence,
+and the owner checks current Table rights under the publication policy epoch.
+This format is reserved: generic `record.stage` and `record.read` reject it with
+`TransactionOperationRequired`. CONNECT-only caller-record access cannot disclose
+server-owned cut evidence after a participant's read rights have been revoked.
+HTTP maps `TransactionOperationRequired` to `400 InvalidRequest`.
 
 Catalog recovery requires the explicit `coordination` field and validates its
 allocation transition. Earlier receipts reject under the current-v1 definition;

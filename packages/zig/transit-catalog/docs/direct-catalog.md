@@ -467,7 +467,37 @@ this same original-token owner for reservations and recovery. Tokens retain
 Table DDL/DML, namespace, conditional name, external-owner and transaction begin
 references. Transaction admission atomically reserves a coordination partition
 with its token receipt; it establishes no acquired snapshot or commit decision.
-Its selection is paged and its ceilings come from `Options.transaction_limits`.
+Its explicit Table selection is paged and its ceilings come from
+`Options.transaction_limits`. Admission rejects `authorized_catalog_tables`:
+the neutral variant requires server-owned discovery before it can execute.
+Generic progress updates reject these entries; only their transaction owner can
+replace recovery records or request settlement.
+
+The component operation `DirectCatalog.acquireTransaction` acquires and records
+the selected Tables' common cut. Its embedding host must exclude all catalog and
+Table publication, including common transaction decisions, for the whole call.
+It walks bounded directory pages and opens one Table at a time. Every pin belongs
+to the original begin identity. After an interrupted acquisition, it reuses the
+original pins and requires their interpretations and logical versions to match
+the current Tables; physical pin/flush bookkeeping may advance. A mismatch
+returns `TransactionConflict` without replacing a pin or publishing a partial cut.
+
+All participant checks and the catalog publication guard must observe one writer
+and policy epoch. This avoids retaining an authorization requirement array
+proportional to the Table count or recursively acquiring authority locks. A
+changed epoch refuses publication. Once acquired, repeated observations retain
+the original cut despite later data or schema changes and recheck current access
+to every selected Table. A lost final reply recovers the original catalog record.
+
+The acquired record retains its paged source directory through the catalog graph;
+the Table pin owners retain the data itself. Each source guard records logical
+conflict frontiers; it does not promise contiguous historical WAL coverage.
+Temporary directories, one Table
+owner and decoding work share the admitted resident-byte limit. Catalog caches,
+provider buffers and fixed stack buffers have separate owners. Aggregate
+capacity, workspace-byte accounting and cleanup still require transaction-host
+integration. This component operation has no signed request or SQL adapter and
+does not execute private statements or decide a commit.
 See the token contract for exact fields, permissions and execution boundaries.
 
 `DirectTablePreparedDdl.prepare` owns the parsed CREATE/ALTER/DROP definition and

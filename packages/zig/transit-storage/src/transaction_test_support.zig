@@ -13,8 +13,6 @@ pub fn participant(object: u64) D.Entry {
         .kind = .table,
         .guard = .{ .source = .{
             .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = object }, .revision = 1, .digest = @splat(1) },
-            .manifest = null,
-            .checkpoint_lsn = 0,
             .accepted = .{ .partition = object + 10, .next_lsn = 5 },
         }, .changed_lsn = 3 },
         .access = .write,

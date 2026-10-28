@@ -2319,6 +2319,37 @@
       "limits": "Safety only; blocked states and terminal deadlocks are allowed. The journal's atomic fenced original decision is assumed. Model crashes release the acquisition fence while accepted logical state remains durable. No automatic Zig replay, production refinement, arbitrary programs/cardinality, physical storage, constraints, retained graph, resource accounting or installed SQL qualification follows.",
       "model": "tests/verification/models/TableTransaction.tla",
       "qualification": "Exact source/configuration hashes, completion counts and named counterexamples are retained under .cache/verification/table-transaction-model/ and CI artifacts; executed results belong in docs/history/qualification/verification.md."
+    },
+    {
+      "id": "TRANSACTION-05",
+      "claim": "A catalog-owned common cut retains every original selected Table pin and publishes only after complete acquisition under one publication fence and policy epoch",
+      "owner": "packages/zig/transit-catalog/docs/direct-catalog.md",
+      "implementation": [
+        "packages/zig/transit-catalog/src/DirectCatalog.zig",
+        "packages/zig/transit-catalog/src/DirectTransaction.zig",
+        "packages/zig/transit-catalog/src/DirectStorageGraph.zig",
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig",
+        "packages/zig/transit-storage/src/TransactionDirectory.zig",
+        "apps/transit-node/NativeServer.zig",
+        "tests/interfaces/native/direct_table_client.zig"
+      ],
+      "profile": "Catalog component with serialized Table publication, paged selected/source directories, disk reopen and metered temporary heap",
+      "tasks": [
+        "check::native",
+        "test::direct-table-service"
+      ],
+      "scenarios": [
+        "Lost pin and final publication replies recover original pins and the original catalog cut across disk reopen",
+        "Logical writes and interpretation changes during interrupted acquisition refuse a mixed cut; physical flush preserves acquisition",
+        "An acquired cut stays fixed across later writes and rechecks current rights on every observation",
+        "Mixed policy epochs and memory exhaustion leave the catalog cut unpublished",
+        "Source directories larger than one page remain reachable through catalog history; generic progress updates cannot replace transaction records",
+        "Generic record access cannot disclose or replace the server-owned cut; signed staging receives HTTP 400 InvalidRequest",
+        "Admission rejects caller-supplied catalog-wide selection claims; logical guards remain distinct from retained history coverage"
+      ],
+      "limits": "The embedding caller supplies the catalog/Table publication fence. No installed transaction host or signed acquisition API, private statement settlement, aggregate workspace quota, Table prepare/visibility, serializability, cleanup, process-death or power-loss guarantee is established. These component histories do not constitute automated model refinement.",
+      "model": null,
+      "qualification": "Focused package tests and clean-source checks must be attributed to their actual source revision; registration is not an executed proof."
     }
   ]
 }

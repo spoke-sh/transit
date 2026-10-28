@@ -40,13 +40,17 @@ that count is not a resident array capacity. A later statement cannot extend it.
 statement count and savepoint count from result/disclosure budgets. Each is
 nonzero. `Cut` binds the complete acquired source directory to `Begin` and its
 own acceptance position. Equal directory counts are a shape check, not proof of
-membership or acquisition. The future acquisition owner must verify every exact
+membership or acquisition. The acquisition owner must verify every exact
 entry, durably retain WAL-inclusive cuts under ordered participant guards and
 publish the complete descriptor before releasing them. Interrupted acquisition
 cannot be returned as a complete cut.
 
 `TableGuard` binds the exact interpretation, accepted partition frontier and
-last logical-change frontier. `requireUnchanged` requires the same interpretation,
+last logical-change frontier. Its `source` is a logical comparison basis, not a
+`SourceCut` or a promise to retain contiguous WAL/history. The acquired source
+directory separately binds the exact snapshot pin that retains the Table state
+and its data dependencies, including referenced unflushed WAL records.
+`requireUnchanged` requires the same interpretation,
 partition and logical frontier, with no physical frontier regression. Physical
 flush, compaction and pin bookkeeping may advance without a conflict. Any
 logical Table change conflicts, including changes outside returned predicate

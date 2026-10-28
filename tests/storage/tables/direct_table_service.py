@@ -66,7 +66,7 @@ def run(node, caller, mode="tables", *artifacts):
                 child.kill()
                 child.wait(timeout=15)
 
-        fault = {"changed": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "relational_setup": False, "execute": None, "requests": 0, "commands": []}
+        fault = {"changed": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "relational_setup": False, "transaction_record_refused": False, "execute": None, "requests": 0, "commands": []}
 
         dependency_faults = set()
         resource_faults = set()
@@ -94,6 +94,10 @@ def run(node, caller, mode="tables", *artifacts):
                         if request_memory is not None:
                             request_memory.observe(envelope["action"], response.getheader("x-transit-work"), len(data))
                         fault["requests"] += 1
+                        record = envelope["action"].get("record", {}).get("stage")
+                        if record and record["format"] == 0x54584331:
+                            assert response.status == 400 and json.loads(data) == {"err": "InvalidRequest"}, data
+                            fault["transaction_record_refused"] = True
                         resource = envelope["action"].get("resource_operation")
                         if mode == "resources" and resource and resource["binding"]["operation"] in (80000, 80001) and resource["command"] != "inspect" and response.status == 200:
                             parsed = json.loads(data)
@@ -433,6 +437,7 @@ def run(node, caller, mode="tables", *artifacts):
                 print(f"Direct dependencies: {fault['requests']} typed calls, exact registration/removal receipts after corrupt replies and abrupt node replacement, unchanged saved caller bindings, current metadata revocation, redacted RESTRICT blockers, reverse inspection, stale retry rejection and DROP/name replacement passed.")
                 return
             subprocess.run([caller, endpoint, "write", str(profile)], check=True, timeout=180)
+            assert fault["transaction_record_refused"]
             assert fault["changed"]
             assert fault["pin_changed"]
             assert fault["assertion_changed"]

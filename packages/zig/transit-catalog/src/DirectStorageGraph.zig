@@ -88,6 +88,15 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 try selected.restore(begin.tables);
                 try markContent(workspace, try s.TransactionDirectory.objectKey(begin.tables.content, &key_buffer), begin.tables.content);
                 if (selected.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(record.root, .{ .reference = reference, .kind = .pages_only }) });
+                const state = record.action.client_token;
+                if (state.record != null) {
+                    const acquired = try c.DirectTransaction.Acquired.load(allocator, index.store, state);
+                    var sources = try s.TransactionDirectory.init(allocator, index.store, begin.identity, .sources, begin.limits.participants, 0, 1);
+                    defer sources.deinit();
+                    try sources.restore(acquired.cut.sources);
+                    try markContent(workspace, try s.TransactionDirectory.objectKey(acquired.cut.sources.content, &key_buffer), acquired.cut.sources.content);
+                    if (sources.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(record.root, .{ .reference = reference, .kind = .pages_only }) });
+                }
             }
             return false;
         },

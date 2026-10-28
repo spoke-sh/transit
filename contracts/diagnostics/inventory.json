@@ -3378,7 +3378,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "CatalogDenied": 46,
+        "CatalogDenied": 47,
         "CatalogIdentityConflict": 6,
         "CatalogKindMismatch": 1,
         "CatalogNameHashCollision": 1,
@@ -3389,7 +3389,7 @@
         "CatalogObservationChanged": 1,
         "CatalogRegistrationRequired": 7,
         "ClientOperationConflict": 2,
-        "ClientOperationMissing": 1,
+        "ClientOperationMissing": 2,
         "ClientOperationPending": 6,
         "ClientTokenCapacity": 1,
         "ConflictingRetry": 1,
@@ -3398,6 +3398,7 @@
         "Forbidden": 4,
         "IbmHfpOverflow": 1,
         "IbmHfpUnderflow": 1,
+        "IncompleteTransactionCut": 2,
         "InvalidCatalogConfiguration": 1,
         "InvalidCatalogCursor": 2,
         "InvalidCatalogDependency": 6,
@@ -3412,12 +3413,16 @@
         "InvalidTableAccessRequest": 1,
         "InvalidTableBasis": 2,
         "InvalidTableKey": 1,
+        "InvalidTransactionBegin": 1,
+        "InvalidTransactionCut": 2,
+        "InvalidTransactionDirectory": 1,
         "MissingRequiredField": 1,
         "NamedResourceAllocationUnreconciled": 1,
         "NamedResourceNativeUnavailable": 4,
         "NamedResourceNotAdmitted": 1,
         "NativeAllocationBusy": 1,
         "NullNotAllowed": 1,
+        "OutOfMemory": 1,
         "Overflow": 1,
         "StaleClientLease": 2,
         "TableDataChanged": 3,
@@ -3425,8 +3430,13 @@
         "TableNotCreated": 1,
         "TableRetired": 2,
         "TableSchemaChanged": 1,
-        "TableSnapshotReleased": 2,
+        "TableSnapshotNotPinned": 1,
+        "TableSnapshotReleased": 3,
+        "TransactionAuthorityChanged": 1,
         "TransactionCatalogChanged": 1,
+        "TransactionConflict": 3,
+        "TransactionMemoryLimit": 1,
+        "TransactionOperationRequired": 3,
         "UnrepresentableEbcdic037": 1,
         "UnsupportedTableAction": 2
       },
@@ -3462,8 +3472,11 @@
       "error_sets": {},
       "error_returns": {
         "AccessRequest.validate()": "<inferred>",
+        "CutFence.acquire()": "<inferred>",
         "Policy.make_guard()": "anyerror",
         "Policy.registered()": "anyerror",
+        "acquireTransaction()": "<inferred>",
+        "acquireTransactionBounded()": "<inferred>",
         "admissionReason()": "<inferred>",
         "admit()": "<inferred>",
         "admitRows()": "<inferred>",
@@ -3587,8 +3600,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 790,
-        "catch": 8
+        "try": 819,
+        "catch": 9
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -4573,7 +4586,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 91,
+        "try": 98,
         "catch": 1
       },
       "imports": [
@@ -5310,21 +5323,26 @@
     },
     "packages/zig/transit-catalog/src/DirectTransaction.zig": {
       "errors": {
-        "InvalidTransactionBegin": 1,
+        "InvalidTransactionBegin": 2,
+        "InvalidTransactionCut": 4,
         "InvalidTransactionDirectory": 2,
         "TransactionCapacity": 1,
+        "TransactionCutNotAcquired": 1,
         "TransactionIdentityConflict": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Acquired.load()": "<inferred>",
+        "Acquired.stage()": "<inferred>",
+        "Acquired.validate()": "<inferred>",
         "Reference.validate()": "<inferred>",
         "inspectSelection()": "<inferred>",
         "requireLimits()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -13876,7 +13894,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"901eb98b9b23d159d20c3216ca2c160c0cf303c8b3f751d8ace5c91562904fa8\""
+          "f6e7696ff8788e92814cd877a989121f7d2a5089c445b5155de22eff01f270d2"
         ],
         "Effect.phase": [
           "pending",
@@ -14464,11 +14482,12 @@
         "Prepared.validate()": "<inferred>",
         "Statement.validate()": "<inferred>",
         "TableGuard.requireUnchanged()": "<inferred>",
+        "TableGuard.source.validate()": "<inferred>",
         "TableGuard.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 44,
+        "try": 46,
         "catch": 0
       },
       "imports": [
@@ -26862,6 +26881,7 @@
     },
     "packages/zig/transit-storage/src/TablePartition.zig": {
       "errors": {
+        "BufferTooSmall": 1,
         "DataIdentityConflict": 13,
         "DuplicateBatchKey": 3,
         "DuplicatePrimaryKey": 7,
@@ -26924,7 +26944,7 @@
         "UnknownColumn": 3,
         "UnsupportedTableAction": 2,
         "UnsupportedTransactionStatement": 1,
-        "WriteFailed": 1
+        "WriteFailed": 3
       },
       "outcomes": {
         "CachedSegment.decoded": [
@@ -27083,8 +27103,8 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 624,
-        "catch": 15
+        "try": 626,
+        "catch": 16
       },
       "imports": [
         "OrderedKeyIndex.zig",
@@ -27476,17 +27496,19 @@
         "MissingTransactionDirectory": 1,
         "OutOfMemory": 1,
         "TransactionDecodeLimit": 1,
-        "TransactionIdentityConflict": 3,
+        "TransactionIdentityConflict": 4,
         "TransactionParticipantLimit": 2
       },
       "outcomes": {
         "Entry": [
           "participant",
-          "prepared"
+          "prepared",
+          "source"
         ],
         "Kind": [
           "participants",
-          "preparations"
+          "preparations",
+          "sources"
         ]
       },
       "error_sets": {},
@@ -27514,10 +27536,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 54,
+        "try": 56,
         "catch": 1
       },
       "imports": [
+        "TableSnapshot.zig",
         "TransitObjectStore.zig",
         "TreeStore.zig",
         "std",
