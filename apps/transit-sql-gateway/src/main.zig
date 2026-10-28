@@ -486,6 +486,7 @@ fn runAccount(runtime: *g.DatabaseRuntime, diagnostics: *telemetry.Runtime) void
     var direct_failure: u16 = 0;
     while (true) {
         const progressed = runtime.tick() catch |err| blk: {
+            if (err == error.Canceled or err == error.Cancelled) return;
             // Revocation withdraws readiness without discarding the worker.
             // Restoration can resume the same accepted operations. A stale
             // activation is a permanent fence and still stops this generation.

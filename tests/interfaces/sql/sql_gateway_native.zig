@@ -1,4 +1,4 @@
-//! Isolated signed gateway controls and coordinator over real native owners.
+//! Isolated signed database controls and recovery over real native owners.
 const std = @import("std");
 const gateway = @import("transit_sql_service");
 const c = gateway.catalog;
@@ -287,6 +287,40 @@ pub fn main(init: std.process.Init) !void {
             if (err != error.AccessDenied) return err;
         }
         return support.print(init, .{ .raw_denied = true });
+    }
+    if (std.mem.eql(u8, mode, "cancel-cleanup")) {
+        const runtime = try startRuntime(init, args[1], directory, &config, registry);
+        defer runtime.deinit();
+        const State = struct {
+            entered: *std.atomic.Value(bool),
+            fn resolve(context: *const anyopaque, _: usize, _: std.mem.Allocator, io: std.Io, _: *s.client.Client) anyerror!?c.DirectTableClient {
+                const self: *const @This() = @ptrCast(@alignCast(context));
+                self.entered.store(true, .release);
+                try io.sleep(.fromSeconds(30), .awake);
+                return error.CleanupCancellationMissing;
+            }
+        };
+        var entered: std.atomic.Value(bool) = .init(false);
+        const state: State = .{ .entered = &entered };
+        const parent = try std.Io.Dir.cwd().openDir(init.io, directory, .{});
+        defer parent.close(init.io);
+        try runtime.attachReadCache(parent, .{ .context = &state, .len = 1, .resolve = State.resolve });
+        runtime.cleanup_route = registry.configuration.bindings.len;
+        var task = try init.io.concurrent(gateway.DatabaseRuntime.tick, .{runtime});
+        var joined = false;
+        defer if (!joined) {
+            _ = task.cancel(init.io) catch {};
+        };
+        const started = std.Io.Clock.awake.now(init.io);
+        while (!entered.load(.acquire)) {
+            if (started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() > 5000) return error.CleanupDidNotStart;
+            try init.io.sleep(.fromMilliseconds(1), .awake);
+        }
+        const result = task.cancel(init.io);
+        joined = true;
+        if (result) |_| return error.CleanupCancellationSwallowed else |err| if (err != error.Canceled and err != error.Cancelled) return err;
+        if (runtime.ready.load(.acquire) or runtime.read_cleanup_failure.load(.acquire) != 0) return error.CleanupCancellationMisclassified;
+        return support.print(init, .{ .cleanup_cancelled = true, .joined = true });
     }
     if (std.mem.eql(u8, mode, "runtime") or std.mem.eql(u8, mode, "session-framing")) {
         const runtime = try startRuntime(init, args[1], directory, &config, registry);

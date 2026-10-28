@@ -1989,8 +1989,8 @@
     "apps/transit-sql-gateway/src/main.zig": {
       "errors": {
         "AccessDenied": 1,
-        "Canceled": 1,
-        "Cancelled": 1,
+        "Canceled": 2,
+        "Cancelled": 2,
         "ExpectedPrivateConfiguration": 1,
         "FreshOwnershipRequired": 1,
         "GatewayActivationSyncFailed": 1,
@@ -20950,6 +20950,8 @@
     "packages/zig/transit-sql/src/DatabaseRuntime.zig": {
       "errors": {
         "AccessDenied": 2,
+        "Canceled": 2,
+        "Cancelled": 2,
         "ClientOperationConflict": 1,
         "GatewayCatalogDenied": 1,
         "GatewayConfigurationChanged": 1,

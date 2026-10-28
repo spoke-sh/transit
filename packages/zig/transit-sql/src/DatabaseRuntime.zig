@@ -177,11 +177,12 @@ pub fn tick(self: *Self) !bool {
     if (page.next == null) self.after = 0;
     if (self.read_pins) |*pins| {
         if (self.cleanupClient() catch |err| blk: {
+            if (err == error.Canceled or err == error.Cancelled) return err;
             self.read_cleanup_failure.store(@intFromError(err), .release);
             break :blk null;
         }) |caller| {
             const cleaned = pins.tick(caller) catch |err| blk: {
-                if (err == error.StaleGatewayCoordinator) return err;
+                if (err == error.StaleGatewayCoordinator or err == error.Canceled or err == error.Cancelled) return err;
                 self.read_cleanup_failure.store(@intFromError(err), .release);
                 break :blk false;
             };

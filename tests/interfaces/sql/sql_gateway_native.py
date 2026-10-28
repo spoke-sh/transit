@@ -197,13 +197,14 @@ def run(node, catalog, gateway):
             call(gateway, 'app-config', 5432)
             framing = call(gateway, 'session-framing')
             assert framing == dict(framing_refusals=17, exact_repeats=15, advanced_recoveries=2, revoked_results=3), framing
+            assert call(gateway, 'cancel-cleanup') == dict(cleanup_cancelled=True, joined=True)
             assert sends == turns == 0, 'SQL database work dispatched Station messages or turns'
             assert capacity_repeats == 1, capacity_repeats
             assert not failures, failures
             print(json.dumps(dict(profile='native_sql_database', exact_token_recovery=True,
                                   fenced_replacements=2, direct_outcome_recovered=recovered,
                                   direct_reexecuted=repeated, exact_counts=True, history=history,
-                                  framing=framing, exact_capacity_retries=capacity_repeats,
+                                  framing=framing, exact_capacity_retries=capacity_repeats, cleanup_cancelled_and_joined=True,
                                   station_sends=sends, station_turns=turns,
                                   table_requests=table_calls, seconds=round(time.monotonic()-started, 3))))
         finally:
