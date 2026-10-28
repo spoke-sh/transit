@@ -214,9 +214,14 @@ def run(cli, node, host, board, gateway, *, bundle=None):
                                         timeout=max(1, deadline-time.monotonic()))
                 if result.returncode == 0:
                     if refused:
-                        print(f'Local SQL: {protocol} refused {refused} empty data observations for capacity before recovery.', flush=True)
+                        print(f'Local SQL: {protocol} refused {refused} empty data observations for capacity/current-state contention before recovery.', flush=True)
                     return result.stdout.strip()
-                assert not result.stdout and 'Database capacity exhausted' in result.stderr and time.monotonic() < deadline, (result.stdout, result.stderr)
+                # A fresh read is allowed only before any result is disclosed.
+                # Concurrent cache pinning can change the exact acquisition
+                # position without accepting this observation. Never splice a
+                # new snapshot into a result or repeat a mutation here.
+                refused_read = any(message in result.stderr for message in ('Database capacity exhausted', 'Current state changed'))
+                assert not result.stdout and refused_read and time.monotonic() < deadline, (result.stdout, result.stderr)
                 refused += 1
                 time.sleep(.2)
 
