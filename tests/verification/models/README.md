@@ -166,3 +166,124 @@ These tests are not automatic replay of every TLC transition or a refinement
 proof. The model does not cover object descriptors, multiple owners, replication,
 retention policy, arbitrary corruption or arbitrary-size executions. Executed
 results belong to the [proof ledger](../../../docs/history/qualification/README.md).
+
+## Finite SQL result models
+
+Run `nix develop --command just test::statement-result-model`. The ordinary
+formal lane runs the default two-row bound. `--rows 3` or `--rows 4` expands
+exploration; `--seconds N` changes the per-process timeout, not the state space.
+The locked TLC uses one worker, seed `1`, fingerprint `0` and a 512 MiB heap.
+Both models exhaust their reachable finite graphs without a depth cutoff. They
+check safety only, with no fairness assumption or eventual-completion claim.
+
+The question is whether a finite statement result can preserve its original
+attribution, row occurrences and completion evidence while consumption, session
+lifetime and disclosure permission change independently. The owning contracts
+are [logical results](../../../contracts/SQL_RESULTS_V1.md) and
+[native sessions](../../../contracts/SQL_SESSION_V1.md). The
+[query-engine account](../../../docs/handbook/internals/query-engine.md#finite-result-transition-models)
+explains the argument and exclusions; the
+[qualification ledger](../../../docs/history/qualification/verification.md)
+records executed bounds and outcomes.
+
+### Logical progress and implementation correspondence
+
+[StatementResult.tla](StatementResult.tla) and
+[StatementResult.cfg](StatementResult.cfg) start with an open, reading,
+unreleased result and zero received/delivered counts. The original result,
+schema and observation identities are fixed; three foreign classes change one
+component each. Events receive or deliver rows, finish with a terminal count,
+fail, cancel or release. Zero counts, foreign identities, incorrect counts and
+operations after stopped consumption remain explicit rejected attempts. The
+finite bound disables a receive that would exceed the explored cardinality; it
+is not a modeled production quota or a truncation rule. Actual unsigned-64-bit
+overflow remains covered by the result library's unit tests.
+
+Invariants check received/delivered bounds and monotonicity, immutable
+attribution, terminal-count agreement, verified evidence, full delivery on
+exhaustion, stopped/released consumption and preservation of known completion.
+Completion and consumption have separate states: a complete result may still
+have undisplayed rows, and releasing it preserves that evidence. Releasing an
+open result cannot establish completion. Failure after completion can stop
+consumption without erasing the previously received terminal.
+
+[statement_result_model.py](statement_result_model.py) exports the entire TLC
+graph, checks its node/edge totals against TLC completion, and finds a shortest
+representative path to each state. It replays every outgoing edge through
+[statement_result_state.zig](statement_result_state.zig), which calls the actual
+[Progress](../../../packages/zig/transit-sql-results/src/Progress.zig) operations.
+It compares every projected counter, outcome, consumption/release state, terminal
+and error. It does not implement another progress reducer. Unknown fields/actions,
+incomplete replay or any disagreement fail the check.
+
+Five independent model variants remove identity validation, count agreement,
+consumption-lifetime admission, the prohibition on completion during release,
+and completion preservation. Each must produce its named invariant violation
+with an explicit counterexample. The same event sequence is replayed against
+Zig and must match the safe model, differing from the violating state. These
+are model mutations, not mutations of production Zig. Finite edge replay from
+representative paths does not prove arbitrary implementation histories or an
+unbounded refinement relation.
+
+### Established-session delivery abstraction
+
+[StatementResultSession.tla](StatementResultSession.tla) and its
+[configuration](StatementResultSession.cfg) reuse the logical transition
+functions. Initial states range over zero through the selected row bound and
+all valid initial chunk sizes and terminal shapes. The initial execute response
+has already arrived; missing that response is outside this model. It does not
+assume that an unknown initial cursor can be recovered by fetching.
+
+One reader has one retained server batch and one response slot. A successor
+fetch acknowledges the previous drained batch; materialization, server disclosure
+and client receipt are distinct steps. Replies can be dropped and retried or
+repeated without another logical receipt. The model includes final data batches,
+empty terminal batches, local row/batch consumption, early close, EOF,
+cancellation, revocation/restoration, session expiry, renewal and remote cleanup.
+Renewal cannot revive an expired session. Cleanup and local release are separate;
+no fairness rule forces either network delivery or remote cleanup to finish.
+
+An independent finite sequence tracks **occurrence identities**, rather than
+inferring correctness from matching counters. Distinct occurrences may have
+identical SQL values. Every received/delivered sequence must be the corresponding
+prefix of the original result, and completion requires the full original
+sequence and count. Result ordering here is iterator order, not an added SQL
+ordering guarantee.
+
+Current authorization is an atomic predicate at server disclosure. Revocation
+can occur after materialization or between a successful send and receipt. An
+already disclosed response may arrive after revocation, and local consumption
+of received rows does not ask the server for new authority. Every subsequent
+server disclosure, including a cached repeat or an empty terminal, checks the
+current predicate. Restoration can allow later disclosure; an unchanged policy
+epoch throughout a query is not required. Rights for concrete metadata subjects,
+credentials and source objects are abstracted into that predicate.
+
+Two additional model variants admit duplicate logical receipt or omit the
+current disclosure check. Each must produce its intended invariant failure.
+Their counterexamples are retained but **are not replayed against the native
+adapter or server**. This session model establishes abstract protocol safety,
+not implementation correspondence for ordinals, authorization or cleanup. The
+existing `just test::sql-wire-contracts` and `just test::sql-sessions` own concrete
+adapter and service schedules; the model does not replace them.
+
+### Evidence and limits
+
+Each invocation retains source/configuration hashes, the locked tool path,
+binary hash, revision/dirty status, exact commands, TLC logs, the progress graph,
+replay divergence and counterexamples under a unique directory in
+`.cache/verification/statement-result-model/`. CI retains that directory.
+Tool/compiler errors, timeouts, incomplete exploration, malformed traces and
+unexpected invariant failures are inconclusive failures, never detected mutants
+or proof success. The shared [TLC support](tlc_support.py) also serves the Console
+runner; changing it selects both formal checks.
+
+The models abstract logical payloads, physical batches and live authorization.
+They do not prove SQL computation, logical cell validation, codecs, scratch-buffer
+ownership, allocator bounds, actual networking, pin recovery or storage durability.
+Durable statement acceptance, uncertain write settlement, cancellation racing
+publication, lost initial execution responses and future transaction decisions
+remain separate temporal-model work. The session abstraction omits malformed
+wire framing and arbitrary reordered/skipped ordinals; concrete adapter tests
+own those cases. No liveness, latency or arbitrary-cardinality claim follows
+from the finite safety results.

@@ -2167,6 +2167,33 @@
       "limits": "Finite application workload and process-death schedules; no host power loss, provider failover, automatic lifecycle scheduling or whole-process growth bound. Local evidence inspects actual WAL/object files; Ursula separately replaces its disk provider.",
       "model": null,
       "qualification": "Executed sources and outcomes belong in docs/history/qualification/storage.md; registration alone does not establish a passing run."
+    },
+    {
+      "id": "SQL-RESULT-01",
+      "claim": "Logical result progress preserves attribution, ordered counters, verified terminal evidence and independent consumption/release; the finite established-session model preserves exact row occurrences and current authorization at server disclosure",
+      "owner": "contracts/SQL_RESULTS_V1.md",
+      "implementation": [
+        "packages/zig/transit-sql-results/src/Progress.zig",
+        "packages/zig/transit-sql-results/src/ResultSet.zig",
+        "packages/zig/transit-sql-client/src/NativeResult.zig",
+        "tests/verification/models/statement_result_state.zig",
+        "tests/verification/models/statement_result_model.py"
+      ],
+      "profile": "Two-row finite Progress model with every exported edge replayed against Zig; separate single-reader, single-retained-batch session abstraction",
+      "tasks": [
+        "test::statement-result-model",
+        "test::sql-wire-contracts",
+        "test::sql-sessions"
+      ],
+      "scenarios": [
+        "Receive/deliver/finish/fail/cancel/release, immutable result/schema/observation identity and rejected transitions without counter changes",
+        "Every finite Progress edge replayed from a shortest representative path; five independent removed model guards produce named violations and safe Zig counterexample replay",
+        "Session oracle tracks row occurrences across varied chunking, lost and repeated replies, final-data and empty terminals, revocation/restoration, expiry, late replies and local/remote closure",
+        "Two session model guards expose duplicate receipt and unauthorized cached disclosure; these protocol counterexamples have no implementation replay"
+      ],
+      "limits": "Safety only with no fairness or liveness claim. The row bound limits exploration, not production data size. Progress replay does not establish all Zig histories or protocol correspondence. The session model starts after a successful initial execute response and abstracts current authorization as an atomic disclosure predicate. SQL computation, types/codecs, u64 overflow, scratch ownership, real transport, durable settlement, storage and transactions remain separate checks.",
+      "model": "tests/verification/models/StatementResult.tla",
+      "qualification": "Executed bounds and checks are recorded in docs/history/qualification/verification.md; generated source/configuration hashes, graphs, logs and counterexamples are retained under .cache/verification/statement-result-model/ and CI artifacts."
     }
   ]
 }

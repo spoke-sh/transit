@@ -368,6 +368,50 @@ seek may reduce visited rows, while predicate evaluation still determines matche
 The current [Table access paths](../reference/tables.md) do not establish generic
 columnar storage merely because output is Arrow.
 
+### Finite result transition models
+
+The formal question is whether a result can retain truthful progress and
+completion while consumption and session disclosure evolve independently. The
+[logical result contract](../../../contracts/SQL_RESULTS_V1.md) supplies the
+state tuple: immutable attribution, received/delivered counts, outcome,
+consumption and release. The implemented
+[Progress owner](../../../packages/zig/transit-sql-results/src/Progress.zig)
+checks those transitions independently of transport. Two finite TLA+ models
+make the safety obligations executable; their
+[method and bounds](../../../tests/verification/models/README.md#finite-sql-result-models)
+and [executed evidence](../../history/qualification/verification.md)
+remain separately attributable.
+
+The progress model checks counter bounds, identity admission, terminal evidence,
+exhaustion and independent release. Its runner compares every exported edge from
+a representative path with the actual Zig owner, including rejected operations.
+This correspondence covers the selected finite state abstraction; payload types,
+unsigned-counter overflow and host memory ownership remain implementation tests.
+
+The session model begins after a successful initial execute response and holds
+one retained server batch and one in-flight response. It separates materialization,
+disclosure and receipt, permitting lost/repeated replies, revocation/restoration,
+expiry and early close. An independent sequence of row occurrences prevents
+matching counters alone from legitimizing duplicate or missing rows. Completion
+requires the original sequence and terminal count. Occurrence identity does not
+require distinct SQL values or add an ordering clause.
+
+Authorization is checked at server disclosure, including cached and empty
+terminal replies. A response disclosed before revocation may arrive afterward;
+local delivery of already received rows does not constitute a new server
+response. The model represents current rights as one atomic predicate and does
+not establish the implementation of credential, role or per-source checks.
+Its protocol transitions have model negative controls but no native adapter/server
+replay. Initial-response loss, durable write settlement and transaction decisions
+are outside this session abstraction.
+
+Separating the small progress owner from the protocol model keeps the executable
+correspondence precise and the state space reviewable. A combined model of all
+SQL execution and storage would require additional abstractions and proof
+obligations. Both current models check safety without fairness or liveness:
+unbounded loss or stalled cleanup need not resolve. Physical codecs, allocation,
+network faults and retained-pin recovery continue to require their owning tests.
+
 ## Relational correctness and data movement
 
 This section analyzes finite relational correctness and the additional

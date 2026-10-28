@@ -950,6 +950,20 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     console_model.stdio = .inherit;
     console_model.addPassthruArgs();
     b.step("test-console-model", "Check the console model and replay transitions against its Zig owner").dependOn(&console_model.step);
+    const statement_result_trace = b.addExecutable(.{ .name = "statement-result-state-trace", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/verification/models/statement_result_state.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") }},
+    }) });
+    const statement_result_model = b.addSystemCommand(&.{ "python3", "-B" });
+    statement_result_model.addFileArg(b.path("tests/runner/launch.py"));
+    statement_result_model.addFileArg(b.path("tests/verification/models/statement_result_model.py"));
+    statement_result_model.addArtifactArg(statement_result_trace);
+    statement_result_model.has_side_effects = true;
+    statement_result_model.stdio = .inherit;
+    statement_result_model.addPassthruArgs();
+    b.step("test-statement-result-model", "Check SQL result models and replay every Progress edge against Zig").dependOn(&statement_result_model.step);
     const file_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     file_query_test.addFileArg(b.path("tests/runner/launch.py"));
     file_query_test.addFileArg(b.path("tests/query/files/fuze_file_query.py"));

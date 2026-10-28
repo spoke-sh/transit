@@ -99,7 +99,7 @@ combines that evidence at one revision.
 | 13 | [Multi-model and multi-format foreign relations](13-multi-model-and-foreign-relations.md) | Planned | Document/graph projections (with WCOJ cyclic pattern matching), multi-model BM25/vector search composition, foreign formats, streaming CDC ingress and typed COPY/import/export |
 | 14 | [Branches, merges and restore](14-branches-merges-and-restore.md) | Planned | Durable multi-commit branches, logical three-way merge with `FOREIGN KEY`/`CHECK` verification, branch-aware compaction/GC and forward restore under current authority |
 | 15 | [Service and SDK coverage](15-service-and-sdk-coverage.md) | In Progress | Preserved Go raw/console slices and broader service, language, type and platform coverage over the shared API foundation |
-| 16 | [Formal semantics and implementation correspondence](16-formal-semantics-and-correspondence.md) | Planned | Selected temporal models and algebraic proofs over delivered local contracts, connected to production behavior before distributed extensions |
+| 16 | [Formal semantics and implementation correspondence](16-formal-semantics-and-correspondence.md) | In Progress | Selected temporal models and algebraic proofs over delivered local contracts, connected to production behavior before distributed extensions |
 
 ### Phase III: Distributed durability and operations
 

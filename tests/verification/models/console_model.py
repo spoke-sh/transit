@@ -11,6 +11,7 @@ import subprocess
 import time
 
 from runner.paths import ROOT
+from verification.models.tlc_support import complete, record, run_traces
 MODELS = Path(__file__).resolve().parent
 FIELDS = {'mode', 'request', 'freshness', 'intent', 'source', 'text', 'cursor',
           'saved', 'savedCursor', 'filter', 'matched', 'failed'}
@@ -18,21 +19,6 @@ EFFECTS = {'cancel', 'clear', 'install', 'action'}
 GUARDS = {'CheckFresh': 'NoStaleInsertion', 'CheckUnique': 'ProvenUnique', 'CheckBasis': 'ValidatedBasis',
           'CheckRestore': 'RestoresDraft', 'CheckOwnership': 'ExclusiveOwner',
           'CheckProtected': 'ClearsPrivate'}
-
-
-def record(label, name, fields):
-    match = re.search(r'/\\ ' + name + r' = \[(.*?)\](?:\n|$)', label, re.S)
-    if not match:
-        raise ValueError(f'missing {name} record')
-    value = match[1]
-    tokens = list(re.finditer(r'(\w+)\s*\|->\s*("[^"\\]*"|TRUE|FALSE|\d+)', value))
-    remainder = re.sub(r'(\w+)\s*\|->\s*("[^"\\]*"|TRUE|FALSE|\d+)', '', value)
-    if remainder.strip(' ,\n\t'):
-        raise ValueError(f'unmapped {name} record: {value}')
-    result = {m[1]: json.loads(m[2].lower() if m[2] in {'TRUE', 'FALSE'} else m[2]) for m in tokens}
-    if set(result) != fields or len(tokens) != len(fields):
-        raise ValueError(f'unmapped {name} fields: {result}')
-    return result
 
 
 def projection(label):
@@ -79,18 +65,6 @@ def graph(path):
     return nodes, edges, paths, successors, initial[0]
 
 
-def run_traces(binary, traces, destination, seconds):
-    path = destination / 'replay.json'
-    path.write_text(json.dumps(traces, separators=(',', ':')) + '\n')
-    result = subprocess.run([binary, str(path)], cwd=ROOT, capture_output=True, text=True, timeout=seconds)
-    if result.returncode:
-        raise AssertionError(f'Zig replay failed: {result.stderr[-4000:]}')
-    rows = [json.loads(line) for line in result.stdout.splitlines()]
-    if len(rows) != len(traces):
-        raise AssertionError('incomplete Zig replay')
-    return rows
-
-
 def verify_trace(binary, events, expected, destination, seconds):
     actual = run_traces(binary, [events], destination, seconds)[0]
     if actual != expected:
@@ -115,13 +89,6 @@ def tlc(config, name, destination, seconds, dump=False):
     output = result.stdout + result.stderr
     (destination / (name + '.log')).write_text(output)
     return result.returncode, output
-
-
-def complete(code, output):
-    counts = re.search(r'([\d,]+) states generated, ([\d,]+) distinct states found, 0 states left on queue', output)
-    if code != 0 or 'Model checking completed. No error has been found.' not in output or not counts:
-        raise AssertionError(f'inconclusive/failed TLC exploration: {output[-4000:]}')
-    return tuple(int(value.replace(',', '')) for value in counts.groups())
 
 
 def main():

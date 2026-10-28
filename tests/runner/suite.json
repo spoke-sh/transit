@@ -6,6 +6,7 @@
       "test::wal-model",
       "test::model-delivery",
       "test::console-model",
+      "test::statement-result-model",
       "test::sql-rewrites"
     ],
     "core": [
@@ -526,7 +527,8 @@
           "tests/verification/models/console_state.zig"
         ],
         "depends_on": [
-          "console-specification"
+          "console-specification",
+          "tlc-support"
         ],
         "tasks": [
           "test::console-model"
@@ -604,6 +606,41 @@
         ],
         "resources": [
           "contract-compiler"
+        ]
+      },
+      "tlc-support": {
+        "paths": [
+          "tests/verification/models/tlc_support.py"
+        ],
+        "depends_on": [],
+        "tasks": [],
+        "resources": []
+      },
+      "statement-result-specification": {
+        "paths": [
+          "tests/verification/models/StatementResult.tla",
+          "tests/verification/models/StatementResult.cfg",
+          "tests/verification/models/StatementResultSession.tla",
+          "tests/verification/models/StatementResultSession.cfg"
+        ],
+        "depends_on": [],
+        "tasks": [],
+        "resources": []
+      },
+      "statement-result-proof": {
+        "paths": [
+          "tests/verification/models/statement_result_model.py",
+          "tests/verification/models/statement_result_state.zig"
+        ],
+        "depends_on": [
+          "statement-result-specification",
+          "tlc-support"
+        ],
+        "tasks": [
+          "test::statement-result-model"
+        ],
+        "resources": [
+          "formal-cpu"
         ]
       }
     }

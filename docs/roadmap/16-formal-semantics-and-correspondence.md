@@ -1,6 +1,6 @@
 # 16. Formal semantics and implementation correspondence
 
-[Roadmap](README.md) · **Status:** Planned
+[Roadmap](README.md) · **Status:** In Progress
 
 Make the delivered data, computation and policy guarantees easier to preserve
 while changing their implementation. Extract small temporal models and algebraic
@@ -111,7 +111,15 @@ implementations without assuming a shared transaction across independent owners.
 
 ### T2. Statement results, disclosure and uncertain settlement
 
-Candidate: `StatementResult.tla`, after the result/client contracts land. Model
+The finite result-consumption slice is implemented ahead of the broader phase-II
+closure: [StatementResult.tla](../../tests/verification/models/StatementResult.tla)
+checks logical progress with complete finite-edge replay against Zig, and
+[StatementResultSession.tla](../../tests/verification/models/StatementResultSession.tla)
+checks established-reader delivery and disclosure as an abstract protocol.
+The [model guide](../../tests/verification/models/README.md#finite-sql-result-models)
+defines their bounds and exclusions. This does not complete T2 or the milestone.
+
+Remaining work: model
 durable operation state, the caller's knowledge of it, session attachment and
 reader progress separately. Include submission, ordered/repeated fetches, final
 data or empty terminal batches, early close, expiry, revocation, cancellation
@@ -126,7 +134,7 @@ Statement completion inside an open transaction retains provisional attribution;
 local cancellation cannot manufacture rollback of accepted work. Legitimate
 owner-confirmed abort and unresolved observation remain distinct.
 
-Connect the model to the eventual shared reader/settlement implementation rather
+Connect the remaining protocol/settlement model to the shared implementation rather
 than duplicating recovery in adapters. Replay the relevant client/server boundary
 events and separately test scratch-buffer ownership, cancellation joins and real
 transport. The [SQL session contract](../../contracts/SQL_SESSION_V1.md) is the
