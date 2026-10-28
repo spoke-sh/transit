@@ -145,6 +145,7 @@ def check(binary):
     spacing(binary)
     unique(binary)
     session_loss(binary)
+    busy_keepalive(binary)
     execution_escape(binary)
     print('Console editing: general undo, clear/dismiss, search isolation/deduplication, vertical movement, literal paste, escape decoding and local completion passed.')
 
@@ -682,6 +683,32 @@ def session_loss(binary):
             finally:
                 release.set()
                 terminal.close()
+
+
+def busy_keepalive(binary):
+    touches = 0
+    def touch():
+        nonlocal touches
+        touches += 1
+        if touches == 3:
+            return dict(closed={})
+        code, state = ('SqlSessionBusy', b'53000') if touches < 3 else ('AccessDenied', b'42501')
+        return dict(err=dict(code=code, sqlstate=list(state), message=code, retry='never', operation=None, diagnostic=None))
+    with tempfile.TemporaryDirectory(prefix='transit-busy-keepalive-') as directory, peer(lease_ms=300, touch=touch) as (endpoint, actions):
+        root = Path(directory)
+        config = root / 'connection.json'
+        config.write_text(json.dumps(dict(version=1, endpoint=endpoint, authentication='trust')))
+        terminal = Terminal(binary, config, home=root)
+        try:
+            terminal.expect('AccessDenied', timeout=5)
+            assert terminal.process.wait(timeout=5) == 1
+            assert touches == 4, actions
+            assert len([a for a, _ in actions if a == 'open']) == 1, actions
+            assert not [a for a, _ in actions if a == 'execute'], actions
+            assert b'SqlSessionBusy' not in terminal.screen, terminal.screen
+            assert terminal.process.stdout.read() == b''
+        finally:
+            terminal.close()
 
 
 def execution_escape(binary):

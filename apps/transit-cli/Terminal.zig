@@ -797,6 +797,20 @@ const Editor = struct {
         self.display_cursor_row = 0;
     }
     fn draw(self: *Editor) !void {
+        while (true) {
+            self.drawFrame() catch |err| {
+                // A frame may already be visible when Ctrl-C interrupts its
+                // joined output task. Editing has the same clear-draft
+                // semantics here as at the input boundary; SIGTERM still exits.
+                if (err != error.ConsoleInterrupted or Signals.terminating()) return err;
+                Signals.clear();
+                self.clearDraft();
+                continue;
+            };
+            return;
+        }
+    }
+    fn drawFrame(self: *Editor) !void {
         const size = dimensions();
         self.columns = size.columns;
         self.rows = size.rows;

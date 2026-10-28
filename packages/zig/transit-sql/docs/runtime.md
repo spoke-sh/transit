@@ -47,6 +47,13 @@ record, local file or generation number never grants database access.
 
 Single-partition DML uses `commit_saved`: the partition evaluates the complete
 frozen intent and publishes its rows, indexes and outcome in one `TWAL1` append.
+`commit_saved` resolves an original receipt before execution, so ordinary DML
+recovery calls it directly without an additional pre-commit inspection request.
+The pending record supplies the original frozen reference and current
+cancellation state. An uncertain reply still leaves accepted work with the
+recovery owner. Status and lookup remain observation-only, and disclosure
+retains current authorization.
+
 There is no intermediate Table admission record on this path. Catalog token
 acceptance and pending-index settlement are separate durable decisions; this
 is not a claim that an entire SQL request performs only one network request or

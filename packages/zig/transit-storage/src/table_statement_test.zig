@@ -237,3 +237,85 @@ test "single partition autocommit uses one WAL record and recovers exact INSERT 
         try t.expectEqual(at + 1, table.root.next_lsn);
     }
 }
+
+test "original DML retry after a later INSERT preserves rows counts and retained readers across disk reopen" {
+    for ([_]d.Action{ .insert, .update, .delete }) |action| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var access: Access = .{};
+        var compiled = try f.TableDml.compile(t.allocator, if (action == .delete) "DELETE FROM events" else "UPDATE events SET value = 9", "events", schema, null);
+        defer compiled.deinit();
+        const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 3 } } }, .{ .value = .{ .atom = .{ .signed = 9 } } } };
+        var changes: [1]P.Change = undefined;
+        var request: s.TableDmlIntent.Request = undefined;
+        var original: P.Evidence = undefined;
+        var snapshot: P.SnapshotHandle = undefined;
+        var final_lsn: u64 = undefined;
+        {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var table = try owner(&wal, &objects);
+            defer table.deinit();
+            _ = try table.apply(binding(&table, 1, .create), &.{}, .point, access.guard());
+            try fill(&table, &access, 1, 2, 2);
+            snapshot = try table.pin(.{ .scope = object.scope, .principal = 4, .operation = 90 }, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+            var exact = binding(&table, 10, action);
+            if (action != .insert) exact.intent = try compiled.plan.fingerprint(t.allocator);
+            changes[0] = .{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(exact.identity, 0), .cells = &cells }, .expect = .absent } };
+            request = .{ .binding = exact, .interpretation = table.root.declared(), .changes = if (action == .insert) &changes else &.{}, .ingestion = .bulk, .statement = if (action == .insert) null else compiled.plan };
+            table.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, table.commit(request, access.guard()));
+            table.lose_reply = false;
+            original = (try table.operationState(exact, access.guard())).committed;
+            try t.expectEqual(@as(u64, if (action == .insert) 1 else 2), original.outcome.matched);
+            try t.expectEqual(@as(u64, if (action == .insert) 1 else 2), original.outcome.affected);
+            try fill(&table, &access, 4, 1, 20);
+            _ = try table.checkpoint(.{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+            final_lsn = table.root.next_lsn;
+        }
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        try t.expectEqualDeep(original, (try table.commit(request, access.guard())).committed);
+        try t.expectEqualDeep(original, (try table.cancel(request.binding, access.guard())).committed);
+        try t.expectEqual(final_lsn, table.root.next_lsn);
+        var after: ?s.TreeStore.pages.Key = null;
+        var count: u64 = 0;
+        var found_later = false;
+        while (true) {
+            const batch = try table.scan(table.root, after);
+            for (batch.entries) |slot| if (slot) |entry| {
+                var row = try table.readRow(t.allocator, table.root, entry.key, entry.value);
+                defer row.deinit();
+                const id = row.row().cells[0].value.atom.signed;
+                const value = row.row().cells[1].value.atom.signed;
+                if (id == 4) {
+                    try t.expect(!found_later);
+                    found_later = true;
+                    try t.expectEqual(@as(i128, 0), value);
+                } else {
+                    try t.expect(action != .delete);
+                    try t.expectEqual(@as(i128, if (action == .update or id == 3) 9 else 0), value);
+                }
+                count += 1;
+            };
+            after = batch.next orelse break;
+        }
+        try t.expect(found_later);
+        try t.expectEqual(@as(u64, switch (action) {
+            .insert => 4,
+            .update => 3,
+            .delete => 1,
+            else => unreachable,
+        }), count);
+        var old = try table.scanSnapshot(t.allocator, snapshot, null, .{}, access.guard());
+        defer old.deinit();
+        try t.expectEqual(@as(u64, 2), old.total_rows);
+        for (old.rows) |slot| if (slot) |row| try t.expectEqual(@as(i128, 0), row.row().cells[1].value.atom.signed);
+    }
+}

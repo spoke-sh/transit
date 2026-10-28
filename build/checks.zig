@@ -954,6 +954,20 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     console_model.stdio = .inherit;
     console_model.addPassthruArgs();
     b.step("test-console-model", "Check the console model and replay transitions against its Zig owner").dependOn(&console_model.step);
+    const write_lifecycle_trace = b.addExecutable(.{ .name = "write-lifecycle-state-trace", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/verification/models/write_lifecycle_state.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_storage", .module = storage.module("transit_storage") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_protocol", .module = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize }).module("transit_protocol") } },
+    }) });
+    const write_lifecycle_model = b.addSystemCommand(&.{ "python3", "-B" });
+    write_lifecycle_model.addFileArg(b.path("tests/runner/launch.py"));
+    write_lifecycle_model.addFileArg(b.path("tests/verification/models/write_lifecycle_model.py"));
+    write_lifecycle_model.addArtifactArg(write_lifecycle_trace);
+    write_lifecycle_model.has_side_effects = true;
+    write_lifecycle_model.stdio = .inherit;
+    write_lifecycle_model.addPassthruArgs();
+    b.step("test-write-lifecycle-model", "Check SQL write models and replay selected Table counterexamples").dependOn(&write_lifecycle_model.step);
     const statement_result_trace = b.addExecutable(.{ .name = "statement-result-state-trace", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/verification/models/statement_result_state.zig"),
         .target = target,

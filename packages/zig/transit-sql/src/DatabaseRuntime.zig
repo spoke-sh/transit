@@ -230,6 +230,15 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
     const reference = state.receipt.binding.intent;
     if (reference == .external) return;
     const caller = source.direct(state);
+    // commit_saved resolves an existing receipt before execution. Repeating it
+    // with the original frozen reference needs no preceding inspection RPC.
+    // Cancellation retains its separate owner transition below.
+    if (reference == .table and (reference.table.binding.action == .insert or reference.table.binding.action == .update or reference.table.binding.action == .delete) and !state.cancel) {
+        const response = try caller.call(.{ .commit_saved = reference.table });
+        defer response.deinit();
+        if (try g.Terminal.fromReference(reference, response.value.result) != null) _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = false, .record = state.record });
+        return;
+    }
     const observed = try reference.operation(caller, .inspect, 1);
     defer observed.deinit();
     if (try g.Terminal.fromReference(reference, observed.value.result) != null) {
@@ -240,10 +249,7 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
         inline .ddl, .rows, .name_assertion, .namespace_operation => |value| value == .not_observed,
         else => return error.InvalidGatewayTerminal,
     };
-    const rows = reference == .table and (reference.table.binding.action == .insert or reference.table.binding.action == .update or reference.table.binding.action == .delete);
-    const response = try if (absent and rows and !state.cancel)
-        caller.call(.{ .commit_saved = reference.table })
-    else if (absent and !(reference == .name_assertion and state.cancel)) reference.admit(caller) else reference.operation(caller, if (state.cancel) .cancel else .execute, 8);
+    const response = try if (absent and !(reference == .name_assertion and state.cancel)) reference.admit(caller) else reference.operation(caller, if (state.cancel) .cancel else .execute, 8);
     defer response.deinit();
     if (try g.Terminal.fromReference(reference, response.value.result) != null) _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record });
 }

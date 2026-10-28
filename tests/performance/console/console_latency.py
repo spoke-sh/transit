@@ -155,7 +155,7 @@ def main():
     parser.add_argument('--single', action='store_true', help='measure only the first empty SELECT')
     parser.add_argument('--repeat', type=int, default=1, choices=range(1, 101), metavar='1..100')
     parser.add_argument('--statements', action='store_true',
-                        help='persistent human table console: empty/warm SELECT, INSERT, refreshed SELECT, verified JSON readback')
+                        help='persistent human table console: empty/warm SELECT, INSERT/UPDATE/DELETE, refreshed SELECT, verified JSON readback')
     parser.add_argument('--age-queries', type=int, default=0, choices=range(1001), metavar='0..1000',
                         help='execute this many unmeasured SELECTs before measurements')
     parser.add_argument('--instrument', action='store_true',

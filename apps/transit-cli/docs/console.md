@@ -419,7 +419,9 @@ canonical cells. SQL API input is at most 64 KiB; the console editor and source
 compiler retain their 4096-byte statement bound. `request_timeout_ms` is
 1–270000 ms. Uncertain initial submissions use the remaining request budget;
 known accepted statements are observed for at most 270 seconds from submission.
-Polling and reconnection do not reset those deadlines. Idle consoles renew their lease. Service account/session,
+Polling and reconnection do not reset those deadlines. Idle consoles renew their
+lease. A busy renewal retries on the next idle turn using the same session;
+expiry and access denials still end the session. Service account/session,
 authentication, execution and operation quotas are explicit settings.
 
 Ctrl-C requests interruption of the current statement and discards remaining
