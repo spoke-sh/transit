@@ -22,6 +22,10 @@ Missing storage or configuration checkpoints in an existing installation never
 trigger initialization. Executable fingerprints and authority rollback checks
 still apply.
 
+First startup provisions the native catalog scope and grants before activating
+the direct Table owner. Table flushing, archiving and compaction start with that
+owner; their configured settings remain unchanged during the initial bootstrap.
+
 For a managed deployment that has already been provisioned, configure:
 
 ```yaml
