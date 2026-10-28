@@ -11,8 +11,8 @@ the [source build instructions](../../bindings/README.md#build-and-verification)
 Native artifacts require that build's Nix runtime closure. Other platforms and
 portable native distributions are not supplied.
 
-Extract the local 0.2.0 crates and their `transit-native-client` and
-`transit-native-station` dependencies. Use exact `=0.2.0` dependencies and ordinary
+Extract the local 0.0.1 crates and their `transit-native-client` and
+`transit-native-station` dependencies. Use exact `=0.0.1` dependencies and ordinary
 `[patch.crates-io]` path entries to the extracted packages. Build with the supplied
 lockfile. Registry publication is not available.
 

@@ -11,7 +11,7 @@ define its counter, u64-state and query formats; malformed, unsupported and
 out-of-range values are rejected at ingress and encoding.
 
 From `nix develop`, run `just bindings::python-build`, then install
-`transit-sdk-examples==0.2.0` from `.cache/bindings/wheels` using pip's
+`transit-sdk-examples==0.0.1` from `.cache/bindings/wheels` using pip's
 `--no-index --find-links` options into a consumer environment. The dependency
 chain installs both public SDKs and their version-matched native artifacts.
 

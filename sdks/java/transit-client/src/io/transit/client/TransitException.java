@@ -24,7 +24,7 @@ public final class TransitException extends RuntimeException {
     }
     public TransitException(Kind kind, int status, String code, String phase, JsonObject diagnostic, boolean diagnosticInvalid) {
         super("Transit " + phase + " failed (" + kind + ")" + (kind == Kind.INCOMPATIBLE_NATIVE ?
-            "; install matching Transit 0.2.0 JARs or provide a compatible native executable" : kind == Kind.LOCAL_IO ?
+            "; install matching Transit 0.0.1 JARs or provide a compatible native executable" : kind == Kind.LOCAL_IO ?
             "; check storage and permissions for java.io.tmpdir and the configured native executable" : ""));
         this.kind = kind; this.status = status; this.code = code; this.phase = phase;
         this.diagnostic = diagnostic == null ? null : diagnostic.toString(); this.diagnosticInvalid = diagnosticInvalid;

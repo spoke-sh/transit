@@ -55,3 +55,23 @@ The client set contains both native libraries, their hosts, the administration
 client and HTTP/gRPC workers. The authority set contains the node. These helpers
 do not reuse mutable installations or test outcomes. Existing task consumers that
 still use install prefixes retain their own build steps until migrated explicitly.
+
+## Changing the release version
+
+All Transit-owned packages use the root [VERSION](../VERSION). The build captures
+Git provenance once per configuration; ordinary Git builds recheck it on every
+invocation, while `-Dsource-revision` supplies explicit metadata to isolated
+builders. See the [release policy](../docs/handbook/reference/versioning.md#software-releases).
+
+For a version change, update `VERSION`, package manifests, exact Transit dependency
+pins, embedded SDK version resources, loader expectations, consumer fixtures and
+current installation examples together. Preserve upstream dependency versions and
+historical evidence. Regenerate package-manager locks using the pinned tools;
+`python3 -B tasks/version.py` checks owned versions and dependency pins. Add new
+package formats to that check when introducing them. The binding archive builders
+read `VERSION` directly.
+
+Commit and qualify the release set before tagging that exact clean commit
+`v<version>`. `python3 -B tasks/version.py --tag v<version>` checks tag identity as
+well as package consistency. CI applies this gate to tag pushes. Never move a
+published tag or replace an artifact with different bytes under the same version.

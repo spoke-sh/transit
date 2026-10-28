@@ -8,7 +8,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.2.0'
+VERSION = (ROOT / 'VERSION').read_text().strip()
 
 
 def build(output, names, native_prefix):

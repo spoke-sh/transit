@@ -2,7 +2,7 @@
 
 Build with `nix develop .#bindings -c just bindings::dotnet-build`. Add the local
 `.cache/bindings/dotnet` folder as a NuGet source and reference `Transit.Client`
-version `0.2.0`. Its exact native dependency is `Transit.Native.Client` 0.2.0;
+version `0.0.1`. Its exact native dependency is `Transit.Native.Client` 0.0.1;
 there is no Station dependency. NuGet restores these packages into an ordinary
 external project. The native assembly carries the matching Zig library, which
 is extracted privately and version-checked. Its temporary file is removed after

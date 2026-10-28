@@ -190,6 +190,7 @@ export const sections: Section[] = [
     pages: [
       guide("launchers", "Development launchers"),
       reference("deployment", "Deployment and recovery"),
+      reference("distribution", "Release packages and installation"),
       guide("inspect-board", "Inspect with Board"),
       page("apps/transit-board/docs/configuration.md", "guides/board", "Configure Board"),
       reference("observability", "Logs, metrics and probes"),

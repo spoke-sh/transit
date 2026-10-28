@@ -1,7 +1,7 @@
 .{
     .name = .transit_query_direct,
     .fingerprint = 0x8955663a99c056d1,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
         .transit_catalog = .{ .path = "../transit-catalog" },

@@ -157,7 +157,7 @@ struct Local {
 }
 impl Local {
     fn open(directory: Option<&Path>) -> Result<Self> {
-        if transit_native_station::VERSION != "0.2.0" {
+        if transit_native_station::VERSION != "0.0.1" {
             return Err(Error::new(ErrorKind::IncompatibleNative, "native-version"));
         }
         let artifact = Artifact::open(

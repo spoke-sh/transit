@@ -25,7 +25,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None, langua
             if language == 'elixir': names += ['transit_client_elixir', 'transit_station_elixir']
             names.append(f'transit_sdk_examples_{language}')
             for name in names:
-                with tarfile.open(Path(artifacts).resolve() / f'{name}-0.2.0.tar.gz') as archive:
+                with tarfile.open(Path(artifacts).resolve() / f'{name}-0.0.1.tar.gz') as archive:
                     archive.extractall(lib, filter='data')
             env = dict(os.environ, ERL_LIBS=str(lib), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
             classes = target / 'classes'
@@ -61,15 +61,15 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None, langua
                 incompatible = ['erl', '-noshell', '-eval', 'case transit_station_sdk:encode_cast(read, transit_example_counter_codec) of {error, E} when element(2, E) =:= incompatible_native -> halt(0); _ -> halt(1) end.']
             else:
                 incompatible = ['elixir', '-e', '{:error, %Transit.Client.Error{kind: :incompatible_native}} = Transit.Station.Sdk.encode_cast(%Transit.SdkExamples.Read{}, Transit.SdkExamples.CounterCodec)']
-            native = lib / 'transit_native_station-0.2.0'
+            native = lib / 'transit_native_station-0.0.1'
             hidden = target / 'native.saved'
             native.rename(hidden)
             try: subprocess.run(incompatible, env=env, cwd=target, check=True, timeout=20)
             finally: hidden.rename(native)
             for app in ('transit_native_station', 'transit_client'):
-                manifest = lib / f'{app}-0.2.0/ebin/{app}.app'
+                manifest = lib / f'{app}-0.0.1/ebin/{app}.app'
                 original = manifest.read_text()
-                manifest.write_text(original.replace('0.2.0', '99.0.0'))
+                manifest.write_text(original.replace('0.0.1', '99.0.0'))
                 try: subprocess.run(incompatible, env=env, cwd=target, check=True, timeout=20)
                 finally: manifest.write_text(original)
             def command(mode, config):

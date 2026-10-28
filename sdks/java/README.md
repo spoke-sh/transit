@@ -11,7 +11,7 @@ the [source build instructions](../../bindings/README.md#build-and-verification)
 Native artifacts require that build's Nix runtime closure. Other platforms and
 portable native distributions are not supplied.
 
-Copy the local 0.2.0 SDK and matching native JARs, plus the supplied
+Copy the local 0.0.1 SDK and matching native JARs, plus the supplied
 `gson-2.12.1.jar`, into your application's `lib/` directory. Compile with
 `javac --release 21 -cp 'lib/*'` and run with `java -cp 'lib/*:classes' YourApplication`.
 The JAR manifests describe dependencies; local installation uses the explicit

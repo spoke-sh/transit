@@ -1,6 +1,6 @@
 {
   "name": "@transit/docs",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "scripts": {
     "start": "docusaurus clear && docusaurus start --host 127.0.0.1 --no-open",

@@ -22,11 +22,11 @@ provided by these tasks.
 
 The source build produces two local installation archives:
 
-- `transit-go-0.2.0.tar.gz`: the Go module and generated ABI resources.
-- `transit-go-native-0.2.0.tar.gz`: `lib/libtransit_client.so`.
+- `transit-go-0.0.1.tar.gz`: the Go module and generated ABI resources.
+- `transit-go-native-0.0.1.tar.gz`: `lib/libtransit_client.so`.
 
 Extract them into separate SDK and native installation directories. In a consumer
-module, require `github.com/spoke-sh/transit/sdks/go v0.2.0` and use a Go `replace`
+module, require `github.com/spoke-sh/transit/sdks/go v0.0.1` and use a Go `replace`
 directive pointing to the extracted SDK module. Build with `CGO_ENABLED=1`.
 Set `Config.NativeDirectory` to the installed native `lib` directory. The runtime
 needs that directory and the native Nix closure, independently of the Go source

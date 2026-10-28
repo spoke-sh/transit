@@ -4,9 +4,9 @@ defmodule TransitClient.MixProject do
   def project do
     [
       app: :transit_client_elixir,
-      version: "0.2.0",
+      version: "0.0.1",
       elixir: "~> 1.18",
-      deps: [{:transit_client, "== 0.2.0"}],
+      deps: [{:transit_client, "== 0.0.1"}],
       package: [files: ["lib", "docs", "mix.exs", "README.md"]]
     ]
   end

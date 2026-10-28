@@ -1,6 +1,6 @@
 # Transit native Java Station artifact
 
-Version 0.2.0 packages the shared Zig `transit-station-host` executable for the
+Version 0.0.1 packages the shared Zig `transit-station-host` executable for the
 [Java Station SDK](../transit-station-sdk/README.md). It uses the same private,
 version-checked extraction and joined cleanup as the independent Java client's
 [native artifact](../transit-native-client/README.md). The normal classpath

@@ -44,6 +44,7 @@ in
       (root + /build)
       (root + /build.zig)
       (root + /build.zig.zon)
+      (root + /VERSION)
       (root + /apps)
       (root + /packages)
       (root + /third_party)

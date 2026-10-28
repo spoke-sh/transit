@@ -1,6 +1,6 @@
 .{
     .name = .transit_fuze,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .fingerprint = 0xe22d2ce923bd8bac,
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{

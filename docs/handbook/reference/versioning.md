@@ -20,6 +20,40 @@ identify software artifacts. Application schema revisions, resource revisions,
 ownership generations, sequence numbers and permission epochs retain their
 domain meanings; they are not protocol generations.
 
+## Software releases
+
+Transit-owned runtime, library, SDK and chart packages share one release version.
+The repository's `VERSION` file is the source of truth; the current baseline is
+`0.0.1`. Package-manager manifests and exact internal dependency pins mirror it.
+Upstream dependencies retain their own versions. This version identifies the
+software release set; the current-v1 definition remains the compatibility gate.
+
+`transit --version` reports the release version, full Git commit and CLI contract:
+
+```text
+Transit 0.0.1 (git 0123456789abcdef0123456789abcdef01234567; CLI contract 1)
+```
+
+A `-dirty` suffix on the commit indicates tracked modifications or untracked
+source at build configuration time. Source archives without Git report `unknown`
+unless the builder supplies provenance. These fields are compiled into the
+executable: running the command needs neither Git nor the source checkout.
+They identify source; they are not cryptographic attestations.
+
+Build tooling accepts `-Dsource-revision=<full-sha>` (or `<full-sha>-dirty`) for
+source archives and isolated builders. Nix passes its flake revision because its
+filtered source excludes `.git`. Missing Nix provenance remains `unknown`.
+Explicit metadata is a builder assertion, not independent verification.
+
+Release tags have the exact form `vMAJOR.MINOR.PATCH`, matching `VERSION` at that
+commit. CI rejects mismatched tags, package version drift and dirty tag builds.
+The current packaging profile uses stable three-part versions; prerelease naming
+across language registries requires a separate coordinated extension. Use patch
+increments for compatible corrections and minor increments for additions or
+incompatible pre-1.0 changes. A release increment never replaces a required
+contract-definition cutover. Contributor steps live in the
+[build guide](../../../build/README.md#changing-the-release-version).
+
 ## Compatibility between builds
 
 The v1 label names the current contract; it does not promise that two pre-1.0

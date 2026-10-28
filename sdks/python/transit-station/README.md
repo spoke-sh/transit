@@ -12,7 +12,7 @@ runners over the shared Zig Station implementation. The public API selects
 protocol validation, signatures, framework transitions and exact retry.
 
 Build installable wheels with `nix develop --command just bindings::python-build`.
-Install `transit-station==0.2.0` from `.cache/bindings/wheels` with pip's
+Install `transit-station==0.0.1` from `.cache/bindings/wheels` with pip's
 `--no-index --find-links` options. It depends on the version-matched
 `transit-client` and `transit-native-station` packages; the client has its own
 independent native dependency. Discovery uses installed packages, with an explicit

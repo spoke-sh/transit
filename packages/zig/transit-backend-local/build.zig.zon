@@ -1,6 +1,6 @@
 .{
     .name = .transit_backend_local,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .fingerprint = 0x33361b79ec825465,
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{

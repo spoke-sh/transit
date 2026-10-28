@@ -1,5 +1,5 @@
 {application, transit_native_client, [
  {description, "Version-matched Transit native client port"},
- {vsn, "0.2.0"}, {modules, [transit_native_client]}, {registered, []},
+ {vsn, "0.0.1"}, {modules, [transit_native_client]}, {registered, []},
  {applications, [kernel, stdlib]}, {env, []}
 ]}.

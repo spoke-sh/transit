@@ -134,7 +134,7 @@ combines that evidence at one revision.
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
 | 30 | [Qualification and complete benchmarks](30-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
-| 31 | [Release distribution](31-releases.md) | Planned | Versioned verified artifacts, matching documentation and runnable installed onboarding |
+| 31 | [Release distribution](31-releases.md) | In Progress | Versioned verified artifacts, matching documentation and runnable installed onboarding |
 | 32 | [Declarative language, structural context and corpus-native synthesis research](32-declarative-language-context-and-synthesis.md) | Planned | Speculative research defining declarative span segmentation, multi-scale structural/graph proximity (`NEAR`), context-conditioned continuation and branch-verified agency over swappable physical index and predictor implementations |
 
 Performance measurement and amplification work remains tracked in

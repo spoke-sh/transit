@@ -1,6 +1,6 @@
 # transit-native-client for Python
 
-The Linux x86_64 native dependency for `transit-client` 0.2.0. Its built wheel
+The Linux x86_64 native dependency for `transit-client` 0.0.1. Its built wheel
 contains only `libtransit_client.so` and `transit-client-host`; Station is not a
 dependency. Import opens no library or process. `library_path()` and `host_path()`
 resolve package-owned artifacts and reject missing files or unsupported platforms.

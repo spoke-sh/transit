@@ -55,7 +55,7 @@ async function openPort(config: object, override?: string): Promise<Port> {
   if (!executable) {
     try {
       const native = await import("@transit/native-station");
-      if (native.version !== "0.2.0") throw new Error();
+      if (native.version !== "0.0.1") throw new Error();
       executable = native.hostPath;
     } catch {
       throw new IncompatibleNative(

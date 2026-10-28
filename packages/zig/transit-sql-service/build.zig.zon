@@ -1,7 +1,7 @@
 .{
     .name = .transit_sql_service,
     .fingerprint = 0x5f7162e014fab3c0,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{ .transit_sql = .{ .path = "../transit-sql" }, .transit_query = .{ .path = "../transit-query" }, .transit_memory = .{ .path = "../transit-memory" } },
     .paths = .{ "build.zig", "build.zig.zon", "src" },

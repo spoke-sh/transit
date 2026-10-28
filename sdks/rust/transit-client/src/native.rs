@@ -164,7 +164,7 @@ impl Native {
                 "native-worker-required",
             ));
         }
-        if transit_native_client::VERSION != "0.2.0" {
+        if transit_native_client::VERSION != "0.0.1" {
             return Err(Error::new(ErrorKind::IncompatibleNative, "native-version"));
         }
         let artifact = Artifact::open(

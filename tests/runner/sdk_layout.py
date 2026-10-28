@@ -62,7 +62,7 @@ def main():
             'apps/bad/tsconfig.json': '{"compilerOptions":{"paths":{"sdk":["../../sdks/ts/client"]}}}',
             'apps/bad/side-effect.ts': 'import "@transit/client";',
             'apps/bad/main.zig': '@import("../../sdks/zig/consumer.zig")',
-            'apps/bad/go.mod': 'module runtime\nrequire github.com/spoke-sh/transit/sdks/go v0.2.0\n',
+            'apps/bad/go.mod': 'module runtime\nrequire github.com/spoke-sh/transit/sdks/go v0.0.1\n',
             'apps/bad/main.go': 'package main\nimport "github.com/spoke-sh/transit/sdks/go/client"\n',
             'apps/bad/replaced/go.mod': 'module runtime\nreplace sdk => ../../../sdks/go\n',
         }.items():

@@ -6,7 +6,7 @@ require_relative 'client/operations'
 
 module Transit
   class Client
-    VERSION = '0.2.0'
+    VERSION = '0.0.1'
     class State
       attr_reader :port
       attr_accessor :last_admission, :last_mutation
@@ -35,7 +35,7 @@ module Transit
           raise
         end
       rescue LoadError
-        raise IncompatibleNative, 'Install transit-native-client 0.2.0 or supply native_host'
+        raise IncompatibleNative, 'Install transit-native-client 0.0.1 or supply native_host'
       end
       def evidence = Shutdown.new(last_admission: last_admission, last_mutation: last_mutation)
       def close = port.close

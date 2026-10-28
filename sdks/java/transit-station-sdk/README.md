@@ -1,6 +1,6 @@
 # Transit Java Station SDK
 
-Version 0.2.0 provides typed Java 21 handlers and associated KV/Table/query APIs
+Version 0.0.1 provides typed Java 21 handlers and associated KV/Table/query APIs
 over the shared Zig growing Station implementation. Signing, authority checks,
 framework transitions and Fuze execution remain Zig-owned. The independent
 [raw client](../transit-client/README.md) is a direct dependency; raw applications

@@ -1,7 +1,7 @@
 # Elixir Station usage
 
 Build with `nix develop .#bindings -c just bindings::beam-build`. Install the
-compiled 0.2.0 `transit_client_elixir` and `transit_station_elixir` archives plus
+compiled 0.0.1 `transit_client_elixir` and `transit_station_elixir` archives plus
 the four Erlang/native dependencies listed in the [shared usage guide](../../transit-station-sdk/docs/usage.md)
 under an external `ERL_LIBS` directory. The builder derives the application
 metadata and direct dependencies from `mix.exs`; runtime consumers need only the

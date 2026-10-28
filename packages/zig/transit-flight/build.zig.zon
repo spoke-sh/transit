@@ -1,7 +1,7 @@
 .{
     .name = .transit_flight,
     .fingerprint = 0x2a2959f2012181d9,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{ .transit_grpc = .{ .path = "../transit-grpc" }, .transit_query = .{ .path = "../transit-query" }, .transit_serving = .{ .path = "../transit-serving" } },
     .paths = .{ "build.zig", "build.zig.zon", "src", "proto", "generate.py", "README.md", "docs" },

@@ -20,7 +20,7 @@ internal sealed class Bridge : IWorkerState<object?>
     private IntPtr catalogClient;
     internal Bridge(string? nativeDirectory)
     {
-        if (typeof(Transit.Client.Client).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion != "0.2.0") throw Value.Incompatible("client-sdk-version");
+        if (typeof(Transit.Client.Client).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion != "0.0.1") throw Value.Incompatible("client-sdk-version");
         package = new NativePackage("station", nativeDirectory);
         try {
             Api = new NativeApi(package.Library);

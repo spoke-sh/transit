@@ -196,3 +196,12 @@ duplicate dispositions and changes to retained observation identities.
 bytes against the original Git revision; ordinary output stays in runner artifacts. Use
 `python3 -B tests/runner/layout.py --complete` for the final destination audit;
 it fails while old paths or migration exceptions remain.
+
+Release metadata and installer controls run in the fast profile through
+[test_versions.py](test_versions.py), [test_release.py](test_release.py) and
+[test_publication.py](test_publication.py). The publication controls reject
+ambiguous registry failures, corrupted downloads and conflicting published images.
+The distribution workflow separately builds static executables, exercises
+[test::release](../../tasks/test.just) outside the checkout, validates Helm and
+runs container SQL before any tag publication. These checks do not establish
+macOS/Windows support or a completed registry publication.

@@ -585,3 +585,27 @@ offline OpenAPI 3.2.1 / AsyncAPI 3.0 structure, example and trace checks. Offici
 schema artifacts and hashes live in `tests/fixtures/reactive`; generator output
 comes from the public serving types. This uses the existing Nixpkgs lock, without
 a separate network package installation or an implicit input revision update.
+
+## Distribution builds
+
+`nix build .#transit-release` builds the Linux x86_64 static runtime set with
+musl and the pinned static OpenSSL. It embeds the flake commit and copies notices
+from the exact dependency sources. This output is separate from the ordinary
+Nix-linked runtime; it requires no host shared libraries. The
+[distribution reference](../docs/handbook/reference/distribution.md) owns
+installed usage, containers, platforms and publication behavior.
+
+From a clean committed source, build and validate before packaging:
+
+```sh
+nix build .#transit-release --out-link .cache/release-runtime
+nix develop .#ci-experience --command just test::release .cache/release-runtime
+nix develop .#release --command python3 -B tasks/package_release.py --prefix .cache/release-runtime --output dist/release
+nix develop .#release --command python3 -B tasks/release_images.py dist/release
+```
+
+The last command requires Docker and exercises a temporary container's SQL
+lifecycle. These commands do not publish. Packaging rejects build/source identity
+mismatch, dynamic executables and nonempty output directories. The release
+workflow uses the same commands and publishes only after tagged qualification.
+The package/Helm archive metadata uses the commit timestamp for repeatable bytes.

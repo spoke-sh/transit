@@ -69,9 +69,11 @@ its PVC and readiness probe; credentials remain available only to Ursula.
 The default profile is still disk WAL with inline snapshots and no cold tier.
 
 
-Supply immutable service images built from the consuming project's release.
-The reference builds and pushes its own images; this repository does not yet
-publish Transit/Board release images. It uses the official Ursula image pinned
+Supply immutable service images from a matching source or published release.
+The [distribution reference](../../docs/handbook/reference/distribution.md) lists
+the versioned OCI chart and available component images. The reference launcher
+continues to build its own images; the runtime controller additionally needs its
+pinned provider CLI. The chart uses the official Ursula image pinned
 in [versions.json](../../deploy/reference/versions.json); the chart check guards
 against a different default pin.
 

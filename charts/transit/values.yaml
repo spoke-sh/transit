@@ -1,5 +1,5 @@
-# Images for Zig services are built by the consuming project. Use immutable tags
-# or digests. This chart does not install Substrate or grant Transit permissions.
+# Supply matching published or consuming-project images using immutable tags or
+# digests. This chart does not install Substrate or grant Transit permissions.
 imagePullSecrets: []
 # Stop application services without removing their PVCs/configuration.
 running: true

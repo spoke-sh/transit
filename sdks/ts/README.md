@@ -12,7 +12,7 @@ Native artifacts require that build's Nix runtime closure. Other platforms and
 portable native distributions are not supplied.
 
 Install the local tarballs for `@transit/client`, `@transit/station`,
-`@transit/native-client` and `@transit/native-station`, all at version 0.2.0.
+`@transit/native-client` and `@transit/native-station`, all at version 0.0.1.
 Set both dependencies and `pnpm.overrides` to the local tarball paths, then run
 `vp install`. The [raw client guide](transit-client/README.md) describes package
 resolution and explicit native-host overrides.

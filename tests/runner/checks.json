@@ -3,6 +3,42 @@
   "profiles": {
     "fast": [
       {
+        "id": "package-versions",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tasks/version.py"
+        ]
+      },
+      {
+        "id": "package-version-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_versions.py"
+        ]
+      },
+      {
+        "id": "release-installer-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_release.py"
+        ]
+      },
+      {
+        "id": "release-publication-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_publication.py"
+        ]
+      },
+      {
         "id": "query-expiry-evidence-controls",
         "phase": "static",
         "command": [

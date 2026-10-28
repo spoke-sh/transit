@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "transit-station"
-version = "0.2.0"
+version = "0.0.1"
 requires-python = ">=3.13"
 description = "Typed Station handlers over the shared Zig implementation"
-dependencies = ["transit-client==0.2.0", "transit-native-station==0.2.0"]
+dependencies = ["transit-client==0.0.1", "transit-native-station==0.0.1"]
 
 [project.optional-dependencies]
 arrow = ["pyarrow==23.0.0"]

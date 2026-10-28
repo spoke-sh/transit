@@ -6,7 +6,7 @@ module Transit
     class Port
       def initialize(executable, configuration, schemas, request_name, line_bound: LIMITS.fetch('host_line_bytes'))
         unless File.file?(executable) && File.executable?(executable)
-          raise IncompatibleNative, 'Install the matching native 0.2.0 gem or supply native_host'
+          raise IncompatibleNative, 'Install the matching native 0.0.1 gem or supply native_host'
         end
         document = JSON.generate(configuration)
         raise ArgumentError, 'Native configuration exceeds its bound' if document.bytesize > LIMITS.fetch('host_config_bytes')

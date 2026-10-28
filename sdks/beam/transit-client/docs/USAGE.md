@@ -1,20 +1,20 @@
 # Erlang client usage
 
 Build with `nix develop .#bindings -c just bindings::beam-build`. Extract
-`transit_client-0.2.0.tar.gz` and `transit_native_client-0.2.0.tar.gz` into a normal
+`transit_client-0.0.1.tar.gz` and `transit_native_client-0.0.1.tar.gz` into a normal
 OTP library directory and set `ERL_LIBS` to that directory. For example:
 
 ```sh
 mkdir -p /tmp/transit-libs
-tar -xzf .cache/bindings/beam/transit_client-0.2.0.tar.gz -C /tmp/transit-libs
-tar -xzf .cache/bindings/beam/transit_native_client-0.2.0.tar.gz -C /tmp/transit-libs
+tar -xzf .cache/bindings/beam/transit_client-0.0.1.tar.gz -C /tmp/transit-libs
+tar -xzf .cache/bindings/beam/transit_native_client-0.0.1.tar.gz -C /tmp/transit-libs
 ERL_LIBS=/tmp/transit-libs erl
 ```
 
 Compile consumers with `-include_lib("transit_client/include/transit_client.hrl")`
 and ordinary `erlc`. Artifacts include standard `.app` manifests, compiled
 modules, public headers and generated schemas. Direct dependency versions are
-recorded in `rebar.config`; native discovery checks the exact 0.2.0 application
+recorded in `rebar.config`; native discovery checks the exact 0.0.1 application
 version. No manual executable/library paths are needed. This installation proof
 uses standard OTP application resolution, not Rebar/Hex registry resolution.
 Artifacts target OTP 28/Linux x86_64 and require the pinned Nix runtime closure.

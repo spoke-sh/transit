@@ -1,7 +1,7 @@
 .{
     .name = .transit_sdk_examples_c,
     .fingerprint = 0x2ae74a38a4b6a3c,
-    .version = "0.2.0",
+    .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
         .transit_sdk_client = .{ .path = "../../../sdks/c/transit-client" },

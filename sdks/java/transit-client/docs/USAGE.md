@@ -1,8 +1,8 @@
 # Java client usage
 
 Build with `nix develop .#bindings -c just bindings::java-build`. The output under
-`.cache/bindings/java` contains independent `transit-client-0.2.0.jar` and
-`transit-native-client-0.2.0.jar`, their POM dependency manifests, and the pinned
+`.cache/bindings/java` contains independent `transit-client-0.0.1.jar` and
+`transit-native-client-0.0.1.jar`, their POM dependency manifests, and the pinned
 `gson-2.12.1.jar`. Copy these three JARs into your application's `lib/` directory;
 compile with `javac --release 21 -cp 'lib/*'` and run with
 `java -cp 'lib/*:classes' YourApplication`. The native JAR is discovered through

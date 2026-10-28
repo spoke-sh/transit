@@ -1,6 +1,6 @@
 # Transit native .NET client package
 
-`Transit.Native.Client` 0.2.0 is the separate Linux x86_64 native artifact for the
+`Transit.Native.Client` 0.0.1 is the separate Linux x86_64 native artifact for the
 [public .NET client](../transit-client/README.md). The assembly embeds the pinned
 Zig `libtransit_client.so`, with no Station dependency. Loading the assembly does
 not load the library, read credentials or start work. The SDK extracts the library

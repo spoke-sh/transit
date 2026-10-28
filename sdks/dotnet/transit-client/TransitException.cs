@@ -12,7 +12,7 @@ public enum ErrorKind
 /// <summary>Owned optional caller detail, excluded from the ordinary exception message.</summary>
 public sealed class TransitException(ErrorKind kind, string phase, uint? status = null, string? code = null, JsonObject? diagnostic = null, bool diagnosticInvalid = false)
     : Exception($"Transit {phase} failed ({kind})" + (kind == ErrorKind.IncompatibleNative
-        ? "; install matching Transit 0.2.0 packages or provide a compatible native directory" : ""))
+        ? "; install matching Transit 0.0.1 packages or provide a compatible native directory" : ""))
 {
     public ErrorKind Kind { get; } = kind;
     public string Phase { get; } = phase;

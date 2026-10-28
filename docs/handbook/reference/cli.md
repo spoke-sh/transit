@@ -95,10 +95,14 @@ and `logging.level` in server configuration.
 ### Help hierarchy
 
 Bare `transit` and `transit --help` list `server` and `console`.
-`transit server --help` and `transit console --help` show their options and defaults.
+`transit server --help` and `transit console --help` show usage and options. Configuration and operating guidance live in the
+[server](../../../apps/transit-cli/docs/server.md) and
+[console](../../../apps/transit-cli/docs/console.md) guides.
 Help requires no configuration, credentials, network or running server. It
 still rejects malformed supplied arguments, unknown options and duplicates.
-Help and version output exit successfully on stdout. Console `.help` provides
+Help and version output exit successfully on stdout. `transit --version` includes
+the release SemVer, build-source Git revision and CLI contract. See
+[software releases](versioning.md#software-releases) for provenance and compatibility. Console `.help` provides
 statement and session assistance. The CLI has no verbosity or diagnostics switch.
 
 ### Coordinates that lead to the problem

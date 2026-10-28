@@ -17,7 +17,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
     packages = Path(artifacts).resolve()
     def install(target):
         names = ('client', 'native-client', 'station', 'native-station', 'sdk-examples')
-        dependencies = {f'@transit/{name}': 'file:' + str(packages / f'transit-{name}-0.2.0.tgz') for name in names}
+        dependencies = {f'@transit/{name}': 'file:' + str(packages / f'transit-{name}-0.0.1.tgz') for name in names}
         manifest = {'private': True, 'type': 'module', 'packageManager': json.loads((root / 'package.json').read_bytes())['packageManager'],
             'dependencies': dependencies, 'pnpm': {'overrides': dict(dependencies)}}
         environment = {key: value for key, value in os.environ.items() if key not in ('NODE_PATH', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}

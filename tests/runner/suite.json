@@ -290,7 +290,8 @@
       "bindings::relational-python",
       "transit-board::relational-browser",
       "bindings::authorization",
-      "test::console-latency-tls"
+      "test::console-latency-tls",
+      "test::release"
     ]
   },
   "nested_tasks": {

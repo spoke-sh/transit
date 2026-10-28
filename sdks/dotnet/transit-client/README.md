@@ -1,6 +1,6 @@
 # Transit .NET client
 
-Version 0.2.0 provides typed raw operations independently of Station, over the
+Version 0.0.1 provides typed raw operations independently of Station, over the
 generated shared Zig C ABI. Public records, owned retry bytes, task scheduling and
 NuGet packaging belong to this SDK. Signing, metadata and protocol semantics stay
 in Zig. Loading the assembly starts no work and discovers no credentials.

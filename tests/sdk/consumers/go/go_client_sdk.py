@@ -15,7 +15,7 @@ from sdk.sdk_raw_client import run as schedule
 def run(node, cli, library, artifacts):
     def install(target):
         for name, folder in (('transit-go', 'sdk'), ('transit-go-native', 'native')):
-            with tarfile.open(Path(artifacts).resolve() / f'{name}-0.2.0.tar.gz') as archive:
+            with tarfile.open(Path(artifacts).resolve() / f'{name}-0.0.1.tar.gz') as archive:
                 archive.extractall(target / folder, filter='data')
         source = target / 'consumer-source'
         source.mkdir()
@@ -24,7 +24,7 @@ def run(node, cli, library, artifacts):
 
 go 1.26.0
 
-require github.com/spoke-sh/transit/sdks/go v0.2.0
+require github.com/spoke-sh/transit/sdks/go v0.0.1
 replace github.com/spoke-sh/transit/sdks/go => ../sdk
 ''')
         env = {k: v for k, v in os.environ.items() if k not in

@@ -9,7 +9,7 @@ import tarfile
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.2.0'
+VERSION = (ROOT / 'VERSION').read_text().strip()
 MIX_MANIFEST = '''Mix.start()
 Code.require_file(hd(System.argv()))
 project = Mix.Project.config()

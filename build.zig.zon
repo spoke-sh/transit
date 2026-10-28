@@ -1,7 +1,7 @@
 .{
     .name = .transit,
     .fingerprint = 0x09eaea83750b1b38,
-    .version = "0.0.0",
+    .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
         .transit_sdk = .{ .path = "sdks/zig", .lazy = true },
@@ -44,5 +44,5 @@
         .transit_client = .{ .path = "packages/zig/transit-client" },
         .transit_runtime_substrate = .{ .path = "packages/zig/transit-runtime-substrate" },
     },
-    .paths = .{ "build", "build.zig", "build.zig.zon", "packages", "sdks", "third_party", "apps", "tests", "examples" },
+    .paths = .{ "VERSION", "build", "build.zig", "build.zig.zon", "packages", "sdks", "third_party", "apps", "tests", "examples" },
 }

@@ -7,7 +7,7 @@
 }:
 stdenvNoCC.mkDerivation {
   pname = "kubectl-transit";
-  version = "0.1.0";
+  version = lib.trim (builtins.readFile ../VERSION);
   src = lib.fileset.toSource {
     root = ../apps/kubectl-transit;
     fileset = ../apps/kubectl-transit/main.zig;

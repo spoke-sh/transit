@@ -19,7 +19,7 @@ def run(artifacts):
         feed.mkdir()
         identities = {}
         for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
-            name = f'{package}.0.2.0.nupkg'
+            name = f'{package}.0.0.1.nupkg'
             shutil.copy2(Path(artifacts).resolve() / name, feed / name)
             identities[name] = hashlib.sha256((feed / name).read_bytes()).hexdigest()
         (target / 'artifacts.json').write_text(json.dumps(identities))
@@ -27,7 +27,7 @@ def run(artifacts):
         source.mkdir()
         (source / 'Proof.csproj').write_text('''<Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
-<ItemGroup><PackageReference Include="Transit.Station.Sdk" Version="[0.2.0]" /></ItemGroup></Project>''')
+<ItemGroup><PackageReference Include="Transit.Station.Sdk" Version="[0.0.1]" /></ItemGroup></Project>''')
         config = ET.Element('configuration')
         sources = ET.SubElement(config, 'packageSources')
         ET.SubElement(sources, 'clear')

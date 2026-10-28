@@ -7,7 +7,7 @@ fn main() {
         .join("libtransit_station.so");
     if !path.is_file() {
         panic!(
-            "Missing transit-native-station 0.2.0 artifact; build with just bindings::rust-build or supply TRANSIT_LIBRARY_DIR for source development"
+            "Missing transit-native-station 0.0.1 artifact; build with just bindings::rust-build or supply TRANSIT_LIBRARY_DIR for source development"
         );
     }
     println!("cargo:rerun-if-env-changed=TRANSIT_LIBRARY_DIR");

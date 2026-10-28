@@ -24,7 +24,7 @@ def exercise(wheels, root, authority, service, profile, restart, policy):
     names = {'transit_client', 'transit_native_client', 'transit_station', 'transit_native_station'}
     artifacts = {}
     for path in Path(wheels).glob('*.whl'):
-        if path.name.split('-')[0] not in names or path.name.split('-')[1] != '0.2.0': continue
+        if path.name.split('-')[0] not in names or path.name.split('-')[1] != '0.0.1': continue
         shutil.copy2(path, packages / path.name)
         artifacts[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
         if path.name.split('-')[0] == 'transit_station':
@@ -37,7 +37,7 @@ def exercise(wheels, root, authority, service, profile, restart, policy):
     venv = target / 'venv'
     subprocess.run([sys.executable, '-m', 'venv', '--without-pip', str(venv)], env=env, check=True)
     python = str(venv / 'bin/python')
-    subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', str(packages), 'transit-station==0.2.0'],
+    subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', str(packages), 'transit-station==0.0.1'],
                    env=env, check=True, stdout=subprocess.DEVNULL)
     script = target / 'consumer.py'
     shutil.copy2(ROOT / 'tests/sdk/consumers/python/python_catalog_sdk.py', script)
@@ -96,7 +96,7 @@ def exercise_node(packages, root, authority, service, profile, restart, policy):
     copies.mkdir()
     artifacts, dependencies = {}, {}
     for name in ('client', 'native-client', 'station', 'native-station'):
-        path = Path(packages).resolve() / f'transit-{name}-0.2.0.tgz'
+        path = Path(packages).resolve() / f'transit-{name}-0.0.1.tgz'
         copy = copies / path.name
         shutil.copy2(path, copy)
         artifacts[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -131,15 +131,15 @@ def exercise_ruby(packages, root, authority, service, profile, restart, policy):
     env = {k: v for k, v in os.environ.items() if k not in ('RUBYLIB', 'RUBYOPT', 'GEM_HOME', 'GEM_PATH', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
     env.update(GEM_HOME=str(target / 'gems'), GEM_PATH=f'{target / "gems"}:{default}')
     files, artifacts = [], {}
-    for name in ('transit-client-0.2.0.gem', 'transit-native-client-0.2.0-x86_64-linux.gem',
-                 'transit-station-0.2.0.gem', 'transit-native-station-0.2.0-x86_64-linux.gem'):
+    for name in ('transit-client-0.0.1.gem', 'transit-native-client-0.0.1-x86_64-linux.gem',
+                 'transit-station-0.0.1.gem', 'transit-native-station-0.0.1-x86_64-linux.gem'):
         path = target / name
         shutil.copy2(Path(packages) / name, path)
         artifacts[name] = hashlib.sha256(path.read_bytes()).hexdigest()
         files.append(str(path))
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
     subprocess.run(['gem', 'install', '--local', '--no-document', '--ignore-dependencies', *files], env=env, cwd=target, check=True, stdout=subprocess.DEVNULL)
-    installed = target / 'gems/gems/transit-station-0.2.0/lib/transit/station'
+    installed = target / 'gems/gems/transit-station-0.0.1/lib/transit/station'
     for filename in ('catalog.rb', 'catalog_values.rb', 'bridge.rb', 'contract.json', 'schemas.json'):
         assert (installed / filename).read_bytes() == (ROOT / 'sdks/ruby/transit-station/lib/transit/station' / filename).read_bytes(), 'Rebuild matching Ruby gems'
     for test in ('ruby_catalog_values.rb', 'ruby_schema_values.rb', 'ruby_catalog_sdk.rb'):
@@ -164,13 +164,13 @@ def exercise_java(packages, root, authority, service, profile, restart, policy):
     library.mkdir()
     artifacts = {}
     for name in ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station', 'gson'):
-        filename = f'{name}-{"2.12.1" if name == "gson" else "0.2.0"}.jar'
+        filename = f'{name}-{"2.12.1" if name == "gson" else "0.0.1"}.jar'
         destination = library / filename
         shutil.copy2(Path(packages) / filename, destination)
         artifacts[filename] = hashlib.sha256(destination.read_bytes()).hexdigest()
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
     env = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
-    with zipfile.ZipFile(library / 'transit-station-sdk-0.2.0.jar') as archive:
+    with zipfile.ZipFile(library / 'transit-station-sdk-0.0.1.jar') as archive:
         assert archive.read('io/transit/sdk/station/contract.json') == (ROOT / 'sdks/java/transit-station-sdk/resources/io/transit/sdk/station/contract.json').read_bytes()
     sources = [target / name for name in ('JavaCatalogSdk.java', 'JavaCatalogValues.java', 'JavaLogicalValues.java', 'JavaSchemaValues.java')]
     for source in sources: shutil.copy2(ROOT / 'tests/sdk/consumers/java' / source.name, source)
@@ -182,7 +182,7 @@ def exercise_java(packages, root, authority, service, profile, restart, policy):
     subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', classpath, 'JavaSchemaValues'], cwd=target, env=env, check=True)
     faults = target / 'faults'
     faults.mkdir()
-    with zipfile.ZipFile(library / 'transit-native-station-0.2.0.jar') as archive:
+    with zipfile.ZipFile(library / 'transit-native-station-0.0.1.jar') as archive:
         (faults / 'native-host').write_bytes(archive.read('io/transit/nativestation/transit-station-host'))
     (faults / 'native-host').chmod(0o700)
     shutil.copy2(ROOT / 'tests/catalog/tables/direct_catalog_port_host.py', faults / 'host')
@@ -208,7 +208,7 @@ def exercise_dotnet(packages, root, authority, service, profile, restart, policy
     source.mkdir(); feed.mkdir()
     artifacts = {}
     for name in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
-        filename = f'{name}.0.2.0.nupkg'
+        filename = f'{name}.0.0.1.nupkg'
         destination = feed / filename
         shutil.copy2(Path(packages) / filename, destination)
         artifacts[filename] = hashlib.sha256(destination.read_bytes()).hexdigest()
@@ -218,7 +218,7 @@ def exercise_dotnet(packages, root, authority, service, profile, restart, policy
     project = source / 'Consumer.csproj'
     project.write_text('''<Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
-<ItemGroup><PackageReference Include="Transit.Client" Version="[0.2.0]" /><PackageReference Include="Transit.Station.Sdk" Version="[0.2.0]" /></ItemGroup>
+<ItemGroup><PackageReference Include="Transit.Client" Version="[0.0.1]" /><PackageReference Include="Transit.Station.Sdk" Version="[0.0.1]" /></ItemGroup>
 </Project>''')
     configuration = ET.Element('configuration')
     sources = ET.SubElement(configuration, 'packageSources')
@@ -250,20 +250,20 @@ def exercise_rust(packages, root, authority, service, profile, restart, policy):
     names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
     artifacts = {}
     for name in names:
-        filename = f'{name}-0.2.0.crate'
+        filename = f'{name}-0.0.1.crate'
         destination = target / filename
         shutil.copy2(Path(packages) / filename, destination)
         artifacts[filename] = hashlib.sha256(destination.read_bytes()).hexdigest()
         with tarfile.open(destination) as archive: archive.extractall(target / 'vendor', filter='data')
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
     for filename in ('catalog.rs', 'bridge.rs', 'contract.json'):
-        assert (target / 'vendor/transit-station-sdk-0.2.0/src' / filename).read_bytes() == (ROOT / 'sdks/rust/transit-station-sdk/src' / filename).read_bytes(), 'Rebuild matching Rust crates'
+        assert (target / 'vendor/transit-station-sdk-0.0.1/src' / filename).read_bytes() == (ROOT / 'sdks/rust/transit-station-sdk/src' / filename).read_bytes(), 'Rebuild matching Rust crates'
     (target / 'src').mkdir()
     shutil.copy2(ROOT / 'tests/sdk/consumers/rust/rust_catalog_sdk.rs', target / 'src/main.rs')
-    manifest = '[package]\nname = "transit-direct-catalog-proof"\nversion = "0.1.0"\nedition = "2024"\n[dependencies]\ntransit-client = "=0.2.0"\ntransit-station-sdk = "=0.2.0"\nserde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }\n[patch.crates-io]\n'
-    manifest += ''.join(f'{name} = {{ path = "vendor/{name}-0.2.0" }}\n' for name in names)
+    manifest = '[package]\nname = "transit-direct-catalog-proof"\nversion = "0.1.0"\nedition = "2024"\n[dependencies]\ntransit-client = "=0.0.1"\ntransit-station-sdk = "=0.0.1"\nserde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }\n[patch.crates-io]\n'
+    manifest += ''.join(f'{name} = {{ path = "vendor/{name}-0.0.1" }}\n' for name in names)
     (target / 'Cargo.toml').write_text(manifest)
-    lock = target / 'vendor/transit-station-sdk-0.2.0/Cargo.lock'
+    lock = target / 'vendor/transit-station-sdk-0.0.1/Cargo.lock'
     shutil.copy2(lock, target / 'Cargo.lock')
     env = {k:v for k,v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
     env['RUSTFLAGS'] = '-Dwarnings'
@@ -302,13 +302,13 @@ def exercise_beam(packages, root, authority, service, profile, restart, policy):
     names = ('transit_native_client','transit_client','transit_client_elixir','transit_native_station','transit_station_sdk','transit_station_elixir')
     artifacts = {}
     for name in names:
-        filename = f'{name}-0.2.0.tar.gz'
+        filename = f'{name}-0.0.1.tar.gz'
         destination = target / filename
         shutil.copy2(Path(packages) / filename,destination)
         artifacts[filename] = hashlib.sha256(destination.read_bytes()).hexdigest()
         with tarfile.open(destination) as archive: archive.extractall(library,filter='data')
     (target / 'artifacts.json').write_text(json.dumps(artifacts))
-    assert (library / 'transit_station_sdk-0.2.0/priv/contract.json').read_bytes() == (ROOT / 'sdks/beam/transit-station-sdk/priv/contract.json').read_bytes()
+    assert (library / 'transit_station_sdk-0.0.1/priv/contract.json').read_bytes() == (ROOT / 'sdks/beam/transit-station-sdk/priv/contract.json').read_bytes()
     env = {k:v for k,v in os.environ.items() if k not in ('ERL_LIBS','ERL_FLAGS','TRANSIT_HOST','TRANSIT_LIBRARY_DIR')}
     env.update(ERL_LIBS=str(library),ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
     for name in ('beam_catalog_controller.erl','beam_catalog_values.erl','beam_schema_values.erl','beam_logical_values.erl'):
@@ -326,7 +326,7 @@ def exercise_beam(packages, root, authority, service, profile, restart, policy):
         return ['elixir','-pa',str(classes),'-e',f':{module}.main(ElixirCatalogAdapter, System.argv())','--']
     faults = target / 'faults'
     faults.mkdir()
-    shutil.copy2(library / 'transit_native_station-0.2.0/priv/transit-station-host',faults / 'native-host')
+    shutil.copy2(library / 'transit_native_station-0.0.1/priv/transit-station-host',faults / 'native-host')
     shutil.copy2(ROOT / 'tests/catalog/tables/direct_catalog_port_host.py',faults / 'host'); (faults / 'host').chmod(0o700)
     for mode in ('erlang','elixir'):
         subprocess.run([*command(mode,'beam_catalog_values'),str(faults)],cwd=target,env=env,check=True,timeout=150)

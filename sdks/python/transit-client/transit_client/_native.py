@@ -57,7 +57,7 @@ class Library:
             self.size = getattr(self.lib, prefix + '_buffer_size')
             self.destroy = getattr(self.lib, prefix + '_buffer_destroy')
         except (OSError, AttributeError, ValueError):
-            raise IncompatibleNative(f'Missing or incompatible {family} native artifact; install its matching transit-native-{family} 0.2.0') from None
+            raise IncompatibleNative(f'Missing or incompatible {family} native artifact; install its matching transit-native-{family} 0.0.1') from None
 
     @staticmethod
     def _type(value: str) -> Any:

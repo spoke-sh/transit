@@ -39,11 +39,11 @@ def install(root, language):
     if language == 'python':
         subprocess.run([sys.executable, '-m', 'venv', '--without-pip', root / 'venv'], env=env, check=True)
         python = root / 'venv/bin/python'
-        subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', ROOT / '.cache/bindings/Debug/wheels', 'transit-station==0.2.0'], env=env, check=True, stdout=subprocess.DEVNULL)
+        subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', ROOT / '.cache/bindings/Debug/wheels', 'transit-station==0.0.1'], env=env, check=True, stdout=subprocess.DEVNULL)
         script = root / 'consumer.py'; shutil.copyfile(ROOT / 'tests/sdk/consumers/python/python_logical_sdk.py', script)
         return Consumer([python, '-B', script], root, env)
     if language == 'node':
-        dependencies = {f'@transit/{name}': 'file:' + str(ROOT / '.cache/bindings/Debug/node' / f'transit-{name}-0.2.0.tgz') for name in ('client', 'native-client', 'station', 'native-station')}
+        dependencies = {f'@transit/{name}': 'file:' + str(ROOT / '.cache/bindings/Debug/node' / f'transit-{name}-0.0.1.tgz') for name in ('client', 'native-client', 'station', 'native-station')}
         manager = json.loads((ROOT / 'package.json').read_text())['packageManager']
         (root / 'package.json').write_text(json.dumps(dict(private=True, type='module', packageManager=manager, dependencies=dependencies, pnpm=dict(overrides=dependencies))))
         subprocess.run(['vp', 'env', 'exec', '--package-manager', manager, 'pnpm', 'install', '--prefer-offline', '--ignore-scripts'], cwd=root, env=env, check=True, stdout=subprocess.DEVNULL)

@@ -2,7 +2,7 @@
 
 Build from the repository with `nix develop .#bindings -c just bindings::beam-build`.
 Install the compiled `transit_client`, `transit_native_client`,
-`transit_station_sdk` and `transit_native_station` 0.2.0 application archives from
+`transit_station_sdk` and `transit_native_station` 0.0.1 application archives from
 `.cache/bindings/beam` into one application directory. Set `ERL_LIBS` to that
 **installation** directory. No checkout-relative source or native executable path
 is required. These are ordinary compiled OTP applications; Hex/Rebar registry
@@ -114,7 +114,7 @@ different types and different lifetimes.
 
 ## Compatibility
 
-Public APIs require exact 0.2.0 client/native artifacts, host v1 and the supported
+Public APIs require exact 0.0.1 client/native artifacts, host v1 and the supported
 explicit growing profile. Missing/mismatched artifacts fail startup. A native
 path override is checked by the same hello/capability handshake. Generated
 `priv/contract.json` is internal and regenerated from shared public native types.

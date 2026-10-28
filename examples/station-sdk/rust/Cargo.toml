@@ -1,6 +1,6 @@
 [package]
 name = "transit-sdk-examples-rust"
-version = "0.2.0"
+version = "0.0.1"
 edition = "2024"
 rust-version = "1.95"
 include = ["src", "README.md"]
@@ -14,5 +14,5 @@ path = "src/main.rs"
 
 [dependencies]
 serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
-transit-client = { version = "=0.2.0", path = "../../../sdks/rust/transit-client" }
-transit-station-sdk = { version = "=0.2.0", path = "../../../sdks/rust/transit-station-sdk" }
+transit-client = { version = "=0.0.1", path = "../../../sdks/rust/transit-client" }
+transit-station-sdk = { version = "=0.0.1", path = "../../../sdks/rust/transit-station-sdk" }

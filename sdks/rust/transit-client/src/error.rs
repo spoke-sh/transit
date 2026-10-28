@@ -108,7 +108,7 @@ impl std::fmt::Display for Error {
         if self.kind == ErrorKind::IncompatibleNative {
             write!(
                 f,
-                "; install the matching native 0.2.0 artifact or supply a valid native directory"
+                "; install the matching native 0.0.1 artifact or supply a valid native directory"
             )?;
         }
         Ok(())

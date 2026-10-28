@@ -20,7 +20,7 @@ class Error : public std::runtime_error {
 public:
     explicit Error(transit_sdk_error value) : std::runtime_error(
         std::string("Transit error during ") + value.phase + (value.kind == TRANSIT_SDK_INCOMPATIBLE_NATIVE ?
-        "; install the matching native 0.2.0 artifact or supply its directory" : "")), detail_(value) {}
+        "; install the matching native 0.0.1 artifact or supply its directory" : "")), detail_(value) {}
     const transit_sdk_error &detail() const noexcept { return detail_; }
 };
 inline void check(transit_sdk_error result) { if (result.kind != TRANSIT_SDK_OK) throw Error(result); }
