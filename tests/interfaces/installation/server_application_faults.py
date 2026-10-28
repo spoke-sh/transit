@@ -38,11 +38,11 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='a716998e2831c843eedd24c792311f4d33aa0444460522f8f26cf4ad54b29ff7', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
     if 'send' in value:
         value['send'].setdefault('role', None)
-    body = dict(version=1, definition='2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='a716998e2831c843eedd24c792311f4d33aa0444460522f8f26cf4ad54b29ff7', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
@@ -165,6 +165,24 @@ def node(real, directory, args):
                         (directory / 'probe-rejection.json').write_text(json.dumps(dict(status=response.status, body=data.decode())))
                     if query['principal'] == 0 and 'capabilities' in query['kind'] and response.status == 200 and (directory / 'capacity-probes').exists() and (directory / 'capacity-probes').read_text() == '0':
                         (directory / 'capacity-recovered').touch()
+                if self.path == '/table/v1' and response.status == 200:
+                    envelope = json.loads(body)
+                    with mutex:
+                        armed = directory / 'drop-table-next'
+                        if armed.exists():
+                            selection = json.loads(armed.read_text())
+                            update = envelope['action'].get('client_progress', {}).get('update', {})
+                            record = update.get('record') or {}
+                            if (envelope['connection']['principal'] == selection['principal'] and
+                                    record.get('format') == selection['format']):
+                                selected = selection['label']
+                                (directory / ('dropped-' + selected + '.json')).write_text(json.dumps(dict(body=body.hex(), receipt=data.hex(), peer=os.getpid(), node=process.pid)))
+                                armed.unlink()
+                                deadline = time.monotonic() + 8
+                                while not (directory / ('release-' + selected)).exists() and not stop.is_set() and time.monotonic() < deadline:
+                                    time.sleep(.02)
+                                self.close_connection = True
+                                return
                 if self.path == '/v1/command' and response.status == 200:
                     envelope = json.loads(body)
                     with mutex:

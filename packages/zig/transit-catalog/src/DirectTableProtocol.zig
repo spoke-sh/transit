@@ -312,6 +312,8 @@ pub const FilterScan = struct {
 pub const Action = union(enum) {
     pub const json_schema_sequence_bounds = .{ .check_set = 16 };
     client_token: c.DirectClientToken.Request,
+    client_progress: c.DirectClientToken.ProgressRequest,
+    record: c.DirectRecord.Request,
     initialize,
     describe,
     namespace: u64,
@@ -343,6 +345,7 @@ pub const Action = union(enum) {
     preview_statement: Statement,
     stage: struct { namespace: u64, intent: c.DirectTableIntent.Saved },
     admit_saved: c.DirectTableIntent.Reference,
+    commit_saved: c.DirectTableIntent.Reference,
     admit_ddl: Ddl,
     admit_rows: Rows,
     admit_statement: Statement,
@@ -370,8 +373,9 @@ pub const Request = struct {
     delegation: ?c.DirectReadDelegation,
     closure: ?c.DirectReadDelegation.Closure = null,
     borrow: ?c.DirectReadDelegation.Borrow = null,
+    lease: ?c.DirectClientToken.Lease = null,
     proof: p.Authorization.Proof,
-    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation, closure: ?c.DirectReadDelegation.Closure = null, borrow: ?c.DirectReadDelegation.Borrow = null };
+    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation, closure: ?c.DirectReadDelegation.Closure = null, borrow: ?c.DirectReadDelegation.Borrow = null, lease: ?c.DirectClientToken.Lease = null };
     pub fn context(value: Input, allocator: std.mem.Allocator) ![32]u8 {
         const bytes = try p.Json.valueAlloc(allocator, value);
         defer allocator.free(bytes);
@@ -382,14 +386,16 @@ pub const Request = struct {
         return hash.finalResult();
     }
     pub fn input(self: Request) Input {
-        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow };
+        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease };
     }
     /// Transport hints classify a request attempt; the server validates its
     /// parsed action and current rights before using reserved admission.
     pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8 } {
         const mutation = switch (self.action) {
+            .record => |value| value == .stage,
             .client_token => |value| value == .bind,
-            .initialize, .stage, .admit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .retain_history, .release, .flush => true,
+            .client_progress => |value| value == .update,
+            .initialize, .stage, .admit_saved, .commit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .retain_history, .release, .flush => true,
             .operation => |value| value.command != .inspect,
             .name_assertion => |value| value.command != .inspect,
             .namespace_operation => |value| value.command != .inspect,
@@ -403,6 +409,7 @@ pub const Request = struct {
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.connection.validate();
+        if (self.lease) |lease| try lease.validate(self.connection);
         try self.proof.claim.validate();
         const claim = self.proof.claim;
         const connection = self.connection;
@@ -427,6 +434,14 @@ pub const Request = struct {
         if (claim.realm != connection.scope.realm or claim.principal != principal or claim.role != role or claim.audience != connection.audience or
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
+            .record => |value| {
+                try value.validate();
+                if (!std.meta.eql(value.scope().connection, connection)) return error.CatalogIdentityConflict;
+            },
+            .client_progress => |value| {
+                try value.validate();
+                if (!std.meta.eql(value.scope().connection, self.connection)) return error.InvalidTableRequest;
+            },
             .client_token => |value| {
                 try value.validate();
                 if (!std.meta.eql(value.key().connection, connection)) return error.CatalogIdentityConflict;
@@ -485,7 +500,7 @@ pub const Request = struct {
                 try value.intent.validate(allocator);
                 if (value.intent.work == .ddl and value.intent.work.ddl.namespace != value.namespace) return error.DataIdentityConflict;
             },
-            .admit_saved => |value| {
+            inline .admit_saved, .commit_saved => |value| {
                 try value.validate();
                 if (!std.meta.eql(value.connection, connection)) return error.CatalogIdentityConflict;
             },
@@ -746,7 +761,9 @@ pub const Point = struct {
     row: ?Binary,
 };
 pub const Result = union(enum) {
+    record: c.DirectRecord.Result,
     client_token: ?c.DirectClientToken.Receipt,
+    client_progress: c.DirectClientToken.ProgressResult,
     initialized,
     description: D.Configuration,
     namespace: ?c.TableAuthority.Schema,

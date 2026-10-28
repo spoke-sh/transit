@@ -1,8 +1,8 @@
 //! Direct catalog provisioning and independent SQL administrator for gateway proofs.
 const std = @import("std");
-const g = @import("transit_sql");
+const g = @import("transit_sql_service");
 const c = g.catalog;
-const s = g.station;
+const s = @import("transit_station");
 const p = c.protocol;
 const support = @import("fixture_native_proof_files");
 const authorization = @import("fixture_table_authorization_support");
@@ -124,9 +124,9 @@ pub fn main(init: std.process.Init) !void {
         try prepared.binding.check(client.connection, metadata);
         const dir = try std.Io.Dir.cwd().openDir(init.io, directory, .{});
         defer dir.close(init.io);
-        var pins = try g.ReadPins.init(init.gpa, init.io, dir, .{ .realm = 46, .owner = 100, .account = @splat(78) }, 1);
+        var pins = try g.ReadCache.init(init.gpa, init.io, dir, .{ .realm = 46, .account = @splat(78) }, 1);
         defer pins.deinit();
-        const pin = try pins.acquire(client, prepared.binding, metadata.position);
+        const pin = try pins.acquireCurrent(client, prepared.binding);
         defer pins.close(client, pin) catch {};
         var query = try g.query.direct.DirectTableQuery.openPreparedRetained(init.gpa, client, try pin.snapshot(), &prepared, &.{}, .{ .requests = 10000, .rows = 128, .result_bytes = 8 * 1024 * 1024 }, null, null, .{});
         defer query.deinit();

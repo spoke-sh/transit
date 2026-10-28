@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188"
+definition = "a716998e2831c843eedd24c792311f4d33aa0444460522f8f26cf4ad54b29ff7"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -34,6 +34,7 @@ request_input = {
     "delegation": None,
     "closure": None,
     "borrow": None,
+    "lease": None,
 }
 context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(request_input)).digest()
 claim = {
@@ -295,7 +296,7 @@ native_reference = {
 # Independent signing proves the complete request still binds all those fields.
 token_key = {"definition": definition, "connection": request_input["connection"],
              "account": [11] * 32, "token": [12] * 16}
-token_binding = {"key": token_key, "fingerprint": [13] * 32, "intent": native_reference}
+token_binding = {"key": token_key, "fingerprint": [13] * 32, "intent": {"table": native_reference}, "budget": {"limits": {"operations": 1000000, "bytes": 4294967296, "pending": 1024}, "bytes": 4608}}
 token_input = {**request_input, "action": {"client_token": {"bind": token_binding}}}
 token_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(token_input)).digest())}
 with tempfile.TemporaryDirectory(prefix="transit-token-contract-") as directory:

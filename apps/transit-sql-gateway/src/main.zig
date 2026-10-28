@@ -1,5 +1,5 @@
 const std = @import("std");
-const g = @import("transit_sql");
+const g = @import("transit_sql_service");
 const pg = @import("transit_postgres");
 const mysql = @import("transit_mysql");
 const tls = @import("transit_tls_server");
@@ -55,7 +55,7 @@ const Server = struct {
     io: std.Io,
     config: *const g.Configuration,
     tls_context: ?*tls.Context,
-    runtimes: []*g.AccountRuntime,
+    runtimes: []*g.DatabaseRuntime,
     registry: *g.Registry,
     diagnostics: *telemetry.Runtime,
     workers: []Worker,
@@ -445,7 +445,7 @@ const Server = struct {
     }
 };
 // Cancellation joins the command before its frame/host/allocator can be freed.
-// An accepted write's pending controls belong to AccountRuntime, not this task.
+// An accepted write's pending controls belong to DatabaseRuntime, not this task.
 fn boundedHandle(io: std.Io, deadline: std.Io.Timeout, comptime function: anytype, args: std.meta.ArgsTuple(@TypeOf(function))) !bool {
     const Result = union(enum) { command: anyerror!bool, timeout: anyerror!void };
     const Task = struct {
@@ -480,13 +480,17 @@ const Output = struct {
         try self.session.writeAll(bytes);
     }
 };
-fn runAccount(runtime: *g.AccountRuntime, diagnostics: *telemetry.Runtime) void {
+fn runAccount(runtime: *g.DatabaseRuntime, diagnostics: *telemetry.Runtime) void {
     var interval_ms: u32 = 2;
     var cleanup_failure: u16 = 0;
     var direct_failure: u16 = 0;
     while (true) {
         const progressed = runtime.tick() catch |err| blk: {
-            if (!g.station.client.Client.unavailable(err)) {
+            if (err == error.Canceled or err == error.Cancelled) return;
+            // Revocation withdraws readiness without discarding the worker.
+            // Restoration can resume the same accepted operations. A stale
+            // activation is a permanent fence and still stops this generation.
+            if (!g.wire.Client.unavailable(err) and !runtime.background.contended(err) and err != error.AccessDenied) {
                 runtime.ready.store(false, .release);
                 diagnostics.event(.{ .name = "sql.account.stopped", .level = .err, .outcome = .failed, .error_type = if (runtime.background.last_rejection) |cause| @tagName(cause) else @errorName(err) });
                 return;
@@ -522,33 +526,31 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 2 and std.mem.eql(u8, args[1], "--help")) {
         return std.Io.File.stdout().writeStreamingAll(init.io, "transit-sql-gateway CONFIG.json\n" ++
-            "transit-sql-gateway --initialize CONFIG.json\n" ++
-            "transit-sql-gateway control CONTROL.json list|status|pending|prepare|submit|credential [arguments]\n" ++
+            "transit-sql-gateway control CONTROL.json list|status|cancel|credential [arguments]\n" ++
             "Database access and signed account recovery; see the configuration guide.\n");
     }
     if (args.len >= 2 and std.mem.eql(u8, args[1], "control")) return Control.run(init, args[2..], diagnostics);
     const stop = try Stop.init();
     defer stop.deinit();
-    const initialize = args.len == 3 and std.mem.eql(u8, args[1], "--initialize");
-    if (args.len != 2 and !initialize) return error.ExpectedPrivateConfiguration;
-    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[if (initialize) 2 else 1], init.gpa, .limited(65536));
+    if (args.len != 2) return error.ExpectedPrivateConfiguration;
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(65536));
     defer init.gpa.free(bytes);
     const parsed = try std.json.parseFromSlice(g.Configuration, init.gpa, bytes, .{});
     defer parsed.deinit();
     const config = &parsed.value;
     try config.validate();
-    const native_listeners: usize = if (!initialize and config.native != null)
+    const native_listeners: usize = if (config.native != null)
         @as(usize, @intFromBool(config.native.?.port != null)) + @intFromBool(config.native.?.socket != null)
     else
         0;
-    const wire_connections: usize = if (!initialize and config.wireListening()) @as(usize, config.limits.connections) + 2 else 0;
+    const wire_connections: usize = if (config.wireListening()) @as(usize, config.limits.connections) + 2 else 0;
     // Supervisors/recovery, account transport/deadline work, wire protocol
     // nesting, and HTTP header/dispatch/authority work have finite independent
     // concurrency envelopes. No worker or task backing is added by a request.
     const worker_count = 16 + 4 * config.accounts.len + 8 * wire_connections +
         native_listeners * (3 * 16 + 4 * (Native.RequestStorage.data_slots + Native.RequestStorage.control_slots)) +
-        @as(usize, if (!initialize and config.health_port != null) 16 else 0);
-    const tls_connections = if (initialize) 0 else @as(usize, if (config.wireListening() and config.tls_mode != .disabled) config.limits.connections else 0) +
+        @as(usize, if (config.health_port != null) 16 else 0);
+    const tls_connections = @as(usize, if (config.wireListening() and config.tls_mode != .disabled) config.limits.connections else 0) +
         @as(usize, if (config.native != null and config.native.?.port != null and config.native.?.tls != null) 16 else 0);
     const crypto = if (tls_connections != 0) try tls.Memory.create(init.gpa, (16 + tls_connections) * 1024 * 1024) else null;
     defer if (crypto) |owner| owner.destroy();
@@ -564,13 +566,13 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer io_runtime.destroy();
     var host_init = init;
     host_init.io = io_runtime.io();
-    return serve(host_init, diagnostics, config, initialize);
+    return serve(host_init, diagnostics, config);
 }
-fn serve(init: std.process.Init, diagnostics: *telemetry.Runtime, config: *const g.Configuration, initialize: bool) !void {
+fn serve(init: std.process.Init, diagnostics: *telemetry.Runtime, config: *const g.Configuration) !void {
     // Bootstrap and retained-operation recovery have no dependency on listener
     // credentials. In particular, expired or removed PEM files cannot prevent
     // a disabled listener's workers from resuming accepted operations.
-    var context: ?tls.Context = if (!initialize and config.wireListening() and config.tls_mode != .disabled) blk: {
+    var context: ?tls.Context = if (config.wireListening() and config.tls_mode != .disabled) blk: {
         const certificate = try init.gpa.dupeSentinel(u8, config.certificate_file, 0);
         defer init.gpa.free(certificate);
         const certificate_key = try init.gpa.dupeSentinel(u8, config.certificate_key_file, 0);
@@ -578,14 +580,14 @@ fn serve(init: std.process.Init, diagnostics: *telemetry.Runtime, config: *const
         break :blk try tls.Context.init(certificate, certificate_key);
     } else null;
     defer if (context) |*value| value.deinit();
-    var runtimes: std.ArrayList(*g.AccountRuntime) = .empty;
+    var runtimes: std.ArrayList(*g.DatabaseRuntime) = .empty;
     defer runtimes.deinit(init.gpa);
     defer for (runtimes.items) |runtime| runtime.deinit();
     for (config.accounts) |account| {
-        var keys: g.AccountRuntime.Keys = undefined;
+        var keys: g.DatabaseRuntime.Keys = undefined;
         defer std.crypto.secureZero(u8, std.mem.asBytes(&keys));
         inline for (@typeInfo(g.Configuration.KeyFiles).@"struct".field_names) |field| @field(keys, field) = try g.query.wire.readKey(init.gpa, init.io, @field(account.keys, field));
-        const runtime = if (initialize) try g.AccountRuntime.bootstrap(init.gpa, init.io, config.native_url, .{ .configuration = account.ledger }, account.generation, account.association, keys, config.request_timeout_ms) else try g.AccountRuntime.init(init.gpa, init.io, config.native_url, .{ .configuration = account.ledger }, account.generation, account.association, keys, config.request_timeout_ms);
+        const runtime = try g.DatabaseRuntime.init(init.gpa, init.io, config.native_url, .{ .configuration = account.execution }, account.generation, keys, config.request_timeout_ms);
         errdefer runtime.deinit();
         try runtimes.append(init.gpa, runtime);
     }
@@ -593,14 +595,14 @@ fn serve(init: std.process.Init, diagnostics: *telemetry.Runtime, config: *const
     defer activation.close(init.io);
     for (config.accounts) |account| {
         var name: [96]u8 = undefined;
-        const marker = try std.fmt.bufPrint(&name, "{d}-{d}-{d}.activation", .{ account.ledger.realm, account.ledger.owner, account.generation });
+        const marker = try std.fmt.bufPrint(&name, "{s}-{d}.activation", .{ std.fmt.bytesToHex(account.execution.account, .lower), account.generation });
         const file = activation.createFile(init.io, marker, .{ .exclusive = true, .permissions = .fromMode(0o600) }) catch |err| if (err == error.PathAlreadyExists) return error.FreshOwnershipRequired else return err;
         defer file.close(init.io);
         try file.sync(init.io);
         if (std.c.fsync(activation.handle) != 0) return error.GatewayActivationSyncFailed;
     }
     var tasks: [g.Limits.max_accounts]?std.Io.Future(void) = @splat(null);
-    if (!initialize) for (runtimes.items, config.accounts) |runtime, account| try runtime.attachReadPins(activation, account.sources);
+    for (runtimes.items, config.accounts) |runtime, account| try g.ReadSources.attach(runtime, activation, account.sources);
     defer for (&tasks) |*task| if (task.*) |*future| future.cancel(init.io);
     for (runtimes.items, 0..) |runtime, i| tasks[i] = try init.io.concurrent(runAccount, .{ runtime, diagnostics });
     const started = std.Io.Clock.awake.now(init.io);
@@ -609,14 +611,10 @@ fn serve(init: std.process.Init, diagnostics: *telemetry.Runtime, config: *const
         var ready = true;
         for (runtimes.items) |runtime| ready = ready and runtime.ready.load(.acquire);
         if (ready) break;
-        if (started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= (if (initialize) @as(i64, 120000) else 30000)) return error.GatewayOwnerUnavailable;
+        if (started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= 30000) return error.GatewayOwnerUnavailable;
         try init.io.sleep(.fromMilliseconds(5), .awake);
     }
-    if (initialize) {
-        diagnostics.event(.{ .name = "sql.account.initialized", .operation = "sql" });
-        return;
-    }
-    var registry = try g.Registry.init(init.gpa, init.io, config, runtimes.items, if (config.native) |native| native.instance else config.accounts[0].ledger.account[0..16].*);
+    var registry = try g.Registry.init(init.gpa, init.io, config, runtimes.items, if (config.native) |native| native.instance else config.accounts[0].execution.account[0..16].*);
     defer registry.deinit();
     var native_context: ?tls.Context = if (config.native) |native| if (native.tls) |selected| try tls.Context.init(try init.arena.allocator().dupeSentinel(u8, selected.certificate_file, 0), try init.arena.allocator().dupeSentinel(u8, selected.key_file, 0)) else null else null;
     defer if (native_context) |*selected| selected.deinit();

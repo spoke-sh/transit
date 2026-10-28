@@ -88,7 +88,7 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
         next = record.root;
         chain = r.hash(frame.payload);
     }
-    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens }) |slot| if (slot) |reference| {
+    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts }) |slot| if (slot) |reference| {
         _ = try self.index.load(reference);
     };
     self.root = next;
@@ -180,7 +180,7 @@ fn operationAt(self: *Self, basis: r.Root, binding: p.DataLifecycle.Binding) !?r
 
 fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
     if (record.action == .client_token) return self.clientTokenTransition(before, record);
-    if (!std.meta.eql(before.client_tokens, record.root.client_tokens) or before.client_token_count != record.root.client_token_count) return error.InvalidDirectCatalogTransition;
+    if (!std.meta.eql(before.client_tokens, record.root.client_tokens) or before.client_token_count != record.root.client_token_count or !std.meta.eql(before.client_operations, record.root.client_operations) or !std.meta.eql(before.client_pending, record.root.client_pending) or !std.meta.eql(before.client_accounts, record.root.client_accounts)) return error.InvalidDirectCatalogTransition;
     if (record.action != .resource and !std.meta.eql(before.native_allocations, record.root.native_allocations)) return error.InvalidDirectCatalogTransition;
     if (record.action == .dependency) return self.dependencyTransition(before, record);
     if (!std.meta.eql(before.dependents, record.root.dependents) or !std.meta.eql(before.dependencies, record.root.dependencies)) return error.InvalidDirectCatalogTransition;
@@ -232,13 +232,14 @@ fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
 }
 
 pub fn clientToken(self: *Self, key: c.DirectClientToken.Key) !?c.DirectClientToken.Receipt {
+    const state = try self.clientTokenState(key) orelse return null;
+    return state.receipt;
+}
+pub fn clientTokenState(self: *Self, key: c.DirectClientToken.Key) !?c.DirectClientToken.Progress {
     try self.ready();
     return self.clientTokenAt(self.root, key);
 }
-fn clientTokenAt(self: *Self, basis: r.Root, key: c.DirectClientToken.Key) !?c.DirectClientToken.Receipt {
-    try key.validate();
-    if (!key.connection.matches(basis.configuration)) return error.DataIdentityConflict;
-    const value = try self.tree().get(basis.client_tokens, try pages.Key.init(&try key.digest())) orelse return null;
+fn tokenRecord(self: *Self, basis: r.Root, value: pages.Value) !c.DirectClientToken.Progress {
     if (value.len != 8) return error.InvalidClientToken;
     const at = std.mem.readInt(u64, value.data[0..8], .little);
     if (at == 0 or at >= basis.next_lsn) return error.InvalidClientToken;
@@ -247,20 +248,92 @@ fn clientTokenAt(self: *Self, basis: r.Root, key: c.DirectClientToken.Key) !?c.D
     if (batch.frames.len != 1) return error.CatalogHistoryMissing;
     const record = try decodeFrame(self.allocator, batch.frames[0], basis.configuration.partition, at);
     if (record.action != .client_token or !std.meta.eql(record.root.configuration, basis.configuration)) return error.InvalidClientToken;
-    try key.requireSame(record.action.client_token.binding.key);
     return record.action.client_token;
+}
+fn clientTokenAt(self: *Self, basis: r.Root, key: c.DirectClientToken.Key) !?c.DirectClientToken.Progress {
+    try key.validate();
+    if (!key.connection.matches(basis.configuration)) return error.DataIdentityConflict;
+    const value = try self.tree().get(basis.client_tokens, try pages.Key.init(&try key.digest())) orelse return null;
+    const state = try self.tokenRecord(basis, value);
+    try key.requireSame(state.receipt.binding.key);
+    return state;
+}
+pub fn clientOperation(self: *Self, scope: c.DirectRecord.Scope, id: u64) !?c.DirectClientToken.Progress {
+    try self.ready();
+    const value = try self.tree().get(self.root.client_operations, try c.DirectClientToken.accountKey(scope, id)) orelse return null;
+    const state = try self.tokenRecord(self.root, value);
+    if (state.id() != id or !std.meta.eql(state.receipt.binding.key.scope(), scope)) return error.DataIdentityConflict;
+    return state;
+}
+pub fn clientPage(self: *Self, selection: c.DirectClientToken.Selection) !c.DirectClientToken.Page {
+    try self.ready();
+    var result: c.DirectClientToken.Page = .{};
+    const after = try c.DirectClientToken.accountKey(selection.scope, selection.after orelse 0);
+    const prefix = try c.DirectClientToken.accountPrefix(selection.scope);
+    const page = try self.tree().scan(if (selection.pending) self.root.client_pending else self.root.client_operations, after);
+    var count: usize = 0;
+    for (page.entries) |slot| {
+        const entry = slot orelse break;
+        if (entry.key.len != 32) return error.InvalidClientToken;
+        if (!std.mem.eql(u8, entry.key.data[0..24], &prefix)) break;
+        const state = try self.tokenRecord(self.root, entry.value);
+        if (!std.meta.eql(state.receipt.binding.key.scope(), selection.scope) or
+            state.id() != std.mem.readInt(u64, entry.key.data[24..32], .big) or
+            (selection.pending and !state.pending)) return error.InvalidClientToken;
+        result.entries[count] = state;
+        count += 1;
+    }
+    if (count == result.entries.len and page.next != null) result.next = result.entries[count - 1].?.id();
+    return result;
+}
+pub fn clientUsage(self: *Self, basis: r.Root, key: c.DirectClientToken.Key) !?c.DirectClientToken.Usage {
+    const value = try self.tree().get(basis.client_accounts, try c.DirectClientToken.usageKey(key)) orelse return null;
+    return try r.fromValue(c.DirectClientToken.Usage, self.allocator, value);
+}
+pub fn clientIndices(self: *Self, next: *r.Root, state: c.DirectClientToken.Progress) !void {
+    const key = state.receipt.binding.key;
+    const usage = (try self.clientUsage(self.root, key)) orelse c.DirectClientToken.Usage{ .limits = state.receipt.binding.budget.limits };
+    const updated = try usage.transition(try self.clientTokenAt(self.root, key), state);
+    next.client_accounts = try self.tree().put(next.client_accounts, try c.DirectClientToken.usageKey(key), try r.pageValue(updated));
+    var at: [8]u8 = undefined;
+    std.mem.writeInt(u64, &at, self.root.next_lsn, .little);
+    const value = try pages.Value.init(&at);
+    next.client_tokens = try self.tree().put(next.client_tokens, try pages.Key.init(&try state.receipt.binding.key.digest()), value);
+    const ordered = try c.DirectClientToken.accountKey(state.receipt.binding.key.scope(), state.id());
+    next.client_operations = try self.tree().put(next.client_operations, ordered, value);
+    next.client_pending = if (state.pending) try self.tree().put(next.client_pending, ordered, value) else try self.tree().remove(next.client_pending, ordered);
 }
 fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
     const accepted = record.action.client_token;
-    if (try self.clientTokenAt(before, accepted.binding.key) != null or
-        record.root.client_token_count != try std.math.add(u64, before.client_token_count, 1)) return error.InvalidDirectCatalogTransition;
+    const key = accepted.receipt.binding.key;
+    const prior = try self.clientTokenAt(before, key);
+    if (prior) |old| {
+        if (!std.meta.eql(old.receipt, accepted.receipt) or (!old.pending and accepted.pending) or
+            (old.cancel and !accepted.cancel) or record.root.client_token_count != before.client_token_count) return error.InvalidDirectCatalogTransition;
+    } else {
+        if (!std.meta.eql(accepted, c.DirectClientToken.Progress.initial(accepted.receipt)) or
+            record.root.client_token_count != try std.math.add(u64, before.client_token_count, 1)) return error.InvalidDirectCatalogTransition;
+    }
     var unchanged = record.root;
     unchanged.next_lsn = before.next_lsn;
     unchanged.client_tokens = before.client_tokens;
     unchanged.client_token_count = before.client_token_count;
+    unchanged.client_operations = before.client_operations;
+    unchanged.client_pending = before.client_pending;
+    unchanged.client_accounts = before.client_accounts;
+    const usage = (try self.clientUsage(before, key)) orelse c.DirectClientToken.Usage{ .limits = accepted.receipt.binding.budget.limits };
+    const after_usage = try self.clientUsage(record.root, key) orelse return error.InvalidDirectCatalogTransition;
+    if (!std.meta.eql(try usage.transition(prior, accepted), after_usage)) return error.InvalidDirectCatalogTransition;
     if (!std.meta.eql(unchanged, before)) return error.InvalidDirectCatalogTransition;
-    const value = try self.tree().get(record.root.client_tokens, try pages.Key.init(&try accepted.binding.key.digest())) orelse return error.InvalidDirectCatalogTransition;
-    if (value.len != 8 or std.mem.readInt(u64, value.data[0..8], .little) != before.next_lsn) return error.InvalidDirectCatalogTransition;
+    const expected = before.next_lsn;
+    const value = try self.tree().get(record.root.client_tokens, try pages.Key.init(&try key.digest())) orelse return error.InvalidDirectCatalogTransition;
+    if (value.len != 8 or std.mem.readInt(u64, value.data[0..8], .little) != expected) return error.InvalidDirectCatalogTransition;
+    const ordered = try c.DirectClientToken.accountKey(key.scope(), accepted.id());
+    if (!std.meta.eql(value, try self.tree().get(record.root.client_operations, ordered) orelse return error.InvalidDirectCatalogTransition)) return error.InvalidDirectCatalogTransition;
+    const pending_value = try self.tree().get(record.root.client_pending, ordered);
+    if (accepted.pending) {
+        if (!std.meta.eql(value, pending_value orelse return error.InvalidDirectCatalogTransition)) return error.InvalidDirectCatalogTransition;
+    } else if (pending_value != null) return error.InvalidDirectCatalogTransition;
 }
 
 pub fn resourceRecord(self: *Self, at: u64) !c.DirectResource.Operation {

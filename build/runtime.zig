@@ -82,7 +82,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
     const sql_client = b.dependency("transit_sql_client", .{ .target = target, .optimize = optimize });
-    const sql_gateway = b.dependency("transit_sql", .{ .target = target, .optimize = optimize });
+    const sql_gateway = b.dependency("transit_sql_service", .{ .target = target, .optimize = optimize });
     const tls_server = b.dependency("transit_tls_server", .{ .target = target, .optimize = optimize });
     const sql_gateway_app = b.dependency("transit_sql_gateway_app", .{ .target = target, .optimize = optimize }).artifact("transit-sql-gateway");
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
@@ -223,7 +223,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
                 app.use_lld = true;
             }
             app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
-            app.root_module.addImport("transit_sql", sql_gateway.module("transit_sql"));
+            app.root_module.addImport("transit_sql_service", sql_gateway.module("transit_sql_service"));
             app.root_module.addImport("transit_sql_client", sql_client.module("transit_sql_client"));
             app.root_module.addImport("transit_tls_server", tls_server.module("transit_tls_server"));
         }

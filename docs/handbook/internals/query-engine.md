@@ -45,23 +45,29 @@ an empty input that contributes no row. This check establishes current disclosur
 rights, not a common data frontier.
 
 The difficult interruption lies between remote pin acceptance and receiving its
-handle. [`ReadPins`](../../../packages/zig/transit-sql/src/ReadPins.zig) syncs the
-original principal, prepared binding, random acquisition identity and expected
-frontier before its first request. It records the returned handle before exposing
-the query. Closure is also durable before release. Recovery observes the original
-pin: it releases an active pin or removes a journal entry after recorded release.
-If no pin exists at the original frontier, replaying that exact acquisition and
-releasing it closes uncertainty. If the object has retired or advanced beyond
-the expected frontier, a delayed original request can no longer acquire the pin.
-Choosing a fresh identity or frontier would instead create unrelated work.
+handle. [`ReadCache`](../../../packages/zig/transit-sql/src/ReadCache.zig) stores
+the original principal, acquisition identity and expected frontier in a Catalog
+record before the first request. It records the returned handle before exposing
+the query. Each account route has 64 durable slots; the account shares 64 resident entries
+across routes.
+concurrent statements borrow an entry for the same Table definition and changed
+LSN. A warm hit checks current metadata and authority without a new durable pin
+or a per-query filesystem sync. Borrow counts protect in-flight cursors during
+eviction; closing a cursor releases its borrow, not the cache's durable pin.
 
-A pass visits at most eight journal entries and reconciles at most one eligible
-record. Current-generation active reads stay protected; earlier-generation and
-closing records are eligible. Denial or unavailable evidence leaves the record
-and reports a cleanup error without blocking unrelated accepted mutations. This
-costs durable local metadata and extra control requests; lease-only cleanup would
-not preserve this durable pin contract. The journal has no authority to grant
-access, expire history or physically collect Table objects.
+Eviction records closure before release. Recovery observes the original pin and
+releases it or records its absence after a qualified original-frontier check.
+It never chooses a fresh identity to resolve uncertainty. One pass reconciles at
+most one slot. Current-generation cached entries stay protected; earlier-generation
+and closing records are eligible. Denial or unavailable evidence retains the
+record and reports a cleanup error without authorizing expiry. A disabled account
+keeps its recovery binding until outstanding work and cache pins close.
+
+The tradeoff is a bounded number of long-lived pins and cold-cache control writes
+instead of per-query flushed local journals. The cache does not grant access or
+make independent Table frontiers an atomic multi-source snapshot. All source
+rights are rechecked before disclosure. Interactive transaction cuts require their
+own database commit and retention contract.
 
 The mechanism is falsified by an accepted acquisition with no recoverable original
 request, cleanup of a current-generation active pin, changed interpretation under

@@ -747,9 +747,55 @@ fn operationGuard(self: *Self, allocator: std.mem.Allocator, binding: d.Binding,
     return self.guard(allocator, policy, namespace_value, view.properties.target(binding.target.object), access);
 }
 
+pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.DirectRecord.Request, policy: Policy) !c.DirectRecord.Result {
+    try self.requireInitialized();
+    try request.validate();
+    const scope = request.scope();
+    if (!scope.connection.matches(self.config()) or scope.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    const current = try self.guard(allocator, policy, null, null, .database);
+    try check(current);
+    const result: c.DirectRecord.Result = switch (request) {
+        .stage => |value| blk: {
+            const bytes = try value.bytes.decode(allocator, c.DirectRecord.max_bytes);
+            defer allocator.free(bytes);
+            try check(current);
+            break :blk .{ .reference = try c.DirectRecord.store(self.data_objects, scope, value.format, bytes), .bytes = null };
+        },
+        .read => |value| blk: {
+            const bytes = try c.DirectRecord.load(allocator, self.data_objects, value);
+            defer allocator.free(bytes);
+            break :blk .{ .reference = value, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, bytes) };
+        },
+    };
+    try check(current);
+    return result;
+}
+
+fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectIntent.Reference, policy: Policy) !P.Guard {
+    try reference.validate();
+    return switch (reference) {
+        .external => self.guard(allocator, policy, null, null, .database),
+        .table => |value| self.operationGuard(allocator, value.binding, value.namespace, policy),
+        .namespace_change => |value| self.namespaceGuard(allocator, value.binding, policy),
+        .name_assertion => |value| policy.make_guard(policy.context, allocator, try self.assertionRequirements(allocator, value, policy), null),
+    };
+}
+
 /// Atomically selects the first complete direct intent for a caller token.
 /// This neither admits nor executes that intent. Even an exact retry rechecks
 /// the original target's current rights before disclosing its reference.
+pub fn requireClientLease(self: *Self, lease: c.DirectClientToken.Lease, policy: Policy) !void {
+    try self.requireInitialized();
+    if (lease.key.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const current = try self.guard(arena.allocator(), policy, null, null, .database);
+    try check(current);
+    const state = (try self.store.clientTokenState(lease.key)) orelse return error.StaleClientLease;
+    if (!std.meta.eql(state.revision, lease.revision)) return error.StaleClientLease;
+    try check(current);
+}
+
 pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Policy) !?c.DirectClientToken.Receipt {
     try self.requireInitialized();
     try request.validate();
@@ -761,7 +807,7 @@ pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Po
     try check(database);
     if (try self.store.clientToken(key)) |receipt| {
         const reference = receipt.binding.intent;
-        const current = try self.operationGuard(arena.allocator(), reference.binding, reference.namespace, policy);
+        const current = try self.intentGuard(arena.allocator(), reference, policy);
         try check(current);
         if (request == .bind) try receipt.binding.retry(request.bind);
         try check(current);
@@ -773,29 +819,118 @@ pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Po
     }
     const binding = request.bind;
     const reference = binding.intent;
-    const current = try self.operationGuard(arena.allocator(), reference.binding, reference.namespace, policy);
+    const current = try self.intentGuard(arena.allocator(), reference, policy);
     try check(current);
     if (self.store.root.client_token_count >= self.options.client_token_quota) return error.ClientTokenCapacity;
-    // Verify immutable bytes before accepting the reference. Loading is bounded
-    // by the direct-intent contract and grants no execution authority.
-    var intent = try c.DirectTableIntentStore.load(self.allocator, self.data_objects, reference);
-    defer intent.deinit();
-    if (intent.parsed.value.work == .ddl) _ = try self.preview(try intent.parsed.value.work.ddl.native(arena.allocator(), self.config()), policy);
-    try check(current);
-    const operation_objects = if (intent.parsed.value.work == .ddl) self.store.objects else self.data_objects;
-    try c.OperationBinding.claim(self.allocator, operation_objects, reference.binding);
+    const usage = (try self.store.clientUsage(self.store.root, key)) orelse c.DirectClientToken.Usage{ .limits = binding.budget.limits };
+    _ = try usage.transition(null, c.DirectClientToken.Progress.initial(.{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn + 1 } }));
+    // A token claims the complete original identity before accepting its
+    // reference; this is independent of data admission and execution.
+    switch (reference) {
+        .external => |value| {
+            const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, value.record);
+            defer self.allocator.free(bytes);
+            try check(current);
+            try c.OperationBinding.claimExternal(self.allocator, self.store.objects, value);
+        },
+        .table => |table| {
+            var intent = try c.DirectTableIntentStore.load(self.allocator, self.data_objects, table);
+            defer intent.deinit();
+            if (intent.parsed.value.work == .ddl) _ = try self.preview(try intent.parsed.value.work.ddl.native(arena.allocator(), self.config()), policy);
+            try check(current);
+            const objects = if (intent.parsed.value.work == .ddl) self.store.objects else self.data_objects;
+            try c.OperationBinding.claim(self.allocator, objects, table.binding);
+        },
+        .name_assertion => |value| try c.OperationBinding.claimAssertion(self.allocator, self.store.objects, value),
+        .namespace_change => |value| try c.OperationBinding.claimNamespace(self.allocator, self.store.objects, value.binding),
+    }
     try self.store.index.begin(self.options.index_work_bytes);
     defer self.store.index.end();
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     next.client_token_count = try std.math.add(u64, next.client_token_count, 1);
     const receipt: c.DirectClientToken.Receipt = .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = next.next_lsn } };
-    var at: [8]u8 = undefined;
-    std.mem.writeInt(u64, &at, self.store.root.next_lsn, .little);
-    next.client_tokens = try self.store.tree().put(next.client_tokens, try pages.Key.init(&try key.digest()), try pages.Value.init(&at));
-    try self.store.publish(next, .{ .client_token = receipt }, current);
+    const state = c.DirectClientToken.Progress.initial(receipt);
+    try self.store.clientIndices(&next, state);
+    try self.store.publish(next, .{ .client_token = state }, current);
     try check(current);
     return receipt;
+}
+
+/// Paged recovery metadata never substitutes for the operation owner's result.
+/// CAS updates and immutable payloads preserve exact retries across lost replies.
+pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest, policy: Policy) !c.DirectClientToken.ProgressResult {
+    try self.requireInitialized();
+    try request.validate();
+    const scope = request.scope();
+    if (!scope.connection.matches(self.config()) or scope.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const database = try self.guard(arena.allocator(), policy, null, null, .database);
+    try check(database);
+    if (request == .list) {
+        const page = try self.store.clientPage(request.list);
+        for (page.entries) |slot| if (slot) |state| try check(try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy));
+        try check(database);
+        return .{ .page = page };
+    }
+    var state = (switch (request) {
+        .inspect => |key| try self.store.clientTokenState(key),
+        .operation => |value| try self.store.clientOperation(value.scope, value.id),
+        .update => |value| try self.store.clientTokenState(value.key),
+        .list => unreachable,
+    }) orelse {
+        if (request == .update) return error.ClientOperationMissing;
+        try check(database);
+        return .{ .state = null };
+    };
+    const current = try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy);
+    try check(current);
+    if (request != .update) return .{ .state = state };
+    const value = request.update;
+    if (state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
+    if (!std.meta.eql(state.revision, value.expected)) return error.ClientOperationConflict;
+    if ((!state.pending and value.pending) or (state.cancel and !value.cancel)) return error.ClientOperationConflict;
+    if (!value.pending) try self.requireClientTerminal(state.receipt.binding.intent, policy);
+    if (value.record) |reference| {
+        const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, reference);
+        defer self.allocator.free(bytes);
+    }
+    try self.store.index.begin(self.options.index_work_bytes);
+    defer self.store.index.end();
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    state.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    state.pending = value.pending;
+    state.cancel = value.cancel;
+    state.record = value.record;
+    try state.validate();
+    try self.store.clientIndices(&next, state);
+    try self.store.publish(next, .{ .client_token = state }, current);
+    try check(current);
+    return .{ .state = state };
+}
+fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy) !void {
+    switch (reference) {
+        // External owners interpret their own progress. No external completion
+        // or authorization is inferred from removing a recovery index entry.
+        .external => {},
+        .table => |value| switch (value.binding.action) {
+            .create, .alter, .rename, .drop => switch (try self.status(value.binding, policy)) {
+                .not_observed, .admitted => return error.ClientOperationPending,
+                else => {},
+            },
+            .insert, .update, .delete => switch (try self.rowStatus(value.binding, policy)) {
+                .not_observed, .admitted => return error.ClientOperationPending,
+                else => {},
+            },
+        },
+        .name_assertion => |value| if (try self.assertName(value, .inspect, policy) == .not_observed) return error.ClientOperationPending,
+        .namespace_change => |value| switch (try self.namespaceOperation(value.binding, .inspect, policy)) {
+            .not_observed => return error.ClientOperationPending,
+            .operation => |operation| if (operation.phase == .admitted) return error.ClientOperationPending,
+        },
+    }
 }
 
 pub fn initialize(self: *Self, policy: Policy) !void {
@@ -1843,12 +1978,11 @@ pub fn cancelRows(self: *Self, binding: d.Binding, policy: Policy) !P.OperationS
     return self.rowOperation(binding, .cancel, null, policy);
 }
 pub fn applyRows(self: *Self, request: s.TableDmlIntent.Request, policy: Policy) !P.OperationState {
-    const admitted = try self.admitRows(request, policy);
-    if (admitted != .admitted) return admitted;
-    return self.performRows(request.binding, policy);
+    try request.validate();
+    return self.rowOperation(request.binding, .commit, request, policy);
 }
 
-fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, perform, status, cancel }, request: ?s.TableDmlIntent.Request, policy: Policy) !P.OperationState {
+fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, commit, perform, status, cancel }, request: ?s.TableDmlIntent.Request, policy: Policy) !P.OperationState {
     try self.requireInitialized();
     try self.original(policy, binding);
     const access: a.Access = switch (binding.action) {
@@ -1863,15 +1997,16 @@ fn rowOperation(self: *Self, binding: d.Binding, action: enum { admit, perform, 
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     const required = try self.requirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(target.object), access);
-    const current = try policy.make_guard(policy.context, arena.allocator(), required, if (action == .admit or action == .perform) binding.prerequisite else null);
+    const current = try policy.make_guard(policy.context, arena.allocator(), required, if (action == .admit or action == .commit or action == .perform) binding.prerequisite else null);
     try check(current);
-    if (action == .admit) {
+    if (action == .admit or action == .commit) {
         try c.OperationBinding.claim(self.allocator, self.data_objects, binding);
         if (try view.table.operationState(binding, current) == .not_observed and try self.pending(target.object, current)) return error.CatalogObjectBusy;
     }
     view.table.lose_reply = self.lose_table_reply;
     return switch (action) {
         .admit => view.table.admit(request.?, current),
+        .commit => view.table.commit(request.?, current),
         .perform => view.table.perform(binding, current),
         .status => view.table.operationState(binding, current),
         .cancel => view.table.cancel(binding, current),

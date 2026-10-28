@@ -12,7 +12,7 @@ def run(postgres, mysql_options, policy, inventory):
         prepared = my.cursor(prepared=True)
         prepared.execute(update, (101, 101))
         assert prepared.rowcount == 0
-        before = {entry['operation'] for entry in inventory()}
+        before = {entry['id'] for entry in inventory()}
         assert policy(False)['write'] is False
         try:
             denied = (
@@ -39,9 +39,19 @@ def run(postgres, mysql_options, policy, inventory):
             reader.execute('SELECT id FROM wire_rows WHERE id=101')
             assert reader.fetchall() == [(101,)]
             reader.close()
-            assert {entry['operation'] for entry in inventory()} == before
+            # History rechecks the original operation's current rights. A
+            # revoked writer cannot enumerate its prior write intents merely
+            # because it still has SELECT. Verify admission after restoring
+            # those rights, without issuing another statement in between.
+            try:
+                inventory()
+            except AssertionError as error:
+                assert 'error_type="AccessDenied"' in str(error), str(error)
+            else:
+                raise AssertionError('Revoked write history was disclosed')
         finally:
             assert policy(True)['write'] is True
+        assert {entry['id'] for entry in inventory()} == before
         prepared.close()
         assert pg.execute(update, (101, 101), prepare=True).rowcount == 1
     print(json.dumps(dict(profile='database_wire_authority',administrator=1234,

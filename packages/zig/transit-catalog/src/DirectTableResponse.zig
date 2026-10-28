@@ -120,7 +120,9 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         !std.mem.eql(u8, &subject.context, &original.context)) return error.InvalidTableResponse;
     if (!std.mem.eql(u8, &response.context, &try w.Request.context(request.input(), allocator))) return error.InvalidTableResponse;
     const expected: std.meta.Tag(w.Result) = switch (request.action) {
+        .record => .record,
         .client_token => .client_token,
+        .client_progress => .client_progress,
         .initialize => .initialized,
         .describe => .description,
         .namespace => .namespace,
@@ -149,7 +151,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .stage => .staged,
         .admit_ddl => .ddl,
         .admit_rows, .admit_statement => .rows,
-        inline .operation, .admit_saved => |value| switch (value.binding.action) {
+        inline .operation, .admit_saved, .commit_saved => |value| switch (value.binding.action) {
             .create, .alter, .rename, .drop => .ddl,
             .insert, .update, .delete => .rows,
         },
@@ -167,6 +169,60 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .record => |value| {
+            try value.reference.validate();
+            const input = request.action.record;
+            if (!std.meta.eql(value.reference.scope, input.scope())) return error.DataIdentityConflict;
+            switch (input) {
+                .stage => |staged| {
+                    if (value.bytes != null) return error.InvalidTableResponse;
+                    const bytes = try staged.bytes.decode(allocator, c.DirectRecord.max_bytes);
+                    defer allocator.free(bytes);
+                    try value.reference.requireSame(try c.DirectRecord.reference(staged.scope, staged.format, bytes));
+                },
+                .read => |saved| {
+                    try saved.requireSame(value.reference);
+                    const bytes = try (value.bytes orelse return error.InvalidTableResponse).decode(allocator, c.DirectRecord.max_bytes);
+                    defer allocator.free(bytes);
+                    try saved.requireSame(try c.DirectRecord.reference(saved.scope, saved.format, bytes));
+                },
+            }
+        },
+        .client_progress => |value| {
+            const input = request.action.client_progress;
+            if (input == .list) {
+                if (value != .page) return error.InvalidTableResponse;
+                var previous = input.list.after orelse 0;
+                var count: usize = 0;
+                var ended = false;
+                for (value.page.entries) |slot| {
+                    const state = slot orelse {
+                        ended = true;
+                        continue;
+                    };
+                    try state.validate();
+                    if (ended or state.id() <= previous or !std.meta.eql(state.receipt.binding.key.scope(), input.scope()) or (input.list.pending and !state.pending)) return error.InvalidTableResponse;
+                    previous = state.id();
+                    count += 1;
+                }
+                if (value.page.next) |next| if (count != value.page.entries.len or next != previous) return error.InvalidTableResponse;
+            } else {
+                if (value != .state) return error.InvalidTableResponse;
+                if (value.state) |state| {
+                    try state.validate();
+                    if (!std.meta.eql(state.receipt.binding.key.scope(), input.scope())) return error.DataIdentityConflict;
+                    switch (input) {
+                        .inspect => |key| try key.requireSame(state.receipt.binding.key),
+                        .operation => |saved| if (saved.id != state.id()) return error.DataIdentityConflict,
+                        .update => |saved| {
+                            try saved.key.requireSame(state.receipt.binding.key);
+                            if (state.pending != saved.pending or state.cancel != saved.cancel or !std.meta.eql(state.record, saved.record) or state.revision.partition != saved.expected.partition or state.revision.next_lsn < saved.expected.next_lsn) return error.InvalidTableResponse;
+                        },
+                        .list => unreachable,
+                    }
+                } else if (input == .update) return error.InvalidTableResponse;
+            }
+        },
         .client_token => |receipt| {
             const command = request.action.client_token;
             if (receipt) |value| {
@@ -507,7 +563,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         },
         .rows => |value| {
             const binding = switch (request.action) {
-                inline .admit_rows, .admit_statement, .admit_saved => |work| work.binding,
+                inline .admit_rows, .admit_statement, .admit_saved, .commit_saved => |work| work.binding,
                 .operation => |work| work.binding,
                 else => unreachable,
             };

@@ -374,14 +374,14 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.
     const token_binding: c.DirectClientToken.Binding = .{
         .key = .{ .definition = g.current_definition, .connection = saved.parsed.value.connection, .account = @splat(4), .token = @splat(5) },
         .fingerprint = @splat(6),
-        .intent = staged.value.result.staged,
+        .intent = .{ .table = staged.value.result.staged },
     };
     const bound = try dispatch(&service, .{ .client_token = .{ .bind = token_binding } });
     defer bound.deinit();
     try t.expectEqual(native_before_stage, engine.head.position);
     try t.expectEqualDeep(token_binding, bound.value.result.client_token.?.binding);
     var duplicate = token_binding;
-    duplicate.intent.binding.identity.operation += 1000;
+    duplicate.intent.table.binding.identity.operation += 1000;
     const original_token = try dispatch(&service, .{ .client_token = .{ .bind = duplicate } });
     defer original_token.deinit();
     try t.expectEqualDeep(bound.value.result.client_token, original_token.value.result.client_token);
@@ -1362,9 +1362,9 @@ test "local catalog checks real native registrations, current ownership and exac
     try t.expectEqual(@as(u64, 8), resolved.table.root.interpretation.object.object);
     try collectDirect(&engine, &catalog);
     try t.expectEqualDeep(token_receipt, (try catalog.clientToken(.{ .lookup = token_receipt.binding.key }, policy.policy())).?);
-    var token_intent = try c.DirectTableIntentStore.load(t.allocator, catalog.data_objects, token_receipt.binding.intent);
+    var token_intent = try c.DirectTableIntentStore.load(t.allocator, catalog.data_objects, token_receipt.binding.intent.table);
     defer token_intent.deinit();
-    try token_receipt.binding.intent.requireSame(try token_intent.reference(1));
+    try token_receipt.binding.intent.table.requireSame(try token_intent.reference(1));
     try t.expect((try catalog.status(request.binding, policy.policy())) == .committed);
     try t.expect((try catalog.rowStatus(succeeding.binding, policy.policy())) == .committed);
     var collected_view = (try catalog.resolve(t.allocator, 1, intent.name, policy.policy())).?;

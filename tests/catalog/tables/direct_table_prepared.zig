@@ -157,7 +157,7 @@ pub fn run(allocator: std.mem.Allocator, client: c.DirectTableClient, admin: any
     defer inserted.deinit();
     const token_key: c.DirectClientToken.Key = .{ .definition = c.protocol.Growth.current_definition, .connection = client.connection, .account = @splat(27), .token = @splat(91) };
     try t.expect(try c.DirectClientToken.lookup(client, token_key) == null);
-    const token_binding: c.DirectClientToken.Binding = .{ .key = token_key, .fingerprint = @splat(37), .intent = try inserted.stage(client, 1) };
+    const token_binding: c.DirectClientToken.Binding = .{ .key = token_key, .fingerprint = @splat(37), .intent = .{ .table = try inserted.stage(client, 1) } };
     const token_receipt = try c.DirectClientToken.bind(client, token_binding);
     var conflicting = token_binding;
     conflicting.fingerprint[0] ^= 1;
@@ -166,7 +166,7 @@ pub fn run(allocator: std.mem.Allocator, client: c.DirectTableClient, admin: any
     try t.expectEqualDeep(token_receipt, recovered);
     // Use the recovered original reference, including on a repeated execution.
     // A lookup never admits data and rebinding never resets its terminal state.
-    const reference = recovered.binding.intent;
+    const reference = recovered.binding.intent.table;
     const missing = try reference.operation(client, .inspect, 1);
     defer missing.deinit();
     try t.expect(missing.value.result.rows == .not_observed);

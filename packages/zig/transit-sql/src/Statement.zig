@@ -183,8 +183,8 @@ pub const Write = union(enum) {
             .namespace_change => |value| (g.IntentReference.Reference{ .namespace_change = value }).workBytes(),
         };
     }
-    /// Staging the inline assertion is pure. Only the coordinator may accept it
-    /// after the native ledger has committed dispatch eligibility.
+    /// Staging an inline assertion is pure. Database recovery dispatches only
+    /// the complete reference accepted by the Catalog's client-token binding.
     pub fn stage(self: *const Write, client: c.DirectTableClient, namespace: u64) !g.IntentReference.Reference {
         return switch (self.*) {
             .table => |*value| .{ .table = try value.stage(client, namespace) },

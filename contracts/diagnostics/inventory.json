@@ -1631,14 +1631,13 @@
     },
     "apps/transit-cli/server/Sql.zig": {
       "errors": {
+        "AccessDenied": 1,
         "AuthorityRollback": 1,
         "GatewayConfigurationChanged": 1,
         "GatewayConnectionCapacity": 1,
-        "GatewayControlRejected": 1,
-        "GatewayOwnerUnavailable": 3,
+        "GatewayOwnerUnavailable": 2,
         "IncompatibleDefinition": 1,
-        "InvalidGatewayConfiguration": 1,
-        "UnresolvedProvisioning": 2
+        "InvalidGatewayConfiguration": 1
       },
       "outcomes": {
         "status": [
@@ -1658,7 +1657,6 @@
         "beginInitialization()": "<inferred>",
         "configuration()": "<inferred>",
         "create()": "<inferred>",
-        "pollInitialization()": "<inferred>",
         "prepare()": "<inferred>",
         "recover()": "<inferred>",
         "report()": "<inferred>",
@@ -1671,8 +1669,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 96,
-        "catch": 4
+        "try": 82,
+        "catch": 5
       },
       "imports": [
         "../Diagnostic.zig",
@@ -1686,8 +1684,8 @@
         "SqlTrust.zig",
         "std",
         "transit_query",
-        "transit_sql",
-        "transit_sql_client"
+        "transit_sql_client",
+        "transit_sql_service"
       ]
     },
     "apps/transit-cli/server/SqlEnrollment.zig": {
@@ -1697,8 +1695,7 @@
         "GatewayIdentityConflict": 2,
         "InstallationIdentityMismatch": 2,
         "InstallationSyncFailed": 2,
-        "InvalidGatewayConfiguration": 1,
-        "UnresolvedProvisioning": 2
+        "InvalidGatewayConfiguration": 1
       },
       "outcomes": {
         "AuthorizationState": [
@@ -1710,7 +1707,7 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Account.ledger()": "<inferred>",
+        "Account.execution()": "<inferred>",
         "accountPath()": "<inferred>",
         "administrator()": "<inferred>",
         "catalogAccess()": "<inferred>",
@@ -1728,7 +1725,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 88,
+        "try": 81,
         "catch": 3
       },
       "imports": [
@@ -1739,19 +1736,17 @@
         "SqlSettings.zig",
         "std",
         "transit_query",
-        "transit_sql"
+        "transit_sql_service"
       ]
     },
     "apps/transit-cli/server/SqlJournal.zig": {
       "errors": {
-        "ProcessUnavailable": 1,
         "ServerStopped": 1,
         "UnresolvedProvisioning": 2
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "activate()": "<inferred>",
         "authorize()": "<inferred>",
         "flush()": "<inferred>",
         "save()": "<inferred>",
@@ -1759,7 +1754,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 16,
         "catch": 2
       },
       "imports": [
@@ -1786,7 +1781,7 @@
       "imports": [
         "std",
         "transit_query",
-        "transit_sql"
+        "transit_sql_service"
       ]
     },
     "apps/transit-cli/server/SqlTrust.zig": {
@@ -1912,45 +1907,27 @@
     },
     "apps/transit-sql-gateway/src/Control.zig": {
       "errors": {
-        "Conflict": 1,
         "ExpectedControlArguments": 4,
-        "FileNotFound": 1,
-        "GatewayControlInUse": 1,
-        "GatewayControlNotFound": 1,
-        "GatewayControlPending": 1,
         "GatewayControlSyncFailed": 1,
-        "GatewayDeadline": 1,
-        "GatewayIdentityConflict": 1,
-        "GatewayOperationNotTerminal": 1,
         "IncompatibleDefinition": 1,
-        "InvalidGatewayConfiguration": 1,
-        "InvalidGatewayLimits": 1,
-        "InvalidGatewayPrepared": 1,
-        "InvalidGatewayTerminal": 1,
-        "Rejected": 1
+        "InvalidGatewayConfiguration": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "command()": "<inferred>",
-        "fresh()": "<inferred>",
-        "list()": "<inferred>",
-        "loadPending()": "<inferred>",
         "number()": "<inferred>",
         "print()": "<inferred>",
         "run()": "<inferred>",
-        "save()": "<inferred>",
-        "status()": "<inferred>",
-        "terminal()": "<inferred>"
+        "save()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 58,
-        "catch": 2
+        "try": 29,
+        "catch": 0
       },
       "imports": [
         "std",
-        "transit_sql"
+        "transit_sql_service"
       ]
     },
     "apps/transit-sql-gateway/src/Native.zig": {
@@ -1986,7 +1963,7 @@
         "std",
         "transit_http_server",
         "transit_memory",
-        "transit_sql",
+        "transit_sql_service",
         "transit_tls_server"
       ]
     },
@@ -2011,8 +1988,9 @@
     },
     "apps/transit-sql-gateway/src/main.zig": {
       "errors": {
-        "Canceled": 1,
-        "Cancelled": 1,
+        "AccessDenied": 1,
+        "Canceled": 2,
+        "Cancelled": 2,
         "ExpectedPrivateConfiguration": 1,
         "FreshOwnershipRequired": 1,
         "GatewayActivationSyncFailed": 1,
@@ -2079,7 +2057,7 @@
       },
       "open_error_set_uses": 21,
       "propagation": {
-        "try": 165,
+        "try": 164,
         "catch": 20
       },
       "imports": [
@@ -2094,8 +2072,8 @@
         "transit_memory",
         "transit_mysql",
         "transit_postgres",
-        "transit_sql",
         "transit_sql_client",
+        "transit_sql_service",
         "transit_tls_server"
       ]
     },
@@ -3398,7 +3376,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "CatalogDenied": 43,
+        "CatalogDenied": 46,
         "CatalogIdentityConflict": 6,
         "CatalogKindMismatch": 1,
         "CatalogNameHashCollision": 1,
@@ -3408,6 +3386,9 @@
         "CatalogObjectMissing": 1,
         "CatalogObservationChanged": 1,
         "CatalogRegistrationRequired": 7,
+        "ClientOperationConflict": 2,
+        "ClientOperationMissing": 1,
+        "ClientOperationPending": 5,
         "ClientTokenCapacity": 1,
         "ConflictingRetry": 1,
         "DataIdentityConflict": 4,
@@ -3436,6 +3417,7 @@
         "NativeAllocationBusy": 1,
         "NullNotAllowed": 1,
         "Overflow": 1,
+        "StaleClientLease": 2,
         "TableDataChanged": 3,
         "TableDefinitionChanged": 9,
         "TableNotCreated": 1,
@@ -3468,6 +3450,7 @@
         ],
         "rowOperation().action": [
           "admit",
+          "commit",
           "perform",
           "status",
           "cancel"
@@ -3496,6 +3479,7 @@
         "check()": "<inferred>",
         "checkAccess()": "<inferred>",
         "checkOperation()": "<inferred>",
+        "clientProgress()": "<inferred>",
         "clientToken()": "<inferred>",
         "currentReadAuthority()": "<inferred>",
         "dependencyAdministration()": "<inferred>",
@@ -3507,6 +3491,7 @@
         "dependencyState()": "<inferred>",
         "dependentDefinition()": "<inferred>",
         "dependentRequirements()": "<inferred>",
+        "directRecord()": "<inferred>",
         "entry()": "<inferred>",
         "flushStorage()": "<inferred>",
         "guard()": "<inferred>",
@@ -3518,6 +3503,7 @@
         "initialize()": "<inferred>",
         "inspectNamespace()": "<inferred>",
         "inspectStorage()": "<inferred>",
+        "intentGuard()": "<inferred>",
         "list()": "<inferred>",
         "listNamespaces()": "<inferred>",
         "listResources()": "<inferred>",
@@ -3563,6 +3549,8 @@
         "registration()": "<inferred>",
         "releaseRows()": "<inferred>",
         "requestGuard()": "<inferred>",
+        "requireClientLease()": "<inferred>",
+        "requireClientTerminal()": "<inferred>",
         "requireInitialized()": "<inferred>",
         "requirements()": "<inferred>",
         "resolve()": "<inferred>",
@@ -3596,7 +3584,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 736,
+        "try": 783,
         "catch": 8
       },
       "imports": [
@@ -3796,7 +3784,7 @@
         "InvalidDirectCatalogName": 1,
         "InvalidDirectCatalogOperation": 4,
         "InvalidDirectCatalogProperties": 2,
-        "InvalidDirectCatalogRoot": 2,
+        "InvalidDirectCatalogRoot": 4,
         "WriteFailed": 4
       },
       "outcomes": {
@@ -3989,12 +3977,12 @@
         "CatalogHistoryMissing": 10,
         "CatalogRecordTooLarge": 1,
         "CatalogRecoveryRequired": 1,
-        "DataIdentityConflict": 11,
+        "DataIdentityConflict": 12,
         "IncompatibleDefinition": 1,
-        "InvalidClientToken": 3,
+        "InvalidClientToken": 5,
         "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 15,
-        "InvalidDirectCatalogTransition": 77,
+        "InvalidDirectCatalogTransition": 85,
         "InvalidPartitionLease": 1,
         "LostAcknowledgement": 1
       },
@@ -4003,9 +3991,14 @@
       "error_returns": {
         "assertion()": "<inferred>",
         "assertionAt()": "<inferred>",
+        "clientIndices()": "<inferred>",
+        "clientOperation()": "<inferred>",
+        "clientPage()": "<inferred>",
         "clientToken()": "<inferred>",
         "clientTokenAt()": "<inferred>",
+        "clientTokenState()": "<inferred>",
         "clientTokenTransition()": "<inferred>",
+        "clientUsage()": "<inferred>",
         "decode()": "<inferred>",
         "decodeFrame()": "<inferred>",
         "dependency()": "<inferred>",
@@ -4032,11 +4025,12 @@
         "resourceRecord()": "<inferred>",
         "resourceRecordAt()": "<inferred>",
         "resourceTransition()": "<inferred>",
-        "successor()": "<inferred>"
+        "successor()": "<inferred>",
+        "tokenRecord()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 144,
+        "try": 178,
         "catch": 1
       },
       "imports": [
@@ -4079,13 +4073,25 @@
     },
     "packages/zig/transit-catalog/src/DirectClientToken.zig": {
       "errors": {
+        "ClientBudgetConflict": 1,
+        "ClientTokenCapacity": 1,
         "ClientTokenConflict": 1,
-        "DataIdentityConflict": 1,
+        "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
-        "InvalidClientToken": 3,
-        "InvalidTableResponse": 1
+        "InvalidClientToken": 10,
+        "InvalidTableResponse": 2
       },
       "outcomes": {
+        "ProgressRequest": [
+          "inspect",
+          "operation",
+          "list",
+          "update"
+        ],
+        "ProgressResult": [
+          "state",
+          "page"
+        ],
         "Request": [
           "lookup",
           "bind"
@@ -4095,17 +4101,31 @@
       "error_returns": {
         "Binding.retry()": "<inferred>",
         "Binding.validate()": "<inferred>",
+        "Budget.validate()": "<inferred>",
         "Key.digest()": "<inferred>",
         "Key.requireSame()": "<inferred>",
         "Key.validate()": "<inferred>",
+        "Lease.validate()": "<inferred>",
+        "Limits.validate()": "<inferred>",
+        "Progress.validate()": "<inferred>",
+        "ProgressRequest.validate()": "<inferred>",
         "Receipt.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
+        "Update.validate()": "<inferred>",
+        "Usage.transition()": "<inferred>",
+        "accountKey()": "<inferred>",
+        "accountPrefix()": "<inferred>",
         "bind()": "<inferred>",
-        "lookup()": "<inferred>"
+        "inspect()": "<inferred>",
+        "list()": "<inferred>",
+        "lookup()": "<inferred>",
+        "operation()": "<inferred>",
+        "update()": "<inferred>",
+        "usageKey()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 39,
         "catch": 0
       },
       "imports": [
@@ -4174,6 +4194,48 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 23,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectIntent.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 2,
+        "DataIdentityConflict": 2,
+        "ExternalOperationOwnerRequired": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidGatewayIntent": 2
+      },
+      "outcomes": {
+        "Reference": [
+          "external",
+          "table",
+          "name_assertion",
+          "namespace_change"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "External.validate()": "<inferred>",
+        "NamespaceChange.validate()": "<inferred>",
+        "Reference.admit()": "<inferred>",
+        "Reference.digest()": "<inferred>",
+        "Reference.operation()": "<inferred>",
+        "Reference.requireSame()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Reference.workBytes()": "<inferred>",
+        "assertionDigest()": "<inferred>",
+        "bindingDigest()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "namespaceDigest()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 25,
         "catch": 0
       },
       "imports": [
@@ -4317,6 +4379,43 @@
       },
       "imports": [
         "DirectReadBorrow.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectRecord.zig": {
+      "errors": {
+        "DataIdentityConflict": 1,
+        "DirectRecordMissing": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidClientToken": 1,
+        "InvalidDirectRecord": 6
+      },
+      "outcomes": {
+        "Request": [
+          "stage",
+          "read"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Reference.requireSame()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "Scope.validate()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "read()": "<inferred>",
+        "reference()": "<inferred>",
+        "stage()": "<inferred>",
+        "store()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 25,
+        "catch": 0
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -4644,7 +4743,8 @@
       "errors": {
         "InvalidCatalogCursor": 3,
         "NamedResourceNativeUnavailable": 1,
-        "TableDelegationDenied": 1
+        "TableDelegationDenied": 1,
+        "UnsupportedTableAction": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -4660,7 +4760,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 145,
+        "try": 151,
         "catch": 0
       },
       "imports": [
@@ -4793,7 +4893,7 @@
     "packages/zig/transit-catalog/src/DirectTableProtocol.zig": {
       "errors": {
         "CatalogDenied": 4,
-        "CatalogIdentityConflict": 10,
+        "CatalogIdentityConflict": 11,
         "DataIdentityConflict": 4,
         "IncompatibleDefinition": 1,
         "InvalidAuthorizationCredential": 1,
@@ -4810,6 +4910,7 @@
         "InvalidTableDelegation": 5,
         "InvalidTableKey": 2,
         "InvalidTableReadBudget": 9,
+        "InvalidTableRequest": 1,
         "InvalidTableResponse": 5,
         "OutOfMemory": 1,
         "SourceChanged": 1,
@@ -4820,6 +4921,8 @@
       "outcomes": {
         "Action": [
           "client_token",
+          "client_progress",
+          "record",
           "initialize",
           "describe",
           "namespace",
@@ -4849,6 +4952,7 @@
           "preview_statement",
           "stage",
           "admit_saved",
+          "commit_saved",
           "admit_ddl",
           "admit_rows",
           "admit_statement",
@@ -4909,7 +5013,9 @@
           "snapshot"
         ],
         "Result": [
+          "record",
           "client_token",
+          "client_progress",
           "initialized",
           "description",
           "namespace",
@@ -4992,7 +5098,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 155,
+        "try": 158,
         "catch": 3
       },
       "imports": [
@@ -5056,8 +5162,9 @@
     },
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
+        "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 113
+        "InvalidTableResponse": 121
       },
       "outcomes": {},
       "error_sets": {},
@@ -5077,7 +5184,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 164,
+        "try": 176,
         "catch": 10
       },
       "imports": [
@@ -5290,6 +5397,7 @@
       },
       "outcomes": {
         "Stored": [
+          "external",
           "data",
           "name_assertion",
           "namespace",
@@ -5304,6 +5412,7 @@
         "claim()": "<inferred>",
         "claimAssertion()": "<inferred>",
         "claimDependency()": "<inferred>",
+        "claimExternal()": "<inferred>",
         "claimNamespace()": "<inferred>",
         "claimResource()": "<inferred>",
         "claimStored()": "<inferred>",
@@ -5605,9 +5714,11 @@
         "DirectCatalogWalk.zig",
         "DirectClientToken.zig",
         "DirectDependency.zig",
+        "DirectIntent.zig",
         "DirectNamespace.zig",
         "DirectReadAuthority.zig",
         "DirectReadDelegation.zig",
+        "DirectRecord.zig",
         "DirectResource.zig",
         "DirectResourceClient.zig",
         "DirectStorageGraph.zig",
@@ -12786,7 +12897,7 @@
         "Handshake.zig",
         "Scalar.zig",
         "Session.zig",
-        "transit_sql"
+        "transit_sql_service"
       ]
     },
     "packages/zig/transit-postgres/src/Backend.zig": {
@@ -13083,7 +13194,7 @@
         "Scalar.zig",
         "Session.zig",
         "Startup.zig",
-        "transit_sql"
+        "transit_sql_service"
       ]
     },
     "packages/zig/transit-protocol/src/Authorization.zig": {
@@ -13728,7 +13839,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188\""
+          "a716998e2831c843eedd24c792311f4d33aa0444460522f8f26cf4ad54b29ff7"
         ],
         "Effect.phase": [
           "pending",
@@ -20224,71 +20335,7 @@
         "transit_protocol"
       ]
     },
-    "packages/zig/transit-sql/src/AccountRuntime.zig": {
-      "errors": {
-        "CatalogDefinitionChanged": 1,
-        "Conflict": 3,
-        "GatewayCatalogDenied": 1,
-        "GatewayControlRejected": 2,
-        "GatewayDeadline": 1,
-        "GatewayIdentityConflict": 2,
-        "GatewayNotInitialized": 2,
-        "GatewayOperationBlocked": 1,
-        "GatewayOwnerUnavailable": 1,
-        "GatewayRecordTooLarge": 1,
-        "GatewayWaitCancelled": 1,
-        "InvalidGatewayCommand": 1,
-        "InvalidGatewayConfiguration": 1,
-        "InvalidGatewayTerminal": 1,
-        "InvalidSqlReadRecovery": 6,
-        "MissingGatewayOperation": 2,
-        "MissingGatewayTerminal": 2,
-        "Rejected": 2,
-        "SqlTokenConflict": 1,
-        "StaleGatewayCoordinator": 1,
-        "Timeout": 2
-      },
-      "outcomes": {
-        "handoff().completion": [
-          "processed",
-          "admitted"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Deadline.check()": "<inferred>",
-        "admit()": "<inferred>",
-        "advancePrivate()": "<inferred>",
-        "attachReadPins()": "<inferred>",
-        "bootstrap()": "<inferred>",
-        "control()": "<inferred>",
-        "create()": "<inferred>",
-        "discover()": "<inferred>",
-        "execute()": "<inferred>",
-        "finishControl()": "<inferred>",
-        "handoff()": "<inferred>",
-        "init()": "<inferred>",
-        "lookup()": "<inferred>",
-        "observe()": "<inferred>",
-        "prepareControl()": "<inferred>",
-        "readClient()": "<inferred>",
-        "readIntent()": "<inferred>",
-        "status()": "<inferred>",
-        "tick()": "<inferred>",
-        "waitIdle()": "<inferred>",
-        "waitProgress()": "<inferred>"
-      },
-      "open_error_set_uses": 2,
-      "propagation": {
-        "try": 87,
-        "catch": 17
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/BatchDisclosure.zig": {
+    "packages/zig/transit-sql-service/src/BatchDisclosure.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
         "ConfigurationDenied": 1,
@@ -20317,110 +20364,12 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/Behavior.zig": {
-      "errors": {
-        "Cancelled": 1,
-        "GatewayDispositionConflict": 1,
-        "GatewayOwnerChanged": 1,
-        "OutOfMemory": 1,
-        "UninitializedGateway": 7,
-        "UnsupportedGatewayFrame": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "apply()": "<inferred>",
-        "failure()": "<inferred>",
-        "handle()": "<inferred>",
-        "initialize()": "<inferred>",
-        "initialized()": "<inferred>",
-        "reject()": "<inferred>"
-      },
-      "open_error_set_uses": 1,
-      "propagation": {
-        "try": 34,
-        "catch": 3
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/Bytes.zig": {
-      "errors": {
-        "InvalidWireMessage": 3,
-        "WireValueTooLarge": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "appendInt()": "<inferred>",
-        "byte()": "<inferred>",
-        "cstring()": "<inferred>",
-        "finish()": "<inferred>",
-        "int()": "<inferred>",
-        "take()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 5,
-        "catch": 0
-      },
-      "imports": [
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/CapturedLedger.zig": {
-      "errors": {
-        "CapturedQueryComplete": 2,
-        "GatewayRecoveryCapacity": 1,
-        "GatewayUnresolvedStep": 3,
-        "GatewayUploadClosed": 1,
-        "GatewayUploadConflict": 1,
-        "InvalidCapturedQueryReceipt": 3,
-        "InvalidCapturedQueryState": 2,
-        "InvalidQueryBundle": 1,
-        "InvalidSavedQuerySubmission": 1,
-        "InvalidSqlOperationReference": 2,
-        "SqlSourceBusy": 2
-      },
-      "outcomes": {
-        "Command": [
-          "begin",
-          "part",
-          "publish",
-          "receipt",
-          "processed",
-          "abandon",
-          "cancel"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Lane.validate()": "<inferred>",
-        "State.validate()": "<inferred>",
-        "apply()": "<inferred>",
-        "lane()": "<inferred>",
-        "save()": "<inferred>",
-        "state()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 32,
-        "catch": 1
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/CapturedOperations.zig": {
+    "packages/zig/transit-sql-service/src/CapturedOperations.zig": {
       "errors": {
         "IncompleteResult": 2,
         "InvalidQueryIdentity": 1,
         "InvalidSqlOperationReference": 1,
         "MissingCapturedQueryOutcome": 1,
-        "MissingGatewayOperation": 1,
         "QuerySourceUnavailable": 1,
         "QueryUploadIdentityConflict": 1,
         "SqlOperationBindingChanged": 4,
@@ -20435,7 +20384,6 @@
         "admit()": "<inferred>",
         "bytes()": "<inferred>",
         "cancel()": "<inferred>",
-        "command()": "<inferred>",
         "load()": "<inferred>",
         "namespace()": "<inferred>",
         "prepareResult()": "<inferred>",
@@ -20449,7 +20397,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 86,
+        "try": 83,
         "catch": 1
       },
       "imports": [
@@ -20457,38 +20405,31 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/Client.zig": {
+    "packages/zig/transit-sql-service/src/CapturedRecovery.zig": {
       "errors": {
-        "GatewayDenied": 1,
-        "GatewayIdentityConflict": 3,
-        "GatewayOwnerUnavailable": 1,
-        "IncompatibleDefinition": 1,
-        "InvalidAuthorityResponse": 1,
-        "InvalidGatewayPrepared": 4,
-        "InvalidGatewayReceipt": 1
+        "GatewayRecordTooLarge": 2,
+        "GatewayUnresolvedStep": 8,
+        "InvalidCapturedQueryReceipt": 2,
+        "InvalidQueryBundle": 1,
+        "InvalidSavedQuerySubmission": 1,
+        "MissingGatewayOperation": 1,
+        "SqlSourceBusy": 1
       },
-      "outcomes": {
-        "Progress": [
-          "pending",
-          "processed"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "Prepared.command()": "<inferred>",
-        "Prepared.restore()": "<inferred>",
-        "Prepared.save()": "<inferred>",
-        "cachedSource()": "<inferred>",
-        "prepare()": "<inferred>",
-        "progress()": "<inferred>",
-        "role()": "<inferred>",
-        "source()": "<inferred>",
-        "submit()": "<inferred>",
-        "validate()": "<inferred>"
+        "busy()": "<inferred>",
+        "lane()": "<inferred>",
+        "processed()": "<inferred>",
+        "publish()": "<inferred>",
+        "readBytes()": "<inferred>",
+        "receipt()": "<inferred>",
+        "saveLane()": "<inferred>",
+        "state()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 37,
         "catch": 0
       },
       "imports": [
@@ -20496,13 +20437,13 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/Configuration.zig": {
+    "packages/zig/transit-sql-service/src/Configuration.zig": {
       "errors": {
         "GatewayCredentialChanged": 1,
         "GatewayDatabaseDenied": 1,
         "IncompatibleDefinition": 2,
         "InvalidAuthentication": 3,
-        "InvalidGatewayConfiguration": 24,
+        "InvalidGatewayConfiguration": 23,
         "NativeSqlTlsRequired": 1,
         "UnknownSqlSource": 1
       },
@@ -20531,7 +20472,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 22,
         "catch": 1
       },
       "imports": [
@@ -20539,9 +20480,8 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/ConfigurationOperations.zig": {
+    "packages/zig/transit-sql-service/src/ConfigurationOperations.zig": {
       "errors": {
-        "InvalidConfigurationRecovery": 2,
         "InvalidConfigurationResponse": 2,
         "MissingConfigurationOutcome": 1,
         "MissingGatewayOperation": 1,
@@ -20552,10 +20492,7 @@
       "error_returns": {
         "admit()": "<inferred>",
         "find()": "<inferred>",
-        "identity()": "<inferred>",
         "load()": "<inferred>",
-        "path()": "<inferred>",
-        "publish()": "<inferred>",
         "request()": "<inferred>",
         "resumeOperation()": "<inferred>",
         "source()": "<inferred>",
@@ -20563,7 +20500,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
+        "try": 30,
         "catch": 0
       },
       "imports": [
@@ -20572,331 +20509,7 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/Control.zig": {
-      "errors": {
-        "IncompatibleDefinition": 1,
-        "InvalidGatewayCommand": 6,
-        "InvalidGatewayDisposition": 3,
-        "InvalidGatewayPart": 3,
-        "UnrepresentableGatewayFailure": 1
-      },
-      "outcomes": {
-        "Command": [
-          "initialize",
-          "begin",
-          "begin_intent",
-          "intent_part",
-          "seal_intent",
-          "admit_intent",
-          "activate",
-          "dispatch",
-          "reconcile",
-          "cancel",
-          "cancel_unsent",
-          "capacity",
-          "reserve",
-          "complete",
-          "session_cancel",
-          "session_resume",
-          "external_begin",
-          "external_ready",
-          "external_complete",
-          "captured"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Command.decode()": "<inferred>",
-        "Command.encode()": "<inferred>",
-        "Command.validate()": "<inferred>",
-        "Disposition.init()": "<inferred>",
-        "Disposition.validate()": "<inferred>",
-        "Part.init()": "<inferred>",
-        "Part.validate()": "<inferred>",
-        "read()": "anyerror",
-        "write()": "anyerror"
-      },
-      "open_error_set_uses": 3,
-      "propagation": {
-        "try": 30,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/ControlLane.zig": {
-      "errors": {
-        "GatewayControlBusy": 1,
-        "GatewayControlNotPending": 1,
-        "GatewayUnresolvedStep": 1,
-        "InvalidGatewayReceipt": 1
-      },
-      "outcomes": {
-        "Result": [
-          "idle",
-          "pending",
-          "admitted",
-          "processed"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "discardConflictingProposal()": "<inferred>",
-        "poll()": "<inferred>",
-        "start()": "<inferred>",
-        "startPart()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 6,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/Coordinator.zig": {
-      "errors": {
-        "AccessDenied": 1,
-        "GatewayIdentityConflict": 1,
-        "GatewayOperationInactive": 1,
-        "GatewayOwnerUnavailable": 1,
-        "InvalidAuthorityResponse": 1,
-        "InvalidGatewayInventory": 1,
-        "InvalidGatewayTerminal": 1,
-        "OutOfMemory": 1,
-        "StaleGatewayCoordinator": 1
-      },
-      "outcomes": {
-        "Action": [
-          "idle",
-          "blocked",
-          "data_blocked",
-          "control",
-          "dispatch"
-        ],
-        "Result": [
-          "pending",
-          "data_blocked",
-          "control"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "blockedData()": "<inferred>",
-        "dispatch()": "<inferred>",
-        "fence()": "<inferred>",
-        "next()": "<inferred>"
-      },
-      "open_error_set_uses": 2,
-      "propagation": {
-        "try": 21,
-        "catch": 3
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/IntentReference.zig": {
-      "errors": {
-        "CatalogIdentityConflict": 2,
-        "DataIdentityConflict": 1,
-        "IncompatibleDefinition": 1,
-        "InvalidGatewayIntent": 2
-      },
-      "outcomes": {
-        "Reference": [
-          "table",
-          "name_assertion",
-          "namespace_change"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "NamespaceChange.validate()": "<inferred>",
-        "Reference.admit()": "<inferred>",
-        "Reference.digest()": "<inferred>",
-        "Reference.operation()": "<inferred>",
-        "Reference.requireSame()": "<inferred>",
-        "Reference.validate()": "<inferred>",
-        "Reference.workBytes()": "<inferred>",
-        "assertionDigest()": "<inferred>",
-        "bindingDigest()": "<inferred>",
-        "decode()": "<inferred>",
-        "encode()": "<inferred>",
-        "namespaceDigest()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 20,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/Ledger.zig": {
-      "errors": {
-        "CrossResourceTransaction": 1,
-        "GatewayAdmissionCapacity": 1,
-        "GatewayAlreadyPopulated": 2,
-        "GatewayCapacityDecrease": 1,
-        "GatewayCatalogDenied": 1,
-        "GatewayConfigurationChanged": 1,
-        "GatewayCursorChanged": 1,
-        "GatewayDenied": 2,
-        "GatewayIdentityConflict": 14,
-        "GatewayNotInitialized": 1,
-        "GatewayOperationInactive": 2,
-        "GatewayOperationNotFound": 1,
-        "GatewayOwnerChanged": 1,
-        "GatewayRecoveryCapacity": 1,
-        "GatewayRequiresQualifiedCancellation": 2,
-        "GatewayUnresolvedStep": 1,
-        "GatewayUploadClosed": 3,
-        "InvalidGatewayConfiguration": 5,
-        "InvalidGatewayIntent": 3,
-        "InvalidGatewayInventory": 7,
-        "InvalidGatewayObservation": 1,
-        "InvalidGatewayReservation": 2,
-        "SqlTokenConflict": 1,
-        "StaleGatewayCoordinator": 1
-      },
-      "outcomes": {
-        "actor().who": [
-          "ingress",
-          "control",
-          "coordinator"
-        ],
-        "indexed().kind": [
-          "admission",
-          "ready"
-        ],
-        "markRequest().action": [
-          "reconcile",
-          "cancel"
-        ],
-        "request().action": [
-          "reconcile",
-          "cancel"
-        ],
-        "sessionRequest().action": [
-          "reconcile",
-          "cancel"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Configuration.digest()": "<inferred>",
-        "Configuration.validate()": "<inferred>",
-        "activate()": "<inferred>",
-        "active()": "<inferred>",
-        "actor()": "<inferred>",
-        "admitIntent()": "<inferred>",
-        "admittedBinding()": "<inferred>",
-        "authorizeDispatch()": "<inferred>",
-        "begin()": "<inferred>",
-        "beginIntent()": "<inferred>",
-        "cancelUnsent()": "<inferred>",
-        "checkReference()": "<inferred>",
-        "complete()": "<inferred>",
-        "discover()": "<inferred>",
-        "head()": "<inferred>",
-        "increaseCapacity()": "<inferred>",
-        "indexed()": "<inferred>",
-        "initialize()": "<inferred>",
-        "intentPart()": "<inferred>",
-        "list()": "<inferred>",
-        "markRequest()": "<inferred>",
-        "operation()": "<inferred>",
-        "readReference()": "<inferred>",
-        "request()": "<inferred>",
-        "reserveRecovery()": "<inferred>",
-        "sealIntent()": "<inferred>",
-        "sessionRequest()": "<inferred>",
-        "settle()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 137,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/LedgerRecords.zig": {
-      "errors": {
-        "IncompatibleDefinition": 1,
-        "InvalidGatewayHead": 1,
-        "InvalidGatewayIntent": 1,
-        "InvalidGatewayNonce": 1,
-        "InvalidGatewayOperation": 9,
-        "InvalidGatewayRecord": 3,
-        "InvalidGatewayReservation": 1
-      },
-      "outcomes": {
-        "Phase": [
-          "reserved",
-          "uploading",
-          "ready",
-          "active",
-          "terminal",
-          "abandoned"
-        ],
-        "Summary": [
-          "none",
-          "applied",
-          "rejected",
-          "cancelled",
-          "unchanged"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Head.validate()": "<inferred>",
-        "IntentBinding.from()": "<inferred>",
-        "IntentBinding.validate()": "<inferred>",
-        "Nonce.validate()": "<inferred>",
-        "Operation.validate()": "<inferred>",
-        "decode()": "<inferred>",
-        "encode()": "<inferred>",
-        "readField()": "<inferred>",
-        "writeField()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 17,
-        "catch": 2
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/Limits.zig": {
-      "errors": {
-        "InvalidGatewayLimits": 5
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "validate()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 0,
-        "catch": 0
-      },
-      "imports": []
-    },
-    "packages/zig/transit-sql/src/OperatorConfiguration.zig": {
+    "packages/zig/transit-sql-service/src/OperatorConfiguration.zig": {
       "errors": {},
       "outcomes": {},
       "error_sets": {},
@@ -20910,105 +20523,25 @@
         "root.zig"
       ]
     },
-    "packages/zig/transit-sql/src/Probe.zig": {
-      "errors": {
-        "InvalidWireColumns": 1
-      },
-      "outcomes": {
-        "kind": [
-          "empty",
-          "one",
-          "version",
-          "database",
-          "version_comment",
-          "server_version",
-          "server_version_num",
-          "encoding",
-          "strings",
-          "collation",
-          "mode",
-          "autocommit",
-          "mysql_settings",
-          "set"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "parse()": "<inferred>",
-        "value()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 1,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/ReadBatch.zig": {
-      "errors": {
-        "InvalidReadBatch": 2
-      },
+    "packages/zig/transit-sql-service/src/ReadSources.zig": {
+      "errors": {},
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "validate()": "<inferred>"
+        "attach()": "<inferred>",
+        "resolve()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 0,
+        "try": 3,
         "catch": 0
-      },
-      "imports": [
-        "root.zig"
-      ]
-    },
-    "packages/zig/transit-sql/src/ReadPins.zig": {
-      "errors": {
-        "CatalogIdentityConflict": 2,
-        "FileNotFound": 2,
-        "IncompatibleDefinition": 1,
-        "InvalidSqlReadRecovery": 9,
-        "SqlReadRecoverySyncFailed": 3,
-        "StaleGatewayCoordinator": 1,
-        "TableDefinitionChanged": 1,
-        "TableSnapshotNotPinned": 1
-      },
-      "outcomes": {
-        "Record.state": [
-          "active",
-          "closing"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Record.snapshot()": "<inferred>",
-        "Record.validate()": "<inferred>",
-        "acquire()": "<inferred>",
-        "acquireCurrent()": "<inferred>",
-        "acquireLocked()": "<inferred>",
-        "close()": "<inferred>",
-        "init()": "<inferred>",
-        "name()": "<inferred>",
-        "read()": "<inferred>",
-        "recover()": "<inferred>",
-        "remove()": "<inferred>",
-        "tick()": "<inferred>",
-        "write()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 38,
-        "catch": 4
       },
       "imports": [
         "root.zig",
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/Registry.zig": {
+    "packages/zig/transit-sql-service/src/Registry.zig": {
       "errors": {
         "AccessDenied": 2,
         "AuthenticationFailed": 8,
@@ -21083,7 +20616,7 @@
         "transit_memory"
       ]
     },
-    "packages/zig/transit-sql/src/Session.zig": {
+    "packages/zig/transit-sql-service/src/Session.zig": {
       "errors": {
         "AccessDenied": 1,
         "AuthorityUnavailable": 2,
@@ -21110,10 +20643,10 @@
         "GatewayDeadline": 1,
         "GatewayMutationCancelled": 2,
         "GatewayMutationRejected": 2,
-        "GatewayOwnerUnavailable": 4,
+        "GatewayOwnerUnavailable": 3,
+        "GatewayRecordTooLarge": 1,
         "GatewayWaitCancelled": 1,
         "InvalidAuthentication": 3,
-        "InvalidAuthorityResponse": 1,
         "InvalidResultBudget": 1,
         "InvalidSettingUnit": 1,
         "InvalidSettingValue": 1,
@@ -21128,8 +20661,10 @@
         "SettingNotSessionMutable": 1,
         "SettingOutOfRange": 1,
         "SqlBatchTooLarge": 1,
+        "SqlReadLeaseCapacity": 1,
         "SqlReadRecoveryRequired": 1,
-        "StaleGatewayCoordinator": 2,
+        "SqlTokenConflict": 1,
+        "StaleGatewayCoordinator": 1,
         "StandaloneConfigurationOperationRequired": 1,
         "StatementTimedOut": 1,
         "TableDefinitionChanged": 2,
@@ -21208,7 +20743,7 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/SessionInspection.zig": {
+    "packages/zig/transit-sql-service/src/SessionInspection.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
         "CatalogNameNotFound": 1,
@@ -21233,61 +20768,7 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/SessionOperations.zig": {
-      "errors": {
-        "GatewayAdmissionCapacity": 1,
-        "GatewayIdentityConflict": 7,
-        "GatewayRecoveryCapacity": 1,
-        "GatewayUnresolvedStep": 1,
-        "InvalidGatewayInventory": 1,
-        "InvalidGatewayReservation": 1,
-        "InvalidSqlOperationReference": 9,
-        "MissingGatewayOperation": 2,
-        "SqlTokenConflict": 2
-      },
-      "outcomes": {
-        "External.phase": [
-          "reserved",
-          "ready",
-          "terminal"
-        ],
-        "External.summary": [
-          "none",
-          "applied",
-          "rejected",
-          "cancelled",
-          "partial"
-        ],
-        "Kind": [
-          "table",
-          "configuration",
-          "captured"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "External.validate()": "<inferred>",
-        "Reference.validate()": "<inferred>",
-        "begin()": "<inferred>",
-        "complete()": "<inferred>",
-        "decodeReference()": "<inferred>",
-        "external()": "<inferred>",
-        "list()": "<inferred>",
-        "lookup()": "<inferred>",
-        "ready()": "<inferred>",
-        "reference()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 44,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-sql/src/SessionSettings.zig": {
+    "packages/zig/transit-sql-service/src/SessionSettings.zig": {
       "errors": {
         "AccessDenied": 1,
         "CatalogDenied": 1,
@@ -21321,7 +20802,7 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/SourceSession.zig": {
+    "packages/zig/transit-sql-service/src/SourceSession.zig": {
       "errors": {
         "NullParameterUnsupported": 1,
         "ParameterCountMismatch": 1,
@@ -21348,6 +20829,374 @@
       "propagation": {
         "try": 38,
         "catch": 4
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-service/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "BatchDisclosure.zig",
+        "CapturedOperations.zig",
+        "CapturedRecovery.zig",
+        "Configuration.zig",
+        "ConfigurationOperations.zig",
+        "OperatorConfiguration.zig",
+        "ReadSources.zig",
+        "Registry.zig",
+        "Session.zig",
+        "SessionSettings.zig",
+        "SourceSession.zig",
+        "transit_query",
+        "transit_sql"
+      ]
+    },
+    "packages/zig/transit-sql/src/AccountIdentity.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql/src/Bytes.zig": {
+      "errors": {
+        "InvalidWireMessage": 3,
+        "WireValueTooLarge": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "appendInt()": "<inferred>",
+        "byte()": "<inferred>",
+        "cstring()": "<inferred>",
+        "finish()": "<inferred>",
+        "int()": "<inferred>",
+        "take()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql/src/Client.zig": {
+      "errors": {
+        "DataIdentityConflict": 2,
+        "MissingGatewayOperation": 1,
+        "SqlTokenConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Source.lookup()": "<inferred>",
+        "Source.operation()": "<inferred>",
+        "source()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std",
+        "transit_client"
+      ]
+    },
+    "packages/zig/transit-sql/src/DatabaseAccount.zig": {
+      "errors": {
+        "GatewayCatalogDenied": 1,
+        "InvalidGatewayConfiguration": 6,
+        "InvalidSqlOperationReference": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Configuration.digest()": "<inferred>",
+        "Configuration.validate()": "<inferred>",
+        "admittedBinding()": "<inferred>",
+        "operation()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql/src/DatabaseRuntime.zig": {
+      "errors": {
+        "AccessDenied": 2,
+        "Canceled": 2,
+        "Cancelled": 2,
+        "ClientOperationConflict": 1,
+        "GatewayCatalogDenied": 1,
+        "GatewayConfigurationChanged": 1,
+        "GatewayDeadline": 1,
+        "GatewayRecordTooLarge": 1,
+        "GatewayWaitCancelled": 1,
+        "InvalidGatewayConfiguration": 1,
+        "InvalidGatewayTerminal": 1,
+        "InvalidSqlReadRecovery": 1,
+        "MissingGatewayOperation": 1,
+        "MissingGatewayTerminal": 1,
+        "StaleGatewayCoordinator": 4,
+        "Timeout": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Deadline.check()": "<inferred>",
+        "ReadSources.resolve()": "anyerror",
+        "activate()": "<inferred>",
+        "admit()": "<inferred>",
+        "advance()": "<inferred>",
+        "attachReadCache()": "<inferred>",
+        "available()": "<inferred>",
+        "cancel()": "<inferred>",
+        "cleanupClient()": "<inferred>",
+        "execute()": "<inferred>",
+        "fence()": "<inferred>",
+        "init()": "<inferred>",
+        "lookup()": "<inferred>",
+        "resumeOperation()": "<inferred>",
+        "status()": "<inferred>",
+        "tick()": "<inferred>",
+        "waitIdle()": "<inferred>",
+        "waitProgress()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 69,
+        "catch": 8
+      },
+      "imports": [
+        "root.zig",
+        "std",
+        "transit_client"
+      ]
+    },
+    "packages/zig/transit-sql/src/IntentReference.zig": {
+      "errors": {
+        "ExternalOperationOwnerRequired": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "commandKind()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
+    "packages/zig/transit-sql/src/Limits.zig": {
+      "errors": {
+        "InvalidGatewayLimits": 5
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": []
+    },
+    "packages/zig/transit-sql/src/OperationRecords.zig": {
+      "errors": {},
+      "outcomes": {
+        "Phase": [
+          "ready",
+          "terminal"
+        ],
+        "Summary": [
+          "none",
+          "applied",
+          "rejected",
+          "cancelled",
+          "unchanged"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": []
+    },
+    "packages/zig/transit-sql/src/Probe.zig": {
+      "errors": {
+        "InvalidWireColumns": 1
+      },
+      "outcomes": {
+        "kind": [
+          "empty",
+          "one",
+          "version",
+          "database",
+          "version_comment",
+          "server_version",
+          "server_version_num",
+          "encoding",
+          "strings",
+          "collation",
+          "mode",
+          "autocommit",
+          "mysql_settings",
+          "set"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "parse()": "<inferred>",
+        "value()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 1,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql/src/ReadBatch.zig": {
+      "errors": {
+        "InvalidReadBatch": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
+      ]
+    },
+    "packages/zig/transit-sql/src/ReadCache.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidSqlReadRecovery": 9,
+        "SqlReadLeaseCapacity": 1,
+        "StaleGatewayCoordinator": 1,
+        "TableDefinitionChanged": 2,
+        "TableSnapshotNotPinned": 1
+      },
+      "outcomes": {
+        "Record.state": [
+          "active",
+          "closing"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Record.snapshot()": "<inferred>",
+        "Record.validate()": "<inferred>",
+        "acquireCurrent()": "<inferred>",
+        "close()": "<inferred>",
+        "init()": "<inferred>",
+        "inspect()": "<inferred>",
+        "key()": "<inferred>",
+        "open()": "<inferred>",
+        "read()": "<inferred>",
+        "release()": "<inferred>",
+        "tick()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 38,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql/src/SessionOperations.zig": {
+      "errors": {
+        "GatewayIdentityConflict": 2,
+        "GatewayUnresolvedStep": 1,
+        "InvalidSqlOperationReference": 8
+      },
+      "outcomes": {
+        "External.phase": [
+          "ready",
+          "terminal"
+        ],
+        "External.summary": [
+          "none",
+          "applied",
+          "rejected",
+          "cancelled",
+          "partial"
+        ],
+        "Kind": [
+          "table",
+          "configuration",
+          "captured"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "External.validate()": "<inferred>",
+        "Reference.validate()": "<inferred>",
+        "begin()": "<inferred>",
+        "complete()": "<inferred>",
+        "decode()": "<inferred>",
+        "external()": "<inferred>",
+        "list()": "<inferred>",
+        "lookup()": "<inferred>",
+        "progress()": "<inferred>",
+        "projection()": "<inferred>",
+        "readInitial()": "<inferred>",
+        "reference()": "<inferred>",
+        "save()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 26,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -21416,6 +21265,7 @@
     },
     "packages/zig/transit-sql/src/Terminal.zig": {
       "errors": {
+        "ExternalOperationOwnerRequired": 1,
         "GatewayIdentityConflict": 1,
         "InvalidGatewayTerminal": 18
       },
@@ -21485,41 +21335,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-sql/src/Upload.zig": {
-      "errors": {
-        "GatewayRecordTooLarge": 3,
-        "GatewayUploadClosed": 1,
-        "GatewayUploadConflict": 1,
-        "GatewayUploadGap": 1,
-        "IncompletePublication": 2,
-        "InvalidGatewayPart": 2,
-        "InvalidGatewayPublication": 1,
-        "InvalidGatewayUpload": 8,
-        "InvalidPublicationChunk": 1,
-        "InvalidPublicationDigest": 1,
-        "MissingPublicationChunk": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "append()": "<inferred>",
-        "check()": "<inferred>",
-        "prefetch()": "<inferred>",
-        "read()": "<inferred>",
-        "readStaged()": "<inferred>",
-        "receivedBytes()": "<inferred>",
-        "seal()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 31,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
     "packages/zig/transit-sql/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -21531,40 +21346,26 @@
         "catch": 0
       },
       "imports": [
-        "AccountRuntime.zig",
-        "BatchDisclosure.zig",
-        "Behavior.zig",
+        "AccountIdentity.zig",
         "Bytes.zig",
-        "CapturedLedger.zig",
-        "CapturedOperations.zig",
         "Client.zig",
-        "Configuration.zig",
-        "ConfigurationOperations.zig",
-        "Control.zig",
-        "ControlLane.zig",
-        "Coordinator.zig",
+        "DatabaseAccount.zig",
+        "DatabaseRuntime.zig",
         "IntentReference.zig",
-        "Ledger.zig",
-        "LedgerRecords.zig",
         "Limits.zig",
-        "OperatorConfiguration.zig",
+        "OperationRecords.zig",
         "Probe.zig",
         "ReadBatch.zig",
-        "ReadPins.zig",
-        "Registry.zig",
-        "Session.zig",
+        "ReadCache.zig",
         "SessionOperations.zig",
-        "SourceSession.zig",
         "Statement.zig",
         "Terminal.zig",
         "Type.zig",
-        "Upload.zig",
         "transit_catalog",
-        "transit_query",
+        "transit_client",
         "transit_query_direct",
         "transit_sql_protocol",
-        "transit_sql_results",
-        "transit_station"
+        "transit_sql_results"
       ]
     },
     "packages/zig/transit-station-app/src/Api.zig": {
@@ -26910,7 +26711,7 @@
     },
     "packages/zig/transit-storage/src/TablePartition.zig": {
       "errors": {
-        "DataIdentityConflict": 11,
+        "DataIdentityConflict": 13,
         "DuplicateBatchKey": 3,
         "DuplicatePrimaryKey": 7,
         "DuplicateTableRowIdentity": 3,
@@ -26944,8 +26745,8 @@
         "TableBatchTooLarge": 5,
         "TableBuildBudget": 2,
         "TableCompactionBudget": 3,
-        "TableDataChanged": 6,
-        "TableDefinitionChanged": 4,
+        "TableDataChanged": 7,
+        "TableDefinitionChanged": 5,
         "TableHistoryConflict": 1,
         "TableHistoryCoverageRequired": 1,
         "TableHistoryExpired": 1,
@@ -27025,6 +26826,7 @@
         "changeDefinitionWithinBudget()": "<inferred>",
         "checkExpectations()": "<inferred>",
         "checkpoint()": "<inferred>",
+        "commit()": "<inferred>",
         "compact()": "<inferred>",
         "compactBounded()": "<inferred>",
         "compactionCandidate()": "<inferred>",
@@ -27061,6 +26863,7 @@
         "pendingOperations()": "<inferred>",
         "pendingRows()": "<inferred>",
         "perform()": "<inferred>",
+        "performPrepared()": "<inferred>",
         "performWithinBudget()": "<inferred>",
         "physicalSchema()": "<inferred>",
         "pin()": "<inferred>",
@@ -27116,8 +26919,8 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 607,
-        "catch": 14
+        "try": 615,
+        "catch": 15
       },
       "imports": [
         "OrderedKeyIndex.zig",

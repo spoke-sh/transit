@@ -40,9 +40,10 @@ the implementations listed below remain shared runtime libraries.
 | [transit-sql-results](../../../packages/zig/transit-sql-results/README.md) / `transit_sql_results` | Logical statement outcomes, result progress and observation evidence | transit-fuze, transit-protocol |
 | [transit-sql-protocol](../../../packages/zig/transit-sql-protocol/README.md) / `transit_sql_protocol` | SQL session messages, canonical logical carriage and SCRAM | transit-fuze, transit-protocol |
 | [transit-sql-client](../../../packages/zig/transit-sql-client/README.md) / `transit_sql_client` | Native HTTP/TLS and Unix session transport, authentication, local discovery and owned responses | transit-sql-protocol |
-| [transit-sql](../../../packages/zig/transit-sql/README.md) / `transit_sql` | Shared SQL sessions, credentials, catalog-bound statements and paged account recovery | transit-query-direct, transit-station, transit-query, transit-catalog |
-| [transit-postgres](../../../packages/zig/transit-postgres/README.md) / `transit_postgres` | PostgreSQL frames and deferred-write extended-cycle gate | transit-sql |
-| [transit-mysql](../../../packages/zig/transit-mysql/README.md) / `transit_mysql` | Bounded MySQL classic packet framing and sequence checks | transit-sql |
+| [transit-sql](../../../packages/zig/transit-sql/README.md) / `transit_sql` | Catalog-bound statements, fenced database execution and paged account recovery | transit-query-direct, transit-client, transit-catalog |
+| [transit-sql-service](../../../packages/zig/transit-sql-service/README.md) / `transit_sql_service` | Shared SQL sessions, settings and explicit captured-source composition | transit-sql, transit-query |
+| [transit-postgres](../../../packages/zig/transit-postgres/README.md) / `transit_postgres` | PostgreSQL frames and deferred-write extended-cycle gate | transit-sql-service |
+| [transit-mysql](../../../packages/zig/transit-mysql/README.md) / `transit_mysql` | Bounded MySQL classic packet framing and sequence checks | transit-sql-service |
 | [transit-station-grpc](../../../packages/zig/transit-station-grpc/README.md) / `transit_station_grpc` | durable finite RPC adapter | transit-exchange, transit-grpc |
 | [transit-flight](../../../packages/zig/transit-flight/README.md) / `transit_flight` | Finite Table Flight gateway, pinned wire, bounded IPC and standard metadata codecs | transit-grpc, transit-query, transit-serving |
 | [transit-station-flight](../../../packages/zig/transit-station-flight/README.md) / `transit_station_flight` | Recorded outbound Flight requests and bounded typed replay | transit-flight, transit-station-grpc |

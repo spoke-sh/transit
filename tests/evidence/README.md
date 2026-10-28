@@ -20,6 +20,10 @@ request counts and isolated codec allocations for the batching qualification.
 The [result reserve comparison](result-reserves-2026-10-28/README.md) retains the
 paired allocation and timing samples behind the fixed codec regression budgets.
 
+The [SQL database runtime comparison](sql-database-runtime-2026-10-28/README.md)
+retains matched client-completion samples and source/definition provenance for
+the removal of SQL account actors, including the observed point-read regression.
+
 The earlier generated-output archive remains available at its
 [original source revision](https://github.com/spoke-sh/transit/tree/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results).
 The [file disposition map](../../docs/roadmap/development-workflow-migration.json)

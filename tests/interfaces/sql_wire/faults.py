@@ -144,7 +144,7 @@ def run(root, postgres, mysql_options, controls, inventory, read_access, write_a
             wire.sock.sendall(frame(b'Q', b'SELECT 1\0'))
             assert any(tag == b'D' for tag,_ in wire.until(b'Z'))
             # A complete admitted write survives losing its database reply.
-            before_detached = {entry['operation'] for entry in inventory()}
+            before_detached = {entry['id'] for entry in inventory()}
             wire.sock.sendall(frame(b'Q', b'INSERT INTO wire_rows (id) VALUES (103)\0'))
         finally:
             wire.close()
@@ -156,8 +156,8 @@ def run(root, postgres, mysql_options, controls, inventory, read_access, write_a
             assert time.monotonic() < deadline, 'Detached write did not complete'
             time.sleep(.05)
         page = controls('list')
-        assert page['entries'] and all('matched' not in entry for entry in page['entries'])
-        detached = {entry['operation'] for entry in inventory()} - before_detached
+        assert page['entries'] and all('matched' not in entry for entry in page['entries'] if entry)
+        detached = {entry['id'] for entry in inventory()} - before_detached
         assert len(detached) == 1, detached
         committed_operation = detached.pop()
         while True:

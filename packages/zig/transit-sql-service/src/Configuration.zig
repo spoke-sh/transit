@@ -30,8 +30,8 @@ pub const Native = struct {
     port: ?u16 = null,
     tls: ?struct { certificate_file: []const u8, key_file: []const u8 } = null,
 };
-pub const Database = struct { name: []const u8, binding: g.Ledger.Binding };
-pub const KeyFiles = struct { worker: []const u8, ingress: []const u8, coordinator: []const u8, table: []const u8 };
+pub const Database = struct { name: []const u8, binding: g.DatabaseAccount.Binding };
+pub const KeyFiles = struct { table: []const u8 };
 pub const TlsMode = enum { disabled, optional, required };
 pub const Authentication = enum { password, trust, peer };
 pub const Source = struct {
@@ -47,13 +47,12 @@ pub const Account = struct {
     peer_uid: ?u32 = null,
     enabled: bool = true,
     verifier_file: []const u8,
-    ledger: g.Ledger.Configuration,
+    execution: g.DatabaseAccount.Configuration,
     generation: u64,
-    association: []const u8 = "state",
     keys: KeyFiles,
     databases: []const Database,
     sources: []const Source = &.{},
-    pub fn database(self: Account, name: []const u8) !g.Ledger.Binding {
+    pub fn database(self: Account, name: []const u8) !g.DatabaseAccount.Binding {
         for (self.databases) |value| if (std.mem.eql(u8, value.name, name)) return value.binding;
         return error.GatewayDatabaseDenied;
     }
@@ -66,7 +65,7 @@ pub fn account(self: Self, name: []const u8) !usize {
     for (self.accounts, 0..) |value, i| if (value.enabled and std.mem.eql(u8, value.name, name)) return i;
     return error.InvalidAuthentication;
 }
-/// Retained ledger workers may run without admitting any new SQL connections.
+/// Retained database workers may run without admitting any new SQL connections.
 pub fn listening(self: Self) bool {
     return self.wireListening() or (if (self.native) |value| value.socket != null or value.port != null else false);
 }
@@ -119,23 +118,18 @@ pub fn validate(self: Self) !void {
         // on an unencrypted transport. Optional TLS rejects such a login there.
         if (self.mysql_port != null and self.tls_mode == .disabled and value.enabled and value.authentication == .password) return error.InvalidGatewayConfiguration;
         try validateName(value.name);
-        try validateName(value.association);
         try path(value.verifier_file);
         inline for (@typeInfo(KeyFiles).@"struct".field_names) |field| try path(@field(value.keys, field));
-        try value.ledger.validate();
-        if (value.generation == 0 or value.generation > p.max_counter or value.databases.len != value.ledger.bindings.len) return error.InvalidGatewayConfiguration;
+        try value.execution.validate();
+        if (value.generation == 0 or value.generation > p.max_counter or value.databases.len != value.execution.bindings.len) return error.InvalidGatewayConfiguration;
         for (self.accounts[0..i]) |other| {
-            if (std.mem.eql(u8, value.name, other.name) or std.mem.eql(u8, &value.ledger.account, &other.ledger.account)) return error.InvalidGatewayConfiguration;
-            if (value.ledger.realm != other.ledger.realm) continue;
-            if (value.ledger.owner == other.ledger.owner or value.ledger.resource == other.ledger.resource) return error.InvalidGatewayConfiguration;
-            // Separate runtime lanes cannot share any sequenced principal.
-            const a = value.ledger;
-            const b = other.ledger;
-            for ([_]u64{ a.worker, a.ingress, a.control, a.coordinator, a.table_principal }) |principal| for ([_]u64{ b.worker, b.ingress, b.control, b.coordinator, b.table_principal }) |old| if (principal == old) return error.InvalidGatewayConfiguration;
+            if (std.mem.eql(u8, value.name, other.name) or std.mem.eql(u8, &value.execution.account, &other.execution.account)) return error.InvalidGatewayConfiguration;
+            if (value.execution.realm != other.execution.realm) continue;
+            if (value.execution.table_principal == other.execution.table_principal) return error.InvalidGatewayConfiguration;
         }
         for (value.databases, 0..) |database, j| {
             try validateName(database.name);
-            if (!std.meta.eql(database.binding, value.ledger.bindings[j])) return error.InvalidGatewayConfiguration;
+            if (!std.meta.eql(database.binding, value.execution.bindings[j])) return error.InvalidGatewayConfiguration;
             for (value.databases[0..j]) |other| if (std.mem.eql(u8, database.name, other.name)) return error.InvalidGatewayConfiguration;
         }
         if (value.sources.len > 32) return error.InvalidGatewayConfiguration;
@@ -143,7 +137,7 @@ pub fn validate(self: Self) !void {
             try validateName(source.name);
             try path(source.key_file);
             const binding = try value.database(source.database);
-            if (source.connection.realm != value.ledger.realm or source.connection.role != binding.role) return error.InvalidGatewayConfiguration;
+            if (source.connection.realm != value.execution.realm or source.connection.role != binding.role) return error.InvalidGatewayConfiguration;
             if (source.workspace.source.source == .table) {
                 const table = source.workspace.source.source.table;
                 const scope = try table.scope.native();
@@ -158,9 +152,9 @@ pub fn validate(self: Self) !void {
             // A source caller owns a separate durable submission sequence. It
             // cannot alias a Table coordinator, worker, or another source lane.
             for (self.accounts) |other| {
-                if (other.ledger.realm != source.connection.realm) continue;
-                const l = other.ledger;
-                for ([_]u64{ l.worker, l.ingress, l.control, l.coordinator, l.table_principal }) |principal| if (principal == source.connection.principal) return error.InvalidGatewayConfiguration;
+                if (other.execution.realm != source.connection.realm) continue;
+                const l = other.execution;
+                if (l.table_principal == source.connection.principal) return error.InvalidGatewayConfiguration;
                 for (other.sources) |*candidate| if (candidate != &value.sources[j] and candidate.connection.principal == source.connection.principal) return error.InvalidGatewayConfiguration;
             }
         }
@@ -204,8 +198,8 @@ test "credentials bind an explicit revision and account independently of SQL nam
 }
 test "SQL mappings reject shared native sequence owners and mismatched catalogs" {
     const t = std.testing;
-    const binding: g.Ledger.Binding = .{ .resource = 8, .catalog = 1, .owner = 9 };
-    var accounts = [_]Account{.{ .name = "user", .verifier_file = "/private/verifier", .ledger = .{ .realm = 1, .resource = 7, .owner = 3, .worker = 2, .ingress = 4, .control = 5, .coordinator = 10, .table_principal = 6, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 }, .generation = 1, .keys = .{ .worker = "/private/w", .ingress = "/private/i", .coordinator = "/private/c", .table = "/private/t" }, .databases = &.{.{ .name = "data", .binding = binding }} }};
+    const binding: g.DatabaseAccount.Binding = .{ .resource = 8, .catalog = 1, .owner = 9 };
+    var accounts = [_]Account{.{ .name = "user", .verifier_file = "/private/verifier", .execution = .{ .realm = 1, .table_principal = 6, .account = @splat(7), .bindings = &.{binding}, .intent_bytes = 4096, .operation_quota = 100, .byte_quota = 1024 * 1024 }, .generation = 1, .keys = .{ .table = "/private/t" }, .databases = &.{.{ .name = "data", .binding = binding }} }};
     var config: Self = .{ .version = 1, .definition = p.Growth.current_definition, .native_url = "http://127.0.0.1:7700", .certificate_file = "/private/cert", .certificate_key_file = "/private/key", .activation_directory = "/private/activation", .spill_directory = "/private/spill", .postgres_port = 5432, .accounts = &accounts };
     try config.validate();
     try t.expectEqual(@as(usize, 0), try config.account("user"));
@@ -243,9 +237,7 @@ test "SQL mappings reject shared native sequence owners and mismatched catalogs"
     accounts[0].sources = &.{};
     var duplicated = [_]Account{ accounts[0], accounts[0] };
     duplicated[1].name = "different";
-    duplicated[1].ledger.account = @splat(8);
-    duplicated[1].ledger.resource = 11;
-    duplicated[1].ledger.owner = 12;
+    duplicated[1].execution.account = @splat(8);
     config.accounts = &duplicated;
     try t.expectError(error.InvalidGatewayConfiguration, config.validate());
     config.accounts = &accounts;

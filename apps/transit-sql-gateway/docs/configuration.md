@@ -1,7 +1,7 @@
 # Gateway configuration and controls
 
 The executable accepts a private JSON configuration matching
-[`Configuration`](../../../packages/zig/transit-sql/src/Configuration.zig).
+[`Configuration`](../../../packages/zig/transit-sql-service/src/Configuration.zig).
 `version: 1` and the exact native `definition` are mandatory. An incompatible
 configuration or persisted operation rejects before execution. Use generated
 current contracts from the same build; a v1 label alone does not identify a
@@ -12,25 +12,23 @@ compatible build.
 | `native_url` | Signed native HTTP endpoint accessible from the private deployment |
 | `tls_mode` | `disabled`, `optional` or `required` (default); independent of account authentication |
 | `certificate_file`, `certificate_key_file` | PEM server chain and private key; clients verify the chain and hostname |
-| `activation_directory` | Persistent private directory containing exclusive native-generation activation markers |
+| `activation_directory` | Private service directory for account-generation reuse markers and saved configuration reload requests; the Catalog owns the authoritative activation fence and snapshot recovery |
 | `spill_directory` | Private bounded query spill location |
 | `bind_address` | IPv4 listener address; default 127.0.0.1 |
 | `postgres_port`, `mysql_port` | Optional distinct nonzero ports; omit both to run retained-operation recovery without SQL admission |
-| `health_address`, `health_port` | Optional private HTTP readiness listener, separate from SQL ports; address defaults to 127.0.0.1. `/health` requires SQL admission; `/recovery` requires ready ledger workers. |
+| `health_address`, `health_port` | Optional private HTTP readiness listener, separate from SQL ports; address defaults to 127.0.0.1. `/health` requires SQL admission; `/recovery` requires ready database recovery workers. |
 | `drain_ms` | SIGINT/SIGTERM command drain bound, default 30000, maximum 270000 |
 | `request_timeout_ms` | Native request bound, default 5000, maximum 60000 |
 | `limits` | Explicit connection, authentication, statement, portal, byte and time budgets from the wire contract |
 | `settings` | Optional explicit `{url, binding}` for the configuration service; binding contains realm, installation bytes and its registered domain object |
 | `accounts` | 1–32 explicit SQL names, verifier references, native identities and database/catalog mappings |
 
-Each account selects `authentication` (`password` by default, or explicit `trust`)
-and supplies `name`, `verifier_file`, `ledger`, `generation`, optional
-state `association` (default `state`), `enabled` (default true), `keys` and
-`databases`. Setting `enabled` false rejects account selection while keeping its
-retained ledger worker and coordinator available. Key references are
-`worker`, `ingress`, `coordinator` and `table`; key files contain the native seed
-format. Protect configuration, keys, verifier and recovery files with deployment
-file permissions. The operator control key is separate from the running service.
+Each account selects `authentication` (`password` by default, or explicit `trust`
+or local `peer`) and supplies `name`, `verifier_file`, `execution`, `generation`,
+`enabled` (default true), `keys.table` and `databases`. Disabling an account rejects
+new sessions while retaining its database recovery worker. Key files contain the
+native seed format. Protect configuration, keys and verifier files with deployment
+file permissions. Account recovery needs the configured Table identity only.
 
 Trust accounts are admitted only on an IPv4 loopback listener; they accept the
 claimed configured login without a password or OS identity check. Their private
@@ -44,46 +42,37 @@ the same socket; missing or invalid TLS material fails startup without falling
 back. Required TLS rejects plaintext with a protocol error. PostgreSQL SCRAM
 works on both transports. MySQL full password authentication requires TLS and
 rejects before requesting a password on plaintext. Disabled TLS with an enabled
-MySQL password account is invalid configuration. Native ledger recovery remains
+MySQL password account is invalid configuration. Database recovery remains
 independent of all listener authentication and TLS material.
 
-`ledger` defines the realm, private resource, owner process, five distinct
-principals, account fingerprint, admitted catalog bindings and
-durable quotas. The identities are worker, ingress, control, coordinator and Table caller.
-Give the worker execution and private resource write access;
-give each control role its scoped send/read rights. Give the Table caller explicit database/schema/Table grants. Direct Table reads
-and operation evidence use that caller; they require no private catalog-storage
-read grant. Each operation checks the authenticated caller and selected role. Associations and local configuration grant no rights.
-Each database binding includes its catalog resource/owner, schema `namespace`
-and optional selected `role` (the login role when omitted). It must exactly match
-the ledger's immutable ordered binding. Role selection requires current SET
-membership; configuration itself never establishes that eligibility.
-Sequenced principals and private owner/resources cannot be shared across SQL
-accounts.
+`execution` defines the realm, Table principal, stable 32-byte account identity,
+ordered catalog bindings, intent size limit and retained operation/byte/pending
+quotas. Each database mapping includes its catalog resource, schema `namespace`
+and optional selected `role` (the login role when omitted), exactly matching an
+execution binding. Role selection requires current SET membership. Grant the
+Table principal explicit CONNECT, schema and operation rights through the native
+authorization graph. Configuration grants no rights and the service needs no
+private Catalog storage access or Station process ownership.
 
-Provision through the public native/application operations: create the private
-resource and process, assign its state association and scoped grants, establish
-the worker's ownership generation, and grant the Table caller access through the native authorization graph.
-The catalog owner registers stable objects; it does not maintain another grant
-store. Native lifecycle and catalog controls remain their public
-owners; the gateway never acquires an administrator key or provisions implicitly.
+The first accepted account reservation fixes its quotas. Later requests must use
+the same limits; a smaller per-request budget cannot bypass account accounting.
+Pending settlement releases pending capacity, while operation and byte charges
+remain retained. Changing the execution identity or quota profile is not a way
+to migrate existing accepted work.
 
-To initialize a new private ledger, run a separate eligible activation with
-`transit-sql-gateway --initialize /private/sql-gateway.json`, then prepare and
-submit the operator `initialize` control below. This mode runs the ledger worker
-without SQL listeners and exits once every account has committed initialization.
-It waits up to 120 seconds. Establish a fresh native generation before starting
-the normal service. Normal startup requires an initialized ledger and current
-ownership. Reusing an activation marker fails, including after an idle exit.
-Replacement must fence the previous native owner before resuming saved work;
-restarting a container or deleting a marker does not establish authority.
+Startup publishes a strictly increasing `generation` to the Catalog with a
+compare-and-set activation record. Every database request carries that activation
+revision; the Catalog checks it while holding the access boundary. A newer
+activation fences the old service. Exclusive local markers detect accidental
+reuse, but the Catalog record owns authority. There is no separate initialization
+mode or actor provisioning. A failed activation needs a higher generation and the
+same original account and bindings; deleting a marker does not grant authority.
 
-With both SQL ports absent, normal startup runs the same retained ledger workers
-and coordinator without accepting SQL connections. Initialization and this recovery
-mode do not open certificate or private-key files. `/recovery` reports worker
-readiness; `/health` stays unavailable until a SQL listener is configured.
-Keep the original account identities, catalog bindings and current recovery grants.
-Removing exposure does not cancel accepted operations or authorize replay.
+With no SQL listeners, normal startup runs retained-operation and read-pin
+recovery. It does not open listener TLS material. `/recovery` reports database
+worker readiness; `/health` requires an enabled SQL listener. Removing exposure
+does not cancel accepted operations. Retain the original source bindings and
+current recovery grants until their pending operations and cached pins close.
 
 Each session has a bounded allocator. A slow socket retains at most its bounded
 frame/row and stops further acquisition. Handshake, idle, command and write
@@ -117,7 +106,7 @@ The service also admits a fixed I/O runtime before opening listeners. It starts
 `16 + 4A + 8W + 96N + 16H` workers, where `A` is the account count, `W` is
 `limits.connections + 2` when either database-wire listener is enabled (otherwise
 zero), `N` is the number of native TCP/Unix listeners, and `H` is one when health
-inspection is enabled. Initialization without listeners uses only `16 + 4A`.
+inspection is enabled. Recovery without listeners uses only `16 + 4A`.
 This envelope includes protocol tasks, nested request/deadline work and separate
 control/recovery work. Each worker charges 16 KiB of shared task-record capacity
 and the pinned runtime's 16 MiB requested stack; OS guard pages and pthread
@@ -158,7 +147,7 @@ data or grants execution rights. Readiness reflects the most recent account pass
 a pending native request remains bounded by its configured timeout. SIGINT and
 SIGTERM stop SQL admission and allow active commands to finish within `drain_ms`,
 then join connection tasks before account workers. Accepted work remains in the
-ledger for a fresh fenced activation. A completed shutdown is not a rollback or
+Catalog for a fresh fenced activation. A completed shutdown is not a rollback or
 proof that all durable work is terminal.
 
 The [deployment example](../../../examples/sql-wire/README.md) supplies Compose
@@ -166,63 +155,35 @@ and Kubernetes/Substrate placement with persistent activation storage, separate
 spill, verified client TLS and explicit native replacement. Keep SQL and health
 listeners private to their intended clients and operators. Kubernetes readiness
 uses `/health`; liveness uses `/live`. A failed activation must be repaired
-through native ownership and retained operation evidence, not by removing its
+through Catalog activation and retained operation evidence, not by removing its
 activation marker or repeatedly restarting the same generation.
 
 ## Signed operator controls
 
-Use `transit-sql-gateway control /private/sql-control.json ACTION`. The private
-operator configuration contains `version`, `definition`, `native_url`, the same
-`ledger`, `control_key_file`, `table_key_file`, `pending_file` and optional
-`timeout_ms` (default 30000, maximum 270000). The Table key supplies the current subject for direct terminal disclosure.
-Inspection does not dispatch Table writes.
-Dedicate one pending file and exclusive operator owner to each control principal.
+Use `transit-sql-gateway control /private/sql-control.json ACTION`. The profile
+contains `version`, `definition`, `native_url`, the same `execution`,
+`table_key_file` and optional `timeout_ms` (default 30000, maximum 270000).
+All operations use the current Table principal and role.
 
 | Action | Behavior |
 | --- | --- |
-| `list [cursor.json]` | Reads at most eight operation summaries and a next cursor; exposes no stored counts or values |
-| `status OPERATION` | Reads the ledger and freshly authorized original Table outcome; counts require matching terminal evidence |
-| `pending` | Shows the saved control's receipt and processed disposition without sending |
-| `prepare initialize` | Saves the exact private-ledger initialization request |
-| `prepare reconcile OPERATION` | Saves an exact-reconciliation request for existing work |
-| `prepare cancel OPERATION` | Saves qualified cancellation intent; completion still requires original native evidence |
-| `prepare capacity OPERATIONS BYTES PENDING` | Saves an explicit ledger capacity change |
-| `prepare reserve OPERATION BYTES` | Saves an explicit operation reservation increase |
-| `submit` | Submits the saved signed request, or continues observing its known receipt |
-| `credential PASSWORD_FILE VERIFIER_FILE REVISION` | Creates a salted verifier and atomically replaces its private file |
+| `list [AFTER_ID]` | Reads at most eight operation references and an optional next numeric cursor |
+| `status OPERATION` | Reads the original domain outcome with current disclosure authorization |
+| `cancel OPERATION` | Records sticky cancellation intent; the original owner decides the terminal outcome |
+| `credential PASSWORD_FILE VERIFIER_FILE REVISION` | Atomically writes a salted verifier |
 
-Preparation does not send. It atomically saves and syncs the exact signed request
-before returning. An unresolved saved request blocks preparation of a successor.
-`submit` retains unknown outcomes and retries the identical bytes after a lost
-receipt. Processed controls remain recorded; their disposition is distinct from
-the SQL operation's terminal state. The pending file is locked during mutations.
-Inspection never sends or reconciles. A cursor resumes after an operation ID,
-binding the account and a minimum ledger revision. Each page checks current
-authority and reports its own revision; concurrent progress does not invalidate
-traversal. A changed account or backward revision rejects. A listing is not an
-atomic snapshot; phases can change between pages and later appends may require a
-new listing. Retained history has no automatic expiry.
-List/status observations retry a concurrent current-revision read conflict within
-the configured timeout, before printing a result. Terminal inspection batches
-finite intent reads and checks the original Table result under current rights.
-For INSERT, UPDATE and DELETE, that check requires the original action's
-privilege as well as CONNECT and USAGE. Revoking SELECT suppresses row reads;
-it does not suppress an INSERT receipt while INSERT remains authorized. Revoking
-INSERT suppresses that receipt, including its terminal counts, until access is
-restored. The retained outcome itself is unchanged.
-A SQL command can exhaust
-its wait while an admitted operation continues; discover and inspect that
-operation instead of sending the SQL again.
+List and status do not publish recovery work. Pagination is ordered by original
+acceptance LSN; it is not an atomic snapshot. Concurrent progress can change an
+operation between listing and inspection. Retained history has no automatic
+expiry. Terminal mutation counts require CONNECT, USAGE and the original action's
+privilege. Revoking INSERT hides its receipt without undoing an accepted insert.
 
-If the wait ends before the complete intent is sealed, the operation remains
-reserved or uploading. Its received parts remain durable, but the gateway cannot
-reconstruct missing bytes. Upload parts advance after native admission and are
-processed in mailbox order. Accepted parts and a queued seal can still complete
-after the wait ends; an uploading phase alone is not proof of a permanently
-unsent operation. The complete seal and original Table outcome remain required.
-Qualified cancellation can close an unsent operation;
-it does not establish cancellation of a dispatched Table operation. Inspect the
-phase and original outcome before deciding whether to submit new SQL.
+The complete frozen intent is staged before token acceptance. An accepted token
+therefore always identifies recoverable work, never missing SQL upload parts.
+A cancelled or timed-out wait does not prove rejection or rollback. Discover and
+inspect the original operation before deciding whether new SQL is appropriate.
+Cancellation is idempotent and remains visible until the original owner supplies
+its actual terminal outcome.
 
 The credential command reads 1–128 printable ASCII bytes exactly, without
 stripping a newline, uses secure random salt and 65536 PBKDF2 iterations, and
@@ -237,11 +198,10 @@ keys do not belong in command arguments, Git or logs.
 
 Native key rotation preserves the login role and its grants. Replace the key
 reference, generate a verifier for the new epoch, and establish a fresh fenced
-gateway activation. Existing sessions cannot adopt the new epoch. A pending
-Table request retains its original signature and public key. Recovery first
-looks up the exact accepted request using the current credential; if no receipt
-exists it can only submit the original bytes. It never re-signs an uncertain
-request. Policy revocation can prevent further progress or disclosure without
+gateway activation. Existing sessions cannot adopt the new epoch. Database recovery retains the original frozen intent and operation identity.
+It inspects that identity before executing the same intent under current rights.
+Explicit captured source requests retain their original signed bytes and caller
+sequence; their recovery never replaces an uncertain request. Policy revocation can prevent further progress or disclosure without
 erasing the operation or undoing a committed mutation.
 
 ## Settings service binding
@@ -262,10 +222,10 @@ the stricter of the configured command budget and nonzero statement timeout.
 The fixed PostgreSQL/MySQL encoding/autocommit probes retain their requirements.
 
 Preparation authorizes without dispatch; Execute dispatches reload once for that
-result. Each account serializes its private configuration journal under
-`activation_directory`. After a lost reply, the next reload reconciles the saved
-operation using its original generation, caller and selected role. Retained
+result. Each account stores the complete original configuration request in the Catalog
+before dispatch. After a lost reply, recovery reconciles that saved operation
+using its original generation, caller and selected role. Retained
 history requires current inspection rights. Configuration and Table mutation
-journals remain separate, and neither cancellation nor connection loss undoes
+owners remain separate, and neither cancellation nor connection loss undoes
 accepted work. See [settings SQL](../../../docs/handbook/reference/sql/settings.md) and
 the [configuration contract](../../../contracts/CONFIGURATION_V1.md).

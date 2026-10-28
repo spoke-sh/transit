@@ -191,3 +191,49 @@ test "frozen SQL predicate work rejects stale data, late collisions, work exhaus
     try t.expectEqual(.duplicate_key, (try table.perform(collision, access.guard())).rejected.reason);
     try t.expectEqual(.work_limit, (try table.perform(budgeted, access.guard())).rejected.reason);
 }
+
+test "single partition autocommit uses one WAL record and recovers exact INSERT UPDATE DELETE outcomes" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    _ = try table.apply(binding(&table, 1, .create), &.{}, .point, access.guard());
+    const inserted = binding(&table, 2, .insert);
+    const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .signed = 0 } } } };
+    const changes = [_]P.Change{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(inserted.identity, 0), .cells = &cells }, .expect = .absent } }};
+    const insert: s.TableDmlIntent.Request = .{ .binding = inserted, .interpretation = table.root.declared(), .changes = &changes, .ingestion = .bulk };
+    const before = table.root.next_lsn;
+    table.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, table.commit(insert, access.guard()));
+    table.lose_reply = false;
+    try table.recover();
+    try t.expectEqual(before + 1, table.root.next_lsn);
+    try t.expect(table.root.operations == null and table.root.pending == null);
+    const original = (try table.operationState(inserted, access.guard())).committed;
+    try t.expectEqualDeep(original, (try table.commit(insert, access.guard())).committed);
+    try t.expectEqual(before + 1, table.root.next_lsn);
+    for ([_][]const u8{ "UPDATE events SET value = 9 WHERE id = 1", "UPDATE events SET value = 9 WHERE id = 1", "DELETE FROM events WHERE id = 1" }, 0..) |text, index| {
+        var compiled = try f.TableDml.compile(t.allocator, text, "events", schema, null);
+        defer compiled.deinit();
+        var exact = binding(&table, 3 + index, if (index == 2) .delete else .update);
+        exact.intent = try compiled.plan.fingerprint(t.allocator);
+        const request: s.TableDmlIntent.Request = .{ .binding = exact, .interpretation = table.root.declared(), .changes = &.{}, .ingestion = .bulk, .statement = compiled.plan };
+        const at = table.root.next_lsn;
+        table.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, table.commit(request, access.guard()));
+        table.lose_reply = false;
+        try table.recover();
+        const accepted = (try table.operationState(exact, access.guard())).committed;
+        try t.expectEqual(at + 1, table.root.next_lsn);
+        try t.expectEqual(@as(u64, 1), accepted.outcome.matched);
+        try t.expectEqual(@as(u64, if (index == 1) 0 else 1), accepted.outcome.affected);
+        try t.expect(table.root.operations == null and table.root.pending == null);
+        try t.expectEqualDeep(accepted, (try table.commit(request, access.guard())).committed);
+        try t.expectEqual(at + 1, table.root.next_lsn);
+    }
+}

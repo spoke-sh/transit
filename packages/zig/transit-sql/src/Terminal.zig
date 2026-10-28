@@ -1,4 +1,4 @@
-//! Compact projection of the direct owner's terminal evidence. A SQL ledger
+//! Compact projection of the direct owner's terminal evidence. A SQL progress
 //! record grants no disclosure rights: callers reobserve the original binding.
 const std = @import("std");
 const g = @import("root.zig");
@@ -41,6 +41,7 @@ pub fn validate(self: Self) !void {
 }
 pub fn fromReference(reference: g.IntentReference.Reference, result: w.Result) !?Self {
     try reference.validate();
+    if (reference == .external) return error.ExternalOperationOwnerRequired;
     if (reference == .table) return fromResult(reference.table.binding, result);
     if (reference == .namespace_change) {
         if (result != .namespace_operation) return error.InvalidGatewayTerminal;
@@ -148,7 +149,7 @@ pub fn matches(self: Self, binding: d.Binding) !void {
     const expected = try base(binding);
     if (self.kind != expected.kind or !std.mem.eql(u8, &self.identity, &expected.identity) or self.resource != expected.resource or self.principal != expected.principal or self.operation != expected.operation or self.object != expected.object) return error.GatewayIdentityConflict;
 }
-pub fn summary(self: Self) g.LedgerRecords.Summary {
+pub fn summary(self: Self) g.OperationRecords.Summary {
     return switch (self.state) {
         .applied => .applied,
         .rejected => .rejected,

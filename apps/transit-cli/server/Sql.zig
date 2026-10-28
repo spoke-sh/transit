@@ -1,6 +1,6 @@
-//! Local SQL placement over public native enrollment, ledger and authorization owners.
+//! Local SQL placement over public native enrollment, Catalog recovery and authorization owners.
 const std = @import("std");
-const g = @import("transit_sql");
+const g = @import("transit_sql_service");
 const q = @import("transit_query");
 const p = q.protocol;
 const E = @import("SqlEnrollment.zig");
@@ -23,8 +23,6 @@ setup_arena: std.heap.ArenaAllocator,
 executable: []const u8,
 meta: E.Meta,
 entries: std.ArrayList(Entry) = .empty,
-bootstrap: Process = .{},
-bootstrapping: ?usize = null,
 service: Process = .{},
 service_count: usize = 0,
 service_started: ?std.Io.Timestamp = null,
@@ -109,12 +107,25 @@ fn prepare(self: *Self) !void {
             if (record.bootstrap_owner != value.bootstrap_owner or !std.mem.eql(u8, record.role, value.role) or !std.mem.eql(u8, record.database, value.database) or !std.mem.eql(u8, record.schema, value.schema)) return error.GatewayConfigurationChanged;
         }
         if (desired == null or !desired.?.enabled) {
-            if (!record.initialized and record.initialization == null) continue;
+            if (!record.initialized) continue;
             if (record.initialized) {
-                const ledger: g.Ledger = .{ .configuration = try record.ledger(page.allocator(), installation.config.realm) };
-                var reader: q.wire.ResourceReader = .{ .wire = installation.wire, .realm = installation.config.realm, .principal = 0, .key = installation.root };
-                var source = try reader.open(ledger.configuration.resource);
-                if ((try ledger.head(&source)).unsettled == 0) continue;
+                var key = try q.wire.readKey(page.allocator(), installation.init.io, try E.accountPath(installation, page.allocator(), record.name, "table.seed"));
+                defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+                var client: g.Client = .{ .transport = installation.wire, .execution = .{ .configuration = try record.execution(page.allocator(), installation.config.realm) }, .principal = record.principals.table, .key = key };
+                var source = try client.source();
+                if ((try g.SessionOperations.list(client.execution, &source, 0, true)).entries[0] == null) {
+                    var cache = try g.ReadCache.init(page.allocator(), installation.init.io, directory, .{ .realm = installation.config.realm, .account = record.identity }, record.generation + 1);
+                    defer cache.deinit();
+                    var retained = false;
+                    for (client.execution.configuration.bindings) |binding| {
+                        for (0..g.ReadCache.capacity) |slot| if (try cache.inspect(client.table(binding), slot) != null) {
+                            retained = true;
+                            break;
+                        };
+                        if (retained) break;
+                    }
+                    if (!retained) continue;
+                }
             }
         }
         if (self.entries.items.len == g.Limits.max_accounts) return error.GatewayConnectionCapacity;
@@ -138,7 +149,6 @@ fn configuredAccount(self: *Self, name: []const u8) ?Settings.Account {
 }
 pub fn stop(self: *Self) void {
     self.service.stopWithTimeout(self.installation.init.io, self.installation.config.sql.drain_ms + 1000);
-    self.bootstrap.stop(self.installation.init.io);
 }
 pub fn destroy(self: *Self) void {
     self.stop();
@@ -149,7 +159,7 @@ fn runtimeAccount(self: *Self, allocator: std.mem.Allocator, entry: Entry) !g.Co
     var keys: g.Configuration.KeyFiles = undefined;
     inline for (@typeInfo(g.Configuration.KeyFiles).@"struct".field_names) |name| @field(keys, name) = try E.accountPath(self.installation, allocator, record.name, name ++ ".seed");
     const databases = try allocator.dupe(g.Configuration.Database, &.{.{ .name = record.database, .binding = record.binding }});
-    return .{ .name = record.name, .authentication = if (entry.desired) |desired| desired.authentication else .password, .peer_uid = if (entry.desired != null and entry.desired.?.authentication == .peer) try Discovery.uid() else null, .enabled = entry.desired != null and entry.desired.?.enabled, .verifier_file = try E.accountPath(self.installation, allocator, record.name, "verifier.json"), .ledger = try record.ledger(allocator, self.installation.config.realm), .generation = record.journal.generation, .keys = keys, .databases = databases, .sources = try self.sources(allocator, entry) };
+    return .{ .name = record.name, .authentication = if (entry.desired) |desired| desired.authentication else .password, .peer_uid = if (entry.desired != null and entry.desired.?.authentication == .peer) try Discovery.uid() else null, .enabled = entry.desired != null and entry.desired.?.enabled, .verifier_file = try E.accountPath(self.installation, allocator, record.name, "verifier.json"), .execution = try record.execution(allocator, self.installation.config.realm), .generation = record.generation, .keys = keys, .databases = databases, .sources = try self.sources(allocator, entry) };
 }
 fn sources(self: *Self, allocator: std.mem.Allocator, entry: Entry) ![]const g.Configuration.Source {
     const desired = entry.desired orelse return &.{};
@@ -175,58 +185,26 @@ fn saveAccount(self: *Self, allocator: std.mem.Allocator, record: *E.Account) !v
     try Journal.save(self.installation, try E.accountPath(self.installation, allocator, record.name, "account.json"), record);
 }
 fn activate(self: *Self, allocator: std.mem.Allocator, record: *E.Account) !void {
-    const file = try E.accountPath(self.installation, allocator, record.name, "account.json");
-    try record.journal.activate(self.installation, file, record, record.journal.receipts[0].?, record.principals.worker);
+    record.generation = try std.math.add(u64, record.generation, 1);
+    try self.saveAccount(allocator, record);
 }
 fn beginInitialization(self: *Self, index: usize, allocator: std.mem.Allocator) !void {
-    const installation = self.installation;
     const entry = &self.entries.items[index];
-    try self.activate(allocator, &entry.record);
-    const accounts = [_]g.Configuration.Account{try self.runtimeAccount(allocator, entry.*)};
-    const config = try self.configuration(allocator, &accounts, false);
-    const file = try E.accountPath(installation, allocator, entry.record.name, "initialize.json");
-    try Files.json(installation.init.io, allocator, file, config);
-    var control_key = try q.wire.readKey(allocator, installation.init.io, try E.accountPath(installation, allocator, entry.record.name, "control.seed"));
-    defer std.crypto.secureZero(u8, std.mem.asBytes(&control_key));
-    var client: g.Client = .{ .transport = installation.wire, .ledger = .{ .configuration = config.accounts[0].ledger }, .principal = entry.record.principals.control, .key = control_key };
-    if (entry.record.initialization == null) {
-        const prepared = try client.prepare(.{ .initialize = {} });
-        entry.record.initialization = .{ .prepared = prepared };
-        try self.saveAccount(allocator, &entry.record);
-    }
-    try self.bootstrap.start(installation.init, self.executable, try E.path(installation, allocator, "initialize.launch.json"), .{ .argv = try installation.config.command(allocator, self.executable, .sql_gateway, &.{ "--initialize", file }), .environment = &installation.config.logging.environment() }, false);
-    self.bootstrapping = index;
-    if (entry.record.initialization.?.receipt == null) {
-        const receipt = try client.submit(entry.record.initialization.?.prepared);
-        entry.record.initialization.?.receipt = receipt;
-        try self.saveAccount(allocator, &entry.record);
-    }
-    self.status = .initializing;
-}
-fn pollInitialization(self: *Self, allocator: std.mem.Allocator) !void {
-    const entry = &self.entries.items[self.bootstrapping orelse return];
-    const installation = self.installation;
-    var key = try q.wire.readKey(allocator, installation.init.io, try E.accountPath(installation, allocator, entry.record.name, "control.seed"));
+    var key = try q.wire.readKey(allocator, self.installation.init.io, try E.accountPath(self.installation, allocator, entry.record.name, "table.seed"));
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
-    var client: g.Client = .{ .transport = installation.wire, .ledger = .{ .configuration = try entry.record.ledger(allocator, installation.config.realm) }, .principal = entry.record.principals.control, .key = key };
-    if (entry.record.initialization == null) return error.UnresolvedProvisioning;
-    if (entry.record.initialization.?.receipt == null) {
-        const receipt = try client.submit(entry.record.initialization.?.prepared);
-        entry.record.initialization.?.receipt = receipt;
-        try self.saveAccount(allocator, &entry.record);
-    }
-    const pending = entry.record.initialization.?;
-    const progress = try client.progress(pending.prepared, pending.receipt orelse return error.UnresolvedProvisioning);
-    if (progress == .pending) {
-        if (!self.bootstrap.alive()) return error.GatewayOwnerUnavailable;
-        return;
-    }
-    if (progress.processed != null) return error.GatewayControlRejected;
+    var client: g.Client = .{ .transport = self.installation.wire, .execution = .{ .configuration = try entry.record.execution(allocator, self.installation.config.realm) }, .principal = entry.record.principals.table, .key = key };
+    _ = client.table(entry.record.binding).require(.{ .namespace = entry.record.binding.namespace, .target = null, .access = .schema }) catch |err| {
+        // Credential enrollment and database access are separate publications.
+        // An operator may grant CONNECT/USAGE after binding the credential;
+        // keep refreshing proposals for every account while that grant is absent.
+        // Denial never authorizes initialization or consumes the service's
+        // startup-failure budget.
+        if (err == error.AccessDenied) return;
+        return err;
+    };
     entry.record.initialized = true;
     try self.saveAccount(allocator, &entry.record);
-    self.bootstrap.stop(installation.init.io);
-    self.bootstrapping = null;
-    try E.controlProfile(installation, allocator, entry.record);
+    try E.controlProfile(self.installation, allocator, entry.record);
 }
 fn startService(self: *Self, allocator: std.mem.Allocator) !void {
     const installation = self.installation;
@@ -273,7 +251,6 @@ pub fn tick(self: *Self) !void {
         // SQL-specific failures do not take away the core administration path.
         // No retry here recreates a credential, grant or accepted operation.
         self.stop();
-        self.bootstrapping = null;
         self.service_count = 0;
         self.status = .unavailable;
         self.last_error = if (self.installation.wire.last_rejection) |cause| @tagName(cause) else @errorName(err);
@@ -305,12 +282,11 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
     }
     for (self.entries.items) |*entry| try entry.record.journal.flush(self.installation, try E.accountPath(self.installation, allocator, entry.record.name, "account.json"), &entry.record);
     try E.catalogAccess(self.installation, allocator);
-    try self.pollInitialization(allocator);
     for (self.entries.items, 0..) |*entry, index| {
         if (entry.desired) |desired_config| {
             entry.state = if (desired_config.enabled) try E.enrollment(self.installation, allocator, &entry.record, desired_config) else .unavailable;
         } else entry.state = .unavailable;
-        if (!entry.record.initialized and self.bootstrapping == null and (entry.state == .bound or entry.record.initialization != null)) try self.beginInitialization(index, allocator);
+        if (!entry.record.initialized and entry.state == .bound) try self.beginInitialization(index, allocator);
     }
     var initialized: usize = 0;
     for (self.entries.items) |entry| if (entry.record.initialized) {
@@ -336,7 +312,7 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
 pub fn report(self: *Self, allocator: std.mem.Allocator) !Report {
     return .{ .state = @tagName(self.status), .message = if (self.trust_error != null) "SQL TLS setup failed; inspect tls_error" else switch (self.status) {
         .awaiting_authorization => "SQL awaits explicit role/credential enrollment; see accounts in status_file",
-        .initializing => "Initializing the SQL account ledger",
+        .initializing => "Preparing SQL database access",
         .starting => "Starting configured SQL listeners",
         .accepting => "SQL listeners are accepting connections",
         .recovery => "Retained SQL workers are running without listeners",

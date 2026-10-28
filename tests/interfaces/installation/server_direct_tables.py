@@ -35,7 +35,7 @@ def signed_direct(fixture, record, action):
     identity = post(port, '/v1/query', native(key, record['realm'], 10,
         dict(authorization=dict(role=None, kind=dict(identity={})))))['body']['authorization']['body']['identity']
     body = dict(definition=record['definition'], connection=connection, nonce=[71]*16,
-                action=action, delegation=None, closure=None, borrow=None)
+                action=action, delegation=None, closure=None, borrow=None, lease=None)
     context = hashlib.sha256(b'transit.table.direct.request.v1\0' + compact(body)).digest()
     claim = dict(definition=record['definition'], realm=record['realm'], principal=10,
                  credential_epoch=identity['credential_epoch'], role=None,
@@ -212,7 +212,10 @@ def run(cli, node, host, board, gateway):
                     diagnostic = completion['diagnostic']
                     assert diagnostic['code'] == 'schema.drop_restricted' and diagnostic['evidence'] == 'domain_status', diagnostic
                     assert 'dependency' in diagnostic['message'], diagnostic
-                    assert diagnostic['identity']['id'] == completion['operation']['id'], completion
+                    progress = fixture.sql_progress(completion['operation'])
+                    accepted = progress['operation']['receipt']['binding']['intent']['namespace_change']['binding']
+                    assert int(diagnostic['identity']['id']) == accepted['operation'], completion
+                    assert progress['terminal']['operation'] == accepted['operation'], progress
                 finally:
                     peer.close()
             except subprocess.TimeoutExpired as error:

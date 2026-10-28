@@ -29,7 +29,7 @@ def run(postgres,mysql_options,controls,inventory):
         names = 'id,label,payload,'+','.join(f'b{i}' for i in range(8))
         statement = 'INSERT INTO wire_large ('+names+') VALUES ('+','.join(['%s']*11)+')'
         started = time.monotonic()
-        existing = {entry['operation'] for entry in inventory()}
+        existing = {entry['id'] for entry in inventory()}
         print(json.dumps(dict(profile='database_wire_large_row',phase='begin',variable_bytes=10*4096)),flush=True)
         wire_completion = True
         try:
@@ -39,20 +39,20 @@ def run(postgres,mysql_options,controls,inventory):
             print(json.dumps(dict(profile='database_wire_large_row',phase='wait_ended',seconds=round(time.monotonic()-started,3))),flush=True)
     # A socket deadline does not roll back accepted work. Discover the one
     # original operation even when no handle/reply reached the SQL client.
-    added = [entry for entry in inventory() if entry['operation'] not in existing]
+    added = [entry for entry in inventory() if entry['id'] not in existing]
     assert len(added) == 1, added
-    operation = added[0]['operation']
-    # This bounds observation of the original durable operation independently
-    # of the 270-second SQL wait. The original 30-minute observation expired
-    # while the role-checked 40 KiB upload was still advancing. This one-hour
-    # observer budget does not extend the command or resend SQL.
-    deadline = started+3600
+    operation = added[0]['id']
+    # Settlement observes the original Catalog identity after the client wait.
+    # Its separate bounded deadline neither extends that wait nor resends SQL.
+    deadline = time.monotonic()+270
     next_report = 0
     while True:
         status = controls('status',operation)
-        assert not status['operation']['blocked'], status
+        assert status['operation']['receipt']['position']['next_lsn'] == operation, status
         if status['terminal'] is not None:
             terminal = status['terminal']
+            binding = status['operation']['receipt']['binding']['intent']['table']['binding']
+            assert terminal['operation'] == binding['identity']['operation'], status
             assert terminal['state'] == 'applied' and terminal['matched'] == terminal['changed'] == 1, status
             break
         if time.monotonic() >= next_report:

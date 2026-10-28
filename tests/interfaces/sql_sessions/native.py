@@ -301,10 +301,6 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
             orphan = Client(root, port).open(name)
             held = orphan.concurrent_read('SELECT value FROM items')['batch']
             assert held['rows'] and not held['complete'] and held['observation']['data']['source']['kind'] == 'table'
-            pins = [path for path in root.glob('read-pins-*/*.pin')
-                    if json.loads(path.read_text())['table']['connection']['principal'] == configured['connection']['principal']]
-            assert len(pins) == 1, pins
-            (root/'orphaned-source-pin.json').write_bytes(pins[0].read_bytes())
             assert not source_pin()['released']
             # Closing transport does not close an explicit native session.
             # Physical gateway replacement must settle this exact original pin.
@@ -447,9 +443,14 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
             if result.returncode == 0:
                 assert '"complete_coverage":true' in result.stdout, result.stdout
                 return result.stdout
-            # As above, only an explicit capacity rejection before any output
-            # permits this fixture to submit another independent read.
-            assert not result.stdout and 'AuthorityUnavailable (53000)' in result.stderr and time.monotonic() < deadline, (result.stdout, result.stderr)
+            # A refusal before result disclosure can surface at session
+            # admission or as the typed query transport diagnostic. Repeat
+            # only this fresh read, never splice a disclosed row prefix.
+            unavailable = 'AuthorityUnavailable (53000)' in result.stderr or (
+                'Code: query.transport_unavailable.' in result.stderr and
+                'Cause: AuthorityUnavailable.' in result.stderr and
+                'Rows already emitted: 0' in result.stderr)
+            assert not result.stdout and unavailable and time.monotonic() < deadline, (result.stdout, result.stderr)
             time.sleep(.02)
     with ThreadPoolExecutor(max_workers=2) as pool:
         list(pool.map(console_read, range(2)))

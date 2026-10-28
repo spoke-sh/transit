@@ -39,35 +39,30 @@ def run(cli, node, host, board, gateway):
         fixture.config['sql'] = dict(native={'local': False}, postgres={'port': free_port()}, health_port=free_port(),
             drain_ms=1000, accounts=[dict(name='owner', role='local_owner', password_file=str(password))])
         fixture.path.write_text(json.dumps(fixture.config))
-        arm(fixture, 'create_resource', 'sql-resource', principal=0)
-        fixture.start()
-        wait_file(fixture.root / 'dropped-sql-resource.json', timeout=180)
-        path = fixture.installation / 'sql/accounts/owner/account.json'
-        frozen = json.loads(path.read_text())
-        assert frozen['journal']['pending']['signed']['request']['command'].get('create_resource')
-        kill()
-        (fixture.root / 'release-sql-resource').touch()
         fixture.start(); fixture.ready(timeout=300)
         wait_status(fixture, lambda s: account(s, 'owner')['state'] == 'awaiting_binding')
-        wait_file(fixture.root / 'retried-sql-resource')
+        path = fixture.installation / 'sql/accounts/owner/account.json'
+        frozen = json.loads(path.read_text())
+        fixture.stop(); fixture.start(); fixture.ready(timeout=300)
+        wait_status(fixture, lambda s: account(s, 'owner')['state'] == 'awaiting_binding')
         recovered = json.loads(path.read_text())
         assert recovered['identity'] == frozen['identity'] and recovered['principals'] == frozen['principals']
-        assert recovered['journal']['receipts'][0] == frozen['journal']['receipts'][0]
-        assert recovered['journal']['pending'] is None
-        arm(fixture, 'send', 'sql-initialize', principal=recovered['principals']['control'])
+        assert set(recovered['principals']) == {'table'}
+        (fixture.root / 'drop-table-next').write_text(json.dumps(dict(label='sql-activation', principal=recovered['principals']['table'], format=0x53514131)))
         apply(fixture, fixture.installation / 'sql/accounts/owner/bind-credential.json', 'binding')
-        wait_file(fixture.root / 'dropped-sql-initialize.json', timeout=120)
+        wait_file(fixture.root / 'dropped-sql-activation.json', timeout=120)
+        accepted = json.loads((fixture.root / 'dropped-sql-activation.json').read_text())
+        receipt = json.loads(bytes.fromhex(accepted['receipt']))['result']['client_progress']['state']
         frozen_init = json.loads(path.read_text())
-        assert frozen_init['initialization'] is not None and frozen_init['initialization']['receipt'] is None
         kill()
-        (fixture.root / 'release-sql-initialize').touch()
+        (fixture.root / 'release-sql-activation').touch()
         fixture.start(); fixture.ready(timeout=300)
         wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
-        wait_file(fixture.root / 'retried-sql-initialize')
         retained = json.loads(path.read_text())
-        assert retained['initialization']['prepared'] == frozen_init['initialization']['prepared']
-        assert retained['initialized'] and retained['journal']['generation'] > frozen_init['journal']['generation']
-        print('Local SQL: accepted root allocation and initialize reply loss recovered exact saved identities after manager SIGKILL.', flush=True)
+        assert retained['identity'] == frozen['identity'] and retained['principals'] == frozen['principals']
+        assert retained['initialized'] and retained['generation'] > frozen_init['generation']
+        assert receipt['record']['format'] == 0x53514131
+        print('Local SQL: Catalog activation reply loss preserves account identity and fences the original generation after manager SIGKILL.', flush=True)
 
         # A foreign process owns the configured port. The shared preflight
         # rejects before starting children or changing the enrolled identity.
@@ -85,26 +80,27 @@ def run(cli, node, host, board, gateway):
         assert json.loads(path.read_text())['identity'] == retained['identity']
         print('Local SQL: occupied port rejects in preflight without enrollment changes; restart succeeds after release.', flush=True)
 
-        # Disable the worker using public authorization. A subsequent root own
+        # Disable the database caller using public authorization. Replacement
         # must reject without restoring its credential or blocking core access.
         control = json.loads((fixture.installation / 'sql/accounts/owner/control.json').read_text())
         worker_profile = fixture.root / 'worker-auth.json'
         worker_profile.write_text(json.dumps(dict(version=1, url=control['native_url'],
-            seed_file=str(fixture.installation / 'sql/accounts/owner/worker.seed'),
-            connection=dict(definition=control['definition'], realm=control['ledger']['realm'], principal=control['ledger']['worker']))))
+            seed_file=str(fixture.installation / 'sql/accounts/owner/table.seed'),
+            connection=dict(definition=control['definition'], realm=control['execution']['realm'], principal=control['execution']['table_principal']))))
         observed = json.loads(call([operations(), 'auth', 'read', '--config', worker_profile, '--file', query], retry_observation=True))['observation']['body']['authorization']
         change = fixture.root / 'disable-worker.json'
         change.write_text(json.dumps(dict(expected_revision=observed['revision'], action=dict(disable_credential=dict(
-            principal=control['ledger']['worker'], expected_epoch=observed['body']['identity']['credential_epoch'])))))
+            principal=control['execution']['table_principal'], expected_epoch=observed['body']['identity']['credential_epoch'])))))
         apply(fixture, change, 'disable-worker')
         fixture.stop()
         fixture.start(); fixture.ready(timeout=300)
         status = wait_status(fixture, lambda s: s['service']['state'] == 'unavailable')
         assert status['service']['postgres_port'] is None
         denied = json.loads(path.read_text())['journal']
-        assert denied['pending'] is None and denied['rejected'] is not None
+        assert denied['pending'] is None
+        assert json.loads(path.read_text())['principals'] == retained['principals']
         call([operations(), 'auth', 'read', '--config', fixture.installation / 'sql/authorization.yaml', '--file', query], retry_observation=True)
-        print('Local SQL: revoked worker remains revoked; rejected ownership releases the root sequence and core administration stays available.', flush=True)
+        print('Local SQL: revoked database caller remains revoked; no replacement credential is created and core administration stays available.', flush=True)
         success = True
     finally:
         fixture.cleanup()

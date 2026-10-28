@@ -9,7 +9,7 @@ const Self = @This();
 allocator: std.mem.Allocator,
 io: std.Io,
 configuration: *const g.Configuration,
-runtimes: []const *g.AccountRuntime,
+runtimes: []const *g.DatabaseRuntime,
 instance: api.Instance,
 mutex: std.Io.Mutex = .init,
 slots: []Slot,
@@ -78,7 +78,7 @@ pub const Slot = struct {
         std.crypto.secureZero(u8, &self.id);
     }
 };
-pub fn init(allocator: std.mem.Allocator, io: std.Io, configuration: *const g.Configuration, runtimes: []const *g.AccountRuntime, instance: api.Instance) !Self {
+pub fn init(allocator: std.mem.Allocator, io: std.Io, configuration: *const g.Configuration, runtimes: []const *g.DatabaseRuntime, instance: api.Instance) !Self {
     const slots = try allocator.alloc(Slot, configuration.limits.connections);
     errdefer allocator.free(slots);
     var initialized: usize = 0;
@@ -100,7 +100,7 @@ pub fn deinit(self: *Self) void {
     self.recovery_reserve.deinit();
 }
 /// Accounted backing remains resident-capacity admission even when no session
-/// is open. This excludes AccountRuntime/source/authority and listener reserves.
+/// is open. This excludes DatabaseRuntime/source/authority and listener reserves.
 pub fn reservedBytes(self: *const Self) usize {
     var bytes = self.slots.len * @sizeOf(Slot) + self.recovery_reserve.buffer.len;
     for (self.slots) |slot| bytes += slot.reserve.buffer.len;
@@ -119,7 +119,7 @@ fn locate(self: *Self, id: api.Id) !*Slot {
     return error.SqlSessionExpired;
 }
 /// Returns a locked slot, including for a wire connection. All adapters consume
-/// the same total/per-account admission budget and the same AccountRuntime.
+/// the same total/per-account admission budget and the same DatabaseRuntime.
 pub fn create(self: *Self, account: usize, credential: g.Configuration.Credential, database: []const u8, dialect: f.Sql.Dialect, native: bool) !*Slot {
     self.sweep();
     try self.mutex.lock(self.io);
@@ -273,7 +273,7 @@ fn opened(self: *Self, allocator: std.mem.Allocator, account: usize, credential:
     defer slot.mutex.unlock(self.io);
     errdefer self.remove(slot);
     try slot.host.?.selectSource(source);
-    return self.response(allocator, .{ .opened = .{ .session = slot.id, .account = self.configuration.accounts[account].ledger.account, .database = slot.host.?.database, .proof = proof } });
+    return self.response(allocator, .{ .opened = .{ .session = slot.id, .account = self.configuration.accounts[account].execution.account, .database = slot.host.?.database, .proof = proof } });
 }
 fn open(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api.Action, "open"), peer: Peer) ![]align(api.ResultFrame.alignment) u8 {
     self.sweep();
@@ -374,7 +374,7 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
                 const description = try host.fresh(g.query.UnifiedClient.describe, .{ &selected.client, selected.definition });
                 try sources.append(allocator, .{ .name = configured.name, .sql_name = configured.workspace.name, .kind = std.meta.stringToEnum(@FieldType(std.meta.Elem(@FieldType(T, "sources")), "kind"), @tagName(selected.definition.source)).?, .resource = selected.definition.resource, .revision = description.resource_revision, .contract = try selected.definition.fingerprint() });
             }
-            return .{ .context = .{ .account = host.account.ledger.account, .database = host.database, .source = host.sourceName(), .sources = sources.items } };
+            return .{ .context = .{ .account = host.account.execution.account, .database = host.database, .source = host.sourceName(), .sources = sources.items } };
         },
         .close => unreachable,
         .reset => {
@@ -413,7 +413,7 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
         .execute => |value| return self.execute(allocator, slot, value),
         .result => |value| {
             if (slot.cursor != null) return error.SqlResultActive;
-            if (value.kind != .captured or !std.mem.eql(u8, &value.account, &host.account.ledger.account)) return error.GatewayDenied;
+            if (value.kind != .captured or !std.mem.eql(u8, &value.account, &host.account.execution.account)) return error.GatewayDenied;
             const prepared = try host.allocator.create(g.Session.Prepared);
             var owned = true;
             errdefer if (owned) host.allocator.destroy(prepared);
@@ -465,7 +465,7 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
     slot.acceptance_possible = false;
 
     if (slot.cursor != null) return error.SqlResultActive;
-    const digest = if (input.token != null) try api.fingerprint(allocator, self.instance, host.account.ledger.account, host.database, host.sourceName(), input) else null;
+    const digest = if (input.token != null) try api.fingerprint(allocator, self.instance, host.account.execution.account, host.database, host.sourceName(), input) else null;
     if (input.token) |token| {
         // A reused token may already have accepted work even when observation
         // fails. A successful absence check precedes all new preparation.
@@ -511,7 +511,7 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
             const token = input.token orelse return error.SqlAdmissionTokenRequired;
             slot.acceptance_possible = true;
             const item = try host.runtime.admit(host.allocator, &host.observer, &host.table, &prepared.native, values, token, digest.?, host.deadline, &host.operation);
-            return .{ .operation = try host.fresh(g.AccountRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, item.id }) };
+            return .{ .operation = try host.fresh(g.DatabaseRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, item.id }) };
         }
         const result = try host.write(prepared, values);
         try host.validate(prepared);
@@ -642,7 +642,7 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
     }
     const reference: g.SessionOperations.Reference = switch (target) {
         .operation => |value| blk: {
-            if (!std.mem.eql(u8, &value.account, &host.account.ledger.account)) return error.GatewayDenied;
+            if (!std.mem.eql(u8, &value.account, &host.account.execution.account)) return error.GatewayDenied;
             const ref = try host.fresh(operationReference, .{ host, value.id });
             if (!std.mem.eql(u8, @tagName(value.kind), @tagName(ref.kind))) return error.InvalidSqlOperationReference;
             break :blk ref;
@@ -659,16 +659,16 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
         return self.response(allocator, .{ .operation = if (input.action == .cancel) try g.CapturedOperations.cancel(host, reference.id) else if (input.action == .@"resume") try g.CapturedOperations.resumeOperation(host, reference.id) else try g.CapturedOperations.status(host, reference.id) });
     }
     _ = try operationStatus(host, reference);
-    if (input.action == .cancel) try runtime.control(.{ .session_cancel = reference.id }, host.deadline);
-    if (input.action == .@"resume") try runtime.control(.{ .session_resume = reference.id }, host.deadline);
+    if (input.action == .cancel) try host.fresh(g.DatabaseRuntime.cancel, .{ runtime, &host.observer, reference.id });
+    if (input.action == .@"resume") try runtime.resumeOperation(&host.observer, reference.id);
     return self.response(allocator, .{ .operation = try operationStatus(host, reference) });
 }
 fn selectOperation(host: *g.Session, ref: g.SessionOperations.Reference) !void {
     var reader = try host.observer.source();
-    const binding: g.Ledger.Binding = if (ref.kind == .table) blk: {
-        const item = try host.runtime.ledger.operation(&reader, ref.id);
+    const binding: g.DatabaseAccount.Binding = if (ref.kind == .table) blk: {
+        const item = try host.runtime.execution.operation(&reader, ref.id);
         break :blk .{ .resource = item.resource, .catalog = item.catalog, .owner = item.owner, .namespace = item.namespace, .role = item.selectedRole() };
-    } else (try g.SessionOperations.external(host.runtime.ledger, &reader, ref.id)).binding();
+    } else (try g.SessionOperations.external(host.runtime.execution, &reader, ref.id)).binding();
     const database = for (host.account.databases) |database| {
         if (std.meta.eql(database.binding, binding)) break database.name;
     } else return error.GatewayDatabaseDenied;
@@ -677,15 +677,15 @@ fn selectOperation(host: *g.Session, ref: g.SessionOperations.Reference) !void {
 }
 fn operationReference(host: *g.Session, id: u64) !g.SessionOperations.Reference {
     var source = try host.observer.source();
-    return g.SessionOperations.reference(host.runtime.ledger, &source, id);
+    return g.SessionOperations.reference(host.runtime.execution, &source, id);
 }
 fn operationPage(host: *g.Session, after: u64) !g.SessionOperations.Page {
     var source = try host.observer.source();
-    return g.SessionOperations.list(host.runtime.ledger, &source, after, false);
+    return g.SessionOperations.list(host.runtime.execution, &source, after, false);
 }
 fn operationStatus(host: *g.Session, ref: g.SessionOperations.Reference) !api.Operation {
     return switch (ref.kind) {
-        .table => try host.fresh(g.AccountRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, ref.id }),
+        .table => try host.fresh(g.DatabaseRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, ref.id }),
         .configuration => try g.ConfigurationOperations.status(host, ref.id),
         .captured => try g.CapturedOperations.status(host, ref.id),
     };
@@ -703,18 +703,19 @@ pub fn recover(self: *Self) !void {
     var memory: g.query.QueryMemory = .{ .parent = self.recovery_reserve.allocator(), .limit = self.configuration.limits.session_bytes };
     const a = memory.allocator();
     const account = &self.configuration.accounts[index];
-    var wire = g.station.client.Client.init(a, self.io, self.configuration.native_url);
+    var wire = g.wire.Client.init(a, self.io, self.configuration.native_url);
     defer wire.deinit();
     wire.timeout_ms = self.configuration.request_timeout_ms;
-    var observer: g.Client = .{ .transport = &wire, .ledger = runtime.ledger, .principal = account.ledger.ingress, .key = runtime.ingress.key };
+    var observer: g.Client = .{ .transport = &wire, .execution = runtime.execution, .principal = account.execution.table_principal, .key = runtime.ingress.key };
     var source = try observer.source();
-    const page = try g.SessionOperations.list(runtime.ledger, &source, self.recovery_after[index], true);
+    const page = try g.SessionOperations.list(runtime.execution, &source, self.recovery_after[index], true);
     const reference = page.entries[0] orelse {
         self.recovery_after[index] = 0;
         return;
     };
     self.recovery_after[index] = reference.id;
-    const item = try g.SessionOperations.external(runtime.ledger, &source, reference.id);
+    if (reference.kind == .table) return;
+    const item = try g.SessionOperations.external(runtime.execution, &source, reference.id);
     const database = for (account.databases) |database| {
         if (std.meta.eql(database.binding, item.binding())) break database.name;
     } else return error.SqlOperationBindingChanged;

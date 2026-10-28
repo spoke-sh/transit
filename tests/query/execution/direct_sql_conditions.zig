@@ -1,7 +1,7 @@
 //! Conditional SQL name evidence over the actual HTTP catalog, including a
 //! corrupted acceptance reply, name reuse and node replacement.
 const std = @import("std");
-const sql = @import("transit_sql");
+const sql = @import("transit_sql_service");
 const c = sql.catalog;
 const q = @import("transit_query");
 const t = std.testing;

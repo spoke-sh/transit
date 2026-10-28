@@ -24,6 +24,7 @@ def terminal(fixture, identity):
 
 
 def pending(fixture, boundary, key=None, *, sql=None):
+    before = {entry['identity']['id'] for entry in fixture.sql_operations()}
     boundary.pause()
     # Keep the caller alive throughout the 60-second dispatch-observation
     # window; this proof kills it after capturing its original binding.
@@ -44,10 +45,10 @@ def pending(fixture, boundary, key=None, *, sql=None):
             time.sleep(.05)
         binding = json.loads(boundary.observed.read_text())
         # Status remains available in a newly opened native session while execution
-        # is refused. The durable ledger and Table binding name the same work.
+        # is refused. SQL acceptance and the original Table identity are distinct;
+        # this single submission must add exactly one recoverable SQL operation.
         values = fixture.sql_operations()
-        original = binding['identity']['operation'] if 'identity' in binding else binding['operation']
-        matches = [entry for entry in values if int(entry['identity']['id']) == original]
+        matches = [entry for entry in values if entry['identity']['id'] not in before]
         assert len(matches) == 1 and matches[0]['phase'] != 'terminal', values
         captured = True
         return matches[0]['identity'], binding

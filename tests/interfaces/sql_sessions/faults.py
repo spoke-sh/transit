@@ -2,6 +2,7 @@
 import http.client
 import http.server
 import json
+import os
 import threading
 import time
 from urllib.parse import urlsplit
@@ -63,7 +64,7 @@ class Faults:
                 metadata_failure = owner.fail_once and 'lookup' in table
                 acquisition_failure = owner.fail_open and 'pin' in table
                 snapshot_failure = owner.fail_snapshot_once and 'snapshot' in table
-                if (settings_failure is not None and not settings_failure['after']) or source_failure or result_failure or metadata_failure or acquisition_failure or snapshot_failure or (owner.fail_coordinator is not None and envelope.get('principal') == owner.fail_coordinator and 'process' in query):
+                if (settings_failure is not None and not settings_failure['after']) or source_failure or result_failure or metadata_failure or acquisition_failure or snapshot_failure or (owner.fail_coordinator is not None and request.get('connection', {}).get('principal') == owner.fail_coordinator and 'inspect' in table.get('client_progress', {})):
                     if source_failure:
                         owner.fail_source_once = None
                     if result_failure:
@@ -135,10 +136,10 @@ class Faults:
         assert self.failures == before + 1 and result['rows'], (before, self.failures, result)
         client.call(dict(close_result=result['cursor']))
 
-        # A real failed coordinator fence withdraws readiness. Login waits for
+        # A real failed database activation fence withdraws readiness. Login waits for
         # its recovery inside the configured request window, not 64 short polls.
         configuration = json.loads((client.root / 'sql-gateway.json').read_text())
-        self.fail_coordinator = configuration['accounts'][0]['ledger']['coordinator']
+        self.fail_coordinator = configuration['accounts'][0]['execution']['table_principal']
         release = None
         try:
             deadline = time.monotonic() + 15
@@ -152,7 +153,7 @@ class Faults:
                         break
                 finally:
                     health.close()
-                assert time.monotonic() < deadline, 'coordinator fault did not withdraw readiness'
+                assert time.monotonic() < deadline, 'database fence fault did not withdraw readiness'
                 time.sleep(.05)
             release = threading.Timer(3, lambda: setattr(self, 'fail_coordinator', None))
             release.start()
@@ -168,6 +169,9 @@ class Faults:
             if release is not None:
                 release.cancel()
                 release.join()
+        # Change the logical frontier so this open needs a new cache pin.
+        # A warm SELECT intentionally performs no acquisition.
+        client.terminal(client.execute('INSERT INTO native_sessions VALUES (998, 1)', list(os.urandom(16)))['operation'])
         self.fail_open = True
         try:
             before = self.failures
@@ -175,6 +179,7 @@ class Faults:
             assert self.failures > before
         finally:
             self.fail_open = False
+        client.terminal(client.execute('DELETE FROM native_sessions WHERE id = 998', list(os.urandom(16)))['operation'])
         # The retained pin exists before this failed source open. Its successful
         # cleanup must not erase the capacity diagnosis from the read attempt.
         before = self.failures

@@ -1,6 +1,6 @@
 {
   "binding": {
-    "definition": "2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188",
+    "definition": "a716998e2831c843eedd24c792311f4d33aa0444460522f8f26cf4ad54b29ff7",
     "identity": {
       "scope": {
         "realm": 1,
@@ -107,7 +107,7 @@
   },
   "commit": {
     "binding": {
-      "definition": "2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188",
+      "definition": "a716998e2831c843eedd24c792311f4d33aa0444460522f8f26cf4ad54b29ff7",
       "identity": {
         "scope": {
           "realm": 1,
@@ -392,7 +392,7 @@
     }
   },
   "snapshot": {
-    "definition": "2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188",
+    "definition": "a716998e2831c843eedd24c792311f4d33aa0444460522f8f26cf4ad54b29ff7",
     "owner": {
       "scope": {
         "realm": 1,
@@ -489,7 +489,7 @@
     "not_observed": {}
   },
   "resource_initialization": {
-    "definition": "2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188",
+    "definition": "a716998e2831c843eedd24c792311f4d33aa0444460522f8f26cf4ad54b29ff7",
     "interpretation": {
       "object": {
         "scope": {

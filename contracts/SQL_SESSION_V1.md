@@ -72,8 +72,8 @@ Closing an HTTP socket does not close the session. Closing/resetting a session,
 its idle lease expiring or the service restarting releases temporary state.
 PostgreSQL and MySQL adapters tie logical session closure to their wire connection.
 
-Each enrolled account has one active fenced runtime, coordinated principal
-sequences and a durable ledger. Sessions share this owner, never its private keys.
+Each enrolled account has one active fenced runtime, a Catalog activation revision
+and paged database recovery. Sessions share this owner, never its private keys.
 One session has one borrower of each native transport and at most one active
 interactive result. Concurrent commands on that session return busy; commands on
 other sessions retain their own bounded execution slots. A cancellation request
@@ -100,12 +100,11 @@ completion.
 
 The native profile accepts CREATE SCHEMA, ALTER SCHEMA ... RENAME and DROP SCHEMA
 RESTRICT through the direct catalog. Preparation freezes the expected schema and
-requested owner without allocating IDs or publishing work. The account ledger
-allocates the operation from its accepted input position; CREATE uses that same
-number as the new schema ID. Its `GIR1` reference carries the session's selected
+requested owner without allocating IDs or publishing work. Catalog accepts a SQL operation ID bound to the complete frozen intent.
+CREATE retains its independently prepared schema ID in that original intent. Its `GIR1` reference carries the session's selected
 namespace separately from the changed namespace binding. Current database/schema
 ownership and requested-owner SET eligibility are checked by the existing native
-authority. Registration, direct acceptance and SQL ledger completion remain
+authority. Registration, direct acceptance and SQL recovery settlement remain
 separate recoverable decisions. Namespace completion has zero matched/changed
 rows and a catalog position; the shared completion kinds are `create_schema`,
 `alter_schema` and `drop_schema`. Current rights govern all outcome disclosure,
@@ -221,18 +220,20 @@ separate durable query owner and operation reference.
 The account-scoped token is a caller-generated 128-bit value. Its durable index
 commits the request fingerprint and original operation identity. The fingerprint
 covers instance, account, database/source binding, SQL text, canonical logical
-parameter encodings and execution mode. The account ledger fixes the signing
+parameter encodings and execution mode. The Catalog binding fixes the signing
 principal and role; changing the binding does not inherit an existing operation.
 Concurrent identical tokens bind to one operation. Different content conflicts.
 SQL text equivalence is never inferred.
 
 Admission has distinct observations:
 
-- `reserved`: an identity and quota are durable; there is no complete intent.
-- `uploading`: immutable intent publication is incomplete or awaiting validation.
-- `ready`/`active`: complete validated intent is accepted for execution.
+- `ready`: complete validated intent and its token are durably accepted.
+- `uploading`/`active`: an explicit captured Query owner is progressing its work.
 - `terminal`: the original domain outcome is recorded and currently authorized.
-- `abandoned`: unpublished work was closed without executing it.
+
+Database admission never exposes a reserved or partial-upload SQL operation.
+Complete intent staging precedes token acceptance. Unreferenced staged content
+is not accepted work.
 
 Only a complete frozen intent can become accepted execution. Retries return the
 original identity and state; they never compile fresh SQL for an existing token.
@@ -263,21 +264,19 @@ rejected and partial. Observation does not reload. Resume submits the original
 owner request; configuration cancellation is unsupported. This does not create a
 cross-domain transaction.
 
-Captured execution requires a service-owned source binding and a token. The
-ledger reserves its original query namespace and publishes the exact compiled
-bundle before native Query admission. Each signed upload/control request is
-published in paged ledger storage before dispatch. The service records receipt
-and processed-input evidence before releasing that source's sequence lane.
-Generation fencing rejects stale publication; a replacement resumes the same
-published bytes. An incomplete, unpublished step can be abandoned and prepared
-again; a published request cannot. An incomplete initial bundle is reported as
-blocked and can be cancelled, never recompiled from token reuse.
+Captured execution requires a service-owned source binding and a token. Catalog
+accepts the exact compiled bundle and original Query namespace before native
+Query admission. Each complete signed upload/control request is published in a
+Catalog recovery record before dispatch. A CAS source lane retains that request
+through uncertain sends and records receipt and processed-input evidence before
+allowing its successor. Status does not create a lane. A replacement resumes the
+same published bytes; it never recompiles the token's SQL.
 
 A captured Table bundle freezes its direct data interpretation, expected cut,
-executor and pin operation before ledger publication. The native source resource
+executor and pin operation before Catalog publication. The native source resource
 holds computation progress independently of the catalog's data resource. Recovery
 uses the published delegation; observing or resuming an operation does not capture
-current data again. Interactive Table sources use journaled direct pins whose
+current data again. Interactive Table sources use Catalog-owned cached direct pins whose
 original connection and current configured credential govern cleanup.
 
 `result` opens a new temporary result cursor for a complete captured operation in
@@ -333,7 +332,7 @@ pages or execution vectors. A row that does not fit the remaining byte budget
 stays with its bounded source state for the next batch. A row too large for an
 empty batch fails explicitly. Builder rows, retained source state, replay data
 and serialization all remain charged to the session's resident allocator.
-Each captured operation reserves 1 MiB of retained ledger content, with at most
+Each captured operation reserves 1 MiB of retained recovery content, with at most
 1024 finite publication attempts; incomplete proposals consume that reservation.
 This is an operation bound, not a bound on account history. Source declarations
 are limited to 32 per account. An account's capture lane serializes submission

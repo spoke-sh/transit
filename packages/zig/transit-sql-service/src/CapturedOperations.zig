@@ -1,5 +1,5 @@
 //! Server-managed captured queries reuse the Query owner's upload, execution,
-//! cancellation and result contracts. Native ledger publication freezes every
+//! cancellation and result contracts. Catalog publication freezes every
 //! compiled bundle and signed command before dispatch; token lookup never compiles.
 const std = @import("std");
 const g = @import("root.zig");
@@ -7,12 +7,12 @@ const q = g.query;
 const f = g.fuze;
 const api = g.session_protocol;
 const ops = g.SessionOperations;
-const ledger = g.CapturedLedger;
+const recovery = g.CapturedRecovery;
 const saved = q.SavedSubmission;
 
 pub fn load(host: *g.Session, id: u64) !ops.External {
     var reader = try host.observer.source();
-    const item = try ops.external(host.runtime.ledger, &reader, id);
+    const item = try ops.external(host.runtime.execution, &reader, id);
     if (item.kind != .captured or !std.meta.eql(item.binding(), try host.account.database(host.database))) return error.SqlOperationBindingChanged;
     const source = host.source orelse return error.UnknownSqlSource;
     if (!std.mem.eql(u8, &item.source, &source.fingerprint)) return error.SqlOperationBindingChanged;
@@ -21,7 +21,7 @@ pub fn load(host: *g.Session, id: u64) !ops.External {
 }
 pub fn select(host: *g.Session, id: u64) !void {
     var reader = try host.observer.source();
-    const item = try ops.external(host.runtime.ledger, &reader, id);
+    const item = try ops.external(host.runtime.execution, &reader, id);
     if (item.kind != .captured) return error.InvalidSqlOperationReference;
     for (host.account.sources) |*source| {
         if (!std.mem.eql(u8, source.database, host.database)) continue;
@@ -37,28 +37,18 @@ pub fn namespace(item: ops.External) !u64 {
     if (id == 0 or id > q.protocol.max_counter or !std.mem.allEqual(u8, item.original[8..], 0)) return error.InvalidQueryIdentity;
     return id;
 }
-fn state(host: *g.Session, id: u64) !ledger.State {
+fn state(host: *g.Session, id: u64) !recovery.State {
     var reader = try host.observer.source();
-    return ledger.state(host.runtime.ledger, &reader, id);
+    return recovery.state(host.runtime.execution, &reader, id);
 }
 fn bytes(host: *g.Session, id: u64, record: u64, maximum: usize) ![]u8 {
     var reader = try host.observer.source();
-    return g.Upload.read(host.allocator, host.runtime.ledger.publication(id), &reader, record, maximum);
-}
-fn command(host: *g.Session, value: ledger.Command) !void {
-    try host.current();
-    try host.runtime.control(.{ .captured = value }, host.deadline);
+    return recovery.readBytes(host.allocator, &reader, id, record, maximum);
 }
 fn publish(host: *g.Session, id: u64, record: u64, format: u32, content: []const u8) !void {
-    const target: g.Control.Record = .{ .operation = id, .generation = host.account.generation, .record = record };
-    try command(host, .{ .begin = .{ .target = target, .spec = try g.station.Publication.Digest.of(format, content) } });
-    var offset: usize = 0;
-    while (offset < content.len) {
-        const count = @min(g.Upload.part_bytes, content.len - offset);
-        try command(host, .{ .part = .{ .target = target, .part = try g.Control.Part.init(@intCast(offset), content[offset..][0..count]) } });
-        offset += count;
-    }
-    try command(host, .{ .publish = target });
+    try host.current();
+    var reader = try host.observer.source();
+    try recovery.publish(&reader, id, record, format, content);
 }
 pub fn admit(host: *g.Session, prepared: *g.SourceSession.Prepared, values: []const ?f.Types.Values.Atom, token: api.Token, fingerprint: [32]u8) !api.Operation {
     try host.runtime.capture_mutex.lock(host.io);
@@ -83,11 +73,10 @@ pub fn admit(host: *g.Session, prepared: *g.SourceSession.Prepared, values: []co
         try source.client.authorizeBundle(bound.bundle);
     var buffer: [q.Bundle.max_bytes]u8 = undefined;
     const compiled = try bound.bundle.encode(&buffer);
-    try host.runtime.control(.{ .external_begin = .{ .nonce = token, .fingerprint = fingerprint, .kind = .captured, .binding = try host.account.database(host.database), .original = original, .source = source.fingerprint, .expected_generation = host.account.generation, .reservation = 1024 * 1024 } }, host.deadline);
-    const reference = (try host.fresh(g.ConfigurationOperations.find, .{ host, token, @as(?[32]u8, fingerprint) })) orelse return error.MissingGatewayOperation;
+    var reader = try host.observer.source();
+    const body = try g.catalog.DirectRecord.stage(host.table, host.account.execution.account, q.Bundle.format, compiled);
+    const reference = try ops.begin(&reader, .{ .nonce = token, .fingerprint = fingerprint, .kind = .captured, .binding = try host.account.database(host.database), .original = original, .source = source.fingerprint, .expected_generation = host.account.generation, .reservation = 1024 * 1024 }, body);
     const item = try host.fresh(load, .{ host, reference.id });
-    if (!std.mem.eql(u8, &item.original, &original)) return status(host, item.id);
-    try publish(host, item.id, 1, q.Bundle.format, compiled);
     return status(host, item.id);
 }
 fn terminal(phase: q.UnifiedRequest.Phase) bool {
@@ -108,14 +97,14 @@ pub fn status(host: *g.Session, id: u64) !api.Operation {
         else => .rejected,
     } else null;
     if (item.phase == .terminal and !complete) return error.MissingCapturedQueryOutcome;
-    return .{ .command = .capture, .identity = .{ .account = host.account.ledger.account, .id = id, .kind = .captured }, .token = item.nonce, .phase = if (complete) .terminal else if (item.phase == .reserved) .reserved else if (current) |value| switch (value.phase) {
+    return .{ .command = .capture, .identity = .{ .account = host.account.execution.account, .id = id, .kind = .captured }, .token = item.nonce, .phase = if (complete) .terminal else if (current) |value| switch (value.phase) {
         .uploading => .uploading,
         .sealed => .ready,
         else => .active,
-    } else .ready, .blocked = item.phase == .reserved and outcome == null, .outcome = outcome, .cancellation_requested = local.cancel == 1, .owner_operation = item.original, .diagnostic = if (current) |value| if (value.failure) |failure| try failure.diagnostic(try namespace(item), value.phase) else null else null };
+    } else .ready, .blocked = false, .outcome = outcome, .cancellation_requested = local.cancel == 1, .owner_operation = item.original, .diagnostic = if (current) |value| if (value.failure) |failure| try failure.diagnostic(try namespace(item), value.phase) else null else null };
 }
-fn settle(host: *g.Session, id: u64, local: ledger.State) !void {
-    const target: g.Control.Record = .{ .operation = id, .generation = host.account.generation, .record = local.pending };
+fn settle(host: *g.Session, id: u64, local: recovery.State) !void {
+    var reader = try host.observer.source();
     var input = local.input;
     if (input == 0) {
         const content = try host.fresh(bytes, .{ host, id, local.pending, @as(usize, saved.max_bytes) });
@@ -126,12 +115,12 @@ fn settle(host: *g.Session, id: u64, local: ledger.State) !void {
         try q.protocol.Ed25519.Signature.fromBytes(pending.signed.signature).verify(&try q.protocol.Growth.digest(pending.signed.request), source.client.key.public_key);
         try host.current();
         input = (try source.client.submit(pending)).position;
-        try command(host, .{ .receipt = .{ .target = target, .input = input } });
+        try recovery.receipt(&reader, id, local.pending, input);
     }
     switch (try host.source.?.client.observe(input)) {
         .pending => {},
-        .committed => try command(host, .{ .processed = .{ .target = target, .rejected = 0 } }),
-        .rejected => try command(host, .{ .processed = .{ .target = target, .rejected = 1 } }),
+        .committed => try recovery.processed(&reader, id, local.pending, 0),
+        .rejected => try recovery.processed(&reader, id, local.pending, 1),
     }
 }
 /// A pass performs at most one native step. No result wait occupies the shared
@@ -148,20 +137,16 @@ pub fn resumeOperation(host: *g.Session, id: u64) !api.Operation {
     }
     const observed = try status(host, id);
     if (observed.phase == .terminal) {
-        try host.runtime.control(.{ .external_complete = .{ .operation = id, .generation = host.account.generation, .summary = switch (observed.outcome.?) {
+        var reader = try host.observer.source();
+        try ops.complete(&reader, id, switch (observed.outcome.?) {
             .applied => .applied,
             .cancelled => .cancelled,
             else => .rejected,
-        } } }, host.deadline);
+        });
         return observed;
     }
-    if (item.phase == .reserved) return observed;
-    if (local.staging != 0) {
-        try command(host, .{ .abandon = .{ .operation = id, .generation = host.account.generation, .record = local.staging } });
-        return status(host, id);
-    }
     var reader = try host.observer.source();
-    if (try ledger.lane(&reader, item.source)) |owner| if (owner != id) return observed;
+    if (try recovery.busy(&reader, item)) return observed;
     const source = host.source.?;
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
     defer arena.deinit();
@@ -179,7 +164,7 @@ pub fn resumeOperation(host: *g.Session, id: u64) !api.Operation {
 }
 pub fn cancel(host: *g.Session, id: u64) !api.Operation {
     _ = try host.fresh(load, .{ host, id });
-    try command(host, .{ .cancel = .{ .operation = id, .generation = host.account.generation } });
+    try host.fresh(g.DatabaseRuntime.cancel, .{ host.runtime, &host.observer, id });
     return status(host, id);
 }
 

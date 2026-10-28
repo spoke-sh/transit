@@ -50,35 +50,39 @@ an explicitly provisioned account. Protocol validation does not prove honest
 computation. Interactive transactions and automatic cross-build history migration
 are excluded.
 
-The actors are a transient database session, an account worker, a fenced
-coordinator and a Catalog worker. The account has a paged private ledger and a
-dedicated sequenced Table principal. Before dispatch, it freezes the operation's
-bound Table intent and then the exact signed native step. Native receipt,
-processed input and attributed Table terminal outcome are distinct observations.
-The [ledger](../../../packages/zig/transit-sql/docs/ledger.md) defines the
-records and transition bounds; [AccountRuntime](../../../packages/zig/transit-sql/src/AccountRuntime.zig)
-owns progress outside socket tasks.
+The participants are a transient session, a database account recovery worker,
+`DirectCatalog` and the Table partition owner. The session freezes a complete
+intent and stages it before the Catalog binds `(account, client token)` to an
+immutable intent and acceptance LSN. Paged all-operation and pending directories
+bound recovery memory independently of retained history. Compare-and-set progress
+records cancellation and completion without changing the original receipt.
+[`DatabaseRuntime`](../../../packages/zig/transit-sql/src/DatabaseRuntime.zig)
+owns recovery outside socket tasks; the [runtime contract](../../../packages/zig/transit-sql/docs/runtime.md)
+describes identities, quotas and generation fencing.
 
 ```mermaid
 flowchart LR
-    Socket[Authenticated SQL execution] --> Reserve[Reserve durable operation]
-    Reserve --> Intent[Persist bound Table intent]
-    Intent --> Saved[Persist exact signed step]
-    Saved --> Send[Submit or reconcile identical step]
-    Send --> Evidence[Observe original Table outcome]
-    Evidence --> Rights[Recheck current disclosure rights]
-    Rights --> Reply[CommandComplete or OK]
+    Socket[Authenticated SQL execution] --> Intent[Stage complete frozen intent]
+    Intent --> Accept[Catalog token acceptance]
+    Accept --> Commit[Inspect or commit original partition operation]
+    Commit --> Evidence[Original Table terminal outcome]
+    Evidence --> Rights[Current disclosure authorization]
+    Rights --> Reply[Command completion]
 ```
 
-Three invariants explain the ordering. First, a native dispatch has an earlier
-durable saved step, so losing a transport reply does not require inventing a new
-sequence or reconstructing SQL. Second, only one eligible native generation can
-advance an account; a local process or provider restart cannot establish that
-eligibility. Third, a wire completion requires the original Table terminal
-evidence and current permission to disclose it. Losing permission can therefore
-hide a committed result without undoing the commit. The implementation would
-violate these claims if it dispatched before saving, replaced an unresolved
-signed request, or disclosed cached counts without authorization.
+Three invariants explain the ordering. Every accepted token has an earlier
+complete immutable body. Every database request checks the account activation
+revision under the Catalog access boundary, so a replacement fences old requests.
+Every completion uses the original domain outcome and current disclosure rights.
+Losing permission can hide a committed result without undoing it. Dispatching an
+unbound intent, accepting a stale activation or reporting cached unauthorized
+counts would falsify these claims.
+
+A first `commit_saved` DML request commits mutation and terminal outcome in one
+partition WAL append, including a no-op update. Recovery inspects the same
+operation after a lost reply. Catalog token acceptance and progress settlement
+are separate control writes: one data commit does not mean one HTTP request for
+the entire SQL statement or one transaction spanning the Catalog and partition.
 
 The protocol cycle has a separate admission boundary. PostgreSQL buffers one
 write execution through a valid Sync and rejects a second execution or write
@@ -89,13 +93,16 @@ freezes descriptors and object/schema identity; executing acquires a fresh read
 cut or bound write intent. Pure current-metadata retries cannot reopen a partly
 disclosed result or repeat a mutation.
 
-This design chooses explicit durable quotas and one serialized principal over
-per-socket write lanes. Retained history grows on disk; bounded indexes select
-active work without scanning all terminal operations. The tradeoff is native
-publication/read amplification and serialization within one account. A local
-recovery file per connection would be simpler but would not provide discovery
-after the connection disappears or fenced sequence ownership. Replaying SQL on
-reconnect would hide ambiguity by creating new work.
+This design chooses explicit durable quotas and paged database recovery over
+per-socket write lanes. Terminal work remains retained; settlement releases only
+pending capacity. Staged immutable bodies and Catalog acceptance avoid actor
+mailbox and state-value limits. Control writes still amplify end-to-end latency;
+a unified transaction envelope can combine them without introducing a Station
+coordinator. Replaying SQL on reconnect would create a different operation and
+cannot resolve an uncertain accepted write.
+
+The following retained measurement describes the earlier actor-mediated design,
+not the current database runtime:
 
 The [retained experiment](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results/sql-wire-2026-10-14.json)
 measures that cost with eight resident pages, 8 MiB hot storage and an 8 MiB cold
@@ -127,7 +134,7 @@ conditions and cannot promise rollback.
 The local placement asks a second question: how can configuration disable a
 database socket without discarding work accepted through it? The implementation
 introduced on 2026-10-17 composes the existing native authorization, Catalog and
-account-ledger owners. Its scope is the trusted local Linux placement and one
+database operation owners. Its scope is the trusted local Linux placement and one
 current contract definition. It assumes durable local checkpoints and the native
 storage/ownership conditions above; remote exposure and cross-build migration
 are excluded. The [local SQL guide](../../../apps/transit-cli/docs/sql.md) owns usage.
@@ -135,7 +142,7 @@ are excluded. The [local SQL guide](../../../apps/transit-cli/docs/sql.md) owns 
 The model separates desired listeners, retained enrollment and native authority.
 Enrollment fixes an account's identities, catalog binding, credentials and finite
 setup journal. Configuration chooses which enrolled accounts admit new sessions.
-The native ledger determines accepted work and the current generation allowed to
+The Catalog determines accepted work and the current activation allowed to
 advance it. None of these three states substitutes for another.
 
 [SqlJournal](../../../apps/transit-cli/server/SqlJournal.zig) checkpoints an exact
@@ -151,7 +158,7 @@ Completed setup receipts prevent restart from restoring a revoked credential or
 grant. These orderings would be falsified by a second allocation after lost
 receipt, reuse of an unresolved sequence, or a restored data privilege on restart.
 
-[Sql](../../../apps/transit-cli/server/Sql.zig) separates ledger initialization,
+[Sql](../../../apps/transit-cli/server/Sql.zig) separates account provisioning,
 fresh fenced activation and socket admission. Disabled listeners do not load
 PEMs. Removed accounts with unsettled operations retain a worker; settled removed
 accounts retain their control profile without a resident worker. Historical
@@ -193,8 +200,8 @@ the [proof ledger](../../history/qualification/README.md); source inspection is 
 Let `S` denote a service instance, `A` an enrolled SQL account, `H` an expiring
 session handle, `T` a client admission token and `O` an accepted domain operation.
 An authenticated `H` identifies one `(S,A,database,source)` context. It does not
-create a native principal or a durable PID. The account has independent native
-identities for its ledger, ingress, controls, Table coordination and reads.
+create a native principal or a durable PID. The account has a scoped Table principal and a stable Catalog account identity.
+Its database operations need no Station process or actor ownership.
 Explicit source bindings have dedicated caller sequences. Kernel authority and
 the existing Catalog, Query and configuration owners decide permission and
 completion; the registry cannot grant rights by remembering a session.
@@ -210,11 +217,11 @@ inferred from this architecture.
 ### Placement, sessions and adapters
 
 `transit-sql-gateway` composes one
-[Registry](../../../packages/zig/transit-sql/src/Registry.zig) with bounded
-[Session](../../../packages/zig/transit-sql/src/Session.zig) objects. PostgreSQL and
+[Registry](../../../packages/zig/transit-sql-service/src/Registry.zig) with bounded
+[Session](../../../packages/zig/transit-sql-service/src/Session.zig) objects. PostgreSQL and
 MySQL adapters obtain sessions from that registry and retain their own dialect,
 codec and execution-cycle restrictions. Native HTTP/TLS and Unix HTTP call the
-same owner. One account's [AccountRuntime](../../../packages/zig/transit-sql/src/AccountRuntime.zig)
+same owner. One account's [DatabaseRuntime](../../../packages/zig/transit-sql/src/DatabaseRuntime.zig)
 coordinates accepted writes independently of connected sockets.
 
 ```mermaid
@@ -225,7 +232,7 @@ flowchart LR
   Native --> Registry
   Registry --> Session[Session: settings, prepared handles, cursor]
   Session --> Read[Authorized Fuze snapshot execution]
-  Session --> Account[Account operation ledger and coordinator]
+  Session --> Account[Catalog operation history and recovery]
   Account --> Catalog[Catalog and Table owner]
   Account --> Query[Captured Query owner]
   Account --> Settings[Configuration owner]
@@ -312,7 +319,7 @@ latency, wire bytes and bounded resident memory before claiming an improvement.
 | SQL session | Registry; finite native lease or wire connection, independent settings and handles | Native HTTP can reconnect to a live handle; wire disconnect closes its session |
 | Interactive read | Session; one iterator, leased cuts and bounded buffers/spill | Same live cursor can retry its last batch; session loss makes the prefix incomplete |
 | Captured query | Query owner plus account recovery index | Original bundle, signed steps and retained result remain discoverable |
-| Table mutation | Account ledger and Catalog owner | Exact identity and outcome survive |
+| Table mutation | Catalog token and Table owner | Exact identity and outcome survive |
 | Configuration reload | Account index and configuration journal | Original expected generation and operation ID survive |
 
 Idle duration and incomplete-request duration have different costs. An idle
@@ -390,7 +397,7 @@ The [service batch builder](../../../packages/zig/transit-sql-results/src/BatchB
 deep-copies cells before the next source pull resets scratch storage. It fills
 across storage pages up to independent row/byte budgets and retains a non-fitting
 row for the next batch. Encoded message and resident allocation limits still apply.
-The [disclosure owner](../../../packages/zig/transit-sql/src/BatchDisclosure.zig)
+The [disclosure owner](../../../packages/zig/transit-sql-service/src/BatchDisclosure.zig)
 retains metadata authority subjects with buffered rows. Native repeats and wire
 adapters recheck them before disclosure; a preparation-time permission check is
 insufficient. Exact Table definitions and data cuts remain distinct from settings
@@ -430,16 +437,16 @@ A new console can page authorized operations if it has lost its token, but must
 not silently select one of several similar accepted operations.
 
 [SessionOperations](../../../packages/zig/transit-sql/src/SessionOperations.zig)
-indexes typed operation references in the existing paged account ledger.
+indexes typed operation references in the Catalog pending and history directories.
 Configuration operations retain the original reload request and expected
 generation; a partial owner result remains partial. Table operations retain the
-existing frozen intent and signed-step machinery. Neither index claims an atomic
+original frozen intent and partition operation identity. Neither index claims an atomic
 transaction across its domain and the SQL account.
 
 Captured queries publish the compiled bundle before dispatch. Each subsequent
 native request is serialized by
 [SavedSubmission](../../../packages/zig/transit-query/src/SavedSubmission.zig) and
-published through [CapturedLedger](../../../packages/zig/transit-sql/src/CapturedLedger.zig)
+published through [CapturedRecovery](../../../packages/zig/transit-sql-service/src/CapturedRecovery.zig)
 before it can be sent. Generation checks fence publication. One unresolved step
 holds its source caller lane, preventing another operation from assigning that
 sequence. Recovery settles that exact signed request, records its receipt and
@@ -449,8 +456,8 @@ request; it cannot authorize a new sequence through a foreign generation.
 
 An unpublished proposed step may be abandoned because it was never eligible for
 dispatch. A published uncertain step must settle before cancellation proceeds.
-An incomplete initial bundle can be explicitly cancelled without submitting a
-query. Complete captured results are disclosed only through the Query manifest's
+The complete initial bundle is staged before token acceptance, so accepted
+queries never depend on missing upload fragments. Complete captured results are disclosed only through the Query manifest's
 ordered coverage and current rights. Changed source connection, key, declaration
 or budget changes the binding fingerprint and cannot reinterpret old operations.
 

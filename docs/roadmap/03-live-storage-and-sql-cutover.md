@@ -136,9 +136,9 @@ assigns declarative Streams/Queues and the Station rebuild to
 account-ledger and read-pin replacement forward into this milestone's P5,
 before the [transaction coordinator](05-transactions-and-atomic-composition.md).
 General catalog Tables already use the direct owner; remaining private Station
-Tables and SQL coordination still have callers and accepted-work obligations.
-The current progress PR delivers maintenance and recovery qualification; the
-SQL decoupling bridge remains unfinished work for this milestone.
+Tables retain callers and accepted-work obligations. SQL coordination now uses
+the database-owned runtime described in the [cutover handoff](06-streams-queues-and-durable-runtime.md#sql-database-runtime-cutover--2026-10-28).
+Its remaining control-path costs still need the matched P5 performance gate.
 
 | Existing requirement | Work retained here | Replacement owner |
 | --- | --- | --- |
@@ -949,8 +949,8 @@ Mutation timeouts are an explicit unresolved limit of this increment.
 **Database decoupling bridge ([Milestone 6 Step 1](06-streams-queues-and-durable-runtime.md)):**
 To resolve P5's 16-turn / 128-byte KV part upload mutation bottleneck and
 per-query `ReadPins` disk syncs without building [Milestone 5](05-transactions-and-atomic-composition.md)
-(`BEGIN`/`COMMIT`/`ROLLBACK`) on top of [`AccountRuntime.zig`](../../packages/zig/transit-sql/src/AccountRuntime.zig)
-and [`Ledger.zig`](../../packages/zig/transit-sql/src/Ledger.zig), pull forward
+(`BEGIN`/`COMMIT`/`ROLLBACK`) on top of [`AccountRuntime.zig`](https://github.com/spoke-sh/transit/blob/fbbaeae12/packages/zig/transit-sql/src/AccountRuntime.zig)
+and [`Ledger.zig`](https://github.com/spoke-sh/transit/blob/fbbaeae12/packages/zig/transit-sql/src/Ledger.zig), pull forward
 **Step 1 of [Milestone 6](06-streams-queues-and-durable-runtime.md)** (`transit-sql`
 $\perp$ `Station` decoupling): remove `AccountRuntime`, `Ledger`, `Coordinator`
 and disk-flushed `ReadPins` from `transit-sql`, and move client token
@@ -958,6 +958,17 @@ idempotency (`(AccountId, ClientToken) -> OperationId, CommitLSN, OutcomeReceipt
 and lease-cached snapshot cuts (`policy_epoch`) directly into
 [`TablePartition.zig`](../../packages/zig/transit-storage/src/TablePartition.zig)
 and [`DirectCatalog.zig`](../../packages/zig/transit-catalog/src/DirectCatalog.zig).
+
+**2026-10-28 cutover:** SQL token/progress recovery, activation fencing and read
+cache slots now belong to the Catalog, with a Station-free `transit-sql` package.
+The native fault proof exercises exact acceptance and commit recovery, terminal
+counts, stale request rejection and result revocation with zero Station sends or
+turns. Single-partition DML uses one Table WAL append; warm SELECT borrows a
+cached exact cut. Catalog token acceptance/settlement remain separate control
+writes. This removes the actor prerequisite for milestone 5 without claiming
+completion of the broader P5 measured-cost and storage lifetime matrix. Follow
+[the current handoff](05-transactions-and-atomic-composition.md#database-runtime-handoff--2026-10-28)
+and [qualification](../history/qualification/sql.md#database-owned-sql-runtime--2026-10-28).
 
 #### P6 — Publish one authorized storage view and configuration surface
 

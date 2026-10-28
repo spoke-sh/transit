@@ -286,7 +286,7 @@ def main():
         wait_ready(system.store.http, system.authority, system.url + '/health')
         connection = dict(scope=scope, branch=1, audience=source, principal=101, role=None)
         request = dict(definition=definition, connection=connection, nonce=list(os.urandom(16)),
-            action={'initialize': {}}, delegation=None, closure=None, borrow=None)
+            action={'initialize': {}}, delegation=None, closure=None, borrow=None, lease=None)
         context = hashlib.sha256(b'transit.table.direct.request.v1\0' + compact(request)).digest()
         epoch = query({'identity': {}}, 101, owner.seed)['body']['identity']['credential_epoch']
         request['proof'] = subject_proof(owner, 101, source, context, credential_epoch=epoch, realm=72)

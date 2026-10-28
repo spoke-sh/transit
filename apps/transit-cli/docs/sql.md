@@ -39,7 +39,7 @@ Plain HTTP is admitted only for an explicitly configured loopback trust profile.
 work. The reserved `local` account cannot be redeclared in `sql.accounts`.
 Source bindings use `sql.native.sources_file` for local sessions or
 `sql.accounts[].sources_file` for network accounts; see
-[source declarations](../../../packages/zig/transit-sql/docs/sources.md).
+[source declarations](../../../packages/zig/transit-sql-service/docs/sources.md).
 The configured sources are service-owned identities, never supplied by a console.
 
 Use the same installed bundle throughout an installation's lifetime. A
@@ -71,7 +71,7 @@ sql:
 ```
 
 Run `transit server` for both a new installation and an existing compatible one. SQL setup creates
-its account ledger and records the owner credential binding automatically. Once
+its account Catalog history and records the owner credential binding automatically. Once
 SQL reports `accepting`, connect without certificates or password files:
 
 ```sh
@@ -165,10 +165,12 @@ New roles start without data rights. Grant their database/schema access and
 Table privileges explicitly using the examples below. The generated
 `authorization.yaml` and `catalog.yaml` select a separate private administrator
 with root-role membership; protect their seed as full administrative access.
-SQL receives separate worker, ingress, coordinator and Table
-credentials. Account initialization and normal admission use separate fenced
-activations. One initialized account can serve connections while others await
-authorization.
+SQL receives one scoped database credential per account. Credential binding and
+database access are separate: initialization waits for explicit CONNECT and
+schema USAGE grants, without spending the service startup-failure budget or
+blocking another account's enrollment. Catalog activation generations fence
+replacement runtimes. One initialized account can serve connections while
+others await authorization.
 
 ## Connect and share a Table
 
@@ -280,7 +282,7 @@ sql:
 Merge this into the existing `sql` object. The leaf must be valid now, match the
 private key, chain to the supplied CA, permit TLS server use, and have SANs for
 both local names above. Invalid or expired trust prevents SQL admission while
-retained ledger recovery and core administration remain available. Replace
+retained database recovery and core administration remain available. Replace
 files/configuration and restart. Distribute the replacement CA explicitly to
 clients when changing trust; the server does not modify a client trust store.
 
@@ -295,7 +297,7 @@ transit-sql-gateway control .transit/sql/accounts/owner/control.json \
 
 The replacement is atomic. Sessions compare the complete credential revision
 before new requests. Password rotation does not alter data privileges or
-reinitialize the operation ledger. Keep passwords and signing keys out of
+reinitialize the operation history. Keep passwords and signing keys out of
 connection URLs, shell arguments and shared logs.
 
 ## Disable admission and inspect uncertain writes
@@ -303,15 +305,16 @@ connection URLs, shell arguments and shared logs.
 Set either listener to `null`, or omit it, and restart to close that protocol.
 Set an account's `enabled` to false or remove its declaration to prevent its next
 login after restart. These changes preserve the account's credentials, immutable
-catalog binding, ledger and accepted work. Completed removed accounts remain
+catalog binding and accepted work. Completed removed accounts remain
 inspectable through their retained control profiles without a resident worker.
-Accounts with unsettled operations continue recovery with current worker rights.
+Accounts with unsettled operations or cached pins retain recovery under current
+database rights until those obligations close.
 
 With both listeners disabled, retained workers require no PEM files and open no
 SQL sockets. The private `/recovery` probe describes worker readiness; `/health`
 also requires configured SQL admission. Disabling a listener is not cancellation.
 A bounded shutdown stops accepting connections, drains tasks and joins workers;
-native generations fence replacements. Revoked worker authority must be restored
+Catalog activation revisions fence replacements. Revoked database authority must be restored
 by an explicit operator decision before recovery can progress.
 
 SQL setup or worker failures leave core administration available. The supervisor
@@ -352,8 +355,8 @@ check retries the observation; sessions continue to enforce current authorizatio
 Connection hints appear once for each listener process, including replacements.
 
 Connection, authentication, statement/idle/drain deadlines and initial per-account
-operation/byte/pending quotas have explicit bounded settings. Initial ledger
+operation/byte/pending quotas have explicit bounded settings. Initial account
 quotas are frozen at enrollment; changing their YAML defaults does not resize an
-existing ledger. Use its explicit capacity control. Retained historical account
+existing account. Quotas are fixed by its first accepted reservation; capacity changes require an explicit future Catalog operation. Retained historical account
 count is independent of resident memory. See the generated
 [settings reference](../../../contracts/configuration-settings-v1.json) for defaults and bounds.

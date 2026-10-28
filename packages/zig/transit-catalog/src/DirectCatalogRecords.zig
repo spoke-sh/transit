@@ -112,13 +112,18 @@ pub const Root = struct {
     dependencies: ?pages.Reference,
     client_tokens: ?pages.Reference,
     client_token_count: u64,
+    client_operations: ?pages.Reference,
+    client_pending: ?pages.Reference,
+    client_accounts: ?pages.Reference,
     pub fn empty(config: Configuration) !Root {
         try config.validate();
-        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0 };
+        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0, .client_operations = null, .client_pending = null, .client_accounts = null };
     }
     pub fn validate(self: Root) !void {
         try self.configuration.validate();
         if (self.next_partition <= self.configuration.partition or self.initialized != (self.next_lsn != 0)) return error.InvalidDirectCatalogRoot;
+        if ((self.client_operations == null) != (self.client_token_count == 0)) return error.InvalidDirectCatalogRoot;
+        if ((self.client_accounts == null) != (self.client_token_count == 0)) return error.InvalidDirectCatalogRoot;
         if ((self.client_tokens == null) != (self.client_token_count == 0) or self.client_token_count >= self.next_lsn and self.client_token_count != 0) return error.InvalidDirectCatalogRoot;
     }
 };
@@ -149,14 +154,14 @@ pub const Record = struct {
     definition: p.Growth.Definition,
     previous: [32]u8,
     root: Root,
-    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome, namespace: c.DirectNamespace.Operation, dependency: c.DirectDependency.Outcome, resource: c.DirectResource.Operation, client_token: c.DirectClientToken.Receipt },
+    action: union(enum) { initialize, operation: Operation, assertion: c.NameAssertion.Outcome, namespace: c.DirectNamespace.Operation, dependency: c.DirectDependency.Outcome, resource: c.DirectResource.Operation, client_token: c.DirectClientToken.Progress },
     pub fn validate(self: Record, position: u64) !void {
         try self.root.validate();
         if (self.root.next_lsn != try std.math.add(u64, position, 1) or !self.root.initialized) return error.InvalidDirectCatalogHistory;
         switch (self.action) {
             .client_token => |value| {
                 try value.validate();
-                if (position == 0 or !value.binding.key.connection.matches(self.root.configuration) or value.position.partition != self.root.configuration.partition or value.position.next_lsn != self.root.next_lsn) return error.InvalidDirectCatalogHistory;
+                if (position == 0 or !value.receipt.binding.key.connection.matches(self.root.configuration) or value.revision.partition != self.root.configuration.partition or value.revision.next_lsn != self.root.next_lsn) return error.InvalidDirectCatalogHistory;
             },
             .resource => |value| {
                 try value.validate();

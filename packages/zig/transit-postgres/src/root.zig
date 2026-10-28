@@ -1,4 +1,4 @@
-pub const gateway = @import("transit_sql");
+pub const gateway = @import("transit_sql_service");
 pub const Backend = @import("Backend.zig");
 pub const Startup = @import("Startup.zig");
 pub const Session = @import("Session.zig");

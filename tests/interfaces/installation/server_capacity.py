@@ -71,7 +71,9 @@ def inside(mount, cli, node, host):
         assert fixture.record()["provision"] == original["provision"]
         outcome = terminal(fixture, identity)
         assert outcome['outcome'] == 'applied' and outcome['matched'] == outcome['changed'] == 1, outcome
-        assert int(identity['id']) == binding['identity']['operation']
+        progress = fixture.sql_progress(identity)
+        assert progress['operation']['receipt']['binding']['intent']['table']['binding'] == binding
+        assert progress['terminal']['operation'] == binding['identity']['operation']
         assert atom(fixture.console('SELECT COUNT(*) FROM items;\n')[-1], 'unsigned') == '1'
         row = fixture.console('SELECT id, value FROM items;\n')[-1]['rows'][0]
         assert [cell['value']['atom']['signed'] for cell in row] == ['1', '100'], row

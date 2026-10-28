@@ -84,7 +84,7 @@ def bootstrap(host, root, url, data, key):
     native_connection = dict(scope=data['scope'], branch=data['branch'], audience=data['audience'], principal=33, role=None)
     epoch = post('/v1/query', native_query(key, 33, {'authorization': dict(role=None, kind={'identity': {}})}))['body']['authorization']['body']['identity']['credential_epoch']
     request = dict(definition=current_definition().hex(), connection=native_connection, nonce=list(os.urandom(16)),
-        action={'initialize': {}}, delegation=None, closure=None, borrow=None)
+        action={'initialize': {}}, delegation=None, closure=None, borrow=None, lease=None)
     context = hashlib.sha256(b'transit.table.direct.request.v1\0' + compact(request)).digest()
     request['proof'] = subject_proof(key, 33, data['audience'], context, credential_epoch=epoch, realm=data['scope']['realm'])
     (directory / 'catalog-initialize.json').write_bytes(compact(request))

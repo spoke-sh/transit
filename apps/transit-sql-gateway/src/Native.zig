@@ -2,7 +2,7 @@
 //! account authentication and every protected operation remain in the registry.
 const std = @import("std");
 const builtin = @import("builtin");
-const g = @import("transit_sql");
+const g = @import("transit_sql_service");
 const api = g.session_protocol;
 const http = @import("transit_http_server");
 const tls = @import("transit_tls_server");
