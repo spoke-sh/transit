@@ -9,6 +9,52 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Result reserves and codec costs — 2026-10-28
+
+The [retained automatic comparison](../../../tests/evidence/result-reserves-2026-10-28/README.md)
+asks whether fixed result workspaces eliminate backing growth while preserving
+the encoded workload and staying within a frozen timing budget. Control
+`a87d7ac1c` precedes the reserve implementation; candidate
+`00dce3a06225bddc7529be046a3d27adb1221446` includes it. Both use the pinned Zig
+compiler in ReleaseSafe. The method alternates five paired processes on CPU 47,
+with one finite warmup and five measured repetitions inside each process. Each
+sample handles 10,000 independently checked rows with seven scalar/NULL columns.
+Medians are computed within each process, then across the five processes.
+
+The frozen budget permits at most a 5% median-time regression in each case,
+zero native backing allocation/growing-resize/remap attempts, and at most 16 MiB
+reserved by each native encoder/decoder owner. Malformed or incomplete reports,
+changed framed workloads, allocation attempts and invalid timings fail the gate;
+the runner's negative controls exercise those refusals. Results are:
+
+| Case | Control median ms | Candidate median ms | Candidate/control |
+| --- | --- | --- | --- |
+| PostgreSQL text | 34.188 | 33.550 | 0.981 |
+| PostgreSQL binary | 21.993 | 21.598 | 0.982 |
+| MySQL text | 12.382 | 12.923 | 1.044 |
+| MySQL binary | 10.575 | 10.635 | 1.006 |
+| Native one-row encode | 784.251 | 601.380 | 0.767 |
+| Native one-row decode | 423.782 | 405.350 | 0.957 |
+| Native 32-row encode | 597.037 | 571.741 | 0.958 |
+| Native 32-row decode | 388.916 | 381.278 | 0.980 |
+
+All eight timing cases pass. Native backing attempts are zero in every measured
+repetition. Each encoder/decoder retains 8 MiB, charged even when empty. Internal
+reservations and reuse remain visible separately from backing growth; the decoder
+borrows its input frame, whose maximum size is separately recorded. Frame sizes,
+batch counts and logical values agree across arms. No wire limits are increased.
+
+The host is a 24-core/48-thread AMD Threadripper 3960X. Background user work
+remained active, with one-minute loads of 15.68 to 19.05 at the recorded endpoints.
+This supports the scoped local gate, not a universal speedup. Unmatched preliminary
+samples had included a slower full-batch encoder; they lack the paired conditions
+needed to establish a regression. The earlier larger-batch first-output cost in
+the following account remains relevant and is not resolved by this codec result.
+Source reads, authority, service scheduling, sockets, TLS, rendering, OS allocation
+and end-to-end latency are outside this comparison. Reproduction, binary hashes,
+all raw repetitions and the fixed budget/driver identities are retained with the
+report; the owning method is the [codec guide](../../../tests/performance/results/README.md).
+
 ## Statement result batching and consumption — 2026-10-27
 
 The [retained reports](../../../tests/evidence/sql-results-2026-10-27/README.md)
