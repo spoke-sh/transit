@@ -54,6 +54,9 @@ controls only release its own live work and disclose no source data.
 
 Independent Python/OpenSSL fixtures pin every control, full-width IDs, cursors
 and scoped signatures (`python3 -B tests/runner/launch.py tests/interfaces/reactive/reactive_fixtures.py` from the root).
+Use `--check` to verify the checked-in fixture without rewriting it. The existing
+`test-fixtures` aggregate runs this independent check, including signatures bound
+to the current shared definition.
 Deterministic tests cover competing attachments, stale subscription controls,
 renewal/expiry races, retained growth, aggregate quota and failed reads. These
 checks do not advertise SSE/WebSocket or prove deployed recovery.
