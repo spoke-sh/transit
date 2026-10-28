@@ -892,9 +892,9 @@ resolve sustained contention. Production deadlines remain unchanged. Earlier
 clean core/experience failures stay recorded as failures; fresh committed-source
 qualification is still required before this continuation's PR.
 
-The continuation is rebased onto `8d5d14db0` (PR #203), retaining that change's
-SQL result, transport and TLS allocation work. Its bootstrap maintenance fix is
-also present upstream. Storage's new
+The continuation is rebased onto `fbbaeae12` (PR #205), retaining PR #203's
+SQL result, transport and TLS allocation work and the database-owned client-token
+contract. The bootstrap maintenance fix is also present upstream. Storage's new
 [foreground maintenance schedule](../../tests/storage/tables/maintenance.md)
 adds sixteen independently verified retained scans with Table maintenance
 disabled and during automatic flushing. It records node CPU, I/O and resident
