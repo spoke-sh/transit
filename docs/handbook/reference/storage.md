@@ -59,6 +59,10 @@ acceptance and logical-change positions, bounded current WAL backlog and separat
 archive, recovery-checkpoint and history frontiers. Incomplete backlog counts
 are labelled as lower bounds. Historical readers can still retain WAL bytes
 after current rows have moved to segments.
+SQL sessions expose the same observation through
+[`SHOW STORAGE FOR table`](sql/show.md#table-storage-progress), including the ordinary
+console. Current Table rights apply when the statement executes and when a
+buffered result is disclosed.
 
 The same authorized observation reports fixed archive and compaction targets,
 their eligible source activity and completed activity. A null target with equal
@@ -114,9 +118,15 @@ its current authority checks remain
 serialized. Simultaneous missing-key attempts can conservatively reserve the
 same object more than once until exclusive reopen recounts actual files. This
 separation does not remove device contention or promise a completion deadline.
-Native page/block creation and explicit native collection still serialize
-allocation, publication and reclamation under that mutex to protect delayed
-creators; their syncs can delay journal work.
+Native page/block creation uses a separate allocation lock and holds a shared
+creator fence through immutable publication. Its disk syncs release the journal
+mutex; epoch checks and quota reservations still take it briefly. Collection
+takes the exclusive creator fence before reclaiming those objects, so a delayed
+creator cannot publish after its allocation marker is deleted. Collection also
+releases the journal mutex during progress-file syncs and deletion; epoch checks
+and quota accounting still use it. Slow reclamation can delay native creators
+through their shared fence, while direct Table acceptance and native reads use
+separate locks. These boundaries do not remove contention for the physical disk.
 
 The [performance reference](performance.md) quantifies current small-page read
 and write amplification. Catalog reads stop at namespace boundaries. Bounded tree mutation batches copy

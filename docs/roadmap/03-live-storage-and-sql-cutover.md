@@ -661,6 +661,27 @@ and the backend's native/direct/payload maintenance owners.
   allocation/reuse, corrupt metadata, clock failure and injected I/O/quota errors.
   Compaction must emit no logical mutation or invalidate computation freshness.
 
+The aggregate admission gate includes the complete lifetime of direct request
+allocations. `NativeServer.table` uses an arena backed by the node allocator for
+parsing and catalog work, then independently owns the serialized response during
+transmission. Request/response
+wire limits and individual operator budgets do not establish a byte cap for
+that whole arena or the sum of concurrent requests and maintenance. Qualify an
+explicit request-wide limit and independent control capacity, including exhausted
+data admission, slow response writes, cancellation and original-operation recovery.
+A private maintenance budget alone cannot close this gate.
+
+The request probe at `74b555d84` measures up to 9,613,056 live handler bytes at
+response time for seven-row scans. `c15ddd1f5` releases request scratch before
+transmission; all observed live bytes then equal the independently received
+response size, at most 3,335 bytes for scans in the active-flush arm. All six
+catalog/maintenance checks and the installed retained-row/restart schedule pass,
+including receipt inspection after output allocation fails on an accepted INSERT.
+The old exact binaries fail the new lifetime oracle. The
+[allocation and lifetime account](../history/qualification/storage.md#direct-request-allocation-and-response-lifetime--2026-10-28)
+preserves the additional allocation cost and unchanged observed CPU/latency.
+Working peaks remain around 9 MiB; the aggregate admission gate stays open.
+
 **Gate:** the installed owner converges on eligible maintenance under a finite
 workload, resumes it after process death and preserves every retained obligation.
 Reclaim only objects proved unreachable; storage pressure never authorizes expiry.
@@ -782,6 +803,22 @@ reader grace. Accepted positions, persisted progress and orphan objects remain
 unchanged until a clock is available; the existing revocation, restart and
 eventual-collection schedule then completes. The [source-attributed result](../history/qualification/storage.md#collection-progress-across-clock-failure--2026-10-28)
 adds evidence for P4.5 without closing its installed failure/resource matrix.
+
+At `6e6f9dc44`, all seven local catalog/maintenance checks pass with a reusable
+private Table workspace. One admitted 128 MiB reserve serves 121 subsequent
+work units and sixteen idle units with its backing allocator sealed; a bypass
+negative control detects attempted fallback. The
+[allocation comparison](../history/qualification/storage.md#reusable-private-table-maintenance-workspace--2026-10-28)
+also records increased retained capacity and full-test peak RSS.
+Its installed maintenance schedule passes, but active RSS rises by about
+128 MiB without a clear latency/CPU improvement. Avoiding eager slab-capacity
+initialization passes 18 memory-package tests and the installed schedule at
+`bcaecb701`, reducing active RSS to about 92 MB. That still exceeds the
+approximately 54 MB baseline without a clear timing/CPU benefit. The retained
+maintenance workspace is therefore not adopted; the existing per-unit budget
+and backing-allocation measurements remain. The shared slab-initialization fix
+retains full capacity accounting and erasure. P4.4's aggregate admission,
+installed resource and foreground contention gates remain open.
 
 #### P5 — Qualify and reduce the remaining live read and wait costs
 

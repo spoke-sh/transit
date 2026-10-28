@@ -63,9 +63,22 @@ fence. `Backend.putNative` holds that fence until immutable publication finishes
 native reclamation acquires its exclusive side before consuming an allocation.
 This joins a delayed creator before deletion can remove its marker. Private
 native allocation/object syncs release the journal mutex, while epoch checks and
-quota reservations still take it briefly. Native collection progress publication
-and physical reclamation retain their journal lock; this remaining contention
-boundary is distinct from private staging.
+quota reservations still take it briefly.
+[`StorageCollection`](../../../packages/zig/transit-backend-local/src/StorageCollection.zig)
+also releases the journal mutex during progress-file publication and physical
+reclamation. Its collection lock serializes the progress record, while the
+exclusive creator fence and inventory lock protect the selected allocation
+through deletion and queue consumption. Accepted storage epochs cannot retreat;
+rechecking the epoch before deletion therefore preserves the fence without
+holding the journal mutex through the unlink. Quota reservation and confirmed
+byte release still use that mutex. Slow deletion delays native creators through
+their fence, but does not require unrelated direct acceptance or native reads
+to wait on the deletion's disk I/O.
+
+The [paused collection regression](../../../packages/zig/transit-backend-local/src/collection_test.zig)
+tests progress publication and deletion with independent data acceptance. It
+checks lock independence, not freedom from device contention or a latency bound;
+the local backend check runs it through the pinned package test target.
 
 [`Backend.put`](../../../packages/zig/transit-backend-local/src/Backend.zig)
 checks for an existing descriptor, reserves encoded bytes under the shared

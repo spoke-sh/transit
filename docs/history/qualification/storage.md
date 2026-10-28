@@ -9,6 +9,238 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Direct request allocation and response lifetime — 2026-10-28
+
+The question is how much private request memory remains owned when a direct
+Table response starts transmission. At `74b555d8413a9b376e4a41718d445cfc2ec0cfe5`,
+opt-in native request diagnostics place an allocation probe below the complete
+handler allocator. Parsing, catalog work and serialization share an arena that
+survives until the response finishes. The installed physical-disk
+`just test direct-table-maintenance` schedule passes, but seven-row scans retain
+up to 9,613,056 bytes at response time. Snapshot and storage observations retain
+up to approximately 2 MiB. These are handler allocations, not whole-node RSS.
+
+At `c15ddd1f50c47fb68c0fff7517b46b9c606d5700`, serialization allocates its exact
+output independently. Parsing and catalog scratch are released before either a
+success or error response is sent. The existing final authorization fence runs
+before disclosure and frees a withheld response on failure. The new installed
+oracle compares counted live bytes with the independently received HTTP response
+length for every observed Table response; all must match.
+
+Both sources pass the complete installed schedule with the same caller binary,
+258 retained row values, seven-row pages and sixteen complete scans per arm.
+They enable request metrics and use the same existing HTTP fixture. The active
+arm also verifies overlapping flush progress, ten packed segments, fixed targets
+after SIGKILL, retained cuts after another restart and idle convergence.
+
+| Automatic-flush observation | Shared request arena | Independent response |
+| --- | ---: | ---: |
+| Scan responses | 624 | 624 |
+| Maximum live handler bytes at scan response | 9,613,056 | 3,335 |
+| Maximum peak handler bytes during a scan | 9,613,056 | 9,273,723 |
+| Scan backing allocation attempts | 4,642 | 5,260 |
+| Total scan acquired bytes | 4,233,772,544 | 4,257,742,350 |
+| Node CPU during phase (seconds) | 20.40 | 20.36 |
+| Complete-scan median (seconds) | 1.214 | 1.215 |
+| Node RSS after phase (bytes) | 53,825,536 | 53,940,224 |
+
+This reduces the response's private memory lifetime. It adds a separately owned
+output allocation and does not eliminate working allocations or establish a
+latency improvement. Both runs have uncontrolled host/cache state; inspection
+traffic varies and has its own operation totals. Provider/cache allocations,
+socket buffers, stacks and maintenance remain outside this probe. A pre-write
+snapshot is not a post-cleanup leak check or an aggregate admission limit.
+
+All six local catalog/maintenance checks pass at `c15ddd1f5`, including decoding
+responses after their work arenas are destroyed and denying already-buffered
+results after revocation without leaks. A new output-allocation failure occurs
+after an INSERT commits: inspecting its original operation finds the committed
+receipt, and independent reads verify the one expected row. No replacement
+mutation is submitted. Both revisions also pass the full handbook build and all
+41 committed-source clean fast checks.
+
+The exact baseline binaries run separately against the new driver as a negative
+control. It fails the request-memory validation gate after the disabled arm,
+reporting 1,059 invalid observations; the candidate passes that same gate.
+The original negative-control installation, exact executables and source record
+remain private at `/var/tmp/transit-table-maintenance-rsmxoz2i`.
+
+Raw logs are under `.cache/milestone3/`:
+
+| Log | SHA-256 |
+| --- | --- |
+| `native-request-memory-installed.log` | `325963915773dcb55477262c4b7b7065d602fd7f4c932c0f0468d7fb9d7be119` |
+| `native-response-lifetime-installed.log` | `378519935ee5e95ae3286eceb0a69f96d1282d9dafe8db33de8ebbbb92d33eca` |
+| `native-response-lifetime-catalog.log` | `8ced5a8f9106d851eb51b8992a35e25e4ab612cbbec914034b2a2ec1f62a4aa9` |
+| `native-response-lifetime-negative.log` | `3a155486fe4cc4fb0bc3ab178fa06f700ead9d10cceba6793e3d1c5fa690dcd5` |
+
+Baseline and candidate node SHA-256 identities are
+`4e507a6406d67086e7a6e5b113cb7ee622652d2cece8915bd1520ca1b4c0d180` and
+`06019a634b1ab69c5bb545208cc602016e539c537fc2b0a9b4c2b617ed9c1a38`.
+Both use caller SHA-256
+`334b1e52093210148e4b53c64123661335d61e4526598129731e7541178bbc1e`.
+
+## Reusable private Table maintenance workspace — 2026-10-28
+
+The question is whether sequential maintenance units can reuse bounded private
+storage without obtaining more backing memory after admission. The baseline at
+`e01dcc6e03e49203c57e056ae27cd2ee25f38c0a` adds the shared allocation probe;
+the candidate at `6e6f9dc4471d5eb75db97325bb0b3fc8c397c336` admits one slab
+under the existing maintenance byte budget. Both run
+`zig build test-local-catalog -Doptimize=ReleaseSafe --summary all` inside
+`nix develop`, sequentially against the real local disk backend. The baseline
+passes six tests and the candidate passes seven, including the new disabled-work
+and cold-admission refusal checks. An earlier baseline attempt at `60ec2468a`
+fails compilation because a restarted fixture omitted its allocator; it supplies
+no runtime result.
+
+| Private boundary observation | Baseline | Reused workspace |
+| --- | ---: | ---: |
+| Total scheduled units across four Tables | 122 | 122 |
+| Startup backing allocations | Included in work count | 1 |
+| Work backing allocations | 6,954 | 0 after the first unit |
+| Work growing resize/remap attempts | 21 / 0 | 0 / 0 after the first unit |
+| Backing allocations during sixteen idle units | 1,114 | 0 |
+| Peak requested private bytes in the four-Table schedule | 4,229,884 | 4,229,884 |
+| Peak occupied slab bytes, including headers/alignment | Not applicable | 4,230,400 |
+| Retained private backing after work | 0 | 134,217,728 |
+
+The candidate seals the parent allocator after its first unit. The subsequent
+121 work units and sixteen idle units must complete without allocation or
+growing resize/remap attempts. Removing the admitted workspace deliberately
+trips the sealed probe before catalog access. Discovery/recovery hints are
+discarded once while the workspace survives; this is not a process restart.
+Original receipts, logical positions, history floors and retained rows remain
+unchanged. Automatic collection's existing clock-failure, revocation, reopen
+and eventual-idle assertions also pass.
+
+Reuse changes the memory lifetime: the whole 128 MiB backing reservation stays
+admitted until the joined maintenance owner is destroyed. It is not equivalent
+to the approximately 4 MiB occupied by this schedule, nor to resident pages.
+The separate physical-flush case reports 29,397,310 peak private bytes in the
+baseline and 37,786,214 in the candidate. The complete test processes report
+rounded maximum RSS of `36M` and `282M`; those include other cases, simultaneously
+retained fixture workspaces and teardown. These increases must remain visible
+alongside the allocation reduction. Neither these single runs nor their elapsed
+times establish an installed speedup or aggregate memory improvement.
+
+The probe excludes engine caches, provider buffers, collection, foreground
+requests, stacks and the kernel file cache. The
+[qualification method](../../../tests/storage/tables/maintenance.md#private-maintenance-allocation-boundary)
+requires separate installed CPU/RSS/I/O and foreground observations. The complete
+request-arena and concurrent-admission gates remain open.
+
+Raw logs remain under `.cache/milestone3/`; the exact identities are:
+
+| Variant | Log SHA-256 | Test executable SHA-256 |
+| --- | --- | --- |
+| `maintenance-memory-baseline.log` | `f8f05813dea4f7017825d60240fe450ffb028f0e3fd907536efdeebc7b57023b` | `ec9c18b7c2a8602015ef3484dd0c9b43a651739d1c96c8a925902fae17fa2f7d` |
+| `maintenance-memory-reuse.log` | `a53bec7435a1019e99babf4bc3cc9d563911b57822b2eed4986be0cefc7aaafc` | `42479a66901861d9cf9c73005397e13ed7c9b577fe602b94f7d5409c7c54773c` |
+
+### Installed cost of the initial workspace
+
+The same `6e6f9dc44` candidate passes `just test direct-table-maintenance`,
+including independent values for all 258 rows, foreground overlap with flushing,
+fixed targets after SIGKILL, retained cuts after restart and idle convergence.
+Flushing produces ten segments in 8.062 seconds; subsequent archive/compaction
+recovery and verification take 22.417 seconds without rewriting packed segments.
+Total task time, including compilation, is 341.95 seconds.
+
+Compare the automatic-flush arm with the earlier `77f9fb503` clean growth run.
+Both retain profile SHA-256
+`86a6a118af09e4fe8433c77b6c2699c18f3938ea4f4237f2434585c7527aa023`, sixteen
+independently checked scans and identical fixture limits. Each is a single run
+with uncontrolled host/cache state, so small timing differences are not evidence
+of a speedup or slowdown.
+
+| Active flush observation | Before retained workspace | Initial workspace |
+| --- | ---: | ---: |
+| Scan duration minimum / median / maximum (seconds) | 1.147 / 1.203 / 4.748 | 1.142 / 1.215 / 4.131 |
+| Node CPU during phase (seconds) | 20.37 | 20.29 |
+| Node RSS after phase (bytes) | 53,850,112 | 187,965,440 |
+| Node lifetime peak RSS (bytes) | 74,219,520 | 194,596,864 |
+| Node kernel write-byte increase | 11,550,720 | 11,550,720 |
+
+The candidate's disabled-maintenance arm ends at 53,911,552 resident bytes.
+The active arm's approximately 128 MiB additional RSS prevents accepting this
+candidate as an aggregate resource improvement. Reduced backing allocation
+counts have not produced a clear installed latency or CPU improvement.
+The pinned Zig allocator's typed allocation helper fills the whole returned
+slice with `undefined`, which poisons unused capacity in ReleaseSafe builds.
+This supplies an initialization mechanism to investigate; occupied private bytes
+and admitted capacity remain distinct quantities.
+
+The candidate log is `.cache/milestone3/maintenance-workspace-installed.log`,
+SHA-256 `a34214bc6349dcccfc1d8086f9b3abe1207180abb4b57f8ab6a8428b13b7d109`.
+Node and caller SHA-256 identities are respectively
+`2dcd2460dd35a6b9bb3362b96a7b5c387630fa1b9a3f67a00b66d8e02c57762a` and
+`d6d1f6b5e2787edb1c8ceab27d19fe89cc0c90f87c42b0fcb62bb0e87469ddf6`.
+The baseline record remains in
+`.cache/milestone3/current-77f9fb503-clean-growth.log`, SHA-256
+`88b0a047c4268c2f80100eef885c1153752f76b730e91b89aecc2d4c62cf4f8b`;
+that lane is incomplete because its final duplicate catalog growth schedule was
+deliberately interrupted. Its completed maintenance task remains distinct from
+lane completion.
+
+### Admission initialization control
+
+At `79c04aec0`, `Slab.init` obtains raw aligned backing through its supplied
+allocator, charges the full capacity and initializes its own metadata without
+filling unused payload bytes. Ordinary borrower allocations, `reset(true)` and
+full-reserve destruction retain their initialization/erasure behavior. The
+standalone memory package passes all 18 tests in ReleaseSafe. A prefilled backing
+control verifies untouched unused bytes, full budget/probe charges, erasure on
+reset and zero remaining charges after destruction. Restoring the previous
+initializer makes only that new check fail; the other 17 checks pass.
+These are package controls, not an installed RSS result for this follow-up.
+
+The subsequent installed schedule passes at
+`bcaecb7015d0c5d83798b23fe9621b2ec5d527c9`, with all retained-value, restart,
+fixed-target and idle assertions. Flush convergence takes 8.080 seconds and
+archive/compaction recovery plus verification take 22.157 seconds. Active reads
+have minimum/median/maximum durations of 1.087/1.194/4.079 seconds; node CPU
+is 19.98 seconds. Active RSS after the phase falls to 92,319,744 bytes and
+lifetime peak RSS to 98,619,392 bytes. The disabled arm ends at 53,919,744 bytes.
+Kernel write-byte growth remains 11,550,720; kernel reads are 200,704 bytes in
+this run, reinforcing the uncontrolled-cache limitation. All 41 committed-source
+clean fast checks also pass at that revision.
+
+The follow-up removes most of the initial reserve's extra RSS, but the remaining
+approximately 38 MB increase over the original baseline has no clear measured
+CPU/latency benefit. **The retained maintenance workspace is not adopted.** The
+local owner returns to its existing per-unit byte budget and releases private
+allocations after every unit; allocation instrumentation remains. The shared
+slab-initialization correction retains its independent memory-owner tests and
+full accounting/erasure behavior. This decision makes no zero-allocation or
+aggregate node resource claim.
+
+The follow-up log is
+`.cache/milestone3/slab-admission-installed-maintenance.log`, SHA-256
+`1eaac401d896faa04f5845ccd11f595d1ec1b85178d3fa374d4ff666c6848a95`.
+Node SHA-256 is
+`5f18a7bb7fe4ea689fb604a4d675f898a81c40d65ecdbe8063505d74bdf1027f`;
+the caller remains `d6d1f6b5e2787edb1c8ceab27d19fe89cc0c90f87c42b0fcb62bb0e87469ddf6`.
+
+The final per-unit implementation at
+`749e9ae89a49c4d417317760d1305e114669277b` passes the same installed schedule.
+Active RSS returns to 53,841,920 bytes, with lifetime peak RSS of 75,329,536
+bytes. Active scan minimum/median/maximum durations are 1.160/1.214/4.131
+seconds; node CPU is 20.62 seconds. The disabled arm ends at 53,694,464
+resident bytes. Kernel reads remain zero and writes increase by 11,550,720
+bytes during flushing. The original 258 rows, ten packed segments, fixed
+maintenance targets, restart checks and idle convergence all pass. Flush
+convergence takes 8.146 seconds and archive/compaction recovery plus
+verification take 22.443 seconds. The full handbook build and all 41
+committed-source clean fast checks also pass at that revision.
+
+These observations support releasing the private memory between units; they
+do not establish improved latency over the baseline. The final installed log is
+`.cache/milestone3/maintenance-budget-restored-installed.log`, SHA-256
+`0e3e76741426b613ee53635259c11c47228db6e2ef076c4022c66e74fca4e058`.
+Node SHA-256 is
+`fa18e100992cbf8f424dc48aaf1411b95187b86f0a2af3a813cec2e1666a2787`;
+the caller and profile identities remain unchanged.
+
 ## Installed packaging recovery and repository qualification — 2026-10-28
 
 At frozen source `4d778efa9ffc5a8ad3e012bcecee1cc9887621db`, the committed-source
@@ -53,6 +285,34 @@ Raw records remain under `.cache/milestone3/`:
 | `single-executable-original-inspection.log` | `3f807b5d3203f81dba61881383d295182f09903dee2cbfe1e69fc2fe08d988d8` |
 | `single-executable-control.log` | `4f663b846acfd066ffb3102ddb498013ab4b7d06b84e6079c0f02f924951bb9f` |
 | `single-executable-health.jsonl` | `4e0b71f5263b90dce73af1eeb110f954611bb3fe4218c0de75cd4cd09a7c3eba` |
+
+### Headless shutdown observation
+
+The later clean experience run at `77f9fb503` passes its first five tasks and
+the default single-executable workflow, then exceeds the headless fixture's
+20-second shutdown deadline. Its manager logs completion after approximately
+31 seconds. The private installation at `/var/tmp/transit-server-proof-pjh7mc58`
+has no database-wire listeners; attributing that delay to active wire draining
+is unsupported. The log `current-77f9fb503-clean-experience.log` under
+`.cache/milestone3/` has SHA-256
+`87605dd07a1a7573b1055d114b94481f4da846c7c5b9b3d0b988f7125cd5a468`.
+
+After preserving a stopped copy at
+`/var/tmp/transit-m3-headless-before-ilnf3rgp`, two diagnostic reopens use the
+same installation, configuration and executable SHA-256
+`c0f0e320308d82f7a1544df5cca78d75a8444c2a3e172759407adc5521c4904e`.
+Both reach local SQL admission before SIGTERM. Shutdown takes 0.827 seconds
+with process-state observation and 0.821 seconds with signal/wait/exit tracing;
+both managers exit zero and every owned role joins. Installation/provisioning
+identities remain unchanged; no SQL is submitted. The diagnostic log is
+`.cache/milestone3/headless-shutdown-inspection.log`, SHA-256
+`ec73c5d9159f862220192bafb251f21515bcb58999dacef89b7f880b962f66e8`.
+
+The complete [GitHub experience lane](https://github.com/spoke-sh/transit/actions/runs/40683696166/job/122801112580)
+also passes at merge source `cd68d6c63310c04637e741cf26272d87bc2da95c`,
+including default/headless packaging and browser checks. These later results
+do not reproduce or establish the cause of the earlier local shutdown failure.
+No production or fixture deadline changes.
 
 ## Collection progress across clock failure — 2026-10-28
 
