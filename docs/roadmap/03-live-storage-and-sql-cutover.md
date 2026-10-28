@@ -662,9 +662,9 @@ and the backend's native/direct/payload maintenance owners.
   Compaction must emit no logical mutation or invalidate computation freshness.
 
 The aggregate admission gate includes the complete lifetime of direct request
-allocations. `NativeServer.table` uses an arena backed by the node allocator for
-parsing and catalog work, then independently owns the serialized response during
-transmission. Request/response
+allocations. `NativeServer.table` owns a parsing/result arena, reclaimable
+catalog work and an independent serialized response during transmission.
+Request/response
 wire limits and individual operator budgets do not establish a byte cap for
 that whole arena or the sum of concurrent requests and maintenance. Qualify an
 explicit request-wide limit and independent control capacity, including exhausted
@@ -680,7 +680,17 @@ including receipt inspection after output allocation fails on an accepted INSERT
 The old exact binaries fail the new lifetime oracle. The
 [allocation and lifetime account](../history/qualification/storage.md#direct-request-allocation-and-response-lifetime--2026-10-28)
 preserves the additional allocation cost and unchanged observed CPU/latency.
-Working peaks remain around 9 MiB; the aggregate admission gate stays open.
+Working peaks in that source remain around 9 MiB; the aggregate admission gate stays open.
+
+At `26051844f`, reclaimable temporary dispatch/catalog owners reduce the installed
+active-flush scan peak from 9,229,679 to 2,598,328 bytes, with identical caller,
+drivers and configuration. Allocation attempts increase from 5,252 to 56,884
+across 624 scans, with no clear CPU, median scan time or node RSS benefit.
+All six catalog/maintenance checks, the installed retained-row/restart schedule,
+the handbook and all 41 committed-source clean fast checks pass. The
+[temporary ownership account](../history/qualification/storage.md#temporary-dispatch-ownership-after-the-sql-runtime-cutover)
+preserves the negative control, per-arm measurements and limitations. This
+reduces working memory without closing aggregate admission or latency gates.
 
 **Gate:** the installed owner converges on eligible maintenance under a finite
 workload, resumes it after process death and preserves every retained obligation.

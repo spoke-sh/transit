@@ -80,6 +80,80 @@ Baseline and candidate node SHA-256 identities are
 Both use caller SHA-256
 `334b1e52093210148e4b53c64123661335d61e4526598129731e7541178bbc1e`.
 
+### Temporary dispatch ownership after the SQL runtime cutover
+
+The continuation at `70a552d3411eafc3fe56a63693bb9fbc1b767ef5` integrates the
+merged database-owned SQL runtime. All six local catalog/maintenance tests, the
+installed physical-disk maintenance schedule, the full handbook check and all
+41 committed-source clean fast checks pass. This requalifies the independent
+response lifetime under the combined definition; it does not establish a cap
+on working allocations.
+
+The next question is whether temporary read owners and encoding buffers must
+remain in the typed result's arena. A new one-cell oracle against production
+source `5dbf59c93` retains 3,165,880 backing bytes for a 220-byte encoded row and
+fails its 64 KiB output bound. Candidate `26051844f24e6a54ff0e5fb55312dc6f5ea492fe`
+uses the catalog's reclaimable allocator for temporary work and keeps returned
+values in the output arena. The same oracle passes with 480 backing bytes, then
+independently decodes the row after another dispatch and destruction of the
+catalog and read owners. The four selected package tests pass in ReleaseSafe;
+this fixture-specific bound is not a general request limit.
+
+Both `70a552d34` and `26051844f` pass the same installed maintenance schedule,
+using identical caller binary, drivers, phase configurations and toolchain lock.
+Each arm checks sixteen complete reads of the same 258 rows across three Tables.
+The candidate again preserves ten packed segments, original/flushed/maintained
+cuts through SIGKILL and restart, exact fixed targets and idle convergence.
+All six local catalog/maintenance tests pass, including output allocation failure
+after an accepted INSERT and denial after response buffering without leaks.
+
+| Automatic-flush scan observation | Request-owned temporary arena | Reclaimable temporary work |
+| --- | ---: | ---: |
+| Scan responses | 624 | 624 |
+| Maximum peak handler bytes per scan | 9,229,679 | 2,598,328 |
+| Total acquired scan backing bytes | 4,256,335,748 | 2,359,678,738 |
+| Scan backing allocation attempts | 5,252 | 56,884 |
+| Maximum live handler bytes at response | 3,331 | 3,336 |
+| Node CPU during phase (seconds) | 20.82 | 20.81 |
+| Complete-scan median (seconds) | 1.248 | 1.254 |
+| Node RSS after phase (bytes) | 54,931,456 | 54,902,784 |
+
+The peak drops by about 72%; backing allocation attempts increase by about
+10.8 times as formerly nested arenas now release through the backing allocator.
+The disabled-maintenance arm likewise lowers peak scan memory from 9,227,701 to
+2,598,276 bytes; its node CPU changes from 23.34 to 23.98 seconds and median scan
+from 1.377 to 1.422 seconds. These single runs do not establish a latency or RSS
+improvement. Host/page-cache state is uncontrolled, and concurrent inspection
+traffic differs. Every observed response still retains exactly its independently
+received HTTP length; the few-byte output differences reflect observations.
+Counts exclude separately owned provider/cache memory, socket buffers and stacks.
+The result lowers private working memory, while aggregate request admission,
+independent control reserve and whole-owner memory remain separate gates.
+
+Reproduce the focused oracle with `zig build test
+-Dtest-filter="direct dispatch retains encoded output" -Doptimize=ReleaseSafe`
+in `packages/zig/transit-catalog`, then run `just test direct-table-maintenance`
+and `zig build test-local-catalog -Doptimize=ReleaseSafe` from the root, inside
+`nix develop`. Baseline production code uses the new oracle as a negative
+control; the candidate includes it in committed source.
+
+The complete handbook check and all 41 committed-source clean fast checks also
+pass at `26051844f`. Raw logs remain under `.cache/milestone3/`:
+
+| Log | SHA-256 |
+| --- | --- |
+| `dispatch-output-baseline.log` | `6d33dad88eb26a16923095087edfa031dd6c4a4c750163ffd380364c2ba132e8` |
+| `dispatch-output-candidate.log` | `b67b7a1e9bc582e7f7d96f63deef78ba026d72403d0030e925822ec5869a151a` |
+| `m3-integrated-lifetime-installed.log` | `02add8a64126711e60f076f28c87fbd4f9eedd0ae0c7a3daf801482664346097` |
+| `m3-dispatch-scratch-installed.log` | `cc46463b38f61bbd017152ed90b8807015d1efdca622ceb0026db75ce4b1a71f` |
+| `m3-dispatch-scratch-catalog.log` | `ec272d2d4aa3cb5e50f2d1ddc941475dff95124cb035f86c22045b478b8976f4` |
+
+Baseline and candidate installed node SHA-256 identities are
+`4a9302bc89ab950ceb072979da5cd14c858418364c5f11a8d8d739e08d5df369` and
+`6e4667ce0c81af1a839ecba92c4c72323aab6ad02694cf8f5fdac545124daca5`.
+Both use caller SHA-256
+`d0c112df6eea920eed6e1a0a0e7f46c1ce3e8b51a770658c0b9575b8c4c05490`.
+
 ## Reusable private Table maintenance workspace — 2026-10-28
 
 The question is whether sequential maintenance units can reuse bounded private
