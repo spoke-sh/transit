@@ -155,7 +155,29 @@ pub fn run(allocator: std.mem.Allocator, client: c.DirectTableClient, admin: any
     const text = "東京'; DELETE FROM prepared_rows; ? $1";
     var inserted = try self.bind(&insert, 92001, &.{ .{ .signed = 1 }, .{ .bytes = text }, .{ .unsigned = std.math.maxInt(u64) } });
     defer inserted.deinit();
-    try self.execute(&inserted);
+    const token_key: c.DirectClientToken.Key = .{ .definition = c.protocol.Growth.current_definition, .connection = client.connection, .account = @splat(27), .token = @splat(91) };
+    try t.expect(try c.DirectClientToken.lookup(client, token_key) == null);
+    const token_binding: c.DirectClientToken.Binding = .{ .key = token_key, .fingerprint = @splat(37), .intent = try inserted.stage(client, 1) };
+    const token_receipt = try c.DirectClientToken.bind(client, token_binding);
+    var conflicting = token_binding;
+    conflicting.fingerprint[0] ^= 1;
+    try t.expectError(error.Conflict, c.DirectClientToken.bind(client, conflicting));
+    const recovered = (try c.DirectClientToken.lookup(client, token_key)).?;
+    try t.expectEqualDeep(token_receipt, recovered);
+    // Use the recovered original reference, including on a repeated execution.
+    // A lookup never admits data and rebinding never resets its terminal state.
+    const reference = recovered.binding.intent;
+    const missing = try reference.operation(client, .inspect, 1);
+    defer missing.deinit();
+    try t.expect(missing.value.result.rows == .not_observed);
+    (try reference.admit(client)).deinit();
+    const accepted = try reference.operation(client, .execute, 1);
+    defer accepted.deinit();
+    try t.expectEqual(@as(u64, 1), accepted.value.result.rows.committed.outcome.affected);
+    try t.expectEqualDeep(token_receipt, try c.DirectClientToken.bind(client, token_binding));
+    const repeated = try reference.operation(client, .execute, 1);
+    defer repeated.deinit();
+    try t.expectEqualDeep(accepted.value.result.rows.committed, repeated.value.result.rows.committed);
     var filler = try c.DirectTablePreparedDml.prepare(allocator, client, 1,
         \\INSERT INTO prepared_rows (k, v, n) VALUES
         \\(2, 'other', 7), (3, 'other', 7), (4, 'other', 7), (5, 'other', 7),
@@ -183,6 +205,7 @@ pub fn run(allocator: std.mem.Allocator, client: c.DirectTableClient, admin: any
     try self.read(&select, .{ .signed = 1 }, "fresh", 1);
     const object = c.TableAuthority.reference(before.value.result.lookup.?.authorization);
     _ = try admin.change(.{ .transfer_object = .{ .object = object, .owner = 0 } });
+    try t.expectError(error.AccessDenied, c.DirectClientToken.lookup(client, token_key));
     try t.expectError(error.AccessDenied, self.read(&select, .{ .signed = 1 }, "fresh", 1));
     _ = try admin.change(.{ .transfer_object = .{ .object = object, .owner = role } });
     try self.read(&select, .{ .signed = 1 }, "fresh", 1);

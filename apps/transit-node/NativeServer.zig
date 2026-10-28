@@ -264,6 +264,8 @@ pub fn Host(comptime Provider: type) type {
                     const response = executed catch |err| switch (err) {
                         error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),
                         error.TableDefinitionChanged => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .TableDefinitionChanged }),
+                        error.ClientTokenConflict => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
+                        error.ClientTokenCapacity => return self.json(request, .service_unavailable, wire.protocol.ErrorResponse{ .err = .StorageQuota }),
                         error.SourceChanged, error.DataIdentityConflict, error.CatalogObjectBusy, error.CatalogObservationChanged, error.TableDataChanged, error.TableHistoryConflict, error.NamedResourceNotAdmitted, error.NamedResourceAllocationUnreconciled, error.NamedResourceAllocationMismatch, error.NamedResourceIdentityConflict, error.NativeAllocationSequenceChanged, error.NativeAllocationBusy => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
                         error.TableSnapshotReleased, error.TableSnapshotNotPinned => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .QueryExpired }),
                         error.TableHistoryMissing, error.WalHistoryMissing, error.WalHistoryTrimmed => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .HistoryReclaimed }),
