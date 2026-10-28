@@ -1482,7 +1482,7 @@
       "implementation": [
         "packages/zig/transit-query/src/UnifiedBehavior.zig",
         "packages/zig/transit-query/src/UnifiedCapture.zig",
-        "packages/zig/transit-query/src/DirectTableQuery.zig",
+        "packages/zig/transit-query-direct/src/DirectTableQuery.zig",
         "packages/zig/transit-catalog/src/DirectReadDelegation.zig",
         "tests/query/execution/direct_captured_query.zig",
         "tests/query/execution/direct_captured_query.py"
@@ -1653,7 +1653,7 @@
         "packages/zig/transit-catalog/src/DirectCatalog.zig",
         "packages/zig/transit-catalog/src/DirectTableClient.zig",
         "packages/zig/transit-catalog/src/DirectTableIntent.zig",
-        "packages/zig/transit-query/src/DirectTableQuery.zig",
+        "packages/zig/transit-query-direct/src/DirectTableQuery.zig",
         "tests/catalog/tables/direct_table_lifecycle.zig",
         "tests/interfaces/native/direct_table_client.zig",
         "tests/storage/tables/direct_table_service.py"
@@ -2127,7 +2127,7 @@
         "packages/zig/transit-fuze/src/PhysicalCodecs.zig",
         "packages/zig/transit-catalog/src/DirectTableReader.zig",
         "packages/zig/transit-catalog/src/DirectTableDispatch.zig",
-        "packages/zig/transit-query/src/DirectTableScan.zig"
+        "packages/zig/transit-query-direct/src/DirectTableScan.zig"
       ],
       "profile": "Serialized Table owner, signed retained reads and identity-ordered finite SQL plans",
       "scenarios": [

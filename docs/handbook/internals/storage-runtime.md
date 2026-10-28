@@ -1045,8 +1045,9 @@ The source-activity tests in the
 and native/direct collection owners below exercise carry, trim, reopen, excluded
 marks and later arrivals. The
 [node schedule](../../../apps/transit-node/local_collection_test.zig) exercises
-both owners, restart, revocation and idle convergence through the pinned
-`just test::local-catalog` task. These finite controls do not establish a maximum
+both owners, restart, revocation and idle convergence; the
+[storage test guide](../../../tests/storage/README.md) owns its reproduction
+command. These finite controls do not establish a maximum
 installed completion time; graph size, interval, I/O and foreground work remain
 independent costs.
 

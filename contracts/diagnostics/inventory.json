@@ -5587,7 +5587,9 @@
         "TableValues.zig",
         "TestAuthority.zig",
         "builtin",
-        "transit_station",
+        "transit_client",
+        "transit_fuze",
+        "transit_protocol",
         "transit_storage"
       ]
     },
@@ -13268,6 +13270,7 @@
         "InvalidDataIdentity": 2,
         "InvalidDataOperation": 1,
         "InvalidDataPosition": 4,
+        "InvalidPublicationLimits": 1,
         "InvalidResourceInitialization": 4,
         "InvalidSnapshotCoverage": 2
       },
@@ -13315,6 +13318,7 @@
         "Observation.validate()": "<inferred>",
         "Operation.validate()": "<inferred>",
         "Position.validate()": "<inferred>",
+        "PublicationLimits.validate()": "<inferred>",
         "ResourceInitialization.decode()": "<inferred>",
         "ResourceInitialization.encode()": "<inferred>",
         "ResourceInitialization.validate()": "<inferred>",
@@ -14415,6 +14419,292 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/ComputePool.zig": {
+      "errors": {
+        "Cancelled": 3,
+        "ComputeMemoryBudget": 2,
+        "InvalidComputeWorkers": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "evaluate()": "<inferred>",
+        "init()": "<inferred>",
+        "run()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/DirectRelationalCompilation.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "InvalidQueryBudget": 2,
+        "InvalidRelationalSources": 3,
+        "RelationalCallerChanged": 2,
+        "RelationalResidentBudget": 2,
+        "RelationalSourceChanged": 2,
+        "TableNotFound": 1,
+        "UnsupportedRelationalConsistency": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "fromRetained()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validate()": "<inferred>",
+        "validateBindings()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 23,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/DirectRelationalQuery.zig": {
+      "errors": {
+        "FailedRelationalQuery": 2,
+        "InvalidQueryBudget": 1,
+        "InvalidRelationalSources": 1,
+        "OutOfMemory": 1,
+        "RelationalResidentBudget": 2,
+        "RelationalSourceChanged": 2,
+        "UnsupportedRelationalConsistency": 1
+      },
+      "outcomes": {
+        "Consistency": [
+          "per_resource_snapshot_vector",
+          "independent_table_snapshots",
+          "atomic"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "next()": "<inferred>",
+        "openPreparedRetained()": "<inferred>",
+        "schema()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/DirectRelationalTables.zig": {
+      "errors": {
+        "InvalidRelationalSources": 1,
+        "QueryClosed": 3,
+        "QueryPageBudget": 4,
+        "RelationalSourceChanged": 3,
+        "UnknownRelationalSource": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "authorize()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 1
+      },
+      "imports": [
+        "DirectTableScan.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/DirectTableCountRange.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 6
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/DirectTablePrepared.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "TableDefinitionChanged": 1,
+        "TableNotFound": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "instantiate()": "<inferred>",
+        "prepare()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/DirectTableQuery.zig": {
+      "errors": {
+        "Cancelled": 1,
+        "FailedQuery": 2,
+        "IncompleteSource": 1,
+        "InvalidQueryBudget": 2,
+        "QueryClosed": 1,
+        "QueryPageBudget": 1,
+        "QueryResultBudget": 5,
+        "SourceChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Limits.validate()": "<inferred>",
+        "next()": "<inferred>",
+        "nextBatch()": "<inferred>",
+        "openPreparedRetained()": "<inferred>",
+        "openRetained()": "<inferred>",
+        "prepareRow()": "<inferred>",
+        "qualify()": "<inferred>",
+        "schema()": "<inferred>",
+        "start()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 29,
+        "catch": 1
+      },
+      "imports": [
+        "DirectTableScan.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/DirectTableScan.zig": {
+      "errors": {
+        "Cancelled": 2,
+        "IncompleteSource": 3,
+        "InvalidQueryBudget": 1,
+        "QueryClosed": 1,
+        "QueryConflict": 1,
+        "QueryPageBudget": 1,
+        "QueryTypeError": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "charge()": "<inferred>",
+        "checkCancellation()": "<inferred>",
+        "fingerprint()": "<inferred>",
+        "next()": "<inferred>",
+        "nextAfter()": "<inferred>",
+        "nextBorrowed()": "<inferred>",
+        "open()": "<inferred>",
+        "rejected()": "anyerror",
+        "selectAccess()": "<inferred>",
+        "validateCurrent()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 13,
+        "catch": 7
+      },
+      "imports": [
+        "DirectTableCountRange.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/RelationalSpill.zig": {
+      "errors": {
+        "Cancelled": 2,
+        "FailedRelationalSpill": 3,
+        "IncompleteRelationalSpill": 2,
+        "InvalidRelationalGroup": 1,
+        "InvalidRelationalSpill": 18,
+        "InvalidSpillName": 1,
+        "RelationalResidentBudget": 1,
+        "RelationalSpillBudget": 4,
+        "RelationalSpillWorkBudget": 1,
+        "UnsupportedSpillLifetime": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "appendText()": "<inferred>",
+        "balance()": "<inferred>",
+        "charge()": "<inferred>",
+        "checkKey()": "<inferred>",
+        "get()": "<inferred>",
+        "height()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "put()": "<inferred>",
+        "read()": "<inferred>",
+        "readOptional()": "<inferred>",
+        "readRecord()": "<inferred>",
+        "rotateLeft()": "<inferred>",
+        "rotateRight()": "<inferred>",
+        "updateHeight()": "<inferred>",
+        "write()": "<inferred>",
+        "writeOptional()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 96,
+        "catch": 3
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "ComputePool.zig",
+        "DirectRelationalCompilation.zig",
+        "DirectRelationalQuery.zig",
+        "DirectRelationalTables.zig",
+        "DirectTablePrepared.zig",
+        "DirectTableQuery.zig",
+        "RelationalSpill.zig",
+        "transit_catalog",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-query/src/ApiCodes.zig": {
       "errors": {
         "AuthorityTransportDenied": 1,
@@ -14888,29 +15178,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-query/src/ComputePool.zig": {
-      "errors": {
-        "Cancelled": 3,
-        "ComputeMemoryBudget": 2,
-        "InvalidComputeWorkers": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "evaluate()": "<inferred>",
-        "init()": "<inferred>",
-        "run()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 2,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
     "packages/zig/transit-query/src/Decoder.zig": {
       "errors": {
         "CellTooLarge": 1
@@ -14938,95 +15205,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-query/src/DirectRelationalCompilation.zig": {
-      "errors": {
-        "CatalogIdentityConflict": 1,
-        "InvalidQueryBudget": 2,
-        "InvalidRelationalSources": 3,
-        "RelationalCallerChanged": 2,
-        "RelationalResidentBudget": 2,
-        "RelationalSourceChanged": 2,
-        "TableNotFound": 1,
-        "UnsupportedRelationalConsistency": 2
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "fromRetained()": "<inferred>",
-        "prepare()": "<inferred>",
-        "validate()": "<inferred>",
-        "validateBindings()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 23,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-query/src/DirectRelationalQuery.zig": {
-      "errors": {
-        "FailedRelationalQuery": 2,
-        "InvalidQueryBudget": 1,
-        "InvalidRelationalSources": 1,
-        "OutOfMemory": 1,
-        "RelationalResidentBudget": 2,
-        "RelationalSourceChanged": 2,
-        "UnsupportedRelationalConsistency": 1
-      },
-      "outcomes": {
-        "Consistency": [
-          "per_resource_snapshot_vector",
-          "independent_table_snapshots",
-          "atomic"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "next()": "<inferred>",
-        "openPreparedRetained()": "<inferred>",
-        "schema()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 11,
-        "catch": 1
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-query/src/DirectRelationalTables.zig": {
-      "errors": {
-        "InvalidRelationalSources": 1,
-        "QueryClosed": 3,
-        "QueryPageBudget": 4,
-        "RelationalSourceChanged": 3,
-        "UnknownRelationalSource": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "authorize()": "<inferred>",
-        "next()": "<inferred>",
-        "open()": "<inferred>",
-        "validate()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 14,
-        "catch": 1
-      },
-      "imports": [
-        "DirectTableScan.zig",
-        "root.zig",
-        "std"
-      ]
-    },
     "packages/zig/transit-query/src/DirectTableAssistance.zig": {
       "errors": {
         "CatalogCursorChanged": 1
@@ -15045,113 +15223,6 @@
         "catch": 4
       },
       "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-query/src/DirectTableCountRange.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {},
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 0,
-        "catch": 6
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-query/src/DirectTablePrepared.zig": {
-      "errors": {
-        "CatalogIdentityConflict": 1,
-        "TableDefinitionChanged": 1,
-        "TableNotFound": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "instantiate()": "<inferred>",
-        "prepare()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 22,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-query/src/DirectTableQuery.zig": {
-      "errors": {
-        "Cancelled": 1,
-        "FailedQuery": 2,
-        "IncompleteSource": 1,
-        "InvalidQueryBudget": 2,
-        "QueryClosed": 1,
-        "QueryPageBudget": 1,
-        "QueryResultBudget": 5,
-        "SourceChanged": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "Limits.validate()": "<inferred>",
-        "next()": "<inferred>",
-        "nextBatch()": "<inferred>",
-        "openPreparedRetained()": "<inferred>",
-        "openRetained()": "<inferred>",
-        "prepareRow()": "<inferred>",
-        "qualify()": "<inferred>",
-        "schema()": "<inferred>",
-        "start()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 29,
-        "catch": 1
-      },
-      "imports": [
-        "DirectTableScan.zig",
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-query/src/DirectTableScan.zig": {
-      "errors": {
-        "Cancelled": 2,
-        "IncompleteSource": 3,
-        "InvalidQueryBudget": 1,
-        "QueryClosed": 1,
-        "QueryConflict": 1,
-        "QueryPageBudget": 1,
-        "QueryTypeError": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "charge()": "<inferred>",
-        "checkCancellation()": "<inferred>",
-        "fingerprint()": "<inferred>",
-        "next()": "<inferred>",
-        "nextAfter()": "<inferred>",
-        "nextBorrowed()": "<inferred>",
-        "open()": "<inferred>",
-        "rejected()": "anyerror",
-        "selectAccess()": "<inferred>",
-        "validateCurrent()": "<inferred>"
-      },
-      "open_error_set_uses": 2,
-      "propagation": {
-        "try": 13,
-        "catch": 7
-      },
-      "imports": [
-        "DirectTableCountRange.zig",
         "root.zig",
         "std"
       ]
@@ -16303,50 +16374,6 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 74,
-        "catch": 3
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-query/src/RelationalSpill.zig": {
-      "errors": {
-        "Cancelled": 2,
-        "FailedRelationalSpill": 3,
-        "IncompleteRelationalSpill": 2,
-        "InvalidRelationalGroup": 1,
-        "InvalidRelationalSpill": 18,
-        "InvalidSpillName": 1,
-        "RelationalResidentBudget": 1,
-        "RelationalSpillBudget": 4,
-        "RelationalSpillWorkBudget": 1,
-        "UnsupportedSpillLifetime": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "appendText()": "<inferred>",
-        "balance()": "<inferred>",
-        "charge()": "<inferred>",
-        "checkKey()": "<inferred>",
-        "get()": "<inferred>",
-        "height()": "<inferred>",
-        "next()": "<inferred>",
-        "open()": "<inferred>",
-        "put()": "<inferred>",
-        "read()": "<inferred>",
-        "readOptional()": "<inferred>",
-        "readRecord()": "<inferred>",
-        "rotateLeft()": "<inferred>",
-        "rotateRight()": "<inferred>",
-        "updateHeight()": "<inferred>",
-        "write()": "<inferred>",
-        "writeOptional()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 96,
         "catch": 3
       },
       "imports": [
@@ -17762,14 +17789,8 @@
         "Bridge.zig",
         "Bundle.zig",
         "CapturedTablePin.zig",
-        "ComputePool.zig",
         "Decoder.zig",
-        "DirectRelationalCompilation.zig",
-        "DirectRelationalQuery.zig",
-        "DirectRelationalTables.zig",
         "DirectTableAssistance.zig",
-        "DirectTablePrepared.zig",
-        "DirectTableQuery.zig",
         "Draft.zig",
         "Editor.zig",
         "ExchangeAuthorization.zig",
@@ -17793,7 +17814,6 @@
         "RelationalRecords.zig",
         "RelationalResult.zig",
         "RelationalRevision.zig",
-        "RelationalSpill.zig",
         "RelationalState.zig",
         "RelationalWorkspace.zig",
         "ResultDisclosure.zig",
@@ -17828,6 +17848,7 @@
         "source_store_test.zig",
         "transit_catalog",
         "transit_config",
+        "transit_query_direct",
         "transit_station",
         "transit_station_document"
       ]
@@ -21491,6 +21512,7 @@
         "Upload.zig",
         "transit_catalog",
         "transit_query",
+        "transit_query_direct",
         "transit_sql_protocol",
         "transit_sql_results",
         "transit_station"
@@ -24915,7 +24937,8 @@
         "Publication.zig",
         "Turn.zig",
         "root.zig",
-        "std"
+        "std",
+        "transit_client"
       ]
     },
     "packages/zig/transit-station/src/Metadata.zig": {
@@ -24962,7 +24985,6 @@
         "InvalidPublicationDigest": 3,
         "InvalidPublicationFormat": 1,
         "InvalidPublicationIdentity": 4,
-        "InvalidPublicationLimits": 1,
         "InvalidPublicationOrdinal": 2,
         "MissingPublicationChunk": 3,
         "MutationBudgetExceeded": 1,
@@ -25020,7 +25042,6 @@
         "Descriptor.validate()": "<inferred>",
         "Digest.next()": "<inferred>",
         "Digest.of()": "<inferred>",
-        "Limits.validate()": "<inferred>",
         "Spec.size()": "<inferred>",
         "Spec.validate()": "<inferred>",
         "abandon()": "<inferred>",

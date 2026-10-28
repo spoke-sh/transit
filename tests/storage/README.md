@@ -9,6 +9,7 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 | --- | --- |
 | Local objects, WAL and accepted Table maintenance process-death recovery | [Objects](local/local_objects.py), [storage faults](local/local_storage_faults.py), [collection faults](local/local_native_collection_faults.py) |
 | Local native collection and maintenance | [local/](local/), [growth](local/storage_growth.py) |
+| Automatic native/direct collection scheduling, restart, revocation and idle convergence | [Node collection schedule](../../apps/transit-node/local_collection_test.zig); `just test::local-catalog` |
 | Local owner replacement and atomic state/block/version/intent recovery | [Recovery schedule](local/local_owner_recovery.py), [real-node fault wrapper](local/local_owner_fault_node.zig); `just test local-owner-recovery` |
 | Authenticated standalone payload lifecycle | [Local payload service](local/local_payload_service.py); `just test local-payload-service` |
 | Direct Table graph collection, expiry and retained pins | [Disk collection](local/direct_collection.zig), [collection process faults](local/local_native_collection_faults.py) |
