@@ -32,6 +32,9 @@ def run(node, caller, mode="tables", *artifacts):
             "local_directory": str(root / "native"),
             "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
         }
+        request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
+        if request_memory is not None:
+            settings["request_metrics"] = True
         if mode in ("resources", "resource-growth"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
@@ -88,6 +91,8 @@ def run(node, caller, mode="tables", *artifacts):
                     response = connection.getresponse()
                     data = response.read()
                     if self.path == "/table/v1":
+                        if request_memory is not None:
+                            request_memory.observe(envelope["action"], response.getheader("x-transit-work"))
                         fault["requests"] += 1
                         resource = envelope["action"].get("resource_operation")
                         if mode == "resources" and resource and resource["binding"]["operation"] in (80000, 80001) and resource["command"] != "inspect" and response.status == 200:
@@ -228,7 +233,7 @@ def run(node, caller, mode="tables", *artifacts):
                     config.write_text(json.dumps(settings))
                     authority = start()
                 direct_table_maintenance.exercise(caller, endpoint, profile, root, restart,
-                                                  lambda: authority, node)
+                                                  lambda: authority, node, request_memory)
                 return
             if mode == "growth":
                 subprocess.run([caller, endpoint, "growth-write", str(profile)], check=True, timeout=600)
