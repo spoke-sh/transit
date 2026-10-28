@@ -75,20 +75,20 @@ const PredicateWork = struct { outcomes: [4]E, intents: [4]w.Binary, unsubmitted
 fn preparedReads(allocator: std.mem.Allocator, client: c.DirectTableClient) !void {
     const before = try lookup(client, "events");
     defer before.deinit();
-    var prepared = try q.DirectTablePrepared.prepare(allocator, client, 1, "SELECT payload FROM events WHERE id = $1 LIMIT 1", .transit, null);
+    var prepared = try q.direct.DirectTablePrepared.prepare(allocator, client, 1, "SELECT payload FROM events WHERE id = $1 LIMIT 1", .transit, null);
     defer prepared.deinit();
     try t.expectEqual(@as(usize, 1), prepared.parameterTypes().len);
     const after = try lookup(client, "events");
     defer after.deinit();
     try t.expectEqualDeep(before.value.result.lookup.?.position, after.value.result.lookup.?.position);
     const source = try pin(client, 94, after.value.result.lookup.?);
-    const limits: q.DirectTableQuery.Limits = .{ .requests = 100, .rows = 10, .result_bytes = 1024 };
+    const limits: q.direct.DirectTableQuery.Limits = .{ .requests = 100, .rows = 10, .result_bytes = 1024 };
     var insufficient = limits;
     insufficient.requests = 4;
-    try t.expectError(error.QueryPageBudget, q.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{.{ .signed = 1 }}, insufficient, null, null, .{}));
-    try t.expectError(error.ParameterCountMismatch, q.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{}, limits, null, null, .{}));
+    try t.expectError(error.QueryPageBudget, q.direct.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{.{ .signed = 1 }}, insufficient, null, null, .{}));
+    try t.expectError(error.ParameterCountMismatch, q.direct.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{}, limits, null, null, .{}));
     for ([_]?f.Types.Values.Atom{ .{ .signed = 1 }, .{ .signed = 2 }, null }, 0..) |value, i| {
-        var query = try q.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{value}, limits, null, null, .{});
+        var query = try q.direct.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{value}, limits, null, null, .{});
         defer query.deinit();
         var batch = try query.nextBatch(8);
         defer batch.deinit();
@@ -100,7 +100,7 @@ fn preparedReads(allocator: std.mem.Allocator, client: c.DirectTableClient) !voi
     }
     const released = try client.call(.{ .release = source });
     released.deinit();
-    try t.expectError(error.Conflict, q.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{.{ .signed = 1 }}, limits, null, null, .{}));
+    try t.expectError(error.Conflict, q.direct.DirectTableQuery.openPreparedRetained(allocator, client, source, &prepared, &.{.{ .signed = 1 }}, limits, null, null, .{}));
 }
 fn predicateWork(allocator: std.mem.Allocator, client: c.DirectTableClient) !PredicateWork {
     var result: PredicateWork = undefined;
@@ -220,7 +220,7 @@ fn physicalColumns(allocator: std.mem.Allocator, client: c.DirectTableClient, ro
     const changed = try lookup(client, "physical");
     defer changed.deinit();
     const nonbinary = try pin(client, 7102, changed.value.result.lookup.?);
-    var collated = try q.DirectTableQuery.openRetained(allocator, client, nonbinary, "physical", "SELECT COUNT(*) FROM physical", .{ .requests = 100, .rows = 10, .result_bytes = 4096 }, null, null, .{});
+    var collated = try q.direct.DirectTableQuery.openRetained(allocator, client, nonbinary, "physical", "SELECT COUNT(*) FROM physical", .{ .requests = 100, .rows = 10, .result_bytes = 4096 }, null, null, .{});
     defer collated.deinit();
     var counted = try collated.nextBatch(8);
     defer counted.deinit();
@@ -236,7 +236,7 @@ fn verifyPhysical(allocator: std.mem.Allocator, client: c.DirectTableClient, sta
     try t.expect(terminal.value.result.ddl == .rejected);
     try t.expectEqual(.constraint, terminal.value.result.ddl.rejected.reason);
     for (state.snapshots, 0..) |snapshot, i| {
-        var query = try q.DirectTableQuery.openRetained(allocator, client, snapshot, "physical", "SELECT id, body, outside FROM physical WHERE id >= 1", .{ .requests = 100, .rows = 10, .result_bytes = 4096 }, null, null, .{});
+        var query = try q.direct.DirectTableQuery.openRetained(allocator, client, snapshot, "physical", "SELECT id, body, outside FROM physical WHERE id >= 1", .{ .requests = 100, .rows = 10, .result_bytes = 4096 }, null, null, .{});
         defer query.deinit();
         var batch = try query.nextBatch(8);
         defer batch.deinit();
@@ -283,7 +283,7 @@ fn namespaceApply(client: c.DirectTableClient, binding_value: c.DirectNamespace.
     }
     return error.UnfinishedNamespaceOperation;
 }
-const sql_options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+const sql_options: q.direct.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 fn namespaceStatement(allocator: std.mem.Allocator, original: c.DirectTableClient, text: []const u8, operation: u64) !sql_runtime.IntentReference.Reference {
     var client = original;
     var statement = try sql_runtime.Statement.prepare(allocator, &client, 1, text, .transit, .native, sql_options);
@@ -428,12 +428,12 @@ pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, c
     const after_rename = try lookup(client, "renamed");
     defer after_rename.deinit();
     try t.expectEqual(@as(u64, 7), after_rename.value.result.lookup.?.interpretation.interpretation.object.object);
-    const relational_options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 100, .work_steps = 10000, .source_pins = 2 }, .requests = 1000, .spill_work = 10000 };
-    const regrouped = try q.DirectRelationalCompilation.prepare(allocator, &.{client}, 1, "SELECT id, COUNT(*) AS total FROM renamed GROUP BY id", .interactive, relational_options, null);
+    const relational_options: q.direct.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 100, .work_steps = 10000, .source_pins = 2 }, .requests = 1000, .spill_work = 10000 };
+    const regrouped = try q.direct.DirectRelationalCompilation.prepare(allocator, &.{client}, 1, "SELECT id, COUNT(*) AS total FROM renamed GROUP BY id", .interactive, relational_options, null);
     defer regrouped.deinit();
     // Rename preserves columns, but changes the prepared interpretation. The
     // old pin cannot be substituted merely because its schema hash matches.
-    try t.expectError(error.RelationalSourceChanged, q.DirectRelationalQuery.openPreparedRetained(allocator, io, directory, "changed-definition", client, regrouped, &.{rewritten}, relational_options, null));
+    try t.expectError(error.RelationalSourceChanged, q.direct.DirectRelationalQuery.openPreparedRetained(allocator, io, directory, "changed-definition", client, regrouped, &.{rewritten}, relational_options, null));
     const dropped = try ddl(alloc, client, .{ .binding = binding(client, 8, .drop, after_rename.value.result.lookup.?), .namespace = 1, .name = "renamed", .action = .drop });
     try t.expect(dropped.resulting.retired);
     try absent(client, "renamed");
@@ -446,17 +446,17 @@ pub fn evolve(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, c
     const recreated = try ddl(alloc, client, .{ .binding = create_binding, .namespace = 1, .name = "events", .action = .{ .create = .{ .owner = role, .schema = try w.Binary.encode(alloc, try new_schema.encode(scratch)) } } });
     // A new explicit interactive query can use the original saved Table binding
     // and retained schema after name reuse. It never resolves the replacement.
-    const retained_query = try q.DirectRelationalCompilation.fromRetained(allocator, client, 1, "SELECT COUNT(*) AS total FROM events", &.{prepared}, &.{original}, relational_options, null);
+    const retained_query = try q.direct.DirectRelationalCompilation.fromRetained(allocator, client, 1, "SELECT COUNT(*) AS total FROM events", &.{prepared}, &.{original}, relational_options, null);
     defer retained_query.deinit();
-    const original_rows = try q.DirectRelationalQuery.openPreparedRetained(allocator, io, directory, "retired-source", client, retained_query, &.{original}, relational_options, null);
+    const original_rows = try q.direct.DirectRelationalQuery.openPreparedRetained(allocator, io, directory, "retired-source", client, retained_query, &.{original}, relational_options, null);
     defer original_rows.deinit();
     var original_output = (try original_rows.next()).?;
     defer original_output.deinit();
     try t.expectEqual(@as(u128, 2), original_output.cells[0].value.atom.unsigned);
     try t.expect(try original_rows.next() == null);
     try t.expect(original_rows.complete);
-    try t.expectError(error.RelationalSourceChanged, q.DirectRelationalCompilation.fromRetained(allocator, client, 1, "SELECT COUNT(*) AS total FROM renamed", &.{prepared}, &.{original}, relational_options, null));
-    try t.expectError(error.RelationalSourceChanged, q.DirectRelationalCompilation.fromRetained(allocator, client, 1, "SELECT COUNT(*) AS total FROM events", &.{prepared}, &.{rewritten}, relational_options, null));
+    try t.expectError(error.RelationalSourceChanged, q.direct.DirectRelationalCompilation.fromRetained(allocator, client, 1, "SELECT COUNT(*) AS total FROM renamed", &.{prepared}, &.{original}, relational_options, null));
+    try t.expectError(error.RelationalSourceChanged, q.direct.DirectRelationalCompilation.fromRetained(allocator, client, 1, "SELECT COUNT(*) AS total FROM events", &.{prepared}, &.{rewritten}, relational_options, null));
     const predicates = try predicateWork(alloc, client);
     const state: State = .{ .updated = updated, .deleted = deleted, .altered = altered, .renamed = renamed, .dropped = dropped, .recreated = recreated, .original = original, .rewritten = rewritten, .statements = predicates.outcomes, .intents = predicates.intents, .unsubmitted = predicates.unsubmitted, .staged = predicates.staged, .prepared = prepared, .codecs = codecs, .namespaces = namespace_state };
     try verify(allocator, client, state, false);
@@ -483,12 +483,12 @@ pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: 
         try t.expectEqualDeep(result, response.value.result.rows.committed);
     }
     // SQL uses the retained source binding, including after live name reuse.
-    const limits: q.DirectTableQuery.Limits = .{ .requests = 100, .rows = 10, .result_bytes = 1024 * 1024 };
+    const limits: q.direct.DirectTableQuery.Limits = .{ .requests = 100, .rows = 10, .result_bytes = 1024 * 1024 };
     var too_few_requests = limits;
     too_few_requests.requests = 2;
-    try t.expectError(error.QueryPageBudget, q.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT id FROM events", too_few_requests, null, null, .{}));
+    try t.expectError(error.QueryPageBudget, q.direct.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT id FROM events", too_few_requests, null, null, .{}));
     {
-        var query = try q.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT payload FROM events WHERE id = 1 LIMIT 1", limits, null, null, .{});
+        var query = try q.direct.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT payload FROM events WHERE id = 1 LIMIT 1", limits, null, null, .{});
         defer query.deinit();
         var batch = try query.nextBatch(8);
         defer batch.deinit();
@@ -500,7 +500,7 @@ pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: 
         try t.expectError(error.QueryClosed, query.nextBatch(8));
     }
     {
-        var query = try q.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT COUNT(*) AS total FROM events", limits, null, null, .{});
+        var query = try q.direct.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT COUNT(*) AS total FROM events", limits, null, null, .{});
         defer query.deinit();
         var batch = try query.nextBatch(8);
         defer batch.deinit();
@@ -510,7 +510,7 @@ pub fn verify(allocator: std.mem.Allocator, client: c.DirectTableClient, state: 
     {
         var small = limits;
         small.result_bytes = 1024;
-        var query = try q.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT payload FROM events WHERE id = 1", small, null, null, .{});
+        var query = try q.direct.DirectTableQuery.openRetained(allocator, client, state.original, "events", "SELECT payload FROM events WHERE id = 1", small, null, null, .{});
         defer query.deinit();
         try t.expectError(error.QueryResultBudget, query.nextBatch(8));
         try t.expectError(error.FailedQuery, query.nextBatch(8));

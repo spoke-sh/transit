@@ -36,10 +36,10 @@ fn pin(client: c.DirectTableClient, operation: u64) !Snapshot {
     defer response.deinit();
     return .{ .object = metadata.interpretation.interpretation.object, .handle = response.value.result.pin };
 }
-fn open(client: c.DirectTableClient, snapshot: Snapshot, sql: []const u8, requests: u64) !q.DirectTableQuery {
-    return q.DirectTableQuery.openRetained(client.allocator, client, snapshot, "count_rows", sql, .{ .requests = requests, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+fn open(client: c.DirectTableClient, snapshot: Snapshot, sql: []const u8, requests: u64) !q.direct.DirectTableQuery {
+    return q.direct.DirectTableQuery.openRetained(client.allocator, client, snapshot, "count_rows", sql, .{ .requests = requests, .rows = 8, .result_bytes = 8192 }, null, null, .{});
 }
-fn count(query: *q.DirectTableQuery, snapshot: Snapshot, expected: u64) !void {
+fn count(query: *q.direct.DirectTableQuery, snapshot: Snapshot, expected: u64) !void {
     var batch = try query.nextBatch(8);
     defer batch.deinit();
     try t.expect(batch.complete);
@@ -112,16 +112,16 @@ pub fn run(client: c.DirectTableClient, admin: anytype, role: u64) !void {
     defer summed.deinit();
     try t.expectError(error.Overflow, summed.nextBatch(8));
 
-    var prepared = try q.DirectTablePrepared.prepare(client.allocator, client, 1, "SELECT COUNT(*) FROM count_rows WHERE k >= $1 AND k < $2", .transit, null);
+    var prepared = try q.direct.DirectTablePrepared.prepare(client.allocator, client, 1, "SELECT COUNT(*) FROM count_rows WHERE k >= $1 AND k < $2", .transit, null);
     defer prepared.deinit();
     for ([_]struct { lower: i64, upper: i64, expected: u64 }{
         .{ .lower = 16, .upper = 18, .expected = 2 }, .{ .lower = 17, .upper = 17, .expected = 0 },
     }) |case| {
-        var query = try q.DirectTableQuery.openPreparedRetained(client.allocator, client, snapshot, &prepared, &.{ .{ .signed = case.lower }, .{ .signed = case.upper } }, .{ .requests = 10, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+        var query = try q.direct.DirectTableQuery.openPreparedRetained(client.allocator, client, snapshot, &prepared, &.{ .{ .signed = case.lower }, .{ .signed = case.upper } }, .{ .requests = 10, .rows = 8, .result_bytes = 8192 }, null, null, .{});
         defer query.deinit();
         try count(&query, snapshot, case.expected);
     }
-    var null_bound = try q.DirectTableQuery.openPreparedRetained(client.allocator, client, snapshot, &prepared, &.{ null, .{ .signed = 18 } }, .{ .requests = 14, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+    var null_bound = try q.direct.DirectTableQuery.openPreparedRetained(client.allocator, client, snapshot, &prepared, &.{ null, .{ .signed = 18 } }, .{ .requests = 14, .rows = 8, .result_bytes = 8192 }, null, null, .{});
     defer null_bound.deinit();
     try count(&null_bound, snapshot, 0);
     const current = try pin(client, 96004);
@@ -155,7 +155,7 @@ pub fn run(client: c.DirectTableClient, admin: anytype, role: u64) !void {
         var revoke: Revoke = .{ .admin = admin, .object = object };
         const sql = try std.fmt.allocPrint(client.allocator, "SELECT COUNT(*) FROM count_rows WHERE {s}", .{predicate});
         defer client.allocator.free(sql);
-        var query = try q.DirectTableQuery.openRetained(client.allocator, client, snapshot, "count_rows", sql, .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{ .runner = .{ .context = &revoke, .evaluate = Revoke.evaluate } });
+        var query = try q.direct.DirectTableQuery.openRetained(client.allocator, client, snapshot, "count_rows", sql, .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{ .runner = .{ .context = &revoke, .evaluate = Revoke.evaluate } });
         defer query.deinit();
         try t.expectError(error.AccessDenied, query.nextBatch(8));
         try t.expect(revoke.done);
@@ -176,7 +176,7 @@ pub fn run(client: c.DirectTableClient, admin: anytype, role: u64) !void {
         }
     };
     var cancellation: std.atomic.Value(bool) = .init(false);
-    var cancelled = try q.DirectTableQuery.openRetained(client.allocator, client, snapshot, "count_rows", "SELECT COUNT(*) FROM count_rows WHERE k >= 16", .{ .requests = 8, .rows = 8, .result_bytes = 8192 }, &cancellation, null, .{ .runner = .{ .context = &cancellation, .evaluate = Cancel.evaluate } });
+    var cancelled = try q.direct.DirectTableQuery.openRetained(client.allocator, client, snapshot, "count_rows", "SELECT COUNT(*) FROM count_rows WHERE k >= 16", .{ .requests = 8, .rows = 8, .result_bytes = 8192 }, &cancellation, null, .{ .runner = .{ .context = &cancellation, .evaluate = Cancel.evaluate } });
     defer cancelled.deinit();
     try t.expectError(error.Cancelled, cancelled.nextBatch(8));
     try t.expectError(error.FailedQuery, cancelled.nextBatch(8));

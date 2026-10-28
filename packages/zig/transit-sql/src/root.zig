@@ -1,9 +1,10 @@
 //! Shared SQL sessions and durable account execution over public native clients.
 pub const results = @import("transit_sql_results");
 pub const station = @import("transit_station");
+pub const direct = @import("transit_query_direct");
 pub const query = @import("transit_query");
 pub const catalog = @import("transit_catalog");
-pub const fuze = query.fuze;
+pub const fuze = direct.fuze;
 pub const session_protocol = @import("transit_sql_protocol");
 pub const Authentication = session_protocol.Authentication;
 pub const Limits = @import("Limits.zig");

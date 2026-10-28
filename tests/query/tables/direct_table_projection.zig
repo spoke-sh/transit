@@ -32,10 +32,10 @@ fn pin(client: c.DirectTableClient, operation: u64, name: []const u8) !Snapshot 
     defer response.deinit();
     return .{ .object = value.interpretation.interpretation.object, .handle = response.value.result.pin };
 }
-fn open(client: c.DirectTableClient, snapshot: Snapshot, name: []const u8, sql: []const u8) !q.DirectTableQuery {
-    return q.DirectTableQuery.openRetained(client.allocator, client, snapshot, name, sql, .{ .requests = 200, .rows = 64, .result_bytes = 65536 }, null, null, .{});
+fn open(client: c.DirectTableClient, snapshot: Snapshot, name: []const u8, sql: []const u8) !q.direct.DirectTableQuery {
+    return q.direct.DirectTableQuery.openRetained(client.allocator, client, snapshot, name, sql, .{ .requests = 200, .rows = 64, .result_bytes = 65536 }, null, null, .{});
 }
-fn scores(query: *q.DirectTableQuery) !void {
+fn scores(query: *q.direct.DirectTableQuery) !void {
     try t.expect(query.execution.scan.reader.filter != null);
     try t.expectEqualSlices(u8, &.{ 0, 2, 3 }, query.execution.scan.reader.projection.?.columns());
     var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
@@ -109,9 +109,9 @@ pub fn run(client: c.DirectTableClient, admin: anytype, role: u64) !void {
     var query = try open(client, snapshot, "projected_rows", "SELECT score AS first, score AS second FROM projected_rows WHERE label = 'ALPHA'");
     defer query.deinit();
     try scores(&query);
-    var prepared = try q.DirectTablePrepared.prepare(a, client, 1, "SELECT score AS first, score AS second FROM projected_rows WHERE label = $1", .transit, null);
+    var prepared = try q.direct.DirectTablePrepared.prepare(a, client, 1, "SELECT score AS first, score AS second FROM projected_rows WHERE label = $1", .transit, null);
     defer prepared.deinit();
-    var bound = try q.DirectTableQuery.openPreparedRetained(client.allocator, client, snapshot, &prepared, &.{.{ .bytes = "aLPHa" }}, .{ .requests = 200, .rows = 64, .result_bytes = 65536 }, null, null, .{});
+    var bound = try q.direct.DirectTableQuery.openPreparedRetained(client.allocator, client, snapshot, &prepared, &.{.{ .bytes = "aLPHa" }}, .{ .requests = 200, .rows = 64, .result_bytes = 65536 }, null, null, .{});
     defer bound.deinit();
     try scores(&bound);
     try filters(client, snapshot);
@@ -143,13 +143,13 @@ pub fn run(client: c.DirectTableClient, admin: anytype, role: u64) !void {
         }
     };
     var revoke: Revoke = .{ .admin = admin, .object = object };
-    var denied = try q.DirectTableQuery.openRetained(client.allocator, client, snapshot, "projected_rows", "SELECT score FROM projected_rows WHERE score > 16", .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{ .runner = .{ .context = &revoke, .evaluate = Revoke.evaluate } });
+    var denied = try q.direct.DirectTableQuery.openRetained(client.allocator, client, snapshot, "projected_rows", "SELECT score FROM projected_rows WHERE score > 16", .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{ .runner = .{ .context = &revoke, .evaluate = Revoke.evaluate } });
     defer denied.deinit();
     try t.expectError(error.AccessDenied, denied.nextBatch(8));
     try t.expectError(error.AccessDenied, query.nextBatch(8));
     _ = try admin.change(.{ .transfer_object = .{ .object = object, .owner = role } });
     try t.expectError(error.FailedQuery, denied.nextBatch(8));
-    var empty_denied = try q.DirectTableQuery.openRetained(client.allocator, client, snapshot, "projected_rows", "SELECT COUNT(*) FROM projected_rows WHERE score > 18", .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{ .runner = .{ .context = &revoke, .evaluate = Revoke.evaluate } });
+    var empty_denied = try q.direct.DirectTableQuery.openRetained(client.allocator, client, snapshot, "projected_rows", "SELECT COUNT(*) FROM projected_rows WHERE score > 18", .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{ .runner = .{ .context = &revoke, .evaluate = Revoke.evaluate } });
     defer empty_denied.deinit();
     try t.expectError(error.AccessDenied, empty_denied.nextBatch(8));
     _ = try admin.change(.{ .transfer_object = .{ .object = object, .owner = role } });

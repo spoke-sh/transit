@@ -1,5 +1,11 @@
 # transit-query
 
+Finite direct Table execution lives in
+[`transit-query-direct`](../transit-query-direct/README.md), exposed here as
+`direct`. Captured jobs, native KV/Document adapters and Station integration stay
+in this package and use that database execution owner. Direct SQL consumers can
+import `transit_query_direct` without importing Station.
+
 Shared Zig finite-query clients and application-side Station behaviors. Board
 and `transit` share source declarations, the Fuze compiler and Arrow codecs.
 The console uses fresh interactive snapshots by default; explicitly durable
@@ -47,7 +53,7 @@ rotation; absent requests must verify under the current key. The Workspace
 upload/query; `UnifiedBehavior.Source` captures a declared KV, Table or Document
 source under current policy. Both execute in separately provisioned Station hosts.
 
-`DirectTableQuery.openRetained` executes the shared finite Fuze SELECT compiler
+`direct.DirectTableQuery.openRetained` executes the shared finite Fuze SELECT compiler
 over an existing signed direct Table pin. The caller supplies the explicit SQL
 source name and retains the pin separately; opening, closing and destruction
 never acquire, replace or release it. The source fingerprint binds its original
@@ -99,10 +105,10 @@ results own their values independently. This avoids a compute payload copy;
 transport decoding and result materialization retain their existing owners.
 Arrow buffer interchange and relational predicate pushdown have separate owners.
 
-`DirectTablePrepared.prepare` checks current SELECT rights and owns an immutable
+`direct.DirectTablePrepared.prepare` checks current SELECT rights and owns an immutable
 schema-bound template without acquiring a pin. Its preparation fingerprint
 includes the complete connection, selected role, namespace, name and declaration.
-`DirectTableQuery.openPreparedRetained` binds typed parameters to a separately
+`direct.DirectTableQuery.openPreparedRetained` binds typed parameters to a separately
 retained source, verifies the original interpretation and uses the same finite
 executor and disclosure checks. It charges the additional current-definition
 check to the request budget. A released pin fails; failed opening cannot replace
@@ -127,10 +133,10 @@ Worker generation changes do not authorize closure. Its
 bounds. `UnifiedCapture` uses this owner for Table admission, traversal and closure;
 native KV/Document capture retains native read versions.
 
-`DirectRelationalCompilation` prepares the finite relational profile against
-current direct definitions. `DirectRelationalQuery.openPreparedRetained` receives
+`direct.DirectRelationalCompilation` prepares the finite relational profile against
+current direct definitions. `direct.DirectRelationalQuery.openPreparedRetained` receives
 the original pins and owns the cloned plan, bounded readers and private spill.
-`DirectRelationalCompilation.fromRetained` binds a new explicit interactive query
+`direct.DirectRelationalCompilation.fromRetained` binds a new explicit interactive query
 to supplied saved Table bindings and their retained schemas. It checks source
 names, exact interpretations and current snapshot rights without resolving live
 names or acquiring pins. This permits original sources after ALTER, DROP and
@@ -168,7 +174,7 @@ after a partially acquired source fails. Relational queries charge those
 allocations to their resident budget. Aliases sharing a lease retain separate
 caches and only the owning scan closes the lease.
 
-Typed Table and file callers use the shared bounded column kernels. `ComputePool`
+Typed Table and file callers use the shared bounded column kernels. `direct.ComputePool`
 provides optional host-owned workers over decoded batches; source reads and
 current-right checks stay serial. The [batch guide](../transit-fuze/docs/batches.md)
 defines configuration, ownership, cancellation and memory accounting.
@@ -190,7 +196,7 @@ Relational compilation and execution accept an explicit lexer dialect in their
 shared options. The default remains Transit syntax; the MySQL choice changes
 quoting and token admission, preserving the same logical plan and native owners.
 
-`DirectRelationalQuery` executes finite int64/UTF-8 Table joins and grouped COUNT/SUM through
+`direct.DirectRelationalQuery` executes finite int64/UTF-8 Table joins and grouped COUNT/SUM through
 the shared Fuze compiler and executor. Callers explicitly select
 `independent_table_snapshots`, ordered catalog routes, resident/spill/result/work
 budgets, native-request and spill-operation limits. The owner opens explicitly
@@ -318,7 +324,7 @@ The local server initializes the direct catalog and requester, installs query de
 and creates its default Table through an explicit recoverable catalog operation.
 Restart preserves recorded configuration and current policy, including revocation.
 See the [local server guide](../../../apps/transit-cli/docs/server.md).
-`DirectRelationalQuery` executes bounded relational reads over explicit direct
+`direct.DirectRelationalQuery` executes bounded relational reads over explicit direct
 Table captures, including independent source positions and current authorization
 for every source. The service does not sign native mutations on the caller's
 behalf. Catalog SDKs use the shared direct caller documented in

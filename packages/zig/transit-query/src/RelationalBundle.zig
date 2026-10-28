@@ -10,7 +10,7 @@ const Self = @This();
 const Grant = q.catalog.DirectReadDelegation;
 pub const format: u32 = 0x31425152;
 pub const max_bytes = 44 + q.QueryAuthorization.encoded_bytes + f.RelationalCodec.max_bytes + r.max_sources * (4 + q.TableSource.max_bytes + Grant.encoded_bytes);
-consistency: q.DirectRelationalQuery.Consistency = .independent_table_snapshots,
+consistency: q.direct.DirectRelationalQuery.Consistency = .independent_table_snapshots,
 plan: r.Plan,
 sources: []const q.TableSource,
 authorization: ?q.QueryAuthorization = null,

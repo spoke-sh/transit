@@ -14,7 +14,7 @@ pub const State = struct {
     rejected: ?Outcome = null,
     created: Ref,
 };
-const options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
+const options: q.direct.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 1000, .work_steps = 100000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 fn bind(allocator: std.mem.Allocator, original: c.DirectTableClient, text: []const u8, operation: u64) !Ref {
     var client = original;
     var statement = try sql.Statement.prepare(allocator, &client, 1, text, .transit, .native, options);

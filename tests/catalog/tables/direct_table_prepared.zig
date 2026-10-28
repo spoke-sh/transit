@@ -42,7 +42,7 @@ fn bind(self: *Self, prepared: *const c.DirectTablePreparedDml, operation: u64, 
     try t.expect(status.value.result.rows == .not_observed);
     return work;
 }
-fn read(self: *Self, prepared: *const q.DirectTablePrepared, value: ?f.Types.Values.Atom, expected: ?[]const u8, rows: u8) !void {
+fn read(self: *Self, prepared: *const q.direct.DirectTablePrepared, value: ?f.Types.Values.Atom, expected: ?[]const u8, rows: u8) !void {
     const response = try self.client.call(.{ .lookup = .{ .namespace = 1, .name = name } });
     defer response.deinit();
     const metadata = response.value.result.lookup.?;
@@ -55,7 +55,7 @@ fn read(self: *Self, prepared: *const q.DirectTablePrepared, value: ?f.Types.Val
     defer (self.client.call(.{ .release = snapshot }) catch unreachable).deinit();
     // Seventeen rows require three scan pages. A complete key equality instead
     // fits one point call plus preparation/opening and final disclosure checks.
-    var query = try q.DirectTableQuery.openPreparedRetained(self.allocator, self.client, snapshot, prepared, &.{value}, .{ .requests = if (value != null) 10 else 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+    var query = try q.direct.DirectTableQuery.openPreparedRetained(self.allocator, self.client, snapshot, prepared, &.{value}, .{ .requests = if (value != null) 10 else 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
     defer query.deinit();
     var batch = try query.nextBatch(8);
     defer batch.deinit();
@@ -88,7 +88,7 @@ fn finiteReads(self: *Self) !void {
         .{ .sql = "SELECT COUNT(*) FROM prepared_rows WHERE k = 1 OR k = 17", .requests = 100, .expected = .{ .value = .{ .atom = .{ .unsigned = 2 } } } },
         .{ .sql = "SELECT COUNT(*) FROM prepared_rows", .requests = 100, .expected = .{ .value = .{ .atom = .{ .unsigned = 17 } } } },
     }) |case| {
-        var query = try q.DirectTableQuery.openRetained(self.allocator, self.client, snapshot, name, case.sql, .{ .requests = case.requests, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+        var query = try q.direct.DirectTableQuery.openRetained(self.allocator, self.client, snapshot, name, case.sql, .{ .requests = case.requests, .rows = 8, .result_bytes = 8192 }, null, null, .{});
         defer query.deinit();
         var batch = try query.nextBatch(8);
         defer batch.deinit();
@@ -97,7 +97,7 @@ fn finiteReads(self: *Self) !void {
         if (case.expected) |expected| try t.expectEqualDeep(expected, batch.rows[0].?.cells[0]);
         try t.expectEqualDeep(snapshot, query.source().snapshot);
     }
-    var scan = try q.DirectTableQuery.openRetained(self.allocator, self.client, snapshot, name, "SELECT k FROM prepared_rows WHERE k = 17 AND n = 7", .{ .requests = 8, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+    var scan = try q.direct.DirectTableQuery.openRetained(self.allocator, self.client, snapshot, name, "SELECT k FROM prepared_rows WHERE k = 17 AND n = 7", .{ .requests = 8, .rows = 8, .result_bytes = 8192 }, null, null, .{});
     defer scan.deinit();
     try t.expectError(error.QueryPageBudget, scan.nextBatch(8));
     try t.expectError(error.FailedQuery, scan.nextBatch(8));
@@ -109,7 +109,7 @@ fn compositeReads(self: *Self) !void {
     var work = try insert.bind(self.allocator, self.client, 92021, &.{}, .point, null);
     defer work.deinit();
     try self.execute(&work);
-    var select = try q.DirectTablePrepared.prepare(self.allocator, self.client, 1, "SELECT k FROM prepared_keys WHERE k = $1 AND longtag = $2 AND tag = $3", .transit, null);
+    var select = try q.direct.DirectTablePrepared.prepare(self.allocator, self.client, 1, "SELECT k FROM prepared_keys WHERE k = $1 AND longtag = $2 AND tag = $3", .transit, null);
     defer select.deinit();
     const response = try self.client.call(.{ .lookup = .{ .namespace = 1, .name = "prepared_keys" } });
     defer response.deinit();
@@ -129,7 +129,7 @@ fn compositeReads(self: *Self) !void {
         .{ .tag = "123456789", .longtag = "x", .count = 0 },
         .{ .tag = "東京", .longtag = &wide, .count = 0 },
     }) |case| {
-        var query = try q.DirectTableQuery.openPreparedRetained(self.allocator, self.client, snapshot, &select, &.{ .{ .signed = -3 }, .{ .bytes = case.longtag }, .{ .bytes = case.tag } }, .{ .requests = 10, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+        var query = try q.direct.DirectTableQuery.openPreparedRetained(self.allocator, self.client, snapshot, &select, &.{ .{ .signed = -3 }, .{ .bytes = case.longtag }, .{ .bytes = case.tag } }, .{ .requests = 10, .rows = 8, .result_bytes = 8192 }, null, null, .{});
         defer query.deinit();
         var batch = try query.nextBatch(8);
         defer batch.deinit();
@@ -143,7 +143,7 @@ pub fn run(allocator: std.mem.Allocator, client: c.DirectTableClient, admin: any
     try self.ddl(create, 92000, 902);
     const before = try client.call(.{ .lookup = .{ .namespace = 1, .name = name } });
     defer before.deinit();
-    var select = try q.DirectTablePrepared.prepare(allocator, client, 1, "SELECT k, v, n FROM prepared_rows WHERE k = $1", .transit, null);
+    var select = try q.direct.DirectTablePrepared.prepare(allocator, client, 1, "SELECT k, v, n FROM prepared_rows WHERE k = $1", .transit, null);
     defer select.deinit();
     var insert = try c.DirectTablePreparedDml.prepare(allocator, client, 1, "INSERT INTO prepared_rows (k, v, n) VALUES ($1, $2, $3)", .transit, null);
     defer insert.deinit();

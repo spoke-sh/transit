@@ -1,5 +1,11 @@
 # transit-sql
 
+Table statement preparation and finite SELECT execution depend directly on
+[`transit-query-direct`](../transit-query-direct/README.md) and Catalog. These
+owners have no Station dependency. Account admission/recovery and captured
+source integration still use the Station owners described below; this package
+therefore continues to depend on Station.
+
 Shared logical SQL sessions, account recovery, budgets and credential verification
 above the public query and catalog owners. The module is `transit_sql`; SQL compilation,
 source snapshots and mutation authority stay with Fuze, Query and Catalog.

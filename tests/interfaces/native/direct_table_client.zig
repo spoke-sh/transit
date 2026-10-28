@@ -294,11 +294,11 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     const sql_hint = try q.DirectTableAssistance.complete(assistance_arena.allocator(), client, 1, .{ .sql = "CREATE", .cursor = 6, .generation = 10 });
     try t.expectEqual(@as(u16, 0), sql_hint.range.?.start);
     try t.expectEqualStrings("CREATE", sql_hint.items[0].text);
-    const options: q.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 100, .work_steps = 10000, .source_pins = 2 }, .requests = 1000, .spill_work = 10000 };
+    const options: q.direct.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 1024 * 1024, .output_rows = 100, .work_steps = 10000, .source_pins = 2 }, .requests = 1000, .spill_work = 10000 };
     const clients = [_]c.DirectTableClient{ client, client };
-    const prepared = try q.DirectRelationalCompilation.prepare(init.gpa, &clients, 1, "SELECT a.id AS id, COUNT(*) AS matches FROM events a LEFT JOIN events b ON a.id = b.id GROUP BY a.id", .interactive, options, null);
+    const prepared = try q.direct.DirectRelationalCompilation.prepare(init.gpa, &clients, 1, "SELECT a.id AS id, COUNT(*) AS matches FROM events a LEFT JOIN events b ON a.id = b.id GROUP BY a.id", .interactive, options, null);
     defer prepared.deinit();
-    const joined = try q.DirectRelationalQuery.openPreparedRetained(init.gpa, init.io, directory, "joined", client, prepared, &.{ saved.snapshot, saved.snapshot }, options, null);
+    const joined = try q.direct.DirectRelationalQuery.openPreparedRetained(init.gpa, init.io, directory, "joined", client, prepared, &.{ saved.snapshot, saved.snapshot }, options, null);
     defer joined.deinit();
     var result = (try joined.next()).?;
     defer result.deinit();
@@ -306,7 +306,7 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     try t.expectEqual(@as(u128, 1), result.cells[1].value.atom.unsigned);
     try t.expect(try joined.next() == null);
     try t.expect(joined.complete);
-    var empty_query = try q.DirectTableQuery.openRetained(init.gpa, client, saved.snapshot, "events", "SELECT id FROM events LIMIT 0", .{ .requests = 100, .rows = 10, .result_bytes = 1024 }, null, null, .{});
+    var empty_query = try q.direct.DirectTableQuery.openRetained(init.gpa, client, saved.snapshot, "events", "SELECT id FROM events LIMIT 0", .{ .requests = 100, .rows = 10, .result_bytes = 1024 }, null, null, .{});
     defer empty_query.deinit();
     var cleanup = try sql_runtime.ReadPins.init(init.gpa, init.io, directory, .{ .realm = 42, .owner = 100, .account = @splat(49) }, 1);
     defer cleanup.deinit();
