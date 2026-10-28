@@ -11,6 +11,177 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## Persistent console statement latency — 2026-10-28
 
+### Write-lifecycle completion experiment
+
+The follow-up to [issue #211](https://github.com/spoke-sh/transit/issues/211)
+extends the persistent console workload to changed, unchanged and zero-match
+UPDATE, DELETE, and typed readback after each mutation family. Exact rows,
+schema, matched/changed counts and verified completion remain acceptance
+conditions. TRUNCATE is modeled as a proposal and is not executed by this test.
+`just test::console-latency-tls 5` runs the same workload in the existing
+unproxied TLS component fixture, separate from the default installation.
+
+A foreground-completion experiment (`881e4d97c`) drives the accepted DML before
+returning submission, rereads pending/cancellation state and skips redundant
+pre-commit inspection. The comparison uses frozen ReleaseSafe binaries from
+`7cd91723efc3f7182ba757c202a8818633642b13` (whose tree equals merged PR #210),
+and the experiment binaries identified in the raw report. The measurement
+driver at `d0b552443616e6b7667b73406d266f86648b6784` has SHA-256
+`a770734b0f28375c768bec6e9259374c1a67f3b548b2667dc9d20874aa34d078`.
+Both complete workloads pass their independent oracles on the same shared
+Linux host, with file-backed local storage and a 30-second native request
+budget. These sequential five-write samples do not establish isolated causal
+effects, tail latency or a service guarantee.
+
+| Console timer median | Merged-build control | Foreground experiment |
+| --- | ---: | ---: |
+| Warm SELECT, six samples | 196 ms | 197 ms |
+| INSERT, five samples | 1,949 ms | 3,150 ms |
+| SELECT after INSERT, five samples | 2,131 ms | 1,905 ms |
+| Changed UPDATE, five samples | 3,606 ms | 4,489 ms |
+| Unchanged UPDATE, five samples | 1,852 ms | 3,172 ms |
+| DELETE, five samples | 2,406 ms | 3,710 ms |
+
+Foreground submission removes the reported wait phase but does not remove
+durable publication work. It regresses INSERT in this comparison; commit
+`9277de972` removes foreground execution and retains only the direct
+`commit_saved` recovery transition, which resolves the original receipt before
+execution without another inspection request. No 10× or 100× improvement is
+claimed from this experiment. Consolidating Catalog acceptance, data commit and
+pending settlement, and deferring immutable publication remain separate work.
+
+Raw reports under `.cache/write-lifecycle/` are
+`control-final-statements.jsonl` (SHA-256
+`33aa173662e2ad5b062a4dc7b4763bfdb675c664863bc4a447172fe36070b76f`)
+and `candidate-statements.jsonl` (SHA-256
+`e748570434d18cc53f535181d8c36b8895b2ccadd156f663fa2536308579e7a4`).
+Each includes executable hashes, source/driver attribution, host load, individual
+timers and exact outputs. The earlier `control-statements.jsonl` uses a prior
+driver without typed readback between mutation families and is not the matched
+control above.
+
+The default installed-server attempt still fails before SQL readiness: native
+`associate` requests exceed the unchanged two-second attempt budget, then
+startup exhausts its restart budget. `installed-statements.jsonl` (SHA-256
+`8cc93afb03a7b5322cc86eac1da897860ec158330112fecbcebeae253cb731ab`)
+contains provenance but no completed statement timings; the private failed
+installation is `/var/tmp/transit-server-proof-xecspoo2`. The TLS component
+comparison does not qualify that installation path.
+
+The first basic-session attempt passes the injected lost `commit_saved` reply
+and original terminal-count assertion, then fails during real console completion:
+an idle `touch` receives `SqlSessionBusy` after cancelled assistance and exits
+the terminal. Its retained log is `sessions-basic.log` (SHA-256
+`bff43e484a58ad6af71d5ec2fd88e73d39463f17c2a0d02d0d4b304d0719b0df`).
+A deterministic editor peer reproduces the exit with the old binary; the repair
+retries only `touch` on the next idle turn, preserving the session and leaving
+expiry/access-denial handling intact. The negative-control log is
+`keepalive-control.log` (SHA-256
+`4894e4cb5f008956960895473f2d1db2612133eb00e8a717303cc47205026b56`).
+
+The complete console-history/editor/outcome suite then passes with the repaired
+pre-rebase binary, including two busy renewals, a successful renewal and a
+subsequent access denial without session reopening or SQL submission. Its log
+is `keepalive-final.log` (SHA-256
+`2b7a6d3087d87b011dbd47bdc027dd964c653064e2a534397f07c0f41fbbb122`).
+An earlier attempt exits 130 in the multiline Ctrl-C schedule before reaching
+that case; `keepalive-final-signal-failure.log` retains the failure. No runtime
+change occurs between these two attempts.
+
+Clean interface qualification at `e983417a1` passes TLS and SQL allocation
+checks, then stops at the SQL gateway recovery oracle's prohibition on any
+repeated `commit_saved` RPC. The revised oracle distinguishes an explicit
+`execute` from resolution through `commit_saved`: the latter must carry the
+identical complete frozen reference and return the identical original durable
+receipt, with exact rows and mutation counts checked independently. The failed
+checkout and logs remain at `/var/tmp/transit-ci-d9x508hi`; this attempt is not
+reported as a lane pass.
+
+After rebasing onto `ee5c31c80`, clean interfaces at `093b33794` passes TLS and
+allocation checks and the SQL gateway's lost-reply, fencing, exact-value/count,
+retained-history and original-token capacity schedules. Its subsequent 67-row
+INSERT exceeds the unchanged ten-second authority budget with `AuthorityTimeout`;
+the enclosing gateway task and interface lane fail. The source, command and
+failure records remain in `/var/tmp/transit-ci-22fw2j1a`, and the local log is
+`rebased-interfaces.log` (SHA-256
+`7f6c9b0b7f0a09baef4cc4ae696d6449d25ffca9e9f01465d58b7230232bdd44`).
+
+The multiline Ctrl-C failure also recurs with the rebased console. Prompt
+rendering can finish writing visible bytes while its joined output task is
+still interruptible. `2650bccce` handles that interruption through the same
+clear-draft transition as input; termination signals still exit. The complete
+terminal suite passes with that binary, including 32 repeated clear-draft
+checks and the busy-keepalive case. `redraw-final.log` retains the result and
+`final-binaries.json` identifies the compiled console and matching runtime set.
+The repeated schedule is not a deterministic injection of every rendering race.
+
+### Rebased recovery-path comparison and installed-server limit
+
+The final focused `sessions-basic` profile passes with runtime source
+`67c44d32a0b7949362cfc369d504da9e74fc42ee` and console source `2650bccce`.
+It covers the lost native commit reply and original identity/counts, typed
+native/PostgreSQL/MySQL reads, outage and revocation schedules, real TLS console
+completion and restart token resolution. The driver reports a dirty checkout
+because qualification prose was being edited; the compiled product binaries
+were unchanged. `rebased-sessions-basic.log` has SHA-256
+`d1e207ac35dc156fafbca0186aa1b393919a7e12d5b9f6624f04e28d96de5cc1`.
+This focused pass does not replace the failed clean interface lane above.
+
+Three sequential unproxied TLS workloads compare the final recovery-only change
+with the gateway built from `ee5c31c80`. All other executables are byte-identical;
+`final-binaries.json` and `control-current/identity.json` retain their identities.
+The candidate gateway has SHA-256
+`f503b3f119a576e9bb4566f1d2f47f5b8c65c27d39cd68b44ca37a66384bf1d5`;
+the control gateway has SHA-256
+`18d1d56acaa7f74fb7795eb0b6f5154355059c03164bd2d1ba38b8ce05e56f76`.
+The console and statement driver are identical across all three runs. Candidate
+A uses driver source `e303e8f6`; candidate B uses `68fc4d681`, whose intervening
+change only strengthens the model's atomic-visibility invariant. The fixture
+uses file-backed storage, eight resident pages and a 30-second native budget.
+
+| Console timer median | Candidate A | Current-main gateway control | Identical candidate B |
+| --- | ---: | ---: | ---: |
+| Warm SELECT, six samples | 222 ms | 212 ms | 229 ms |
+| INSERT, five samples | 2,313 ms | 1,123 ms | 470 ms |
+| SELECT after INSERT, five samples | 2,503 ms | 1,349 ms | 606 ms |
+| Changed UPDATE, five samples | 3,651 ms | 2,138 ms | 750 ms |
+| Unchanged UPDATE, five samples | 2,196 ms | 1,154 ms | 520 ms |
+| DELETE, five samples | 2,544 ms | 1,599 ms | 718 ms |
+
+All three workloads pass exact row/count/schema and typed-readback checks.
+However, the identical candidate's INSERT medians differ by almost fivefold;
+its second INSERT range is 444–2,204 ms. Other work is active on this shared
+host. These runs establish neither causal benefit nor regression from removing
+one inspection RPC, and the fastest run is not an achieved latency target.
+Warm-read stability does not identify the source of durable-path variation.
+
+The raw reports under `.cache/write-lifecycle/` retain per-statement phases,
+outputs, binary hashes and host load:
+
+| Report | SHA-256 |
+| --- | --- |
+| `final-statements.jsonl` | `3a051191611e4e89e3c113aca1cb644ce715873b6f294a5cb3cce8aef09db535` |
+| `control-current-statements.jsonl` | `71f90285960ba296875a1521dfd6fab5a991937236095480389782ad6191356f` |
+| `final-repeat-statements.jsonl` | `76fa5117d1bd3e701f26607ebbde9a80862b5ffbeff386592cd1cb6bb2bbacbe` |
+
+The final default installed-server run at clean driver source `68fc4d681`
+reaches readiness and completes three INSERTs (406, 452 and 475 ms), two
+read-after-write checks and three warm SELECTs. The SELECT immediately after
+the third INSERT fails with `Conflict (55000): SqlServiceError`; the workload
+stops before UPDATE/DELETE and before typed readback. Its default two-second
+native attempt budget and resident-page configuration are unchanged. This is a
+**failed** workload, not a qualified 452 ms INSERT result. The logs do not identify
+the underlying conflict, and no baseline equivalence or harmless retry is
+assumed. The private installation remains at
+`/var/tmp/transit-server-proof-lfepi0hk`. `final-installed-statements.jsonl` has
+SHA-256 `221da1629f8296426baecd43e5c62a0c1321c4d9ce0bbf18e728230d435a9ec2`;
+its `.stderr` has SHA-256
+`141ce930e7ddb7aa908efaea60cb2ec32e860aa0a7ff33d824d3a26db39d77c9`.
+The installed conflict, broader authority timeout and controlled latency
+qualification remain open in [#211](https://github.com/spoke-sh/transit/issues/211).
+
+### Original decoupling comparison
+
 The [console workload](../../../tests/performance/console/statements.py) exercises
 the actual persistent `transit console` with `.timer on`, the human table
 renderer, five single-row INSERTs, exact contents after each write, warm reads

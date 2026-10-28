@@ -87,3 +87,8 @@ framing and commitments fail instead of establishing completion.
 `measurements.py` owns the native portion of the seeded console comparison in the
 [performance runner](../../performance/console/console_latency.py). Executed results
 and limitations remain in qualification history.
+
+The native session schedule also loses one successful `commit_saved` reply at
+the authority proxy. INSERT settlement must still observe the original
+identity, terminal outcome and exact counts; typed reads and restart/token retry retain
+that same row and operation. This tests uncertain-owner reply recovery without changing physical sync semantics.

@@ -26,8 +26,8 @@ def phases(timing):
     return int(match[1]), result
 
 
-def run(fixture, repeat, probes):
-    shell = Console(fixture, mode='table')
+def run(fixture, repeat, probes, *, config=None):
+    shell = Console(fixture, mode='table', config=config)
     samples = defaultdict(list)
     expected = []
     try:
@@ -48,6 +48,21 @@ def run(fixture, repeat, probes):
                                   attempts=attempts, stdout=value)), flush=True)
             return value
 
+        def typed_readback(case):
+            shell.process.stdin.write(b'.mode json\n')
+            shell.process.stdin.flush()
+            shell.mode = 'json'
+            value = call(case, 'SELECT * FROM items;')
+            actual = sorted(tuple(int(cell['value']['atom']['signed']) for cell in row)
+                            for row in value['rows'])
+            assert actual == expected, (actual, expected)
+            assert int(value['complete']['rows']) == len(expected), value
+            assert [field['name'] for field in value['schema']['type']['structure']] == ['id', 'value']
+            assert all(field['type'] == {'int64': {}} for field in value['schema']['type']['structure'])
+            shell.process.stdin.write(b'.mode table\n')
+            shell.process.stdin.flush()
+            shell.mode = 'table'
+
         verify_table(call('select_cold', 'SELECT * FROM items;'), expected)
         verify_table(call('select_warm', 'SELECT * FROM items;'), expected)
         for index in range(1, repeat + 1):
@@ -56,16 +71,47 @@ def run(fixture, repeat, probes):
             expected.append((index, index * 10))
             verify_table(call('select_after_write', 'SELECT * FROM items;'), expected)
             verify_table(call('select_warm', 'SELECT * FROM items;'), expected)
-        # A second presentation of the same contents checks typed values and
-        # verified completion independently, through the very same SQL session.
-        shell.process.stdin.write(b'.mode json\n')
-        shell.process.stdin.flush()
-        shell.mode = 'json'
-        value = call('select_json', 'SELECT * FROM items;')
-        actual = sorted(tuple(int(cell['value']['atom']['signed']) for cell in row)
-                        for row in value['rows'])
-        assert actual == expected, actual
+        typed_readback('select_json_after_insert')
+        # Exercise changed/no-op/zero-match outcomes and read-after-write for
+        # the other executable DML kinds. TRUNCATE has no execution contract.
+        for index in range(1, repeat + 1):
+            output = call('update', f'UPDATE items SET value = {index * 100} WHERE id = {index};')
+            assert output == 'Statement completed. Matched 1; changed 1.\n', output
+            expected[index - 1] = (index, index * 100)
+            verify_table(call('select_after_update', 'SELECT * FROM items;'), expected)
+            output = call('update_noop', f'UPDATE items SET value = {index * 100} WHERE id = {index};')
+            assert output == 'Statement completed. Matched 1; changed 0.\n', output
+        output = call('update_empty', 'UPDATE items SET value = 0 WHERE id = -1;')
+        assert output == 'Statement completed. Matched 0; changed 0.\n', output
+        typed_readback('select_json_after_update')
+        for index in range(1, repeat + 1):
+            output = call('delete', f'DELETE FROM items WHERE id = {index};')
+            assert output == 'Statement completed. Matched 1; changed 1.\n', output
+            expected.remove((index, index * 100))
+            verify_table(call('select_after_delete', 'SELECT * FROM items;'), expected)
+        output = call('delete_empty', 'DELETE FROM items WHERE id = -1;')
+        assert output == 'Statement completed. Matched 0; changed 0.\n', output
+        typed_readback('select_json_after_delete')
         print(json.dumps(dict(phase='statement_summary', distributions={
             case: distribution(values) for case, values in samples.items()})), flush=True)
     finally:
         shell.close()
+
+
+def tls(root, port, console, repeat):
+    """Same workload over the existing SQL wire fixture, with no proxy."""
+    from types import SimpleNamespace
+    config = root / 'latency.yaml'
+    password = root / 'latency.password'
+    password.write_text('proof-password')
+    password.chmod(0o600)
+    config.write_text(f'version: 1\nendpoint: https://localhost:{port}\naccount: proof\ndatabase: data\nauthentication: scram\nca_file: {root / "certificate.pem"}\npassword_file: {password}\nformat: table\n')
+    fixture = SimpleNamespace(root=root, cli=console)
+    shell = Console(fixture, config=config, mode='table')
+    try:
+        value, timing = shell.call('CREATE TABLE items (id INT64, value INT64);')
+        assert value.startswith('Statement completed.'), value
+        print(json.dumps(dict(phase='setup', timing=timing)), flush=True)
+    finally:
+        shell.close()
+    run(fixture, repeat, {}, config=config)

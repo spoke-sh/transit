@@ -29,8 +29,10 @@ def run(node, catalog, gateway):
         armed = None
         accepted = None
         committed = None
+        committed_saved = None
         recovered = False
         repeated = False
+        saved_recoveries = 0
         capacity_binding = capacity_receipt = None
         capacity_armed = False
         capacity_repeats = 0
@@ -46,6 +48,7 @@ def run(node, catalog, gateway):
             def log_message(self, *_): pass
             def do_POST(self):
                 nonlocal armed, accepted, committed, recovered, repeated, sends, turns, table_calls
+                nonlocal saved_recoveries, committed_saved
                 nonlocal capacity_binding, capacity_receipt, capacity_repeats, capacity_armed
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 connection = getattr(upstream, 'conn', None)
@@ -84,7 +87,14 @@ def run(node, catalog, gateway):
                                 assert json.loads(data)['result'] == committed[1]
                                 recovered = True
                             if operation['command'] == 'execute': repeated = True
-                        if saved and committed and saved['binding'] == committed[0]: repeated = True
+                        if status == 200 and saved and committed and saved['binding'] == committed[0]:
+                            # commit_saved is independently idempotent. Resolve
+                            # the original frozen request and require its exact
+                            # durable result, then check rows/counts below.
+                            assert saved == committed_saved
+                            assert json.loads(data)['result'] == committed[1]
+                            recovered = True
+                            saved_recoveries += 1
                         if status == 200 and armed == 'admission' and 'bind' in action.get('client_token', {}):
                             result = json.loads(data)
                             accepted = result['result']['client_token']
@@ -96,6 +106,7 @@ def run(node, catalog, gateway):
                             outcome = result['result'].get('ddl', result['result'].get('rows', {}))
                             if 'committed' in outcome:
                                 committed = (operation or saved)['binding'], result['result']
+                                committed_saved = saved
                                 armed = None
                                 result['context'][0] ^= 1
                                 data = json.dumps(result).encode()
@@ -203,7 +214,8 @@ def run(node, catalog, gateway):
             assert not failures, failures
             print(json.dumps(dict(profile='native_sql_database', exact_token_recovery=True,
                                   fenced_replacements=2, direct_outcome_recovered=recovered,
-                                  direct_reexecuted=repeated, exact_counts=True, history=history,
+                                  explicit_execute_repeated=repeated, saved_receipt_recoveries=saved_recoveries,
+                                  exact_counts=True, history=history,
                                   framing=framing, exact_capacity_retries=capacity_repeats, cleanup_cancelled_and_joined=True,
                                   station_sends=sends, station_turns=turns,
                                   table_requests=table_calls, seconds=round(time.monotonic()-started, 3))))

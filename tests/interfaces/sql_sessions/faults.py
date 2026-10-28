@@ -11,6 +11,8 @@ from urllib.parse import urlsplit
 class Faults:
     def __init__(self, url):
         target = urlsplit(url)
+        self.fail_commit_once = False
+        self.commit_reply_losses = 0
         self.fail_open = False
         self.fail_once = False
         self.fail_snapshot_once = False
@@ -86,6 +88,16 @@ class Faults:
                         content_type = response.getheader('Content-Type', 'application/json')
                     finally:
                         upstream.close()
+                # Lose a successful data-owner reply after it has reached the
+                # proxy. The service must recover this original frozen request.
+                with owner.lock:
+                    lose_commit = owner.fail_commit_once and 'commit_saved' in table and status == 200
+                    if lose_commit:
+                        owner.fail_commit_once = False
+                        owner.commit_reply_losses += 1
+                if lose_commit:
+                    status, body = 503, b'{"err":"HttpCapacity"}'
+                    content_type = 'application/json'
                 if settings_failure is not None:
                     code = settings_failure['code']
                     status = {'HttpCapacity': 503, 'AccessDenied': 403, 'ConfigurationSnapshotChanged': 409}[code]

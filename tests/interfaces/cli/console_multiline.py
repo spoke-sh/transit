@@ -137,6 +137,15 @@ def check(binary):
             expect_draft(terminal, ['transit>'], (0, 9))
             assert terminal.display.text().count('    ...> FROM items;') == 1, 'cancel left stale draft rows'
 
+            # Visible frame bytes can precede completion of the joined output
+            # task. Ctrl-C at that boundary still clears editing, not the shell.
+            for _ in range(32):
+                terminal.send('render interrupt')
+                expect_draft(terminal, ['transit> render interrupt'], (0, 25))
+                terminal.send('\x03')
+                expect_draft(terminal, ['transit>'], (0, 9))
+            assert [value['sql'] for action, value in actions if action == 'execute'] == ['SELECT *\nFROM items;']
+
             # Blank lines, paste and Ctrl-U; nothing submits without Enter.
             terminal.send('\x1b[200~SELECT *\n\nFROM items;\x1b[201~')
             expect_draft(terminal, ['transit> SELECT *', '    ...>', '    ...> FROM items;'], (2, 20))

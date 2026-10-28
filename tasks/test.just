@@ -292,6 +292,10 @@ transaction-decision-model *args:
 table-transaction-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/table_transaction_model.py {{args}}
 
+# Durable write lifecycle/token models and selected production Table trace replay.
+write-lifecycle-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-write-lifecycle-model -- {{args}}
+
 # Finite editor model, every exported edge replayed against production Zig,
 # removed-guard controls and borrower release under explicit fairness.
 console-model *args:
@@ -671,6 +675,10 @@ diagnostic-grammar:
 console-latency *args:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
     python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
+
+# Matching TLS component control for the persistent console statement workload.
+console-latency-tls repeat="5":
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- console-statements {{repeat}}
 
 # Owned durable writes; requires --output, supports independent history/row controls.
 mutation-latency *args:

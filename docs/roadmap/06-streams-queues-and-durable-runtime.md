@@ -460,3 +460,50 @@ Require executable proof through real SQL and typed callers in the
   or lease loss before commit rolls back state and outbox intents together and
   redelivers the inbox message under a higher `_lease_epoch` without duplicate
   side effects or external `courier` polling.
+
+## Durable write lifecycle and interactive latency
+
+[Implementation tracker #211](https://github.com/spoke-sh/transit/issues/211)
+orders contract/model work, concrete replay, exact console measurement, resident
+owners, bounded publication batches, combined single-partition commitment and
+read-after-write qualification. Preserve the separate Catalog acceptance and
+Table completion boundaries until a common transaction envelope actually replaces
+them. The [finite models](../../tests/verification/models/README.md#finite-sql-write-lifecycle-models)
+include both paths without treating the candidate as implemented.
+
+### Proposed TRUNCATE contract for implementation
+
+TRUNCATE remains unsupported by the current SQL execution contract. Its modeled
+operation fixes the following implementation direction before grammar/runtime
+work and the required current-v1 cutover:
+
+- Publish an empty successor of the existing Table. Preserve object, definition,
+  schema, grants and original operation receipts; never implement it as DROP and
+  CREATE or immediate object deletion.
+- Bind the exact definition and data basis before acceptance. A concurrent data
+  change causes the original frozen attempt to reject; retry does not rebind or
+  reselect. The command requires the current Table mutation/delete authority,
+  with execution fencing and separate current inspection rights for its outcome.
+- Derive matched/changed counts from the authoritative predecessor's live-row
+  count. Both counts equal the number removed. Empty TRUNCATE reports zero counts
+  while advancing the logical data frontier, making the ordering with concurrent
+  writers observable without inventing a row change.
+- Preserve retained snapshots and logical history with an explicit reset event
+  and predecessor coverage. Logical removal grants no physical expiry permission.
+  A later INSERT followed by retry of the old TRUNCATE returns the original
+  receipt and leaves the new row intact.
+- Do not reset operation-derived row identities. SQL sequence reset, CASCADE,
+  trigger dispatch and dependent-object rewriting are outside the initial
+  profile; reject requested unsupported options. Do not introduce sequence or
+  constraint features simply to implement this operation. Future constraints
+  must define their own admission checks before Tables using them qualify.
+- Start with the existing one-Table atomic domain. Multi-Table transaction
+  composition depends on Milestone 5's common decision/visibility contract;
+  TRUNCATE must not add a separate coordinator.
+
+The model covers empty successors, frontier ordering, retained history and
+original retry identity. It does not deliver parser support, native action tags,
+stored reset/history records, shared result command kinds or runtime execution.
+Those require one coordinated v1 contract/consumer migration and concrete disk,
+console and caller qualification. The 10×/100× INSERT targets remain measurement
+gates, not consequences of a model check.
