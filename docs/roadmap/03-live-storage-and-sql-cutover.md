@@ -899,9 +899,14 @@ contract. The bootstrap maintenance fix is also present upstream. Storage's new
 adds sixteen independently verified retained scans with Table maintenance
 disabled and during automatic flushing. It records node CPU, I/O and resident
 memory beside raw read durations and requires observed concurrent progress.
-The schedule is implemented and builds; its physical execution and clean
-qualification are pending. It adds no latency target, deadline increase or claim
-that aggregate maintenance or the installed zero-allocation gate is complete.
+At frozen source `4d778efa9`, its physical execution passes, including 258 rows
+flushed into ten segments and fixed-target archive/compaction recovery after
+SIGKILL. The first active retained scan takes 5.085 seconds, compared with
+1.602–1.780 seconds for control scans; node lifetime peak RSS reaches
+121,298,944 bytes. The [qualification account](../history/qualification/storage.md#foreground-reads-during-automatic-table-flushing--2026-10-28)
+records all scopes and limits. Clean lanes are still pending. This adds no
+latency target, deadline increase or claim that aggregate maintenance or the
+installed zero-allocation gate is complete.
 
 **Post-integration priority — 2026-10-27:** after merging PR #188, the user
 reports slow single-row INSERT and roughly 0.5-second queries against `items`.

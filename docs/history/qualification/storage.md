@@ -9,6 +9,51 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Foreground reads during automatic Table flushing — 2026-10-28
+
+At clean source `4d778efa9ffc5a8ad3e012bcecee1cc9887621db`,
+`just test direct-table-maintenance` passes on physical disk with ReleaseSafe
+binaries. The [method](../../../tests/storage/tables/maintenance.md) compares
+sixteen full scans with Table maintenance disabled and sixteen with automatic
+flushing enabled. Each scan independently verifies all 258 values across the
+same three retained Table cuts, using seven-row pages and one resident node
+page. At least one completed scan overlaps observed flush progress while rows
+remain pending. No new pins or mutations are submitted by the reader.
+
+| Observation | Table maintenance disabled | Automatic flushing |
+| --- | ---: | ---: |
+| Scan duration, minimum / median / maximum (seconds) | 1.602 / 1.679 / 1.780 | 1.496 / 1.607 / 5.085 |
+| Whole measured phase (seconds) | 27.028 | 31.052 |
+| Node user + system CPU during phase (seconds) | 36.00 | 28.68 |
+| Node lifetime peak RSS (bytes) | 111,304,704 | 121,298,944 |
+| Node kernel write-byte increase | 0 | 11,550,720 |
+
+The first two active scans take 5.085 and 3.670 seconds. The remaining scans take
+1.496–1.679 seconds; the lower active median does not erase the initial delay.
+Automatic flushing produces ten independently verified segments in 8.158 seconds
+including restart. The subsequent archive/checkpoint/compaction schedule passes
+SIGKILL recovery, fixed-target preservation, original retained reads, unchanged
+packed segment files and idle convergence in 25.624 seconds. Total task time is
+360.81 seconds including compilation.
+
+The raw runner log is retained as
+`.cache/milestone3/rebased-4d778efa9-foreground-maintenance.log`, SHA-256
+`4bb0a7940e7fa5ae477e183ef5ab561c756b005cdf22c26db34d8815461a7051`.
+Its machine-readable resource record includes every sample, configuration,
+process-incarnation check and source/toolchain identity. Node SHA-256 is
+`cf3880021c1ce6c9ed2ce90cdea3144ab2eca0824f82c561c3f95a93702c2163`;
+caller SHA-256 is
+`9023ab44ecf31eab02f2dfced7a4d8b23fe280691251423f2c28dc6361d5c15b`.
+
+Both arms retain default native/direct collection eligibility. Host page cache
+and warmup differ, and the active phase includes flush convergence. CPU/RSS/I/O
+cover the node, not the separate caller and proxy; lifetime peak RSS is not a
+maintenance allocator peak. These observations demonstrate retained-read
+correctness under concurrent progress, not a matched implementation speedup,
+tail-latency guarantee, zero-allocation path or aggregate resource bound. Larger
+Table populations, foreground writes and archive/compaction contention remain
+separate qualification obligations.
+
 ## Original SQL diagnostic outcome recovery — 2026-10-27
 
 Two retained physical-disk diagnostics are reopened with their original
