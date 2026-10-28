@@ -463,6 +463,8 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, args[2], "maintenance-inspect")) {
             try Maintenance.inspect(client, profile.maintenance.?, &output.interface);
             return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "maintenance-foreground")) {
+            return Maintenance.foreground(init, client, profile.maintenance.?, &output.interface);
         } else if (std.mem.eql(u8, args[2], "maintenance-wal")) {
             try Maintenance.verify(init, client, &profile.maintenance.?, false);
         } else if (std.mem.eql(u8, args[2], "maintenance-flushed")) {

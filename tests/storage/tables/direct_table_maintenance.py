@@ -2,12 +2,17 @@
 from contextlib import contextmanager
 import hashlib
 import json
+import os
 from pathlib import Path
+import platform
 import shutil
 import subprocess
 import struct
 import tempfile
 import time
+
+from runner.capture import identity, provenance
+from runner.paths import ROOT
 
 
 @contextmanager
@@ -23,7 +28,65 @@ def directory():
         shutil.rmtree(root)
 
 
-def exercise(caller, endpoint, profile, root, restart):
+def process_usage(child):
+    """Whole node counters, not the allocator or logical object-byte budget."""
+    assert child.poll() is None, 'Storage owner exited during measurement'
+    proc = Path(f'/proc/{child.pid}')
+    # stat's command can contain spaces and parentheses. Fields after the last
+    # closing parenthesis begin at field 3; starttime detects owner replacement.
+    stat = (proc / 'stat').read_text().rsplit(')', 1)[1].split()
+    status = dict(line.split(':', 1) for line in (proc / 'status').read_text().splitlines())
+    io = dict(line.split(':', 1) for line in (proc / 'io').read_text().splitlines())
+    return dict(pid=child.pid, start_ticks=int(stat[19]),
+                user_ticks=int(stat[11]), system_ticks=int(stat[12]),
+                minor_faults=int(stat[7]), major_faults=int(stat[9]),
+                rss_bytes=int(status['VmRSS'].split()[0]) * 1024,
+                lifetime_peak_rss_bytes=int(status['VmHWM'].split()[0]) * 1024,
+                read_bytes=int(io['read_bytes']), write_bytes=int(io['write_bytes']),
+                rchar=int(io['rchar']), wchar=int(io['wchar']))
+
+
+@contextmanager
+def foreground(caller, endpoint, profile, root, phase, owner, records):
+    """Join every reader and retain incomplete samples when a phase fails."""
+    out = root / f'foreground-{phase}.jsonl'
+    err = root / f'foreground-{phase}.stderr'
+    started = time.monotonic()
+    before = process_usage(owner())
+    settings = json.loads((root / 'node.json').read_text())
+    configuration = dict(resident_pages=settings['resident_pages'],
+                         request_timeout_ms=settings['request_timeout_ms'],
+                         storage=settings['storage'],
+                         maintenance_interval_ms=settings['maintenance']['interval_ms'],
+                         maintenance_timeout_ms=settings['maintenance']['operation_timeout_ms'])
+    with out.open('w') as output, err.open('w') as errors:
+        child = subprocess.Popen([caller, endpoint, 'maintenance-foreground', str(profile)],
+                                 stdout=output, stderr=errors)
+        try:
+            yield child
+            child.wait(timeout=max(.001, 180 - (time.monotonic() - started)))
+            assert child.returncode == 0, err.read_text()[-12000:]
+            after = process_usage(owner())
+            assert (before['pid'], before['start_ticks']) == (after['pid'], after['start_ticks'])
+            samples = [json.loads(line) for line in out.read_text().splitlines()]
+            assert len(samples) == 16, samples
+            assert all(row['sample'] == i and row['rows'] == 258 and row['elapsed_ns'] > 0
+                       for i, row in enumerate(samples)), samples
+            records.append(dict(phase=phase, configuration=configuration,
+                                elapsed_seconds=time.monotonic() - started,
+                                node_before=before, node_after=after, reads=samples))
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=15)
+
+
+def exercise(caller, endpoint, profile, root, restart, owner, node):
+    measurements = dict(source=provenance(ROOT), binaries=[identity(Path(path)) for path in (node, caller)],
+                        drivers=[identity(Path(__file__)), identity(Path(__file__).with_suffix('.zig'))],
+                        platform=platform.platform(), clock_ticks_per_second=os.sysconf('SC_CLK_TCK'),
+                        cache='uncontrolled host page cache; owner restarted before each arm',
+                        phases=[])
     def call(phase):
         result = subprocess.run([caller, endpoint, f'maintenance-{phase}', str(profile)],
                                 timeout=180, capture_output=True, text=True)
@@ -35,29 +98,51 @@ def exercise(caller, endpoint, profile, root, restart):
 
     call('prepare')
     saved = profile.read_bytes()
+    measurements['fixture'] = dict(table_rows=[256, 1, 1], page_rows=7,
+                                   retained_profile_sha256=hashlib.sha256(saved).hexdigest())
     assert not list((root / 'native').rglob('*.tseg')), 'Point acceptance unexpectedly required a segment'
     restart(False)
     call('wal')
     assert profile.read_bytes() == saved, 'WAL recovery replaced a saved source'
     original = json.loads(call('inspect').stdout)
     assert [value['pending']['rows'] for value in original] == [256, 1, 1], original
+    # Both arms read exactly the same three retained cuts, through the same
+    # signed service. Keep inspection traffic concurrent in the control too.
+    with foreground(caller, endpoint, profile, root, 'table_maintenance_disabled', owner, measurements['phases']) as reader:
+        deadline = time.monotonic() + 180
+        while reader.poll() is None:
+            assert json.loads(call('inspect').stdout) == original
+            assert time.monotonic() < deadline, 'Foreground control did not complete'
+            time.sleep(.1)
+    assert profile.read_bytes() == saved, 'Foreground control changed retained identities'
     before = time.monotonic()
     restart(True)
     deadline = time.monotonic() + 60
     small_tables_completed_first = False
-    while True:
-        observed = json.loads(call('inspect').stdout)
-        for first, current in zip(original, observed):
-            assert first['changed_lsn'] == current['changed_lsn']
-            assert current['history_floor'] == 0
-        if observed[0]['pending']['rows'] > 0 and all(value['pending']['rows'] == 0 for value in observed[1:]):
-            small_tables_completed_first = True
-        if all(value['pending']['complete'] and value['pending']['rows'] == 0 for value in observed):
-            break
-        assert time.monotonic() < deadline, observed
-        time.sleep(.1)
+    overlap = False
+    with foreground(caller, endpoint, profile, root, 'automatic_flush', owner, measurements['phases']) as reader:
+        while True:
+            observed = json.loads(call('inspect').stdout)
+            for first, current in zip(original, observed):
+                assert first['changed_lsn'] == current['changed_lsn']
+                assert current['history_floor'] == 0
+            pending = any(value['pending']['rows'] > 0 for value in observed)
+            completed_reads = (root / 'foreground-automatic_flush.jsonl').read_text().count('\n')
+            overlap |= (pending and reader.poll() is None and completed_reads > 0
+                        and sum(value['pending']['rows'] for value in observed) < 258)
+            if observed[0]['pending']['rows'] > 0 and all(value['pending']['rows'] == 0 for value in observed[1:]):
+                small_tables_completed_first = True
+            if all(value['pending']['complete'] and value['pending']['rows'] == 0 for value in observed):
+                elapsed = time.monotonic() - before
+                break
+            assert time.monotonic() < deadline, observed
+            time.sleep(.1)
+    assert overlap, 'No reader overlapped pending physical work'
+    assert profile.read_bytes() == saved, 'Concurrent reads changed retained identities'
     assert small_tables_completed_first, 'An eligible large Table monopolized physical maintenance'
-    elapsed = time.monotonic() - before
+    # The runner keeps stdout as an immutable run artifact even when the private
+    # installation is removed on success. This contains no request or row bytes.
+    print('Table maintenance resource observations: ' + json.dumps(measurements, sort_keys=True), flush=True)
     segments = list((root / 'native').rglob('*.tseg'))
     assert len(segments) >= 3, segments
     definition = bytes.fromhex(json.loads(profile.read_text())['definition'])

@@ -227,7 +227,8 @@ def run(node, caller, mode="tables", *artifacts):
                                                            "compact": physical}}
                     config.write_text(json.dumps(settings))
                     authority = start()
-                direct_table_maintenance.exercise(caller, endpoint, profile, root, restart)
+                direct_table_maintenance.exercise(caller, endpoint, profile, root, restart,
+                                                  lambda: authority, node)
                 return
             if mode == "growth":
                 subprocess.run([caller, endpoint, "growth-write", str(profile)], check=True, timeout=600)
