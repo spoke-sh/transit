@@ -54,7 +54,7 @@ invalidates the prepared statement.
 | Columns | Meaning |
 | --- | --- |
 | `object`, `schema_revision`, `partition` | Table identity in the selected catalog, exact definition revision and acceptance partition |
-| `accepted_lsn`, `changed_lsn`, `live_rows` | Exclusive accepted frontier, last logical-change position and current logical row count; physical maintenance can advance acceptance without changing logical data |
+| `accepted_lsn`, `changed_lsn`, `live_rows` | Exclusive accepted frontier, exclusive frontier of the last logical change and current logical row count; the frontiers may coincide, and physical maintenance can advance acceptance without changing logical data |
 | `pending_rows`, `pending_bytes`, `pending_complete`, `oldest_pending_lsn` | WAL-backed row backlog at that frontier; inspection counts at most 1,024 pending rows with bounded manifest lookahead, so incomplete counts are lower bounds. Bytes describe encoded rows, not allocated filesystem space. The oldest position is NULL when no rows remain pending |
 | `archive_through`, `recovery_through`, `history_floor` | Accepted archive coverage, nullable recovery-checkpoint coverage and logical history floor; physical trimming and logical expiry remain distinct |
 | `next_segment` | Exclusive next segment identity, not a count of existing files |

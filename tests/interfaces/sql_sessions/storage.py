@@ -17,7 +17,9 @@ def observation(batch, rows):
     definition, = metadata['definitions']
     assert unsigned(values[0]) == int(definition['object']['object'])
     assert unsigned(values[1]) == int(definition['revision'])
-    assert unsigned(values[3]) > unsigned(values[4])
+    # Both values are exclusive frontiers. They may coincide immediately after
+    # CREATE or a row change; physical/control records can advance only acceptance.
+    assert 0 < unsigned(values[4]) <= unsigned(values[3])
     assert unsigned(values[5]) == rows and unsigned(values[6]) <= rows
     assert values[8] == '0301' and unsigned(values[12]) == 0
     if rows == 0:
