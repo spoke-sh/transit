@@ -3436,7 +3436,7 @@
         "TransactionCatalogChanged": 1,
         "TransactionConflict": 3,
         "TransactionMemoryLimit": 1,
-        "TransactionOperationRequired": 2,
+        "TransactionOperationRequired": 3,
         "UnrepresentableEbcdic037": 1,
         "UnsupportedTableAction": 2
       },
@@ -13894,7 +13894,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"f4155ebec2d3eae38ccb8894ab250a29138ef35d84792d83b4a9150e44a5b6fb\""
+          "f4155ebec2d3eae38ccb8894ab250a29138ef35d84792d83b4a9150e44a5b6fb"
         ],
         "Effect.phase": [
           "pending",
@@ -26880,6 +26880,7 @@
     },
     "packages/zig/transit-storage/src/TablePartition.zig": {
       "errors": {
+        "BufferTooSmall": 1,
         "DataIdentityConflict": 13,
         "DuplicateBatchKey": 3,
         "DuplicatePrimaryKey": 7,
@@ -26942,7 +26943,7 @@
         "UnknownColumn": 3,
         "UnsupportedTableAction": 2,
         "UnsupportedTransactionStatement": 1,
-        "WriteFailed": 1
+        "WriteFailed": 3
       },
       "outcomes": {
         "CachedSegment.decoded": [
@@ -27101,8 +27102,8 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 624,
-        "catch": 15
+        "try": 626,
+        "catch": 16
       },
       "imports": [
         "OrderedKeyIndex.zig",
