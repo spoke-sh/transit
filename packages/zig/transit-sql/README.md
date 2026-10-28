@@ -125,6 +125,11 @@ copies nested values before scratch reuse, retains a row that does not fit the
 remaining byte budget and rejects a row that cannot fit an empty batch. Current
 rights are checked after buffering. Exhaustion can accompany data or a subsequent
 empty terminal batch; neither creates another result.
+Each read reserves `limits.cycle_bytes` of aligned row representation storage
+within `limits.session_bytes`. This retained capacity includes nested-cell
+metadata and remains charged between batches. Representation exhaustion reports
+session capacity exceeded without advancing the row; canonical byte and row
+limits remain independent. The reserve is released when the read closes.
 Settings preparation and page reads use the settings transport's own rejection
 when deciding bounded recovery and reporting SQL errors. Transient page failures
 resume the retained continuation, including private ordered rows; current denial

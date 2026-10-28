@@ -13,7 +13,13 @@ values into a caller-owned bounded arena before iterator scratch can change.
 
 `BatchBuilder` owns up to 32 rows and 1 MiB of canonical cells, with independent
 row/byte limits. A row that does not fit remains with its source; an oversized
-row fails. Its allocator remains subject to the caller's resident budget.
+row fails. `init(allocator, capacity)` reserves fixed aligned representation
+storage once; `fromBuffer` borrows caller-owned storage. This resident capacity is
+separate from canonical byte count. Reset ends existing row borrows and retains
+the charged capacity; failed nested copies rewind without consuming progress or
+stranding capacity. Exhaustion reports `ResultMemoryBudgetExceeded`. Keep the
+builder at a stable address after its first reset. Its backing allocator is not
+consulted again before destruction.
 
 `ResultSet` consumes a semantic source through `nextRow` or `nextBatch`. It owns
 progress validation and closes the source on exhaustion, failure or explicit

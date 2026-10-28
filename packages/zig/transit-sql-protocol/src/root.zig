@@ -8,6 +8,9 @@ pub const Codec = @import("Codec.zig");
 pub const ResultFrame = @import("ResultFrame.zig");
 pub const ResultColumns = @import("ResultColumns.zig");
 pub const results = @import("transit_sql_results");
+test {
+    _ = @import("allocation_test.zig");
+}
 pub const Completion = results.Command;
 pub const Id = [32]u8;
 pub const Instance = [16]u8;

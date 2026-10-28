@@ -40,22 +40,44 @@ fn shape(self: Self) !void {
     }
 }
 
-/// One exact-sized aligned allocation; column bytes are already encoded by the
-/// owning codec. Repeating ordinal zero repeats the same initial description.
-pub fn encode(allocator: std.mem.Allocator, self: Self) ![]align(alignment) u8 {
+const Layout = struct { schema: []const u8, metadata_size: usize, directory: usize, size: usize };
+fn layout(self: Self) !Layout {
     try self.shape();
-    const metadata = if (self.description) |description| try api.Json.valueAlloc(allocator, description.observation) else null;
-    defer if (metadata) |bytes| allocator.free(bytes);
-    if (metadata) |bytes| if (bytes.len > max_description_bytes) return error.InvalidResultFrame;
+    var buffer: [256]u8 = undefined;
+    var counter: std.Io.Writer.Discarding = .init(&buffer);
+    var json: std.json.Stringify = .{ .writer = &counter.writer };
+    if (self.description) |description| try api.Json.write(description.observation, &json);
+    const metadata_size = std.math.cast(usize, counter.fullCount()) orelse return error.InvalidResultFrame;
+    if (metadata_size > max_description_bytes) return error.InvalidResultFrame;
     const schema_bytes = if (self.description) |description| description.schema else &.{};
-    const metadata_bytes = metadata orelse &.{};
-    const directory = header_bytes + schema_bytes.len + metadata_bytes.len;
+    const directory = header_bytes + schema_bytes.len + metadata_size;
     var size = try rounded(directory + self.columns.len * 8);
     for (self.columns) |column| size = try rounded(try std.math.add(usize, size, column.len));
     if (size > api.max_message_bytes) return error.SqlMessageTooLarge;
-    const output = try allocator.alignedAlloc(u8, .fromByteUnits(alignment), size);
+    return .{ .schema = schema_bytes, .metadata_size = metadata_size, .directory = directory, .size = size };
+}
+pub fn encodedSize(self: Self) !usize {
+    return (try self.layout()).size;
+}
+/// One exact-sized owned allocation. Metadata writes directly into its final
+/// frame range; the caller frees the result through this allocator.
+pub fn encode(allocator: std.mem.Allocator, self: Self) ![]align(alignment) u8 {
+    const plan = try self.layout();
+    const output = try allocator.alignedAlloc(u8, .fromByteUnits(alignment), plan.size);
     errdefer allocator.free(output);
-    @memset(output, 0);
+    return writeInto(output, self, plan);
+}
+/// No allocation. Output borrows destination until its owner reuses it. Inputs
+/// must not alias destination. Insufficient capacity leaves destination intact.
+pub fn encodeInto(destination: []align(alignment) u8, self: Self) ![]align(alignment) u8 {
+    return writeInto(destination, self, try self.layout());
+}
+fn writeInto(destination: []align(alignment) u8, self: Self, plan: Layout) ![]align(alignment) u8 {
+    if (destination.len < plan.size) return error.ResultBufferTooSmall;
+    const output = destination[0..plan.size];
+    const schema_bytes = plan.schema;
+    const directory = plan.directory;
+    @memset(output[0..header_bytes], 0);
     @memcpy(output[0..4], "TSR1");
     @memcpy(output[4..36], &api.native.definition_bytes);
     @memcpy(output[36..52], &self.instance);
@@ -67,16 +89,24 @@ pub fn encode(allocator: std.mem.Allocator, self: Self) ![]align(alignment) u8 {
     @memcpy(output[108..140], &self.schema);
     @memcpy(output[140..172], &self.observation);
     put(output, u32, 172, @intCast(schema_bytes.len));
-    put(output, u32, 176, @intCast(metadata_bytes.len));
+    put(output, u32, 176, @intCast(plan.metadata_size));
     put(output, u32, 180, @intCast(self.columns.len));
     @memcpy(output[header_bytes..][0..schema_bytes.len], schema_bytes);
-    @memcpy(output[header_bytes + schema_bytes.len ..][0..metadata_bytes.len], metadata_bytes);
+    if (self.description) |description| {
+        var writer: std.Io.Writer = .fixed(output[header_bytes + schema_bytes.len .. directory]);
+        var json: std.json.Stringify = .{ .writer = &writer };
+        try api.Json.write(description.observation, &json);
+        std.debug.assert(writer.buffered().len == plan.metadata_size);
+    }
     var offset = try rounded(directory + self.columns.len * 8);
+    @memset(output[directory + self.columns.len * 8 .. offset], 0);
     for (self.columns, 0..) |column, i| {
         put(output, u32, directory + i * 8, @intCast(offset));
         put(output, u32, directory + i * 8 + 4, @intCast(column.len));
         @memcpy(output[offset..][0..column.len], column);
-        offset = try rounded(offset + column.len);
+        const end = offset + column.len;
+        offset = try rounded(end);
+        @memset(output[end..offset], 0);
     }
     return output;
 }
@@ -85,21 +115,34 @@ pub fn encode(allocator: std.mem.Allocator, self: Self) ![]align(alignment) u8 {
 /// allocates only the column directory and initial observation metadata. Column
 /// admission/type validation belongs to the shared physical codec and reader.
 pub fn parseBorrowed(arena: std.mem.Allocator, bytes: []align(alignment) const u8) !Self {
+    const count = try columnCount(bytes);
+    const columns = try arena.alloc([]const u8, count);
+    return parseInto(arena, columns, bytes);
+}
+fn columnCount(bytes: []align(alignment) const u8) !usize {
     if (bytes.len < header_bytes or bytes.len > api.max_message_bytes or !std.mem.eql(u8, bytes[0..4], "TSR1")) return error.InvalidResultFrame;
     if (!std.mem.eql(u8, bytes[4..36], &api.native.definition_bytes)) return error.IncompatibleSqlDefinition;
+    const count: usize = get(bytes, u32, 180);
+    if (count > max_columns) return error.InvalidResultFrame;
+    return count;
+}
+/// Columns borrow caller-owned directory and immutable frame bytes. Only the
+/// initial observation uses metadata storage; it must outlive the frame view.
+pub fn parseInto(metadata_arena: std.mem.Allocator, directory_storage: [][]const u8, bytes: []align(alignment) const u8) !Self {
+    const count = try columnCount(bytes);
     if (!std.mem.allEqual(u8, bytes[184..header_bytes], 0)) return error.InvalidResultFrame;
     const flags = get(bytes, u32, 96);
     const terminal = get(bytes, u64, 100);
     if (flags > 1 or (flags == 0 and terminal != 0)) return error.InvalidResultFrame;
     const schema_size: usize = get(bytes, u32, 172);
     const metadata_size: usize = get(bytes, u32, 176);
-    const count: usize = get(bytes, u32, 180);
     if (schema_size > r.Types.max_encoding_bytes or metadata_size > max_description_bytes or count > max_columns or
         ((schema_size == 0) != (metadata_size == 0))) return error.InvalidResultFrame;
     const directory = header_bytes + schema_size + metadata_size;
     const start = try rounded(directory + count * 8);
     if (start > bytes.len or !std.mem.allEqual(u8, bytes[directory + count * 8 .. start], 0)) return error.InvalidResultFrame;
-    const columns = try arena.alloc([]const u8, count);
+    if (directory_storage.len < count) return error.ResultDirectoryTooSmall;
+    const columns = directory_storage[0..count];
     var offset = start;
     for (columns, 0..) |*column, i| {
         const declared: usize = get(bytes, u32, directory + i * 8);
@@ -115,10 +158,10 @@ pub fn parseBorrowed(arena: std.mem.Allocator, bytes: []align(alignment) const u
     const description: ?Description = if (schema_size == 0) null else blk: {
         const metadata = bytes[header_bytes + schema_size .. directory];
         try api.fuze.Types.Json.preflight(metadata, .{ .bytes = max_description_bytes, .depth = 16, .tokens = 16384, .fields = 256 });
-        const tree = try std.json.parseFromSlice(std.json.Value, arena, metadata, .{});
+        const tree = try std.json.parseFromSlice(std.json.Value, metadata_arena, metadata, .{});
         defer tree.deinit();
         try api.Json.validateShape(r.Observation.Value, tree.value);
-        const observation = try std.json.parseFromSliceLeaky(r.Observation.Value, arena, metadata, .{ .allocate = .alloc_always });
+        const observation = try std.json.parseFromSliceLeaky(r.Observation.Value, metadata_arena, metadata, .{ .allocate = .alloc_always });
         break :blk .{ .schema = bytes[header_bytes..][0..schema_size], .observation = observation };
     };
     const frame: Self = .{
@@ -178,4 +221,44 @@ test "binary framing rejects foreign definitions truncation overlaps padding and
     var arena: std.heap.ArenaAllocator = .init(t.allocator);
     defer arena.deinit();
     try t.expectError(error.InvalidResultFrame, parseBorrowed(arena.allocator(), bytes));
+}
+
+test "caller-owned framing and directory reuse preserve bytes without backing allocation" {
+    const t = std.testing;
+    const memory = @import("transit_memory");
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    var metadata = try memory.Workspace.init(probe.allocator(), 128 * 1024);
+    defer metadata.deinit();
+    var lease = try metadata.acquire();
+    defer lease.release(false) catch unreachable;
+    var bytes: [8192]u8 align(alignment) = undefined;
+    var columns: [max_columns][]const u8 = undefined;
+    const observation: r.Observation.Value = .{ .metadata = .{ .kind = .probe, .consistency = .session, .namespace = null, .definitions = &.{}, .configuration_revision = null, .session_settings = null } };
+    var frame: Self = .{ .instance = @splat(1), .cursor = @splat(2), .ordinal = 0, .rows = 1, .schema = @splat(3), .observation = @splat(4), .description = .{ .schema = "binary\x00schema", .observation = observation }, .columns = &.{ "\x00\xff\x10", "retained" }, .completion = null };
+    const expected = try encode(t.allocator, frame);
+    defer t.allocator.free(expected);
+    const required = try frame.encodedSize();
+    probe.begin(true);
+    for (0..1000) |iteration| {
+        try lease.reset();
+        frame.ordinal = iteration % 3;
+        frame.description = if (frame.ordinal == 0) .{ .schema = "binary\x00schema", .observation = observation } else null;
+        frame.completion = if (frame.ordinal == 2) .{ .rows = 3 } else null;
+        @memset(&bytes, 0xaa);
+        const encoded = try encodeInto(&bytes, frame);
+        if (frame.ordinal == 0) {
+            try t.expectEqual(required, encoded.len);
+            try t.expectEqualSlices(u8, expected, encoded);
+        }
+        const parsed = try parseInto(try lease.allocator(), &columns, encoded);
+        try t.expectEqualDeep(frame, parsed);
+        try t.expect(@intFromPtr(parsed.columns[1].ptr) > @intFromPtr(encoded.ptr));
+        try t.expectEqual(@as(u8, 0xaa), bytes[encoded.len]);
+        try t.expectError(error.ResultDirectoryTooSmall, parseInto(try lease.allocator(), columns[0..1], encoded));
+    }
+    @memset(&bytes, 0xaa);
+    try t.expectError(error.ResultBufferTooSmall, encodeInto(bytes[0..header_bytes], frame));
+    try t.expect(std.mem.allEqual(u8, &bytes, 0xaa));
+    try probe.verify();
+    try t.expectEqual(metadata.buffer.len, probe.live_bytes);
 }
