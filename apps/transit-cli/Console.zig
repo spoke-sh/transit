@@ -147,6 +147,13 @@ pub const Console = struct {
         if (last.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() < @max(1, self.client.lease_ms / 3)) return;
         const reply = try self.client.call(.touch);
         defer reply.deinit();
+        if (reply.value.result == .err and std.mem.eql(u8, reply.value.result.err.code, "SqlSessionBusy")) {
+            // Joining cancelled assistance releases our client, but the service
+            // may still be finishing that request. Busy did not renew the lease;
+            // let the next idle turn retry touch with the same session.
+            self.client.last_call = last;
+            return;
+        }
         try self.checked(reply.value);
     }
     fn readByte(self: *Console) !?u8 {

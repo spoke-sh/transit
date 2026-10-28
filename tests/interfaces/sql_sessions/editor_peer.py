@@ -9,7 +9,7 @@ import threading
 
 
 @contextmanager
-def peer(*, structured=False, lease_ms=30000, assist=None, execute=None, instance=None):
+def peer(*, structured=False, lease_ms=30000, assist=None, execute=None, instance=None, touch=None):
     definition = re.search(r'\b([a-f0-9]{64})\b', (ROOT/'packages/zig/transit-protocol/src/Growth.zig').read_text()).group(1)
     actions = []
     diagnostic = dict(version=1, definition=definition, code='sql.unknown_column', category='binding', stage='bind', outcome='not_submitted', evidence='local_before_dispatch', message='Unknown column in this scope', cause='UnknownColumn', identity=None,
@@ -35,7 +35,7 @@ def peer(*, structured=False, lease_ms=30000, assist=None, execute=None, instanc
                 assert assist is not None, 'Unexpected metadata request'
                 result = assist(value)
             elif action == 'touch':
-                result = dict(closed={})
+                result = touch() if touch else dict(closed={})
             else:
                 assert action == 'execute', action
                 if execute is not None:
