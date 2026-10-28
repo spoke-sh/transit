@@ -29,6 +29,7 @@ def run(node, catalog, gateway):
         armed = None
         accepted = None
         committed = None
+        committed_saved = None
         recovered = False
         repeated = False
         saved_recoveries = 0
@@ -47,7 +48,7 @@ def run(node, catalog, gateway):
             def log_message(self, *_): pass
             def do_POST(self):
                 nonlocal armed, accepted, committed, recovered, repeated, sends, turns, table_calls
-                nonlocal saved_recoveries
+                nonlocal saved_recoveries, committed_saved
                 nonlocal capacity_binding, capacity_receipt, capacity_repeats, capacity_armed
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 connection = getattr(upstream, 'conn', None)
@@ -90,6 +91,7 @@ def run(node, catalog, gateway):
                             # commit_saved is independently idempotent. Resolve
                             # the original frozen request and require its exact
                             # durable result, then check rows/counts below.
+                            assert saved == committed_saved
                             assert json.loads(data)['result'] == committed[1]
                             recovered = True
                             saved_recoveries += 1
@@ -104,6 +106,7 @@ def run(node, catalog, gateway):
                             outcome = result['result'].get('ddl', result['result'].get('rows', {}))
                             if 'committed' in outcome:
                                 committed = (operation or saved)['binding'], result['result']
+                                committed_saved = saved
                                 armed = None
                                 result['context'][0] ^= 1
                                 data = json.dumps(result).encode()
