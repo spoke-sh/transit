@@ -117,7 +117,7 @@ logical expiry needs explicit policy; deletion additionally needs a complete
 retained graph and read-lifetime fences. These are separate transitions.
 Automatic computation activation stays in
 [milestone 10](10-sql-and-dataflows.md), distributed providers/writers in
-[15](18-storage-providers-and-concurrency.md), and general cache/index/group-commit
+[18](18-storage-providers-and-concurrency.md), and general cache/index/group-commit
 optimization in [11](11-data-structures-and-performance.md).
 
 The existing [SQL session contract](../../contracts/SQL_SESSION_V1.md) remains
@@ -126,6 +126,33 @@ bounded consumption needed for this cutover, but leave the new shared
 `StatementResult`/result reader and console presentation to milestone 4.
 Multi-object transactions, global snapshot atomicity, new SDK families and a
 Board redesign are outside this plan.
+
+**D5 — Preserve the installed runtime until the transaction-backed replacement
+(scope reconciliation after PR #196).** The user-defined
+[database/runtime separation](https://github.com/spoke-sh/transit/pull/196)
+places SQL account-ledger and read-pin replacement, declarative Streams/Queues,
+and the Station rebuild in
+[milestone 6](06-streams-queues-and-durable-runtime.md), after the
+[transaction foundation](05-transactions-and-atomic-composition.md). This
+supersedes treating removal of every Station dependency as a prerequisite to
+this milestone. General catalog Tables already use the direct owner; the
+remaining private Station Tables and SQL coordination still have callers and
+accepted-work obligations.
+
+| Existing requirement | Work retained here | Replacement owner |
+| --- | --- | --- |
+| P1.5 private Station Tables | Audit callers and ownership, remove unused adapters, preserve current native atomic-turn recovery and document the remaining boundary | Milestone 6 migrates private Table/Query APIs, SDKs, examples and inspection records together onto declared data and transaction-backed turns |
+| P5 SQL admission and read pins | Measure and attribute end-to-end cost, resolve original uncertain outcomes, qualify direct storage/recovery/read lifetimes and avoid regressions | Milestone 6 replaces `AccountRuntime`, `Ledger`, `Coordinator` and per-query durable `ReadPins` with database-owned idempotency, snapshot cuts and lease fencing |
+| P5.4 query-host/courier waiting | Preserve current wakeup, cancellation, fencing and shutdown behavior in affected installed checks; record remaining idle overhead | Milestone 6 replaces the polling runtime with Queue lease consumption and transactional outboxes; do not build a new scheduler around the superseded runtime here |
+
+Do not replace an atomic private Table turn with a direct Table write followed
+by a native turn: those are separate decisions until the transaction owner
+qualifies composition. Do not optimize old Table staging, SQL-text fragmentation
+or courier throughput as a substitute for the planned cutover. P1.4's current
+resource/recovery matrix, P4's safe maintenance, P5's direct storage cost and
+lifetime gates, P6 inspection and P8 common-revision qualification remain here.
+The measured SQL timeouts remain failures; moving the architectural replacement
+does not turn them into successful latency samples or complete this milestone.
 
 ### Delivery sequence and reviewable changes
 
@@ -335,14 +362,16 @@ Owners: [Local](../../apps/transit-node/Local.zig),
   role are removed, but `TableCreation`, `TableWrite`, `TableStatement`,
   `TableReader`, `TableData` and `TablePages` still implement application-private
   Tables within native turns, including through `TableBridge` SDK bindings.
-  Inventory actual consumers, remove obsolete query/cache adapters, and specify
-  migration/removal of superseded Table storage and caller surfaces. Catalog
+  Inventory actual consumers, remove obsolete query/cache adapters, and hand off
+  migration/removal of superseded Table storage and caller surfaces to milestone
+  6 under D5. Catalog
   Tables must have one direct data owner. Any retained application-private KV
   helper needs an explicit application-state purpose and must not become another
   general Table engine. Preserve or explicitly replace the existing atomic
   turn/input/output contract before migrating callers; two separate commits
-  cannot silently replace one atomic turn. Move affected contracts, SDKs,
-  examples, tests and documentation together under the current-v1 policy.
+  cannot silently replace one atomic turn. The milestone 6 replacement must move
+  affected contracts, SDKs, examples, tests and documentation together under the
+  current-v1 policy; this milestone preserves their current installed behavior.
 
 **Gate:** deterministic recovery-required injection completes the original
 bootstrap request exactly once, the complete launcher schedule passes, payload
@@ -387,6 +416,26 @@ per interactive reader. Twelve selected query checks pass, including KV and
 Document source semantics and current Table caller authentication. This removes
 an unused adapter only: the active private-turn `TableBridge` and its SDK
 consumers still require P1.5's atomicity-preserving migration or removal.
+
+The retained caller audit identifies the following migration units for
+[milestone 6](06-streams-queues-and-durable-runtime.md#inherited-station-cutover-obligations).
+These remain active interfaces, not aliases for the direct catalog:
+
+| Owner | Retained callers and obligation |
+| --- | --- |
+| [Station exports](../../packages/zig/transit-station/src/root.zig) | `TableCreation`, `TableWrite`, `TableStatement`, `TableReader`, `TableData`, `TableCandidate`, `TablePages`, head/history/change records, ALTER and cleanup implement private KV-backed Tables. Replace the family together; keep unrelated native KV/Document behavior intact until its own replacement. |
+| [Private query capture](../../packages/zig/transit-station/src/Query.zig) | Captures through `TableReader` under native read versions and stores result progress/fragments in bounded turns. Rebind source retention, capture/publication and result cleanup explicitly; removing the Table reader alone breaks this caller. |
+| [Foreign turn actions](../../packages/zig/transit-station-bindings/src/GrowingActions.zig) and [Table bridge](../../packages/zig/transit-station-bindings/src/TableBridge.zig) | Public `turn.table`, creation/mutation, retained-source Table reads and query actions feed the language SDKs. The direct catalog's `DirectTableBridge` is a different owner and must remain. |
+| [SDK examples](../../examples/station-sdk/README.md) and [installed consumers](../../tests/sdk/README.md) | Table services persist input/queue progress, then stage mutations and outcomes through private turns. Migrate their exact retry, retained-version and output assertions to the transaction-backed replacement; do not simply delete conformance coverage. |
+| [Station metadata](../../packages/zig/transit-station/src/Metadata.zig) | Decodes private `TableHead` records for inspection. Move reflected metadata, bindings and Board interpretation with the stored-format cutover, preserving current read-only access. |
+| [Private query schedule](../../tests/query/execution/growing_query.zig) and [Station Table tests](../../packages/zig/transit-station/src/table_pages_test.zig) | Preserve source/cursor identity, retained values, finite staging, atomic publication, crash/retry and current-authorization assertions in identified replacement checks before retiring the old fixtures. |
+
+The general [query Table reader](../../packages/zig/transit-query/src/DirectTableScan.zig)
+already uses `DirectTableReader`; matching the word `Table` does not identify an
+actor-backed storage dependency. SQL account coordination is a separate,
+explicit D5 handoff even though its eventual target writes already use the
+direct Table owner. P1.5's final acceptance still requires the affected current
+caller qualification, rather than treating this inventory as executed evidence.
 
 The physical-disk `just test local-owner-recovery` schedule now also loses the
 native journal sync acknowledgment for an atomic turn that changes one KV
@@ -710,10 +759,13 @@ Owners: local Table service/catalog, direct query readers, shared SQL service,
   Measure the existing eight-row direct page bound before proposing a change;
   widening a constant alone is not an access-path improvement.
 - [ ] P5.4 Complete or explicitly resolve keep-armed query-host waiting. Keep
-  immediate work responsive while avoiding the unconditional empty poll after
-  progress. Measure idle requests/CPU and first-work latency; prove disconnect,
-  cancellation, wakeup races and shutdown. Preserve gateway wakeups and the
-  applicable native cache visibility improvements already delivered.
+  immediate work responsive and preserve gateway wakeups, disconnect,
+  cancellation, fencing and shutdown in the installed profile. Under D5,
+  attribute the unconditional empty poll after progress and remaining idle
+  requests/CPU to milestone 6's runtime replacement instead of building new
+  actor scheduling machinery here. Retain the applicable native cache visibility
+  improvements already delivered; a measured idle limit or failed wakeup remains
+  explicit rather than being reported as fixed by the ownership transfer.
 - [ ] P5.5 Establish matched live correctness/performance controls for point and
   bulk mutations, key/range/full scans, metadata, compatible ALTER and recovery
   with maintenance active. Attribute remaining Station coordination separately;

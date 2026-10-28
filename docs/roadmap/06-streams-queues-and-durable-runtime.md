@@ -33,9 +33,11 @@ establish two structural bottlenecks in the pre-cutover architecture:
    [`Coordinator.zig`](../../packages/zig/transit-sql/src/Coordinator.zig))
    implemented as a `Station` `GenServer` actor over a native KV state resource.
    Because [`STATE_V1`](../../contracts/STATE_V1.md) restricts each turn to four
-   256-byte hex-encoded KV mutations, a single 1-row `INSERT` executes 16
-   sequential native actor turns and over 1,300 internal requests before
-   committing to the target [`TablePartition`](../../packages/zig/transit-storage/src/TablePartition.zig),
+   256-byte hex-encoded KV mutations, one instrumented 1-row `INSERT` observed 16
+   native actor turns and 1,307 total fixture requests, including background
+   work. That request count is not an isolated statement cost or a universal
+   lower bound. The accepted data ultimately belongs to
+   [`TablePartition`](../../packages/zig/transit-storage/src/TablePartition.zig),
    while `SELECT` persists durable [`ReadPins`](../../packages/zig/transit-sql/src/ReadPins.zig)
    and re-runs Table/catalog recovery on every request. In a distributed
    deployment where network hops carry millisecond latency, multi-turn actor
@@ -276,6 +278,40 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
      declared Queues, Streams and Tables, operators and agents inspect queue
      depth, stuck leases, retry history and state through standard SQL and
      [Board](25-board-reimplementation.md) under current `policy_epoch` grants.
+
+## Inherited Station cutover obligations
+
+The [milestone 3 boundary and caller inventory](03-live-storage-and-sql-cutover.md#p1--complete-live-ownership-reopen-and-payload-recovery)
+identifies the still-active private Station Table engine, `Query` capture,
+`TableBridge`/foreign turn actions, SDK examples and consumers, and inspection
+metadata. Their removal belongs with this replacement, after the transaction
+foundation can preserve or explicitly replace native input/state/output
+atomicity. Ordinary catalog Tables already use the direct owner. Do not route
+them back through the private engine or remove the catalog's separate
+`DirectTableBridge` because it has a similar name.
+
+- [ ] Migrate private `TableCreation`/`TableWrite`/`TableStatement` and retained
+  `TableReader`/query consumers to declared data and the selected transaction
+  domain. State whether each input acknowledgment, mutation and output intent
+  shares one decision. Two independently recoverable commits cannot silently
+  replace one native turn.
+- [ ] Move stored Table/query metadata, public bindings, language APIs,
+  examples, Board interpretation and their recovery/authorization checks
+  together under one current-v1 cutover. Remove superseded storage/SDK surfaces;
+  do not retain a parallel writable engine or rename it as a generic KV helper.
+- [ ] Carry the original SQL latency failures and saved-operation settlement
+  evidence from milestone 3 into matched before/after measurements of
+  database-owned idempotency and snapshot cuts. Request totals including
+  background work must remain distinguishable from statement-attributable work.
+- [ ] Replace query-host/courier polling through Queue waits and transactional
+  outboxes, retaining disconnect/cancellation, wakeup-race, current-policy,
+  fencing and shutdown checks. Measure idle requests/CPU and first-work latency;
+  eliminating a polling loop in source is not evidence of correct wakeups.
+
+Milestone 3 continues to own direct storage maintenance, read lifetimes,
+original-operation recovery, installed inspection and its final qualification.
+These inherited tasks neither complete that milestone nor claim the replacement
+runtime is implemented.
 
 ## Later owners and execution gates
 
