@@ -51,6 +51,35 @@ fn retainedWindow(executor: *sql.Executor, workspace: *memory.Workspace) !void {
             return error.ChangedRetainedWindow;
     }
 }
+fn retainedArrow(executor: *sql.Executor) !void {
+    const outcome = try executor.execute("SELECT 70 narrow once", null, .{});
+    defer outcome.deinit();
+    if (outcome.value != .rows) return error.ExpectedRows;
+    const result = &outcome.value.rows;
+    {
+        const batch = (try result.nextBatch()) orelse return error.ExpectedRows;
+        if (batch.len != 32) return error.ChangedRetainedArrow;
+        const selected = try batch.slice(7, 19);
+        var buffers: [3]sql.results.fuze.arrow.SharedBuffer = undefined;
+        const arrow = try (try selected.columnAt(0)).arrowValues(&buffers);
+        const values: sql.results.fuze.arrow.PrimitiveArray(u64) = .{ .data = &arrow };
+        for (0..100) |_| {
+            const response = try executor.client.call(.touch);
+            defer response.deinit();
+            try response.validate();
+            if (response.value.result != .closed) return error.InvalidBarrier;
+            for (0..selected.len) |row| if (try values.value(row) != 7 + row) return error.ChangedRetainedArrow;
+        }
+        // This borrowed Arrow view ends before the next pull. Touch responses
+        // may reuse other slots, but never this batch's retained frame lease.
+    }
+    var count: usize = 32;
+    while (try result.nextRow()) |row| {
+        if (row[0].value.atom.unsigned != count) return error.ChangedValue;
+        count += 1;
+    }
+    if (count != 70 or result.completion() == null or result.completion().?.rows != 70) return error.IncompleteRelation;
+}
 fn capacity(executor: *sql.Executor) !void {
     var retained: [4]sql.Response = undefined;
     var count: usize = 0;
@@ -165,6 +194,7 @@ pub fn main(init: std.process.Init) !void {
             retained.?.value.command.outcome != .applied or retained.?.value.command.counts != null)
             return error.ChangedRetainedCompletion;
     }
+    if (!negative) try retainedArrow(&executor);
     if (!negative) try retainedWindow(&executor, &window);
     if (!negative) try interrupted(&executor);
     if (!negative) try settlement(&executor);
@@ -176,6 +206,7 @@ pub fn main(init: std.process.Init) !void {
         .statements = statements,
         .long_result_rows = if (negative) @as(usize, 0) else 16384,
         .retained_window_rows = if (negative) @as(usize, 0) else 33,
+        .retained_arrow_rows = if (negative) @as(usize, 0) else 19,
         .window_reserved_bytes = window.buffer.len,
         .negative_control = negative,
         .libc_attempts = libc,
