@@ -7,7 +7,7 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 
 | Boundary | Drivers |
 | --- | --- |
-| Local objects and WAL process-death recovery | [Objects](local/local_objects.py), [storage faults](local/local_storage_faults.py), [collection faults](local/local_native_collection_faults.py) |
+| Local objects, WAL and accepted Table maintenance process-death recovery | [Objects](local/local_objects.py), [storage faults](local/local_storage_faults.py), [collection faults](local/local_native_collection_faults.py) |
 | Local native collection and maintenance | [local/](local/), [growth](local/storage_growth.py) |
 | Local owner replacement and atomic state/block/version/intent recovery | [Recovery schedule](local/local_owner_recovery.py), [real-node fault wrapper](local/local_owner_fault_node.zig); `just test local-owner-recovery` |
 | Authenticated standalone payload lifecycle | [Local payload service](local/local_payload_service.py); `just test local-payload-service` |

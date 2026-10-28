@@ -73,7 +73,7 @@ def run(binary):
         "trim": ["sync-1", "publish", "sync-2", "delete-1", "delete-2", "sync-3", "sync-4", "sync-5", "publish-2", "sync-6", "ack"],
         "trim-all": ["sync-1", "publish", "sync-2", "delete-1", "delete-2", "delete-3", "sync-3", "sync-4", "sync-5", "sync-6", "publish-2", "sync-7", "ack"],
     }
-    with tempfile.TemporaryDirectory(prefix="transit-local-crashes-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="transit-local-crashes-", dir="/var/tmp") as temporary:
         root = Path(temporary)
         for operation, boundaries in points.items():
             for point in boundaries:
@@ -209,10 +209,69 @@ def run(binary):
             assert call(directory, "table-trim") == {"archived": 3}
             expected.update(archived=3, tail=7, replayed=4)
             assert call(directory, "table-checkpoint-inspect") == expected
-    assert schedules == 101, schedules
+        # Independent finite oracle: begin, skip each one-row dense input, then
+        # complete. Each unit has one acceptance; row/segment identities stay put.
+        def maintenance_state(steps):
+            return dict(archived=0, tail=3 + steps, rows=2, pinned=1, receipt=1,
+                        history=2, current=[1, 2], next_segment=3,
+                        target=(dict(before_segment=3, source_lsn=3, after_segment=steps - 1)
+                                if 1 <= steps <= 3 else None),
+                        completed=3 if steps == 4 else 0)
+
+        maintenance_points = ["before-accept", "accept-write", "accept-sync-1",
+                              "accept-sync-2", "accept-sync-3", "accept-publish",
+                              "accept-sync-4", "ack"]
+        for stage in range(4):
+            for point in maintenance_points:
+                directory = root / f"table-maintenance-{stage}-{point}"
+                assert call(directory, "table-compact-init") == {"tail": 3}
+                for step in range(stage):
+                    assert call(directory, "table-maintenance") == dict(worked=True, tail=4 + step)
+                assert call(directory, "table-maintenance-inspect") == maintenance_state(stage)
+                kill(directory, "table-maintenance", point)
+                accepted = int(point not in {"before-accept", "accept-write"})
+                steps = stage + accepted
+                assert call(directory, "table-maintenance-inspect") == maintenance_state(steps)
+                while steps < 4:
+                    steps += 1
+                    assert call(directory, "table-maintenance") == dict(worked=True, tail=3 + steps)
+                    assert call(directory, "table-maintenance-inspect") == maintenance_state(steps)
+                assert call(directory, "table-maintenance") == dict(worked=False, tail=7)
+                assert call(directory, "table-maintenance-inspect") == maintenance_state(4)
+        # Archive/checkpoint I/O is covered above. Independently kill publication
+        # of the fixed automatic target and its completion after that coverage.
+        def archive_state(steps):
+            return dict(archived=3 if steps >= 2 else 0, tail=3 + steps,
+                        rows=2, pinned=1, receipt=1, history=2, current=[1, 2],
+                        next_segment=1,
+                        target=(dict(through_lsn=3, source_lsn=3,
+                                     checkpoint_lsn=5 if steps >= 2 else None)
+                                if 1 <= steps <= 3 else None),
+                        completed=3 if steps == 4 else 0,
+                        checkpoint=5 if steps >= 3 else 0)
+
+        for stage in (0, 3):
+            for point in maintenance_points:
+                directory = root / f"table-archive-maintenance-{stage}-{point}"
+                assert call(directory, "table-init") == {"tail": 3}
+                for step in range(stage):
+                    assert call(directory, "table-archive-maintenance") == dict(worked=True, tail=4 + step)
+                assert call(directory, "table-archive-maintenance-inspect") == archive_state(stage)
+                kill(directory, "table-archive-maintenance", point)
+                steps = stage + int(point not in {"before-accept", "accept-write"})
+                assert call(directory, "table-archive-maintenance-inspect") == archive_state(steps)
+                while steps < 4:
+                    steps += 1
+                    assert call(directory, "table-archive-maintenance") == dict(worked=True, tail=3 + steps)
+                    assert call(directory, "table-archive-maintenance-inspect") == archive_state(steps)
+                assert call(directory, "table-archive-maintenance") == dict(worked=False, tail=7)
+                assert call(directory, "table-archive-maintenance-inspect") == archive_state(4)
+                assert metadata(directory / "wal")["floor"] == 0
+    assert schedules == 149, schedules
     print(f"Local storage: {schedules} SIGKILL schedules preserve acknowledged WAL data, "
           "fences, resumable trim, complete object descriptors, exact immutable retries "
-          "and Table archival/compaction/checkpoints with original receipts, snapshots and logical history.")
+          "and Table archival/compaction/checkpoints, including automatic targets and skip progress, "
+          "with original receipts, snapshots and logical history.")
 
 
 if __name__ == "__main__":

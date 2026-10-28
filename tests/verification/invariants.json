@@ -2015,6 +2015,7 @@
       "implementation": [
         "packages/zig/transit-storage/src/TableArchive.zig",
         "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-storage/src/TableMaintenanceState.zig",
         "packages/zig/transit-storage/src/TablePartitionRecord.zig",
         "packages/zig/transit-backend-local/src/DataStore.zig"
       ],
@@ -2028,7 +2029,8 @@
         "Unflushed snapshots, offline history cursors, exact receipts and admitted work remain readable after physical trim",
         "Current authority rejects publication after staging and trim after revocation; control reserve allows archival after ordinary admission fills",
         "Missing/foreign/malformed coverage, regressed frontiers and substituted original coordinates fail closed",
-        "SIGKILL during archive object/index staging, acceptance publication and resumable physical prefix deletion"
+        "SIGKILL during archive object/index staging, acceptance publication and resumable physical prefix deletion",
+        "SIGKILL during automatic archive target creation and completion preserves the fixed cut, covering recovery checkpoint and eventual idle state without granting physical trim"
       ],
       "limits": "Complete logical history and immutable objects remain retained. Full replay still scales with history. Process death preserves the OS/page cache; no power-loss, logical expiry, immutable Table-object collection or automatic installed maintenance claim.",
       "model": null,
@@ -2057,7 +2059,8 @@
         "Exact fixed-boundary retries do not compact their own output; lost replies and disk restart preserve progress",
         "Private row/encoder/build memory, encoded-row bytes, row counts and index staging work reject before publication",
         "Current authority and reserved control capacity apply to compaction publication",
-        "SIGKILL at segment/index staging and acceptance boundaries preserves original receipts, rows and snapshots"
+        "SIGKILL at segment/index staging and acceptance boundaries preserves original receipts, rows and snapshots",
+        "SIGKILL before acceptance, during WAL write, after each sync/publication and before reply preserves target creation, each skipped segment and completion"
       ],
       "limits": "Old segment/index bytes remain retained; compaction grants no immutable-object collection or logical expiry. Automatic selection can retain dense or oversized inputs, and budget changes alone do not trigger a new pass. Resident candidate budget is separate from bounded reader caches, index work, acceptance-frame and provider buffers. Process death is not host power loss.",
       "model": null,
