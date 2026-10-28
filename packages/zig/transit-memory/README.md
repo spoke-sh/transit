@@ -26,6 +26,11 @@ fragmentation consume the reserve. `live_bytes` counts requested payload bytes;
 until destruction. `reservations` and `refusals` count internal free-list requests.
 Allocation failure never falls back to the parent. Destroy it only after freeing
 every object. Initialization rounds capacity down to a multiple of 64 bytes.
+Admission charges that full capacity and initializes allocator metadata without
+filling unused payload pages. Backing capacity is not a resident-page promise;
+the parent allocator and host determine page residency. Ordinary borrower
+allocations retain Zig's initialization checks. Destruction and `reset(true)`
+still erase the complete reserve.
 `fromBuffer` borrows an exclusively leased aligned reserve; its backing owner
 remains responsible for accounting and release. `reset(true)` requires no live
 objects and erases freed payloads, padding and old headers before reassignment.
