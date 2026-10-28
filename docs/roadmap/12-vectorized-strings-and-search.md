@@ -13,7 +13,7 @@ groups.
 
 ## Prerequisites and scope
 
-The proposed [issue #194 implementation plan](10-data-structures-and-performance.md#implementation-plan-for-issue-194)
+The proposed [issue #194 implementation plan](11-data-structures-and-performance.md#implementation-plan-for-issue-194)
 defines the shared allocation contract and sequences this milestone's string,
 lookup and search gates in phase H. This milestone retains ownership of those
 capabilities and their prerequisites; the plan does not establish support.

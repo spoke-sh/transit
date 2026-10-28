@@ -1970,19 +1970,22 @@
         "Connection.read()": "std . Io . Reader . StreamError",
         "Connection.send()": "std . Io . Writer . Error",
         "Connection.write()": "std . Io . Writer . Error",
+        "RequestStorage.acquire()": "<inferred>",
+        "RequestStorage.init()": "<inferred>",
         "handleConnection()": "<inferred>",
         "respond()": "<inferred>",
         "serve()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 14,
-        "catch": 4
+        "try": 22,
+        "catch": 6
       },
       "imports": [
         "builtin",
         "std",
         "transit_http_server",
+        "transit_memory",
         "transit_sql",
         "transit_tls_server"
       ]
@@ -2063,18 +2066,20 @@
         "Server.protocolTask()": "anyerror",
         "Server.serve()": "<inferred>",
         "Server.serveHealth()": "anyerror",
+        "Worker.create()": "<inferred>",
         "boundedHandle()": "<inferred>",
         "boundedHandle().Task.command()": "anyerror",
         "boundedHandle().Task.timeout()": "anyerror",
         "expireSessions()": "<inferred>",
         "main()": "<inferred>",
         "recoverSessions()": "<inferred>",
-        "run()": "<inferred>"
+        "run()": "<inferred>",
+        "workerReserveFailures()": "<inferred>"
       },
       "open_error_set_uses": 21,
       "propagation": {
-        "try": 160,
-        "catch": 19
+        "try": 163,
+        "catch": 20
       },
       "imports": [
         "Connection.zig",
@@ -2084,6 +2089,7 @@
         "builtin",
         "std",
         "transit_http_server",
+        "transit_memory",
         "transit_mysql",
         "transit_postgres",
         "transit_sql",
@@ -3779,7 +3785,8 @@
         "InvalidDirectCatalogName": 1,
         "InvalidDirectCatalogOperation": 4,
         "InvalidDirectCatalogProperties": 2,
-        "InvalidDirectCatalogRoot": 1
+        "InvalidDirectCatalogRoot": 1,
+        "WriteFailed": 4
       },
       "outcomes": {
         "Intent.action": [
@@ -3819,6 +3826,7 @@
         "Entry.validate()": "<inferred>",
         "Intent.digest()": "<inferred>",
         "Intent.validate()": "<inferred>",
+        "IntentHash.drain()": "std . Io . Writer . Error",
         "Name.validate()": "<inferred>",
         "Operation.validate()": "<inferred>",
         "Properties.decode()": "<inferred>",
@@ -3838,7 +3846,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 41,
-        "catch": 0
+        "catch": 3
       },
       "imports": [
         "root.zig",
@@ -12407,16 +12415,23 @@
     },
     "packages/zig/transit-memory/src/Slab.zig": {
       "errors": {
-        "InvalidWorkspaceCapacity": 1
+        "InvalidWorkspaceCapacity": 2,
+        "MemoryInUse": 1
       },
       "outcomes": {},
-      "error_sets": {},
+      "error_sets": {
+        "reset().<error>": [
+          "MemoryInUse"
+        ]
+      },
       "error_returns": {
-        "init()": "<inferred>"
+        "fromBuffer()": "<inferred>",
+        "init()": "<inferred>",
+        "reset()": "error { MemoryInUse }"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 1,
+        "try": 2,
         "catch": 3
       },
       "imports": [
@@ -19399,7 +19414,7 @@
         "InvalidResultTransition": 1,
         "InvalidSqlResponse": 2,
         "ReadFailed": 2,
-        "ResultCancelled": 1,
+        "ResultCancelled": 2,
         "ResultClosed": 1,
         "ResultIdentityChanged": 1,
         "SqlObservationDenied": 1,
@@ -19417,6 +19432,7 @@
           "count",
           "incomplete",
           "disconnect",
+          "cancelled",
           "duplicate"
         ]
       },
@@ -20971,18 +20987,20 @@
         "operationStatus()": "<inferred>",
         "recover()": "<inferred>",
         "request()": "<inferred>",
+        "reserveFailures()": "<inferred>",
         "response()": "<inferred>",
         "selectOperation()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 121,
-        "catch": 6
+        "try": 124,
+        "catch": 9
       },
       "imports": [
         "SessionSettings.zig",
         "root.zig",
-        "std"
+        "std",
+        "transit_memory"
       ]
     },
     "packages/zig/transit-sql/src/Session.zig": {

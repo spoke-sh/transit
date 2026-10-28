@@ -271,6 +271,37 @@ The issue stays open across those checkpoints. Completing its first checkpoint
 does not complete the broader guidance or this milestone's unrelated optimizer
 and workload obligations.
 
+### Progress checkpoint for shared memory consumers
+
+The progress delivery exposes `transit-memory` and `transit-io` as independently
+buildable libraries and adopts them in the existing result/client/console path.
+It also reserves SQL session, recovery, native request and wire-connection memory.
+This is a reusable foundation for other implementation work; A–E remain in
+progress and issue #194 stays open.
+
+| Area | Implemented scope | Remaining qualification or implementation |
+| --- | --- | --- |
+| A–B | Attempt-counting guard, fixed workspaces/slabs/pools, generation leases, shared quota accounting and independent libc/OS negative controls | Complete installed-owner inventory and matched timing budgets |
+| C | Transactional batch storage, caller-owned binary framing/directories and retained windows | Composed source/Arrow lifetimes and matched latency/throughput regression assessment |
+| D | Independent response leases, fixed client/transport reserves, warmed I/O workers, prepared binds, reconnect/retry, timeout/cancellation and uncertain-write settlement checks | Wider schema/concurrent-owner installed profiles, DNS/NSS allocation coverage and slow-consumer measurements |
+| E | Independent cursor/session, recovery, native request/control and PostgreSQL/MySQL connection reserves; streaming DDL intent hashing | Whole-service task/TLS allocation work, explicit framing-refusal/retry injection and composed producer allocation gates |
+
+The client allocation driver observes Unix, numeric-loopback HTTP and TLS against
+an independent finite peer. It checks backing allocator attempts, libc calls and
+process/thread memory acquisition after one setup interval. Its write-settlement
+schedule proves client identity preservation, not server durable acceptance.
+Service authorization, buffered disclosure and recovery retain their separate
+real-service checks. The result TLA+ models and concrete Progress replay continue
+to constrain completion and delivery; they do not establish allocation behavior.
+
+No whole-service zero-allocation or speedup claim follows from this checkpoint.
+The codecs retain identical wire bytes and existing limits. Preliminary timing
+samples were not isolated matched comparisons and include a slower 32-row encoder;
+freeze and run the comparison before declaring the performance gate complete.
+Server reserves deliberately charge idle capacity, including separate control and
+recovery storage; documented capacities are not measured RSS. The source/storage
+and durable-runtime work remains with F, followed by G–J in their owning milestones.
+
 ### Allocation contract and measurement boundary
 
 Each tested profile declares its owner lifetime, maximum active concurrency,
@@ -392,8 +423,8 @@ separate contract review. They are execution order, not calendar promises.
 | E. SQL producer and gateways | C; D for composed proof | Reusable service/request/cursor storage and complete disclosure/retry proof |
 | F. Source, storage and durable runtime | B; coordinate current storage work | Zero-allocation supported scans, ingestion, flush, turns and recovery workspaces |
 | G. Cache leases and resource metering | B, F | Safe immutable reuse, bounded pressure/spill and CPU/I/O accounting |
-| H. Strings, lookup and search | B, F, G; milestones 7–9 where required | Milestone 11 implementations satisfy the same allocation/semantic gates |
-| I. Fusion and specialization | B, G, qualified H inputs; milestone 9 | Milestone 12 implementations satisfy the same gates, including code storage |
+| H. Strings, lookup and search | B, F, G; milestones 8–10 where required | Milestone 12 implementations satisfy the same allocation/semantic gates |
+| I. Fusion and specialization | B, G, qualified H inputs; milestone 10 | Milestone 13 implementations satisfy the same gates, including code storage |
 | J. Combined qualification | A–I and prerequisite capabilities | One-revision installed evidence for full issue closure |
 
 **A — Instrument before changing allocation behavior.** Extend the existing
@@ -526,7 +557,7 @@ other exhausted operators use a typed budget refusal. Never turn allocation
 pressure into expiry, accepted-work loss or an unbounded cleanup queue.
 
 **H — Apply the contract to strings and search.** Keep implementation in
-[milestone 11](11-vectorized-strings-and-search.md), with separately reviewable
+[milestone 12](12-vectorized-strings-and-search.md), with separately reviewable
 changes for string layout, lookup tables, encoded predicates, full-text indexes
 and execution, and hybrid composition. Ship usable closed-set `comptime` lookup
 work early when it depends only on B; keep index/search work behind its actual
@@ -554,7 +585,7 @@ one supported snapshot model. Every new operator starts with allocation gates;
 future syntax and algorithms do not become current supported capabilities.
 
 **I — Apply the contract to fusion and compilation.** Keep implementation in
-[milestone 12](12-data-centric-compilation-and-specialization.md). Review fused
+[milestone 13](13-data-centric-compilation-and-specialization.md). Review fused
 interpreter instructions and pipeline boundaries first, then per-group dense
 specialization, directory-tagged/prefetched joins, projection-specialized codecs,
 adaptive compilation and AOT separately. Retain the reference interpreter and
