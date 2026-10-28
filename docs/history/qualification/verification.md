@@ -9,6 +9,69 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## SQL result progress and session models — 2026-10-27
+
+At source [`50a83f2c2130`](https://github.com/spoke-sh/transit/commit/50a83f2c21301cdd915aa2c7e0ae2d937e95c626),
+finite SQL result exploration checks truthful completion, consumption/release
+independence and current server disclosure rights. The
+[model guide](../../../tests/verification/models/README.md#finite-sql-result-models)
+defines the abstractions and reproduction commands; the
+[public account](../../handbook/internals/query-engine.md#finite-result-transition-models)
+explains their relationship to the logical result and session contracts.
+
+Both runs use the locked TLA+ 1.7.4 distribution, TLC 2.19, one worker,
+seed `1`, fingerprint `0`, a 512 MiB Java heap and a 60-second limit per process
+on Linux x86_64. The replay binary uses Zig `0.17.0-dev.2267+48abf1a34`.
+No depth cutoff, fairness assumption or liveness property is used.
+
+| Row bound | Progress states | Progress edges replayed against Zig | Session states | Outcome |
+| --- | --- | --- | --- | --- |
+| 2, ordinary formal lane | 1,919 | 74,381 | 9,886 | Both graphs exhausted; all seven guard controls detected |
+| 3, focused expanded run | 4,001 | 190,812 | 27,888 | Both graphs exhausted; all seven guard controls detected |
+
+The two-row run executes through
+`nix develop --command just ci clean --lane formal` against committed source
+without inherited workspace build outputs. All six formal tasks pass, including
+the existing Console model after extraction of shared TLC parsing/replay helpers.
+`nix develop --command just ci clean --check fast` also passes all 40 checks.
+The expanded command is
+`nix develop .#ci-formal --command just test::statement-result-model --rows 3`;
+its record identifies the same clean committed source.
+
+Five progress guard counterexamples replay against the real `Progress` owner
+and match the safe model while differing from the violating model. Two session
+guard counterexamples check the abstract protocol only. The removed disclosure
+guard exposes a cached zero-row terminal reply after revocation; the removed
+repeat guard exposes duplicate row occurrences despite locally plausible counts.
+Runner controls reject failed tools, unfinished exploration and malformed evidence.
+
+Raw records are retained under the worktree's
+`.cache/ci/clean/50a83f2c2130-transit-ci-icdam_ch/`, including
+`verification/statement-result-model/20261027T204333-2294714/evidence.json`,
+and `.cache/verification/statement-result-model/20261027T204353-2302003/`.
+The clean fast-check record is
+`.cache/ci/clean/50a83f2c2130-transit-ci-v_b3b_ov/`.
+These local paths are not portable artifacts. The formal CI task retains the
+same source/configuration hashes, commands, graph, logs and counterexamples under
+its `statement-result-model` artifact directory. The progress model SHA-256 is
+`b28016393b81f5aef704d1f5b699c12d829afa51d870f4983db3c35045b5c809`;
+the session model SHA-256 is
+`ed2c26714fb84e3929e48b79433791a50331ee0435606bd673350e3c70e4fe47`.
+
+Supporting worktree checks pass: `just test::sql-wire-contracts` runs the six
+SQL/result/client/adapter package suites and independent wire fixtures;
+`just transit-docs::check` passes source checks, types, nine tests and the
+production site build. Task ownership, CI runner controls, links and whitespace
+also pass. These selected checks do not constitute full integration qualification;
+installed `test::sql-sessions`, other clean lanes and the four-row model profile
+were not run for this change.
+
+The session model has no native adapter/server replay. It starts after successful
+initial execution and abstracts authorization into an atomic disclosure predicate.
+The result models establish neither arbitrary Zig histories nor SQL computation,
+codec correctness, scratch ownership, physical transport/storage, uncertain
+write settlement, cancellation-versus-publication decisions or transactions.
+
 ## Shared direct preview repository check — 2026-10-24
 
 `nix develop -c just check` passes on frozen source `1af0494e7`, including

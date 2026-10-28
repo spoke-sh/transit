@@ -284,6 +284,10 @@ wal-model *args:
 console-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-console-model -- {{args}}
 
+# Finite SQL result progress/retry/disclosure models and production Progress replay.
+statement-result-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-statement-result-model -- {{args}}
+
 # Bounded TLC safety check of the growing result delivery/credit model. Type
 # and safety invariants only; no guard mutants or Zig trace replay yet, unlike
 # `model` above.

@@ -146,9 +146,10 @@ def main():
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
     assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": []}
     assert LANES["formal"] == ["test::model", "test::wal-model", "test::model-delivery",
-                               "test::console-model", "test::sql-rewrites"]
+                               "test::console-model", "test::statement-result-model", "test::sql-rewrites"]
     assert ".cache/verification/wal-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/console-model/" in artifacts["with"]["path"].splitlines()
+    assert ".cache/verification/statement-result-model/" in artifacts["with"]["path"].splitlines()
     for cache in {row["cache"] for row in workers}:
         assert sum(row["cache_writer"] for row in workers if row["cache"] == cache) == (0 if cache == 'formal' else 1)
     events = workflow.get("on", workflow.get(True))
@@ -296,6 +297,8 @@ def main():
                   ["tests/README.md", "packages/zig/transit-core/src/lib.zig"]):
         assert select(paths)["full"], paths
     assert select(["tests/verification/models/Wal.tla"])["lanes"] == {"formal": ["test::wal-model"]}
+    assert select(["tests/verification/models/StatementResult.tla"])["lanes"] == {"formal": ["test::statement-result-model"]}
+    assert select(["tests/verification/models/tlc_support.py"])["lanes"] == {"formal": ["test::console-model", "test::statement-result-model"]}
     assert select(["sdks/go/client/types.go"])["lanes"] == {"bindings-2": ["bindings::go-sdk-test"]}
     for event in ("push", "merge_group", "workflow_dispatch", "unknown"):
         assert select(["README.md"], event)["full"]

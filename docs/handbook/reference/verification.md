@@ -60,6 +60,14 @@ completion; terminal I/O, arbitrary text and latency remain separate obligations
 The [interaction account](../internals/service-interfaces.md#console-interaction-transitions)
 defines that correspondence and its limits.
 
+The SQL result models check finite logical progress and established-session
+result delivery. Every exported progress edge is replayed against the Zig
+progress owner; the session retry/disclosure model has no adapter or server
+replay. Both checks are safety-only. They distinguish completion evidence,
+consumer exhaustion and resource release, and preserve current authorization at
+server disclosure. See the [result-model account](../internals/query-engine.md#finite-result-transition-models)
+for bounds, assumptions and excluded uncertain-write settlement.
+
 The authority/delivery simulation runs two producer processes and one destination
 against the real core with atomic conditional append and injected acknowledgement
 loss. It preserves the live engine between events, compares its logical state

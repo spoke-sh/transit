@@ -86,7 +86,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just ci::core`, `just ci::experience`, `just ci::bindings-1`, `just ci::bindings-2`, `just ci::browser` | Run individual hosted lanes with task timings; select the matching shell, and install the browser before its proof |
 | `just ci::bindings`, `just ci clean --lane bindings` | Run both bindings lanes sequentially, preserving the full language inventory |
 | `just ci::growth`, `just ci::interfaces`, `just ci::launchers` | Run the storage/query, SQL/transport and launcher/build-smoke lanes from the same inventory |
-| `nix develop .#ci-formal --command just ci::formal` | Run finite Authority, WAL, Delivery and Console checks, concrete replay where defined, and Lean rewrite theorems with their own pinned tools |
+| `nix develop .#ci-formal --command just ci::formal` | Run finite Authority, WAL, Delivery, Console and SQL result checks, concrete replay where defined, and Lean rewrite theorems with their own pinned tools |
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
 | `just ci clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci all` inventory without existing workspace outputs |
 | `just ci clean --lane NAME` | Runs one inventory lane in its own clean checkout with its declared shell/preparation; complete ordinary qualification needs all eight lane reports at the same committed revision |
@@ -185,6 +185,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::model [--tail N]` | Checks the finite TLA+ model, removed guards and concrete Zig counterexample schedules |
 | `just test::wal-model [--lsns N]` | Exhausts the finite local WAL durability model and detects six independent ordering mutants |
 | `just test::console-model` | Checks editor interaction invariants, replays every finite-model edge against Zig, detects removed model guards and checks borrower release under explicit fairness |
+| `just test::statement-result-model [--rows N]` | Checks finite SQL result progress and session delivery, replays every progress edge against Zig and detects seven removed model guards |
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
 | `just test::scheduler-simulation`, `just test::scheduler-simulation-mutations` | Schedule shared Session/courier calls with request/reply loss, ownership, trusted time and mutation controls |
