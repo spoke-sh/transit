@@ -9,10 +9,60 @@ import shutil
 import subprocess
 import struct
 import tempfile
+import threading
 import time
 
+from harness.http_probe import TABLE_ACTIONS
 from runner.capture import identity, provenance
 from runner.paths import ROOT
+
+
+class RequestMemory:
+    """Finite operation labels and numeric observations; never request values."""
+    fields = ('alloc_attempts', 'growing_resize_attempts', 'remap_attempts',
+              'acquired_bytes', 'live_bytes', 'peak_bytes')
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.reset()
+
+    def reset(self):
+        with self.lock:
+            self.operations = {}
+            self.invalid = 0
+
+    def observe(self, action, header):
+        tag = action if isinstance(action, str) else next(iter(action)) if isinstance(action, dict) and len(action) == 1 else None
+        label = tag if tag in TABLE_ACTIONS else 'other'
+        try:
+            values = json.loads(header)['request_memory']
+            assert set(values) == set(self.fields)
+            assert all(type(values[name]) is int and 0 <= values[name] < 2**64 for name in self.fields)
+            assert values['live_bytes'] <= values['peak_bytes'] <= values['acquired_bytes']
+        except (AssertionError, ValueError, TypeError, KeyError):
+            with self.lock:
+                self.invalid += 1
+            return
+        with self.lock:
+            row = self.operations.setdefault(label, dict(responses=0,
+                    totals={name: 0 for name in self.fields[:4]},
+                    maximum={name: 0 for name in self.fields}))
+            row['responses'] += 1
+            for name in row['totals']:
+                row['totals'][name] += values[name]
+            for name in self.fields:
+                row['maximum'][name] = max(row['maximum'][name], values[name])
+
+    def snapshot(self):
+        with self.lock:
+            assert self.invalid == 0, f'{self.invalid} missing or invalid request-memory observations'
+            assert self.operations, 'No direct request memory observed'
+            # Every phase includes actual retained reads; inspection alone is
+            # not a substitute. Live-at-response bytes include buffered output.
+            reads = self.operations['scan']
+            assert reads['totals']['alloc_attempts'] > 0
+            assert reads['maximum']['live_bytes'] > 0
+            return json.loads(json.dumps(self.operations))
 
 
 @contextmanager
@@ -47,15 +97,17 @@ def process_usage(child):
 
 
 @contextmanager
-def foreground(caller, endpoint, profile, root, phase, owner, records):
+def foreground(caller, endpoint, profile, root, phase, owner, records, request_memory):
     """Join every reader and retain incomplete samples when a phase fails."""
     out = root / f'foreground-{phase}.jsonl'
     err = root / f'foreground-{phase}.stderr'
     started = time.monotonic()
     before = process_usage(owner())
+    request_memory.reset()
     settings = json.loads((root / 'node.json').read_text())
     configuration = dict(resident_pages=settings['resident_pages'],
                          request_timeout_ms=settings['request_timeout_ms'],
+                         request_metrics=settings['request_metrics'],
                          storage=settings['storage'],
                          maintenance_interval_ms=settings['maintenance']['interval_ms'],
                          maintenance_timeout_ms=settings['maintenance']['operation_timeout_ms'])
@@ -74,14 +126,15 @@ def foreground(caller, endpoint, profile, root, phase, owner, records):
                        for i, row in enumerate(samples)), samples
             records.append(dict(phase=phase, configuration=configuration,
                                 elapsed_seconds=time.monotonic() - started,
-                                node_before=before, node_after=after, reads=samples))
+                                node_before=before, node_after=after, reads=samples,
+                                request_memory=request_memory.snapshot()))
         finally:
             if child.poll() is None:
                 child.kill()
                 child.wait(timeout=15)
 
 
-def exercise(caller, endpoint, profile, root, restart, owner, node):
+def exercise(caller, endpoint, profile, root, restart, owner, node, request_memory):
     measurements = dict(source=provenance(ROOT), binaries=[identity(Path(path)) for path in (node, caller)],
                         drivers=[identity(Path(__file__)), identity(Path(__file__).with_suffix('.zig'))],
                         platform=platform.platform(), clock_ticks_per_second=os.sysconf('SC_CLK_TCK'),
@@ -108,7 +161,7 @@ def exercise(caller, endpoint, profile, root, restart, owner, node):
     assert [value['pending']['rows'] for value in original] == [256, 1, 1], original
     # Both arms read exactly the same three retained cuts, through the same
     # signed service. Keep inspection traffic concurrent in the control too.
-    with foreground(caller, endpoint, profile, root, 'table_maintenance_disabled', owner, measurements['phases']) as reader:
+    with foreground(caller, endpoint, profile, root, 'table_maintenance_disabled', owner, measurements['phases'], request_memory) as reader:
         deadline = time.monotonic() + 180
         while reader.poll() is None:
             assert json.loads(call('inspect').stdout) == original
@@ -120,7 +173,7 @@ def exercise(caller, endpoint, profile, root, restart, owner, node):
     deadline = time.monotonic() + 60
     small_tables_completed_first = False
     overlap = False
-    with foreground(caller, endpoint, profile, root, 'automatic_flush', owner, measurements['phases']) as reader:
+    with foreground(caller, endpoint, profile, root, 'automatic_flush', owner, measurements['phases'], request_memory) as reader:
         while True:
             observed = json.loads(call('inspect').stdout)
             for first, current in zip(original, observed):

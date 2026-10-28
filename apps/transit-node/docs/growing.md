@@ -287,6 +287,14 @@ headers are opt-in. With local storage, provider counters measure native log
 and immutable page/block operations, including conflicts and storage failures.
 The direct Table route also includes its request-owned catalog/Table WAL and
 object attempts, merged into the lane's counters on both success and failure.
+`request_memory` records backing allocation, growing-resize and remap attempts,
+acquired bytes, peak bytes and bytes still live immediately before writing the
+response. The probe covers the handler allocator, including the direct Table
+parse/catalog/response arena. It excludes engine caches, provider-owned buffers,
+HTTP socket buffers, task stacks and maintenance. Live request bytes remain
+owned until the response finishes or its cancelled handler joins; the header
+is a pre-write snapshot, not a post-cleanup measurement. These counters are
+observations, not admission limits or aggregate node memory accounting.
 Cache hits do not count as provider reads. Local payload bytes count serialized
 WAL entries and page/block envelopes; they do not count filesystem framing or
 individual system calls. Trimming includes its verification reads.

@@ -33,6 +33,18 @@ process-lifetime peak RSS. Convert tick differences with the recorded clock rate
 Counter snapshots must belong to the same process incarnation. Readers are joined
 on success and killed/joined on failure; incomplete samples do not pass.
 
+Both arms enable the node's opt-in request metrics. The existing HTTP fixture
+collects `request_memory` from each direct response into bounded operation-label
+totals and maxima; it retains no request, row, key or credential bytes. Missing
+or invalid observations fail the measurement. Each phase records allocation,
+growing-resize and remap attempts, acquired bytes, and maximum live/peak bytes
+through the complete handler allocator before response transmission. Totals
+include concurrent inspection traffic, separated from `scan` by operation.
+Individual request maxima cannot be added to infer simultaneous node memory.
+They exclude provider/cache allocations, stacks and socket buffers. The
+live-at-response count includes memory held while waiting on the client; it
+does not measure post-cleanup leakage or response transmission cost.
+
 This is an installed-owner contention observation with an uncontrolled host page
 cache. Each arm restarts the node, but prior verification warms different paths;
 the active phase also waits for flush convergence. Report these scopes alongside
@@ -46,8 +58,8 @@ guarantee or a matched implementation speedup.
 Native/direct collection retains its default eligibility in both arms; these
 observations do not isolate its contribution. The measurements do not yet cover
 concurrent foreground writes, large Table cardinality, isolated collection cost,
-archive/compaction contention, allocator backing
-attempts or aggregate admission limits. Keep the existing
+archive/compaction contention, aggregate admission limits or allocations through
+every storage/provider owner. Keep the existing
 [owner benchmarks](../../performance/storage/storage_benchmark.md), allocator
 checks and collection/failure schedules separate; this schedule does not replace
 them or establish a zero-allocation read path.

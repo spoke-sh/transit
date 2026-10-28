@@ -7,6 +7,7 @@ const observations = @import("transit_observability");
 const telemetry = observations.telemetry;
 const g = wire.protocol.Growth;
 const http = @import("transit_http_server");
+const memory = @import("transit_memory");
 const Notifications = @import("Notifications.zig");
 
 pub const Metrics = struct {
@@ -22,7 +23,7 @@ pub fn Host(comptime Provider: type) type {
         const Engine = Provider.Engine;
         const Lane = Provider.Lane;
         pub fn serve(init: std.process.Init, engine: *Engine, lanes: []Lane, config: anytype, diagnostics: *telemetry.Runtime) !void {
-            var server: Server = .{ .io = init.io, .allocator = init.gpa, .engine = engine, .accept_trace_parent = config.accept_trace_parent };
+            var server: Server = .{ .io = init.io, .allocator = init.gpa, .engine = engine, .accept_trace_parent = config.accept_trace_parent, .request_metrics = config.request_metrics };
             var listener = try (try std.Io.net.IpAddress.parseIp4(config.listen, config.port)).listen(init.io, .{ .reuse_address = true });
             defer listener.deinit(init.io);
             const shared_pages = try init.gpa.alloc(?Provider.PageStore.Cached, config.resident_pages);
@@ -50,6 +51,8 @@ pub fn Host(comptime Provider: type) type {
         const Server = struct {
             io: std.Io,
             allocator: std.mem.Allocator,
+            request_metrics: bool,
+            allocation_probe: ?*memory.AllocationProbe = null,
             engine: *Engine,
             observation: telemetry.Http = .{},
             accept_trace_parent: bool,
@@ -86,6 +89,17 @@ pub fn Host(comptime Provider: type) type {
                 staged_block_bytes: u64,
                 provider: Metrics,
                 failure: ?[]const u8 = null,
+                /// Backing allocations through the handler's allocator before
+                /// writing the response. Excludes separately owned engine/I/O
+                /// buffers; live bytes still belong to this in-flight request.
+                request_memory: ?struct {
+                    alloc_attempts: usize,
+                    growing_resize_attempts: usize,
+                    remap_attempts: usize,
+                    acquired_bytes: usize,
+                    live_bytes: usize,
+                    peak_bytes: usize,
+                } = null,
             };
 
             fn beginWork(self: *Server) void {
@@ -177,12 +191,21 @@ pub fn Host(comptime Provider: type) type {
             fn jsonBytes(self: *Server, request: *std.http.Server.Request, status: std.http.Status, bytes: []const u8) !void {
                 self.finishWork();
                 self.observation.status = @backingInt(status);
-                var metric_buffer: [768]u8 = undefined;
+                var metric_buffer: [1536]u8 = undefined;
                 var metric_writer: std.Io.Writer = .fixed(&metric_buffer);
                 var headers: [2]std.http.Header = undefined;
                 headers[0] = .{ .name = "content-type", .value = "application/json" };
                 var count: usize = 1;
-                if (self.metrics) |metrics| {
+                if (self.metrics) |recorded| {
+                    var metrics = recorded;
+                    if (self.allocation_probe) |probe| metrics.request_memory = .{
+                        .alloc_attempts = probe.counts.alloc_attempts,
+                        .growing_resize_attempts = probe.counts.growing_resize_attempts,
+                        .remap_attempts = probe.counts.remap_attempts,
+                        .acquired_bytes = probe.counts.acquired_bytes,
+                        .live_bytes = probe.live_bytes,
+                        .peak_bytes = probe.peak_bytes,
+                    };
                     // Diagnostics are optional and never change the authority result.
                     if (std.json.Stringify.value(metrics, .{}, &metric_writer)) |_| {
                         headers[1] = .{ .name = "x-transit-work", .value = metric_writer.buffered() };
@@ -555,8 +578,13 @@ pub fn Host(comptime Provider: type) type {
                 const lane = try self.acquire(io);
                 defer self.release(io, lane);
                 var server = self.server.*;
+                // One probe per admitted handler; response buffers remain
+                // charged while request.respond waits on a slow client. Engine
+                // caches and provider owners retain their separate allocators.
+                var allocations: memory.AllocationProbe = .{ .parent = allocator };
                 server.io = io;
-                server.allocator = allocator;
+                server.allocator = if (server.request_metrics) allocations.allocator() else allocator;
+                server.allocation_probe = if (server.request_metrics) &allocations else null;
                 server.context = self;
                 server.lane = lane;
                 server.mutex = &self.mutex;
