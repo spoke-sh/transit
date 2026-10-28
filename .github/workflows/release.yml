@@ -230,10 +230,16 @@ jobs:
         run: nix develop .#docs --command just transit-docs::check
       - name: Install the handbook browser
         run: nix develop .#docs --command vp exec --filter @transit/docs playwright install --with-deps chromium
+      - name: Package and extract the standalone handbook
+        run: |
+          python3 -B tasks/package_handbook.py docs/handbook/dist dist/handbook
+          mkdir -p .cache/release-handbook
+          tar -xf "dist/handbook/transit-handbook-$(cat VERSION).tar.gz" --strip-components=1 -C .cache/release-handbook
       - name: Qualify the archived handbook's routes, search and exact downloads
         env:
           TRANSIT_DOCS_BASE_URL: /
           TRANSIT_DOCS_REVISION: ${{ github.sha }}
+          TRANSIT_DOCS_TEST_ARCHIVE: '1'
         run: nix develop .#docs --command vp exec --filter @transit/docs playwright test
       - name: Preserve handbook browser failure evidence
         if: failure()
@@ -243,7 +249,6 @@ jobs:
           path: .cache/verification/docs-browser/
           if-no-files-found: ignore
           retention-days: 7
-      - run: python3 -B tasks/package_handbook.py docs/handbook/dist dist/handbook
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: handbook-release-artifacts

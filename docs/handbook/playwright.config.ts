@@ -4,6 +4,8 @@ const port = Number(process.env.TRANSIT_DOCS_TEST_PORT ?? "4179");
 if (!Number.isInteger(port) || port < 1024 || port > 65535)
   throw new Error("Invalid documentation test port");
 const base = process.env.TRANSIT_DOCS_BASE_URL ?? "/transit/";
+const archived = process.env.TRANSIT_DOCS_TEST_ARCHIVE === "1";
+if (archived && base !== "/") throw new Error("The release handbook is served at /");
 export default defineConfig({
   testDir: "./browser",
   fullyParallel: false,
@@ -12,7 +14,9 @@ export default defineConfig({
   outputDir: "../../.cache/verification/docs-browser",
   use: { baseURL: `http://127.0.0.1:${port}${base}`, browserName: "chromium" },
   webServer: {
-    command: `vp run serve --port ${port}`,
+    command: archived
+      ? `python3 -m http.server --bind 127.0.0.1 --directory ../../.cache/release-handbook/site ${port}`
+      : `vp run serve --port ${port}`,
     url: `http://127.0.0.1:${port}${base}`,
     reuseExistingServer: false,
     timeout: 60000,

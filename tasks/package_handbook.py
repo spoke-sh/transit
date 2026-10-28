@@ -30,6 +30,15 @@ def package(site, output):
     with tempfile.TemporaryDirectory(prefix='transit-handbook-') as temporary:
         stage = Path(temporary)
         shutil.copytree(site, stage / 'site')
+        # Ordinary static servers resolve /route through route/index.html.
+        # Keep Docusaurus's .html routes too, without requiring rewrite rules
+        # or its development server in the downloaded archive.
+        for page in sorted((stage / 'site').rglob('*.html')):
+            if page.name in ('index.html', '404.html'):
+                continue
+            directory = page.with_suffix('')
+            directory.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(page, directory / 'index.html')
         (stage / 'build-info.json').write_text(json.dumps(manifest, indent=2) + '\n')
         (stage / 'README.txt').write_text(
             f'Transit {version} handbook and specifications, source {revision}.\n\n'

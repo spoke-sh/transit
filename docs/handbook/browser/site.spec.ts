@@ -45,7 +45,11 @@ test("static publication exposes canonical routes, search and crawl metadata", a
     "internals",
   ])
     expect(index.some((entry) => entry.route === route)).toBe(true);
-  expect(readFileSync(path.resolve(__dirname, "../dist/404.html"), "utf8")).toContain(
+  const site =
+    process.env.TRANSIT_DOCS_TEST_ARCHIVE === "1"
+      ? "../../../.cache/release-handbook/site"
+      : "../dist";
+  expect(readFileSync(path.resolve(__dirname, site, "404.html"), "utf8")).toContain(
     "Page Not Found",
   );
 });
