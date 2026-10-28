@@ -467,7 +467,9 @@ this same original-token owner for reservations and recovery. Tokens retain
 Table DDL/DML, namespace, conditional name, external-owner and transaction begin
 references. Transaction admission atomically reserves a coordination partition
 with its token receipt; it establishes no acquired snapshot or commit decision.
-Its selection is paged and its ceilings come from `Options.transaction_limits`.
+Its explicit Table selection is paged and its ceilings come from
+`Options.transaction_limits`. Admission rejects `authorized_catalog_tables`:
+the neutral variant requires server-owned discovery before it can execute.
 Generic progress updates reject these entries; only their transaction owner can
 replace recovery records or request settlement.
 
@@ -488,7 +490,9 @@ the original cut despite later data or schema changes and recheck current access
 to every selected Table. A lost final reply recovers the original catalog record.
 
 The acquired record retains its paged source directory through the catalog graph;
-the Table pin owners retain the data itself. Temporary directories, one Table
+the Table pin owners retain the data itself. Each source guard records logical
+conflict frontiers; it does not promise contiguous historical WAL coverage.
+Temporary directories, one Table
 owner and decoding work share the admitted resident-byte limit. Catalog caches,
 provider buffers and fixed stack buffers have separate owners. Aggregate
 capacity, workspace-byte accounting and cleanup still require transaction-host

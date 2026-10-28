@@ -979,7 +979,7 @@ const CutFence = struct {
 };
 
 fn transactionTableGuard(root: P.Root) p.Transaction.TableGuard {
-    return .{ .source = .{ .interpretation = root.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = .{ .partition = root.partition, .next_lsn = root.next_lsn } }, .changed_lsn = root.changed_lsn };
+    return .{ .source = .{ .interpretation = root.interpretation, .accepted = .{ .partition = root.partition, .next_lsn = root.next_lsn } }, .changed_lsn = root.changed_lsn };
 }
 
 /// The host must exclude all catalog/Table publication throughout this call,

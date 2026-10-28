@@ -118,7 +118,10 @@ owner. External records fix their connection, namespace, operation and immutable
 A transaction reference fixes the connection, selected namespace and
 `Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog
 observation, the complete paged selection of read-only Table descriptors and
-configured limits. It atomically reserves the next unused partition with the
+configured limits. Admission accepts `explicit_tables`; it rejects the neutral
+`authorized_catalog_tables` variant until server-owned catalog discovery supplies
+that selection. Caller-supplied membership cannot certify complete authorized
+catalog coverage. It atomically reserves the next unused partition with the
 token receipt. `coordination` contains that partition only for a transaction;
 other receipts require explicit null. A repeated token returns its original
 partition. A begin operation cannot reserve another partition through a different

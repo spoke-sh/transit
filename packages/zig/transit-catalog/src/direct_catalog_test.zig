@@ -2613,7 +2613,7 @@ fn transactionToken(catalog: *D, operation: u64, token: u8, count: u64) !c.Direc
     defer directory.deinit();
     for (0..count) |i| try directory.put(.{ .participant = .{ .state = .{
         .kind = .table,
-        .guard = .{ .source = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = i + 1000 }, .revision = 1, .digest = @splat(1) }, .manifest = null, .checkpoint_lsn = 0, .accepted = .{ .partition = i + 1000, .next_lsn = 1 } }, .changed_lsn = 1 },
+        .guard = .{ .source = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = i + 1000 }, .revision = 1, .digest = @splat(1) }, .accepted = .{ .partition = i + 1000, .next_lsn = 1 } }, .changed_lsn = 1 },
         .access = .read,
     } } });
     const reference: c.DirectTransaction.Reference = .{ .connection = connection, .namespace = 1, .begin = .{
@@ -2700,6 +2700,10 @@ test "transaction admission refusals do not allocate partitions or consume token
     const binding = try transactionToken(&catalog, 55, 1, 9);
     const before = catalog.store.root;
     var changed = binding;
+    changed.intent.transaction.begin.selection = .authorized_catalog_tables;
+    try t.expectError(error.InvalidTransactionBegin, catalog.clientToken(.{ .bind = changed }, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    changed = binding;
     changed.intent.transaction.begin.limits.workspace_bytes = catalog.options.transaction_limits.workspace_bytes + 1;
     try t.expectError(error.TransactionCapacity, catalog.clientToken(.{ .bind = changed }, access.policy()));
     changed = binding;
@@ -2793,7 +2797,7 @@ fn selectedTransaction(catalog: *D, access: *Access, count: usize) !c.DirectClie
         var view = (try resolve(catalog, access, name)).?;
         defer view.deinit();
         const root = view.table.root;
-        try selected.put(.{ .participant = .{ .state = .{ .kind = .table, .access = .read, .guard = .{ .source = .{ .interpretation = root.interpretation, .manifest = null, .checkpoint_lsn = 0, .accepted = .{ .partition = root.partition, .next_lsn = root.next_lsn } }, .changed_lsn = root.changed_lsn } } } });
+        try selected.put(.{ .participant = .{ .state = .{ .kind = .table, .access = .read, .guard = .{ .source = .{ .interpretation = root.interpretation, .accepted = .{ .partition = root.partition, .next_lsn = root.next_lsn } }, .changed_lsn = root.changed_lsn } } } });
     }
     binding.intent.transaction.begin.tables = try selected.seal();
     binding.intent.transaction.begin.catalog.next_lsn = catalog.store.root.next_lsn;
