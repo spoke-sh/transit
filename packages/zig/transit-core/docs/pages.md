@@ -174,11 +174,14 @@ results in the [proof ledger](../../../../docs/history/qualification/README.md).
 
 ## Complete command candidates
 
-Send, view open/close, delivery and turn preparation collect their complete
-catalog write set before staging. Point reads include pending replacements and
-deletions. These commands perform no scans over pending changes; such a scan
-fails explicitly instead of reading an earlier cut. Other commands retain their
-existing immediate private staging.
+Native principal grants, send, view open/close, delivery and turn preparation
+collect their complete catalog write set before staging. Principal grants also
+collect the policy root's role/name, credential, object and grant/index changes
+in one bounded candidate. Its at most eight policy records and three native
+records fit the same private budget; no intermediate root grants authority.
+Point reads include pending replacements and deletions. These commands perform
+no scans over pending changes; such a scan fails explicitly instead of reading
+an earlier cut. Other commands retain their existing immediate private staging.
 
 The private budget is derived from native turn limits: three records per closed
 view, one per row plus resource metadata, six per output, three for an effect,

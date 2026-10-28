@@ -823,6 +823,68 @@ test "closed admission preserves declarative credential revocation through the c
     try t.expectError(error.Forbidden, f.query(65536, .{ .capabilities = {} }));
 }
 
+test "native grant staging preserves policy and exact identity across every page failure" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    for (0..24) |i| _ = try f.root(.{ .grant = .{ .subject = 65536 + i, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
+    const pid = try f.root(.{ .spawn = .{} });
+    const replacement = try core.Ed25519.KeyPair.generateDeterministic(@splat(19));
+    for ([_]u64{ 70000, 65536 }) |subject| {
+        const prior = f.engine.principal(subject) catch |err| switch (err) {
+            error.Unauthorized => null,
+            else => return err,
+        };
+        const grant: g.Grant = .{ .subject = subject, .public_key = replacement.public_key.toBytes(), .permissions = core.permission(.inspect) | core.permission(.execute), .pid = pid };
+        const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .grant = grant } }, f.root_key);
+        const before = f.engine.head;
+        const writes = f.pages.writes;
+        _ = try f.engine.prepare(signed);
+        const stages = f.pages.writes - writes;
+        try t.expect(stages > 0);
+        for (0..stages) |offset| {
+            for ([_]bool{ false, true }) |lost| {
+                if (lost) {
+                    f.pages.lose_at = f.pages.writes + offset;
+                    try t.expectError(error.StagingAcknowledgementLost, f.engine.prepare(signed));
+                    f.pages.lose_at = null;
+                } else {
+                    f.pages.fail_at = f.pages.writes + offset;
+                    try t.expectError(error.StagingFailed, f.engine.prepare(signed));
+                    f.pages.fail_at = null;
+                }
+                try t.expectEqualDeep(before, f.engine.head);
+                var recovered = try Engine.open(&f.journal, &f.pages, f.genesis);
+                try t.expectEqualDeep(before, recovered.head);
+                if (prior) |value| {
+                    try t.expectEqualDeep(value, try recovered.principal(subject));
+                } else try t.expectError(error.Unauthorized, recovered.principal(subject));
+                try t.expectEqual(f.root_sequence - 1, (try recovered.principal(0)).sequence);
+            }
+        }
+        // Lost publication acknowledgement keeps the original grant, sequence
+        // and receipt. Resolving that exact request must stage no further pages.
+        f.journal.fail = .after;
+        try t.expectError(error.LostAcknowledgement, f.engine.submit(signed));
+        f.journal.fail = .none;
+        f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+        const accepted_writes = f.pages.writes;
+        try t.expectEqual(before.position, try f.engine.submit(signed));
+        try t.expectEqual(accepted_writes, f.pages.writes);
+        f.root_sequence += 1;
+        const current = try f.engine.principal(subject);
+        try t.expect(current.enabled);
+        try t.expectEqualDeep(grant, current.grant);
+        if (prior) |value| {
+            var policy = try f.engine.authorization();
+            const retired = (try policy.role(value.role)).?;
+            try t.expect(retired.retired and !retired.enabled);
+            try t.expect(current.role != value.role);
+        }
+        std.debug.print("Native grant: {d} stages; {d} page/acknowledgement failures preserve the old policy.\n", .{ stages, stages * 2 });
+    }
+}
+
 test "growing authority retains wide principals and processes beyond legacy catalogs" {
     var fixture: Fixture = .{};
     defer fixture.deinit();
