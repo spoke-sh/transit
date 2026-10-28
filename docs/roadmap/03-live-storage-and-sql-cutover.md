@@ -831,10 +831,42 @@ including failed backing attempts and balanced acquired/released bytes. Read-pag
 sizing now counts canonical bytes without a maximum-sized temporary row buffer;
 the focused snapshot/range/filter regression retains simultaneous owned outputs
 within a 128 KiB caller budget. This does not bound the complete storage owner or
-establish allocation-free reads: per-row ownership, cache/recovery allocations,
+establish allocation-free reads: page ownership, cache/recovery allocations,
 maintenance-active measurements and installed latency qualification remain open.
 The correction to PR #198's independent DDL digest fixture preserves production
 JSON and hash semantics; the complete catalog package passes all 90 tests.
+
+At `22f17efae`, bounded scan/range/filter paths reset one candidate arena and
+share immutable output storage per admitted page. Detached rows survive sibling
+release, cache replacement and Table closure; the last row releases the page's
+storage. Lazy point projection releases discarded physical values. Caller-arena
+row decoding has a sealed allocation-probe check: 32 decodes after warmup issue
+no backing allocation attempts. This is a decoder result, not a whole-read claim.
+The focused storage schedules cover ownership failures, byte limits, current
+revocation, filtered coverage and lazy schema interpretation; installed caller
+and common-revision qualification remain required for P5.3.
+
+The same committed source passes the owner measurement smoke matrix (32 Table
+rows, 1 KiB payloads, warm files, one measured repetition plus warmup). Against
+the previous counted probe, matching Table fixtures and I/O show scan allocation
+calls falling from 82 to 56, acquired bytes from 154,508 to 140,196, and peak
+tracked live bytes from 68,543 to 64,957. The four-row interval uses two-row pages:
+allocation calls remain 36, but resize attempts rise from 22 to 33 and peak
+tracked bytes from 54,487 to 54,931. Keep that small-page tradeoff visible. The
+candidate binary SHA-256 is
+`a2923a225025df752d35a91c9660cd1542aedde7401409dcfe0db56b43036050`;
+the earlier counted binary is
+`dac21098aca1106ac8affbb37391b507b06260e518e422278869af9205c9750b`.
+The unchanged owner driver records raw phase/allocation counters and independent
+value checks. These small component samples, collected alongside other checks,
+establish no latency improvement, installed result or native-owner comparison.
+
+Clean Debug qualification also exposed heap-layout-dependent allocation ordinals
+in the compaction failure sweep. `8345452a6` forces growth through allocation in
+that test so every injected failure is deterministic; root-preservation and leak
+checks remain intact. The focused Debug case passes. The earlier full run at
+`eeac33a8780cde4c6465b4fd96ab38e9c2430d00` finished with two failures (that sweep
+and the subsequently corrected DDL digest fixture), not a completed pass.
 
 **Post-integration priority — 2026-10-27:** after merging PR #188, the user
 reports slow single-row INSERT and roughly 0.5-second queries against `items`.
