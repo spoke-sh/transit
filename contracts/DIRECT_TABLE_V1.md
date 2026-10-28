@@ -59,6 +59,59 @@ original schema, advances only after fully decoding a valid page and verifies
 the complete row count. Its explicit `check` revalidates current rights before
 disclosure from cached data. Local destruction does not release the durable pin.
 
+### Durable client-token bindings
+
+`client_token` supports `lookup` and `bind` through the signed direct route.
+`DirectClientToken.Key` requires the current `definition`, exact `connection`, a
+nonzero 32-byte `account` label and a 16-byte `token`. The identity is scoped by
+catalog and authenticated principal, then account and token. Account is a
+caller-managed deduplication namespace, not an authentication or permission
+authority. Distinct native principals cannot read one another's bindings.
+Changing the selected role, branch or audience cannot create a second binding
+under the same key; an incompatible connection conflicts.
+
+`bind` carries that key, a nonzero 32-byte request `fingerprint`, and one complete
+`DirectTableIntent.Reference`. The caller commits to its entire original request,
+including parameters and database selection. The database does not interpret or
+certify that fingerprint's SQL meaning. It verifies the saved intent's immutable
+bytes, checks current original-operation rights and claims that operation
+identity before accepting the token in the catalog WAL. Token payloads support
+Table DDL/DML; namespace changes, conditional name assertions, configuration
+operations and captured computations are excluded.
+
+The first accepted binding wins. A concurrent or repeated bind with the same key
+and fingerprint returns the original receipt, even if the proposal has a
+different operation ID or snapshot basis. Dispatch only the returned reference.
+A different fingerprint conflicts. The response is an optional receipt containing
+the original binding and catalog `position`; successful `bind` always returns a
+receipt. `lookup` returns null for absence and never admits or executes data.
+Lookup requires current CONNECT; existing-reference disclosure also requires
+current rights for the original Table operation, including on exact retries and
+after response buffering.
+
+Token acceptance is separate from data admission, execution and completion. Its
+position is a catalog WAL position, not the Table commit position. Save the key
+and fingerprint before attempting a bind. After a lost reply, explicitly look up
+the key or repeat the binding attempt. Absence cannot rule out an in-flight
+acceptance. Never dispatch a losing proposal, substitute a fresh token to resolve
+uncertainty, or infer data success from a token receipt. Resume `admit_saved` and
+`operation` using the recovered intent; their outcome and current authorization
+remain authoritative.
+
+The paged directory stores one immutable receipt per token. There is no expiry,
+deletion or replacement operation. `DirectCatalog.Options.client_token_quota`
+and the local node's `table.client_token_quota` limit accepted bindings per
+catalog, defaulting to 1,000,000; zero is invalid. Exhaustion refuses new bindings
+without deleting history. Existing lookups and retries remain available under
+current rights. The quota is independent of resident pages and can be raised by
+explicit deployment configuration. HTTP maps a fingerprint conflict to `Conflict`
+and quota refusal to `StorageQuota`. Storage failure can leave acceptance unknown.
+
+Catalog roots require the token directory and count fields. Earlier definitions
+reject under the shared-v1 cutover without a default, converter or data reset.
+SQL sessions still use their account ledger; they do not implicitly use this
+typed direct-caller operation.
+
 ### Named native resources
 
 `resource_preview`, `resource_operation`, `resource_lookup` and `resource_list`

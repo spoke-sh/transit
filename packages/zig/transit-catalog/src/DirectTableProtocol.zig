@@ -311,6 +311,7 @@ pub const FilterScan = struct {
 };
 pub const Action = union(enum) {
     pub const json_schema_sequence_bounds = .{ .check_set = 16 };
+    client_token: c.DirectClientToken.Request,
     initialize,
     describe,
     namespace: u64,
@@ -387,6 +388,7 @@ pub const Request = struct {
     /// parsed action and current rights before using reserved admission.
     pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8 } {
         const mutation = switch (self.action) {
+            .client_token => |value| value == .bind,
             .initialize, .stage, .admit_saved, .admit_ddl, .admit_rows, .admit_statement, .pin, .retain_history, .release, .flush => true,
             .operation => |value| value.command != .inspect,
             .name_assertion => |value| value.command != .inspect,
@@ -425,6 +427,10 @@ pub const Request = struct {
         if (claim.realm != connection.scope.realm or claim.principal != principal or claim.role != role or claim.audience != connection.audience or
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
+            .client_token => |value| {
+                try value.validate();
+                if (!std.meta.eql(value.key().connection, connection)) return error.CatalogIdentityConflict;
+            },
             .resource_preview => |binding| {
                 try binding.validate();
                 if (!std.meta.eql(binding.connection, self.connection)) return error.CatalogIdentityConflict;
@@ -740,6 +746,7 @@ pub const Point = struct {
     row: ?Binary,
 };
 pub const Result = union(enum) {
+    client_token: ?c.DirectClientToken.Receipt,
     initialized,
     description: D.Configuration,
     namespace: ?c.TableAuthority.Schema,

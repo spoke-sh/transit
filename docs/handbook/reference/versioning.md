@@ -64,6 +64,13 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
+The current catalog root requires a durable client-token directory and its
+accepted-binding count. The shared definition changes with this stored layout;
+earlier catalog roots, installations, saved requests and generated bindings
+reject without synthesizing an empty directory. Preserve old data and resolve
+pending operations with the matching build before an explicitly chosen fresh
+installation. No automatic conversion is provided.
+
 The shared definition binds local WAL directory and partition metadata, every
 WAL frame, segment footer, deletion vector and Table manifest. It also binds
 keyless segment ordering by stable row identity. Table acceptance roots require

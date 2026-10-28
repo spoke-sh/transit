@@ -443,6 +443,20 @@ USAGE rights and rechecking every returned schema together before disclosure.
 
 ## Bounds and remaining integration
 
+Typed direct callers can persist a staged Table intent with
+`DirectClientToken.bind`, then recover it with `lookup`. The catalog accepts one
+immutable binding in its WAL and retains a paged token index. The original
+request fingerprint must match on retry; only the returned original reference
+may be admitted and executed. Current original-operation rights apply on every
+disclosure. The [exact contract](../../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
+defines connection scope, racing proposals and lost-reply handling.
+
+`DirectCatalog.Options.client_token_quota` defaults to 1,000,000 bindings,
+independently of resident pages. Capacity refusal never expires identities or
+prevents authorized original-token lookup and retry. SQL's account ledger,
+reservations and recovery scheduler have not switched to this interface. Tokens
+currently retain complete Table DDL/DML intent references only.
+
 `DirectTablePreparedDdl.prepare` owns the parsed CREATE/ALTER/DROP definition and
 its exact current metadata under the caller's rights. `bind` takes a separate
 operation ID and, for CREATE, an explicit new object ID. It returns complete

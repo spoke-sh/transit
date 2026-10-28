@@ -120,6 +120,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         !std.mem.eql(u8, &subject.context, &original.context)) return error.InvalidTableResponse;
     if (!std.mem.eql(u8, &response.context, &try w.Request.context(request.input(), allocator))) return error.InvalidTableResponse;
     const expected: std.meta.Tag(w.Result) = switch (request.action) {
+        .client_token => .client_token,
         .initialize => .initialized,
         .describe => .description,
         .namespace => .namespace,
@@ -166,6 +167,14 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .client_token => |receipt| {
+            const command = request.action.client_token;
+            if (receipt) |value| {
+                try value.validate();
+                try command.key().requireSame(value.binding.key);
+                if (command == .bind) try value.binding.retry(command.bind);
+            } else if (command == .bind) return error.InvalidTableResponse;
+        },
         .storage => |value| try storage(request.connection, request.action.storage.object, request.action.storage.pending_limit, value),
         .flush => |value| {
             const target = request.action.flush;

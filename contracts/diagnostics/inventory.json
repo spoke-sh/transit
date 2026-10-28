@@ -3398,7 +3398,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "CatalogDenied": 42,
+        "CatalogDenied": 43,
         "CatalogIdentityConflict": 6,
         "CatalogKindMismatch": 1,
         "CatalogNameHashCollision": 1,
@@ -3408,6 +3408,7 @@
         "CatalogObjectMissing": 1,
         "CatalogObservationChanged": 1,
         "CatalogRegistrationRequired": 7,
+        "ClientTokenCapacity": 1,
         "ConflictingRetry": 1,
         "DataIdentityConflict": 4,
         "DuplicatePrimaryKey": 1,
@@ -3495,6 +3496,7 @@
         "check()": "<inferred>",
         "checkAccess()": "<inferred>",
         "checkOperation()": "<inferred>",
+        "clientToken()": "<inferred>",
         "currentReadAuthority()": "<inferred>",
         "dependencyAdministration()": "<inferred>",
         "dependencyEdge()": "<inferred>",
@@ -3532,6 +3534,7 @@
         "namespaceRegistration()": "<inferred>",
         "observe()": "<inferred>",
         "open()": "<inferred>",
+        "operationGuard()": "<inferred>",
         "original()": "<inferred>",
         "pending()": "<inferred>",
         "perform()": "<inferred>",
@@ -3593,7 +3596,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 712,
+        "try": 736,
         "catch": 8
       },
       "imports": [
@@ -3789,11 +3792,11 @@
         "InvalidCatalogIdentity": 3,
         "InvalidDirectCatalogConfiguration": 1,
         "InvalidDirectCatalogEntry": 4,
-        "InvalidDirectCatalogHistory": 7,
+        "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogName": 1,
         "InvalidDirectCatalogOperation": 4,
         "InvalidDirectCatalogProperties": 2,
-        "InvalidDirectCatalogRoot": 1,
+        "InvalidDirectCatalogRoot": 2,
         "WriteFailed": 4
       },
       "outcomes": {
@@ -3825,7 +3828,8 @@
           "assertion",
           "namespace",
           "dependency",
-          "resource"
+          "resource",
+          "client_token"
         ]
       },
       "error_sets": {},
@@ -3853,7 +3857,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 41,
+        "try": 42,
         "catch": 3
       },
       "imports": [
@@ -3982,14 +3986,15 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalogStore.zig": {
       "errors": {
-        "CatalogHistoryMissing": 9,
+        "CatalogHistoryMissing": 10,
         "CatalogRecordTooLarge": 1,
         "CatalogRecoveryRequired": 1,
-        "DataIdentityConflict": 10,
+        "DataIdentityConflict": 11,
         "IncompatibleDefinition": 1,
+        "InvalidClientToken": 3,
         "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 15,
-        "InvalidDirectCatalogTransition": 72,
+        "InvalidDirectCatalogTransition": 77,
         "InvalidPartitionLease": 1,
         "LostAcknowledgement": 1
       },
@@ -3998,6 +4003,9 @@
       "error_returns": {
         "assertion()": "<inferred>",
         "assertionAt()": "<inferred>",
+        "clientToken()": "<inferred>",
+        "clientTokenAt()": "<inferred>",
+        "clientTokenTransition()": "<inferred>",
         "decode()": "<inferred>",
         "decodeFrame()": "<inferred>",
         "dependency()": "<inferred>",
@@ -4028,7 +4036,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 131,
+        "try": 144,
         "catch": 1
       },
       "imports": [
@@ -4065,6 +4073,42 @@
       },
       "imports": [
         "DirectCatalogRecords.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-catalog/src/DirectClientToken.zig": {
+      "errors": {
+        "ClientTokenConflict": 1,
+        "DataIdentityConflict": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidClientToken": 3,
+        "InvalidTableResponse": 1
+      },
+      "outcomes": {
+        "Request": [
+          "lookup",
+          "bind"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Binding.retry()": "<inferred>",
+        "Binding.validate()": "<inferred>",
+        "Key.digest()": "<inferred>",
+        "Key.requireSame()": "<inferred>",
+        "Key.validate()": "<inferred>",
+        "Receipt.validate()": "<inferred>",
+        "Request.validate()": "<inferred>",
+        "bind()": "<inferred>",
+        "lookup()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -4616,7 +4660,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 144,
+        "try": 145,
         "catch": 0
       },
       "imports": [
@@ -4749,7 +4793,7 @@
     "packages/zig/transit-catalog/src/DirectTableProtocol.zig": {
       "errors": {
         "CatalogDenied": 4,
-        "CatalogIdentityConflict": 9,
+        "CatalogIdentityConflict": 10,
         "DataIdentityConflict": 4,
         "IncompatibleDefinition": 1,
         "InvalidAuthorizationCredential": 1,
@@ -4775,6 +4819,7 @@
       },
       "outcomes": {
         "Action": [
+          "client_token",
           "initialize",
           "describe",
           "namespace",
@@ -4864,6 +4909,7 @@
           "snapshot"
         ],
         "Result": [
+          "client_token",
           "initialized",
           "description",
           "namespace",
@@ -4946,7 +4992,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 154,
+        "try": 155,
         "catch": 3
       },
       "imports": [
@@ -5011,7 +5057,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 112
+        "InvalidTableResponse": 113
       },
       "outcomes": {},
       "error_sets": {},
@@ -5031,7 +5077,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 161,
+        "try": 164,
         "catch": 10
       },
       "imports": [
@@ -5557,6 +5603,7 @@
         "DirectCatalogRetention.zig",
         "DirectCatalogRoots.zig",
         "DirectCatalogWalk.zig",
+        "DirectClientToken.zig",
         "DirectDependency.zig",
         "DirectNamespace.zig",
         "DirectReadAuthority.zig",
@@ -13681,7 +13728,7 @@
           "deadline"
         ],
         "Definition": [
-          "ed98a1fb80bc80e2534856d1eea5caeae705df1bff8e0347aa20009c935f58de"
+          "@\"2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188\""
         ],
         "Effect.phase": [
           "pending",
