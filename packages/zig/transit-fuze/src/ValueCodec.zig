@@ -180,19 +180,27 @@ const Reader = struct {
     }
 };
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Decoded {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    errdefer arena.deinit();
+    const value = try decodeInto(arena.allocator(), bytes);
+    return .{ .descriptor = .{ .arena = arena, .type = value.field.type }, .field = value.field, .cell = value.cell };
+}
+pub const DecodedInto = struct { field: types.Field, cell: v.Cell };
+/// Descriptor, cells, payloads and partial-failure allocations belong to the
+/// caller's arena. No input bytes are borrowed; resetting that arena ends the
+/// decoded value's lifetime without a separate per-value arena allocation.
+pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !DecodedInto {
     if (bytes.len > max_bytes) return error.ValueBudgetExceeded;
-    var reader: Reader = .{ .reader = .fixed(bytes), .allocator = undefined };
+    var reader: Reader = .{ .reader = .fixed(bytes), .allocator = arena };
     if (!std.mem.eql(u8, try reader.reader.take(4), "FVL1")) return error.InvalidValueEncoding;
-    var descriptor = try types.decode(allocator, try reader.reader.take(try reader.reader.takeInt(u16, .little)));
-    errdefer descriptor.deinit();
-    reader.allocator = descriptor.arena.allocator();
+    const descriptor = try types.decodeInto(arena, try reader.reader.take(try reader.reader.takeInt(u16, .little)));
     const flags = try reader.reader.takeByte();
     if (flags > 3) return error.InvalidValueEncoding;
-    const field: types.Field = .{ .name = "value", .type = descriptor.type, .nullable = flags & 1 != 0, .optional = flags & 2 != 0 };
+    const field: types.Field = .{ .name = "value", .type = descriptor, .nullable = flags & 1 != 0, .optional = flags & 2 != 0 };
     const cell = try readCell(&reader, field.type, 0);
     if (reader.reader.bufferedLen() != 0) return error.InvalidValueEncoding;
     try cell.validate(field, .{});
-    return .{ .descriptor = descriptor, .field = field, .cell = cell };
+    return .{ .field = field, .cell = cell };
 }
 fn readCell(reader: *Reader, expected: types.Type, depth: usize) anyerror!v.Cell {
     try reader.child(depth);

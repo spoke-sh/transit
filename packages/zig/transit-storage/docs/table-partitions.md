@@ -336,6 +336,23 @@ footer/group caching; zero disables that retention, not transient decoding.
 Returned rows own their values across group eviction and owner destruction.
 Query owners must bound their result buffers and enclosing allocators separately.
 
+Bounded scan, range and filtered pages reset one transient row arena between
+candidates. Cached segment payloads can be borrowed until that candidate's byte
+admission; admitted rows copy into one shared output arena for the page. WAL
+decoding copies its bounded record into reusable scratch. Uncached segment
+groups detach before their temporary cache owner closes. Rejected candidates
+and predicate misses do not accumulate in retained output storage.
+
+An `OwnedRow` detached from a page keeps the shared output alive independently
+of the page container, other rows, cache replacement and Table closure. Clear
+its original page slot when moving it and call `deinit` exactly once on each
+owner. The last row releases the arena; retaining one row can therefore retain
+the entire admitted page, bounded by eight rows and its encoded-byte allowance
+plus decoded metadata and arena slack. Point results retain their own arena;
+lazy projection releases discarded physical values before returning. These
+lifetimes do not make complete reads allocation-free: page output, physical
+schema metadata, provider reads and owner caches have separate allocation costs.
+
 `segment_reads`, `segment_range_reads`, `segment_bytes_read` and
 `row_groups_decoded` count loaded footers, successful TSEG range requests,
 returned encoded bytes and completed decoding calls for the component owner.

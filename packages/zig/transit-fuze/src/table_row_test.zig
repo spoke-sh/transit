@@ -68,6 +68,24 @@ fn copy(allocator: std.mem.Allocator, bytes: []const u8) !void {
     var owned = try r.decode(allocator, schema, bytes);
     defer owned.deinit();
 }
+test "row decoding reuses caller scratch without backing allocations after warmup" {
+    var bytes: [4096]u8 = undefined;
+    const encoded = try row.encode(schema, &bytes);
+    var probe: @import("transit_memory").AllocationProbe = .{ .parent = e.allocator };
+    var arena = std.heap.ArenaAllocator.init(probe.allocator());
+    defer arena.deinit();
+    _ = try r.decodeInto(arena.allocator(), schema, encoded);
+    _ = arena.reset(.retain_capacity);
+    probe.begin(true);
+    for (0..32) |_| {
+        const decoded = try r.decodeInto(arena.allocator(), schema, encoded);
+        try e.expectEqualDeep(row.identity, decoded.identity);
+        try e.expectEqualDeep(cells, decoded.row().cells[0..3].*);
+        _ = arena.reset(.retain_capacity);
+    }
+    try probe.verify();
+    try e.expectEqual(@as(usize, 0), probe.counts.forbidden_attempts);
+}
 test "independent Python physical row and composite-key framing oracle" {
     const Fixture = struct { schema_hex: []const u8, row_hex: []const u8, layout: []const u8, key_hex: []const u8, key_digest: []const u8 };
     const parsed = try std.json.parseFromSlice(Fixture, e.allocator, @embedFile("fixtures/table-schema.json"), .{ .ignore_unknown_fields = true });
