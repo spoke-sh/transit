@@ -2299,7 +2299,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 60,
+        "try": 62,
         "catch": 3
       },
       "imports": [

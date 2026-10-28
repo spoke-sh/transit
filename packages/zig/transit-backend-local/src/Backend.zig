@@ -40,6 +40,11 @@ authority: std.Io.RwLock = .init,
 accepted_native: ?core.growing.Head = null,
 limits: core.protocol.Storage.Limits,
 allocated: u64,
+/// Successful immutable publication plus allocation inventory, within this
+/// exclusive owner's current storage epoch. Replacement starts empty. A newer
+/// epoch always records reuse again before any acknowledgement.
+confirmed_data: [64]?DataAllocations.Allocation = @splat(null),
+confirmed_data_next: usize = 0,
 /// Resolved once at open; never reconstructed from an application path.
 resolved_root: ?core.protocol.Storage.Path = null,
 /// Volatile executor observations, protected by mutex and reset on reopen.
@@ -177,6 +182,12 @@ pub fn putTracked(self: *Self, key: []const u8, bytes: []const u8, control: bool
         try self.mutex.lock(self.io);
         defer self.mutex.unlock(self.io);
         const epoch = if (try self.wal.log().tail(0) == 0) 1 else (try @import("Store.zig").currentHeadLocked(self)).storage_epoch;
+        if (existing != null) {
+            const wanted = try DataAllocations.Allocation.init(epoch, key, meta);
+            for (self.confirmed_data) |slot| if (slot) |known| {
+                if (std.meta.eql(known, wanted)) return;
+            };
+        }
         // Payload, checksum chunks, descriptor and bounded publication overhead.
         // Concurrent missing-key observations can reserve twice. Keep both
         // reservations until reopen rather than undercount uncertain staging.
@@ -205,6 +216,12 @@ pub fn putTracked(self: *Self, key: []const u8, bytes: []const u8, control: bool
     // Private immutable publication is per-key. Disk syncs must not hold the
     // quota/journal mutex or delay unrelated native reads and control work.
     _ = try store.putImmutable(key, bytes, digest);
+    // Never remember a visible-but-uncertain descriptor. Only the successful
+    // inventory and object barriers establish this disposable acknowledgement.
+    try self.mutex.lock(self.io);
+    defer self.mutex.unlock(self.io);
+    self.confirmed_data[self.confirmed_data_next] = allocation;
+    self.confirmed_data_next = (self.confirmed_data_next + 1) % self.confirmed_data.len;
 }
 
 pub fn dataKey(key: []const u8) !void {
