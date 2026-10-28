@@ -205,6 +205,20 @@ evidence. Raw logs remain under `.cache/milestone3/`:
 | `request-memory-docs.log` | `94fac7ba87ad0f2c996743345f7c00d250ac0ac1bedea13ad2b4f696bf5a7ea4` |
 | `request-memory-clean-fast.log` | `d6f31e074f5977d09bac0dcd51cf9a11b6b132c3aabe7da4ac03bb08e484c354` |
 
+The clean `experience` lane at `d39d5a2d4` passes Board checks, the handbook,
+Node binding checks and observability, then fails `server-logging` during
+installation startup. The manager exhausts its native bootstrap retries with
+`AuthorityTimeout` on `associate`; the SQL lifecycle/revocation checks are not
+reached. The failed installation remains private at
+`/var/tmp/transit-server-proof-5qehq38t`. The cause is not isolated by this run;
+it is not a passing lane or evidence that the new Table budget was exhausted.
+Its complete log is `.cache/milestone3/request-memory-clean-experience.log`,
+SHA-256 `7a204757a2c5c4c9d11f7509a5187c544441008a25f3aa5a511aa69bc053d7ca`.
+The final public-limit clarification and this section's initial account at
+`ca8a914bd` also pass the complete handbook check; its log is
+`request-admission-final-docs.log`, SHA-256
+`f38fc1ee57095141ebdd7f2d3a99f49eae0e2601c82e9782c51d3ba23ad52d67`.
+
 ## Reusable private Table maintenance workspace — 2026-10-28
 
 The question is whether sequential maintenance units can reuse bounded private

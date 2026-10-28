@@ -110,7 +110,7 @@ shared registry operation and retain the global pin quotas. See the
 [node limits](../../../apps/transit-node/docs/growing.md#public-surface-and-limits)
 for execution-lane and memory budgets.
 
-Direct Table requests additionally share a 256 MiB backing-allocation ceiling,
+Ordinary direct Table requests share a 256 MiB backing-allocation ceiling,
 with a 128 MiB limit per request and 64 MiB reserved separately for Table
 controls. Parsing, private catalog work and responses remain charged through
 their respective lifetimes, including a slow response write. A memory refusal
