@@ -1221,7 +1221,13 @@ test "Table compaction allocation failures preserve accepted roots and release p
             const before = table.root;
             // Fail the compactor and its cold reader, independently of fixture
             // setup and the separately owned provider/index caches.
-            table.allocator = allocator;
+            // Heap-dependent in-place arena growth changes the number of alloc
+            // calls between failure ordinals. Force that growth through alloc
+            // so every injected point is reached in Debug and ReleaseSafe.
+            var vtable = allocator.vtable.*;
+            vtable.resize = std.mem.Allocator.noResize;
+            vtable.remap = std.mem.Allocator.noRemap;
+            table.allocator = .{ .ptr = allocator.ptr, .vtable = &vtable };
             const result = table.compact(before.next_segment, .{}, access.guard()) catch |err| {
                 try t.expectEqualDeep(before, table.root);
                 return err;
