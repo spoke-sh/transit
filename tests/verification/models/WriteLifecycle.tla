@@ -105,7 +105,8 @@ OriginalApplication == s.applications <= 1
 FrozenSelection == s.decision = "committed" =>
     s.appliedVersion = s.frozenVersion
 AtomicVisibility == s.decision = "committed" =>
-    s.rows = Successor(s.basis) \/ (s.later /\ s.rows = [Successor(s.basis) EXCEPT ![3] = 1])
+    s.rows = Successor(s.basis) \/
+    (s.later /\ s.basis[3] = 0 /\ s.rows = [Successor(s.basis) EXCEPT ![3] = 1])
 TruthfulCounts == s.decision = "committed" => s.matched = Matched(s.basis) /\ s.changed = Changed(s.basis)
 DurablePublication == s.rows = s.durable
 StableDecision == s.decision = s.first
