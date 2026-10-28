@@ -68,6 +68,12 @@ source/authority/storage allocation and composed service OS attribution are not
 qualified by these passes. Reserved stacks and retained capacity are charged
 capacity, not measured RSS. No whole-service zero-allocation claim follows.
 
+After the rebase and bootstrap correction, committed source `0755c493` passes
+all 41 fast checks and all 18 generated-contract checks in separate clean
+checkouts without inherited build outputs. Their evidence directories are
+`.cache/ci/clean/0755c493d95d-transit-ci-x_9adm9l` and
+`.cache/ci/clean/0755c493d95d-transit-ci-e45ziy32`.
+
 Two broader runs remain failed or incomplete. The clean interfaces lane passes
 the expanded client allocation gate, then times out after 300 seconds while
 seeding the existing native gateway history, before the added producer cases.

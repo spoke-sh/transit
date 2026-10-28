@@ -18,7 +18,7 @@ are copied without transformation from `result-codecs-py64dckc/evidence.json`.
 The subsequent rebase incorporates upstream documentation and validation fixes.
 Revision `c94831b3c` has identical runtime and codec-probe inputs. In a fresh
 checkout of that revision, applying [candidate-source.patch](candidate-source.patch)
-restores the exact original candidate source tree
+with `git apply --unidiff-zero` restores the exact original candidate source tree
 `bb1c472dabea6664d80aefb1df52f44016da802b`. The patch changes only documentation
 and diagnostic validation files. This preserves reproducibility without rewriting
 the report's original revision or hashes.
