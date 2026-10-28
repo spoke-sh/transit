@@ -228,6 +228,13 @@ jobs:
           TRANSIT_DOCS_BASE_URL: /
           TRANSIT_DOCS_REVISION: ${{ github.sha }}
         run: nix develop .#docs --command just transit-docs::check
+      - name: Install the handbook browser
+        run: nix develop .#docs --command vp exec --filter @transit/docs playwright install --with-deps chromium
+      - name: Qualify the archived handbook's routes, search and exact downloads
+        env:
+          TRANSIT_DOCS_BASE_URL: /
+          TRANSIT_DOCS_REVISION: ${{ github.sha }}
+        run: nix develop .#docs --command vp exec --filter @transit/docs playwright test
       - run: python3 -B tasks/package_handbook.py docs/handbook/dist dist/handbook
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
