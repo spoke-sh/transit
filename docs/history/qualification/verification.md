@@ -9,6 +9,58 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Transaction admission and private Table evaluation — 2026-10-28
+
+At source [`6b6672b9881f`](https://github.com/spoke-sh/transit/commit/6b6672b9881f90f7477e20f8c28315f195bc826e),
+Catalog token admission reserves an exclusive coordination partition with the
+original begin descriptor. `TableWorkspace` evaluates private row and predicate
+DML over a retained Table pin without accepting a public Table WAL record.
+These are separate component capabilities: the Catalog does not yet own or
+recover an executing workspace.
+
+Focused `zig build test -Dtest-filter=transaction --summary all` runs inside
+`nix develop` pass seven Catalog tests and thirteen storage tests. The Catalog
+schedules cover a lost accepted reply, disk reopen, competing token proposals,
+exclusive partition allocation, quota and malformed-selection refusals, current
+CONNECT denial, and traversal of 73 selection descriptors with one cached page.
+That traversal verifies retained index pages; it does not run physical deletion.
+
+The workspace schedules exercise private insert/predicate-update visibility,
+rollback without reusing consumed statement identities, disk object reopen,
+read-only refusal, revoked or released-pin reads, and unchanged public roots and
+WAL tails. The caller explicitly retains the workspace descriptor across reopen;
+there is no durable workspace-state owner in this profile. A 64 MiB evaluator
+allowance meters initialization, retained caches and mutation builders through
+destruction. Separate controls refuse initialization at 4 KiB, a statement at
+1 MiB, and a statement under a 4 KiB Table build cap; parent allocation failure
+remains distinct. Borrowed owners, provider buffers, stack capacity, caller
+results and aggregate concurrent transactions are outside this leaf budget.
+
+Clean-source `just ci clean --check contracts` passes all 18 checks, including
+regenerated schemas, bindings and independent signing fixtures. Clean-source
+`just ci clean --lane formal` passes all seven tasks; the unchanged transaction
+decision model exhausts 3,227 states and detects all six negative controls.
+These selections are not the full integration suite.
+
+Raw records are retained locally under
+`.cache/ci/clean/6b6672b9881f-transit-ci-wb75pc7s/` (contracts),
+`.cache/ci/clean/6b6672b9881f-transit-ci-be6t_428/` (formal),
+`.cache/m5-final-catalog-transactions.log` and
+`.cache/m5-final-storage-transactions.log`. Each clean record identifies its
+committed source, commands and completion. These local paths are not portable
+artifact links. An earlier core attempt at `0f6cd9940747` detected an application
+signing fixture that had not been regenerated; that run was stopped after the
+failure and is not counted as passed. The corrected fixture is included in
+the source and contract checks above.
+
+No common-cut acquisition, durable workspace retention/settlement, participant
+preparation, common Table visibility, serializable execution, SQL transaction,
+savepoint/cursor interface, installed transaction caller or process-death proof
+follows from these component checks. The
+[component guide](../../../packages/zig/transit-storage/docs/transaction-decisions.md)
+and [token contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
+state the implemented boundaries and required host integration.
+
 ## Transaction decision components — 2026-10-28
 
 At source [`de13724093d5`](https://github.com/spoke-sh/transit/commit/de13724093d5535914b53759ecdae43d01882554),
