@@ -307,7 +307,8 @@ def unavailable_bootstrap(cli, node, host):
         (fixture.root / 'release-bootstrap-spawn').touch()
         fixture.ready()
         signed = json.loads(bytes.fromhex(original['body']))
-        assert signed['request']['command'] == dict(spawn={})
+        assert signed['request']['command'] == dict(spawn=dict(
+            allow_collection=False, code=1, work_before_ms=None, settle_before_ms=None))
         assert json.loads(bytes.fromhex(original['receipt']))['position'] == fixture.record()['provision'][0]
         assert 'server.retry' not in Path(fixture.logs[-1].name).read_text()
         fixture.console('SELECT COUNT(*) FROM items;\n')
