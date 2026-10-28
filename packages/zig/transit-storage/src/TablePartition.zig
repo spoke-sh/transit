@@ -996,7 +996,18 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const a = arena.allocator();
-    const bytes = try a.alloc(u8, max_row_bytes);
+    var row_bytes: usize = 0;
+    var largest_row: usize = 0;
+    for (changes) |change| switch (change) {
+        inline .put, .replace => |value| {
+            const length = try value.row.encodedSize(schema);
+            if (length > max_row_bytes - row_bytes) return error.WriteFailed;
+            row_bytes += length;
+            largest_row = @max(largest_row, length);
+        },
+        .remove => {},
+    };
+    const bytes = try a.alloc(u8, row_bytes);
     var rows: std.Io.Writer = .fixed(bytes);
     const keys = try a.alloc([]const u8, changes.len);
     const old_keys = try a.alloc([]const u8, changes.len);
@@ -1074,7 +1085,9 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
     var affected: u64 = 0;
     const changed = try a.alloc(bool, changes.len);
     @memset(changed, false);
-    const previous_bytes = try a.alloc(u8, f.TableRow.max_bytes);
+    // Equal rows have equal canonical lengths. A larger old row is changed
+    // without reserving the maximum codec buffer just to compare it.
+    const previous_bytes = try a.alloc(u8, largest_row);
     const previous_ids = try a.alloc(?f.TableRow.Identity, changes.len);
     @memset(previous_ids, null);
     // Validate every row/key constraint against the accepted root before staging.
@@ -1090,9 +1103,11 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
                 matched += 1;
                 if (existing) |*row| {
                     if ((change == .replace or (operation != null and binding.action == .update)) and !std.meta.eql(row.row().identity, value.row.identity)) return error.TableRowIdentityChanged;
-                    const encoded = try row.row().encode(schema, previous_bytes);
                     const proposed = locators[i];
-                    if (std.mem.eql(u8, encoded, bytes[proposed.offset..][0..proposed.length])) continue;
+                    if (try row.row().encodedSize(schema) == proposed.length) {
+                        const encoded = try row.row().encode(schema, previous_bytes);
+                        if (std.mem.eql(u8, encoded, bytes[proposed.offset..][0..proposed.length])) continue;
+                    }
                 }
                 if (existing == null) next.live_rows = try std.math.add(u64, next.live_rows, 1);
                 changed[i] = true;
@@ -1896,9 +1911,22 @@ const SegmentSource = struct {
 };
 
 fn stageSegment(self: *Self, allocator: std.mem.Allocator, schema: f.TableSchema.Schema, segment_id: u64, rows: []const f.TableRow.Row) !struct { content: d.Content, footer: f.TSeg.Footer } {
-    const buffer = try allocator.alloc(u8, f.TSeg.max_segment_bytes);
+    // Reserve one page initially. Small private statements must not reserve the
+    // maximum segment size before any bytes are encoded. Growth stays inside
+    // the same build allocator and the existing absolute segment bound.
+    var buffer = try allocator.alloc(u8, @min(64 * 1024, f.TSeg.max_segment_bytes));
     defer allocator.free(buffer);
-    const bytes = try f.TSeg.writeSegment(allocator, schema, rows, .{ .segment_id = segment_id, .rows_per_group = self.options.segment_rows_per_group }, buffer);
+    const bytes = while (true) {
+        const encoded = f.TSeg.writeSegment(allocator, schema, rows, .{ .segment_id = segment_id, .rows_per_group = self.options.segment_rows_per_group }, buffer) catch |err| switch (err) {
+            error.BufferTooSmall, error.WriteFailed => {
+                if (buffer.len == f.TSeg.max_segment_bytes) return err;
+                buffer = try allocator.realloc(buffer, @min(buffer.len * 2, f.TSeg.max_segment_bytes));
+                continue;
+            },
+            else => return err,
+        };
+        break encoded;
+    };
     const digest = r.hash(bytes);
     var name: [96]u8 = undefined;
     const metadata = try self.objects.putImmutable(try segmentKey(digest, &name), bytes, digest);

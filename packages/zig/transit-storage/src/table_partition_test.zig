@@ -812,7 +812,7 @@ test "Table build memory bounds point bulk rewrite and flush candidates before p
     table.options.build_resident_bytes = 64 * 1024 * 1024;
     _ = try table.apply(original, &.{change(&one, 1)}, .bulk, access.guard());
     const peak = table.build_resident_peak;
-    try t.expect(peak > 4 * 1024 * 1024 and peak <= table.options.build_resident_bytes);
+    try t.expect(peak > 0 and peak < 1024 * 1024);
     const insertion = binding(&table, 2);
     const before = table.root;
     table.options.build_resident_bytes = peak - 1;
@@ -3396,7 +3396,7 @@ test "Table index batches share paths and reject duplicate identities across pri
 }
 
 fn workspaceBegin() p.Transaction.Begin {
-    return .{ .definition = p.Growth.current_definition, .identity = .{ .begin = .{ .scope = object.scope, .principal = 4, .operation = 100 }, .branch = 1 }, .mode = .serializable, .selection = .explicit_tables, .tables = .{ .content = .{ .bytes = 100, .sha256 = @splat(1) }, .count = 1 }, .catalog = .{ .partition = 1, .next_lsn = 1 }, .limits = .{ .resident_bytes = P.default_build_resident_bytes, .workspace_bytes = 64 * 1024 * 1024, .participants = 10, .statements = 100, .savepoints = 10 } };
+    return .{ .definition = p.Growth.current_definition, .identity = .{ .begin = .{ .scope = object.scope, .principal = 4, .operation = 100 }, .branch = 1 }, .mode = .serializable, .selection = .explicit_tables, .tables = .{ .content = .{ .bytes = 100, .sha256 = @splat(1) }, .count = 1 }, .catalog = .{ .partition = 1, .next_lsn = 1 }, .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 64 * 1024 * 1024, .participants = 10, .statements = 100, .savepoints = 10 } };
 }
 fn workspaceInsert(workspace: *s.TableWorkspace, sequence: u64, operation: u64, value: *const f.Types.Values.Cell, guard: P.Guard) !s.TableWorkspace.Outcome {
     const proposed = binding(&workspace.table, operation);
@@ -3507,7 +3507,7 @@ test "transaction workspace predicate DML and budget refusal preserve the public
     const begin = workspaceBegin();
     const pin = try table.pin(begin.identity.begin, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
     const public = table.root;
-    var memory: f.MemoryBudget = .{ .parent = t.allocator, .limit = P.default_build_resident_bytes };
+    var memory: f.MemoryBudget = .{ .parent = t.allocator, .limit = @intCast(begin.limits.resident_bytes) };
     {
         var workspace = try s.TableWorkspace.init(memory.allocator(), &table, begin, pin, null, access.guard());
         defer workspace.deinit();

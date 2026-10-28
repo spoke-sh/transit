@@ -66,10 +66,13 @@ output, provider buffers, stack capacity and retained workspace bytes have
 separate owners. The host must reserve their capacity and aggregate concurrent
 workspaces; one evaluator's allowance is not an installation-wide limit.
 
-Small allowances can reject even a small statement because the Table encoder
-reserves bounded row and segment buffers. The component checks exercise the
-existing 64 MiB Table allowance, refuse initialization with 4 KiB, and refuse
-a statement under an independent 4 KiB build cap without public acceptance.
+Small allowances can reject even a small statement because intent and owner
+buffers have independent minimum capacity. Row buffers use canonical encoded
+sizes; segment output starts at 64 KiB and grows within the existing segment and
+resident bounds. The component checks execute private inserts, predicate DML,
+rollback and reopen with a 16 MiB lifetime allowance and one cached index page.
+They refuse initialization with 4 KiB and a statement under an independent 4 KiB
+build cap without public acceptance.
 
 Before service use, the transaction owner must durably publish every accepted
 workspace state, failed statement sequence and result, retain its referenced
