@@ -2,7 +2,46 @@
 
 `transit_memory` owns allocation measurement and reusable memory primitives below
 storage, query and client packages. It depends only on the Zig standard library;
-domain owners supply budgets, synchronization and public error semantics.
+domain owners supply capacities, admission policy and public error semantics.
+
+`Workspace` owns a fixed 64-byte-aligned reserve. Its single borrower receives a
+generation-checked `Lease`; reset ends all views and updates that lease, and
+release allows a new borrower. Marks support transactional append/rewind. The
+allocator and raw slices borrow the lease: callers must stop using them before
+reset or release. Generation checks protect lease operations, not dereferences
+of stale raw pointers. Keep the workspace at a stable address after acquisition.
+
+`Pool` admits independent borrowers into fixed workspace size classes. It
+serializes admission and release and picks the smallest available fitting slot.
+Exhaustion returns `MemoryPoolExhausted`; it never grows or invalidates another
+borrower. Each payload still has one borrower, and all tasks must join before
+release. `reservedBytes` includes slot metadata and alignment padding. Explicit
+erasure on release clears the whole slot, including previously used bytes.
+
+`Slab` supplies an allocator for independently lived objects inside one fixed
+reserve. It coalesces free ranges and serializes allocator metadata operations;
+payload access remains the caller's responsibility. Headers, alignment gaps and
+fragmentation consume the reserve. `live_bytes` counts requested payload bytes;
+`occupied_bytes` includes headers and rounding, and `buffer.len` remains charged
+until destruction. `reservations` and `refusals` count internal free-list requests.
+Allocation failure never falls back to the parent. Destroy it only after freeing
+every object. Initialization rounds capacity down to a multiple of 64 bytes.
+
+`Budget` bounds allocations through one borrower and distinguishes its configured
+exhaustion from a parent allocator failure. Optional `Quota` ancestors provide
+concurrent shared bounds; a rejected parent reservation rolls back child usage.
+Ancestor chains must be acyclic, immutable and outlive their borrowers. Temporary
+reservations remain charged while a parent allocator runs. Share `Quota`, not a
+mutable `Budget`, between workers. Fuze exports this same `Budget` as
+`MemoryBudget`.
+
+Place a budget **below** a workspace, pool or slab to charge its entire retained
+reserve, including idle capacity. Placing another budget above it can constrain
+one borrower, but those logical charges are not additional physical memory.
+Owners account for their own structs, worker stacks and external transport
+allocations separately. All primitives must stay at stable addresses while
+allocators, leases or child quotas reference them. No primitive acquires backing
+memory during reset, reservation or release.
 
 `AllocationProbe` records attempted and successful allocation, resize and remap,
 free calls, acquired/released bytes and live/peak backing bytes. `begin(true)`

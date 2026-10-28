@@ -25,6 +25,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_protocol", .module = protocol }, .{ .name = "zarrow", .module = arrow }, .{ .name = "zarrow_compute", .module = compute } },
     });
+    module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
     var vector_object: ?*std.Build.Step.Compile = null;
     if (target.result.cpu.arch == .x86_64) {
         var query = target.query;
@@ -40,6 +41,7 @@ pub fn build(b: *std.Build) !void {
         module.addObject(vector_object.?);
     }
     const relational_module = b.createModule(.{ .root_source_file = b.path("src/RelationalExecution.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_protocol", .module = protocol }} });
+    relational_module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
     if (vector_object) |object| relational_module.addObject(object);
     const relational_tests = b.addTest(.{ .root_module = relational_module });
     b.step("test-relational", "Verify independent relational results with linked column kernels").dependOn(&b.addRunArtifact(relational_tests).step);
