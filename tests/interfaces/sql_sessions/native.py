@@ -443,9 +443,14 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
             if result.returncode == 0:
                 assert '"complete_coverage":true' in result.stdout, result.stdout
                 return result.stdout
-            # As above, only an explicit capacity rejection before any output
-            # permits this fixture to submit another independent read.
-            assert not result.stdout and 'AuthorityUnavailable (53000)' in result.stderr and time.monotonic() < deadline, (result.stdout, result.stderr)
+            # A refusal before result disclosure can surface at session
+            # admission or as the typed query transport diagnostic. Repeat
+            # only this fresh read, never splice a disclosed row prefix.
+            unavailable = 'AuthorityUnavailable (53000)' in result.stderr or (
+                'Code: query.transport_unavailable.' in result.stderr and
+                'Cause: AuthorityUnavailable.' in result.stderr and
+                'Rows already emitted: 0' in result.stderr)
+            assert not result.stdout and unavailable and time.monotonic() < deadline, (result.stdout, result.stderr)
             time.sleep(.02)
     with ThreadPoolExecutor(max_workers=2) as pool:
         list(pool.map(console_read, range(2)))
