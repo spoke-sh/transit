@@ -776,6 +776,13 @@ pass, including 48 new automatic archive/compaction target and skip-progress
 publication cases. Aggregate contention, matched foreground latency and the
 broader failure/retention matrix still keep P4.4 and P4.5 open.
 
+At `aa8b68bae`, all six local catalog/maintenance checks pass with a new
+trusted-clock failure and missing-clock case while both collectors wait for
+reader grace. Accepted positions, persisted progress and orphan objects remain
+unchanged until a clock is available; the existing revocation, restart and
+eventual-collection schedule then completes. The [source-attributed result](../history/qualification/storage.md#collection-progress-across-clock-failure--2026-10-28)
+adds evidence for P4.5 without closing its installed failure/resource matrix.
+
 #### P5 — Qualify and reduce the remaining live read and wait costs
 
 Owners: local Table service/catalog, direct query readers, shared SQL service,
