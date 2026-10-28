@@ -43,9 +43,11 @@ retrieval, streaming CDC ingestion and import/export costs.
    specify `missing`/`null`/`conflict`/`type_error` and arithmetic overflow
    behavior with no implicit conflict winner or silent default value.
 2. **Map finite property graphs over existing resources:** lower fixed-pattern
-   SQL/PGQ through graph-aware `Fuze` operators over `.tseg` adjacency/edge
-   indexes, preserving parallel edges, self-loops, endpoint validity and
-   multiplicity.
+   SQL/PGQ through graph-aware `Fuze` operators and
+   [Milestone 10's](10-data-structures-and-performance.md) Diamond-Hardened /
+   Worst-Case Optimal Joins (WCOJ) over `.tseg` adjacency/edge indexes so
+   triangle and cyclic graph patterns avoid quadratic intermediate blowups while
+   preserving parallel edges, self-loops, endpoint validity and multiplicity.
 3. **Compose segment-backed Full-Text Search (BM25) and Vector / Hybrid Retrieval across Tables, Documents and Graph projections:**
    build on [Milestone 11's](11-vectorized-strings-and-search.md) 256-document
    Block-Max BM25 posting blocks, vectorized `MAXSCORE` / Block-Max WAND

@@ -36,22 +36,25 @@ pins, `.tdel` deletion visibility and current-authority disclosure checks.
 
 ## Delivery sequence
 
-1. **Deliver 16-byte collation-prefixed inline strings ("German Strings") in `Fuze` vectors and working state.**
-   Represent variable-length `UTF8` and `BINARY` column lanes in `Batch` vectors,
-   join/group hash tables and sort buffers as 16-byte fixed headers
+1. **Deliver 16-byte collation-prefixed inline strings ("Umbra / German Strings") in `Fuze` vectors and working state.**
+   Adapt the 16-byte string representation introduced by [Umbra](https://umbra-db.com/)
+   and [CedarDB](https://cedardb.com/) (Neumann & Freitag, CIDR 2020) for
+   variable-length `UTF8` and `BINARY` column lanes in `Batch` vectors,
+   join/group hash tables and sort buffers
    (`[len: u32][collation_sort_prefix: 4B][inline_or_offset: 8B]`):
    - Strings up to 12 bytes store their complete payload inline inside the 16-byte
      slot with zero out-of-line arena dereferences.
-   - Strings longer than 12 bytes store the first 4 bytes of their
-     **collation-normalized sort key** (`utf8_binary` raw bytes, `ascii_ci`
-     lowercased bytes, `ebcdic_cp037` translated sort bytes, or `icu:<locale>`
-     primary-weight prefix) in the 4-byte prefix field alongside a 32-bit arena
-     offset and 32-bit buffer/page handle.
+   - Strings longer than 12 bytes extend Umbra's raw-byte prefix by storing the
+     first 4 bytes of the column's **collation-normalized sort key**
+     (`utf8_binary` raw bytes, `ascii_ci` lowercased bytes, `ebcdic_cp037`
+     translated sort bytes, or `icu:<locale>` primary-weight prefix) in the
+     4-byte prefix field alongside a 32-bit arena offset and 32-bit buffer/page
+     handle (or swizzled slab pointer).
    - Equality (`=`, `!=`), range (`<`, `<=`, `>`, `>=`), `ORDER BY` radix/merge
      sorts and hash-join probes compare `(len, collation_sort_prefix)` in a single
-     64-bit register or `@Vector` SIMD instruction first, touching out-of-line
-     payload bytes only when two strings > 12 bytes share an identical 4-byte
-     collation prefix.
+     64-bit register or `@Vector` SIMD instruction first across all supported
+     collations, touching out-of-line payload bytes only when two strings > 12
+     bytes share an identical 4-byte collation prefix.
 2. **Execute string predicates directly in the compressed domain over `.dictionary` and `.fsst` pages.**
    Push string equality (`col = 'lit'`), `IN (...)` sets, range comparisons and
    prefix/substring (`STARTS_WITH`, `LIKE 'prefix%'`, `CONTAINS`) filters down

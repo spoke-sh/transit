@@ -92,11 +92,11 @@ combines that evidence at one revision.
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 9 | [Managed computations and WAL-activated dataflows](09-sql-and-dataflows.md) | Planned | Complete analytical SQL (window functions, CTEs, subqueries, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress and WAL-driven managed computations |
-| 10 | [Data structures, query optimization and runtime performance](10-data-structures-and-performance.md) | Planned | Zero-steady-state-allocation hot paths, per-morsel CPU/memory/IOPS metering, statistics/costing, partitioning/clustering, LSM/`.tseg` compaction bounds, scan-resistant caching and workload scorecards |
-| 11 | [First-class strings, perfect hashing and vectorized search execution](11-vectorized-strings-and-search.md) | Planned | 16-byte collation-prefixed strings ("German Strings"), compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD comparisons and vectorized 256-doc Block-Max BM25 / hybrid search |
-| 12 | [Data-centric pipeline fusion, AOT query compilation and adaptive specialization](12-data-centric-compilation-and-specialization.md) | Planned | HyPer-style data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, sub-100µs ad-hoc SQL specialization, `transit-app` AOT Zig query/view compilation and HyPer/Umbra benchmark baselines |
-| 13 | [Multi-model and multi-format foreign relations](13-multi-model-and-foreign-relations.md) | Planned | Document/graph projections, multi-model BM25/vector search composition, foreign formats, streaming CDC ingress and typed COPY/import/export |
+| 9 | [Managed computations and WAL-activated dataflows](09-sql-and-dataflows.md) | Planned | Complete analytical SQL (window functions, CTEs, universal `D-Join` subquery unnesting, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress and WAL-driven managed computations |
+| 10 | [Data structures, query optimization and runtime performance](10-data-structures-and-performance.md) | Planned | Zero-steady-state-allocation hot paths, per-morsel CPU/memory/IOPS metering, LeanStore/Umbra swizzled zero-copy buffer slabs, CedarDB directory-tagged join hash tables & WCOJ, statistics/costing, partitioning/clustering, LSM/`.tseg` compaction bounds and workload scorecards |
+| 11 | [First-class strings, perfect hashing and vectorized search execution](11-vectorized-strings-and-search.md) | Planned | 16-byte collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD comparisons and vectorized 256-doc Block-Max BM25 / hybrid search |
+| 12 | [Data-centric pipeline fusion, AOT query compilation and adaptive specialization](12-data-centric-compilation-and-specialization.md) | Planned | HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up, `transit-app` AOT Zig query/view compilation and HyPer/Umbra/CedarDB benchmark baselines |
+| 13 | [Multi-model and multi-format foreign relations](13-multi-model-and-foreign-relations.md) | Planned | Document/graph projections (with WCOJ cyclic pattern matching), multi-model BM25/vector search composition, foreign formats, streaming CDC ingress and typed COPY/import/export |
 | 14 | [Branches, merges and restore](14-branches-merges-and-restore.md) | Planned | Durable multi-commit branches, logical three-way merge with `FOREIGN KEY`/`CHECK` verification, branch-aware compaction/GC and forward restore under current authority |
 | 15 | [Service and SDK coverage](15-service-and-sdk-coverage.md) | In Progress | Preserved Go raw/console slices and broader service, language, type and platform coverage over the shared API foundation |
 | 16 | [Formal semantics and implementation correspondence](16-formal-semantics-and-correspondence.md) | Planned | Selected temporal models and algebraic proofs over delivered local contracts, connected to production behavior before distributed extensions |
@@ -157,10 +157,10 @@ evidence rather than assuming every preceding number is a technical dependency.
 | I | Establish the application API foundation | 6 | Extract shared data packages, compose bounded client/host infrastructure and qualify representative installed language APIs with original-operation recovery before SDK expansion |
 | I | Retain exact data interpretation | 7 | Qualify historical catalog/data bindings, declarative `CHECK`/`FOREIGN KEY` constraints, lazy `.tseg` schema projection, collation and encoding fidelity, current permissions and explicit capability evidence over the earlier snapshot contracts |
 | I | Declare and maintain indexes | 8 | Qualify ordered, covering and partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement, online index/table build recovery and snapshot-specific coverage through shared callers |
-| II | Maintain declared computations | 9 | Qualify complete analytical SQL (windows, CTEs, subqueries, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress, service-owned activation, complete-commit change consumption, bounded operator state and recovered completed revisions |
-| II | Optimize database and runtime work | 10 | Establish workload/competitor baselines and numeric budgets, deliver zero-steady-state-allocation hot-path arenas, per-morsel CPU/memory/IOPS metering, statistics/planning, partitioning/clustering keys, LSM/`.tseg` compaction bounds and scan-resistant caching, and pass installed correctness/resource/performance gates |
-| II | Deliver first-class strings, perfect hashing and vectorized search | 11 | Qualify 16B collation-prefixed strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD string comparisons, and vectorized 256-doc Block-Max BM25 and hybrid search |
-| II | Deliver data-centric compilation, AOT queries and specialization | 12 | Qualify HyPer-style data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, sub-100µs ad-hoc SQL specialization and `transit-app` AOT Zig query/view compilation against HyPer/Umbra (VLDB 2018 + CH-benCHmark) baselines |
+| II | Maintain declared computations | 9 | Qualify complete analytical SQL (windows, CTEs, universal `D-Join` subquery unnesting, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress, service-owned activation, complete-commit change consumption, bounded operator state and recovered completed revisions |
+| II | Optimize database and runtime work | 10 | Establish workload/competitor baselines and numeric budgets, deliver zero-steady-state-allocation hot-path arenas, per-morsel CPU/memory/IOPS metering, LeanStore/Umbra swizzled zero-copy buffer slabs, CedarDB ~10-instruction directory-tagged join hash tables & WCOJ, statistics/planning, partitioning/clustering keys, LSM/`.tseg` compaction bounds and scan-resistant caching, and pass installed correctness/resource/performance gates |
+| II | Deliver first-class strings, perfect hashing and vectorized search | 11 | Qualify 16B collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD string comparisons, and vectorized 256-doc Block-Max BM25 and hybrid search |
+| II | Deliver data-centric compilation, AOT queries and specialization | 12 | Qualify HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up and `transit-app` AOT Zig query/view compilation against HyPer/Umbra/CedarDB (VLDB 2018, JOB and CH-benCHmark) baselines |
 | II | Compose data models and history | 13–14 | Qualify foreign COPY/projections, streaming CDC ingress, multi-model BM25/vector search composition, multi-commit branches, branch-aware compaction/GC and conditional forward publication with `FOREIGN KEY`/uniqueness/constraint evidence and measured costs |
 | II | Expand qualified interfaces | 15 | Extend the language/service/platform matrix over the existing foundation; preserve delivered Go raw and console evidence and reject unsupported transaction/feed profiles |
 | II | Establish formal semantics and correspondence | 16 | Select settled local contracts, execute temporal/algebraic checks with implementation replay or independent fixtures, challenge them with negative controls and assign later extensions |
@@ -180,13 +180,15 @@ owns traceable installed acceptance. No planning edit changes their runtime stat
 ## Fine-grained resource control, vectorized text, perfect hashing and data-centric compilation review — 2026-10-27
 
 A performance-architecture review of Zig resource control, first-class text/search
-execution, compile-time/immutable perfect hashing and [HyPer](https://hyper-db.de/)-style
-data-centric query compilation refines [Milestone 10](10-data-structures-and-performance.md)
-and inserts two dedicated Phase II milestones—[Milestone 11](11-vectorized-strings-and-search.md)
-and [Milestone 12](12-data-centric-compilation-and-specialization.md)—shifting the
+execution, compile-time/immutable perfect hashing and [HyPer](https://hyper-db.de/) /
+[Umbra](https://umbra-db.com/) / [CedarDB](https://cedardb.com/) data-centric
+execution and buffer management refines [Milestone 9](09-sql-and-dataflows.md) and
+[Milestone 10](10-data-structures-and-performance.md) and inserts two dedicated
+Phase II milestones—[Milestone 11](11-vectorized-strings-and-search.md) and
+[Milestone 12](12-data-centric-compilation-and-specialization.md)—shifting the
 subsequent milestones to `13–30`:
 
-1. **Zero steady-state heap allocation on hot paths and fine-grained per-morsel resource metering ([Milestone 3](03-live-storage-and-sql-cutover.md), [Milestone 10](10-data-structures-and-performance.md), [Milestone 21](21-control-and-policy-plane.md)):**
+1. **Zero steady-state heap allocation on hot paths, LeanStore/Umbra zero-copy buffer management and fine-grained per-morsel resource metering ([Milestone 3](03-live-storage-and-sql-cutover.md), [Milestone 10](10-data-structures-and-performance.md), [Milestone 21](21-control-and-policy-plane.md)):**
    Rather than fixed total-cardinality static arrays that would violate Transit's
    paged durable-state model, hot paths target zero steady-state OS/heap allocations
    after warmup by pairing pre-allocated subsystem slabs with explicit `scratch`
@@ -196,24 +198,31 @@ subsequent milestones to `13–30`:
    `OwnedRow` arena churn on storage/SQL read paths with batch-reused arenas and
    borrowed verified slices; [Milestone 10](10-data-structures-and-performance.md)
    enforces counting-allocator regression gates, 64-byte cache-line alignment and
-   L1d/L2 working-set budgets across `Fuze` vectors and `.tseg` pages. Taking
-   inspiration from [Egres](https://manishrjain.com/egres/),
+   L1d/L2 working-set budgets across `Fuze` vectors and `.tseg` pages, and upgrades
+   [`NvmeCache`](../../packages/zig/transit-storage/src/NvmeCache.zig) using
+   **LeanStore/Umbra pointer swizzling, optimistic version-latched zero-copy
+   slices over variable size-class slabs ($64\text{ KiB}\text{–}1\text{ MiB}$)
+   and admission-only SHA-256 verification** (eliminating per-hit SHA-256
+   recomputation and `@memcpy` overhead). Taking inspiration from
+   [Egres](https://manishrjain.com/egres/),
    [Milestone 10](10-data-structures-and-performance.md) and
    [Milestone 21](21-control-and-policy-plane.md) chain a hierarchical
    `MeteredAllocator` vtable with per-`Batch` morsel CPU cycle/tick and storage
    IOPS/byte accounting so runaway queries deterministically spill to Tier 2 NVMe
    or return a typed budget refusal at batch boundaries without noisy-neighbor
    starvation or process-wide OOMs.
-2. **First-class strings, perfect hashing and fully-vectorized Block-Max BM25 search ([Milestone 11](11-vectorized-strings-and-search.md)):**
+2. **First-class Umbra/German strings, perfect hashing and fully-vectorized Block-Max BM25 search ([Milestone 11](11-vectorized-strings-and-search.md)):**
    Instead of overloading general data structures or foreign-format adapters,
    [Milestone 11](11-vectorized-strings-and-search.md) gives text, static/immutable
    key lookup and search their own dedicated owner:
-   - **16-byte collation-prefixed inline strings ("German Strings"):** `Fuze`
-     represents strings as `[len: u32][collation_sort_prefix: 4B][inline_or_offset: 8B]`
-     with a 4-byte collation-normalized sort prefix (`utf8_binary`, `ascii_ci`,
-     `ebcdic_cp037`, `icu:<locale>`) alongside compressed-domain string kernels
-     pushing `=`, `IN (...)` and prefix/substring predicates directly into
-     `.dictionary` codes and `.fsst` symbol tables.
+   - **16-byte collation-prefixed inline strings ("Umbra / German Strings"):**
+     Adapting [Umbra's](https://umbra-db.com/) 16-byte string layout
+     (`[len: u32][collation_sort_prefix: 4B][inline_or_offset: 8B]`), `Fuze`
+     stores a 4-byte collation-normalized sort prefix (`utf8_binary`, `ascii_ci`,
+     `ebcdic_cp037`, `icu:<locale>`) so register-level comparisons short-circuit
+     across non-binary collations as well, alongside compressed-domain string
+     kernels pushing `=`, `IN (...)` and prefix/substring predicates directly
+     into `.dictionary` codes and `.fsst` symbol tables.
    - **Compile-time (`comptime`) and segment-sealed perfect hashing:** Applying
      greedy association-table construction (`slot = (len + asso[key[i]] + asso[key[j]]) & mask`)
      and branchless 16-byte `@Vector(16, u8)` SIMD shuffle-mask comparisons from
@@ -230,20 +239,27 @@ subsequent milestones to `13–30`:
      Block-Max WAND operators in `Fuze` that prune non-competitive blocks,
      intersect relational and `.tdel` bitmasks in SIMD registers, and defer
      payload decoding through late materialization.
-3. **Data-centric pipeline fusion, AOT query compilation and adaptive specialization ([Milestone 12](12-data-centric-compilation-and-specialization.md)):**
-   Taking inspiration from [HyPer](https://hyper-db.de/) (Neumann, VLDB 2011) and
-   the compiled-versus-vectorized synthesis (Kersten et al., VLDB 2018),
+3. **Data-centric pipeline fusion, CedarDB join structures, Flying-Start Adaptive Morsel Tier-Up and AOT query compilation ([Milestone 9](09-sql-and-dataflows.md), [Milestone 10](10-data-structures-and-performance.md), [Milestone 12](12-data-centric-compilation-and-specialization.md)):**
+   Taking inspiration from [HyPer](https://hyper-db.de/) (Neumann, VLDB 2011),
+   [Umbra](https://umbra-db.com/) (Neumann & Freitag, CIDR 2020),
+   [CedarDB](https://cedardb.com/) and the compiled-versus-vectorized synthesis
+   (Kersten et al., VLDB 2018), [Milestone 9](09-sql-and-dataflows.md) and
+   [Milestone 10](10-data-structures-and-performance.md) adopt universal `D-Join`
+   correlated subquery unnesting, **CedarDB-style ~10-instruction directory-tagged
+   join hash tables** (embedding 16-bit Bloom/tag signatures in directory slots)
+   and **Diamond-Hardened / Worst-Case Optimal Joins (WCOJ / FreeJoin)**.
    [Milestone 12](12-data-centric-compilation-and-specialization.md) combines
    vectorized `Batch` morsels (for SIMD scans and software-prefetched `@prefetch`
    hash-join probes) with **data-centric push pipeline fusion** inside each morsel
    so multi-step expressions, projections and aggregations stay in CPU registers
-   without writing temporary `scratch` arrays per AST node. It adds **per-`.tseg`-row-group
-   dense non-null kernel dispatch** (`null_count == 0` and empty `.tdel`),
-   **sub-100µs ad-hoc SQL specialization** (fused superinstructions and evaluated
-   Copy-and-Patch machine-code stencils without an LLVM runtime dependency), and
-   **true Ahead-of-Time (AOT) Zig compilation via `transit-app`** for declared
-   application queries, views, streams and UDFs, setting HyPer/Umbra on the VLDB
-   2018 microbenchmarks and the HTAP CH-benCHmark as comparative baselines.
+   without writing temporary `scratch` arrays per AST node. It pairs
+   **per-`.tseg`-row-group dense non-null kernel dispatch** (`null_count == 0` and
+   empty `.tdel`) with **Flying-Start Adaptive Morsel Tier-Up** ($0\,\mu\text{s}$
+   startup via fused superinstructions, tiering up at a morsel boundary to
+   Copy-and-Patch stencils only for long-running queries) and **true Ahead-of-Time
+   (AOT) Zig compilation via `transit-app`**, setting HyPer, Umbra and CedarDB on
+   the VLDB 2018 microbenchmarks, the Join Order Benchmark (JOB), ClickBench and
+   the HTAP CH-benCHmark as comparative baselines.
 
 ## Enterprise database and governance review — 2026-10-25
 

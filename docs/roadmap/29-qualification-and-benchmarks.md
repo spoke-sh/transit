@@ -32,20 +32,25 @@ remains a gate for every preceding milestone.
   and [data-centric compilation and specialization scorecard](12-data-centric-compilation-and-specialization.md)
   at the common revision with installed callers, concurrent maintenance and
   durable runtime workloads. Include zero-steady-state-allocation hot-path
-  verification, per-morsel CPU/memory/IOPS metering, 16-byte collation-prefixed
+  verification, per-morsel CPU/memory/IOPS metering, LeanStore/Umbra-style
+  pointer-swizzled variable size-class buffer slabs (with admission-only SHA-256
+  verification), CedarDB-style ~10-instruction directory-tagged join hash tables
+  and Worst-Case Optimal Joins (WCOJ), 16-byte collation-prefixed Umbra/German
   strings, compressed-domain `.dictionary`/`.fsst` evaluation, `comptime`/immutable
   perfect hashing, vectorized 256-doc Block-Max BM25 and hybrid search, HyPer-style
   data-centric push pipeline fusion, per-row-group dense non-null specialization,
-  `transit-app` AOT-compiled queries/views, leveled/tiered `.tseg` compaction
-  bounds, `.tdel` tombstone reclamation, declarative partitioning/multi-dimensional
-  clustering (`PARTITION BY`, `CLUSTER BY`), scan-resistant caching, external
-  NVMe spill for window/join/sort operators and bitemporal `AS OF JOIN` merge
-  execution. Preserve numeric budgets, matched competitor versions/configurations
-  (including HyPer/Umbra, DuckDB and ClickHouse baselines on the VLDB 2018
-  compiled-versus-vectorized microbenchmarks, ClickBench and the HTAP
-  CH-benCHmark), raw samples and visible failures/regressions. Report leadership
-  only for reproduced equivalent workload profiles; a component win or reduced
-  TPC workload is not a universal database/runtime ranking.
+  Flying-Start Adaptive Morsel Tier-Up, `transit-app` AOT-compiled queries/views,
+  leveled/tiered `.tseg` compaction bounds, `.tdel` tombstone reclamation,
+  declarative partitioning/multi-dimensional clustering (`PARTITION BY`,
+  `CLUSTER BY`), scan-resistant caching, external NVMe spill for window/join/sort
+  operators and bitemporal `AS OF JOIN` merge execution. Preserve numeric
+  budgets, matched competitor versions/configurations (including HyPer, Umbra,
+  CedarDB, DuckDB and ClickHouse baselines on the VLDB 2018
+  compiled-versus-vectorized microbenchmarks, the Join Order Benchmark (JOB),
+  ClickBench and the HTAP CH-benCHmark), raw samples and visible
+  failures/regressions. Report leadership only for reproduced equivalent workload
+  profiles; a component win or reduced TPC workload is not a universal
+  database/runtime ranking.
 
 - Qualify full declaration lifecycles: define data and computation, apply policy,
   inspect publication/results/progress, evolve dependencies and recover accepted

@@ -84,12 +84,15 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
 - **Deliver the complete analytical and relational SQL surface in Fuze:** expand
   beyond two-table equijoins to multi-way joins ($>2$ tables), non-equi/range
   joins, `SEMI` (`EXISTS`/`IN`), `ANTI` (`NOT EXISTS`) and `LATERAL` joins with
-  correlated subquery decorrelation; **Window Functions** (`OVER (PARTITION BY ...
-  ORDER BY ... ROWS/RANGE/GROUPS BETWEEN ...)`), ranking/lag/lead/frame functions
-  and `QUALIFY`; **Common Table Expressions** (`WITH` and bounded `WITH RECURSIVE`
-  with cycle detection and explicit work budgets) and set operations (`UNION [ALL]`,
-  `INTERSECT`, `EXCEPT`); **Rich Aggregates** (`AVG`, `MIN`, `MAX`, `STDDEV`,
-  exact and approximate quantiles/`PERCENTILE_CONT`, `ARRAY_AGG`/`STRING_AGG`);
+  universal dependent-join (`D-Join`) correlated subquery unnesting (Neumann &
+  Kemper, BTW 2015) so arbitrary correlated subqueries lower algebraically to
+  set-oriented hash or merge joins rather than $O(N \times M)$ nested loops;
+  **Window Functions** (`OVER (PARTITION BY ... ORDER BY ... ROWS/RANGE/GROUPS
+  BETWEEN ...)`), ranking/lag/lead/frame functions and `QUALIFY`; **Common Table
+  Expressions** (`WITH` and bounded `WITH RECURSIVE` with cycle detection and
+  explicit work budgets) and set operations (`UNION [ALL]`, `INTERSECT`,
+  `EXCEPT`); **Rich Aggregates** (`AVG`, `MIN`, `MAX`, `STDDEV`, exact and
+  approximate quantiles/`PERCENTILE_CONT`, `ARRAY_AGG`/`STRING_AGG`);
   temporal/interval arithmetic; **compile-time (`comptime`) and plan-bound
   perfect-hash lookup tables** for SQL keywords and constant `WHERE col IN (...)`
   string literal sets (paired with 16-byte SIMD vector comparisons inside the
