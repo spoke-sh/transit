@@ -42,6 +42,16 @@ regenerated schemas, bindings and independent signing fixtures. Clean-source
 decision model exhausts 3,227 states and detects all six negative controls.
 These selections are not the full integration suite.
 
+At descendant [`2f91d795f`](https://github.com/spoke-sh/transit/commit/2f91d795f69ab49aa9a1ce02c67eafb292a5e4a3),
+`just test::direct-table-service` passes 2,125 typed HTTP calls across CRUD/DDL,
+lost replies, retained reads, current authorization changes and three restarts.
+This checks the existing autocommit and snapshot callers through the definition
+cutover; it is not an installed transaction caller proof. The source also maps
+invalid transaction selection requests to `InvalidRequest`. Documentation checks
+pass 7,514 local links, TypeScript validation, nine site tests and the site build.
+The additional local logs are `.cache/m5-final-direct-service.log` and
+`.cache/m5-final-docs.log`.
+
 Raw records are retained locally under
 `.cache/ci/clean/6b6672b9881f-transit-ci-wb75pc7s/` (contracts),
 `.cache/ci/clean/6b6672b9881f-transit-ci-be6t_428/` (formal),
@@ -51,7 +61,8 @@ committed source, commands and completion. These local paths are not portable
 artifact links. An earlier core attempt at `0f6cd9940747` detected an application
 signing fixture that had not been regenerated; that run was stopped after the
 failure and is not counted as passed. The corrected fixture is included in
-the source and contract checks above.
+the source and contract checks above. Its failed log remains at
+`.cache/m5-admission-clean-core.log`.
 
 No common-cut acquisition, durable workspace retention/settlement, participant
 preparation, common Table visibility, serializable execution, SQL transaction,
