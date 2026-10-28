@@ -23,7 +23,7 @@ def observation(batch, rows):
     assert unsigned(values[5]) == rows and unsigned(values[6]) <= rows
     assert values[8] == '0301' and unsigned(values[12]) == 0
     if rows == 0:
-        assert unsigned(values[6]) == unsigned(values[7]) == 0 and values[9] == '00'
+        assert unsigned(values[6]) == unsigned(values[7]) == 0 and values[9] == '01', values
     return values
 
 
