@@ -15,7 +15,6 @@ cursor: q.UnifiedSource.Cursor = .{},
 bytes: u64 = 0,
 cache: [64]?Cached = @splat(null),
 cache_slot: usize = 0,
-table_nodes: q.station.TablePages.Cache = .{},
 block_cache: ?q.wire.BlockBatch = null,
 current: ?q.wire.ResourceReader.Batch = null,
 range: ?g.SnapshotRead.Range = null,
@@ -199,9 +198,6 @@ const Cached = struct { key: q.protocol.Value, entry: ?q.protocol.Growth.Entry }
 const CachedReader = struct {
     session: *Self,
     view: @FieldType(q.wire.SnapshotReader, "view"),
-    pub fn tableIndexCache(self: *@This()) *q.station.TablePages.Cache {
-        return &self.session.table_nodes;
-    }
     pub fn read(self: *@This(), key: q.protocol.Value) !?q.protocol.Value {
         return if (try self.entry(key)) |value| value.value else null;
     }

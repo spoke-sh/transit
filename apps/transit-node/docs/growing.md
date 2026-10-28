@@ -192,8 +192,14 @@ most one segment. The scheduler retains its selected checkpoint target until
 cleanup completes. Lifecycle scans alternate with physical work; native trim,
 collection and Table work rotate through a bounded pass that skips idle classes.
 A failed class advances the rotation before its next attempt. Incomplete cleanup
-therefore cannot occupy every maintenance turn. Local immutable objects
-remain retained, and `storage.maintenance.compact: true` rejects. Standalone
+therefore cannot occupy every maintenance turn. Native and direct immutable-object
+collection have independent durable progress and alternate bounded units. Source
+allocation activity selects a new pass; marking and FIFO bookkeeping do not
+retrigger it. An incomplete pass resumes before a replacement can start, and
+completed graph work finishes its inventory WAL cleanup before another pass.
+Each unit checks current maintenance privilege. Deletion additionally requires
+complete marks, accepted storage epochs and the trusted read-lifetime grace.
+Direct Table compaction changes placement without expiring old roots. Standalone
 payloads have their own opted-in retirement lifecycle: local maintenance confirms
 physical removal under the current native authority fence before publishing
 deletion evidence. It retains the permanent creation-attempt marker. Payloads
@@ -283,9 +289,10 @@ replacement after borrowers have joined.
 
 ## Physical storage budgets and maintenance
 
-With local storage and a configured `table` host, enabling
-`storage.maintenance.flush.enabled` schedules bounded point-row flushing inside
-the existing maintenance executor. It uses the same shared directory lock and
+With local storage and a configured `table` host, the existing maintenance
+executor schedules enabled point-row flushing, history archives, recovery
+checkpoints, archived WAL cleanup and segment compaction. Each class has its own
+catalog cursor, so rotating classes cannot repeatedly skip a Table. It uses the same shared directory lock and
 Table lock stripe as public requests. It releases native authority during private
 staging and rechecks current maintenance privilege, catalog-resource lifetime
 and storage epochs before acceptance. Physical work does not use Station actors
@@ -294,10 +301,11 @@ advance discovery and do not disable lifecycle scans.
 
 The shared [configuration reference](../../../docs/handbook/reference/configuration.md#immutable-storage)
 owns row/byte/age thresholds and the aggregate private workspace budget. Bare node
-configuration defaults flushing to disabled. Its configured maintenance interval
+configuration defaults Table work to disabled. Its configured maintenance interval
 and operation deadline also govern Table work. Enabling it requires both a Table
 host and a maintenance identity; startup rejects an incomplete owner configuration.
-The Ursula native profile rejects enabled Table flushing. Signed `storage` observations are
+The Ursula native profile rejects enabled Table flushing and archiving. Its
+compaction setting applies to native blocks/pages. Signed `storage` observations are
 read-only; explicit `flush` targets use current Table control authority and the
 same direct partition. Current rows, logical changes and retained history have
 separate frontiers.

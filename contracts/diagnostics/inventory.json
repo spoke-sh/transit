@@ -2306,6 +2306,8 @@
         "open()": "<inferred>",
         "put()": "<inferred>",
         "putNative()": "<inferred>",
+        "putNativeTracked()": "<inferred>",
+        "putTracked()": "<inferred>",
         "read()": "<inferred>",
         "recoverySource()": "<inferred>",
         "requiresRecovery()": "<inferred>",
@@ -2352,13 +2354,14 @@
         "latest()": "<inferred>",
         "open()": "<inferred>",
         "record()": "<inferred>",
+        "recordTracked()": "<inferred>",
         "remove()": "<inferred>",
         "trim()": "<inferred>",
         "trimUnit()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
+        "try": 41,
         "catch": 1
       },
       "imports": [
@@ -2399,7 +2402,7 @@
         "FileNotFound": 1,
         "IncompleteHistory": 2,
         "InvalidDataAllocation": 1,
-        "InvalidStorageCollection": 8,
+        "InvalidStorageCollection": 9,
         "InvalidStorageGraph": 1,
         "NoStorageFence": 3,
         "OutOfMemory": 1,
@@ -2423,6 +2426,7 @@
         "Collector().<return>.reserve()": "<inferred>",
         "Collector().<return>.save()": "<inferred>",
         "Collector().<return>.start()": "<inferred>",
+        "Collector().<return>.startAtActivity()": "<inferred>",
         "Collector().<return>.step()": "<inferred>",
         "Collector().<return>.sweep()": "<inferred>",
         "Collector().<return>.trim()": "<inferred>"
@@ -2631,13 +2635,14 @@
         "open()": "<inferred>",
         "read()": "<inferred>",
         "record()": "<inferred>",
+        "recordTracked()": "<inferred>",
         "remove()": "<inferred>",
         "trim()": "<inferred>",
         "trimUnit()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
+        "try": 37,
         "catch": 2
       },
       "imports": [
@@ -2745,7 +2750,7 @@
         "HistoryReclaimed": 1,
         "IncompleteHistory": 1,
         "InvalidNativeAllocation": 1,
-        "InvalidStorageCollection": 8,
+        "InvalidStorageCollection": 9,
         "InvalidStorageGraph": 2,
         "NoStorageFence": 3,
         "StorageMaintenanceBudget": 1
@@ -2769,6 +2774,7 @@
         "save()": "<inferred>",
         "scopeKey()": "<inferred>",
         "start()": "<inferred>",
+        "startAtActivity()": "<inferred>",
         "step()": "<inferred>",
         "sweep()": "<inferred>",
         "trim()": "<inferred>"
@@ -5003,7 +5009,7 @@
     "packages/zig/transit-catalog/src/DirectTableResponse.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidTableResponse": 111
+        "InvalidTableResponse": 112
       },
       "outcomes": {},
       "error_sets": {},
@@ -5024,7 +5030,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 161,
-        "catch": 9
+        "catch": 10
       },
       "imports": [
         "root.zig",
@@ -13667,7 +13673,7 @@
           "deadline"
         ],
         "Definition": [
-          "c28797e8d36912bfca884567bf72256f7304e0e64ed278b90894d7e22b311914"
+          "ed98a1fb80bc80e2534856d1eea5caeae705df1bff8e0347aa20009c935f58de"
         ],
         "Effect.phase": [
           "pending",
@@ -14155,17 +14161,19 @@
     },
     "packages/zig/transit-protocol/src/Storage.zig": {
       "errors": {
-        "InvalidStorageBudget": 2
+        "InvalidStorageBudget": 4
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Archive.validate()": "<inferred>",
         "Flush.validate()": "<inferred>",
-        "Limits.validate()": "<inferred>"
+        "Limits.validate()": "<inferred>",
+        "Maintenance.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 0,
+        "try": 2,
         "catch": 0
       },
       "imports": [
@@ -26291,7 +26299,7 @@
       "errors": {
         "Canceled": 3,
         "CorruptWalFrame": 9,
-        "CorruptWalMetadata": 5,
+        "CorruptWalMetadata": 6,
         "FileNotFound": 4,
         "IncompatibleDefinition": 3,
         "InvalidWalDirectory": 11,
@@ -26303,7 +26311,7 @@
         "StaleWriterEpoch": 1,
         "TruncatedWalFrame": 2,
         "WalEpochRegression": 1,
-        "WalHistoryMissing": 9,
+        "WalHistoryMissing": 10,
         "WalHistoryTrimmed": 1,
         "WalInUse": 1,
         "WalLsnConflict": 1,
@@ -26317,6 +26325,7 @@
       "error_returns": {
         "append()": "<inferred>",
         "atomic()": "<inferred>",
+        "completeTrim()": "<inferred>",
         "continueTrim()": "<inferred>",
         "fence()": "<inferred>",
         "frame()": "<inferred>",
@@ -26341,7 +26350,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 87,
+        "try": 93,
         "catch": 20
       },
       "imports": [
@@ -26775,6 +26784,31 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/TableMaintenanceState.zig": {
+      "errors": {
+        "InvalidTableMaintenance": 14
+      },
+      "outcomes": {
+        "Action": [
+          "begin_archive",
+          "complete_archive",
+          "begin_compaction",
+          "skip_compaction",
+          "complete_compaction"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "transition()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": []
+    },
     "packages/zig/transit-storage/src/TableManifest.zig": {
       "errors": {
         "CorruptTableManifest": 1,
@@ -26819,24 +26853,25 @@
         "InvalidTableIdentity": 1,
         "InvalidTableInterpretation": 6,
         "InvalidTableKey": 3,
+        "InvalidTableMaintenance": 6,
         "InvalidTableOperation": 14,
         "InvalidTablePin": 9,
         "InvalidTableReadBudget": 3,
         "InvalidTableReceipt": 4,
-        "InvalidTableRowReference": 30,
+        "InvalidTableRowReference": 33,
         "InvalidTableSegment": 2,
         "InvalidTableSnapshotCursor": 8,
         "InvalidTableStatementIntent": 1,
         "LostAcknowledgement": 1,
         "MissingTableInterpretation": 2,
-        "OutOfMemory": 2,
+        "OutOfMemory": 3,
         "QueryConflict": 1,
         "QueryTypeError": 2,
         "StorageCandidateTooLarge": 1,
         "TableAlreadyExists": 1,
         "TableBatchTooLarge": 5,
         "TableBuildBudget": 2,
-        "TableCompactionBudget": 2,
+        "TableCompactionBudget": 3,
         "TableDataChanged": 6,
         "TableDefinitionChanged": 4,
         "TableHistoryConflict": 1,
@@ -26910,6 +26945,7 @@
         "applyStatement()": "<inferred>",
         "applyWithinBudget()": "<inferred>",
         "archive()": "<inferred>",
+        "archiveMaintenanceUnit()": "<inferred>",
         "archivedThrough()": "<inferred>",
         "buildFailure()": "anyerror",
         "cancel()": "<inferred>",
@@ -26919,6 +26955,9 @@
         "checkpoint()": "<inferred>",
         "compact()": "<inferred>",
         "compactBounded()": "<inferred>",
+        "compactionCandidate()": "<inferred>",
+        "compactionMaintenanceUnit()": "<inferred>",
+        "compactionSparse()": "<inferred>",
         "currentBasis()": "<inferred>",
         "expectations()": "<inferred>",
         "expireHistory()": "<inferred>",
@@ -26956,6 +26995,7 @@
         "pinState()": "<inferred>",
         "projectPhysicalRow()": "<inferred>",
         "publish()": "<inferred>",
+        "publishMaintenance()": "<inferred>",
         "publishSegmentRows()": "<inferred>",
         "rangeSnapshot()": "<inferred>",
         "readCurrent()": "<inferred>",
@@ -26973,6 +27013,7 @@
         "requireAdmissionBasis()": "<inferred>",
         "requireBasis()": "<inferred>",
         "requireHistoryRetentionTransition()": "<inferred>",
+        "requireMaintenanceProgress()": "<inferred>",
         "requirePin()": "<inferred>",
         "requireReceiptTransition()": "<inferred>",
         "requireTransition()": "<inferred>",
@@ -26982,6 +27023,7 @@
         "rewrite()": "<inferred>",
         "scan()": "<inferred>",
         "scanCurrent()": "<inferred>",
+        "scanDirectory()": "<inferred>",
         "scanHistory()": "<inferred>",
         "scanRetainedRoot()": "<inferred>",
         "scanRootColumns()": "<inferred>",
@@ -26992,6 +27034,7 @@
         "scope()": "<inferred>",
         "segmentDecision()": "<inferred>",
         "segmentKey()": "<inferred>",
+        "segmentScanStart()": "<inferred>",
         "stageReceipt()": "<inferred>",
         "stageSegment()": "<inferred>",
         "statementEncode()": "<inferred>",
@@ -27001,8 +27044,8 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 577,
-        "catch": 13
+        "try": 610,
+        "catch": 14
       },
       "imports": [
         "OrderedKeyIndex.zig",
@@ -27013,6 +27056,7 @@
         "TableEvidence.zig",
         "TableInterpretations.zig",
         "TableKeyRange.zig",
+        "TableMaintenanceState.zig",
         "TablePartitionRecord.zig",
         "TableRecovery.zig",
         "TableSnapshot.zig",
@@ -27059,6 +27103,8 @@
           "declaration",
           "operation",
           "checkpoint",
+          "compaction",
+          "maintenance",
           "archive",
           "recovery",
           "history_floor",
@@ -27088,12 +27134,13 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 20,
         "catch": 0
       },
       "imports": [
         "TableArchive.zig",
         "TableDeclaration.zig",
+        "TableMaintenanceState.zig",
         "TableRecovery.zig",
         "TransitLog.zig",
         "TreeStore.zig",

@@ -296,6 +296,23 @@ mandatory completeness flag; incomplete values are lower bounds. Row bytes are
 neither filesystem usage nor retained historical bytes. Inspection stages no
 objects, acquires no pin and starts no maintenance.
 
+The result also carries the exclusive `next_segment` identity and mandatory
+`maintenance` progress from that accepted Table root. `archive_source_lsn` and
+`compaction_source_lsn` identify the source activity eligible for physical work;
+`archived_source_lsn` and `compacted_source_lsn` identify completed activity.
+Nullable `archive_target` and `compaction_target` preserve fixed in-progress
+cuts, with their source position and respectively the exclusive WAL position or
+segment identity. A compaction target's mandatory `after_segment` records inputs
+deliberately retained by the selective pass; completion can leave dense or
+oversized inputs unchanged. An archive target additionally identifies the checkpoint
+position it requires once its archive is published. These fields follow the
+[accepted maintenance invariants](TRANSIT_STORAGE_V1.md) and are validated by the
+shared client. Equality of source and completed activity with a null target
+means no outstanding work in that class at this observation. It does not prove
+that archived WAL cleanup or object collection has completed, authorize history
+expiry, or promise when the next unit will run. These observations expose no
+filesystem path, object bytes or other Table's progress.
+
 `flush {object, through}` requires the Table's existing ALTER/ownership authority
 and executes at most one physical unit of 32 current WAL rows within the owner's
 allocation and request deadline. `through` is an explicit

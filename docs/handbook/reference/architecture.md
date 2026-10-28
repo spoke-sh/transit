@@ -99,10 +99,12 @@ Point data can remain in retained WAL records; bulk writes publish immutable
 `.tseg` objects before acceptance. Queries retain the original interpretation
 and data frontier, including accepted unflushed rows. Native resources use their
 own immutable page/block roots. Bounded result reads check current access before
-disclosure. Native physical collection follows explicit roots, storage epochs
-and read-lifetime fences. Direct Table physical collection and automatic point
-flushing are not exposed; quota pressure does not authorize expiry. See
-[storage](storage.md).
+disclosure. Local background work flushes eligible point rows, archives accepted
+Table history, publishes recovery checkpoints and compacts selected whole
+segments. Native and direct object collection follow complete retained graphs,
+storage epochs and read-lifetime fences under current maintenance authority.
+These operations preserve logical retention; quota pressure does not authorize
+expiry. See [storage](storage.md) for defaults, progress and collection boundaries.
 
 To eliminate the write amplification of nesting row records inside copy-on-write
 B-tree pages over HTTP streams and funneling bulk data through `128 KiB` actor

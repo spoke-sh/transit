@@ -44,22 +44,35 @@ counts and per-row positions preserve skipped-row coverage, LIMIT and ordered
 failure attribution. Empty pages can carry continuations. The owner rechecks
 current rights for selected, empty and terminal pages.
 
-The local server enables automatic flushing of current WAL rows by default.
+The local server enables automatic flushing, history archiving with recovery
+checkpoints, archived WAL cleanup and segment compaction by default.
 Its [storage configuration](configuration.md#immutable-storage) controls
 eligibility and per-turn work limits. Bare node deployments enable it explicitly.
 WAL acceptance remains the durability boundary; an INSERT does not wait for
-background flushing. Absence of a new `.tseg` after a point write does not imply
+background maintenance. Archive and compaction targets stay fixed across later
+writes and restart; their progress records do not trigger the same work forever.
+Compaction preserves logical change positions and retained rows. It merges small
+adjacent inputs or rewrites sparse ones that fit the work budget, without splitting
+healthy larger segments. Accepted skip progress survives restart. Absence of a new `.tseg` after a point write does not imply
 that the write is missing. The signed direct `storage` operation reports exact
 acceptance and logical-change positions, bounded current WAL backlog and separate
 archive, recovery-checkpoint and history frontiers. Incomplete backlog counts
 are labelled as lower bounds. Historical readers can still retain WAL bytes
 after current rows have moved to segments.
 
+The same authorized observation reports fixed archive and compaction targets,
+their eligible source activity and completed activity. A null target with equal
+source/completed frontiers means that class has caught up at the observed root.
+A compaction pass can retain dense or oversized inputs; its `after_segment`
+cursor records those considered inputs, not a logical data or retention frontier.
+It establishes neither physical WAL deletion nor object collection completion;
+those retain their separate recovery and reader-lifetime conditions.
+
 The direct `flush` operation executes one bounded unit at an explicit saved
 acceptance cut. Its completion condition excludes later writes; repeating the
 same target after uncertainty resolves accepted physical coverage. Inspection
-does not initiate work. Automatic physical Table garbage collection remains a
-separate integration obligation. The [Table reference](tables.md) and
+does not initiate work. Automatic physical object collection separately checks
+retained roots, epoch fences and read-lifetime grace. The [Table reference](tables.md) and
 [direct owner guide](../../../packages/zig/transit-catalog/docs/direct-catalog.md)
 describe the caller operations; native resource storage below has a separate
 acceptance and maintenance boundary.
@@ -171,10 +184,10 @@ These quotas measure reserved encoded segment bytes; provider metadata, work
 ledgers, snapshots, WAL and filesystem headroom have separate costs.
 
 The local CLI profile composes the native log and object store inside the node.
-Lifecycle maintenance and accepted-floor trimming run in that owner; local
-automatic immutable-object collection is not scheduled. The local backend exposes
-[native collection and bounded compaction](../../../packages/zig/transit-backend-local/docs/maintenance.md)
-as explicit component operations. They preserve native history and captures,
+Lifecycle maintenance, accepted-floor trimming and automatic native/direct
+immutable-object collection run in that owner. The backend's
+[collection operations](../../../packages/zig/transit-backend-local/docs/maintenance.md)
+preserve native history and captures,
 reject old creators by accepted epoch, and resume physical object deletion from
 a durable intent. Direct Table and catalog guards also retain the epoch acquired
 before staging: an intervening storage fence rejects publication, while a fresh

@@ -22,6 +22,11 @@ are not an application metadata or maintenance request endpoint.
 Public `storage` and `flush` actions use the same signed direct client and
 catalog permission checks. Inspection reports bounded current WAL backlog and
 separate accepted, logical-change, archive, checkpoint and history frontiers.
+It also reports fixed archive/compaction targets and completed source activity
+from the same accepted root, so callers can distinguish eligible work, an active
+pass and a caught-up class without inferring completion from elapsed time.
+The compaction target's `after_segment` records skipped inputs; a completed pass
+can retain dense or oversized segments under its work budgets.
 Explicit flush executes one unit at a saved exclusive acceptance cut; repeating
 that cut recovers physical coverage without creating a separate work queue or
 logical mutation. See the [storage action contract](../../../../contracts/DIRECT_TABLE_V1.md#physical-storage-observations-and-fixed-flush-targets)

@@ -11,6 +11,7 @@ const Fault = struct {
     var point: []const u8 = "none";
     var sync_count: usize = 0;
     var delete_count: usize = 0;
+    var publish_count: usize = 0;
 
     fn stop() noreturn {
         std.Io.File.stdout().writeStreamingAll(real, "{\"stopped\":true}\n") catch std.process.exit(91);
@@ -40,7 +41,8 @@ const Fault = struct {
     }
     fn rename(context: ?*anyopaque, old: std.Io.Dir, from: []const u8, new: std.Io.Dir, to: []const u8) std.Io.Dir.RenameError!void {
         try real.vtable.dirRename(context, old, from, new, to);
-        if (std.mem.eql(u8, point, "publish")) stop();
+        publish_count += 1;
+        if (std.mem.eql(u8, point, "publish") or numbered("publish", publish_count)) stop();
     }
     fn delete(context: ?*anyopaque, dir: std.Io.Dir, name: []const u8) std.Io.Dir.DeleteFileError!void {
         try real.vtable.dirDeleteFile(context, dir, name);
@@ -54,6 +56,7 @@ const Fault = struct {
         point = selected;
         sync_count = 0;
         delete_count = 0;
+        publish_count = 0;
     }
     fn acknowledged() void {
         if (std.mem.eql(u8, point, "ack")) stop();
@@ -220,7 +223,7 @@ fn table(init: std.process.Init, io: std.Io, directory: []const u8, operation: [
         _ = try owner.apply(second, &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 2, .ordinal = 0 }, .cells = &.{.{ .value = .{ .atom = .{ .signed = 2 } } }} } } }}, ingestion, access.guard());
         return emit(init, .{ .tail = owner.root.next_lsn });
     }
-    if (std.mem.eql(u8, operation, "inspect") or std.mem.eql(u8, operation, "compact-inspect") or std.mem.eql(u8, operation, "checkpoint-inspect")) {
+    if (std.mem.eql(u8, operation, "inspect") or std.mem.eql(u8, operation, "compact-inspect") or std.mem.eql(u8, operation, "checkpoint-inspect") or std.mem.eql(u8, operation, "maintenance-inspect") or std.mem.eql(u8, operation, "archive-maintenance-inspect")) {
         const receipt = (try owner.observe(first, access.guard())).?;
         const pin = (try owner.pinState(pin_owner, access.guard())).handle.?;
         var page = try owner.scanSnapshot(init.gpa, pin, null, .{}, access.guard());
@@ -237,11 +240,21 @@ fn table(init: std.process.Init, io: std.Io, directory: []const u8, operation: [
             value.* = row.row().cells[0].value.atom.signed;
         }
         if (std.mem.eql(u8, operation, "checkpoint-inspect")) return emit(init, .{ .archived = owner.root.archive.through, .tail = owner.root.next_lsn, .rows = owner.root.live_rows, .pinned = page.rows[0].?.row().cells[0].value.atom.signed, .receipt = receipt.position.next_lsn, .history = history.count, .current = current, .checkpoint = owner.recovery_work.checkpoint_lsn, .replayed = owner.recovery_work.replayed_frames });
+        if (std.mem.eql(u8, operation, "maintenance-inspect")) return emit(init, .{ .archived = owner.root.archive.through, .tail = owner.root.next_lsn, .rows = owner.root.live_rows, .pinned = page.rows[0].?.row().cells[0].value.atom.signed, .receipt = receipt.position.next_lsn, .history = history.count, .current = current, .next_segment = owner.root.next_segment, .target = owner.root.maintenance.compaction_target, .completed = owner.root.maintenance.compacted_source_lsn });
+        if (std.mem.eql(u8, operation, "archive-maintenance-inspect")) return emit(init, .{ .archived = owner.root.archive.through, .tail = owner.root.next_lsn, .rows = owner.root.live_rows, .pinned = page.rows[0].?.row().cells[0].value.atom.signed, .receipt = receipt.position.next_lsn, .history = history.count, .current = current, .next_segment = owner.root.next_segment, .target = owner.root.maintenance.archive_target, .completed = owner.root.maintenance.archived_source_lsn, .checkpoint = owner.recovery_work.checkpoint_lsn });
         return emit(init, .{ .archived = owner.root.archive.through, .tail = owner.root.next_lsn, .rows = owner.root.live_rows, .pinned = page.rows[0].?.row().cells[0].value.atom.signed, .receipt = receipt.position.next_lsn, .history = history.count, .current = current, .next_segment = owner.root.next_segment });
     }
     access.calls = 0;
     Fault.arm(point);
-    if (std.mem.eql(u8, operation, "checkpoint")) {
+    if (std.mem.eql(u8, operation, "maintenance")) {
+        const worked = try owner.compactionMaintenanceUnit(.{ .rows = 1 }, access.guard());
+        Fault.acknowledged();
+        return emit(init, .{ .worked = worked, .tail = owner.root.next_lsn });
+    } else if (std.mem.eql(u8, operation, "archive-maintenance")) {
+        const worked = try owner.archiveMaintenanceUnit(.{}, access.guard());
+        Fault.acknowledged();
+        return emit(init, .{ .worked = worked, .tail = owner.root.next_lsn });
+    } else if (std.mem.eql(u8, operation, "checkpoint")) {
         const reference = try owner.checkpoint(.{ .partition = 17, .next_lsn = 3 }, access.guard());
         Fault.acknowledged();
         return emit(init, .{ .checkpoint = reference.next_lsn, .tail = owner.root.next_lsn });

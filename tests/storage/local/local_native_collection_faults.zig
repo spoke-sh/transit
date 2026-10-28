@@ -112,8 +112,9 @@ fn run(init: std.process.Init, args: []const []const u8, comptime direct: bool) 
             try pages.finish();
             break :blk staged;
         };
+        const activity = if (direct) (try owner.data_allocations.current()).source_activity else (try owner.allocations.current()).source_activity;
         const fence = try submit(&engine, .{ .storage_fence = {} });
-        try collector.start(&engine, fence);
+        try collector.startAtActivity(&engine, fence, activity);
         for (0..2000) |_| {
             if ((try collector.current()).?.phase == .wait) break;
             if (!try collector.step(&engine, .{ .unix_ms = now })) return error.UnexpectedWait;
@@ -135,7 +136,7 @@ fn run(init: std.process.Init, args: []const []const u8, comptime direct: bool) 
         var name: [96]u8 = undefined;
         const hash = std.fmt.bytesToHex(pending.meta.sha256, .lower);
         const allocation_name = pending.name();
-        return emit(init, .{ .key = if (direct) pending.object_key.slice() else try pending.key(&name), .digest = @as([]const u8, &hash), .allocation = @as([]const u8, &allocation_name), .position = engine.head.position, .previous_reclaimed = (try collector.current()).?.reclaimed_objects });
+        return emit(init, .{ .key = if (direct) pending.object_key.slice() else try pending.key(&name), .digest = @as([]const u8, &hash), .allocation = @as([]const u8, &allocation_name), .position = engine.head.position, .previous_reclaimed = (try collector.current()).?.reclaimed_objects, .source_activity = activity });
     }
     if (std.mem.eql(u8, args[2], "delete")) {
         if ((try collector.current()).?.phase != .deleting) return error.MissingIntent;
@@ -163,5 +164,5 @@ fn run(init: std.process.Init, args: []const []const u8, comptime direct: bool) 
         if (!std.meta.eql(outcome, repeated)) return error.ChangedOriginalReceipt;
         if (try owner.objects.objectStore().head("table-segments/unaccepted.tseg") != null) return error.OrphanNotCollected;
     }
-    try emit(init, .{ .position = engine.head.position, .phase = state.phase, .reclaimed = state.reclaimed_objects });
+    try emit(init, .{ .position = engine.head.position, .phase = state.phase, .reclaimed = state.reclaimed_objects, .source_activity = state.source_activity });
 }

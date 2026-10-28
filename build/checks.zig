@@ -1281,7 +1281,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_table_maintenance.addArg("maintenance");
     direct_table_maintenance.has_side_effects = true;
     direct_table_maintenance.stdio = .inherit;
-    b.step("test-direct-table-maintenance", "Prove automatic bounded Table flushing and original pins on physical disk").dependOn(&direct_table_maintenance.step);
+    b.step("test-direct-table-maintenance", "Prove automatic Table maintenance, restart and retained pins on physical disk").dependOn(&direct_table_maintenance.step);
     const direct_callers = b.addSystemCommand(&.{ "python3", "-B" });
     direct_callers.addFileArg(b.path("tests/runner/launch.py"));
     direct_callers.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));

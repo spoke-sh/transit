@@ -6,6 +6,8 @@ const telemetry = @import("transit_observability").telemetry;
 const server = @import("NativeServer.zig");
 const Maintenance = @import("GrowingMaintenance.zig");
 const TableMaintenance = @import("LocalTableMaintenance.zig");
+const Collection = @import("LocalCollection.zig");
+pub const CollectionCursor = Collection.Cursor;
 pub const TableHost = @import("LocalTableHost.zig");
 const Self = @This();
 pub const Store = backend.Store;
@@ -32,10 +34,10 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     defer parsed.deinit();
     const config = parsed.value;
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
-    try config.storage.maintenance.flush.validate();
-    if (config.storage.maintenance.flush.enabled and (config.table == null or config.maintenance == null)) return error.LocalTableMaintenanceRequiresOwner;
+    try config.storage.maintenance.validate();
+    const physical = config.storage.maintenance;
+    if ((physical.flush.enabled or physical.archive.enabled or physical.compact) and (config.table == null or config.maintenance == null)) return error.LocalTableMaintenanceRequiresOwner;
     if (mode.maintain) return error.LocalMaintenanceRequiresOwner;
-    if (config.storage.maintenance.compact) return error.LocalCompactionUnavailable;
     var reopens: u8 = 0;
     while (true) {
         runOwner(init, config, .{
@@ -117,7 +119,7 @@ fn runServices(init: std.process.Init, engine: *Engine, lanes: []Lane, config: C
             return Maintenance.run(Self, process, owned, settings, runtime, extension);
         }
         fn maintainTable(raw: *anyopaque, owned: *Engine, settings: Maintenance.Config, signed: core.protocol.Growth.SignedRequest) anyerror!bool {
-            return TableMaintenance.step(raw, owned, settings.storage.flush, signed);
+            return TableMaintenance.step(raw, owned, settings.storage, signed);
         }
         fn serve(process: std.process.Init, authority: *Engine, requests: []Lane, settings: Config, runtime: *telemetry.Runtime) anyerror!void {
             return server.Host(Self).serve(process, authority, requests, settings, runtime);
@@ -182,10 +184,8 @@ pub fn maintain(engine: *Engine, authorized: core.growing.Head) !bool {
     return (try engine.journal.maintainUnit(authorized)).complete;
 }
 
-pub fn collect(_: *Engine, _: Maintenance.Config, _: core.Ed25519.KeyPair, _: *core.protocol.Growth.Request) !bool {
-    // The backend exposes explicit native collection; this runtime does not
-    // schedule it. Logical lifecycle progress is not physical reclamation.
-    return false;
+pub fn collect(engine: *Engine, config: Maintenance.Config, key: core.Ed25519.KeyPair, request: *core.protocol.Growth.Request, cursor: *CollectionCursor) !bool {
+    return Collection.step(cursor, engine, config, key, request);
 }
 
 pub fn reclaimPayload(engine: *Engine, value: core.protocol.Growth.Payload, signed: core.protocol.Growth.SignedRequest) !void {

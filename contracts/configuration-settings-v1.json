@@ -1,5 +1,5 @@
 {
-  "definition": "c28797e8d36912bfca884567bf72256f7304e0e64ed278b90894d7e22b311914",
+  "definition": "ed98a1fb80bc80e2534856d1eea5caeae705df1bff8e0347aa20009c935f58de",
   "settings": [
     {
       "name": "version",
@@ -204,17 +204,81 @@
     },
     {
       "name": "storage.maintenance.compact",
-      "description": "Relocate current state before collection; retained history still owns old roots",
+      "description": "Schedule bounded direct Table segment compaction; retained history still owns old roots",
       "owner": "node",
       "kind": "boolean",
       "scope": "component",
       "change": "restart",
-      "default_json": "false",
+      "default_json": "true",
       "session_mutable": false,
       "nullable": false,
       "sensitive": false,
       "minimum": 0,
       "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.maintenance.compaction_rows",
+      "description": "Maximum live segment rows relocated in one compaction unit",
+      "owner": "node",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "32",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 1024,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.maintenance.resident_bytes",
+      "description": "Shared private Table maintenance workspace including catalog, indexes, caches and encoder",
+      "owner": "node",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "134217728",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 33554432,
+      "maximum": 536870912,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.maintenance.archive.enabled",
+      "description": "Schedule bounded Table history archive, recovery checkpoints and archived WAL cleanup",
+      "owner": "node",
+      "kind": "boolean",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "true",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.maintenance.archive.work_frames",
+      "description": "Maximum accepted Table frames copied in one archive unit",
+      "owner": "node",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "4",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 8,
       "values": [],
       "items_schema": null
     },
@@ -295,22 +359,6 @@
       "sensitive": false,
       "minimum": 1,
       "maximum": 60000,
-      "values": [],
-      "items_schema": null
-    },
-    {
-      "name": "storage.maintenance.flush.resident_bytes",
-      "description": "Aggregate private Table maintenance workspace including catalog, indexes, caches and encoder",
-      "owner": "node",
-      "kind": "bytes",
-      "scope": "component",
-      "change": "restart",
-      "default_json": "134217728",
-      "session_mutable": false,
-      "nullable": false,
-      "sensitive": false,
-      "minimum": 33554432,
-      "maximum": 536870912,
       "values": [],
       "items_schema": null
     },
@@ -1205,10 +1253,58 @@
               },
               "compact": {
                 "type": "boolean",
-                "description": "Relocate current state before collection; retained history still owns old roots",
+                "description": "Schedule bounded direct Table segment compaction; retained history still owns old roots",
                 "x-transit-owner": "node",
                 "x-transit-change": "restart",
-                "default": false
+                "default": true
+              },
+              "compaction_rows": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1024,
+                "description": "Maximum live segment rows relocated in one compaction unit",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 32
+              },
+              "resident_bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 33554432,
+                    "maximum": 536870912
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+                  }
+                ],
+                "description": "Shared private Table maintenance workspace including catalog, indexes, caches and encoder",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 134217728
+              },
+              "archive": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Schedule bounded Table history archive, recovery checkpoints and archived WAL cleanup",
+                    "x-transit-owner": "node",
+                    "x-transit-change": "restart",
+                    "default": true
+                  },
+                  "work_frames": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8,
+                    "description": "Maximum accepted Table frames copied in one archive unit",
+                    "x-transit-owner": "node",
+                    "x-transit-change": "restart",
+                    "default": 4
+                  }
+                }
               },
               "flush": {
                 "type": "object",
@@ -1272,23 +1368,6 @@
                     "x-transit-owner": "node",
                     "x-transit-change": "restart",
                     "default": 5000
-                  },
-                  "resident_bytes": {
-                    "anyOf": [
-                      {
-                        "type": "integer",
-                        "minimum": 33554432,
-                        "maximum": 536870912
-                      },
-                      {
-                        "type": "string",
-                        "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
-                      }
-                    ],
-                    "description": "Aggregate private Table maintenance workspace including catalog, indexes, caches and encoder",
-                    "x-transit-owner": "node",
-                    "x-transit-change": "restart",
-                    "default": 134217728
                   }
                 }
               }

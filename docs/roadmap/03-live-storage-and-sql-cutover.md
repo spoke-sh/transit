@@ -117,7 +117,7 @@ logical expiry needs explicit policy; deletion additionally needs a complete
 retained graph and read-lifetime fences. These are separate transitions.
 Automatic computation activation stays in
 [milestone 10](10-sql-and-dataflows.md), distributed providers/writers in
-[15](18-storage-providers-and-concurrency.md), and general cache/index/group-commit
+[18](18-storage-providers-and-concurrency.md), and general cache/index/group-commit
 optimization in [11](11-data-structures-and-performance.md).
 
 The existing [SQL session contract](../../contracts/SQL_SESSION_V1.md) remains
@@ -126,6 +126,35 @@ bounded consumption needed for this cutover, but leave the new shared
 `StatementResult`/result reader and console presentation to milestone 4.
 Multi-object transactions, global snapshot atomicity, new SDK families and a
 Board redesign are outside this plan.
+
+**D5 — Decouple SQL here; retain private Station turns until their transactional
+replacement (scope reconciliation after PRs #196 and #197).** The
+[database/runtime separation](https://github.com/spoke-sh/transit/pull/196)
+assigns declarative Streams/Queues and the Station rebuild to
+[milestone 6](06-streams-queues-and-durable-runtime.md). The subsequent
+[sequencing refinement](https://github.com/spoke-sh/transit/pull/197) pulls SQL
+account-ledger and read-pin replacement forward into this milestone's P5,
+before the [transaction coordinator](05-transactions-and-atomic-composition.md).
+General catalog Tables already use the direct owner; remaining private Station
+Tables and SQL coordination still have callers and accepted-work obligations.
+The current progress PR delivers maintenance and recovery qualification; the
+SQL decoupling bridge remains unfinished work for this milestone.
+
+| Existing requirement | Work retained here | Replacement owner |
+| --- | --- | --- |
+| P1.5 private Station Tables | Audit callers and ownership, remove unused adapters, preserve current native atomic-turn recovery and document the remaining boundary | Milestone 6 migrates private Table/Query APIs, SDKs, examples and inspection records together onto declared data and transaction-backed turns |
+| P5 SQL admission and read pins | Replace `AccountRuntime`, `Ledger`, `Coordinator` and per-query durable `ReadPins` with database-owned idempotency, snapshot cuts and lease fencing; preserve original outcomes and qualify matched costs | Milestone 6 Step 1 is pulled forward into this milestone's P5 bridge, before milestone 5 coordinator implementation |
+| P5.4 query-host/courier waiting | Preserve current wakeup, cancellation, fencing and shutdown behavior in affected installed checks; record remaining idle overhead | Milestone 6 replaces the polling runtime with Queue lease consumption and transactional outboxes; do not build a new scheduler around the superseded runtime here |
+
+Do not replace an atomic private Table turn with a direct Table write followed
+by a native turn: those are separate decisions until the transaction owner
+qualifies composition. Do not optimize old Table staging, SQL-text fragmentation
+or courier throughput as a substitute for the planned cutover. P1.4's current
+resource/recovery matrix, P4's safe maintenance, P5's SQL decoupling, direct
+storage cost and lifetime gates, P6 inspection and P8 common-revision
+qualification remain here.
+The measured SQL timeouts remain failures; moving the architectural replacement
+does not turn them into successful latency samples or complete this milestone.
 
 ### Delivery sequence and reviewable changes
 
@@ -200,12 +229,12 @@ incomplete-prefix and original-operation recovery rules while evolving that
 contract. Coordinate any shared-definition replacement and regenerated resources
 across the two branches; neither branch may retain a parallel legacy definition.
 
-Remaining work here includes P0's baseline diagnosis, P1.4's broader resource
-matrix, P1.5's retained Station Table boundary and cleanup, P4's automatic
-archive/checkpoint/compaction/collection, P5's measured
-reader/recovery reuse and waiting, P6's storage views and P8's
-full common-revision qualification. Unfinished bounded WAL cleanup is a follow-up
-to the early PR. Coordinate P5 reader lifetime and P6 SQL inspection changes with
+Remaining work here includes P0's baseline diagnosis, P1.5's current caller
+qualification, P4's aggregate resource/retention/failure matrix, P5's measured
+direct reader/recovery reuse and SQL decoupling bridge, P6's storage views and P8's full common-revision
+qualification. The installed resource matrix and automatic maintenance scheduling
+are delivered below; D5 assigns the Station replacement to milestone 6.
+Coordinate P5 reader lifetime and P6 SQL inspection changes with
 the statement-result owner instead of editing its result lifecycle independently.
 
 #### P0 — Freeze the contracts and baseline
@@ -326,7 +355,7 @@ Owners: [Local](../../apps/transit-node/Local.zig),
   opted-in reclamation. Reuse the component's one-attempt marker and reserved
   namespace; do not repeat a PUT merely because its reply or bytes are missing.
   Define any missing service boundary before implementing its adapters.
-- [ ] P1.4 Exercise named KV/Document provisioning, native input/state/output,
+- [x] P1.4 Exercise named KV/Document provisioning, native input/state/output,
   captured blocks and effect records in the installed local profile after owner
   replacement. Replay dispatches no external effect. Keep the existing native
   one-KV-resource turn boundary and direct Table acceptance separate.
@@ -335,14 +364,16 @@ Owners: [Local](../../apps/transit-node/Local.zig),
   role are removed, but `TableCreation`, `TableWrite`, `TableStatement`,
   `TableReader`, `TableData` and `TablePages` still implement application-private
   Tables within native turns, including through `TableBridge` SDK bindings.
-  Inventory actual consumers, remove obsolete query/cache adapters, and specify
-  migration/removal of superseded Table storage and caller surfaces. Catalog
+  Inventory actual consumers, remove obsolete query/cache adapters, and hand off
+  migration/removal of superseded Table storage and caller surfaces to milestone
+  6 under D5. Catalog
   Tables must have one direct data owner. Any retained application-private KV
   helper needs an explicit application-state purpose and must not become another
   general Table engine. Preserve or explicitly replace the existing atomic
   turn/input/output contract before migrating callers; two separate commits
-  cannot silently replace one atomic turn. Move affected contracts, SDKs,
-  examples, tests and documentation together under the current-v1 policy.
+  cannot silently replace one atomic turn. The milestone 6 replacement must move
+  affected contracts, SDKs, examples, tests and documentation together under the
+  current-v1 policy; this milestone preserves their current installed behavior.
 
 **Gate:** deterministic recovery-required injection completes the original
 bootstrap request exactly once, the complete launcher schedule passes, payload
@@ -379,6 +410,48 @@ and namespace lifecycle, stopped application workers, stale preparations,
 dependency protection, abrupt owner restart and original outcomes after name
 reuse. The earlier bootstrap failure remains recorded; a later successful run
 does not establish its cause.
+
+The obsolete Station Table index cache in `transit-query.Interactive` and its
+unused `TableAuthority.Source.tableIndexCache` forwarding method are removed.
+The general query path no longer reserves eight native Table index-node buffers
+per interactive reader. Twelve selected query checks pass, including KV and
+Document source semantics and current Table caller authentication. This removes
+an unused adapter only: the active private-turn `TableBridge` and its SDK
+consumers still require P1.5's atomicity-preserving migration or removal.
+
+The retained caller audit identifies the following migration units for
+[milestone 6](06-streams-queues-and-durable-runtime.md#inherited-station-cutover-obligations).
+These remain active interfaces, not aliases for the direct catalog:
+
+| Owner | Retained callers and obligation |
+| --- | --- |
+| [Station exports](../../packages/zig/transit-station/src/root.zig) | `TableCreation`, `TableWrite`, `TableStatement`, `TableReader`, `TableData`, `TableCandidate`, `TablePages`, head/history/change records, ALTER and cleanup implement private KV-backed Tables. Replace the family together; keep unrelated native KV/Document behavior intact until its own replacement. |
+| [Private query capture](../../packages/zig/transit-station/src/Query.zig) | Captures through `TableReader` under native read versions and stores result progress/fragments in bounded turns. Rebind source retention, capture/publication and result cleanup explicitly; removing the Table reader alone breaks this caller. |
+| [Foreign turn actions](../../packages/zig/transit-station-bindings/src/GrowingActions.zig) and [Table bridge](../../packages/zig/transit-station-bindings/src/TableBridge.zig) | Public `turn.table`, creation/mutation, retained-source Table reads and query actions feed the language SDKs. The direct catalog's `DirectTableBridge` is a different owner and must remain. |
+| [SDK examples](../../examples/station-sdk/README.md) and [installed consumers](../../tests/sdk/README.md) | Table services persist input/queue progress, then stage mutations and outcomes through private turns. Migrate their exact retry, retained-version and output assertions to the transaction-backed replacement; do not simply delete conformance coverage. |
+| [Station metadata](../../packages/zig/transit-station/src/Metadata.zig) | Decodes private `TableHead` records for inspection. Move reflected metadata, bindings and Board interpretation with the stored-format cutover, preserving current read-only access. |
+| [Private query schedule](../../tests/query/execution/growing_query.zig) and [Station Table tests](../../packages/zig/transit-station/src/table_pages_test.zig) | Preserve source/cursor identity, retained values, finite staging, atomic publication, crash/retry and current-authorization assertions in identified replacement checks before retiring the old fixtures. |
+
+The general [query Table reader](../../packages/zig/transit-query/src/DirectTableScan.zig)
+already uses `DirectTableReader`; matching the word `Table` does not identify an
+actor-backed storage dependency. SQL account coordination is a separate,
+explicit D5 handoff even though its eventual target writes already use the
+direct Table owner. P1.5's final acceptance still requires the affected current
+caller qualification, rather than treating this inventory as executed evidence.
+
+The physical-disk `just test local-owner-recovery` schedule also loses the
+native journal sync acknowledgment for an atomic turn that changes one KV
+resource and immutable block, retains the previous read version, consumes its
+input, and records output/effect intents. Exact retry after in-process owner
+replacement and another process restart preserves one receipt, both block
+versions, two consumed inputs and one still-pending output/effect pair. The
+existing allocation-queue fault and three-reopen-budget checks also pass. This
+qualifies native acceptance and replay, not connector dispatch. The current
+`ed98a1fb` resource matrix additionally passes named provisioning/dependency
+faults, all 139 KV/Document resources and original receipts after SIGKILL, and
+the Document worker/node crash schedule with a one-page recovery cache.
+[Source-attributed execution and limits](../history/qualification/storage.md#installed-named-resources-and-native-owner-recovery--2026-10-27)
+close P1.4; complete SDK and final clean qualification remain P8 work.
 
 #### P2 — Make point flushing automatic and inspectable
 
@@ -518,10 +591,14 @@ local node composition, `TablePartition`,
 [DirectStorageGraph](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig)
 and the backend's native/direct/payload maintenance owners.
 
-- [ ] P4.1 Extend the live scheduler with independently bounded work classes
+- [x] P4.1 Extend the live scheduler with independently bounded work classes
   for Table archive/recovery checkpoints/compaction and native/direct collection.
   Resume accepted progress after restart, including an unfinished collection;
-  do not start a replacement pass over an incomplete durable one.
+  do not start a replacement pass over an incomplete durable one. Record source
+  allocation activity separately from collection's own mark pages, retained-item
+  carries and FIFO progress. Persist the activity covered by a completed pass so
+  bookkeeping cannot trigger collection forever. Finish physical inventory WAL
+  cleanup before starting another eligible pass.
 - [ ] P4.2 Separate archive coverage, recovery checkpoint, physical WAL trim,
   explicit logical expiry and object deletion. Bind each to its current
   authority and exact roots. Unlimited history must still be queryable after
@@ -534,6 +611,12 @@ and the backend's native/direct/payload maintenance owners.
   maintenance memory. Test aggregate budgets across many Tables and foreground
   readers, not just each component's allocator. Back off failures without a busy
   retry loop or permission bypass; retain enough control reserve to recover.
+  Qualify compaction eligibility and total bytes rewritten for packed segments,
+  sparse updates and deletes. Select useful compaction work through bounded
+  metadata inspection before relocating rows, preserve restartable progress
+  over skipped candidates, and measure foreground latency and segment/write
+  amplification. This is local
+  storage maintenance scope; broader indexes and group commit remain deferred.
 - [ ] P4.5 Exercise process death at accepted archive/checkpoint/flush/compaction
   and delete-progress boundaries, racing policy changes, pin release, new
   allocation/reuse, corrupt metadata, clock failure and injected I/O/quota errors.
@@ -565,6 +648,95 @@ selected backend checks pass bounded native trimming and reopen. Automatic
 archive/checkpoint/compaction and collection remain unfinished; these scheduler
 and backend results do not close P4.1 or the aggregate resource gate.
 
+The Table component now records bounded archive and compaction targets in each
+accepted Table root. Archive work captures an exclusive physical cut and the
+foreground/relocation activity that triggered it. Completion requires accepted
+archive coverage and a recovery checkpoint covering that archive publication.
+Compaction captures an exclusive segment boundary and its original source
+activity. Later writes leave both targets fixed. Separate completed activity
+frontiers prevent archive/checkpoint bookkeeping and compaction output from
+restarting the same work forever. These scalar fields add no independent queue,
+visibility decision or retention authority. The shared current-v1 definition is
+replaced by `ef7cde665365ee22944e7e6161c32748ec7afbecaaa5dc4e25e4d40ecd47db62`,
+after integrating the binary SQL result contract from main, with regenerated
+contracts, bindings and independent signing/encoding fixtures.
+The four selected package checks pass disk reopen after every unit, lost replies,
+late writes, exact current/pinned rows, retirement and fabricated-completion
+rejection. All 18 contract checks pass. Live scheduler cursors, installed process
+death/convergence and aggregate resource qualification remain open; these
+component results do not close P4.
+
+The local owner now rotates separate flush, archive/checkpoint, archived WAL trim
+and compaction cursors under one private workspace budget. `transit server`
+enables these classes by default. The WAL persists completed physical cleanup
+separately from its authorized trim floor, avoiding repeated cleanup after
+rotating requests, descriptor eviction or restart. This configuration and WAL
+layout use shared definition
+`8ff47b20d7761074cdb7c086959a7d205b304477cee8f5d910f9502ab6717675`,
+including the merged binary SQL result semantics. Six selected WAL checks cover
+bounded work, convergence across 17 partitions, retained suffixes and uncertain
+completion publication; 18 contract checks, 14 SQL client checks, 14 SQL protocol
+checks and 40 fast checks pass. The five-test disk node aggregate passes: four
+Tables settle in 215 units with 33,575,190 peak private bytes, preserving logical
+positions, receipts and retained rows. Its later graph collection verifies 122
+reclaimed allocations. All 101 storage SIGKILL schedules pass, including cleanup
+completion metadata publication and sync. These results qualify this shared
+definition; they do not establish the installed maintenance or aggregate P4 gates.
+
+The live executor now also schedules native and direct object collection with
+independent cursors. Each persisted allocation FIFO counts source activity
+separately from mark pages, retained-item carries and fence bookkeeping. The
+scheduler captures that activity before accepting the collection fence, so later
+allocations remain eligible for another pass. An unfinished pass resumes before
+a new one starts, and completed passes drain bounded FIFO cleanup before idling.
+Current maintenance authority, retained roots, creator epochs and the six-minute
+reader grace continue to own deletion decisions. This stored-format cutover uses
+shared definition
+`068aa25ef2626855f313426665bc773ee43efd5e6260183a03753cc368497271`.
+All 54 backend checks pass, including the four selected activity checks, eight
+deletion sync failures and 35 marking sync failures. The 18 contract checks and
+40 fast checks also pass.
+The six-test disk node aggregate also passes: automatic collection survives
+revocation and reopen, removes both native and direct orphans, and settles after
+162 units without further fences or progress writes across repeated idle checks.
+The same aggregate retains the Table maintenance and retained-graph assertions
+above; the production node builds. Installed process-death/convergence,
+foreground contention and aggregate resource qualification remain open. These
+results do not close P4.
+
+At shared definition `fe92bb37f7e18a8f4cf00b60ad7d21198b130a623376d87ee92a0bd6108cd388`,
+the real-node `just test direct-table-maintenance` schedule passes on physical
+disk. Three competing Tables flush 258 WAL rows into ten segments, then settle
+archive/checkpoint and compaction after SIGKILL during accepted work. With those
+classes disabled immediately after reopen, inspection verifies that each
+interrupted target either survives unchanged or has recorded completion. Original
+WAL, post-flush and post-compaction snapshots survive another restart. Repeated
+inspection observes no further Table publications after the fixed targets finish.
+Flush convergence takes 10.344 seconds; archive/compaction convergence and row
+verification take 38.233 seconds on this host. These are workload observations,
+not latency guarantees. Together with the six runtime checks and collection
+fault schedules, this closes P4.1's scheduling/restart scope. This installed
+Table schedule uses no trusted expiry clock; the runtime's controlled-clock
+collection checks remain distinct from installed reader-grace qualification.
+The aggregate resource and broader failure/retention matrix remain open.
+The full storage package also passes all 134 tests in `ReleaseSafe` at
+`960791aef`, covering the current WAL cleanup and Table maintenance formats.
+
+Selective compaction is delivered at `1b826f09f` under shared definition
+`ed98a1fb80bc80e2534856d1eea5caeae705df1bff8e0347aa20009c935f58de`.
+Automatic units retain packed/oversized inputs, rewrite whole sparse inputs or
+merge two whole adjacent inputs that fit their budgets. Accepted skip progress
+survives restart and cannot jump over an unexamined live segment. Ten focused
+storage checks, four selected response checks, 18 contract checks and 40 fast
+checks pass. The installed physical-disk schedule retains all ten original
+segments byte-for-byte through SIGKILL, convergence and three generations of
+retained reads. The [qualification account](../history/qualification/storage.md#selective-automatic-table-compaction--2026-10-27)
+records the controls, timings and limits. This closes the known healthy-segment
+rewrite/splitting flaw. At `e9aee40c9`, all 149 local storage SIGKILL schedules
+pass, including 48 new automatic archive/compaction target and skip-progress
+publication cases. Aggregate contention, matched foreground latency and the
+broader failure/retention matrix still keep P4.4 and P4.5 open.
+
 #### P5 — Qualify and reduce the remaining live read and wait costs
 
 Owners: local Table service/catalog, direct query readers, shared SQL service,
@@ -595,15 +767,19 @@ Owners: local Table service/catalog, direct query readers, shared SQL service,
   Measure the existing eight-row direct page bound before proposing a change;
   widening a constant alone is not an access-path improvement.
 - [ ] P5.4 Complete or explicitly resolve keep-armed query-host waiting. Keep
-  immediate work responsive while avoiding the unconditional empty poll after
-  progress. Measure idle requests/CPU and first-work latency; prove disconnect,
-  cancellation, wakeup races and shutdown. Preserve gateway wakeups and the
-  applicable native cache visibility improvements already delivered.
+  immediate work responsive and preserve gateway wakeups, disconnect,
+  cancellation, fencing and shutdown in the installed profile. Under D5,
+  attribute the unconditional empty poll after progress and remaining idle
+  requests/CPU to milestone 6's runtime replacement instead of building new
+  actor scheduling machinery here. Retain the applicable native cache visibility
+  improvements already delivered; a measured idle limit or failed wakeup remains
+  explicit rather than being reported as fixed by the ownership transfer.
 - [ ] P5.5 Establish matched live correctness/performance controls for point and
   bulk mutations, key/range/full scans, metadata, compatible ALTER and recovery
-  with maintenance active. Attribute remaining Station coordination separately;
-  do not optimize retired actor Table staging or start a general query-engine
-  rewrite here.
+  with maintenance active. Complete the database decoupling bridge below and
+  measure the removal of SQL's actor-ledger admission and durable read-pin
+  overhead. Preserve the original uncertain outcomes; do not optimize retired
+  actor Table staging or start a general query-engine rewrite here.
 
 **Gate:** independently verified installed results, bounded memory at retained
 sizes above caches, and measured reduction in the selected live amplification
@@ -701,6 +877,16 @@ UPDATE has one matched/changed row. Independent readback verifies key -1 at 200
 and keys 0–8 at 100, without submitting another UPDATE. Its original deadline
 failure remains part of the latency investigation.
 
+The separate instrumented baseline's failed three-row INSERT is also recovered
+under its original identity: eleven terminal operations and the exact twelve
+expected rows. The instrumented `ff2d2e45e` diagnostic instead retains an
+incomplete upload for its second `delete_absent` operation. Original-identity
+public cancellation durably abandons that upload, without inventing a Table
+outcome; nineteen preceding operations and all nine expected rows survive another
+restart. The [qualification account](../history/qualification/storage.md#original-sql-diagnostic-outcome-recovery--2026-10-27)
+preserves both failed latency controls, matching binary identities and distinct
+settlement evidence. Neither recovery closes P5's current-source performance gate.
+
 **Progress PR boundary:** the user requested another mergeable increment so
 statement-result work can build on the read-reuse, shorter journal locks,
 complete-submission sequencing, bounded cleanup and diagnostic improvements.
@@ -749,6 +935,21 @@ inspection adapters, Board API and its existing inspection UI.
 **Gate:** a user can answer where data is stored, what is accepted versus flushed,
 why maintenance is pending and what retains history, using public authorized
 interfaces. Inspection itself changes none of those states.
+
+The signed direct Table `storage` response now includes the accepted archive and
+compaction activity frontiers, fixed targets and exclusive next segment identity.
+It uses existing metadata-inspection rights, response-disclosure checks and the
+shared client's structural validation. No path or other Table's progress is
+disclosed. The mandatory response fields replace the shared definition with
+`fe92bb37f7e18a8f4cf00b60ad7d21198b130a623376d87ee92a0bd6108cd388`;
+the binary SQL result and automatic maintenance contracts remain part of this
+single current definition. The four-test selected catalog run passes, including
+malformed coverage/target rejection, and all 18 generated contract checks pass.
+The native and
+direct collection fault harnesses each pass 15 SIGKILL schedules with the saved
+source-activity target preserved through deletion recovery. Backend/root paths,
+quota accounting, failure inspection and CLI/SQL/Board presentation still need
+their shared operations and qualification; this does not close P6.
 
 #### P7 — Deliver the single executable local profile
 

@@ -8,6 +8,48 @@ fn allocation(epoch: u64, key: []const u8) !Allocations.Allocation {
     return .init(epoch, key, .{ .size = 7, .sha256 = @splat(37) });
 }
 
+test "allocation source activity survives carry, maintenance allocations, trim and reopen" {
+    inline for (.{ Allocations, @import("NativeAllocations.zig") }) |Queue| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        const native = Queue != Allocations;
+        try tmp.dir.createDirPath(t.io, if (native) "native-allocations" else "data-allocations");
+        const source: Queue.Allocation = if (native)
+            .{ .epoch = 1, .kind = .block, .address = @splat(17), .meta = .{ .size = 7, .sha256 = @splat(37) } }
+        else
+            try allocation(1, "segments/source.data");
+        const bookkeeping: Queue.Allocation = if (native)
+            .{ .epoch = 1, .kind = .page, .address = @splat(18), .meta = .{ .size = 7, .sha256 = @splat(38) } }
+        else
+            try allocation(1, "data-maintenance/marks.data");
+        {
+            var queue = try Queue.open(t.allocator, t.io, tmp.dir);
+            defer queue.deinit();
+            try t.expectEqual(@as(u64, 0), (try queue.current()).source_activity);
+            try t.expect(try queue.record(source));
+            try t.expect(!try queue.record(source));
+            try t.expect(try queue.recordTracked(bookkeeping, false));
+            try t.expectEqual(@as(u64, 1), (try queue.current()).source_activity);
+            try queue.consume(0, source, true);
+            try queue.consume(1, bookkeeping, false);
+            try queue.consume(2, source, false);
+            try queue.consumeEmpty(5);
+            try queue.trim();
+            try t.expectEqualDeep(Queue.QueueHead{ .tail = 6, .cursor = 5, .source_activity = 1 }, try queue.current());
+        }
+        var reopened = try Queue.open(t.allocator, t.io, tmp.dir);
+        defer reopened.deinit();
+        try t.expectEqualDeep(Queue.QueueHead{ .tail = 6, .cursor = 5, .source_activity = 1 }, try reopened.current());
+        var reused = source;
+        reused.epoch = 2;
+        try t.expect(try reopened.record(reused));
+        try t.expectEqual(@as(u64, 2), (try reopened.current()).source_activity);
+        try t.expectEqual(@as(u64, 2), (try reopened.at(6)).source_activity);
+        try t.expect(!try reopened.record(reused));
+        try t.expectEqual(@as(u64, 2), (try reopened.current()).source_activity);
+    }
+}
+
 test "direct allocation FIFO protects a reused key from older removal across reopen" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

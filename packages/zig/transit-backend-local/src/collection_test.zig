@@ -81,6 +81,37 @@ pub const Fixture = struct {
     }
 };
 
+test "native collection source activity excludes mark work and preserves arrivals after its trigger" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var f: Fixture = .{};
+    try f.open(tmp.dir, true);
+    defer f.close();
+    _ = try f.orphan("before the eligibility cut");
+    const trigger = (try f.owner.allocations.current()).source_activity;
+    const fence = blk: {
+        f.pages.track_activity = false;
+        defer f.pages.track_activity = true;
+        break :blk try f.submit(.{ .storage_fence = {} });
+    };
+    _ = try f.orphan("after the eligibility cut");
+    const later = try f.owner.allocations.current();
+    try t.expect(later.source_activity > trigger);
+    try t.expectError(error.InvalidStorageCollection, f.collector.startAtActivity(&f.engine, fence, later.source_activity + 1));
+    try f.collector.startAtActivity(&f.engine, fence, trigger);
+    try f.until(.wait);
+    const saved = (try f.collector.current()).?;
+    try t.expectEqual(trigger, saved.source_activity);
+    const marked = try f.owner.allocations.current();
+    try t.expect(marked.tail > later.tail);
+    try t.expectEqual(later.source_activity, marked.source_activity);
+    try t.expect(f.pages.track_activity);
+    f.close();
+    try f.open(tmp.dir, false);
+    try t.expectEqualDeep(saved, (try f.collector.current()).?);
+    try t.expect((try f.owner.allocations.current()).source_activity > saved.source_activity);
+}
+
 test "native collection joins a creator paused between inventory and object publication" {
     const Gate = struct {
         var real: *const std.Io.VTable = undefined;

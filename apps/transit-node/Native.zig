@@ -10,6 +10,7 @@ pub const Store = adapter.Store;
 pub const PageStore = adapter.PackedPageStore;
 pub const Engine = core.growing.Engine(Store, PageStore);
 const Maintenance = @import("GrowingMaintenance.zig");
+pub const CollectionCursor = struct {};
 // Admission admits four reads, two controls and four long polls. Each admitted
 // request exclusively owns one lane; idle HTTP connections own no lane.
 const lane_count = 10;
@@ -34,8 +35,8 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     defer parsed.deinit();
     const config = parsed.value;
     try config.storage.limits.validate();
-    try config.storage.maintenance.flush.validate();
-    if (config.storage.maintenance.flush.enabled) return error.TableMaintenanceUnavailable;
+    try config.storage.maintenance.validate();
+    if (config.storage.maintenance.flush.enabled or config.storage.maintenance.archive.enabled) return error.TableMaintenanceUnavailable;
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = config.ursula_url, .max_response_bytes = 256 * 1024 });
     defer client.deinit();
@@ -175,7 +176,7 @@ pub fn maintain(engine: *Engine, authorized: core.growing.Head) !bool {
     return true;
 }
 
-pub fn collect(engine: *Engine, config: Maintenance.Config, key: core.Ed25519.KeyPair, request: *g.Request) !bool {
+pub fn collect(engine: *Engine, config: Maintenance.Config, key: core.Ed25519.KeyPair, request: *g.Request, _: *CollectionCursor) !bool {
     var collection = adapter.StorageCollection.init(engine.journal.journal);
     const saved = try collection.current();
     if (saved != null and saved.?.phase != .complete) {

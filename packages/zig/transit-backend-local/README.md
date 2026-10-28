@@ -138,8 +138,9 @@ and request grace interval. Its durable allocation FIFO, paged marks and deletio
 intent resume after reopen. `storage_compact` relocates bounded native data while
 retained captures keep their original values. See [native maintenance](docs/maintenance.md)
 for invocation, ownership, quotas and recovery. Table objects and standalone
-payloads retain separate ownership; this collector does not delete them or
-schedule automatic local collection. `PayloadStore` implements explicit
+payloads retain separate ownership; this collector does not delete them.
+The node schedules native and direct collection through these component owners.
+`PayloadStore` implements explicit
 [standalone payload publication and retirement](docs/payloads.md) under the
 existing native declarations. The local node composes them into authenticated
 payload publication/read operations and opted-in maintenance deletion, with

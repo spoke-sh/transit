@@ -468,6 +468,9 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, args[2], "maintenance-flushed")) {
             try Maintenance.verify(init, client, &profile.maintenance.?, true);
             try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "maintenance-maintained")) {
+            try Maintenance.maintained(init, client, &profile.maintenance.?);
+            try save(init, args[3], profile);
         } else if (std.mem.eql(u8, args[2], "write")) {
             try write(init, client, &profile);
             profile.delegation = try Delegation.prepare(client);

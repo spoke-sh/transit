@@ -249,7 +249,7 @@ still follows the ordinary uncertain-dispatch and exact-observation rules.
 `TablePartition.compact` takes an exclusive segment-ID boundary captured from an
 accepted `next_segment`. It rewrites live segment rows below that boundary into
 one new segment per call and publishes replacement point/physical locators with
-a `checkpoint` action. Stable identity/full-key indexes and every logical/control
+a `compaction` action. Stable identity/full-key indexes and every logical/control
 root remain unchanged. WAL rows and newer segments are excluded. The published
 segment ID is at or above the fixed boundary, so repeating the same pass after a
 lost reply or restart cannot select its own prior output. A bounded metadata
@@ -408,7 +408,59 @@ records before the checkpoint and descendant objects are verified when accessed;
 restart is not an eager historical integrity scan. Missing required evidence is
 an error, never a new operation, empty result or cursor advance. Data snapshots
 omit recovery references together with control directories. There is no automatic
-checkpoint scheduling or immutable Table-object collection.
+checkpoint scheduling or immutable Table-object collection in this component.
+
+### Resumable Table maintenance targets
+
+Every accepted Table root and saved snapshot root contains mandatory scalar
+`maintenance` state. Missing state rejects under the replacement current-v1
+definition. It records archive and compaction source activity, the completed
+source activity for each class, and nullable fixed targets. These fields select
+physical work; they grant neither access nor logical expiry or object deletion.
+Snapshots retain the values at their original cut and never schedule work.
+
+`archiveMaintenanceUnit(limits, guard)` accepts or advances one target. Its
+`through_lsn` is the exclusive Table frontier when work begins; `source_lsn`
+records the activity that selected it. The first accepted archive publication
+covering that cut fixes `checkpoint_lsn`. Completion requires accepted archive
+coverage and a recovery checkpoint covering that publication. A completed pass
+records its original source and clears the target. Foreground acceptances,
+pins/releases, logical history-floor changes, flushes and compaction advance the
+archive source; archive, recovery and work bookkeeping do not. A finite workload
+therefore settles without endlessly archiving its own progress records.
+
+`compactionMaintenanceUnit(limits, guard)` captures the current exclusive
+`next_segment` boundary and source activity, with mandatory `after_segment = 0`.
+Each work unit examines at most two adjacent live segments after that cursor,
+using at most `rows + 8` directory entries per candidate (including one page
+of lookahead) and bounded footer reads.
+It rewrites an entire segment only when at least half its original rows have
+been removed/replaced, or merges two complete adjacent inputs that fit the row
+and encoded-byte budgets. It never splits an input to satisfy those budgets.
+Otherwise a `maintenance.skip_compaction` record advances `after_segment` over
+exactly the next live segment. Acceptance and recovery verify that identity;
+the record cannot jump over another live input. Row bytes, logical roots and
+retention obligations remain unchanged by a skip.
+
+Completion requires no unexamined live segment between `after_segment` and the
+fixed exclusive boundary. Recovery repeats that check. Completion means the
+pass considered its inputs under the work budgets, not that every segment was
+rewritten, normalized to the current schema or physically collected. Oversized
+inputs and a lone dense segment can remain. Later source activity selects a new
+pass from the beginning; a budget change alone does not do so. Logical changes and
+non-compaction segment publication can select another pass; compaction output
+cannot. Retirement completes unfinished compaction without rewriting retained
+rows. Later writes leave either active target unchanged and can select later
+work after the current pass completes.
+
+Each successful work call accepts at most one Table record. Starting and finishing
+targets use `maintenance` actions; physical relocation uses `compaction`, while
+ordinary flushing retains `checkpoint`. Acceptance and replay derive the exact
+maintenance state from the action. No separate progress file can publish it.
+Uncertain acceptance requires owner recovery; lost replies resume the accepted
+target. Current authorization is checked even when a call finds no work. The
+existing per-call archive, compaction, index and object budgets still apply;
+this component does not bound live scheduler concurrency or select its cadence.
 
 ## Ordered full-key index component
 
@@ -553,7 +605,8 @@ Each partition has `part-<partition>.meta` and rolling
 | `48..56`, `56..64` | Minimum writer and policy epochs |
 | `64..72` | Exclusive trimmed prefix |
 | `72..80` | Persisted exclusive accepted frontier |
-| `80..96` | Reserved zero bytes |
+| `80..88` | Exclusive physically cleaned prefix, no greater than the trim floor |
+| `88..96` | Reserved zero bytes |
 | `96..128` | SHA-256 over `0..96` |
 
 Append writes a bounded frame at the current segment offset, syncs the file and
@@ -589,12 +642,18 @@ It does not advance the floor or grant permission to remove retained frames.
 Trimming every frame preserves the next LSN and epochs.
 `LocalWal.trimUnit` publishes the same floor and performs at most 32 directory
 entries or one verified frame, followed by at most one segment unlink and sync.
+Completion atomically publishes and syncs the physically cleaned prefix in one
+metadata replacement. This frontier records work already authorized by the trim
+floor; it cannot advance that floor or authorize deletion. Repeating a completed
+request does no further cleanup or completion writes, including after descriptor
+eviction or restart. An interrupted completion publication requires reopen and
+may repeat already completed cleanup safely.
 It returns whether physical cleanup through that request is complete. Repeated
 units preserve an earlier partition's unfinished cursor; `resumeTrim` can advance
 that cursor without a new request. Directory changes restart unfinished minimum
 selection. A continuous writer can delay that selection; finite work converges.
 The cursor is volatile and bounded, with one independent directory handle per WAL
-owner. Restart reconstructs it from the accepted floor. New appends never reuse
+owner. Restart reconstructs unfinished work from the accepted floor. New appends never reuse
 an obsolete segment after a complete logical trim, even before unlink completes.
 When the resident verified append descriptor and current file length establish
 that the selected active segment contains retained frames, cleanup keeps it
@@ -772,13 +831,18 @@ No page or block reference grants access independently of native authorization.
 Every native creation first appends an allocation intent to
 `native-allocations/queue/`, a separate segmented `LocalWal`. FIFO records use
 partition zero, writer/policy epoch one and `manifest_checkpoint` frames. Their
-224-byte payload is `TNALQ1` plus two zeros at `0..8`, definition at `8..40`,
+232-byte payload is `TNALQ1` plus two zeros at `0..8`, definition at `8..40`,
 little-endian record position and consumed-prefix cursor at `40..48` and `48..56`,
-an item-present byte at `56`, seven zeros, and a 160-byte allocation at `64..224`
+an item-present byte at `56`, seven zeros, a little-endian source-activity counter
+at `64..72`, and a 160-byte allocation at `72..232`
 (all zero when absent). The payload position equals its LSN; the cursor cannot
 exceed that position. Carrying a live item and advancing the cursor share one
 append. At most 64 empty progress records can be collapsed by one cursor advance.
 Consumed prefixes are physically trimmed only after their progress is durable.
+New source allocation intents increment the activity counter in the same append.
+Collection mark allocations, retained-item carries and empty-prefix progress
+preserve it. Exact marker retries add no activity. The counter cannot exceed the
+native counter bound or position plus one; trimming does not reset it.
 
 An exact intent marker lives at
 `native-allocations/<16 hex epoch>-<kind>-<64 hex location>`. Its 160 bytes contain
@@ -826,10 +890,11 @@ and exclude `native/`; the epoch is nonzero and within the native counter bound.
 The marker filename must match the decoded key hash.
 
 `data-allocations/queue/` is a separate segmented `LocalWal`, using partition
-zero, writer/policy epoch one and `manifest_checkpoint` frames. Its 576-byte
+zero, writer/policy epoch one and `manifest_checkpoint` frames. Its 584-byte
 payload contains `TDALQ1` plus two zeros at `0..8`, the definition at `8..40`,
 little-endian position and consumed-prefix cursor at `40..48` and `48..56`, an
-item-present byte at `56`, seven zeros, and the 512-byte allocation at `64..576`
+item-present byte at `56`, seven zeros, a little-endian source-activity counter
+at `64..72`, and the 512-byte allocation at `72..584`
 (all zero when absent). Position equals LSN, and cursor cannot exceed position.
 One append atomically advances the cursor and optionally carries a retained
 item; one empty-prefix advance reads at most 64 records. Queue append and latest
@@ -837,6 +902,8 @@ marker publication are durable before content creation. An uncertain attempt can
 leave duplicate intents. Removal must match the latest marker exactly, so an
 older item cannot erase a newer reuse. Missing queue history with existing
 markers rejects; an existing owner never recreates a missing inventory directory.
+The activity counter follows the native FIFO rules above. New source creation or
+reuse intents increment it; collection's own work/mark allocations do not.
 
 Direct creation holds a shared creation/reclamation fence through inventory
 recording and object publication. Private inventory updates serialize separately
@@ -858,7 +925,7 @@ The latest accepted native WAL entry is the recovery root. A native accepted
 history floor can authorize trimming older frames while retaining that entry.
 Exact retry records and durable captures remain in its catalog. This adapter's
 trim does not collect objects or dispatch effects. `StorageCollection` records
-its accepted fence cut, FIFO end, root/traversal cursor, paged mark root and exact
+its accepted fence cut, FIFO end, source-activity target, root/traversal cursor, paged mark root and exact
 pending deletion in a definition-bound `.native-collection` JSON body of at most
 256 KiB followed by its 32-byte SHA-256. Replacement syncs the file and parent
 directory. A complete mark protects retained journal roots, current live captures
@@ -867,6 +934,12 @@ Deletion waits beyond the fence's upper time plus five minutes of snapshot life
 and sixty seconds of request grace, and requires a persisted native time floor
 beyond that boundary. Pending deletion resumes the same immutable identity;
 FIFO consume, not a transient counter, establishes completed inventory progress.
+The mandatory source-activity target cannot exceed the inventory end. Automatic
+callers capture it before submitting the storage fence and pass that fixed value
+to `startAtActivity`; allocations arriving after that observation stay eligible
+for later work. Explicit `start` claims no automatic activity coverage and records
+zero. Mark-page allocations remain inventoried without increasing source
+activity. These counters select work and grant no deletion authority.
 Native compaction preserves logical values and captured roots through the core
 `storage_compact` operation. Standalone payload publication, Table collection and
 automatic installed maintenance retain separate owners.
@@ -886,7 +959,10 @@ or archive frame, without recursively owning that frame's obsolete roots.
 The definition-bound `.data-collection` checkpoint is a JSON body of at most
 256 KiB followed by its SHA-256. It stores the native cut, grace, owner cursor,
 separate paged physical/typed marks, paged FIFO roots and positions, active owned
-graph work, fixed allocation end and exact pending deletion. Replacement syncs
+graph work, fixed allocation end, mandatory source-activity target and exact
+pending deletion. The target follows the native collection rules above: it is
+captured before the fence and cannot exceed the inventory end. Work/mark objects
+remain inventoried without increasing source activity. Replacement syncs
 the file and parent directory. A work item is at most 128 KiB: `TDWORK1` plus NUL,
 32 definition bytes and owned JSON; its immutable key is
 `data-maintenance/<sha256>.work`. Queue keys are eight-byte big-endian positions;

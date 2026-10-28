@@ -20,20 +20,23 @@ pub fn Extension(comptime Provider: type) type {
     };
 }
 const StorageClass = enum { trim, collection, extension };
-const Progress = struct {
-    scan: core.growing.Maintenance = .{},
-    maintained: u64 = 0,
-    trim_target: ?core.growing.Head = null,
-    storage_turn: bool = false,
-    next_storage: StorageClass = .trim,
-};
+fn Progress(comptime Provider: type) type {
+    return struct {
+        scan: core.growing.Maintenance = .{},
+        maintained: u64 = 0,
+        trim_target: ?core.growing.Head = null,
+        storage_turn: bool = false,
+        next_storage: StorageClass = .trim,
+        collection: Provider.CollectionCursor = .{},
+    };
+}
 const Outcome = enum { idle, transition, checkpointed, trimmed, storage };
 fn sample(engine: anytype) anyerror!?core.Time.Sample {
     const source = engine.clock orelse return null;
     return try source.sample();
 }
 
-fn step(comptime Provider: type, engine: *Provider.Engine, config: Config, key: core.Ed25519.KeyPair, progress: *Progress, observation: *observations.Observation, extension: ?Extension(Provider)) !Outcome {
+fn step(comptime Provider: type, engine: *Provider.Engine, config: Config, key: core.Ed25519.KeyPair, progress: *Progress(Provider), observation: *observations.Observation, extension: ?Extension(Provider)) !Outcome {
     try engine.refresh();
     var request: g.Request = .{
         .realm = engine.genesis.realm,
@@ -74,7 +77,7 @@ fn step(comptime Provider: type, engine: *Provider.Engine, config: Config, key: 
                     }
                 },
                 .collection => if (engine.clock != null) {
-                    if (try Provider.collect(engine, config, key, &request)) return .storage;
+                    if (try Provider.collect(engine, config, key, &request, &progress.collection)) return .storage;
                 },
                 .extension => if (extension) |extra| {
                     // Physical Table work needs no trusted expiry clock.
@@ -119,9 +122,9 @@ fn step(comptime Provider: type, engine: *Provider.Engine, config: Config, key: 
 fn timeout(io: std.Io, milliseconds: u32) anyerror!void {
     try io.sleep(.fromMilliseconds(milliseconds), .awake);
 }
-fn boundedStep(comptime Provider: type, io: std.Io, engine: *Provider.Engine, config: Config, key: core.Ed25519.KeyPair, progress: *Progress, observation: *observations.Observation, extension: ?Extension(Provider)) !Outcome {
+fn boundedStep(comptime Provider: type, io: std.Io, engine: *Provider.Engine, config: Config, key: core.Ed25519.KeyPair, progress: *Progress(Provider), observation: *observations.Observation, extension: ?Extension(Provider)) !Outcome {
     const Task = struct {
-        fn run(e: @TypeOf(engine), c: Config, k: core.Ed25519.KeyPair, state: *Progress, o: *observations.Observation, extra: ?Extension(Provider)) anyerror!Outcome {
+        fn run(e: @TypeOf(engine), c: Config, k: core.Ed25519.KeyPair, state: *Progress(Provider), o: *observations.Observation, extra: ?Extension(Provider)) anyerror!Outcome {
             return step(Provider, e, c, k, state, o, extra);
         }
     };
@@ -137,11 +140,12 @@ fn boundedStep(comptime Provider: type, io: std.Io, engine: *Provider.Engine, co
     };
 }
 pub fn run(comptime Provider: type, init: std.process.Init, engine: *Provider.Engine, config: Config, diagnostics: *observations.telemetry.Runtime, extension: ?Extension(Provider)) !void {
+    try config.storage.validate();
     if (config.storage.collection_every_records == 0 or config.storage.collection_every_records > core.protocol.max_counter or config.principal > core.protocol.max_counter or config.interval_ms == 0 or config.interval_ms > 60000 or
         config.operation_timeout_ms == 0 or config.operation_timeout_ms > 60000 or
         (config.checkpoint_every_records != null and (config.checkpoint_every_records.? < 2 or !engine.genesis.allow_history_trim))) return error.InvalidMaintenanceConfig;
     const key = try wire.readKey(init.gpa, init.io, config.seed_file);
-    var progress: Progress = .{};
+    var progress: Progress(Provider) = .{};
     while (true) {
         var observation = observations.begin(diagnostics, .maintenance_step, "scan", null);
         observation.event.realm = engine.genesis.realm;
@@ -168,6 +172,7 @@ test "unfinished or failed native trim cannot starve lifecycle and other storage
     const backend = @import("transit_backend_local");
     const Provider = struct {
         pub const Engine = backend.DataAuthority.Engine;
+        pub const CollectionCursor = struct {};
         var trims: usize = 0;
         var collections: usize = 0;
         var extensions: usize = 0;
@@ -178,7 +183,7 @@ test "unfinished or failed native trim cannot starve lifecycle and other storage
             if (fail_trim) return error.InjectedTrimFailure;
             return false; // Deliberately never completes during this schedule.
         }
-        fn collect(_: *Engine, _: Config, _: core.Ed25519.KeyPair, _: *g.Request) !bool {
+        fn collect(_: *Engine, _: Config, _: core.Ed25519.KeyPair, _: *g.Request, _: *CollectionCursor) !bool {
             collections += 1;
             return true;
         }
@@ -212,7 +217,7 @@ test "unfinished or failed native trim cannot starve lifecycle and other storage
     _ = try engine.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } }, key));
     _ = try engine.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = 2, .command = .{ .checkpoint = {} } }, key));
     const accepted = engine.head.position;
-    var progress: Progress = .{};
+    var progress: Progress(Provider) = .{};
     var observation = observations.begin(null, .maintenance_step, "scan", null);
     defer observation.finish();
     const config: Config = .{ .principal = 0, .seed_file = "unused-by-step" };

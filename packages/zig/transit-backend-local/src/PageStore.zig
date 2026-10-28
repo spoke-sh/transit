@@ -21,6 +21,8 @@ create_payload_bytes_attempted: u64 = 0,
 blocks_created: u64 = 0,
 block_payload_bytes_attempted: u64 = 0,
 control: bool = false,
+/// Private collection marks/fences are inventoried but do not trigger a new pass.
+track_activity: bool = true,
 candidate: ?struct { epoch: u64, nonce: [16]u8, ordinal: u64 = 0, bytes: usize = 0 } = null,
 
 pub fn init(backend: *Backend, resident_pages: usize) !Self {
@@ -105,7 +107,7 @@ fn stageImpl(self: *Self, reference: pages.Reference, page: *const pages.Page) !
     result.location = try self.location('p', reference.digest, encoded.len);
     self.create_payload_bytes_attempted +|= encoded.len;
     self.observe.metrics.request_payload_bytes +|= encoded.len;
-    try self.backend.putNative(self.candidate.?.epoch, .page, result.location, encoded, self.control);
+    try self.backend.putNativeTracked(self.candidate.?.epoch, .page, result.location, encoded, self.control, self.track_activity);
     self.created +|= 1;
     self.remember(result, page.*);
     return result;
@@ -152,7 +154,7 @@ fn stageBlockImpl(self: *Self, spec: p.Blocks.Spec, body: []const u8) !core.bloc
     const address = try self.location('b', spec.digest, encoded.len);
     self.block_payload_bytes_attempted +|= encoded.len;
     self.observe.metrics.request_payload_bytes +|= encoded.len;
-    try self.backend.putNative(self.candidate.?.epoch, .block, address, encoded, self.control);
+    try self.backend.putNativeTracked(self.candidate.?.epoch, .block, address, encoded, self.control, self.track_activity);
     self.blocks_created +|= 1;
     return .{ .value = spec, .location = address };
 }

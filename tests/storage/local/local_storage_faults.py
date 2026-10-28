@@ -51,11 +51,12 @@ def run(binary):
     def metadata(directory):
         raw = (directory / "part-17.meta").read_bytes()
         assert len(raw) == 128 and raw[:8] == b"LWMT\x01\0\0\0"
-        assert raw[8:40] == definition and raw[80:96] == bytes(16)
+        assert raw[8:40] == definition and raw[88:96] == bytes(8)
         assert hashlib.sha256(raw[:96]).digest() == raw[96:]
-        partition, writer, policy, floor, frontier = struct.unpack_from("<5Q", raw, 40)
+        partition, writer, policy, floor, frontier, cleaned = struct.unpack_from("<6Q", raw, 40)
         assert partition == 17
-        return dict(writer=writer, policy=policy, floor=floor, frontier=frontier)
+        assert cleaned <= floor <= frontier
+        return dict(writer=writer, policy=policy, floor=floor, frontier=frontier, cleaned=cleaned)
 
     def rows(directory, floor, payloads):
         result = call(directory, "wal-inspect", str(floor))
@@ -69,10 +70,10 @@ def run(binary):
     points = {
         "append": ["write", "sync-1", "sync-2", "sync-3", "publish", "sync-4", "ack"],
         "fence": ["sync-1", "publish", "sync-2", "ack"],
-        "trim": ["sync-1", "publish", "sync-2", "delete-1", "delete-2", "sync-3", "ack"],
-        "trim-all": ["sync-1", "publish", "sync-2", "delete-1", "delete-2", "delete-3", "sync-3", "ack"],
+        "trim": ["sync-1", "publish", "sync-2", "delete-1", "delete-2", "sync-3", "sync-4", "sync-5", "publish-2", "sync-6", "ack"],
+        "trim-all": ["sync-1", "publish", "sync-2", "delete-1", "delete-2", "delete-3", "sync-3", "sync-4", "sync-5", "sync-6", "publish-2", "sync-7", "ack"],
     }
-    with tempfile.TemporaryDirectory(prefix="transit-local-crashes-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="transit-local-crashes-", dir="/var/tmp") as temporary:
         root = Path(temporary)
         for operation, boundaries in points.items():
             for point in boundaries:
@@ -88,8 +89,11 @@ def run(binary):
                 floor = trim_floor if trimming and point != "sync-1" else 0
                 fenced = operation == "fence" and point != "sync-1"
                 published_append = operation == "append" and point in ("publish", "sync-4", "ack")
+                completed_trim = trimming and point in (
+                    "publish-2", "sync-7" if operation == "trim-all" else "sync-6", "ack")
                 assert meta == dict(writer=7 if fenced else 3, policy=9 if fenced else 5,
-                                    floor=floor, frontier=4 if published_append else 3), meta
+                                    floor=floor, frontier=4 if published_append else 3,
+                                    cleaned=trim_floor if completed_trim else 0), meta
                 rows(directory, floor, payloads)
                 if fenced:
                     assert call(directory, "wal-stale") == {"fenced": True}
@@ -97,6 +101,7 @@ def run(binary):
                     # Repeating the authorized boundary must finish interrupted
                     # physical removal even when its floor was already saved.
                     assert call(directory, f"wal-{operation}") == {"tail": 3}
+                    assert metadata(directory)["cleaned"] == trim_floor
                     for lsn in range(3):
                         assert (directory / f"part-17-{lsn}.twal").exists() == (lsn >= trim_floor), point
                     floor = trim_floor
@@ -204,10 +209,69 @@ def run(binary):
             assert call(directory, "table-trim") == {"archived": 3}
             expected.update(archived=3, tail=7, replayed=4)
             assert call(directory, "table-checkpoint-inspect") == expected
-    assert schedules == 92, schedules
+        # Independent finite oracle: begin, skip each one-row dense input, then
+        # complete. Each unit has one acceptance; row/segment identities stay put.
+        def maintenance_state(steps):
+            return dict(archived=0, tail=3 + steps, rows=2, pinned=1, receipt=1,
+                        history=2, current=[1, 2], next_segment=3,
+                        target=(dict(before_segment=3, source_lsn=3, after_segment=steps - 1)
+                                if 1 <= steps <= 3 else None),
+                        completed=3 if steps == 4 else 0)
+
+        maintenance_points = ["before-accept", "accept-write", "accept-sync-1",
+                              "accept-sync-2", "accept-sync-3", "accept-publish",
+                              "accept-sync-4", "ack"]
+        for stage in range(4):
+            for point in maintenance_points:
+                directory = root / f"table-maintenance-{stage}-{point}"
+                assert call(directory, "table-compact-init") == {"tail": 3}
+                for step in range(stage):
+                    assert call(directory, "table-maintenance") == dict(worked=True, tail=4 + step)
+                assert call(directory, "table-maintenance-inspect") == maintenance_state(stage)
+                kill(directory, "table-maintenance", point)
+                accepted = int(point not in {"before-accept", "accept-write"})
+                steps = stage + accepted
+                assert call(directory, "table-maintenance-inspect") == maintenance_state(steps)
+                while steps < 4:
+                    steps += 1
+                    assert call(directory, "table-maintenance") == dict(worked=True, tail=3 + steps)
+                    assert call(directory, "table-maintenance-inspect") == maintenance_state(steps)
+                assert call(directory, "table-maintenance") == dict(worked=False, tail=7)
+                assert call(directory, "table-maintenance-inspect") == maintenance_state(4)
+        # Archive/checkpoint I/O is covered above. Independently kill publication
+        # of the fixed automatic target and its completion after that coverage.
+        def archive_state(steps):
+            return dict(archived=3 if steps >= 2 else 0, tail=3 + steps,
+                        rows=2, pinned=1, receipt=1, history=2, current=[1, 2],
+                        next_segment=1,
+                        target=(dict(through_lsn=3, source_lsn=3,
+                                     checkpoint_lsn=5 if steps >= 2 else None)
+                                if 1 <= steps <= 3 else None),
+                        completed=3 if steps == 4 else 0,
+                        checkpoint=5 if steps >= 3 else 0)
+
+        for stage in (0, 3):
+            for point in maintenance_points:
+                directory = root / f"table-archive-maintenance-{stage}-{point}"
+                assert call(directory, "table-init") == {"tail": 3}
+                for step in range(stage):
+                    assert call(directory, "table-archive-maintenance") == dict(worked=True, tail=4 + step)
+                assert call(directory, "table-archive-maintenance-inspect") == archive_state(stage)
+                kill(directory, "table-archive-maintenance", point)
+                steps = stage + int(point not in {"before-accept", "accept-write"})
+                assert call(directory, "table-archive-maintenance-inspect") == archive_state(steps)
+                while steps < 4:
+                    steps += 1
+                    assert call(directory, "table-archive-maintenance") == dict(worked=True, tail=3 + steps)
+                    assert call(directory, "table-archive-maintenance-inspect") == archive_state(steps)
+                assert call(directory, "table-archive-maintenance") == dict(worked=False, tail=7)
+                assert call(directory, "table-archive-maintenance-inspect") == archive_state(4)
+                assert metadata(directory / "wal")["floor"] == 0
+    assert schedules == 149, schedules
     print(f"Local storage: {schedules} SIGKILL schedules preserve acknowledged WAL data, "
           "fences, resumable trim, complete object descriptors, exact immutable retries "
-          "and Table archival/compaction/checkpoints with original receipts, snapshots and logical history.")
+          "and Table archival/compaction/checkpoints, including automatic targets and skip progress, "
+          "with original receipts, snapshots and logical history.")
 
 
 if __name__ == "__main__":

@@ -50,9 +50,10 @@ fn storage(connection: w.Connection, object: d.Object, limit: u16, value: c.Dire
     if (!std.meta.eql(value.interpretation.interpretation.object, object) or value.position.next_lsn == 0 or
         pending.rows > limit or pending.rows > value.live_rows or (pending.rows == 0) != (pending.oldest_lsn == null) or
         (pending.rows == 0) != (pending.bytes == 0) or (!pending.complete and (pending.rows != limit or pending.rows >= value.live_rows)) or
-        value.archive_through >= value.position.next_lsn or value.history_floor > value.position.next_lsn) return error.InvalidTableResponse;
+        value.archive_through >= value.position.next_lsn or value.history_floor > value.position.next_lsn or value.next_segment == 0) return error.InvalidTableResponse;
     if (pending.oldest_lsn) |oldest| if (oldest >= value.position.next_lsn) return error.InvalidTableResponse;
     if (value.recovery_through) |through| if (through == 0 or through >= value.position.next_lsn) return error.InvalidTableResponse;
+    value.maintenance.validate(.{ .next_lsn = value.position.next_lsn, .next_segment = value.next_segment, .archive = .{ .through = value.archive_through } }) catch return error.InvalidTableResponse;
 }
 fn evidence(binding: d.Binding, value: P.Evidence) !void {
     try binding.requireSame(value.binding);

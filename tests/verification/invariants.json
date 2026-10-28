@@ -2015,6 +2015,7 @@
       "implementation": [
         "packages/zig/transit-storage/src/TableArchive.zig",
         "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-storage/src/TableMaintenanceState.zig",
         "packages/zig/transit-storage/src/TablePartitionRecord.zig",
         "packages/zig/transit-backend-local/src/DataStore.zig"
       ],
@@ -2028,7 +2029,8 @@
         "Unflushed snapshots, offline history cursors, exact receipts and admitted work remain readable after physical trim",
         "Current authority rejects publication after staging and trim after revocation; control reserve allows archival after ordinary admission fills",
         "Missing/foreign/malformed coverage, regressed frontiers and substituted original coordinates fail closed",
-        "SIGKILL during archive object/index staging, acceptance publication and resumable physical prefix deletion"
+        "SIGKILL during archive object/index staging, acceptance publication and resumable physical prefix deletion",
+        "SIGKILL during automatic archive target creation and completion preserves the fixed cut, covering recovery checkpoint and eventual idle state without granting physical trim"
       ],
       "limits": "Complete logical history and immutable objects remain retained. Full replay still scales with history. Process death preserves the OS/page cache; no power-loss, logical expiry, immutable Table-object collection or automatic installed maintenance claim.",
       "model": null,
@@ -2040,21 +2042,27 @@
       "owner": "contracts/TRANSIT_STORAGE_V1.md",
       "implementation": [
         "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-storage/src/TableMaintenanceState.zig",
         "packages/zig/transit-memory/src/Budget.zig"
       ],
       "profile": "Current native v1; serialized local Table owner, immutable retained history",
       "tasks": [
         "check::native",
-        "test::table-compaction"
+        "test::table-compaction",
+        "test::direct-table-maintenance"
       ],
       "scenarios": [
         "Consolidate live rows from multiple partially deleted segments; retained snapshots still include old rows and unflushed current rows remain in WAL",
+        "Automatic selection preserves packed inputs, rewrites whole sparse inputs or merges two whole adjacent inputs within row/byte budgets, with bounded locator visits",
+        "Accepted skipped-segment progress survives disk reopen and lost replies; missing cursors, fabricated completion and skips over unexamined live segments reject",
+        "Installed maintenance preserves packed segment bytes across SIGKILL, retained snapshot reads and convergence without idle publications",
         "Exact fixed-boundary retries do not compact their own output; lost replies and disk restart preserve progress",
         "Private row/encoder/build memory, encoded-row bytes, row counts and index staging work reject before publication",
         "Current authority and reserved control capacity apply to compaction publication",
-        "SIGKILL at segment/index staging and acceptance boundaries preserves original receipts, rows and snapshots"
+        "SIGKILL at segment/index staging and acceptance boundaries preserves original receipts, rows and snapshots",
+        "SIGKILL before acceptance, during WAL write, after each sync/publication and before reply preserves target creation, each skipped segment and completion"
       ],
-      "limits": "Old segment/index bytes remain retained; no immutable-object collection, logical expiry or automatic scheduling. Resident candidate budget is separate from bounded reader caches, index work, acceptance-frame and provider buffers. Process death is not host power loss.",
+      "limits": "Old segment/index bytes remain retained; compaction grants no immutable-object collection or logical expiry. Automatic selection can retain dense or oversized inputs, and budget changes alone do not trigger a new pass. Resident candidate budget is separate from bounded reader caches, index work, acceptance-frame and provider buffers. Process death is not host power loss.",
       "model": null,
       "qualification": "Executed focused checks are recorded in tests/README.md; matched performance controls and complete clean qualification remain separate."
     },

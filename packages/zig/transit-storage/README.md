@@ -70,6 +70,10 @@ and the catalog's retained dependency graph.
   snapshots and receipts, and respect a paged minimum of live history leases.
   Explicit bounded compaction merges live segment rows below a fixed boundary
   while retained roots keep their original physical references.
+  Accepted archive/checkpoint and compaction targets resume across replacement;
+  separate source frontiers prevent work bookkeeping from triggering itself.
+  Automatic compaction selects whole sparse inputs or merges two small adjacent
+  inputs; accepted skip progress leaves packed or oversized inputs intact.
   Mutation, rewrite and flush workspaces have an explicit allocation ceiling,
   separate from encoded row limits and index/cache budgets.
   Frozen row admission, rejection and cancellation share that Table WAL; row
@@ -117,8 +121,10 @@ independent startup directory handle; caller reads are not the startup gate.
 Each loaded partition inventories segment bounds/count once, then recovery and
 sequential reads follow verified LSNs directly across segment files. Missing,
 overlapping and noncanonical segment names reject. The inventory retains no
-filename array; cold partition loads still enumerate the directory, and trim
-may enumerate it repeatedly.
+filename array; cold partition loads still enumerate the directory. Bounded trim
+persists physical completion separately from its authorized floor, so rotating
+requests and descriptor eviction do not restart completed cleanup. Interrupted
+cleanup can enumerate the remaining prefix again.
 
 `LocalWal.nextPartition(after)` discovers existing partitions in numeric order,
 including empty fenced and fully trimmed partitions. Each call retains one ID
@@ -130,7 +136,8 @@ establish their own acceptance cut; the cursor is not a retained snapshot.
 `zig build test` includes real temporary-directory WAL tests: cache eviction,
 segmented recovery above 64 MiB, durable empty-log fencing and full trim,
 incomplete tails, missing/corrupt acknowledged history, incompatible definitions,
-exclusive ownership and an injected sync failure. Power interruption and
+exclusive ownership, trim convergence across rotating partitions and lost replies
+around cleanup completion. Power interruption and
 filesystem rollback are separate qualification boundaries. Run through the
 pinned development shell described in [contributing](../../../docs/handbook/guides/contributing.md).
 

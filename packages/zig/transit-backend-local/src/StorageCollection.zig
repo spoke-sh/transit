@@ -21,6 +21,7 @@ pub const State = struct {
     walk: ?core.StorageWalk = null,
     marks: c.Snapshot = .{},
     inventory_end: u64,
+    source_activity: u64,
     pending: ?struct { cursor: u64, allocation: Allocations.Allocation } = null,
     verified_pages: u64 = 0,
     verified_blocks: u64 = 0,
@@ -42,7 +43,7 @@ pub fn current(self: *Self) !?State {
     const parsed = try std.json.parseFromSlice(State, self.backend.allocator, body, .{});
     defer parsed.deinit();
     const state = parsed.value;
-    if ((state.pending != null) != (state.phase == .deleting) or state.cut.storage_epoch < 2 or state.cut.history_floor >= state.cut.position) return error.InvalidStorageCollection;
+    if ((state.pending != null) != (state.phase == .deleting) or state.cut.storage_epoch < 2 or state.cut.history_floor >= state.cut.position or state.source_activity > state.inventory_end) return error.InvalidStorageCollection;
     if (state.pending) |pending| if (pending.allocation.epoch >= state.cut.storage_epoch or pending.cursor >= state.inventory_end) return error.InvalidStorageCollection;
     try state.marks.validate();
     return state;
@@ -70,6 +71,13 @@ fn save(self: *Self, state: State) !void {
     self.backend.allocated -= @min(self.backend.allocated, old_size + 512);
 }
 pub fn start(self: *Self, engine: anytype, fence_position: u64) !void {
+    // Explicit callers have no pre-fence automatic eligibility cut to acknowledge.
+    return self.startAtActivity(engine, fence_position, 0);
+}
+
+/// The scheduler captures activity before accepting the fence. Later source
+/// allocations remain eligible for another pass even if this inventory sees them.
+pub fn startAtActivity(self: *Self, engine: anytype, fence_position: u64, activity: u64) !void {
     if (engine.journal.backend != self.backend or engine.page_store.backend != self.backend) return error.InvalidStorageCollection;
     try self.backend.collection.lock(self.backend.io);
     defer self.backend.collection.unlock(self.backend.io);
@@ -84,12 +92,13 @@ pub fn start(self: *Self, engine: anytype, fence_position: u64) !void {
     const grace = try std.math.add(u64, now.upper(), core.protocol.Growth.snapshot_lifetime_ms + 60_000);
     if (grace > core.protocol.max_counter) return error.InvalidStorageCollection;
     try self.backend.native_inventory.lock(self.backend.io);
-    const end = (self.backend.allocations.current() catch |err| {
+    const inventory = self.backend.allocations.current() catch |err| {
         self.backend.native_inventory.unlock(self.backend.io);
         return err;
-    }).tail;
+    };
     self.backend.native_inventory.unlock(self.backend.io);
-    try self.save(.{ .definition = core.protocol.Growth.current_definition, .phase = .mark, .cut = cut, .inventory_end = end, .grace_until_ms = grace, .roots = .init(cut) });
+    if (activity > inventory.source_activity) return error.InvalidStorageCollection;
+    try self.save(.{ .definition = core.protocol.Growth.current_definition, .phase = .mark, .cut = cut, .inventory_end = inventory.tail, .source_activity = activity, .grace_until_ms = grace, .roots = .init(cut) });
 }
 
 fn objectKey(kind: @FieldType(Allocations.Allocation, "kind"), address: [32]u8) !core.pages.Key {
@@ -211,6 +220,9 @@ pub fn step(self: *Self, engine: anytype, now: core.Time.Sample) !bool {
     switch (state.phase) {
         .complete => return !try self.trim(),
         .mark => {
+            const tracked = engine.page_store.track_activity;
+            engine.page_store.track_activity = false;
+            defer engine.page_store.track_activity = tracked;
             try engine.page_store.begin(engine.head.storage_epoch, true);
             defer engine.page_store.discard();
             for (0..4) |_| {

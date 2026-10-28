@@ -5,7 +5,11 @@ const support = @import("fixture_direct_captured_query");
 const t = std.testing;
 const counts = [_]usize{ 256, 1, 1 };
 const ids = [_]u64{ 7, 71, 8 }; // Two identities collide in the bounded age cache.
-pub const State = struct { sources: [3]c.DirectTableReader.Basis, current: [3]?c.DirectTableReader.Basis = @splat(null) };
+pub const State = struct {
+    sources: [3]c.DirectTableReader.Basis,
+    current: [3]?c.DirectTableReader.Basis = @splat(null),
+    maintained: [3]?c.DirectTableReader.Basis = @splat(null),
+};
 
 pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64) !State {
     (try client.call(.initialize)).deinit();
@@ -71,7 +75,15 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, state: *State
             const repeated = try client.call(.{ .flush = target });
             defer repeated.deinit();
             try t.expect(repeated.value.result.flush.complete);
-            try t.expectEqualDeep(observed, repeated.value.result.flush.observed);
+            // Concurrent physical work may advance its accepted root. It must
+            // preserve logical state and the original fixed flush obligation.
+            const after = repeated.value.result.flush.observed;
+            try t.expect(after.position.next_lsn >= observed.position.next_lsn);
+            try t.expectEqualDeep(observed.interpretation, after.interpretation);
+            try t.expectEqual(observed.changed_lsn, after.changed_lsn);
+            try t.expectEqual(observed.live_rows, after.live_rows);
+            try t.expectEqual(observed.history_floor, after.history_floor);
+            try t.expect(after.pending.complete and after.pending.rows == 0);
             if (state.current[i] == null) {
                 const pinned = try client.call(.{ .pin = .{ .object = source.snapshot.object, .owner = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 50000 + i }, .expected = observed.position } });
                 defer pinned.deinit();
@@ -81,5 +93,21 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, state: *State
             }
             try rows(init, client, state.current[i].?, count);
         }
+    }
+}
+
+pub fn maintained(init: std.process.Init, client: c.DirectTableClient, state: *State) !void {
+    try verify(init, client, state, true);
+    for (state.sources, counts, 0..) |source, count, i| {
+        if (state.maintained[i] == null) {
+            const observed = try client.call(.{ .storage = .{ .object = source.snapshot.object, .pending_limit = 1024 } });
+            defer observed.deinit();
+            const pinned = try client.call(.{ .pin = .{ .object = source.snapshot.object, .owner = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 60000 + i }, .expected = observed.value.result.storage.position } });
+            defer pinned.deinit();
+            var reader = try c.DirectTableReader.open(init.gpa, client, .{ .object = source.snapshot.object, .handle = pinned.value.result.pin });
+            defer reader.deinit();
+            state.maintained[i] = reader.basis;
+        }
+        try rows(init, client, state.maintained[i].?, count);
     }
 }
