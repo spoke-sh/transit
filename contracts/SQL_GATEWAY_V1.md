@@ -129,13 +129,13 @@ SQL account verifier files additionally bind their account fingerprint, native
 principal, login role and credential epoch. A valid password alone supplies no
 privileges. Session establishment and protected disclosure validate that binding
 against native authority and require current database CONNECT. Database mappings
-fix a schema namespace and eligible selected role; the operation ledger retains
+fix a schema namespace and eligible selected role; the Catalog binding retains
 both, independently of the connection lifetime.
 
 Direct Table metadata, scans and operation evidence use the Table caller's current
 signed subject and selected role. They require no private raw-storage reader.
-The ledger retains an exact direct intent reference; current credentials may
-sign its transport attempts without changing accepted work. Native ledger
+Catalog retains an exact direct intent reference; current credentials may
+sign its transport attempts without changing accepted work. Catalog recovery
 controls retain their own exact signatures and sequence-recovery rules.
 
 ## PostgreSQL frame and cycle ownership
@@ -309,196 +309,89 @@ markers. `Codec.string` checks its byte bound before slicing input. These helper
 do not allocate based on untrusted lengths. Decoded parameter strings borrow the
 input until the session clones/binds them.
 
-## Frozen direct references and record upload
+## Frozen database references and admission
 
-`IntentReference` stores a canonical `GIR1` envelope: magic:4, mandatory current
-definition:32 and canonical JSON of a tagged `table` or `name_assertion` reference,
-at most 4096 bytes in total. `table` contains `DirectTableIntent.Reference`: the
-definition, direct connection, namespace, complete neutral operation binding and
-exact content length/digest. `name_assertion` contains the complete inline
-`NameAssertion.Binding` from the [direct contract](DIRECT_TABLE_V1.md).
-Decoding is pure and rejects missing/foreign definitions, noncanonical JSON and
-invalid bindings. It never resolves a name, signs a request or admits execution.
-Complete `TDI1` content is staged with the direct owner before its reference is
-published. Current credentials authorize each direct request; the reference
-retains the original principal, selected role and work identity.
+The shared `DirectIntent.Reference` contract is a tagged `table`,
+`name_assertion`, `namespace_change` or `external` reference. Its canonical
+`GIR1` encoding contains the current definition and at most 4096 bytes. Complete
+Table `TDI1` work and opaque external recovery bodies are staged directly with
+the database before accepting their references. SQL text is not split into
+Station mailbox frames or KV values.
+
+The [direct contract](DIRECT_TABLE_V1.md#durable-client-token-bindings) owns
+account/token first-bind selection, recovery CAS transitions, request fences and
+paged inventory. An accepted SQL ID is the token's Catalog acceptance position;
+the underlying operation retains its independent, original data identity.
+Repeated tokens return the original binding under current rights. Different
+fingerprints conflict. Staging is not admission; token acceptance is not data
+completion. A missing reply requires inspecting the original token or operation.
 
 CREATE IF NOT EXISTS on an existing Table and DROP IF EXISTS on an absent name
-produce name assertions. Their intent commitment is SHA-256 of
-`transit.sql.conditional.name.v1`, a zero byte, the dialect tag, a zero byte and
-the exact SQL text. It includes the proposed schema even when not installed.
-Preparation and binding admit no assertion. Explicit dispatch accepts or cancels
-it under the same durable SQL eligibility gate as Table operations.
+produce name assertions. Their commitment includes the exact SQL, dialect and
+proposed schema. Namespace changes retain the selected SQL namespace separately
+from the changed schema. Preparation does not allocate or publish either kind.
 
-`Upload` composes SQL gateway publication domain 11 with 128-byte ingress parts.
-It temporarily retains a first half under publication key tag `h`, id=record ID,
-index=0. The second half atomically writes the complete 256-byte chunk and clears
-that half. Duplicate exact parts succeed without new mutations; changed parts,
-gaps, oversize and writes after sealing reject. Every failed multi-write helper
-restores the previous private decision; native read failures remain sticky.
-Sealing requires the whole committed byte chain and no retained half. Reads use
-only published records from a supplied committed view, check the explicit finite
-allocation bound and verify the complete publication digest.
+## Database runtime and recovery
 
-Publication acknowledgement alone does not establish SQL admission or a terminal
-outcome. The [account ledger API](../packages/zig/transit-sql/docs/ledger.md)
-composes these records under native owner/generation checks. The running host and
-coordinator transport are separate from these deterministic library methods.
+`transit-sql` depends only on public client, Catalog, direct query and logical
+result/session contracts. Its build graph rejects Station dependencies.
+`DatabaseRuntime` observes the bounded pending index and advances original saved
+intents. `commit_saved` commits complete single-partition DML with one Table WAL
+append, including its outcome; it does not publish an intermediate Table
+admission. Token acceptance and pending-index settlement use separate Catalog
+transitions. DDL and cancellation use their owning public operation contracts.
 
-## Account ledger records and transitions
+`DatabaseAccount.Configuration` fixes realm, account, database principal and one
+to eight namespace/role routes within one Catalog. Independent catalogs cannot
+share an account's numeric operation IDs. Operation, recovery-byte and pending
+budgets are charged atomically by Catalog admission. Pending capacity is released
+on settlement; retained identities and byte charges remain. The default pending
+limit is 16 and its maximum is 1024. Budget changes require a separately designed
+account reconfiguration operation; changing a runtime configuration cannot
+silently reset an existing account's limits.
 
-Every metadata value starts with its four-byte record magic and the mandatory
-32-byte current native definition. Fields follow the declaration order in
-[`LedgerRecords`](../packages/zig/transit-sql/src/LedgerRecords.zig) and
-[`Terminal`](../packages/zig/transit-sql/src/Terminal.zig), using exact
-little-endian integer widths, one-byte enum tags and fixed byte arrays. Unknown
-tags, missing/foreign definitions, trailing bytes and inconsistent counters reject.
-The [independent fixture](../packages/zig/transit-sql/src/fixtures/records.json)
-fixes head, operation and terminal layouts including full-width u64 counts.
+A Catalog activation record fixes a strictly increasing generation and runtime
+instance. Each database request carries that exact revision as its signed lease
+fence. The local host checks it under Catalog access held through execution and
+disclosure. Replacement acquires exclusive access. This fence does not grant
+rights; current database/schema/Table authorization is checked separately.
 
-| Magic | Contents |
-| --- | --- |
-| GSH1 | Account/configuration commitment, retained/unsettled counters, used/reserved content, quotas and active operation |
-| GSN1 | Immutable nonce-to-operation identity and request fingerprint |
-| GSO1 | Frozen scope, preparation phase, reference commitment, permanent dispatch eligibility, reservation, controls and summary/counts |
-| GSB1 | Operation ID and SHA-256 commitment to the full canonical neutral operation binding |
-| GST1 | Direct DDL/DML or catalog assertion kind, binding commitment, scope/operation/object, terminal state/reason, counts, acceptance position and resulting revision |
-| GSD1 | Rejected ledger input position/principal, exact frame fingerprint and bounded error name |
+`ReadCache` retains 64 active or reusable Table cuts. Exact connection routes
+have distinct recovery slots. Current definition and logical change frontier
+qualify reuse, and disclosure still checks current policy. A cold read persists
+its original acquisition in Catalog before pinning. Recovery resolves that exact
+request after an uncertain reply; it never captures a replacement cut into a
+partly returned result. There are no per-query local pin files. Closing a result
+releases its cache borrow; eviction or replacement releases the original durable
+pin. Denied cleanup remains pending and observable.
 
-Ledger keys are `00 47 57`, tag:u8, operation:u64be, item:u64be (20 bytes).
-Tags are `h` head, `o` operation, `u` unfinished-upload index, `q` ready index,
-`b` binding commitment, `i` input rejection and `t` terminal facts. Index values
-are exactly `upload` and `ready`. Rejection keys use the native input as the first
-ID and zero as the second. Nonce keys use tag `n` followed by the 16 nonce bytes.
-Publication namespace is the operation ID; record 1 holds the exact GIR1 reference.
+## Service composition and controls
 
-Operation phases are reserved=1, uploading=2, ready=3, active=4, terminal=5 and
-abandoned=6. Complete reference validation precedes ready admission. Committed
-dispatch eligibility precedes the first direct admission attempt and is never
-cleared after uncertainty. The coordinator recovers the original direct outcome;
-a native control receipt is not SQL completion. Current rights govern terminal
-disclosure independently of the retained summary.
+`transit-sql-service` composes the database runtime with sessions, credentials,
+settings and explicit source/capture adapters. Catalog records retain complete
+external requests before dispatch. Their separate domain owners establish
+completion. Explicit captured queries can use Station Query owners; database
+admission, DDL/DML, cancellation and snapshot recovery never require their turns.
 
-GST1 kinds are DDL=1, DML=2 and catalog assertion=3; states are applied=1,
-rejected=2, cancelled=3 and unchanged=4. GSO1 summaries use these state tags,
-with none=0 for operations without a terminal outcome.
-An applied result includes a nonzero partition, next LSN and resulting definition
-revision. Only DML has row counts. Rejected/cancelled Table outcomes contain no
-acceptance position or result counts. A catalog assertion instead carries its
-nonzero catalog acceptance position for unchanged, rejected and cancelled;
-resulting revision and row counts are zero. Its object is the expected existing
-object, or zero for an absent-name assertion; zero never denotes a Table commit.
-Assertion reason tags are none=0 and condition_changed=1. Its binding commitment
-uses `transit.sql.catalog.assertion.binding.v1`, a zero byte and canonical JSON of
-the complete binding. Before-dispatch abandonment has summary none and fabricates
-no direct terminal record.
+The operator interface provides `list [AFTER_ID]`, `status OPERATION`,
+`cancel OPERATION` and credential-file generation. Inventory has at most eight
+entries and a numeric keyset cursor. Pages are current observations, not one
+atomic inventory snapshot. Status checks the original owner under current rights.
+Cancellation is a sticky request, not a promise of rollback or external closure.
+The old GSQ1 controls, private KV records, multipart upload, initialization mode
+and actor provisioning are removed by the current-v1 cutover.
 
-Configuration fixes one to eight catalog bindings and a separate private ledger.
-Native grants remain explicit. Retained-count/content quotas are mandatory;
-pending quota defaults to 16 and is at most 1024. Capacity and reservation
-increases require explicit controls. New admission cannot consume existing
-reservations. No transition expires work, deletes history under pressure,
-dispatches during inspection or treats disconnect as cancellation.
+`Configuration` requires version 1 and the exact current definition. An account
+provides `execution`, a generation, a `table` key reference, databases and optional
+sources. Accounts cannot share their database principal. Source credentials have
+separate sequence ownership. TLS, activation/spill paths and verifier files are
+explicit references. Loading configuration does not create grants. Existing
+sessions recheck credential revisions and current database permissions.
 
-## Signed native ledger controls
-
-A Station cast payload contains `GSQ1`, current definition:32, command tag:u8,
-then the fields of [`Control.Command`](../packages/zig/transit-sql/src/Control.zig)
-in declaration order. Integers are little-endian, arrays have exact declared
-length, enums use their declared integer tag, and optional values start with
-zero (absent) or one (present). There are no omitted/defaulted wire fields.
-Qualified targets contain operation:u64 and native generation:u64. Parts contain offset:u32, length:u8 and bytes:128; offsets
-are multiples of 128 and unused bytes are zero. Embedded terminal facts omit
-the GST1/definition prefix because the command already supplies its definition.
-
-| Tag | Command | Required actor |
-| ---: | --- | --- |
-| 1 | initialize | Operator |
-| 2 | begin(nonce, binding, fingerprint) | Ingress |
-| 3 | begin_intent(operation, spec) | Ingress |
-| 4 | intent_part(operation, part) | Ingress |
-| 5 | seal_intent(operation) | Ingress |
-| 6 | admit_intent(qualified target) | Coordinator |
-| 7 | activate(generation) | Coordinator |
-| 8 | dispatch(qualified target) | Coordinator |
-| 13 | reconcile(operation) | Operator |
-| 14 | cancel(operation) | Operator |
-| 17 | cancel_unsent(qualified target) | Coordinator |
-| 18 | capacity(operations:u64, bytes:u64, pending:u32) | Operator |
-| 19 | reserve(operation:u64, bytes:u64) | Operator |
-| 20 | complete(qualified target, terminal facts) | Coordinator |
-
-Successful native input processing is observed through the owner and its current
-resource; it does not create a SQL success reply. A rejected ledger input stores
-GSD1 with input:u64, principal:u64, frame fingerprint:32, cause length:u8 and
-cause:64, zero padded. Causes contain ASCII alphanumeric error names, never SQL,
-credentials or values. Source read, allocation and host cancellation failures
-are not application rejections and do not advance through this path.
-
-`Client.Prepared` canonical JSON contains mandatory version/current definition,
-realm/resource/owner, configuration fingerprint and exact native signed request.
-Its saved size is at most 4096 bytes. Restoration rejects trailing/noncanonical
-JSON and foreign definitions. Submission verifies the configured role, identity
-and signature, then attempts the original request once. Unknown outcomes retain
-that request; no helper silently allocates a successor or substitutes a new
-signature. Read-only list/discover/status acquisition does not call the scheduler.
-
-Operation inventory uses ordered keyset pagination over retained, increasing
-operation IDs. A cursor binds realm/resource, account configuration, last ID and
-minimum resource revision. Each page checks current read authority at its own
-cut and returns at most eight operations. Forward revisions are permitted;
-foreign bindings and backward revisions reject. Page phases are observations,
-not one atomic inventory snapshot. Appends after the last page require another
-listing; terminal status separately checks current Table disclosure rights.
-
-## Runtime handoff and configuration
-
-`ControlLane` owns at most one exact signed request and its optional native
-receipt. Preparation transfers into the lane before submit. Polling neither
-allocates a successor nor replaces the request after transport/status failure.
-The lane clears only after an attributed processed observation. It belongs to
-the account runtime, independent of a connection's wait or allocation lifetime.
-
-`AccountRuntime` serializes ingress through its lane and ticks the ledger worker
-and private coordinator independently. Each native HTTP client has one borrower;
-sessions use their own transport for metadata, reads and observations. An
-exact-current ledger reader invalidated by concurrent publication is reacquired,
-while signed pending work is retained. Only a definite native `ConflictingRetry`
-on an unreceipted private coordinator proposal permits clearing that proposal,
-after checking the actual current native fence. This exception never applies to
-a published Table step or ingress/operator control.
-
-Immutable `intent_part` controls advance after a valid native admission receipt.
-The ordered durable mailbox holds accepted bytes while the ledger processes
-them; the runtime retains at most one uncertain ingress request, independently
-of the durable backlog. A missing or invalid receipt keeps that exact signed
-request pending and prevents allocating its successor. Begin and seal controls
-still wait for their domain processing result. The seal validates the complete
-publication before admission; accepted parts alone establish neither a complete
-intent nor a successful SQL write. Existing per-intent size, native admission
-quotas and turn mutation/value bounds apply unchanged.
-
-Execution reserves a nonce/operation, binds an immutable Table intent, uploads it
-and waits for original terminal evidence. Cancellation/deadline releases the
-wait; it does not roll back, discard or authorize expiry of accepted work. A
-partial upload remains discoverable with its received parts, but missing intent
-bytes are not reconstructed after the originating task ends. Already admitted
-parts and a queued seal continue processing after the wait ends. An uploading
-phase observation alone does not establish that no later admission can occur.
-It cannot dispatch until the complete intent is sealed and admitted; qualified unsent cancellation
-can close it. The returned terminal record must equal a
-fresh authorized observation from the Table owner; a cached ledger count alone
-cannot establish disclosure authority. The host joins workers and connections
-before destruction and requires fresh eligible ownership for a restarted process.
-
-`Configuration` requires version 1 and the current native definition explicitly.
-SQL account names and database names map to configured native bindings only.
-Within a realm, configured accounts cannot share a ledger owner/resource or any
-sequenced principal. TLS material, native keys, activation and spill paths are
-explicit references. A `Credential` binds account identity, nonzero revision,
-enabled state and current verifier definition. The host owns file loading,
-atomic replacement and existing-session revision checks; validating these values
-does not provision grants, certify an activation or open a listener.
+A deadline, disconnect or cancellation ends a wait; it does not discard accepted
+work. Completion is projected only from a matching, currently authorized owner
+outcome. Workers and connections join before destruction. A restarted service
+requires a fresh Catalog generation.
 
 ## Primary definitions
 

@@ -44,8 +44,6 @@ def main():
     parser.add_argument('--write', action='store_true')
     args = parser.parse_args()
     fixtures = {'transit-sql-protocol/src/fixtures/auth.json': authentication()}
-    fixtures['transit-sql/src/fixtures/records.json'] = records()
-    fixtures['transit-sql/src/fixtures/controls.json'] = controls()
     fixtures['transit-postgres/src/fixtures/backend.json'] = postgres_backend()
     fixtures['transit-mysql/src/fixtures/backend.json'] = mysql_backend()
     for protocol in ('postgres', 'mysql'):
@@ -69,39 +67,6 @@ def length(n):
     if n < 16777216:
         return b'\xfd' + n.to_bytes(3, 'little')
     return b'\xfe' + struct.pack('<Q', n)
-
-
-def records():
-    definition = definition_bytes()
-    def record(magic, value, fields):
-        encoded = magic.encode() + definition
-        for name, layout in fields:
-            item = value[name]
-            if isinstance(layout, dict):
-                encoded += bytes([layout[item]])
-            elif layout == 'bytes':
-                encoded += bytes(item)
-            else:
-                encoded += struct.pack('<' + layout, item)
-        return dict(value=value, bytes=encoded.hex())
-    head = dict(configuration=[7]*32, operations=42, unsettled=0, used_bytes=2**64-2,
-                reserved_bytes=0, operation_quota=2**64-1, byte_quota=2**64-1,
-                pending_quota=16, active=0)
-    operation = dict(id=7, nonce=list(range(16)), resource=9, catalog=2**64-1, owner=11, namespace=1, role_present=0, role=0,
-                     phase='reserved', intent_length=0, intent_digest=[0]*32, published=0,
-                     stored_bytes=0, reservation=1024, cancel=0, reconcile=0, blocked=0,
-                     summary='none', matched=0, changed=0)
-    terminal = dict(kind='dml', identity=[13]*32, resource=9, principal=11, operation=7,
-                    object=2**64-1, state='applied', reason=0, matched=2**64-1, changed=2**64-2,
-                    partition=32, next_lsn=33, resulting_revision=1)
-    assertion = dict(terminal, kind='catalog_assertion', object=0, state='unchanged',
-                     matched=0, changed=0, partition=2**64-1, next_lsn=2**64-1, resulting_revision=0)
-    return dict(
-        assertion=record('GST1', assertion, [(k, {'catalog_assertion':3} if k == 'kind' else {'unchanged':4} if k == 'state' else 'bytes' if k == 'identity' else 'B' if k == 'reason' else 'Q') for k in assertion]),
-        head=record('GSH1', head, [(k, 'bytes' if k == 'configuration' else 'I' if k == 'pending_quota' else 'Q') for k in head]),
-        operation=record('GSO1', operation, [(k, {'reserved':1} if k == 'phase' else {'none':0} if k == 'summary' else 'bytes' if k in ('nonce','intent_digest') else 'I' if k == 'intent_length' else 'B' if k in ('published','cancel','reconcile','blocked','role_present') else 'Q') for k in operation]),
-        terminal=record('GST1', terminal, [(k, {'dml':2} if k == 'kind' else {'applied':1} if k == 'state' else 'bytes' if k == 'identity' else 'B' if k == 'reason' else 'Q') for k in terminal]),
-    )
 
 
 def postgres_backend():
@@ -156,20 +121,6 @@ def mysql_backend():
                 upgrade=header.hex(),
                 response=(header+b'user\0'+string(bytes([3])*32)+b'database\0caching_sha2_password\0'+string(attributes)).hex())
 
-
-def controls():
-    prefix = b'GSQ1' + definition_bytes()
-    terminal = records()['terminal']
-    cases = [
-        (dict(begin=dict(nonce=list(range(16)), binding=dict(resource=9, catalog=2**64-1, owner=11, namespace=1, role=None), fingerprint=[0]*32)),
-         b'\x02' + bytes(range(16)) + struct.pack('<QQQQB', 9, 2**64-1, 11, 1, 0) + bytes(32)),
-        (dict(intent_part=dict(operation=99,
-                             part=dict(offset=128, length=3, bytes=[1, 2, 3]+[0]*125))),
-         b'\x04' + struct.pack('<QIB', 99, 128, 3) + bytes([1, 2, 3])+bytes(125)),
-        (dict(complete=dict(target=dict(operation=7, generation=2), outcome=terminal['value'])),
-         b'\x14' + struct.pack('<QQ', 7, 2) + bytes.fromhex(terminal['bytes'])[36:]),
-    ]
-    return [dict(value=value, bytes=(prefix+encoded).hex()) for value, encoded in cases]
 
 
 def scalars(protocol):

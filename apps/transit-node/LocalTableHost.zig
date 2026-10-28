@@ -49,6 +49,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config, engine: *b
 fn exclusive(action: w.Action) bool {
     return switch (action) {
         .client_token => |value| value == .bind,
+        .client_progress => |value| value == .update,
         .initialize, .admit_ddl, .check_set, .name_assertion, .name_preview => true,
         .namespace_operation => |value| value.command != .inspect,
         .dependency_operation => |value| value.command != .inspect,
@@ -71,7 +72,7 @@ fn target(action: w.Action) ?u64 {
         inline .storage, .flush => |value| value.object.object,
         .read_authority => |value| value.object,
         .stage => |value| value.intent.work.binding().target.object,
-        .admit_saved => |value| value.binding.target.object,
+        inline .admit_saved, .commit_saved => |value| value.binding.target.object,
         .preview => |value| value.binding.target.object,
         inline .preview_rows, .preview_statement, .admit_rows, .admit_statement => |value| value.binding.target.object,
         .operation => |value| value.binding.target.object,

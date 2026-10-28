@@ -26,7 +26,7 @@ identities of your already-provisioned owners and login role):
 
 ```yaml
 version: 1
-definition: 2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188
+definition: a716998e2831c843eedd24c792311f4d33aa0444460522f8f26cf4ad54b29ff7
 sources:
   - name: counters
     database: transit
@@ -70,7 +70,7 @@ and selected role authenticate direct reads. A source declaration neither create
 an actor-owned Table nor grants native raw-data access.
 
 A source caller uses a dedicated native principal and sequence. It cannot share
-any account worker, Table coordinator or other source's sequenced principal.
+an account database principal or another source's sequenced principal.
 Its login role must equal the SQL account's login role; its selected role must
 equal the database binding's role. Current credentials, database rights, source
 policy, requester identity and source definition are checked separately.
@@ -79,8 +79,8 @@ fingerprint and cannot reinterpret previously admitted work.
 
 Interactive KV and Document source queries acquire a fresh leased snapshot for
 each execution. Interactive Table sources acquire an explicit direct Table pin.
-The account journals its original request before acquisition and its closure
-before release. Recovery resolves the exact configured source connection and
+Catalog recovery slots retain its original request before acquisition and its closure
+before release. Unchanged Table cuts can be reused through the bounded read cache. Recovery resolves the exact configured source connection and
 current key; a removed connection or denied credential leaves cleanup pending.
 Prepared metadata does not hold a snapshot or permission. Results preserve
 logical values and source basis, including missing/type-error/conflict states.
@@ -91,7 +91,7 @@ The console uses interactive reads and has no captured execution setting.
 For a Table, the service authorizes the exact current cut, executor and distinct
 pin operation before publishing the bundle. The Query owner acquires and closes
 that pin; recovery does not authorize another capture. The service publishes the
-exact compiled bundle in the account ledger, then
+exact compiled bundle in the Catalog recovery index, then
 drives the existing Query owner using published signed requests. A dedicated
 recovery task continues accepted work after the caller disconnects. Query
 manifests and current authorization govern retained result reads.

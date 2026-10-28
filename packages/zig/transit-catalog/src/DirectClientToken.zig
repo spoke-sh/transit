@@ -10,6 +10,10 @@ pub const Key = struct {
     account: [32]u8,
     token: [16]u8,
 
+    pub fn scope(self: Key) c.DirectRecord.Scope {
+        return .{ .definition = self.definition, .connection = self.connection, .account = self.account };
+    }
+
     pub fn validate(self: Key) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.connection.validate();
@@ -37,18 +41,79 @@ pub const Key = struct {
     }
 };
 
+/// Optional request fence against a specific Catalog recovery revision. The
+/// local host holds shared Catalog access through execution/disclosure; replacing
+/// this record requires exclusive access, so stale requests cannot cross it.
+pub const Lease = struct {
+    key: Key,
+    revision: p.DataLifecycle.Position,
+    pub fn validate(self: Lease, connection: c.DirectTableProtocol.Connection) !void {
+        try self.key.validate();
+        try self.revision.validate();
+        if (!std.meta.eql(self.key.connection.scope, connection.scope) or self.key.connection.principal != connection.principal or self.key.connection.audience != connection.audience) return error.InvalidClientToken;
+    }
+};
+
+pub const Limits = struct {
+    operations: u64 = 1_000_000,
+    bytes: u64 = 4 * 1024 * 1024 * 1024,
+    pending: u64 = 1024,
+    pub fn validate(self: Limits) !void {
+        if (self.operations == 0 or self.bytes == 0 or self.pending == 0) return error.InvalidClientToken;
+    }
+};
+pub const Budget = struct {
+    limits: Limits = .{},
+    bytes: u64 = 4608,
+    pub fn validate(self: Budget) !void {
+        try self.limits.validate();
+        if (self.bytes < 512 or self.bytes > self.limits.bytes) return error.InvalidClientToken;
+    }
+};
+/// Counters share the primary token's account scope, including all login roles.
+/// Settlement releases pending capacity; accepted identities and byte charges
+/// remain retained. Quota pressure never expires accepted work.
+pub const Usage = struct {
+    limits: Limits,
+    operations: u64 = 0,
+    bytes: u64 = 0,
+    pending: u64 = 0,
+    pub fn transition(self: Usage, before: ?Progress, after: Progress) !Usage {
+        var next = self;
+        const budget = after.receipt.binding.budget;
+        if (!std.meta.eql(self.limits, budget.limits)) return error.ClientBudgetConflict;
+        if (before) |prior| {
+            if (prior.pending and !after.pending) next.pending = try std.math.sub(u64, next.pending, 1);
+        } else {
+            next.operations = try std.math.add(u64, next.operations, 1);
+            next.bytes = try std.math.add(u64, next.bytes, budget.bytes);
+            next.pending = try std.math.add(u64, next.pending, 1);
+        }
+        if (next.operations > next.limits.operations or next.bytes > next.limits.bytes or next.pending > next.limits.pending) return error.ClientTokenCapacity;
+        return next;
+    }
+};
+pub fn usageKey(key: Key) !c.storage.TreeStore.pages.Key {
+    var account = key;
+    account.token = @splat(0);
+    return c.storage.TreeStore.pages.Key.init(&try account.digest());
+}
+
 pub const Binding = struct {
     key: Key,
     /// Caller-defined commitment to the complete original request, including
     /// parameters and selected database. The catalog does not interpret SQL.
     fingerprint: [32]u8,
-    intent: c.DirectTableIntent.Reference,
+    intent: c.DirectIntent.Reference,
+    budget: Budget = .{},
 
     pub fn validate(self: Binding) !void {
         try self.key.validate();
         try self.intent.validate();
-        if (!std.meta.eql(self.key.connection, self.intent.connection) or
+        try self.budget.validate();
+        if (!std.meta.eql(self.key.connection, self.intent.connection()) or
             std.mem.allEqual(u8, &self.fingerprint, 0)) return error.InvalidClientToken;
+        if (self.intent == .external and !std.mem.eql(u8, &self.key.account, &self.intent.external.record.scope.account)) return error.InvalidClientToken;
     }
     /// Racing preparations of the same request may propose different operation
     /// IDs or cuts. Only the originally accepted reference may be dispatched.
@@ -69,6 +134,114 @@ pub const Receipt = struct {
         if (self.position.next_lsn < 2) return error.InvalidClientToken;
     }
 };
+
+/// Recovery bookkeeping is distinct from an operation's authoritative outcome.
+/// The original receipt never changes. A settled entry cannot become pending.
+pub const Progress = struct {
+    receipt: Receipt,
+    revision: p.DataLifecycle.Position,
+    pending: bool,
+    cancel: bool,
+    record: ?c.DirectRecord.Reference,
+    pub fn initial(receipt: Receipt) Progress {
+        return .{ .receipt = receipt, .revision = receipt.position, .pending = true, .cancel = false, .record = null };
+    }
+    pub fn validate(self: Progress) !void {
+        try self.receipt.validate();
+        try self.revision.validate();
+        if (self.revision.partition != self.receipt.position.partition or self.revision.next_lsn < self.receipt.position.next_lsn) return error.InvalidClientToken;
+        if (self.record) |value| {
+            try value.validate();
+            if (!std.meta.eql(value.scope, self.receipt.binding.key.scope())) return error.DataIdentityConflict;
+        }
+    }
+    pub fn id(self: Progress) u64 {
+        return self.receipt.position.next_lsn;
+    }
+};
+pub const Update = struct {
+    key: Key,
+    expected: p.DataLifecycle.Position,
+    pending: bool,
+    cancel: bool,
+    record: ?c.DirectRecord.Reference,
+    pub fn validate(self: Update) !void {
+        try self.key.validate();
+        try self.expected.validate();
+        if (self.expected.next_lsn < 2) return error.InvalidClientToken;
+        if (self.record) |value| {
+            try value.validate();
+            if (!std.meta.eql(value.scope, self.key.scope())) return error.DataIdentityConflict;
+        }
+    }
+};
+pub const Selection = struct {
+    scope: c.DirectRecord.Scope,
+    after: ?u64,
+    pending: bool,
+};
+pub const Page = struct { entries: [8]?Progress = @splat(null), next: ?u64 = null };
+pub const ProgressRequest = union(enum) {
+    inspect: Key,
+    operation: struct { scope: c.DirectRecord.Scope, id: u64 },
+    list: Selection,
+    update: Update,
+    pub fn scope(self: ProgressRequest) c.DirectRecord.Scope {
+        return switch (self) {
+            .inspect => |value| value.scope(),
+            .update => |value| value.key.scope(),
+            inline .operation, .list => |value| value.scope,
+        };
+    }
+    pub fn validate(self: ProgressRequest) !void {
+        try self.scope().validate();
+        switch (self) {
+            .inspect => |value| try value.validate(),
+            .update => |value| try value.validate(),
+            .operation => |value| if (value.id < 2) return error.InvalidClientToken,
+            .list => {},
+        }
+    }
+};
+pub const ProgressResult = union(enum) { state: ?Progress, page: Page };
+
+pub fn accountPrefix(scope: c.DirectRecord.Scope) ![24]u8 {
+    try scope.validate();
+    var buffer: [2048]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buffer);
+    var encoder: std.json.Stringify = .{ .writer = &writer };
+    try p.Json.write(scope, &encoder);
+    var hash: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(writer.buffered(), &hash, .{});
+    return hash[0..24].*;
+}
+pub fn accountKey(scope: c.DirectRecord.Scope, id: u64) !c.storage.TreeStore.pages.Key {
+    var bytes: [32]u8 = undefined;
+    bytes[0..24].* = try accountPrefix(scope);
+    std.mem.writeInt(u64, bytes[24..32], id, .big);
+    return c.storage.TreeStore.pages.Key.init(&bytes);
+}
+
+pub fn inspect(client: c.DirectTableClient, key: Key) !?Progress {
+    const response = try client.call(.{ .client_progress = .{ .inspect = key } });
+    defer response.deinit();
+    return response.value.result.client_progress.state;
+}
+pub fn operation(client: c.DirectTableClient, account: [32]u8, id: u64) !?Progress {
+    const response = try client.call(.{ .client_progress = .{ .operation = .{ .scope = .{ .definition = p.Growth.current_definition, .connection = client.connection, .account = account }, .id = id } } });
+    defer response.deinit();
+    return response.value.result.client_progress.state;
+}
+pub fn list(client: c.DirectTableClient, account: [32]u8, after: ?u64, pending: bool) !Page {
+    const response = try client.call(.{ .client_progress = .{ .list = .{ .scope = .{ .definition = p.Growth.current_definition, .connection = client.connection, .account = account }, .after = after, .pending = pending } } });
+    defer response.deinit();
+    return response.value.result.client_progress.page;
+}
+pub fn update(client: c.DirectTableClient, value: Update) !Progress {
+    const response = try client.call(.{ .client_progress = .{ .update = value } });
+    defer response.deinit();
+    return response.value.result.client_progress.state orelse error.InvalidTableResponse;
+}
 pub const Request = union(enum) {
     lookup: Key,
     bind: Binding,
@@ -110,7 +283,7 @@ test "direct client token signing and key identity match independent fixtures" {
     try fixture.request.proof.verify(fixture.public_key);
     const binding = fixture.request.action.client_token.bind;
     try t.expectEqualDeep(fixture.key_digest, try binding.key.digest());
-    try t.expectEqual(std.math.maxInt(u64), binding.intent.binding.identity.operation);
+    try t.expectEqual(std.math.maxInt(u64), binding.intent.table.binding.identity.operation);
     var changed_key = binding.key;
     changed_key.connection.role = 12;
     try t.expectEqualDeep(fixture.key_digest, try changed_key.digest());

@@ -91,13 +91,13 @@ pub const Read = struct {
     workspace: []u8,
     arrow: []u8,
     adapter: []u8,
-    pin: ?g.ReadPins.Record = null,
+    pin: ?g.ReadCache.Record = null,
     decoded: ?f.LogicalInspect.Batch = null,
     index: usize = 0,
     pub fn init(source: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !Read {
         var bound = try source.bind(prepared, values);
         errdefer bound.deinit();
-        var pin: ?g.ReadPins.Record = null;
+        var pin: ?g.ReadCache.Record = null;
         errdefer closePin(source, pin);
         var query = if (source.client.tables) |tables| table: {
             const declaration = source.definition.source.table;
@@ -121,7 +121,7 @@ pub const Read = struct {
         const adapter = try arena.allocator().alloc(u8, q.UnifiedBehavior.adapter_bytes);
         return .{ .source = source, .bound = bound, .query = query, .arena = arena, .page_arena = .init(source.host.allocator), .workspace = workspace, .arrow = arrow, .adapter = adapter, .pin = pin };
     }
-    fn closePin(source: *Self, pin: ?g.ReadPins.Record) void {
+    fn closePin(source: *Self, pin: ?g.ReadCache.Record) void {
         if (pin) |record| {
             const rejection = source.host.wire.last_rejection;
             defer source.host.wire.last_rejection = rejection;

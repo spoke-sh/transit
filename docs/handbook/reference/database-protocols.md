@@ -2,7 +2,7 @@
 
 Transit accepts selected PostgreSQL and MySQL wire protocols through its SQL
 gateway. Both adapters use the same account runtime, catalog, Fuze execution
-and durable operation ledger as [native SQL sessions](sql-sessions.md). They do
+and Catalog-owned operation history as [native SQL sessions](sql-sessions.md). They do
 not run either upstream database engine or provide its complete SQL dialect.
 
 Follow [Connect with psql and mysql](../../../apps/transit-cli/docs/sql.md) for

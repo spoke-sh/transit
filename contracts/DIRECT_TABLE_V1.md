@@ -109,8 +109,54 @@ and quota refusal to `StorageQuota`. Storage failure can leave acceptance unknow
 
 Catalog roots require the token directory and count fields. Earlier definitions
 reject under the shared-v1 cutover without a default, converter or data reset.
-SQL sessions still use their account ledger; they do not implicitly use this
-typed direct-caller operation.
+SQL database sessions use these same public operations. The intent is a tagged
+`DirectIntent.Reference`: Table, conditional name, namespace change or external
+owner. External records fix their connection, namespace, operation and immutable
+`DirectRecord` content; the external owner establishes its domain outcome.
+
+`client_progress.inspect` selects a token; `operation` selects its immutable
+Catalog acceptance ID within an exact account/connection scope. `list` returns
+at most eight entries and an optional increasing numeric cursor, selecting all
+or pending entries. The original receipt never changes. Each `Progress` has an
+independent Catalog `revision`, `pending`, sticky `cancel` and optional immutable
+record reference. `update` compares the expected revision. An exact repeated
+update returns its existing state, including after a lost reply. A stale changed
+update conflicts; settled work cannot become pending and cancellation cannot be
+cleared. Table, name and namespace settlement requires an actual terminal owner
+observation. External bookkeeping is not evidence of external completion.
+
+`Binding.budget` declares account limits for operations, retained recovery bytes
+and pending operations, plus this operation's byte reservation. Defaults are
+1,000,000 operations, 4 GiB, 1024 pending and 4608 reserved bytes. Limits are fixed
+by the first accepted account binding. The account directory aggregates across
+roles in the primary token identity domain. Acceptance checks and charges it
+atomically with the token; settlement releases only pending capacity. Catalog-wide
+quota and data-owner limits remain separate. A changed budget profile conflicts;
+no implicit quota increase, expiry or data reset occurs.
+
+`record.stage` publishes a complete immutable opaque body, up to 4 MiB, under a
+current-definition connection/account scope and nonzero format tag. Its reference
+binds exact byte length and SHA-256. `record.read` verifies both. Current CONNECT
+is required for staging and reading; these records never grant data or execution
+rights. Accepted references and subsequent progress records retain complete
+original work; a body alone does not establish token acceptance.
+
+An optional signed request `lease` contains a token key and exact recovery
+revision. Its scope/principal/audience must match the request. The local host
+holds shared Catalog access through execution/disclosure; updates take exclusive
+access. A missing or replaced lease record conflicts before the action executes.
+The lease is a fence, not authorization. Current policy checks remain mandatory.
+
+`commit_saved` accepts a complete staged Table DML reference and returns its
+original row-operation state. INSERT/UPDATE/DELETE evaluate their frozen work and
+publish state, indexes and outcome in one Table WAL append. There is no
+intermediate Table admission record. Repeating the exact request returns the
+original outcome; changed work conflicts. Token acceptance and recovery-index
+settlement remain separate Catalog transitions. DDL is excluded from this action.
+
+Catalog roots require all token, operation, pending and account directories and
+counters. The shared definition rejects superseded layouts before execution;
+there is no default compatibility field or fallback decoder.
 
 ### Named native resources
 

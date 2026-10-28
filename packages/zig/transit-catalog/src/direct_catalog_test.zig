@@ -336,7 +336,7 @@ fn tokenBinding(objects: s.TransitObjectStore.ObjectStore, operation: u64, token
     const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
     var intent = try c.DirectTableIntent.create(t.allocator, connection, .{ .ddl = .{ .binding = request.binding, .namespace = 1, .name = "events", .action = .{ .create = .{ .owner = 0, .schema = wire_schema } } } });
     defer intent.deinit();
-    return .{ .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(9), .token = @splat(token) }, .fingerprint = @splat(17), .intent = try c.DirectTableIntentStore.stage(objects, &intent, 1) };
+    return .{ .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(9), .token = @splat(token) }, .fingerprint = @splat(17), .intent = .{ .table = try c.DirectTableIntentStore.stage(objects, &intent, 1) } };
 }
 
 test "direct client token lost reply recovers the original intent on disk without data admission" {
@@ -367,23 +367,23 @@ test "direct client token lost reply recovers the original intent on disk withou
     try t.expectEqualDeep(binding, receipt.binding);
     try t.expectEqualDeep(p.DataLifecycle.Position{ .partition = 1, .next_lsn = 2 }, receipt.position);
     try t.expectEqual(@as(u64, 1), catalog.store.root.client_token_count);
-    try t.expectEqual(.not_observed, try catalog.status(binding.intent.binding, access.policy()));
+    try t.expectEqual(.not_observed, try catalog.status(binding.intent.table.binding, access.policy()));
     try t.expect(try catalog.resolve(t.allocator, 1, try .init("events"), access.policy()) == null);
     const root_before = catalog.store.root;
     var competing = binding;
-    competing.intent.binding.identity.operation = 56;
-    competing.intent.content.sha256 = @splat(88); // Never staged: retry returns the winner before loading a losing proposal.
+    competing.intent.table.binding.identity.operation = 56;
+    competing.intent.table.content.sha256 = @splat(88); // Never staged: retry returns the winner before loading a losing proposal.
     try t.expectEqualDeep(receipt, (try catalog.clientToken(.{ .bind = competing }, access.policy())).?);
     competing.fingerprint[0] ^= 1;
     try t.expectError(error.ClientTokenConflict, catalog.clientToken(.{ .bind = competing }, access.policy()));
     competing = binding;
     competing.key.connection.role = 2;
-    competing.intent.connection.role = 2;
+    competing.intent.table.connection.role = 2;
     try t.expectError(error.DataIdentityConflict, catalog.clientToken(.{ .bind = competing }, access.policy()));
     try t.expectEqualDeep(root_before, catalog.store.root);
     // The recovered binding owns a usable immutable body; no name lookup or
     // replacement operation is needed to admit and finish the original work.
-    var original = try c.DirectTableIntentStore.load(t.allocator, objects.objectStore(), receipt.binding.intent);
+    var original = try c.DirectTableIntentStore.load(t.allocator, objects.objectStore(), receipt.binding.intent.table);
     defer original.deinit();
     var scratch = std.heap.ArenaAllocator.init(t.allocator);
     defer scratch.deinit();
@@ -409,10 +409,10 @@ test "direct client token reserves DDL identity in its control store" {
     try catalog.initialize(access.policy());
     const binding = try tokenBinding(data.objectStore(), 55, 1);
     _ = try catalog.clientToken(.{ .bind = binding }, access.policy());
-    try t.expectEqualDeep(binding.intent.binding, (try c.OperationBinding.lookup(t.allocator, control.objectStore(), binding.intent.binding.identity)).?);
-    try t.expect(try c.OperationBinding.lookup(t.allocator, data.objectStore(), binding.intent.binding.identity) == null);
+    try t.expectEqualDeep(binding.intent.table.binding, (try c.OperationBinding.lookup(t.allocator, control.objectStore(), binding.intent.table.binding.identity)).?);
+    try t.expect(try c.OperationBinding.lookup(t.allocator, data.objectStore(), binding.intent.table.binding.identity) == null);
     try t.expectError(error.DataIdentityConflict, catalog.admit(try creation(8, 55, "other"), access.policy()));
-    try t.expectEqual(.not_observed, try catalog.status(binding.intent.binding, access.policy()));
+    try t.expectEqual(.not_observed, try catalog.status(binding.intent.table.binding, access.policy()));
 }
 
 test "direct client token roots reject omitted durable directories and counters" {
@@ -471,7 +471,7 @@ test "direct client token missing content and current denial cannot manufacture 
     try catalog.initialize(access.policy());
     const binding = try tokenBinding(objects.objectStore(), 55, 0);
     var missing = binding;
-    missing.intent.content.sha256 = @splat(99);
+    missing.intent.table.content.sha256 = @splat(99);
     try t.expectError(error.TableIntentMissing, catalog.clientToken(.{ .bind = missing }, access.policy()));
     try t.expectEqual(@as(u64, 1), try wal.log().tail(1));
     access.deny_create = true;
@@ -2412,4 +2412,142 @@ test "retained metadata shares one recovered owner while preserving source and f
     try catalog.releaseRows(object, lease, access.policy());
     try t.expectError(error.TableSnapshotReleased, catalog.snapshotRead(t.allocator, object, lease, access.policy()));
     try t.expectError(error.TableSnapshotReleased, catalog.historyRead(t.allocator, object, lease, initial.point, access.policy()));
+}
+
+test "direct client recovery pages persist cancellation and exact CAS retries across restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try tokenBinding(objects.objectStore(), 55, 1);
+    for (0..19) |i| {
+        var next = binding;
+        next.key.token = @splat(@intCast(i));
+        _ = try catalog.clientToken(.{ .bind = next }, access.policy());
+    }
+    const initial = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+    var change: c.DirectClientToken.Update = .{ .key = binding.key, .expected = initial.revision, .pending = true, .cancel = true, .record = null };
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.clientProgress(.{ .update = change }, access.policy()));
+    catalog.store.lose_reply = false;
+    try catalog.recover();
+    const cancelled = (try catalog.clientProgress(.{ .update = change }, access.policy())).state.?;
+    try t.expectEqualDeep(initial.receipt, cancelled.receipt);
+    try t.expect(cancelled.cancel and cancelled.revision.next_lsn > initial.revision.next_lsn);
+    const root_before = catalog.store.root;
+    try t.expectEqualDeep(cancelled, (try catalog.clientProgress(.{ .update = change }, access.policy())).state.?);
+    try t.expectEqualDeep(root_before, catalog.store.root);
+    change.pending = false;
+    try t.expectError(error.ClientOperationConflict, catalog.clientProgress(.{ .update = change }, access.policy()));
+    change.expected = cancelled.revision;
+    try t.expectError(error.ClientOperationPending, catalog.clientProgress(.{ .update = change }, access.policy()));
+    change.pending = true;
+    change.cancel = false;
+    try t.expectError(error.ClientOperationConflict, catalog.clientProgress(.{ .update = change }, access.policy()));
+    var original = try c.DirectTableIntentStore.load(t.allocator, objects.objectStore(), binding.intent.table);
+    defer original.deinit();
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const native = try original.parsed.value.work.ddl.native(arena.allocator(), try configuration());
+    _ = try catalog.admit(native, access.policy());
+    _ = try catalog.perform(native.binding, access.policy());
+    change.pending = false;
+    change.cancel = true;
+    const settled = (try catalog.clientProgress(.{ .update = change }, access.policy())).state.?;
+    try catalog.recover();
+    try t.expectEqualDeep(settled, (try catalog.clientProgress(.{ .operation = .{ .scope = binding.key.scope(), .id = initial.id() } }, access.policy())).state.?);
+    for ([_]bool{ false, true }) |pending| {
+        var count: usize = 0;
+        var after: ?u64 = null;
+        while (true) {
+            const page = (try catalog.clientProgress(.{ .list = .{ .scope = binding.key.scope(), .after = after, .pending = pending } }, access.policy())).page;
+            for (page.entries) |slot| if (slot) |state| {
+                if (pending) try t.expect(state.id() != settled.id());
+                count += 1;
+            };
+            after = page.next;
+            if (after == null) break;
+        }
+        try t.expectEqual(@as(usize, if (pending) 18 else 19), count);
+    }
+    access.deny_create = true;
+    try t.expectError(error.CatalogDenied, catalog.clientProgress(.{ .list = .{ .scope = binding.key.scope(), .after = null, .pending = true } }, access.policy()));
+}
+
+test "direct records retain complete bodies and scope recovery progress without actor turns" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+    const record_scope: c.DirectRecord.Scope = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(9) };
+    const bytes: [65536]u8 = @splat(37);
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const staged = try catalog.directRecord(arena.allocator(), .{ .stage = .{ .scope = record_scope, .format = 7, .bytes = try c.DirectTableProtocol.Binary.encode(arena.allocator(), &bytes) } }, access.policy());
+    const binding: c.DirectClientToken.Binding = .{ .key = .{ .definition = record_scope.definition, .connection = connection, .account = record_scope.account, .token = @splat(17) }, .fingerprint = @splat(11), .intent = .{ .external = .{ .connection = connection, .namespace = 1, .operation = 71, .record = staged.reference } } };
+    const receipt = (try catalog.clientToken(.{ .bind = binding }, access.policy())).?;
+    const read = try catalog.directRecord(arena.allocator(), .{ .read = staged.reference }, access.policy());
+    try t.expectEqualSlices(u8, &bytes, try read.bytes.?.decode(arena.allocator(), c.DirectRecord.max_bytes));
+    const changed = (try catalog.clientProgress(.{ .update = .{ .key = binding.key, .expected = receipt.position, .pending = true, .cancel = false, .record = staged.reference } }, access.policy())).state.?;
+    try catalog.recover();
+    try t.expectEqualDeep(changed, (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?);
+    var foreign = staged.reference;
+    foreign.scope.account[0] ^= 1;
+    try t.expectError(error.DataIdentityConflict, catalog.clientProgress(.{ .update = .{ .key = binding.key, .expected = changed.revision, .pending = true, .cancel = false, .record = foreign } }, access.policy()));
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, catalog.directRecord(arena.allocator(), .{ .read = staged.reference }, access.policy()));
+}
+
+test "client account budgets and request fences persist with exact admission" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var binding = try tokenBinding(objects.objectStore(), 55, 1);
+    binding.budget = .{ .limits = .{ .operations = 2, .pending = 1, .bytes = 9216 }, .bytes = 4608 };
+    const receipt = (try catalog.clientToken(.{ .bind = binding }, access.policy())).?;
+    const lease: c.DirectClientToken.Lease = .{ .key = binding.key, .revision = receipt.position };
+    try catalog.requireClientLease(lease, access.policy());
+    var other = binding;
+    other.key.token = @splat(2);
+    const before = catalog.store.root;
+    try t.expectError(error.ClientTokenCapacity, catalog.clientToken(.{ .bind = other }, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    try t.expectEqualDeep(receipt, (try catalog.clientToken(.{ .bind = binding }, access.policy())).?);
+    var original = try c.DirectTableIntentStore.load(t.allocator, objects.objectStore(), binding.intent.table);
+    defer original.deinit();
+    var scratch = std.heap.ArenaAllocator.init(t.allocator);
+    defer scratch.deinit();
+    const native = try original.parsed.value.work.ddl.native(scratch.allocator(), try configuration());
+    _ = try catalog.admit(native, access.policy());
+    _ = try catalog.perform(native.binding, access.policy());
+    _ = try catalog.clientProgress(.{ .update = .{ .key = binding.key, .expected = receipt.position, .pending = false, .cancel = false, .record = null } }, access.policy());
+    try catalog.recover();
+    try t.expectError(error.StaleClientLease, catalog.requireClientLease(lease, access.policy()));
+    other.budget.limits.operations = 3;
+    try t.expectError(error.ClientBudgetConflict, catalog.clientToken(.{ .bind = other }, access.policy()));
+    other.budget = binding.budget;
+    const second = (try catalog.clientToken(.{ .bind = other }, access.policy())).?;
+    _ = try catalog.clientProgress(.{ .update = .{ .key = other.key, .expected = second.position, .pending = false, .cancel = false, .record = null } }, access.policy());
+    other.key.token = @splat(3);
+    try t.expectError(error.ClientTokenCapacity, catalog.clientToken(.{ .bind = other }, access.policy()));
+    const usage = (try catalog.store.clientUsage(catalog.store.root, binding.key)).?;
+    try t.expectEqual(@as(u64, 2), usage.operations);
+    try t.expectEqual(@as(u64, 9216), usage.bytes);
+    try t.expectEqual(@as(u64, 0), usage.pending);
 }

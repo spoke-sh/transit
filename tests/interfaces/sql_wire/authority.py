@@ -12,7 +12,7 @@ def run(postgres, mysql_options, policy, inventory):
         prepared = my.cursor(prepared=True)
         prepared.execute(update, (101, 101))
         assert prepared.rowcount == 0
-        before = {entry['operation'] for entry in inventory()}
+        before = {entry['id'] for entry in inventory()}
         assert policy(False)['write'] is False
         try:
             denied = (
@@ -39,7 +39,7 @@ def run(postgres, mysql_options, policy, inventory):
             reader.execute('SELECT id FROM wire_rows WHERE id=101')
             assert reader.fetchall() == [(101,)]
             reader.close()
-            assert {entry['operation'] for entry in inventory()} == before
+            assert {entry['id'] for entry in inventory()} == before
         finally:
             assert policy(True)['write'] is True
         prepared.close()

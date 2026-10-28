@@ -1,6 +1,6 @@
 //! Public local SQL placement settings. Paths are references, never credentials.
 const std = @import("std");
-const Gateway = @import("transit_sql").Configuration;
+const Gateway = @import("transit_sql_service").Configuration;
 const Self = @This();
 native: Native = .{},
 postgres: ?PostgresListener = null,

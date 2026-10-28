@@ -1,7 +1,7 @@
 //! Recoverable local SQL identities and reviewable public authorization inputs.
 //! Configuration selects exposure; explicit authorization publishes login/data rights.
 const std = @import("std");
-const g = @import("transit_sql");
+const g = @import("transit_sql_service");
 const q = @import("transit_query");
 const p = q.protocol;
 const n = p.Growth;
@@ -26,21 +26,21 @@ pub const Account = struct {
     bootstrap_owner: bool,
     identity: [32]u8,
     principals: Principals,
-    binding: g.Ledger.Binding,
+    binding: g.DatabaseAccount.Binding,
     operation_quota: u64,
     byte_quota: u64,
     pending_quota: u32,
     journal: Journal = .{},
-    initialization: ?struct { prepared: g.Client.Prepared, receipt: ?p.Receipt = null } = null,
+    generation: u64 = 0,
     initialized: bool = false,
     credential_written: bool = false,
     login_role: ?u64 = null,
-    pub fn ledger(self: Account, allocator: std.mem.Allocator, realm: u64) !g.Ledger.Configuration {
-        const bindings = try allocator.dupe(g.Ledger.Binding, &.{self.binding});
-        return .{ .realm = realm, .owner = self.journal.receipts[0] orelse return error.UnresolvedProvisioning, .resource = self.journal.receipts[1] orelse return error.UnresolvedProvisioning, .worker = self.principals.worker, .ingress = self.principals.ingress, .control = self.principals.control, .coordinator = self.principals.coordinator, .table_principal = self.principals.table, .account = self.identity, .bindings = bindings, .operation_quota = self.operation_quota, .byte_quota = self.byte_quota, .pending_quota = self.pending_quota };
+    pub fn execution(self: Account, allocator: std.mem.Allocator, realm: u64) !g.DatabaseAccount.Configuration {
+        const bindings = try allocator.dupe(g.DatabaseAccount.Binding, &.{self.binding});
+        return .{ .realm = realm, .table_principal = self.principals.table, .account = self.identity, .bindings = bindings, .operation_quota = self.operation_quota, .byte_quota = self.byte_quota, .pending_quota = self.pending_quota };
     }
 };
-pub const Principals = struct { worker: u64, ingress: u64, control: u64, coordinator: u64, table: u64 };
+pub const Principals = struct { table: u64 };
 pub fn path(installation: *Installation, allocator: std.mem.Allocator, name: []const u8) ![]const u8 {
     return std.fs.path.join(allocator, &.{ installation.config.installation, "sql", name });
 }
@@ -158,41 +158,8 @@ pub fn loadAccount(installation: *Installation, allocator: std.mem.Allocator, na
 pub fn provision(installation: *Installation, allocator: std.mem.Allocator, record: *Account) !void {
     const file = try accountPath(installation, allocator, record.name, "account.json");
     try record.journal.flush(installation, file, record);
-    for (0..12) |i| {
-        if (record.journal.receipts[i] != null) continue;
-        const done = record.journal.receipts;
-        const lane: ?[]const u8 = switch (i) {
-            4 => "worker",
-            6 => "ingress",
-            8 => "control",
-            10 => "coordinator",
-            else => null,
-        };
-        var key: p.Ed25519.KeyPair = undefined;
-        defer if (lane != null) std.crypto.secureZero(u8, std.mem.asBytes(&key));
-        if (lane) |name| key = try q.wire.readKey(allocator, installation.init.io, try accountPath(installation, allocator, record.name, try std.fmt.allocPrint(allocator, "{s}.seed", .{name})));
-        const command: n.Command = switch (i) {
-            0 => .{ .spawn = .{} },
-            1 => .{ .create_resource = .{ .writer = done[0].? } },
-            2 => .{ .grant_resource = .{ .resource = done[1].?, .subject = 0, .permissions = p.State.all_permissions } },
-            3 => .{ .associate = .{ .pid = done[0].?, .name = try .init("state"), .resource = done[1].? } },
-            4 => .{ .create_principal = .{ .subject = record.principals.worker, .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish), .pid = done[0].? } },
-            5 => .{ .grant_resource = .{ .resource = done[1].?, .subject = record.principals.worker, .permissions = p.State.all_permissions } },
-            6, 8, 10 => .{ .create_principal = .{ .subject = switch (i) {
-                6 => record.principals.ingress,
-                8 => record.principals.control,
-                else => record.principals.coordinator,
-            }, .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send), .pid = done[0].? } },
-            7, 9, 11 => .{ .grant_resource = .{ .resource = done[1].?, .subject = switch (i) {
-                7 => record.principals.ingress,
-                9 => record.principals.control,
-                else => record.principals.coordinator,
-            }, .permissions = Installation.read_permissions } },
-            else => unreachable,
-        };
-        try record.journal.submit(installation, file, record, @intCast(i), command);
-    }
 }
+
 pub const AuthorizationState = enum { awaiting_role, awaiting_binding, bound, unavailable };
 pub fn enrollment(installation: *Installation, allocator: std.mem.Allocator, record: *Account, desired: Settings.Account) !AuthorizationState {
     const policy = (try installation.query(.{ .authorization = .{ .kind = .identity } })).body.authorization;
@@ -211,7 +178,7 @@ pub fn enrollment(installation: *Installation, allocator: std.mem.Allocator, rec
         // with the same name. A recorded publication is never repeated after
         // credential disable/rotation, even if its observation was interrupted.
         if (resolved.id != installation.record.authorization_steps[0].?) return .unavailable;
-        try record.journal.authorize(installation, try accountPath(installation, allocator, record.name, "account.json"), record, 12, .{ .bind_credential = .{ .principal = record.principals.table, .role = resolved.id, .public_key = key.public_key.toBytes() } });
+        try record.journal.authorize(installation, try accountPath(installation, allocator, record.name, "account.json"), record, 0, .{ .bind_credential = .{ .principal = record.principals.table, .role = resolved.id, .public_key = key.public_key.toBytes() } });
     }
     const caller: q.wire.AuthorizationClient = .{ .transport = installation.wire, .realm = installation.config.realm, .principal = record.principals.table, .key = key };
     const observed = caller.read(.identity) catch |err| {
@@ -269,6 +236,6 @@ pub fn enrollment(installation: *Installation, allocator: std.mem.Allocator, rec
 }
 
 pub fn controlProfile(installation: *Installation, allocator: std.mem.Allocator, record: Account) !void {
-    const profile: g.OperatorConfiguration = .{ .version = 1, .definition = p.Growth.current_definition, .native_url = installation.wire.url, .ledger = try record.ledger(allocator, installation.config.realm), .control_key_file = try accountPath(installation, allocator, record.name, "control.seed"), .table_key_file = try accountPath(installation, allocator, record.name, "table.seed"), .pending_file = try accountPath(installation, allocator, record.name, "control-pending.json"), .timeout_ms = installation.config.sql.command_ms };
+    const profile: g.OperatorConfiguration = .{ .version = 1, .definition = p.Growth.current_definition, .native_url = installation.wire.url, .execution = try record.execution(allocator, installation.config.realm), .table_key_file = try accountPath(installation, allocator, record.name, "table.seed"), .timeout_ms = installation.config.sql.command_ms };
     _ = try Files.jsonIfChanged(installation.init.io, allocator, try accountPath(installation, allocator, record.name, "control.json"), profile);
 }

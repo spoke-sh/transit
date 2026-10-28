@@ -2,7 +2,7 @@
 
 The console, PostgreSQL and MySQL adapters execute through one server-managed
 SQL service. Each connection opens its own logical session; accounts share a
-fenced runtime and durable operation ledger. Two consoles can use the same
+fenced runtime and Catalog-owned operation history. Two consoles can use the same
 installation without sharing a client recovery lock or private signing keys.
 
 Start with the [console guide](../../../apps/transit-cli/docs/console.md) for local
@@ -78,7 +78,7 @@ terminal counts.
 ## Durable work and recovery
 
 Mutations and explicitly captured queries carry a caller-generated 128-bit
-admission token. The account ledger binds that token to the exact SQL, parameters,
+admission token. The account Catalog history binds that token to the exact SQL, parameters,
 execution mode and database/source context. Reusing it with identical content
 observes the original operation; different content conflicts. SQL equivalence
 is not inferred.

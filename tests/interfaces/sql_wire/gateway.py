@@ -61,14 +61,12 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             return json.loads(result.stdout)
         def inventory():
             page = controls('list')
-            entries = page['entries']
+            entries = [entry for entry in page['entries'] if entry]
             while page['next']:
                 assert len(entries) < 128, 'Fixture inventory exceeded its expected size'
-                cursor = root/'inventory-cursor.json'
-                cursor.write_text(json.dumps(page['next']))
-                page = controls('list',cursor)
-                entries.extend(page['entries'])
-            assert len({entry['operation'] for entry in entries}) == len(entries)
+                page = controls('list',page['next'])
+                entries.extend(entry for entry in page['entries'] if entry)
+            assert len({entry['id'] for entry in entries}) == len(entries)
             return entries
         settings_binding = None
         def configure():
@@ -122,12 +120,6 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 call(ledger, 'session-sources', *([slice.removeprefix('sessions-')] if slice in ('sessions-kv', 'sessions-table') else []))
             configure()
             certificate()
-            bootstrap = start(gateway, root/'sql-gateway.json', '--initialize')
-            assert controls('prepare','initialize')['state'] == 'prepared'
-            assert controls('submit')['processed']
-            assert bootstrap.wait(timeout=20) == 0
-            call(ledger, 'fence')
-            configure()
             server = start(gateway, root/'sql-gateway.json')
             deadline = time.monotonic()+30
             while True:
@@ -256,17 +248,14 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             from interfaces.sql_wire.authority import run as authority_checks
             authority_checks(options,mysql_options,lambda allowed:call(catalog,'external-write-grants','allow' if allowed else 'deny'),inventory)
             page = controls('list')
-            operation = page['entries'][0]['operation']
+            operation = page['entries'][0]['id']
             assert controls('status',operation)['terminal']['state'] == 'applied'
-            assert controls('prepare','reconcile',operation)['state'] == 'prepared'
-            assert not controls('pending')['processed']
-            assert controls('submit')['processed']
-            assert controls('submit')['processed']
+            assert controls('status',operation)['terminal']['state'] == 'applied'
             # An exited activation cannot be reused. Fencing creates eligibility.
             server.kill()
             server.wait(timeout=10)
             stale = subprocess.run([gateway,str(root/'sql-gateway.json')],capture_output=True,text=True,timeout=20)
-            assert stale.returncode != 0 and 'FreshOwnershipRequired' in stale.stderr
+            assert stale.returncode != 0 and 'StaleGatewayCoordinator' in stale.stderr
             call(ledger,'fence')
             configure()
             old_certificate = root/'old-certificate.pem'

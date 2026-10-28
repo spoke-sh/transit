@@ -68,6 +68,8 @@ fn historySource(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, de
 }
 pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
     switch (action) {
+        .record => |value| return .{ .record = try catalog.directRecord(allocator, value, policy) },
+        .client_progress => |value| return .{ .client_progress = try catalog.clientProgress(value, policy) },
         .client_token => |value| return .{ .client_token = try catalog.clientToken(value, policy) },
         .initialize => {
             try catalog.initialize(policy);
@@ -194,6 +196,16 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             var intent = try c.DirectTableIntent.create(allocator, value.intent.connection, value.intent.work);
             defer intent.deinit();
             return .{ .staged = try c.DirectTableIntentStore.stage(catalog.data_objects, &intent, value.namespace) };
+        },
+        .commit_saved => |reference| {
+            if (reference.binding.action != .insert and reference.binding.action != .update and reference.binding.action != .delete) return error.UnsupportedTableAction;
+            try catalog.checkOperation(reference.binding, reference.namespace, policy);
+            var intent = try c.DirectTableIntentStore.load(allocator, catalog.data_objects, reference);
+            defer intent.deinit();
+            return .{ .rows = try catalog.applyRows(switch (intent.parsed.value.work) {
+                inline .rows, .statement => |value| try value.native(allocator),
+                .ddl => return error.UnsupportedTableAction,
+            }, policy) };
         },
         .admit_saved => |reference| {
             try catalog.checkOperation(reference.binding, reference.namespace, policy);

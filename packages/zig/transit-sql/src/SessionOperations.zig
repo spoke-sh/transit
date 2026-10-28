@@ -1,10 +1,8 @@
-//! Paged, account-scoped references to independently owned durable operations.
-//! This index records original identities; it grants no configuration/query rights.
+//! Paged SQL operation inspection over the database recovery index.
 const std = @import("std");
 const g = @import("root.zig");
-const s = g.station;
-const p = g.catalog.protocol;
-const r = g.LedgerRecords;
+const c = g.catalog;
+const p = c.protocol;
 pub const Kind = enum(u8) { table = 1, configuration = 2, captured = 3 };
 pub const Reference = struct {
     pub const magic = "GSR1";
@@ -19,7 +17,7 @@ pub const Begin = struct {
     nonce: [16]u8,
     fingerprint: [32]u8,
     kind: Kind,
-    binding: g.Ledger.Binding,
+    binding: g.DatabaseAccount.Binding,
     original: [16]u8,
     source: [32]u8,
     expected_generation: u64,
@@ -39,135 +37,138 @@ pub const External = struct {
     original: [16]u8,
     source: [32]u8,
     expected_generation: u64,
-    phase: enum(u8) { reserved = 1, ready = 2, terminal = 3 },
+    phase: enum { ready, terminal },
     length: u32 = 0,
     digest: [32]u8 = @splat(0),
     reservation: u64,
     summary: enum(u8) { none = 0, applied = 1, rejected = 2, cancelled = 3, partial = 4 } = .none,
-    pub fn binding(self: External) g.Ledger.Binding {
+    pub fn binding(self: External) g.DatabaseAccount.Binding {
         return .{ .resource = self.resource, .catalog = self.catalog, .owner = self.owner, .namespace = self.namespace, .role = if (self.role_present == 1) self.role else null };
     }
     pub fn validate(self: External) !void {
         if (self.id == 0 or self.id > p.max_counter or self.kind == .table or self.resource == 0 or self.catalog == 0 or self.owner == 0 or self.namespace == 0 or self.role_present > 1 or self.role > p.max_counter or (self.role_present == 0 and self.role != 0) or self.expected_generation == 0) return error.InvalidSqlOperationReference;
         if ((self.phase == .terminal) != (self.summary != .none) or (self.phase == .terminal and self.reservation != 0) or (self.phase != .terminal and self.reservation < 512)) return error.InvalidSqlOperationReference;
-        if (self.phase == .reserved and (self.length != 0 or !std.mem.allEqual(u8, &self.digest, 0))) return error.InvalidSqlOperationReference;
     }
 };
-pub fn decodeReference(bytes: p.Value) !Reference {
-    if (std.mem.startsWith(u8, bytes.slice(), r.Operation.magic)) {
-        const item = try r.decode(r.Operation, bytes);
-        return .{ .id = item.id, .kind = .table, .nonce = item.nonce };
+
+pub const initial_format: u32 = 0x53514f31;
+pub const progress_format: u32 = 0x53515031;
+pub const Initial = struct { begin: Begin, body: ?c.DirectRecord.Reference };
+pub const Capture = struct {
+    records: u64 = 1,
+    staging: u64 = 0,
+    pending: u64 = 0,
+    input: u64 = 0,
+    stored: u64 = 0,
+    cancel: u8 = 0,
+    rejected: u8 = 0,
+    saved: ?c.DirectRecord.Reference = null,
+};
+pub const Progress = struct { summary: @FieldType(External, "summary") = .none, capture: Capture = .{} };
+pub fn decode(comptime T: type, source: *g.Client.Source, reference_value: c.DirectRecord.Reference) !T {
+    var caller = source.client.table(source.client.execution.configuration.bindings[0]);
+    caller.connection = reference_value.scope.connection;
+    const bytes = try c.DirectRecord.read(source.client.transport.http.allocator, caller, reference_value);
+    defer source.client.transport.http.allocator.free(bytes);
+    const parsed = try p.Json.parseFromSlice(T, source.client.transport.http.allocator, bytes);
+    defer parsed.deinit();
+    return parsed.value;
+}
+pub fn readInitial(source: *g.Client.Source, state: c.DirectClientToken.Progress) !Initial {
+    if (state.receipt.binding.intent != .external or state.receipt.binding.intent.external.record.format != initial_format) return error.InvalidSqlOperationReference;
+    const value = try decode(Initial, source, state.receipt.binding.intent.external.record);
+    if (!std.mem.eql(u8, &value.begin.nonce, &state.receipt.binding.key.token) or !std.mem.eql(u8, &value.begin.fingerprint, &state.receipt.binding.fingerprint)) return error.GatewayIdentityConflict;
+    const connection = state.receipt.binding.key.connection;
+    const selected = value.begin.binding;
+    if (value.begin.kind == .table or value.begin.expected_generation == 0 or value.begin.reservation < 512 or
+        selected.resource != connection.scope.resource or selected.catalog != connection.scope.catalog or selected.owner != connection.audience or selected.role != connection.role or selected.namespace != state.receipt.binding.intent.external.namespace) return error.InvalidSqlOperationReference;
+    if (value.body) |body| {
+        try body.validate();
+        if (!std.meta.eql(body.scope, state.receipt.binding.key.scope()) or body.content.bytes > value.begin.reservation - 512) return error.InvalidSqlOperationReference;
     }
-    const item = try r.decode(External, bytes);
-    return .{ .id = item.id, .kind = item.kind, .nonce = item.nonce };
-}
-pub fn reference(ledger: g.Ledger, source: anytype, id: u64) !Reference {
-    _ = try ledger.head(source);
-    const value = try decodeReference((try source.read(r.key('o', id, 0))) orelse return error.MissingGatewayOperation);
-    if (value.id != id) return error.GatewayIdentityConflict;
     return value;
 }
-pub fn lookup(ledger: g.Ledger, source: anytype, nonce: [16]u8, fingerprint: ?[32]u8) !?Reference {
-    _ = try ledger.head(source);
-    const index = try r.decode(r.Nonce, (try source.read(r.nonceKey(nonce))) orelse return null);
-    if (!std.mem.eql(u8, &index.nonce, &nonce)) return error.GatewayIdentityConflict;
-    if (fingerprint) |expected| if (!std.mem.eql(u8, &expected, &index.fingerprint)) return error.SqlTokenConflict;
-    const value = try reference(ledger, source, index.id);
-    if (!std.mem.eql(u8, &value.nonce, &nonce)) return error.GatewayIdentityConflict;
-    return value;
+pub fn progress(source: *g.Client.Source, state: c.DirectClientToken.Progress) !Progress {
+    const reference_value = state.record orelse {
+        const initial = try readInitial(source, state);
+        return .{ .capture = .{ .stored = if (initial.body) |body| body.content.bytes else 0 } };
+    };
+    if (reference_value.format != progress_format) return error.InvalidSqlOperationReference;
+    return decode(Progress, source, reference_value);
 }
-pub fn external(ledger: g.Ledger, source: anytype, id: u64) !External {
-    const ref = try reference(ledger, source, id);
-    if (ref.kind == .table) return error.InvalidSqlOperationReference;
-    const value = try r.decode(External, (try source.read(r.key('o', id, 0))) orelse return error.MissingGatewayOperation);
-    if (value.id != id or value.kind != ref.kind or !std.mem.eql(u8, &value.nonce, &ref.nonce)) return error.GatewayIdentityConflict;
-    try ledger.admittedBinding(value.binding());
-    return value;
+pub fn save(source: *g.Client.Source, state: c.DirectClientToken.Progress, value: Progress, pending: bool, cancel: bool) !c.DirectClientToken.Progress {
+    const bytes = try p.Json.valueAlloc(source.client.transport.http.allocator, value);
+    defer source.client.transport.http.allocator.free(bytes);
+    const caller = source.direct(state);
+    const record = try c.DirectRecord.stage(caller, state.receipt.binding.key.account, progress_format, bytes);
+    return c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = pending, .cancel = cancel, .record = record });
 }
-pub fn begin(ledger: g.Ledger, turn: *s.Turn, input: Begin) !External {
-    const before = turn.decision;
-    errdefer turn.decision = before;
-    try ledger.actor(turn, .ingress, null);
-    try ledger.admittedBinding(input.binding);
-    if (input.kind == .table or input.reservation < 512 or input.reservation > 4 * 1024 * 1024) return error.InvalidSqlOperationReference;
-    if (try lookup(ledger, turn, input.nonce, input.fingerprint)) |ref| {
-        if (ref.kind != input.kind) return error.SqlTokenConflict;
-        // The recorded original identity wins; a caller cannot replace it with
-        // a freshly generated ID or a new configuration generation on retry.
-        return external(ledger, turn, ref.id);
-    }
-    var header = try ledger.head(turn);
-    if (header.operations == header.operation_quota or header.unsettled == header.pending_quota or input.reservation > header.byte_quota - header.used_bytes - header.reserved_bytes) return error.GatewayAdmissionCapacity;
-    const value: External = .{ .id = turn.delivery.input.position, .nonce = input.nonce, .kind = input.kind, .resource = input.binding.resource, .catalog = input.binding.catalog, .owner = input.binding.owner, .namespace = input.binding.namespace, .role = input.binding.role orelse 0, .role_present = @intFromBool(input.binding.role != null), .original = input.original, .source = input.source, .expected_generation = input.expected_generation, .phase = .reserved, .reservation = input.reservation };
-    try value.validate();
-    header.operations += 1;
-    header.unsettled += 1;
-    header.reserved_bytes += value.reservation;
-    try turn.write(r.key('h', 0, 0), try r.encode(header));
-    try turn.write(r.nonceKey(input.nonce), try r.encode(r.Nonce{ .id = value.id, .nonce = value.nonce, .fingerprint = input.fingerprint }));
-    try turn.write(r.key('o', value.id, 0), try r.encode(value));
-    try turn.write(r.key('w', value.id, 0), try r.encode(Reference{ .id = value.id, .kind = value.kind, .nonce = value.nonce }));
-    return value;
+pub fn reference(_: g.DatabaseAccount, source: *g.Client.Source, id: u64) !Reference {
+    return projection(source, try source.operation(id));
 }
-pub fn ready(ledger: g.Ledger, turn: *s.Turn, id: u64, generation: u64, length: u32, digest: [32]u8) !void {
-    try ledger.actor(turn, .ingress, generation);
-    var value = try external(ledger, turn, id);
-    if (value.phase != .reserved) {
-        if (value.length != length or !std.mem.eql(u8, &value.digest, &digest)) return error.GatewayIdentityConflict;
+fn projection(source: *g.Client.Source, state: c.DirectClientToken.Progress) !Reference {
+    return .{ .id = state.id(), .nonce = state.receipt.binding.key.token, .kind = if (state.receipt.binding.intent == .external) (try readInitial(source, state)).begin.kind else .table };
+}
+pub fn lookup(_: g.DatabaseAccount, source: *g.Client.Source, nonce: [16]u8, fingerprint: ?[32]u8) !?Reference {
+    return try projection(source, (try source.lookup(nonce, fingerprint)) orelse return null);
+}
+pub fn external(execution: g.DatabaseAccount, source: *g.Client.Source, id: u64) !External {
+    const state = try source.operation(id);
+    const initial = try readInitial(source, state);
+    const value = initial.begin;
+    const current = try progress(source, state);
+    try execution.admittedBinding(value.binding);
+    return .{ .id = id, .nonce = value.nonce, .kind = value.kind, .resource = value.binding.resource, .catalog = value.binding.catalog, .owner = value.binding.owner, .namespace = value.binding.namespace, .role = value.binding.role orelse 0, .role_present = @intFromBool(value.binding.role != null), .original = value.original, .source = value.source, .expected_generation = value.expected_generation, .phase = if (state.pending) .ready else .terminal, .length = if (initial.body) |body| @intCast(body.content.bytes) else 0, .digest = if (initial.body) |body| body.content.sha256 else @splat(0), .reservation = if (state.pending) value.reservation else 0, .summary = current.summary };
+}
+pub fn begin(source: *g.Client.Source, input: Begin, body: ?c.DirectRecord.Reference) !Reference {
+    if (try lookup(source.client.execution, source, input.nonce, input.fingerprint)) |existing| return existing;
+    try source.client.execution.admittedBinding(input.binding);
+    if (input.kind == .table) return error.InvalidSqlOperationReference;
+    const caller = source.client.table(input.binding);
+    const initial: Initial = .{ .begin = input, .body = body };
+    const bytes = try p.Json.valueAlloc(caller.allocator, initial);
+    defer caller.allocator.free(bytes);
+    const record = try c.DirectRecord.stage(caller, source.client.execution.configuration.account, initial_format, bytes);
+    var random: [8]u8 = undefined;
+    try source.client.transport.http.io.randomSecure(&random);
+    const id = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
+    const receipt = try c.DirectClientToken.bind(caller, .{ .key = .{ .definition = p.Growth.current_definition, .connection = caller.connection, .account = source.client.execution.configuration.account, .token = input.nonce }, .fingerprint = input.fingerprint, .intent = .{ .external = .{ .connection = caller.connection, .namespace = input.binding.namespace, .operation = id, .record = record } }, .budget = source.client.execution.configuration.budget(input.reservation) });
+    return projection(source, c.DirectClientToken.Progress.initial(receipt));
+}
+pub fn complete(source: *g.Client.Source, id: u64, summary: @FieldType(External, "summary")) !void {
+    const state = try source.operation(id);
+    var current = try progress(source, state);
+    if (summary == .none or current.capture.pending != 0) return error.GatewayUnresolvedStep;
+    if (!state.pending) {
+        if (current.summary != summary) return error.GatewayIdentityConflict;
         return;
     }
-    if (length == 0 or @as(u64, length) + 512 > value.reservation) return error.GatewayRecoveryCapacity;
-    value.phase = .ready;
-    value.length = length;
-    value.digest = digest;
-    try turn.write(r.key('o', id, 0), try r.encode(value));
+    current.summary = summary;
+    _ = try save(source, state, current, false, state.cancel);
 }
-pub fn complete(ledger: g.Ledger, turn: *s.Turn, id: u64, generation: u64, summary: @FieldType(External, "summary")) !void {
-    const before = turn.decision;
-    errdefer turn.decision = before;
-    try ledger.actor(turn, .ingress, generation);
-    var value = try external(ledger, turn, id);
-    if (summary == .none) return error.InvalidSqlOperationReference;
-    if (value.kind == .captured) {
-        const capture = try g.CapturedLedger.state(ledger, turn, id);
-        if (capture.pending != 0 or capture.staging != 0) return error.GatewayUnresolvedStep;
-        if (value.phase == .reserved and (summary != .cancelled or capture.cancel != 1)) return error.InvalidSqlOperationReference;
-    } else if (value.phase == .reserved) return error.InvalidSqlOperationReference;
-    if (value.phase == .terminal) {
-        if (value.summary != summary) return error.GatewayIdentityConflict;
-        return;
-    }
-    var header = try ledger.head(turn);
-    if (header.unsettled == 0 or header.reserved_bytes < value.reservation) return error.InvalidGatewayReservation;
-    header.reserved_bytes -= value.reservation;
-    // Charge the full declared journal bound: physical cleanup cannot create
-    // logical admission capacity without an explicit reclamation contract.
-    header.used_bytes += value.reservation;
-    header.unsettled -= 1;
-    value.phase = .terminal;
-    value.summary = summary;
-    value.reservation = 0;
-    try turn.write(r.key('h', 0, 0), try r.encode(header));
-    try turn.write(r.key('o', id, 0), try r.encode(value));
-    try turn.write(r.key('w', id, 0), null);
-}
-pub const Page = struct { entries: [p.Growth.page_size]?Reference = @splat(null), next: ?u64 = null };
-pub fn list(ledger: g.Ledger, source: anytype, after_id: u64, pending: bool) !Page {
-    _ = try ledger.head(source);
-    const after = r.key(if (pending) 'w' else 'o', after_id, 0);
-    const found = try source.page(after);
-    try g.catalog.Inspection.validatePage(found, after, source.view.revision);
-    var page: Page = .{};
+pub const Page = struct { entries: [8]?Reference = @splat(null), next: ?u64 = null };
+pub fn list(execution: g.DatabaseAccount, source: *g.Client.Source, after_id: u64, pending: bool) !Page {
+    var states: [64]?c.DirectClientToken.Progress = @splat(null);
     var count: usize = 0;
-    for (found.entries) |entry| {
-        const item = entry orelse break;
-        if (!std.mem.startsWith(u8, item.key.slice(), after.data[0..4])) break;
-        if (item.key.len != 20 or std.mem.readInt(u64, item.key.data[12..20], .big) != 0) return error.InvalidGatewayInventory;
-        const ref = if (pending) try r.decode(Reference, item.value) else try decodeReference(item.value);
-        if (ref.id != std.mem.readInt(u64, item.key.data[4..12], .big)) return error.GatewayIdentityConflict;
-        page.entries[count] = ref;
-        count += 1;
+    var more = false;
+    for (execution.configuration.bindings) |binding| {
+        const page = try c.DirectClientToken.list(source.client.table(binding), execution.configuration.account, after_id, pending);
+        more = more or page.next != null;
+        for (page.entries) |slot| if (slot) |state| {
+            if (state.receipt.binding.intent == .external and state.receipt.binding.intent.external.record.format != initial_format) continue;
+            for (states[0..count]) |other| if (other.?.id() == state.id()) break else continue else {
+                states[count] = state;
+                count += 1;
+            }
+        };
     }
-    if (count == page.entries.len and found.next != null) page.next = page.entries[count - 1].?.id;
-    return page;
+    std.mem.sort(?c.DirectClientToken.Progress, states[0..count], {}, struct {
+        fn less(_: void, lhs: ?c.DirectClientToken.Progress, rhs: ?c.DirectClientToken.Progress) bool {
+            return lhs.?.id() < rhs.?.id();
+        }
+    }.less);
+    var result: Page = .{};
+    for (states[0..@min(count, 8)], 0..) |state, i| result.entries[i] = try projection(source, state.?);
+    if ((count > 8 or more) and count != 0) result.next = result.entries[@min(count, 8) - 1].?.id;
+    return result;
 }

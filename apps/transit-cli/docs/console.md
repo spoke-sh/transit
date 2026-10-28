@@ -58,7 +58,7 @@ kernel principal, worker, catalog, signing seed or recovery path.
 
 `source: NAME` selects a service-configured KV, Document or Table source binding.
 The service checks the account, database, source caller and current source
-policy. See [source declarations](../../../packages/zig/transit-sql/docs/sources.md).
+policy. See [source declarations](../../../packages/zig/transit-sql-service/docs/sources.md).
 Catalog and configured-source SELECT use interactive snapshots. There is no
 console execution-mode setting. Captured queries remain a native service API
 capability, separate from the console's SQL session workflow.

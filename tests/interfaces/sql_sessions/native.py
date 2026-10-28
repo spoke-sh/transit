@@ -301,10 +301,6 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
             orphan = Client(root, port).open(name)
             held = orphan.concurrent_read('SELECT value FROM items')['batch']
             assert held['rows'] and not held['complete'] and held['observation']['data']['source']['kind'] == 'table'
-            pins = [path for path in root.glob('read-pins-*/*.pin')
-                    if json.loads(path.read_text())['table']['connection']['principal'] == configured['connection']['principal']]
-            assert len(pins) == 1, pins
-            (root/'orphaned-source-pin.json').write_bytes(pins[0].read_bytes())
             assert not source_pin()['released']
             # Closing transport does not close an explicit native session.
             # Physical gateway replacement must settle this exact original pin.

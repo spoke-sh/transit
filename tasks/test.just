@@ -186,10 +186,11 @@ sql-wire-contracts:
     cd packages/zig/transit-sql-protocol && zig build test
     cd packages/zig/transit-sql-client && zig build test
     cd packages/zig/transit-sql && zig build test
+    cd packages/zig/transit-sql-service && zig build test
     cd packages/zig/transit-postgres && zig build test
     cd packages/zig/transit-mysql && zig build test
 
-# Signed ledger, exact Table steps and fenced replacement on disk-backed Ursula.
+# Catalog-owned SQL recovery, exact Table outcomes and fenced replacement.
 sql-gateway:
     zig build test-sql-gateway -Doptimize=ReleaseSafe
 
@@ -338,6 +339,7 @@ packages:
     cd packages/zig/transit-sql-protocol && zig build test
     cd packages/zig/transit-sql-client && zig build test
     cd packages/zig/transit-sql && zig build test
+    cd packages/zig/transit-sql-service && zig build test
     cd packages/zig/transit-postgres && zig build test
     cd packages/zig/transit-mysql && zig build test
     cd packages/zig/transit-station-bindings && zig build test

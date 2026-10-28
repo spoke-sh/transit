@@ -750,12 +750,49 @@ pub fn admit(self: *Self, request: Dml.Request, guard: Guard) !OperationState {
     return self.writeOperation(operation, guard);
 }
 
+/// Commit one complete frozen single-partition request with one data WAL
+/// append. Original request acceptance/recovery may already belong to Catalog;
+/// no intermediate Table admission record is required for this atomic path.
+pub fn commit(self: *Self, request: Dml.Request, guard: Guard) !OperationState {
+    try self.ready();
+    try request.validate();
+    const state = try self.operationState(request.binding, guard);
+    const content = try Dml.stage(self.allocator, self.objects, request);
+    if (try self.operationAt(self.root, request.binding)) |known| {
+        if (!std.meta.eql(known.intent, content)) return error.DataIdentityConflict;
+        return if (state == .admitted) self.perform(request.binding, guard) else state;
+    }
+    if (state == .committed) {
+        if (request.statement != null) {
+            const accepted = (try self.observed(request.binding)).?;
+            if (!std.mem.eql(u8, &accepted.receipt.changes, &content.sha256)) return error.DataIdentityConflict;
+            _ = try guard.acquire(guard.context);
+            defer guard.release(guard.context);
+        } else _ = try self.apply(request.binding, request.changes, request.ingestion, guard);
+        return state;
+    }
+    var operation: Operation = .{ .binding = request.binding, .intent = content, .basis = .{ .interpretation = self.root.interpretation, .position = .{ .partition = self.root.partition, .next_lsn = self.root.next_lsn }, .changed_lsn = self.root.changed_lsn }, .phase = .admitted, .reason = .none };
+    self.expectations(request.binding) catch |err| {
+        operation.phase = .rejected;
+        operation.reason = switch (err) {
+            error.TableDefinitionChanged => .definition_changed,
+            error.TableDataChanged => .data_changed,
+            else => return err,
+        };
+        return self.writeOperation(operation, guard);
+    };
+    return self.performPrepared(operation, guard);
+}
+
 /// Explicit execution uses only the retained intent; it never resolves a name
 /// or recompiles caller SQL against the latest definition.
 pub fn perform(self: *Self, binding: d.Binding, guard: Guard) !OperationState {
     const state = try self.operationState(binding, guard);
     if (state != .admitted) return state;
-    const operation = state.admitted;
+    return self.performPrepared(state.admitted, guard);
+}
+fn performPrepared(self: *Self, operation: Operation, guard: Guard) !OperationState {
+    const binding = operation.binding;
     var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.build_resident_bytes };
     defer self.build_resident_peak = memory.peak;
     const outcome = self.performWithinBudget(memory.allocator(), operation, guard) catch |cause| {

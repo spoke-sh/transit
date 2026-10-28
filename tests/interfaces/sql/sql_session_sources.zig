@@ -1,9 +1,9 @@
 //! Real KV, Document and Table owners for native-session deployment proofs. Reuses
 //! the established source seed; only public provisioning operations run here.
 const std = @import("std");
-const g = @import("transit_sql");
+const g = @import("transit_sql_service");
 const q = g.query;
-const s = g.station;
+const s = @import("transit_station");
 const p = s.protocol;
 const Admin = @import("fixture_growing_support").Admin(46);
 const support = @import("fixture_native_proof_files");

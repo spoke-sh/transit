@@ -56,6 +56,7 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, request: w.Request,
     defer if (self.recovery_state) |prior| {
         if (catalog.recoveryState()) |known| prior.* = known else |_| {}
     };
+    if (request.lease) |lease| try catalog.requireClientLease(lease, policy.policy());
     const result = try c.DirectTableDispatch.apply(allocator, &catalog, policy.policy(), request.action, request.delegation, .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource });
     const observed = try policy.observation();
     var writer: std.Io.Writer = .fixed(output[0..@min(output.len, w.max_response_bytes)]);

@@ -13,14 +13,14 @@ allocator: std.mem.Allocator,
 io: std.Io,
 config: *const g.Configuration,
 account: *const g.Configuration.Account,
-runtime: *g.AccountRuntime,
+runtime: *g.DatabaseRuntime,
 credential: g.Configuration.Credential,
 database: []const u8,
 dialect: f.Sql.Dialect,
 native_profile: bool = false,
 source: ?*g.SourceSession = null,
-wire: g.station.client.Client,
-settings_wire: ?g.station.client.Client = null,
+wire: g.wire.Client,
+settings_wire: ?g.wire.Client = null,
 diagnostic_source: ObservationSource = .native,
 settings_session: q.SettingsSession = .{},
 table: c.DirectTableClient,
@@ -29,7 +29,7 @@ observer: g.Client,
 directory: std.Io.Dir,
 cancellation: *std.atomic.Value(bool),
 active: *std.atomic.Value(bool),
-deadline: g.AccountRuntime.Deadline,
+deadline: g.DatabaseRuntime.Deadline,
 operation: ?u64 = null,
 terminal: ?g.Terminal = null,
 detail_buffer: [160]u8 = undefined,
@@ -84,7 +84,7 @@ pub const Read = struct {
     input_index: usize = 0,
     started: bool = false,
     disclosure: g.BatchDisclosure = .{},
-    pins: [f.Relational.max_sources]?g.ReadPins.Record = @splat(null),
+    pins: [f.Relational.max_sources]?g.ReadCache.Record = @splat(null),
     batch: ?g.direct.DirectTableQuery.Batch = null,
     output: ?f.RelationalExecution.Output = null,
     probe_cells: [3]f.Types.Values.Cell = undefined,
@@ -240,12 +240,12 @@ pub fn loadCredential(allocator: std.mem.Allocator, io: std.Io, account: *const 
     defer std.crypto.secureZero(u8, bytes);
     const parsed = try std.json.parseFromSlice(g.Configuration.Credential, allocator, bytes, .{});
     defer parsed.deinit();
-    try parsed.value.validate(account.ledger.account);
+    try parsed.value.validate(account.execution.account);
     if ((account.authentication == .password) != (parsed.value.verifier != null)) return error.InvalidAuthentication;
-    if (parsed.value.principal != account.ledger.table_principal) return error.InvalidAuthentication;
+    if (parsed.value.principal != account.execution.table_principal) return error.InvalidAuthentication;
     return parsed.value;
 }
-pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configuration, index: usize, runtime: *g.AccountRuntime, credential: g.Configuration.Credential, database: []const u8, dialect: f.Sql.Dialect, cancellation: *std.atomic.Value(bool), active: *std.atomic.Value(bool)) !*Self {
+pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configuration, index: usize, runtime: *g.DatabaseRuntime, credential: g.Configuration.Credential, database: []const u8, dialect: f.Sql.Dialect, cancellation: *std.atomic.Value(bool), active: *std.atomic.Value(bool)) !*Self {
     if (runtime.read_pins == null) return error.SqlReadRecoveryRequired;
     const account = &config.accounts[index];
     const binding = try account.database(database);
@@ -253,7 +253,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configura
     errdefer allocator.destroy(self);
     var directory = try std.Io.Dir.cwd().openDir(io, config.spill_directory, .{});
     errdefer directory.close(io);
-    self.* = .{ .allocator = allocator, .io = io, .config = config, .account = account, .runtime = runtime, .credential = credential, .database = undefined, .dialect = dialect, .wire = g.station.client.Client.init(allocator, io, config.native_url), .table = undefined, .namespace = binding.namespace, .observer = undefined, .directory = directory, .cancellation = cancellation, .active = active, .deadline = .{ .start = std.Io.Clock.awake.now(io), .milliseconds = config.limits.command_ms, .cancellation = cancellation } };
+    self.* = .{ .allocator = allocator, .io = io, .config = config, .account = account, .runtime = runtime, .credential = credential, .database = undefined, .dialect = dialect, .wire = g.wire.Client.init(allocator, io, config.native_url), .table = undefined, .namespace = binding.namespace, .observer = undefined, .directory = directory, .cancellation = cancellation, .active = active, .deadline = .{ .start = std.Io.Clock.awake.now(io), .milliseconds = config.limits.command_ms, .cancellation = cancellation } };
     errdefer self.wire.deinit();
     // Database names borrow immutable configuration, never a startup frame.
     for (account.databases) |selected| if (std.mem.eql(u8, selected.name, database)) {
@@ -261,11 +261,11 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configura
         break;
     };
     self.wire.timeout_ms = config.request_timeout_ms;
-    self.table = .{ .allocator = allocator, .authority = &self.wire, .service = &self.wire, .connection = .{ .scope = .{ .realm = account.ledger.realm, .resource = binding.resource, .catalog = binding.catalog }, .branch = 1, .audience = binding.owner, .principal = account.ledger.table_principal, .role = binding.role }, .key = runtime.coordinator.table_key };
-    self.observer = .{ .transport = &self.wire, .ledger = runtime.ledger, .principal = account.ledger.ingress, .key = runtime.ingress.key };
+    self.table = .{ .allocator = allocator, .authority = &self.wire, .service = &self.wire, .connection = .{ .scope = .{ .realm = account.execution.realm, .resource = binding.resource, .catalog = binding.catalog }, .branch = 1, .audience = binding.owner, .principal = account.execution.table_principal, .role = binding.role }, .key = runtime.table_key, .lease = runtime.lease() };
+    self.observer = .{ .transport = &self.wire, .execution = runtime.execution, .principal = account.execution.table_principal, .key = runtime.table_key, .lease = runtime.lease() };
     try self.current();
     if (config.settings) |configured| {
-        self.settings_wire = g.station.client.Client.init(allocator, io, configured.url);
+        self.settings_wire = g.wire.Client.init(allocator, io, configured.url);
         self.settings_wire.?.timeout_ms = config.request_timeout_ms;
         errdefer self.settings_wire.?.deinit();
         self.settings_session = try self.freshOn(.settings, q.SettingsSession.capture, .{try Settings.client(self)});
@@ -289,15 +289,11 @@ fn currentOnce(self: *Self) !void {
     if (!self.runtime.ready.load(.acquire)) return error.GatewayOwnerUnavailable;
     const credential = try loadCredential(self.allocator, self.io, self.account);
     if (!std.meta.eql(credential, self.credential)) return error.GatewayCredentialChanged;
-    const native: g.station.client.AuthorizationClient = .{ .transport = &self.wire, .realm = self.account.ledger.realm, .principal = self.account.ledger.table_principal, .key = self.table.key, .role = self.table.connection.role };
+    const native: g.wire.AuthorizationClient = .{ .transport = &self.wire, .realm = self.account.execution.realm, .principal = self.account.execution.table_principal, .key = self.table.key, .role = self.table.connection.role };
     const identity = (try native.read(.identity)).body.authorization.body.identity;
     try credential.checkIdentity(identity.principal, identity.login_role, identity.credential_epoch);
     _ = try self.table.require(.{ .namespace = self.namespace, .target = null, .access = .schema });
-    const state = try self.observer.reader().query(.{ .process = self.account.ledger.owner });
-    if (state.body != .process) return error.InvalidAuthorityResponse;
-    const process = state.body.process.process;
-    if (process.generation != self.account.generation or process.owner != self.account.ledger.worker) return error.StaleGatewayCoordinator;
-    if (process.lifecycle != .running or process.failure != null or !p.Growth.processReady(process)) return error.GatewayOwnerUnavailable;
+    try self.runtime.fence(&self.observer);
     if (self.source) |source| try source.current();
 }
 /// Exact-current metadata reads may race a concurrent committed catalog turn.
@@ -324,7 +320,7 @@ pub fn freshOn(self: *Self, source: ObservationSource, comptime function: anytyp
             self.diagnostic_source = source;
             const rejected = self.observationRejection(source);
             const stale = ((err == error.Rejected or err == error.Conflict) and rejected == .StaleStateResource) or err == error.CatalogDefinitionChanged;
-            const unavailable = g.station.client.Client.unavailable(err) or (err == error.Conflict and rejected == .Conflict) or err == error.GatewayOwnerUnavailable;
+            const unavailable = g.wire.Client.unavailable(err) or (err == error.Conflict and rejected == .Conflict) or err == error.GatewayOwnerUnavailable;
             // Recovery and native admission may need more than 64 short polls.
             // Bound those waits by both configured time budgets; retain the
             // conflict-attempt limit for repeatedly changing metadata.
@@ -546,7 +542,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
     // Direct HTTP failures retain the verified owner cause separately from
     // their status-class error. Do not apply that cause to unrelated failures.
     const cause = if ((err == error.Conflict or err == error.Rejected) and rejected == .TableDefinitionChanged) error.TableDefinitionChanged else err;
-    const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and rejected == .HttpCapacity) .{ "53000".*, "Native request capacity exhausted; inspect admitted writes before retrying SQL" } else if (err == error.Conflict and rejected == .Conflict) .{ "55000".*, "Current state changed; inspect admitted work before retrying SQL" } else switch (cause) {
+    const info: struct { [5]u8, []const u8 } = if (err == error.AuthorityUnavailable and (rejected == .HttpCapacity or rejected == .StorageQuota)) .{ "53000".*, "Database capacity exhausted; inspect admitted writes before retrying SQL" } else if (err == error.Conflict and rejected == .Conflict) .{ "55000".*, "Current state changed; inspect admitted work before retrying SQL" } else switch (cause) {
         error.CatalogDenied, error.AccessDenied, error.GatewayDatabaseDenied, error.ConfigurationDenied => .{ "42501".*, "Current permission denied" },
         error.GatewayCredentialChanged, error.InvalidAuthentication => .{ "28000".*, "Credential changed or disabled" },
         error.GatewayDeadline, error.GatewayWaitCancelled, error.Cancelled, error.Canceled, error.StatementTimedOut => .{ "57014".*, "Request wait ended; admitted work requires outcome inspection" },
@@ -563,7 +559,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.WireValueOutOfRange => .{ "22003".*, "Value is out of range" },
         error.CatalogIdentityConflict, error.CatalogDefinitionChanged, error.TableDefinitionChanged => .{ "55000".*, "Prepared source changed; prepare again" },
         error.GatewayOwnerUnavailable, error.StaleGatewayCoordinator => .{ "55000".*, "Gateway owner is not ready; inspect admitted writes before retrying SQL" },
-        error.TooManyWireStatements, error.TooManyWirePortals, error.OutOfMemory, error.ResultMemoryBudgetExceeded, error.ResultRowTooLarge, error.SqlBatchTooLarge, error.InvalidResultBudget => .{ "54000".*, "Session capacity exceeded" },
+        error.SqlReadLeaseCapacity, error.GatewayRecordTooLarge, error.TooManyWireStatements, error.TooManyWirePortals, error.OutOfMemory, error.ResultMemoryBudgetExceeded, error.ResultRowTooLarge, error.SqlBatchTooLarge, error.InvalidResultBudget => .{ "54000".*, "Session capacity exceeded" },
         error.CellTooLarge => .{ "54000".*, "Bound scalar exceeds the 4096-byte limit" },
         error.UnknownWireStatement, error.UnknownWirePortal => .{ "26000".*, "Unknown prepared statement or portal" },
         error.DuplicateWireStatement, error.DuplicateWirePortal => .{ "42P05".*, "Prepared name already exists" },
@@ -598,6 +594,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.UnsupportedGatewayStatement, error.UnsupportedExecutionCycle, error.UnsupportedWireType => .{ "0A000".*, "Operation is outside the selected SQL profile" },
         error.InvalidSqlSyntax, error.ExpectedIdentifier, error.UnexpectedToken => .{ "42601".*, "SQL syntax rejected" },
         error.TableNotFound => .{ "42P01".*, "Table does not exist" },
+        error.SqlTokenConflict => .{ "22023".*, "Client token already identifies different work" },
         error.EmptyWireQuery => .{ "42601".*, "Query is empty" },
         else => .{ "XX000".*, "Request failed; inspect admitted work before retrying SQL" },
     };
@@ -637,6 +634,10 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expectEqualStrings("42501", &host.diagnostic(error.AccessDenied).state);
     host.wire.last_rejection = .ConflictingRetry;
     try std.testing.expectEqualStrings("XX000", &host.diagnostic(error.Conflict).state);
+    host.wire.last_rejection = .StorageQuota;
+    try std.testing.expectEqualStrings("53000", &host.diagnostic(error.AuthorityUnavailable).state);
+    try std.testing.expectEqualStrings("54000", &host.diagnostic(error.SqlReadLeaseCapacity).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.SqlTokenConflict).state);
     host.wire.last_rejection = null;
     try std.testing.expectEqualStrings("XX000", &host.diagnostic(error.AuthorityUnavailable).state);
 }
@@ -693,7 +694,7 @@ test "pure preparation retries transport loss within its budget but never retrie
 test "settings observations use their own rejection and retain terminal decisions" {
     const t = std.testing;
     const Observation = struct {
-        transport: *g.station.client.Client,
+        transport: *g.wire.Client,
         attempts: u32 = 0,
         code: p.ErrorCode = .StaleStateResource,
         failure: anyerror = error.Conflict,
@@ -711,7 +712,7 @@ test "settings observations use their own rejection and retain terminal decision
     host.diagnostics = null;
     host.operation = null;
     host.wire.last_rejection = .TableDefinitionChanged;
-    host.settings_wire = g.station.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    host.settings_wire = g.wire.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
     defer host.settings_wire.?.deinit();
     host.deadline = .{ .start = std.Io.Clock.awake.now(t.io), .milliseconds = 5000 };
     var read: Observation = .{ .transport = &host.settings_wire.? };

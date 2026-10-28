@@ -2,9 +2,9 @@
 
 A shared SQL service with native HTTP/TLS, private Unix peer, PostgreSQL and
 MySQL adapters over explicit Transit catalogs and source bindings.
-The gateway composes the public Query, Catalog and Station clients; it has no
-storage-provider access. Each SQL account owns a native operation ledger and one
-Table principal independently of its network connections. Direct Table reads
+The gateway composes the shared SQL service and public Catalog and Query clients;
+it has no storage-provider access. Each SQL account has Catalog-owned operation
+recovery and one database principal independently of its network connections. Direct Table reads
 and operation evidence use that caller's current native
 database/schema/Table grants and retain their selected role through recovery.
 
@@ -13,7 +13,7 @@ The local server manages explicit enrollment and separate fenced activations.
 
 Build from the repository with `nix develop --command zig build
 transit-sql-gateway`. Run `transit-sql-gateway /private/sql-gateway.json` with an
-eligible, initialized configuration. The [configuration and controls](docs/configuration.md)
+eligible configuration. The [configuration and controls](docs/configuration.md)
 describe provisioning, secrets, operator recovery and replacement. The
 [wire contract](../../contracts/SQL_GATEWAY_V1.md) defines framing and limits;
 the [proof ledger](../../docs/history/qualification/sql.md#database-wire-gateway) records exercised
@@ -23,7 +23,7 @@ The [native session API](../../contracts/SQL_SESSION_V1.md) and
 [console](../transit-cli/docs/console.md) preserve full logical types, Table
 ALTER/DROP, explicit source reads and captured query operations. Native sessions
 live across HTTP connections; PG/MySQL sessions belong to their socket. The
-[shared runtime](../../packages/zig/transit-sql/README.md) owns settings,
+[shared runtime](../../packages/zig/transit-sql-service/README.md) owns settings,
 authorization, preparation, reads and account coordination for all adapters.
 
 The PostgreSQL/MySQL profile is autocommit SELECT, CREATE TABLE, INSERT, UPDATE and DELETE.
@@ -64,7 +64,7 @@ upstream database engine.
 
 A disconnect, deadline or cancellation ends a wait; it cannot promise rollback.
 The account retains admitted work and exact signed requests. Sending SQL again
-creates a new operation. Use signed operator controls to discover and inspect
+creates a new operation. Use authenticated operator inspection to discover and inspect
 the original operation before deciding to retry. Rows, metadata and terminal
 counts require current native/catalog rights even when already buffered.
 

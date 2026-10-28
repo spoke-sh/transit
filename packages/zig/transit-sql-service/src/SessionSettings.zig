@@ -144,7 +144,7 @@ fn reload(host: *Host) ![16]u8 {
     // of a native reply and is retried with its exact operation/generation.
     try host.runtime.settings_mutex.lock(host.io);
     defer host.runtime.settings_mutex.unlock(host.io);
-    const path = try std.fmt.allocPrint(host.allocator, "{s}/configuration-{s}.json", .{ host.config.activation_directory, std.fmt.bytesToHex(host.account.ledger.account, .lower) });
+    const path = try std.fmt.allocPrint(host.allocator, "{s}/configuration-{s}.json", .{ host.config.activation_directory, std.fmt.bytesToHex(host.account.execution.account, .lower) });
     defer host.allocator.free(path);
     var saved = try q.SettingsJournal.read(host.allocator, host.io, path, selected);
     if (saved == null or saved.?.complete) {

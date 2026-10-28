@@ -22,7 +22,7 @@ const History = @import("fixture_direct_table_history");
 const Growth = @import("fixture_direct_table_growth");
 const Dependencies = @import("fixture_direct_dependencies");
 const NamedResources = @import("fixture_direct_named_resources");
-const sql_runtime = @import("transit_sql");
+const sql_runtime = @import("transit_sql_service");
 const Saved = struct { create: d.Binding, insert: d.Binding, snapshot: w.Snapshot, first: c.storage.TablePartition.Evidence, second: c.storage.TablePartition.Evidence };
 const Profile = struct { maintenance: ?Maintenance.State = null, dependency_growth: ?Dependencies.GrowthState = null, resource_growth: ?NamedResources.GrowthState = null, selected_login: ?u64 = null, growth: ?Growth.State = null, definition: g.Definition, catalog: c.DirectCatalog.Configuration, role: u64, saved: ?Saved = null, lifecycle: ?Lifecycle.State = null, conditions: ?Conditions.State = null, delegation: ?Delegation.State = null, history: ?History.State = null, captured: ?Captured.State = null, follow: ?Follow.State = null, maintained: ?[2]Maintained.State = null, dependencies: ?Dependencies.State = null, named_resources: ?NamedResources.State = null };
 const Admin = struct {
@@ -308,9 +308,9 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     try t.expect(joined.complete);
     var empty_query = try q.direct.DirectTableQuery.openRetained(init.gpa, client, saved.snapshot, "events", "SELECT id FROM events LIMIT 0", .{ .requests = 100, .rows = 10, .result_bytes = 1024 }, null, null, .{});
     defer empty_query.deinit();
-    var cleanup = try sql_runtime.ReadPins.init(init.gpa, init.io, directory, .{ .realm = 42, .owner = 100, .account = @splat(49) }, 1);
+    var cleanup = try sql_runtime.ReadCache.init(init.gpa, init.io, directory, .{ .realm = 42, .account = @splat(49) }, 1);
     defer cleanup.deinit();
-    const cleanup_record = try cleanup.acquire(client, try c.DirectTableBinding.init(client.connection, current.value.result.lookup.?), current.value.result.lookup.?.position);
+    const cleanup_record = try cleanup.acquireCurrent(client, try c.DirectTableBinding.init(client.connection, current.value.result.lookup.?));
     const native_table = (try admin.query(.{ .binding = .{ .domain = profile.catalog.authority.table_domain, .key = try c.TableAuthority.binding(profile.catalog.scope, .table, 7) } })).body.authorization.body.binding.?.reference.id;
     var history_reader = try History.tail(client, profile.history.?, profile.history.?.no_op.?.position);
     defer history_reader.deinit();
@@ -332,17 +332,20 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     try t.expectError(error.AccessDenied, q.DirectTableAssistance.complete(assistance_arena.allocator(), client, 1, .{ .sql = "SELECT i FROM events", .cursor = 8, .generation = 3 }));
     try t.expectError(error.AccessDenied, client.call(.{ .pin_status = .{ .object = saved.snapshot.object, .owner = saved.snapshot.handle.owner } }));
     try t.expectError(error.AccessDenied, inspect(client, saved.insert));
-    try t.expectError(error.AccessDenied, cleanup.close(client, cleanup_record));
-    try t.expectError(error.AccessDenied, cleanup.tick(client, SqlPins.exactClient));
+    try cleanup.close(client, cleanup_record);
+    // Recovery from another generation must retain the original pin when its
+    // current authority is denied, then close it after rights are restored.
+    var replacement_cleanup = try sql_runtime.ReadCache.init(init.gpa, init.io, directory, .{ .realm = 42, .account = @splat(49) }, 2);
+    defer replacement_cleanup.deinit();
+    try t.expectError(error.AccessDenied, replacement_cleanup.tick(client));
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = profile.role } });
     try t.expectEqualDeep(profile.history.?.checkpoint.?, try history_reader.checkpoint());
     (try client.call(observed_action)).deinit();
     (try client.call(suffix_request)).deinit();
-    for (0..3) |_| _ = try cleanup.tick(client, SqlPins.exactClient);
+    for (0..sql_runtime.ReadCache.capacity) |_| _ = try replacement_cleanup.tick(client);
     const cleanup_state = try client.call(.{ .pin_status = .{ .object = saved.snapshot.object, .owner = cleanup_record.owner() } });
     defer cleanup_state.deinit();
     try t.expect(cleanup_state.value.result.pin_state.released);
-    try cleanup.close(client, cleanup_record);
     try reader.check(client);
     try reader.release(client);
     try reader.release(client);

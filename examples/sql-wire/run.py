@@ -21,8 +21,8 @@ import psycopg
 import mysql.connector
 
 
-def run(profile,node,catalog,ledger,gateway):
-    node,catalog,ledger,gateway = [str(Path(p).resolve()) for p in (node,catalog,ledger,gateway)]
+def run(profile,node,catalog,database,gateway):
+    node,catalog,database,gateway = [str(Path(p).resolve()) for p in (node,catalog,database,gateway)]
     started = time.monotonic()
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     env = {k:v for k,v in os.environ.items() if not k.startswith(('URSULA_','OTEL_'))} | {'LOG_LEVEL':'warn'}
@@ -38,7 +38,7 @@ def run(profile,node,catalog,ledger,gateway):
             if result.returncode: raise RuntimeError(mode+': '+result.stderr[-3000:])
             return json.loads(result.stdout)
         def configure_gateway():
-            call(ledger,'app-config',8080)
+            call(database,'app-config',8080)
             config = json.loads((work/'sql-gateway.json').read_text())
             config.update(native_url=placement.authority,bind_address='0.0.0.0',mysql_port=3306,health_address='0.0.0.0',health_port=8081,activation_directory='/activation',spill_directory='/spill')
             for field in ('certificate_file','certificate_key_file'):
@@ -109,8 +109,8 @@ def run(profile,node,catalog,ledger,gateway):
             node_config['table'] = table
             write(work/'operator/node.json',node_config)
             authority = placement.start('node'); url = placement.url('node'); wait_ready(http,authority,url+'/health')
-            call(catalog,'initialize'); call(catalog,'external-provision'); call(ledger,'provision',1235)
-            assert call(ledger,'raw-denied')['raw_denied']
+            call(catalog,'initialize'); call(catalog,'external-provision'); call(database,'provision',1235)
+            assert call(database,'raw-denied')['raw_denied']
             subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost','-keyout',str(work/'key.pem'),'-out',str(work/'certificate.pem')],capture_output=True,check=True,timeout=30)
             (work/'key.pem').chmod(0o600)
             configure_gateway(); server,ports = start_gateway(); clients(ports)
@@ -119,7 +119,7 @@ def run(profile,node,catalog,ledger,gateway):
                 placement.stop_for_recovery(name,process)
             storage = placement.start('ursula'); wait_ready(http,storage,placement.url('ursula')+'/__ursula/ready')
             authority = placement.start('node'); url = placement.url('node'); wait_ready(http,authority,url+'/health')
-            call(ledger,'fence'); configure_gateway(); server,ports = start_gateway(); clients(ports,True)
+            call(database,'fence'); configure_gateway(); server,ports = start_gateway(); clients(ports,True)
             print(json.dumps(dict(profile='sql_wire_'+profile,types=6,verified_tls=True,physical_recovery=True,fresh_native_generation=True,direct_tables=True,raw_resource_denied=True,seconds=round(time.monotonic()-started,3))),flush=True)
         except BaseException:
             if placement:

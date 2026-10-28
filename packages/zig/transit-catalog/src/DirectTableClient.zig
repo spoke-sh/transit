@@ -15,6 +15,7 @@ key: p.Ed25519.KeyPair,
 /// When present, key authenticates this delegation's executor. The connection
 /// still identifies its original caller and selected role.
 delegation: ?c.DirectReadDelegation = null,
+lease: ?c.DirectClientToken.Lease = null,
 /// Current original-caller permission to close a saved delegation. This never
 /// renews read authority for the accepted computation.
 closure: ?c.DirectReadDelegation.Closure = null,
@@ -36,7 +37,7 @@ pub const Attempt = struct {
                 // label the proposed operation as the accepted recovery identity.
                 .client_token => null,
                 .stage => |value| value.intent.work.binding().identity,
-                .admit_saved => |value| value.binding.identity,
+                inline .admit_saved, .commit_saved => |value| value.binding.identity,
                 inline .admit_ddl, .admit_rows, .admit_statement, .operation => |value| value.binding.identity,
                 inline .name_assertion, .namespace_operation, .dependency_operation, .resource_operation => |value| value.binding.identity(),
                 inline .pin, .retain_history => |value| value.owner,
@@ -119,10 +120,10 @@ pub fn signed(self: Self, action: w.Action, nonce: [16]u8) !w.Request {
         if (self.delegation == null) return error.InvalidTableDelegation;
         try c.DirectReadDelegation.Closure.allow(action);
     }
-    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow };
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease };
     const authority: wire.AuthorizationClient = .{ .transport = self.authority, .realm = self.connection.scope.realm, .principal = if (self.borrow) |borrow| borrow.binding.executor else if (self.delegation) |delegation| delegation.binding.executor else self.connection.principal, .role = if (self.delegation != null) null else self.connection.role, .key = self.key };
     const proof = (try authority.proof(self.connection.audience, try w.Request.context(input, self.allocator))).signed;
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .borrow = input.borrow, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .borrow = input.borrow, .lease = input.lease, .proof = proof };
     try request.validate(self.allocator);
     return request;
 }

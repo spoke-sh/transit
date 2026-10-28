@@ -9,6 +9,7 @@ const Objects = c.storage.TransitObjectStore;
 const header_bytes = 40;
 pub const max_bytes = 4096;
 const Stored = union(enum) {
+    external: c.DirectIntent.External,
     data: d.Binding,
     name_assertion: c.NameAssertion.Binding,
     namespace: c.DirectNamespace.Binding,
@@ -21,6 +22,7 @@ const Stored = union(enum) {
     }
     fn identity(self: Stored) d.Operation {
         return switch (self) {
+            .external => |value| value.identity(),
             .data => |value| value.identity,
             .name_assertion => |value| value.identity(),
             .namespace => |value| value.identity(),
@@ -74,11 +76,14 @@ fn lookupStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, oper
 pub fn claim(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: d.Binding) !void {
     return claimStored(allocator, objects, .{ .data = binding });
 }
+pub fn claimExternal(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectIntent.External) !void {
+    return claimStored(allocator, objects, .{ .external = binding });
+}
 pub fn lookup(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operation: d.Operation) !?d.Binding {
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .data => |value| value,
-        .name_assertion, .namespace, .dependency, .resource => error.DataIdentityConflict,
+        .external, .name_assertion, .namespace, .dependency, .resource => error.DataIdentityConflict,
     };
 }
 pub fn claimAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.NameAssertion.Binding) !void {
@@ -88,7 +93,7 @@ pub fn lookupAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStor
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .name_assertion => |value| value,
-        .data, .namespace, .dependency, .resource => error.DataIdentityConflict,
+        .external, .data, .namespace, .dependency, .resource => error.DataIdentityConflict,
     };
 }
 pub fn claimNamespace(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectNamespace.Binding) !void {
@@ -98,7 +103,7 @@ pub fn lookupNamespace(allocator: std.mem.Allocator, objects: Objects.ObjectStor
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .namespace => |value| value,
-        .data, .name_assertion, .dependency, .resource => error.DataIdentityConflict,
+        .external, .data, .name_assertion, .dependency, .resource => error.DataIdentityConflict,
     };
 }
 pub fn claimDependency(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectDependency.Binding) !void {
@@ -108,7 +113,7 @@ pub fn lookupDependency(allocator: std.mem.Allocator, objects: Objects.ObjectSto
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .dependency => |value| value,
-        .data, .name_assertion, .namespace, .resource => error.DataIdentityConflict,
+        .external, .data, .name_assertion, .namespace, .resource => error.DataIdentityConflict,
     };
 }
 pub fn claimResource(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectResource.Binding) !void {
@@ -118,7 +123,7 @@ pub fn lookupResource(allocator: std.mem.Allocator, objects: Objects.ObjectStore
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .resource => |value| value,
-        .data, .name_assertion, .namespace, .dependency => error.DataIdentityConflict,
+        .external, .data, .name_assertion, .namespace, .dependency => error.DataIdentityConflict,
     };
 }
 fn claimStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: Stored) !void {

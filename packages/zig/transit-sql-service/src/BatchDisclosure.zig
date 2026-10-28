@@ -6,7 +6,7 @@ const Self = @This();
 pub const Subject = union(enum) {
     table: g.catalog.protocol.DataLifecycle.Definition,
     namespace: g.catalog.TableAuthority.Schema,
-    database: g.Ledger.Binding,
+    database: g.DatabaseAccount.Binding,
 };
 subjects: [g.ReadBatch.max_rows]?Subject = @splat(null),
 len: u8 = 0,

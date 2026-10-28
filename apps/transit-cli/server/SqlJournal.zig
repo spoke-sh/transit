@@ -11,7 +11,6 @@ receipts: [24]?u64 = @splat(null),
 pending: ?Pending = null,
 rejected: ?struct { proposal: Pending, cause: p.ErrorCode } = null,
 change: ?u64 = null,
-generation: u64 = 0,
 const Pending = struct { signed: native.SignedRequest, index: u8 };
 
 pub fn save(installation: *Installation, path: []const u8, record: anytype) !void {
@@ -49,7 +48,6 @@ pub fn flush(self: *Self, installation: *Installation, path: []const u8, record:
                 self.change = null;
             },
         },
-        .own => |value| self.generation = try std.math.add(u64, value.expected_generation, 1),
         else => self.receipts[pending.index] = receipt.position,
     }
     installation.record.position = @max(installation.record.position, receipt.position);
@@ -77,10 +75,4 @@ pub fn authorize(self: *Self, installation: *Installation, path: []const u8, rec
         } else .{ .begin = .{ .expected_revision = policy.revision, .action = action } };
         try self.submit(installation, path, record, index, .{ .authorization = command });
     }
-}
-pub fn activate(self: *Self, installation: *Installation, path: []const u8, record: anytype, pid: u64, worker: u64) !void {
-    const process = (try installation.query(.{ .process = pid })).body.process.process;
-    if (process.lifecycle != .running or process.failure != null) return error.ProcessUnavailable;
-    // Ownership changes never recreate the worker's credential or its grants.
-    try self.submit(installation, path, record, 0, .{ .own = .{ .pid = pid, .expected_generation = process.generation, .worker = worker } });
 }
