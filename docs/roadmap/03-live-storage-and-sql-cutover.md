@@ -892,6 +892,17 @@ resolve sustained contention. Production deadlines remain unchanged. Earlier
 clean core/experience failures stay recorded as failures; fresh committed-source
 qualification is still required before this continuation's PR.
 
+The continuation is rebased onto `8d5d14db0` (PR #203), retaining that change's
+SQL result, transport and TLS allocation work. Its bootstrap maintenance fix is
+also present upstream. Storage's new
+[foreground maintenance schedule](../../tests/storage/tables/maintenance.md)
+adds sixteen independently verified retained scans with Table maintenance
+disabled and during automatic flushing. It records node CPU, I/O and resident
+memory beside raw read durations and requires observed concurrent progress.
+The schedule is implemented and builds; its physical execution and clean
+qualification are pending. It adds no latency target, deadline increase or claim
+that aggregate maintenance or the installed zero-allocation gate is complete.
+
 **Post-integration priority — 2026-10-27:** after merging PR #188, the user
 reports slow single-row INSERT and roughly 0.5-second queries against `items`.
 These are user observations, not an attributed benchmark. Start P5.1's ordinary

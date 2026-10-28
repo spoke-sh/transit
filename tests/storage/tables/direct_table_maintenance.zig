@@ -60,6 +60,20 @@ fn rows(init: std.process.Init, client: c.DirectTableClient, source: c.DirectTab
     try t.expectEqual(count, seen);
 }
 
+/// Fixed retained reads can overlap physical relocation without creating pins,
+/// choosing newer cuts or changing the maintenance workload. Each sample checks
+/// every independent expected value before reporting completion.
+pub fn foreground(init: std.process.Init, client: c.DirectTableClient, state: State, output: *std.Io.Writer) !void {
+    for (0..16) |sample| {
+        const begin = std.Io.Clock.awake.now(init.io);
+        for (state.sources, counts) |source, count| try rows(init, client, source, count);
+        const elapsed = begin.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
+        try std.json.Stringify.value(.{ .sample = sample, .rows = 258, .elapsed_ns = elapsed }, .{}, output);
+        try output.writeByte('\n');
+        try output.flush();
+    }
+}
+
 pub fn verify(init: std.process.Init, client: c.DirectTableClient, state: *State, flushed: bool) !void {
     for (state.sources, counts, 0..) |source, count, i| {
         const response = try client.call(.{ .storage = .{ .object = source.snapshot.object, .pending_limit = 1024 } });
