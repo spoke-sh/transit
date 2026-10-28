@@ -110,6 +110,15 @@ shared registry operation and retain the global pin quotas. See the
 [node limits](../../../apps/transit-node/docs/growing.md#public-surface-and-limits)
 for execution-lane and memory budgets.
 
+Direct Table requests additionally share a 256 MiB backing-allocation ceiling,
+with a 128 MiB limit per request and 64 MiB reserved separately for Table
+controls. Parsing, private catalog work and responses remain charged through
+their respective lifetimes, including a slow response write. A memory refusal
+does not undo accepted work; recovery uses the original operation identity and
+current rights. Engine/provider caches and the independently bounded maintenance
+executor retain their own memory owners. The node limits distinguish these
+allocation bounds from whole-process resident memory.
+
 For direct-data staging, the local backend reserves encoded object bytes under
 the journal mutex, then publishes immutable objects outside it using per-key disk
 locks. Immutable reads likewise avoid that mutex. A stalled direct-data object

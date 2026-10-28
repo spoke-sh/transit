@@ -214,6 +214,31 @@ fn dispatchWithoutOutput(service: *@import("LocalTableService.zig"), action: c.D
     try t.expectError(error.OutOfMemory, dispatch(&adapter, action));
 }
 
+fn dispatchWithMemory(service: *@import("LocalTableService.zig"), memory: *@import("DirectRequestMemory.zig"), action: c.DirectTableProtocol.Action) !Response {
+    const Adapter = struct {
+        service: *@import("LocalTableService.zig"),
+        memory: *@import("DirectRequestMemory.zig"),
+        engine: *Engine,
+        configuration: D.Configuration,
+        fn execute(self: *@This(), _: *std.heap.ArenaAllocator, output: std.mem.Allocator, request: c.DirectTableProtocol.Request) ![]const u8 {
+            var budget = self.memory.request(t.allocator, request.transport().control != null);
+            defer t.expectEqual(0, budget.used) catch unreachable;
+            const encoded = work: {
+                var arena = std.heap.ArenaAllocator.init(budget.allocator());
+                defer arena.deinit();
+                break :work try self.service.execute(&arena, budget.allocator(), request);
+            };
+            defer budget.allocator().free(encoded);
+            try t.expectEqual(encoded.len, budget.used);
+            // The test decoder retains an independent copy after the same
+            // scratch/response lifetimes used by the HTTP handler have ended.
+            return output.dupe(u8, encoded);
+        }
+    };
+    var adapter: Adapter = .{ .service = service, .memory = memory, .engine = service.engine, .configuration = service.configuration };
+    return dispatch(&adapter, action);
+}
+
 fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.DirectClientToken.Receipt {
     const w = c.DirectTableProtocol;
     var service: @import("LocalTableService.zig") = .{ .engine = engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
@@ -278,8 +303,15 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.
     // original operation; never invent another identity or infer rejection.
     try dispatchWithoutOutput(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } });
     try t.expect(table_recovered == null);
-    const rows = try dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .inspect, .steps = 1 } });
+    var request_memory: @import("DirectRequestMemory.zig") = .{};
+    // Outstanding foreground work cannot consume recovery capacity. Resolve
+    // the accepted INSERT's original identity even with all data bytes reserved.
+    try request_memory.data.reserve(request_memory.data.limit);
+    try t.expectError(error.OutOfMemory, dispatchWithMemory(&service, &request_memory, .{ .lookup = .{ .namespace = 1, .name = ddl.name } }));
+    const rows = try dispatchWithMemory(&service, &request_memory, .{ .operation = .{ .binding = work.binding, .command = .inspect, .steps = 1 } });
     defer rows.deinit();
+    request_memory.data.release(request_memory.data.limit);
+    try t.expectEqual(0, request_memory.control.used.load(.acquire));
     try t.expectEqual(@as(u64, 1), rows.value.result.rows.committed.outcome.affected);
     const bulk_storage = try dispatch(&service, .{ .storage = .{ .object = binding.target, .pending_limit = 1 } });
     defer bulk_storage.deinit();
@@ -383,8 +415,11 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.
         service.before_reply = null;
         _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = owner_role } });
     }
-    const released = try dispatch(&service, .{ .release = snapshot });
+    try request_memory.data.reserve(request_memory.data.limit);
+    const released = try dispatchWithMemory(&service, &request_memory, .{ .release = snapshot });
     defer released.deinit();
+    request_memory.data.release(request_memory.data.limit);
+    try t.expectEqual(0, request_memory.control.used.load(.acquire));
     try t.expect(released.value.result == .released);
     // Predicate evaluation is private work under UPDATE, not a SELECT disclosure.
     _ = try change(engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = 0 } });
