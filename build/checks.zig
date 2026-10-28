@@ -561,6 +561,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_bindings.module("station_abi") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") })).step);
+    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
     components_step.dependOn(&b.addRunArtifact(tests).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = telemetry.module("telemetry") })).step);
@@ -1578,6 +1579,25 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const encoding_cost = b.addRunArtifact(sql_wire_encoding);
     encoding_cost.has_side_effects = true;
     b.step("test-sql-wire-encoding", "Measure framed row encoding separately from authority and transport").dependOn(&encoding_cost.step);
+    const allocation_client = b.addExecutable(.{ .name = "transit-sql-result-allocations", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/interfaces/sql/sql_result_allocations.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") },
+            .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
+            .{ .name = "transit_io", .module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") },
+        },
+    }) });
+    build_test_step.dependOn(&allocation_client.step);
+    const allocation_test = b.addSystemCommand(&.{ "python3", "-B" });
+    allocation_test.addFileArg(b.path("tests/runner/launch.py"));
+    allocation_test.addFileArg(b.path("tests/interfaces/sql_sessions/allocations.py"));
+    allocation_test.addArtifactArg(allocation_client);
+    allocation_test.has_side_effects = true;
+    allocation_test.stdio = .inherit;
+    b.step("test-sql-result-allocations", "Enforce shared-client allocation bounds across transport replacement").dependOn(&allocation_test.step);
     const configuration_probe = b.addExecutable(.{ .name = "transit-configuration-probe", .root_module = b.createModule(.{
         .root_source_file = b.path("apps/transit-cli/ConfigurationProbe.zig"),
         .target = target,

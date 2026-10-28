@@ -10,6 +10,15 @@ operations; [contribution instructions](AGENTS.md) describe their test boundary.
 | Current disclosure rights and resources | [security.py](security.py), [resources.py](resources.py) |
 | Disconnects, replacement and cancellation | [faults.py](faults.py), [boundaries.py](boundaries.py) |
 | Console peer and measurements | [editor_peer.py](editor_peer.py), [measurements.py](measurements.py) |
+| Shared client allocation bounds over Unix, HTTP and TLS | [allocations.py](allocations.py), [client probe](../sql/sql_result_allocations.zig) |
+
+`just test::sql-result-allocations` runs 300 statements per transport against a
+finite-relation peer. It varies schemas, widths and batch counts, repeats one
+lost fetch ordinal, crosses the 256-request connection boundary and replaces idle
+sockets. A sealed allocator observes both client reserves and bounded I/O task
+storage after finite setup. This tests communication and result ownership, not
+service computation or current authorization; OS acquisition requires its own
+observer.
 
 Use `just test::sql-sessions` and the affected installed SQL task from the
 [test module](../../../tasks/test.just). Measurements describe elapsed work;

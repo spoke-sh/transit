@@ -192,8 +192,15 @@ pub fn validateResponse(response: Response) !void {
 }
 /// Input/arena are the caller's response owner. Column payloads borrow input.
 pub fn decodeResponse(arena: std.mem.Allocator, bytes: []align(ResultFrame.alignment) const u8, binary: bool) !Response {
+    return decodeWithDirectory(arena, null, bytes, binary);
+}
+/// The caller owns directory storage as well as frame and metadata storage.
+pub fn decodeResponseInto(arena: std.mem.Allocator, directory: [][]const u8, bytes: []align(ResultFrame.alignment) const u8, binary: bool) !Response {
+    return decodeWithDirectory(arena, directory, bytes, binary);
+}
+fn decodeWithDirectory(arena: std.mem.Allocator, directory: ?[][]const u8, bytes: []align(ResultFrame.alignment) const u8, binary: bool) !Response {
     if (binary) {
-        const batch = try ResultFrame.parseBorrowed(arena, bytes);
+        const batch = if (directory) |storage| try ResultFrame.parseInto(arena, storage, bytes) else try ResultFrame.parseBorrowed(arena, bytes);
         const response: Response = .{ .version = 1, .definition = native.current_definition, .instance = batch.instance, .result = .{ .batch = batch } };
         try validateResponse(response);
         return response;

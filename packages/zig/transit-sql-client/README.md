@@ -55,12 +55,13 @@ while delivered count can remain lower than the verified result count.
 and non-copying `slice`. Column consumers can access compatible Fuze/Arrow value
 buffers without building row objects; `nextRow` supplies an allocation-free row
 view over the same values. Retain the source owner for all borrowed buffers.
-The native adapter retains an exact-size aligned binary response body per batch.
+The native adapter leases an aligned binary response body per batch from bounded
+client storage; the visible slice contains only the received bytes.
 Common scalar columns borrow Arrow-compatible value buffers directly. Other
 logical types allocate cell/recursive descriptors while borrowing variable bytes
 from that body. Initial schema and observation metadata have separate lifetimes;
 subsequent batches carry their commitments. The next pull or close releases the
-previous body. Native result bodies are uncompressed; socket reception and server
+previous response lease. Native result bodies are uncompressed; socket reception and server
 column construction still copy bytes. Prepared parameters use the bounded JSON
 control codec.
 
@@ -71,8 +72,12 @@ can continue streaming or close. Schema/observation storage and window storage
 have distinct owners.
 
 `Executor.Options.resident_bytes` bounds statement response parsing, copied
-metadata and decoded rows together; its default and maximum are 16 MiB. Transport
-connections have separate client-owned buffers. Native batches contain at most
+metadata and decoded rows together; its default and maximum are 16 MiB. The client
+reserves 16 MiB for independently lived statement/response objects and 4 MiB for
+transport connections and trust state at initialization. Slab headers, alignment
+and fragmentation consume those reserves; idle capacity stays charged. Retained
+outcomes constrain later admission. Transport buffers have a separate owner.
+Native batches contain at most
 32 rows and 1 MiB of canonical cells inside a 4 MiB message. A small client budget
 can reject a valid server batch with `OutOfMemory`; limits do not silently truncate
 rows. Per-batch storage is released before fetching the next batch. A window has
@@ -111,14 +116,32 @@ it never repairs or splices an interrupted reader.
 
 `Client.init` validates endpoint/trust configuration. `open` negotiates the current
 definition and instance and performs peer/trust/SCRAM login. `call` returns an
-owned parsed response; deinitialize it. `callAllocated` assigns that response's
-request/parsing allocations to a supplied allocator. These low-level calls never
+`Response` lease; deinitialize it once after every borrowed value is finished.
+Up to four responses may be retained. A fifth call fails with
+`SqlResponseCapacity`; it cannot overwrite an earlier result. Generation checks
+detect stale lease operations, while raw slices still require caller discipline.
+`callAllocated` assigns request/parsing reservations to a supplied allocator;
+use a budget over `Client.allocator` to retain the bounded backing profile.
+An unrelated supplied allocator has its own allocation behavior. These calls never
 automatically replay requests. `Client.deinit` releases transport resources;
 explicitly send `close` to release the logical session.
 
 TCP credentials use HTTPS with system roots or a configured PEM CA bundle.
 Plain HTTP requires explicit loopback trust. Redirects are refused. HTTP sockets
 may be replaced without replacing the logical session.
+
+Endpoint targets are prepared at initialization. HTTP/TLS sockets, received
+frames and parsing use reusable reserves. One replacement observation client
+shares those reserves during accepted-operation settlement and is joined before
+release; this does not replace an active reader's session. All clients sharing a
+reserve have one request borrower.
+
+The caller's I/O implementation owns task records and worker stacks independently.
+Use [the bounded I/O runtime](../transit-io/README.md) when those allocations must
+also be reserved before work. Client allocator counters alone do not observe
+another I/O allocator, libc or OS mappings. The console uses that runtime with
+eight warmed workers and a 1 MiB task-record reserve; clients still require their
+own admission and transport capacity.
 
 `Discovery` reads nonsecret local rendezvous records under an owner-checked
 runtime directory. On Linux, the service verifies the socket peer UID. The

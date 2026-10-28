@@ -7,14 +7,14 @@ const r = sdk.results;
 const Self = @This();
 const Transport = struct {
     context: *anyopaque,
-    fetch: *const fn (*anyopaque, std.mem.Allocator, api.Id, u64) anyerror!std.json.Parsed(api.Response),
+    fetch: *const fn (*anyopaque, std.mem.Allocator, api.Id, u64) anyerror!sdk.Response,
     close: *const fn (*anyopaque, api.Id) void,
 };
 parent: std.mem.Allocator,
 memory: r.fuze.MemoryBudget,
 header: std.heap.ArenaAllocator,
 batch: std.heap.ArenaAllocator,
-response: ?std.json.Parsed(api.Response) = null,
+response: ?sdk.Response = null,
 transport: Transport,
 failure_value: ?r.Failure = null,
 cursor: api.Id,
@@ -28,10 +28,10 @@ closed: bool = false,
 
 /// Takes ownership of the first response on success. Column payloads borrow
 /// its aligned body until the next pull or close; metadata has separate owners.
-pub fn open(allocator: std.mem.Allocator, executor: *sdk.Executor, first: std.json.Parsed(api.Response), resident_bytes: usize) !r.ResultSet {
+pub fn open(allocator: std.mem.Allocator, executor: *sdk.Executor, first: sdk.Response, resident_bytes: usize) !r.ResultSet {
     return openTransport(allocator, .{ .context = executor, .fetch = nativeFetch, .close = nativeClose }, first, resident_bytes);
 }
-fn openTransport(allocator: std.mem.Allocator, transport: Transport, first: std.json.Parsed(api.Response), resident_bytes: usize) !r.ResultSet {
+fn openTransport(allocator: std.mem.Allocator, transport: Transport, first: sdk.Response, resident_bytes: usize) !r.ResultSet {
     if (resident_bytes == 0 or resident_bytes > 16 * 1024 * 1024) return error.InvalidResultBudget;
     if (first.value.result != .batch) return error.InvalidSqlResponse;
     const frame = first.value.result.batch;
@@ -93,7 +93,7 @@ fn next(context: *anyopaque) !r.ResultSet.Chunk {
         else => return error.InvalidSqlResponse,
     }
 }
-fn nativeFetch(context: *anyopaque, allocator: std.mem.Allocator, cursor: api.Id, ordinal: u64) !std.json.Parsed(api.Response) {
+fn nativeFetch(context: *anyopaque, allocator: std.mem.Allocator, cursor: api.Id, ordinal: u64) !sdk.Response {
     const executor: *sdk.Executor = @ptrCast(@alignCast(context));
     executor.enter(.fetch);
     const client = executor.client;
@@ -165,6 +165,7 @@ fn deinit(context: *anyopaque) void {
 
 const t = std.testing;
 const TestScript = struct {
+    slot: sdk.Response.Slot = .{},
     length: usize = 7,
     maximum: usize = 2,
     position: usize = 0,
@@ -217,7 +218,7 @@ const TestScript = struct {
         };
         return result;
     }
-    fn fetch(context: *anyopaque, allocator: std.mem.Allocator, cursor: api.Id, ordinal: u64) !std.json.Parsed(api.Response) {
+    fn fetch(context: *anyopaque, allocator: std.mem.Allocator, cursor: api.Id, ordinal: u64) !sdk.Response {
         const self: *TestScript = @ptrCast(@alignCast(context));
         try t.expectEqual(@as(api.Id, @splat(6)), cursor);
         self.requests += 1;
@@ -225,19 +226,16 @@ const TestScript = struct {
         if (self.fault == .disconnect) return error.ReadFailed;
         return self.response(allocator, ordinal);
     }
-    fn response(self: *TestScript, allocator: std.mem.Allocator, ordinal: u64) !std.json.Parsed(api.Response) {
-        const arena = try allocator.create(std.heap.ArenaAllocator);
-        arena.* = .init(allocator);
-        errdefer {
-            arena.deinit();
-            allocator.destroy(arena);
-        }
-        const value = try self.frame(arena.allocator(), ordinal);
+    fn response(self: *TestScript, allocator: std.mem.Allocator, ordinal: u64) !sdk.Response {
+        const lease = try self.slot.acquire(allocator);
+        errdefer lease.release() catch unreachable;
+        const a = try lease.allocator();
+        const value = try self.frame(a, ordinal);
         // The incomplete-prefix case deliberately violates frame shape and
         // exercises reader admission, independently of the byte parser.
-        if (self.fault == .incomplete and ordinal != 0) return .{ .arena = arena, .value = .{ .version = 1, .definition = api.native.current_definition, .instance = value.instance, .result = .{ .batch = value } } };
-        const bytes = try api.ResultFrame.encode(arena.allocator(), value);
-        return .{ .arena = arena, .value = try api.decodeResponse(arena.allocator(), bytes, true) };
+        if (self.fault == .incomplete and ordinal != 0) return .{ .lease = lease, .value = .{ .version = 1, .definition = api.native.current_definition, .instance = value.instance, .result = .{ .batch = value } } };
+        const bytes = try api.ResultFrame.encode(a, value);
+        return lease.decode(bytes, true);
     }
     fn close(context: *anyopaque, _: api.Id) void {
         const self: *TestScript = @ptrCast(@alignCast(context));
@@ -262,6 +260,37 @@ test "public semantic consumer is independent of native frame size and terminal 
         try t.expectEqual(length, result.progress.received);
         try t.expectEqual(length, result.progress.delivered);
     };
+}
+
+test "repeated native results reuse reserved memory while retaining an independent reader" {
+    const memory = @import("transit_memory");
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    const storage = try @import("Storage.zig").create(probe.allocator(), "unix:/unused");
+    defer storage.destroy();
+    const a = storage.data.allocator();
+    var retained_script: TestScript = .{ .length = 70, .maximum = 32 };
+    var retained = try retained_script.open(a);
+    defer retained.deinit();
+    probe.begin(true);
+    for (0..1000) |iteration| {
+        var script: TestScript = .{ .length = ([_]usize{ 0, 1, 31, 32, 33, 70 })[iteration % 6], .maximum = 1 + iteration % 32, .empty_terminal = iteration % 2 == 0 };
+        var result = try script.open(a);
+        defer result.deinit();
+        try requireStream(&result, script.length);
+        try t.expectEqualStrings("n", retained.schema.structure[0].name);
+    }
+    try requireStream(&retained, 70);
+    try probe.verify();
+    try t.expectEqual(storage.reservedBytes(), probe.live_bytes);
+}
+fn requireStream(result: *r.ResultSet, length: usize) !void {
+    var count: usize = 0;
+    while (try result.nextRow()) |row| {
+        try t.expectEqual(count % 3, row[0].value.atom.unsigned);
+        count += 1;
+    }
+    try t.expectEqual(length, count);
+    try t.expectEqual(length, result.completion().?.rows);
 }
 test "native projection rejects substituted evidence and missing or false terminals" {
     const cases = .{

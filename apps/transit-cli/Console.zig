@@ -37,7 +37,18 @@ fn localConfig(init: std.process.Init, allocator: std.mem.Allocator, diagnostic:
     defer record.deinit();
     return .{ .version = 1, .endpoint = try std.fmt.allocPrint(allocator, "unix:{s}", .{record.value.socket}), .account = try allocator.dupe(u8, record.value.account), .database = try allocator.dupe(u8, record.value.database), .instance = record.value.instance };
 }
-pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !void {
+pub fn run(original: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !void {
+    // Cancellation, settlement and the transport deadline nest at most six
+    // tasks. Two additional slots cover workers finishing already joined tasks.
+    const runtime = try @import("transit_io").Threaded.create(original.gpa, .{
+        .workers = 8,
+        .task_bytes = 1024 * 1024,
+        .environ = original.minimal.environ,
+        .argv0 = .init(original.minimal.args),
+    });
+    defer runtime.destroy();
+    var init = original;
+    init.io = runtime.io();
     diagnostic.style = @import("Style.zig").detect(init);
     var preferences = try Preferences.load(init, options, diagnostic);
     while (try connection(init, options, preferences, diagnostic)) |next| preferences = next;
@@ -232,8 +243,8 @@ pub const Console = struct {
     fn poll(io: std.Io) !void {
         while (!Signals.interrupted()) try io.sleep(.fromMilliseconds(20), .awake);
     }
-    fn call(self: *Console, action: api.Action) !std.json.Parsed(api.Response) {
-        const Event = union(enum) { reply: anyerror!std.json.Parsed(api.Response), signal: anyerror!void };
+    fn call(self: *Console, action: api.Action) !sdk.Response {
+        const Event = union(enum) { reply: anyerror!sdk.Response, signal: anyerror!void };
         var events: [2]Event = undefined;
         var selection: std.Io.Select(Event) = .init(self.init.io, &events);
         defer while (selection.cancel()) |pending| switch (pending) {
