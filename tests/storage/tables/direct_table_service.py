@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 import threading
 import urllib.request
 
@@ -18,7 +17,7 @@ def run(node, caller, mode="tables", *artifacts):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
-    with (direct_table_maintenance.directory() if mode in ("maintenance", "tables") else tempfile.TemporaryDirectory(prefix="transit-direct-table-")) as directory:
+    with direct_table_maintenance.directory(mode) as directory:
         root = Path(directory)
         profile = root / "profile.json"
         config = root / "node.json"

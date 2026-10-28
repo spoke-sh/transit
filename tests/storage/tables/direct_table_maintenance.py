@@ -67,9 +67,9 @@ class RequestMemory:
 
 
 @contextmanager
-def directory():
-    root = Path(tempfile.mkdtemp(prefix='transit-table-maintenance-', dir='/var/tmp'))
-    print(f'Direct Table maintenance proof: {root}', flush=True)
+def directory(profile="maintenance"):
+    root = Path(tempfile.mkdtemp(prefix=f'transit-table-{profile}-', dir='/var/tmp'))
+    print(f'Direct Table {profile} proof: {root}', flush=True)
     try:
         yield str(root)
     except BaseException:
