@@ -9,6 +9,118 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Catalog-owned common cuts and mutation buffers — 2026-10-28
+
+At source [`673ebae2870c`](https://github.com/spoke-sh/transit/commit/673ebae2870cf6b0cc605f03754dcfd1448cef2d),
+the [Catalog component](../../../packages/zig/transit-catalog/docs/direct-catalog.md)
+acquires an explicit Table selection under its embedding host's publication
+fence. It publishes one source-directory commitment after retaining every
+original pin and checking a common writer/policy epoch. Generic progress updates
+cannot replace transaction state; generic caller records cannot stage or read
+the server-owned acquired-cut format. Logical guards carry interpretation and
+conflict frontiers separately from the exact pins' retention obligations.
+
+A clean checkout of that source, with no inherited `TRANSIT_*` environment or
+workspace build output, passes the following package selections inside
+`nix develop --option eval-cache false`:
+
+| Owner and command | Executed result |
+| --- | --- |
+| Protocol: `zig build test --summary all` | 72 tests passed |
+| Catalog: `zig build test -Dtest-filter=transaction -Dtest-filter=direct records --summary all` | 14 tests passed |
+| Storage: `zig build test -Dtest-filter=transaction -Dtest-filter=Table build memory -Dtest-filter=Table no-op receipts -Dtest-filter=Table acceptance recovers -Dtest-filter=flushes large values --summary all` | 18 tests passed |
+
+The Catalog schedules reopen disk-backed WAL/object stores after lost pin and
+cut-publication replies across 11 Tables, recover the original pins, reject
+intervening logical/definition changes and mixed policy epochs, preserve a
+WAL-inclusive cut through physical flush, and recheck current read access after
+acquisition. Seventeen acquired sources exercise directory pages beyond one
+resident page. Retained-graph traversal verifies those pages' reachability; it
+does not execute physical deletion. Other controls reject generic progress
+replacement, reserved-record access, caller-supplied catalog-wide selection and
+insufficient temporary memory without publishing a partial cut.
+
+At [`97c84aafa6f8`](https://github.com/spoke-sh/transit/commit/97c84aafa6f829815a4f138d68aa53d9e516de3b),
+the interrupted-acquisition case constructs an impossible vector: retain A,
+change A, then change B before resuming. Old A with new B never existed as one
+cut. A fresh committed-source clone passes the 14-test Catalog selection. A
+single omitted-guard control removes
+`try basis.requireUnchanged(transactionTableGuard(access.view.table.root));`
+and runs `zig build test -Dtest-filter='transaction common cut preserves WAL rows' --summary all`.
+Three imported tests pass and the targeted test fails at its expected
+`TransactionConflict` assertion because acquisition returns a complete two-source
+cut. Restoring the exact source passes all four selected tests. This exercises
+the model's acquisition obligation against the real owners using volatile
+WAL/object adapters; it is a manually constructed counterexample and control,
+not automatic TLA+ trace replay or implementation refinement. Source hashes,
+commands, exit codes and original diagnostics are retained in
+`.cache/m5-acquisition-control-97c84aafa6f8.json` and
+`.cache/m5-acquisition-97c84aafa6f8-{baseline,omitted-guard,restored}.log`.
+
+Private workspace schedules now use the 16 MiB admission default. Row and
+comparison buffers scale with the proposed rows, and segment output grows from
+64 KiB within its existing maximum and build allowance. A small mutation's
+measured builder peak is below 1 MiB; a limit just below that measured peak still
+refuses the mutation. The existing large-value flush exercises growth beyond a
+256 KiB column page. These are bounded allocation checks, not zero-allocation or
+throughput claims. Borrowed owners, provider buffers, fixed stacks, caller
+results and aggregate concurrent capacity retain separate owners. A local broad
+Table run over the buffer implementation committed in
+[`fb126cdd4`](https://github.com/spoke-sh/transit/commit/fb126cdd41d952a3c1a409267a0f341e3ce77806)
+passes 84 tests; its raw log is `.cache/m5-table-buffer-tests.log`.
+
+Clean-source fast checks pass all 45 checks at `673ebae2870c`. Contract checks
+pass all 18 checks and the formal lane passes all nine tasks at its ancestor
+[`e1a440f7b437`](https://github.com/spoke-sh/transit/commit/e1a440f7b43797eb549924d7fc8d9915b9c0ac29).
+The later change adds the HTTP ownership-refusal mapping and its caller check;
+it changes no model or generated contract. The transaction models retain their
+finite algorithm bounds and do not establish production refinement.
+
+Raw package commands, source revision, exit codes and timings are in
+`.cache/m5-clean-focused-673ebae2870c.json`, with
+`.cache/m5-clean-673ebae2870c-{protocol,catalog,storage,service}.log` beside it.
+Clean fast evidence is under
+`.cache/ci/clean/673ebae2870c-transit-ci-t_ur4k_z/`; contract and formal evidence
+are under `.cache/ci/clean/e1a440f7b437-transit-ci-e8sw87zz/` and
+`.cache/ci/clean/e1a440f7b437-transit-ci-wb_m00lp/`. These local paths are not
+portable artifact links.
+
+Earlier runs exposed oversized fixed buffers and an obsolete test assumption
+that a small mutation must allocate over 4 MiB. Those failures were corrected
+before the bounded tests above. Regeneration initially encountered a reactive
+fixture carrying the previous definition; regenerating fixtures before browser
+descriptions resolved it. A clean fast run then detected diagnostic inventory
+drift after Zig formatting removed unnecessary enum quotes; the inventory was
+regenerated and the clean fast checks rerun. Those failed runs are not counted
+as passed.
+
+The first service run at `673ebae2870c` stopped at the new reserved-record check:
+the assertion expected the wire name `InvalidRequest`, while the shared typed
+client reports that HTTP refusal as `Rejected`. The node's response was already
+`400 InvalidRequest`. The corrected caller assertion and an independent proxy
+check of the exact HTTP status/body are committed in
+[`43e47b244`](https://github.com/spoke-sh/transit/commit/43e47b24484d2dece11fdf149e7b3b8cd6dae4b1).
+The failed run's log and per-phase exit codes remain in the paths above; its
+three package checks passed, but its service phase did not.
+
+The corrected service schedule passes from a fresh committed-source clone at
+`43e47b244`: `nix develop --option eval-cache false --command just test::direct-table-service`
+executes 2,126 typed HTTP calls, including the reserved-format refusal, existing
+Table CRUD/DDL, lost replies, retained WAL/segment reads, three node restarts and
+current authorization changes. This exercises the existing Table callers across
+the definition cutover; it is not an installed transaction-acquisition proof.
+The successful command, source and exit code are recorded in
+`.cache/m5-clean-focused-43e47b24484d.json`; raw output is
+`.cache/m5-clean-43e47b24484d-service.log`.
+
+This qualifies acquisition and private evaluation components, not an installed
+transaction service. The host still supplies the publication fence. Durable
+executing workspaces, aggregate quotas, participant preparation, common-decision
+visibility, cleanup, SQL/session callers and installed transaction anomaly and
+failure schedules remain open. The full native/core suite was not run for this
+change. Neither these component tests nor the formal lane establish power-loss
+behavior or end-to-end serializable transactions.
+
 ## Local Table transaction algorithm model — 2026-10-28
 
 At source [`c232888e9a66`](https://github.com/spoke-sh/transit/commit/c232888e9a66a28b664a9eb3beaa1edbc7f27f13),

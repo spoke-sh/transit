@@ -2329,18 +2329,23 @@
         "packages/zig/transit-catalog/src/DirectTransaction.zig",
         "packages/zig/transit-catalog/src/DirectStorageGraph.zig",
         "packages/zig/transit-catalog/src/direct_catalog_test.zig",
-        "packages/zig/transit-storage/src/TransactionDirectory.zig"
+        "packages/zig/transit-storage/src/TransactionDirectory.zig",
+        "apps/transit-node/NativeServer.zig",
+        "tests/interfaces/native/direct_table_client.zig"
       ],
       "profile": "Catalog component with serialized Table publication, paged selected/source directories, disk reopen and metered temporary heap",
       "tasks": [
-        "check::native"
+        "check::native",
+        "test::direct-table-service"
       ],
       "scenarios": [
         "Lost pin and final publication replies recover original pins and the original catalog cut across disk reopen",
         "Logical writes and interpretation changes during interrupted acquisition refuse a mixed cut; physical flush preserves acquisition",
         "An acquired cut stays fixed across later writes and rechecks current rights on every observation",
         "Mixed policy epochs and memory exhaustion leave the catalog cut unpublished",
-        "Source directories larger than one page remain reachable through catalog history; generic progress updates cannot replace transaction records"
+        "Source directories larger than one page remain reachable through catalog history; generic progress updates cannot replace transaction records",
+        "Generic record access cannot disclose or replace the server-owned cut; signed staging receives HTTP 400 InvalidRequest",
+        "Admission rejects caller-supplied catalog-wide selection claims; logical guards remain distinct from retained history coverage"
       ],
       "limits": "The embedding caller supplies the catalog/Table publication fence. No installed transaction host or signed acquisition API, private statement settlement, aggregate workspace quota, Table prepare/visibility, serializability, cleanup, process-death or power-loss guarantee is established. These component histories do not constitute automated model refinement.",
       "model": null,
