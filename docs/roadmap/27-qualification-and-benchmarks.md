@@ -29,8 +29,10 @@ remains a gate for every preceding milestone.
   branch-aware compaction and retirement under current authorization.
 - Repeat the [data structures, query and runtime scorecard](10-data-structures-and-performance.md)
   at the common revision with installed callers, concurrent maintenance and
-  durable runtime workloads. Include leveled/tiered `.tseg` compaction bounds,
-  `.tdel` tombstone reclamation, declarative partitioning/multi-dimensional
+  durable runtime workloads. Include zero-steady-state-allocation hot-path
+  verification, per-morsel CPU/memory/IOPS metering, 16-byte collation-prefixed
+  strings, `comptime`/immutable perfect hashing, leveled/tiered `.tseg` compaction
+  bounds, `.tdel` tombstone reclamation, declarative partitioning/multi-dimensional
   clustering (`PARTITION BY`, `CLUSTER BY`), scan-resistant caching, external
   NVMe spill for window/join/sort operators and bitemporal `AS OF JOIN` merge
   execution. Preserve numeric budgets, matched competitor versions/configurations,

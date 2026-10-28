@@ -85,9 +85,14 @@ the shared plane validates the resulting authorization delegation.
    Board/SQL sessions, continuous dataflows, background compaction/index builds
    and autonomous MCP agent bursts) to explicit CPU shares, memory pool quotas,
    concurrency slots, admission priorities and `TransitObjectStore`/NVMe I/O
-   bandwidth budgets. Guarantee that an analytical scan storm, compaction pass
-   or MCP agent burst cannot starve OLTP writes, interactive governance or the
-   reserved control/recovery capacity.
+   bandwidth budgets. Drive enforcement from the fine-grained per-query and
+   per-tenant metering substrate established in
+   [Milestone 10](10-data-structures-and-performance.md)—hierarchical
+   `MeteredAllocator` byte tracking, per-`Batch` morsel CPU cycle/tick charging
+   and storage range-read/write IOPS counters—so operators can throttle, preempt
+   at batch boundaries, spill to Tier 2 NVMe or deterministically refuse runaway
+   queries before they starve OLTP writes, interactive governance or the reserved
+   control/recovery capacity.
 9. **Expose bounded administration and explanation.** Show identity-binding and
    policy provenance, effective permitted actions, active RLS/masking attribution,
    erasure receipts, WLM resource-group utilization and attributable denials under

@@ -10,7 +10,10 @@ workload sizes, repetitions, seeds, warm/cold conditions, resource bounds and
 backend/durability profiles when moving a runner.
 
 Record source/toolchain/binary/driver identity, phase times, machine and cache
-conditions. Never weaken durability, authority, value or completion checks to
+conditions. For hot-path storage, protocol and query benchmarks, track steady-state
+heap allocation counts/bytes after warmup alongside latency percentiles, CPU cycles
+and I/O bytes so zero-steady-state-allocation and bounded-morsel guarantees remain
+regression-tested. Never weaken durability, authority, value or completion checks to
 improve a timing. Failed, incomplete or mismatched samples cannot meet a budget.
 Keep original hashes intact; requalify changed measurement drivers before
 freezing new budgets. Do not rewrite old identities to manufacture comparability.
