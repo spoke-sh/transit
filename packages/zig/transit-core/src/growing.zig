@@ -389,7 +389,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             var candidate = try self.state();
             var pending: catalog.Candidate = .{};
             switch (request.command) {
-                .send, .open_view, .close_view, .turn, .turn_with_versions, .deliver => candidate.pending = &pending,
+                .grant, .create_principal, .send, .open_view, .close_view, .turn, .turn_with_versions, .deliver => candidate.pending = &pending,
                 else => {},
             }
             var next = self.head;

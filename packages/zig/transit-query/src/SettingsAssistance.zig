@@ -2,16 +2,16 @@
 const std = @import("std");
 const q = @import("root.zig");
 const A = q.Assistance;
-pub fn complete(allocator: std.mem.Allocator, client: q.SettingsClient, request: A.Request) !?A.Response {
+pub fn complete(allocator: std.mem.Allocator, client: q.SettingsClient, request: A.Request, direct_tables: bool) !?A.Response {
     const span = try q.fuze.SqlInput.active(request.sql, request.cursor, request.mode == .console);
-    var result = (try completeStatement(allocator, client, .{ .sql = request.sql[span.start..span.end], .cursor = request.cursor - span.start, .generation = request.generation, .mode = request.mode })) orelse return null;
+    var result = (try completeStatement(allocator, client, .{ .sql = request.sql[span.start..span.end], .cursor = request.cursor - span.start, .generation = request.generation, .mode = request.mode }, direct_tables)) orelse return null;
     if (result.range) |*range| {
         range.start += span.start;
         range.end += span.start;
     }
     return result;
 }
-fn completeStatement(allocator: std.mem.Allocator, client: q.SettingsClient, request: A.Request) !?A.Response {
+fn completeStatement(allocator: std.mem.Allocator, client: q.SettingsClient, request: A.Request, direct_tables: bool) !?A.Response {
     try q.fuze.Sql.validateText(request.sql);
     if (request.cursor > request.sql.len) return error.InvalidSqlCursor;
     const text = request.sql[0..request.cursor];
@@ -35,6 +35,7 @@ fn completeStatement(allocator: std.mem.Allocator, client: q.SettingsClient, req
     var limited = false;
     errdefer for (items[0..count]) |item| allocator.free(item.text);
     if (show) for ([_][]const u8{ "ALL", "DATABASES", "SCHEMAS", "TABLES" }) |word| try add(allocator, &items, &exact, &count, &limited, prefix, word, "Authorized settings or catalog listing");
+    if (show and direct_tables) try add(allocator, &items, &exact, &count, &limited, prefix, "STORAGE", "Authorized direct Table storage progress");
     if (reset) try add(allocator, &items, &exact, &count, &limited, prefix, "ALL", "Restore captured session defaults");
     var generation: ?u64 = null;
     var policy: ?u64 = null;

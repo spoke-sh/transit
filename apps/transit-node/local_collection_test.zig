@@ -14,12 +14,15 @@ const Fixture = struct {
     journal: backend.Store = undefined,
     engine: backend.DataAuthority.Engine = undefined,
     now: u64 = 100,
+    clock_failed: bool = false,
 
     fn key(seed: u8) !core.Ed25519.KeyPair {
         return core.Ed25519.KeyPair.generateDeterministic(@splat(seed));
     }
     fn clock(raw: *anyopaque) !core.Time.Sample {
-        return .{ .unix_ms = @as(*Fixture, @ptrCast(@alignCast(raw))).now };
+        const self: *Fixture = @ptrCast(@alignCast(raw));
+        if (self.clock_failed) return error.FixtureClockUnavailable;
+        return .{ .unix_ms = self.now };
     }
     fn open(self: *Fixture, directory: std.Io.Dir, fresh: bool) !void {
         self.owner = try backend.Backend.open(t.allocator, t.io, directory, "native", .{});
@@ -45,7 +48,7 @@ const Fixture = struct {
     }
 };
 
-test "automatic local collection resumes both owners, rechecks privilege and reaches idle" {
+test "automatic local collection resumes both owners, rechecks privilege and clock, and reaches idle" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
     var f: Fixture = .{};
@@ -75,6 +78,22 @@ test "automatic local collection resumes both owners, rechecks privilege and rea
         if (!restarted and n.?.phase == .wait and d.?.phase == .wait) {
             // The same saved targets survive loss of volatile scheduling state.
             // A revoked maintenance principal cannot advance either owner.
+            const position = f.engine.head.position;
+            // Both classes refuse clock failure before publishing a time fence
+            // or deleting anything. A missing clock is likewise not permission
+            // to treat the persisted grace interval as elapsed.
+            f.clock_failed = true;
+            for (0..2) |_| try t.expectError(error.FixtureClockUnavailable, f.step(&cursor, config));
+            f.clock_failed = false;
+            const trusted = f.engine.clock;
+            f.engine.clock = null;
+            try t.expect(!try f.step(&cursor, config));
+            f.engine.clock = trusted;
+            try t.expectEqual(position, f.engine.head.position);
+            try t.expectEqualDeep(n.?, (try native.current()).?);
+            try t.expectEqualDeep(d.?, (try direct.current()).?);
+            try t.expect(try f.owner.objects.objectStore().head(native_key) != null);
+            try t.expect(try f.owner.objects.objectStore().head(direct_key) != null);
             try f.root(.{ .revoke = 10 });
             try t.expectError(error.Forbidden, f.step(&cursor, config));
             try t.expectEqualDeep(n.?, (try native.current()).?);

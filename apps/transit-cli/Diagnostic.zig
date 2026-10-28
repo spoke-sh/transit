@@ -313,13 +313,13 @@ fn reason(err: anyerror) []const u8 {
         else => @errorName(err),
     };
 }
-pub fn reportTiming(self: *Self) void {
+pub fn reportTiming(self: *Self, io: std.Io) void {
     const timing = self.timing orelse return;
     self.timing = null;
-    timing.emit();
+    timing.emit(io);
 }
 pub fn emit(self: *Self, io: std.Io, err: anyerror) void {
-    defer self.reportTiming();
+    defer self.reportTiming(io);
     if (self.emitted) return;
     var buffer: [4096]u8 = undefined;
     var writer = std.Io.File.stderr().writerStreaming(io, &buffer);

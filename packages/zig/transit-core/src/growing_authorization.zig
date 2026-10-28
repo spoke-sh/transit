@@ -72,6 +72,11 @@ pub fn nativeGrant(engine: anytype, candidate: anytype, next: *growth.Head, requ
     if (value.subject == 0 or value.permissions & ~p.all_permissions != 0) return error.InvalidGrant;
     _ = try p.Ed25519.PublicKey.fromBytes(value.public_key);
     var store = try policy.Store(@TypeOf(engine.page_store.*)).open(engine.page_store, next.authorization);
+    // All validation below is by point lookup. Stage the bounded role/name,
+    // credential, object and grant/index changes together, so shared policy
+    // paths are written once. Only the eventual native append publishes them.
+    var pending: c.Candidate = .{};
+    store.catalog.pending = &pending;
     store.next_id = next.authorization_next_id;
     store.revision = engine.head.position;
     const previous = try store.credential(value.subject);
@@ -94,6 +99,7 @@ pub fn nativeGrant(engine: anytype, candidate: anytype, next: *growth.Head, requ
     if (target.retired) return error.RetiredAuthorizationObject;
     try store.putGrant(.{ .id = try store.allocate(), .object = reference, .grantee = id, .grantor = target.owner, .privileges = value.permissions, .revision = store.revision });
     if (previous == null) try candidate.put(growth.address(.principal, value.subject), growth.Sequence{ .sequence = 0 });
+    try store.catalog.flush();
     next.authorization = store.snapshot();
     next.authorization_next_id = store.next_id;
 }

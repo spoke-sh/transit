@@ -105,8 +105,7 @@ fn dispatchWithSeed(service: anytype, action: c.DirectTableProtocol.Action, dele
     const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .borrow = input.borrow, .proof = signed };
     const bytes = try p.Json.valueAlloc(alloc, request);
     const parsed = try w.Request.parse(alloc, bytes);
-    const output = try alloc.alloc(u8, 1024 * 1024);
-    const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, try service.execute(&arena, parsed.value, output));
+    const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, try service.execute(&arena, parsed.value));
     errdefer response.deinit();
     try c.DirectTableClient.validateResponse(alloc, parsed.value, response.value);
     if (response.value.result == .lookup and response.value.result.lookup != null) {
@@ -145,8 +144,8 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
         host: *Host,
         engine: *Engine,
         configuration: D.Configuration,
-        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, request: c.DirectTableProtocol.Request, output: []u8) ![]const u8 {
-            return self.host.execute(self.engine.journal.backend.io, self.engine, arena, request, output);
+        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, request: c.DirectTableProtocol.Request) ![]const u8 {
+            return self.host.execute(self.engine.journal.backend.io, self.engine, arena, request);
         }
     };
     var options = service.options;
@@ -1081,7 +1080,16 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     try t.expectEqualDeep(expected, (try catalog.rowStatus(expected.binding, policy.policy())).committed);
     var old = try catalog.scanRows(t.allocator, expected.binding.target, retained, null, .{}, policy.policy());
     defer old.deinit();
-    try t.expect(old.rows[0].? == .wal);
+    try t.expectEqual(@as(u8, 1), old.count);
+    try t.expectEqual(@as(i128, 1), old.rows[0].?.row().cells[0].value.atom.signed);
+    // Page ownership no longer exposes the physical row representation. The
+    // same retained point still resolves to WAL after the live root is flushed.
+    var key_buffer: [c.fuze.Collation.max_sort_key_bytes]u8 = undefined;
+    const retained_key = try old.rows[0].?.row().storageKey(current.table.declaration.schema.schema, &key_buffer);
+    var point = (try catalog.readRow(t.allocator, expected.binding.target, retained, retained_key, policy.policy())).?;
+    defer point.deinit();
+    try t.expect(point == .wal);
+    try t.expectEqualDeep(old.rows[0].?.row(), point.row());
     // Fresh volatile work resumes from persisted discovery and observes no
     // pending rows in the already flushed Table. No accepted work is recreated.
     var restarted: Work = .{ .host = &host };

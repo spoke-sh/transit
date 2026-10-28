@@ -1,7 +1,9 @@
 """Pinned database drivers against the real TLS gateway and local durable owners."""
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import shutil
 import socket
 import signal
 import subprocess
@@ -11,15 +13,45 @@ import time
 import urllib.request
 
 from harness.services import free_port, free_ports, wait_ready
+from runner.capture import identity, provenance
+from runner.paths import ROOT
 import psycopg
 import mysql.connector
+
+
+@contextmanager
+def directory(binaries):
+    # Nix removes its TMPDIR on shell exit, including failed-run evidence.
+    root = Path(tempfile.mkdtemp(prefix='transit-direct-sql-wire-', dir='/var/tmp'))
+    try:
+        yield root
+    except BaseException:
+        # The inner fixture joins its processes before this handler. Keep the
+        # original absolute paths, accepted history and exact executables for
+        # original-outcome inspection; never create a replacement installation.
+        print(f'Failed SQL wire installation retained privately at {root}', file=sys.stderr, flush=True)
+        try:
+            saved = root / 'executables'
+            saved.mkdir(mode=0o700)
+            records = []
+            for role, binary in binaries.items():
+                target = saved / role
+                shutil.copy2(binary, target)
+                records.append(dict(role=role, **identity(target)))
+            (root / 'failure-source.json').write_text(json.dumps(dict(source=provenance(ROOT), binaries=records), indent=2)+'\n')
+        except OSError as error:
+            print(f'Failed to preserve complete binary evidence: {type(error).__name__}', file=sys.stderr, flush=True)
+        raise
+    else:
+        shutil.rmtree(root)
 
 
 def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all"):
     assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-kv","sessions-table")
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
-    with tempfile.TemporaryDirectory(prefix='transit-direct-sql-wire-') as directory:
-        root = Path(directory)
+    binaries = dict(node=node, catalog=catalog, ledger=ledger, host=host, gateway=gateway,
+                    configuration_host=configuration_host, console=str(Path(console).resolve()))
+    with directory(binaries) as root:
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         session_port, native_port, sql_port, mysql_port, health_port, settings_port = free_ports(6)
         url = f'http://127.0.0.1:{native_port}'

@@ -46,7 +46,7 @@ def run(fixture):
                 completion = value['completion']
                 assert completion['outcome'] in (('applied', 'unchanged') if ok else ('rejected',)), completion
         if statement == 'SELECT transit_reload_conf()':
-            assert completion is not None and completion['kind'] == 'reload', completion
+            assert completion is not None and completion['kind'] == 'reload', (completion, result.stderr)
             assert completion['operation'] is not None and completion['counts'] is None, completion
             row = sql("SELECT * FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 1")[0]
             assert completion['pending_restart'] == (row['phase'] == 'pending_restart'), (completion, row)
@@ -54,12 +54,45 @@ def run(fixture):
         return output
     def setting(name):
         return sql(f"SELECT name, value, configured_value, pending_restart, source_line FROM transit_settings() WHERE name = '{name}'")[0]
+    # Exercise storage settings through the same retained configuration owner,
+    # including unit normalization and the distinction between accepted changes
+    # and the settings actually supplied to the running node.
+    storage_expected = {
+        'limits.bytes': ('8589934592', '4294967296'),
+        'limits.control_bytes': ('67108864', '33554432'),
+        'limits.candidate_bytes': ('8388608', '4194304'),
+        'maintenance.collection_every_records': ('1024', '2048'),
+        'maintenance.compact': ('true', 'false'),
+        'maintenance.compaction_rows': ('32', '16'),
+        'maintenance.resident_bytes': ('134217728', '67108864'),
+        'maintenance.archive.enabled': ('true', 'false'),
+        'maintenance.archive.work_frames': ('4', '2'),
+        'maintenance.flush.enabled': ('true', 'false'),
+        'maintenance.flush.rows': ('256', '128'),
+        'maintenance.flush.work_rows': ('32', '16'),
+        'maintenance.flush.bytes': ('262144', '131072'),
+        'maintenance.flush.age_ms': ('5000', '6000'),
+    }
+    def storage_rows():
+        return {row['name'].removeprefix('storage.'): row for row in
+                sql("SELECT name, value, configured_value, pending_restart, source_line FROM transit_settings() WHERE owner = 'node'")
+                if row['name'].startswith('storage.')}
+    def storage_values(rows, active, configured):
+        assert rows.keys() == storage_expected.keys(), rows.keys()
+        for name, expected in storage_expected.items():
+            row = rows[name]
+            assert (row['value'], row['configured_value'], row['pending_restart']) == (
+                expected[active], expected[configured], active != configured), row
+    def node_storage():
+        return json.loads((fixture.installation / 'node.json').read_text())['storage']
     try:
         assert sql('SHOW realm')[0]['value'] == str(original['realm'])
         assert sql('SHOW startup.require_existing')[0]['value'] == 'false'
         assert sql('SHOW DATABASES')[0]['database'] == 'transit'
         assert sql('SHOW SCHEMAS')[0]['schema'] == 'public'
         assert len(sql('SHOW ALL')) > 20
+        storage_values(storage_rows(), 0, 0)
+        original_storage = node_storage()
         from interfaces.installation.server_application_faults import ExistingKey, native, post
         from interfaces.http.serving import subject_proof, compact
         key = ExistingKey(fixture.root, fixture.installation / 'caller.seed')
@@ -123,6 +156,13 @@ def run(fixture):
         from harness.services import free_port
         fixture.config['ports']['gateway'] = free_port()
         fixture.config['startup'] = {'require_existing': True}
+        fixture.config['storage'] = dict(
+            limits=dict(bytes='4GiB', control_bytes='32MiB', candidate_bytes='4MiB'),
+            maintenance=dict(collection_every_records=2048, compact=False,
+                             compaction_rows=16, resident_bytes='64MiB',
+                             archive=dict(enabled=False, work_frames=2),
+                             flush=dict(enabled=False, rows=128, work_rows=16,
+                                        bytes='128KiB', age_ms='6s')))
         write()
         pending = sql('SELECT transit_reload_conf()')[0]
         assert pending['outcome']['phase'] == 'pending_restart', pending
@@ -130,7 +170,19 @@ def run(fixture):
         assert row['value'] == str(original['ports']['gateway']) and row['configured_value'] == str(fixture.config['ports']['gateway']) and row['pending_restart'], row
         startup = setting('startup.require_existing')
         assert startup['value'] == 'false' and startup['configured_value'] == 'true' and startup['pending_restart'], startup
+        storage_pending = storage_rows()
+        storage_values(storage_pending, 0, 1)
+        assert all(row['source_line'] is None for row in storage_pending.values())
+        assert node_storage() == original_storage, 'Reload applied restart-only storage settings'
+        # Discovery validates the local file before connecting. Use the saved
+        # public connection while asking the running owner to reject that file.
         explicit = True
+        fixture.config['storage']['maintenance']['archive']['work_frames'] = 9
+        write()
+        assert sql('SELECT transit_reload_conf()', ok=False)[0]['outcome']['phase'] == 'rejected'
+        assert storage_rows() == storage_pending, 'Rejected storage settings replaced the accepted configuration'
+        assert node_storage() == original_storage
+        fixture.config['storage']['maintenance']['archive']['work_frames'] = 2
         fixture.path.write_text('private_unknown_setting: private-must-not-leak\n')
         rejected = sql('SELECT transit_reload_conf()', ok=False)[0]
         assert rejected['outcome']['phase'] == 'rejected', rejected
@@ -160,6 +212,15 @@ def run(fixture):
         assert row['value']==str(fixture.config['ports']['gateway']) and not row['pending_restart'],row
         startup = setting('startup.require_existing')
         assert startup['value'] == 'true' and not startup['pending_restart'], startup
+        storage_active = storage_rows()
+        storage_values(storage_active, 1, 1)
+        assert all(row['source_line'] is not None for row in storage_active.values())
+        installed_storage = node_storage()
+        for name, (_, expected) in storage_expected.items():
+            value = installed_storage
+            for part in name.split('.'):
+                value = value[part]
+            assert json.dumps(value) == expected, (name, value, expected)
         assert fixture.record()['installation']==record['installation']
         assert sql('SELECT phase FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 1')[0]['phase']=='rejected'
         fixture.stop()
@@ -193,4 +254,4 @@ def run(fixture):
             fixture.url = f"http://127.0.0.1:{fixture.config['ports']['gateway']}"
             fixture.start(); fixture.ready()
         sql('SELECT transit_reload_conf()')
-    print('Configuration: SQL inspection, YAML coordinates, live Host policy, session limits, restart application, invalid/immutable rejection, concurrent reloads, exact retries, history-index recovery and missing-checkpoint refusal passed.', flush=True)
+    print('Configuration: SQL inspection, YAML coordinates, live Host policy, session limits, storage units/bounds and restart-only activation, invalid/immutable rejection, concurrent reloads, exact retries, history-index recovery and missing-checkpoint refusal passed.', flush=True)

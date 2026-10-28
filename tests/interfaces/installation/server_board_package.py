@@ -12,9 +12,21 @@ import sys
 import tempfile
 import time
 
-from harness import processes
+from harness import phases, processes
 from interfaces.cli.table_console import results as table_results, atom, records
 from interfaces.installation.server_board import Board
+
+
+def console(root, env, cli, label, *args, input=None):
+    # Keep partial output when the existing deadline kills a console wait.
+    # A timeout leaves accepted work uncertain; these files are diagnostic
+    # evidence, never instructions to submit the statements again.
+    stdout, stderr = root / f'{label}.stdout', root / f'{label}.stderr'
+    with phases.phase('console', label), stdout.open('wb') as output, stderr.open('wb') as errors:
+        result = subprocess.run([str(cli), 'console', *args], input=input, text=True,
+                                cwd=root, env=env, stdout=output, stderr=errors, timeout=90)
+    result.stdout, result.stderr = stdout.read_text(), stderr.read_text()
+    return result
 
 
 def defaults(binary):
@@ -46,22 +58,23 @@ def defaults(binary):
                 for key in ports: env.pop(f'TRANSIT_PORTS__{key.upper()}')
             if variant == 'environment':
                 env.update(TRANSIT_PORTS='{"gateway":10000}', TRANSIT_PORTS__GATEWAY=str(ports['gateway']))
-            with (root/'stderr').open('wb') as log:
+            log_path = root / f'{variant}.server.stderr'
+            with log_path.open('wb') as log:
                 process = subprocess.Popen([str(cli), 'server'],
                                            cwd=root, env=env, stdout=subprocess.PIPE, stderr=log)
                 try:
                     deadline = time.monotonic()+120
                     while not select.select([process.stdout], [], [], .1)[0]:
-                        assert process.poll() is None and time.monotonic() < deadline, (root/'stderr').read_text()
+                        assert process.poll() is None and time.monotonic() < deadline, log_path.read_text()
                     line = process.stdout.readline()
-                    assert line, (root/'stderr').read_text()
+                    assert line, log_path.read_text()
                     report = json.loads(line)
                     assert report['ready'] and report['ui'] == 'ready'
                     # The machine record describes core readiness. The human
                     # ready announcement also waits for local console discovery,
                     # within the same startup budget (no additional wait window).
-                    while 'server.ready Server is ready' not in (root/'stderr').read_text():
-                        assert process.poll() is None and time.monotonic() < deadline, (root/'stderr').read_text()
+                    while 'server.ready Server is ready' not in log_path.read_text():
+                        assert process.poll() is None and time.monotonic() < deadline, log_path.read_text()
                         time.sleep(.1)
                     assert report['installation'] == str(root/'.transit') and 'console_config' not in report
                     assert not (root/'.transit/console.json').exists() and not (root/'.transit/console.yaml').exists()
@@ -76,27 +89,25 @@ def defaults(binary):
                     if variant == 'first-start':
                         # Exactly the human-facing invocation, with SQL supplied
                         # on stdin. No role, connection or engine-selection flags.
-                        human = subprocess.run([str(cli), 'console'], input=(
+                        human = console(root, env, cli, 'first-start-statements', input=(
                             "CREATE TABLE packaging_probe (id BIGINT PRIMARY KEY, title TEXT);\n"
                             "INSERT INTO packaging_probe (id, title) VALUES (9001, 'retained');\n"
                             "ALTER TABLE packaging_probe ADD COLUMN score BIGINT DEFAULT 7;\n"
                             "ALTER TABLE packaging_probe ALTER COLUMN score SET DEFAULT 9;\n"
-                            "SELECT id, title, score FROM packaging_probe;\n"),
-                            text=True, cwd=root, env=env, capture_output=True, timeout=90)
+                            "SELECT id, title, score FROM packaging_probe;\n"))
                         assert human.returncode == 0 and 'retained' in human.stdout, human
                         deadline = time.monotonic()+30
                         while not list((root/'.transit/data/native').rglob('*.tseg')):
                             assert process.poll() is None and time.monotonic() < deadline, 'Default automatic Table flush did not publish a segment'
                             time.sleep(.1)
-                    result = subprocess.run([str(cli), 'console', '--no-rc',
-                                             '--format', 'json', '-c', 'SELECT COUNT(*) FROM items'], cwd=root, env=env, capture_output=True, timeout=90)
+                    result = console(root, env, cli, f'{variant}-items', '--no-rc',
+                                     '--format', 'json', '-c', 'SELECT COUNT(*) FROM items')
                     assert result.returncode == 0, result
                     queries = table_results(json.loads(line) for line in result.stdout.splitlines())
                     assert len(queries) == 1, queries
                     assert atom(queries[0], 'unsigned') == '0', queries
-                    persisted = subprocess.run([str(cli), 'console', '--no-rc', '--format', 'json'],
-                        input='SELECT id, title, score FROM packaging_probe;\n', text=True,
-                        cwd=root, env=env, capture_output=True, timeout=90)
+                    persisted = console(root, env, cli, f'{variant}-retained', '--no-rc', '--format', 'json',
+                                        input='SELECT id, title, score FROM packaging_probe;\n')
                     assert persisted.returncode == 0, persisted
                     assert records(table_results(json.loads(line) for line in persisted.stdout.splitlines())[0]) == [
                         dict(id='9001', title='retained', score='7')]
@@ -106,7 +117,7 @@ def defaults(binary):
                     process.wait(timeout=30)
                     processes.joined(owned)
                     process.stdout.close()
-                assert process.returncode == 0, (root/'stderr').read_text()
+                assert process.returncode == 0, log_path.read_text()
         success = True
         print('Single executable: no-file server startup, default Board, bare console DDL/DML/lazy ALTER, exact values across restart and identical defaults/YAML/environment identity passed with no sibling executables or runtime PATH tools.', flush=True)
 

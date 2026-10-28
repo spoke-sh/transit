@@ -64,6 +64,11 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8) !?[]const u8 {
     if (parser.word("UPDATE") or parser.word("INSERT") or parser.word("DELETE")) return (try f.TableDml.target(allocator, text)).name;
     if (parser.word("ALTER") or parser.word("DROP")) return (try f.TableDdl.target(allocator, text)).name;
     if (try parser.takeWord("DESCRIBE")) return try parser.named(.source);
+    if (try parser.takeWord("SHOW")) {
+        if (!(try parser.takeWord("STORAGE"))) return null;
+        try parser.requireWord("FOR");
+        return try parser.named(.source);
+    }
     return null;
 }
 /// The compiler supplies cursor expectations. Binding failures before the
@@ -124,7 +129,16 @@ pub fn expectations(allocator: std.mem.Allocator, text: []const u8, definition: 
     } else {
         parser.editor = &editor;
         if (try parser.takeWord("SHOW")) {
-            parser.requireWord("TABLES") catch |err| try ignored(err);
+            if (try parser.takeWord("STORAGE")) {
+                parser.requireWord("FOR") catch |err| {
+                    try ignored(err);
+                    return editor;
+                };
+                _ = parser.named(.source) catch |err| {
+                    try ignored(err);
+                    return editor;
+                };
+            } else parser.requireWord("TABLES") catch |err| try ignored(err);
         } else if (try parser.takeWord("DESCRIBE")) {
             _ = parser.named(.source) catch |err| {
                 try ignored(err);
@@ -251,6 +265,8 @@ fn fixture(allocator: std.mem.Allocator, text: []const u8, expected: []const []c
 }
 test "general Table continuations come from selected production grammar and actual column types" {
     const allocator = std.testing.allocator;
+    try fixture(allocator, "SHOW ", &.{ "TABLES", "STORAGE" }, &.{"SELECT"});
+    try fixture(allocator, "SHOW STORAGE ", &.{"FOR"}, &.{ "TABLES", "\"identifier\"" });
     try fixture(allocator, "CREATE ", &.{"TABLE"}, &.{"SELECT"});
     try fixture(allocator, "CREATE TABLE people (name VAR", &.{"VARCHAR"}, &.{"VARBINARY"});
     try fixture(allocator, "CREATE TABLE people (name TEXT ", &.{ "NOT", "NULL", "DEFAULT", "PRIMARY" }, &.{ "UNIQUE", "CHECK", "REFERENCES" });

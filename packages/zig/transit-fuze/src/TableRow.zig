@@ -91,14 +91,28 @@ pub const Owned = struct {
     }
 };
 pub fn decode(allocator: std.mem.Allocator, schema: s.Schema, bytes: []const u8) !Owned {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    errdefer arena.deinit();
+    const decoded = try decodeInto(arena.allocator(), schema, bytes);
+    return .{ .value = .{ .descriptor = .{ .arena = arena, .type = decoded.value.field.type }, .field = decoded.value.field, .cell = decoded.value.cell }, .identity = decoded.identity };
+}
+pub const DecodedInto = struct {
+    value: t.Codec.DecodedInto,
+    identity: Identity,
+    pub fn row(self: *const DecodedInto) Row {
+        return .{ .identity = self.identity, .cells = self.value.cell.value.structure };
+    }
+};
+/// The supplied arena owns all decoded data and partial-failure allocations.
+/// Input may be released immediately; no per-row arena is created here.
+pub fn decodeInto(arena: std.mem.Allocator, schema: s.Schema, bytes: []const u8) !DecodedInto {
     if (bytes.len > max_bytes) return error.TableRowTooLarge;
     var reader: std.Io.Reader = .fixed(bytes);
     if (!std.mem.eql(u8, try reader.take(4), "FTR1")) return error.InvalidTableRowEncoding;
     if (!std.mem.eql(u8, try reader.take(try reader.takeByte()), definition)) return error.UnsupportedTableRowDefinition;
     if (!std.mem.eql(u8, try reader.take(32), &try schema.layoutFingerprint())) return error.TableSchemaChanged;
     const identity = try Identity.decode(try reader.takeArray(Identity.encoded_bytes));
-    var value = try t.Codec.decode(allocator, try reader.take(reader.bufferedLen()));
-    errdefer value.deinit();
+    const value = try t.Codec.decodeInto(arena, try reader.take(reader.bufferedLen()));
     var fields: [s.max_columns]t.Field = undefined;
     var names: [s.max_columns][16]u8 = undefined;
     if (value.field.nullable or value.field.optional or !try value.field.type.eql(try schema.storageType(&fields, &names))) return error.InvalidTableRowEncoding;

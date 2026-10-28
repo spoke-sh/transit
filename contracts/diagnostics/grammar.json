@@ -884,6 +884,18 @@
       "source": "values"
     },
     {
+      "id": "identifier-storage",
+      "sql": "SELECT * FROM STORAGE",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      },
+      "source": "storage"
+    },
+    {
       "id": "template-param",
       "sql": "SELECT id FROM items AS t WHERE t.id = $1 LIMIT $2",
       "profile": "template",
@@ -1411,6 +1423,20 @@
         "code": "sql.unsupported_statement",
         "category": "unsupported",
         "kind": "interface"
+      }
+    },
+    {
+      "id": "show-storage-source-query-refusal",
+      "sql": "SHOW STORAGE FOR items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_catalog",
+        "category": "unsupported",
+        "kind": "unsupported"
       }
     },
     {

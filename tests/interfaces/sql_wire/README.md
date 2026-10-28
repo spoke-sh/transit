@@ -18,6 +18,13 @@ the `sql-wire` shell and native binary inputs. Protocol acceptance and performan
 measurements have separate expectations. Reference deployment requires its own
 available infrastructure and cannot be inferred from local gateway checks.
 
+The installed gateway fixture joins its processes before retaining a failed
+installation privately at its original `/var/tmp` path. It preserves durable
+state, configuration and copies of the supplied executables with source and
+binary identities. Inspect original operations there without resubmitting SQL;
+these private files contain fixture credentials and are not CI upload artifacts.
+Successful installations are removed after cleanup.
+
 `just test::sql-wire-tls` also admits a fixed 16 MiB OpenSSL reserve and four
 I/O workers before creating the TLS context. A sealed backing allocator covers
 100 successive connections per database upgrade, alternating TLS 1.2/1.3 with

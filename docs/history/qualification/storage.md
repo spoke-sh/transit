@@ -9,6 +9,187 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Installed packaging recovery and repository qualification — 2026-10-28
+
+At frozen source `4d778efa9ffc5a8ad3e012bcecee1cc9887621db`, the committed-source
+clean core lane passes all 28 tasks. The clean experience lane passes Board,
+handbook, Node bindings, observability and server logging, then fails the
+single-executable packaging check: the bare console's five-statement input
+exceeds its existing 90-second deadline. Later experience tasks and the queued
+growth lane do not run. The core and experience schedulers were deliberately
+paused while separate focused qualifications ran; their elapsed times are not
+normal CI cost measurements.
+
+The failed private installation is preserved at
+`/var/tmp/transit-defaults-76to68v2`, with a stopped pre-reopen copy at
+`/var/tmp/transit-m3-single-before-_fcw13_j`. Reopening the original directory
+with its original executable and configuration preserves installation and
+provisioning identity. Public operation inspection finds CREATE 81 and INSERT
+130 applied, and ALTER 178 active. A subsequent observation reports ALTER 178
+applied under that same identity; no statement is resubmitted. Read-only
+`DESCRIBE packaging_probe` verifies schema revision 2 and the ADD-time default
+of 7. The later default change and SELECT were not submitted by the timed-out
+console. This establishes original-operation recovery, not successful completion
+of that packaging attempt or the cause of its timeout.
+
+Executable SHA-256 is
+`83bad48fa4670ef0212c57cf69545e968bf82f9632cddaad339277115b6aff30`, under shared
+definition `2ff943e62985cd5e79c0928bd2aadfc24b7a4a118d95acb85959b909f8ff3188`.
+A fresh diagnostic control with those identical executable bytes and the
+`21fd03b93` driver passes the default startup/console, segment publication and
+restart-value checks. Its five-statement console phase takes 29.449 seconds;
+the unchanged deadline is 90 seconds. Half-second public recovery-health
+observations remain ready during that control. The driver now retains partial
+console stdout/stderr on failure and each startup's stderr separately. This
+control excludes the later Board interruption schedule and does not replace
+the failed clean lane or qualify subsequent implementation changes.
+
+Raw records remain under `.cache/milestone3/`:
+
+| Record | SHA-256 |
+| --- | --- |
+| `rebased-4d778efa9-clean-core.log` | `a646aa911e29ee23ed4a321e3852cbf013cdddfc1c4d2a47aae91915b554ebf4` |
+| `rebased-4d778efa9-clean-experience.log` | `236fea7ce9ff141defc42980e938bc0ca7223a2d50b148f3edf2b02ae8c6f852` |
+| `single-executable-original-inspection.log` | `3f807b5d3203f81dba61881383d295182f09903dee2cbfe1e69fc2fe08d988d8` |
+| `single-executable-control.log` | `4f663b846acfd066ffb3102ddb498013ab4b7d06b84e6079c0f02f924951bb9f` |
+| `single-executable-health.jsonl` | `4e0b71f5263b90dce73af1eeb110f954611bb3fe4218c0de75cd4cd09a7c3eba` |
+
+## Collection progress across clock failure — 2026-10-28
+
+At `aa8b68bae61281d108502899aabe952ce766b1e8`,
+`zig build test-local-catalog -Doptimize=ReleaseSafe --summary all` passes all
+six disk-backed local catalog/maintenance checks. The existing automatic
+collection schedule now makes the trusted clock fail while both native and
+direct collectors wait for reader grace, then removes the clock entirely.
+Neither case advances the accepted native position or either collection's
+persisted progress, and both known orphan objects remain present. Restoring the
+clock continues the existing revocation, regrant, reopen, fixed-target, eligible
+deletion and eventual-idle assertions. The six-minute grace is unchanged.
+
+The raw log is `.cache/milestone3/collection-clock-local-catalog.log`, SHA-256
+`75bc334572823d2eabf94a655b6f92a25a81e786d21b8668f4f20e88602928e6`.
+All 41 fast checks also pass. This exercises the local owner's controlled clock
+and durable progress, not a wall-clock process-death schedule or the complete
+installed failure/resource matrix. It does not close the broader maintenance
+qualification gate.
+
+## Foreground reads during automatic Table flushing — 2026-10-28
+
+At clean source `4d778efa9ffc5a8ad3e012bcecee1cc9887621db`,
+`just test direct-table-maintenance` passes on physical disk with ReleaseSafe
+binaries. The [method](../../../tests/storage/tables/maintenance.md) compares
+sixteen full scans with Table maintenance disabled and sixteen with automatic
+flushing enabled. Each scan independently verifies all 258 values across the
+same three retained Table cuts, using seven-row pages and one resident node
+page. At least one completed scan overlaps observed flush progress while rows
+remain pending. No new pins or mutations are submitted by the reader.
+
+| Observation | Table maintenance disabled | Automatic flushing |
+| --- | ---: | ---: |
+| Scan duration, minimum / median / maximum (seconds) | 1.602 / 1.679 / 1.780 | 1.496 / 1.607 / 5.085 |
+| Whole measured phase (seconds) | 27.028 | 31.052 |
+| Node user + system CPU during phase (seconds) | 36.00 | 28.68 |
+| Node lifetime peak RSS (bytes) | 111,304,704 | 121,298,944 |
+| Node kernel write-byte increase | 0 | 11,550,720 |
+
+The first two active scans take 5.085 and 3.670 seconds. The remaining scans take
+1.496–1.679 seconds; the lower active median does not erase the initial delay.
+Automatic flushing produces ten independently verified segments in 8.158 seconds
+including restart. The subsequent archive/checkpoint/compaction schedule passes
+SIGKILL recovery, fixed-target preservation, original retained reads, unchanged
+packed segment files and idle convergence in 25.624 seconds. Total task time is
+360.81 seconds including compilation.
+
+The raw runner log is retained as
+`.cache/milestone3/rebased-4d778efa9-foreground-maintenance.log`, SHA-256
+`4bb0a7940e7fa5ae477e183ef5ab561c756b005cdf22c26db34d8815461a7051`.
+Its machine-readable resource record includes every sample, configuration,
+process-incarnation check and source/toolchain identity. Node SHA-256 is
+`cf3880021c1ce6c9ed2ce90cdea3144ab2eca0824f82c561c3f95a93702c2163`;
+caller SHA-256 is
+`9023ab44ecf31eab02f2dfced7a4d8b23fe280691251423f2c28dc6361d5c15b`.
+
+Both arms retain default native/direct collection eligibility. Host page cache
+and warmup differ, and the active phase includes flush convergence. CPU/RSS/I/O
+cover the node, not the separate caller and proxy; lifetime peak RSS is not a
+maintenance allocator peak. These observations demonstrate retained-read
+correctness under concurrent progress, not a matched implementation speedup,
+tail-latency guarantee, zero-allocation path or aggregate resource bound. Larger
+Table populations, foreground writes and archive/compaction contention remain
+separate qualification obligations.
+
+### Response allocation follow-up
+
+At clean source `89e88a39be4eacbb0b5250c177dd8285771a3258`, direct Table
+responses count their encoded size before allocating output, replacing the
+unconditional 16 MiB response allocation. The wire bound, request-owned lifetime
+and final authority fence remain unchanged. The protocol suite passes 64/64,
+including exact escaped-byte bounds, refusal before allocation and backing
+failure. All six local catalog/maintenance checks and all 41 fast checks pass.
+
+The same installed maintenance task passes again. Its retained-source profile
+SHA-256 (`86a6a118af09e4fe8433c77b6c2699c18f3938ea4f4237f2434585c7527aa023`),
+both driver hashes, toolchain lock, row/page counts and configuration overrides
+match the preceding run. The observations are:
+
+| Observation | Table maintenance disabled | Automatic flushing |
+| --- | ---: | ---: |
+| Scan duration, minimum / median / maximum (seconds) | 1.247 / 1.319 / 1.421 | 1.058 / 1.208 / 4.220 |
+| Whole measured phase (seconds) | 21.311 | 24.862 |
+| Node user + system CPU during phase (seconds) | 22.65 | 20.02 |
+| Node lifetime peak RSS (bytes) | 60,338,176 | 75,059,200 |
+| Node kernel write-byte increase | 0 | 11,550,720 |
+
+All 32 retained scans verify their values. Flushing again produces ten segments,
+in 8.230 seconds including restart. Archive/checkpoint/compaction recovery,
+original snapshots, unchanged packed segments and idle convergence pass in
+22.623 seconds. Raw evidence remains in
+`.cache/milestone3/response-sizing-foreground-maintenance.log`, SHA-256
+`786e78f999e47f71c8b3c7163a521979c021eab41733fbc542b5fbfc0f2e114b`.
+Node SHA-256 is
+`a127427e4d39b540fd91dee46d41de5e03d23748cf9fed1b1507f8d63137a66a`;
+caller SHA-256 is
+`334b1e52093210148e4b53c64123661335d61e4526598129731e7541178bbc1e`.
+
+The fixture/source identities make the workload comparable; they do not control
+host load or cache state between runs. Lower observed CPU, RSS and scan times
+are not a multi-run speedup estimate. Serialization now makes two passes over
+each response, which still allocates its exact output. Large-response CPU cost,
+concurrent foreground writes and aggregate admission bounds remain unqualified.
+
+## Installed storage settings — 2026-10-28
+
+At `cf0209275fc0d6c75f50419268fe7418049472a3`, `just test server` passes the
+existing installed configuration and complete local server lifecycle on physical
+disk. The configuration schedule now checks all fourteen storage settings through
+`transit_settings()`: defaults, byte/duration normalization, accepted configured
+values separated from active values, restart-pending flags and the actual node
+configuration after restart. An archive work limit above eight is rejected without
+replacing the accepted configuration or changing the running node. The existing
+exact reload retries, competing generations, history-index recovery and refusal
+of missing retained configuration remain in the same passing schedule.
+
+The enclosing server trace also passes console results, interrupted original
+operation recovery, role/manager replacement, revocation and DROP/name reuse.
+Its runtime is 324.16 seconds, excluding the build; this is one correctness
+schedule, not a latency benchmark.
+Raw log: `.cache/milestone3/storage-settings-server-retry.log`, SHA-256
+`33396ca75ef95c406de1c6337f1e547329b668b392289a1d1ca1309134fae905`.
+
+The first attempt at `e897fb493` failed in the fixture: console discovery validated
+the deliberately invalid local file before connecting, so no reload command
+completion existed. The corrected schedule uses its saved public connection to
+ask the running configuration owner to reject that file. Its assertion still
+requires a recorded rejection and unchanged accepted/active settings. The failed
+log remains `.cache/milestone3/storage-settings-server.log`, SHA-256
+`c8a5fb5422f7ea6850ee0f2ca272d4483599f22e13ded4f146b960737e38a00f`;
+its private installation remains `/var/tmp/transit-server-proof-4ixihwpl`.
+The successful fixture is removed by its ordinary cleanup.
+
+This establishes the settings lifecycle, not live backend/path, quota-use,
+maintenance-failure or Board inspection. The complete combined clean-source
+qualification remains separate.
+
 ## Original SQL diagnostic outcome recovery — 2026-10-27
 
 Two retained physical-disk diagnostics are reopened with their original

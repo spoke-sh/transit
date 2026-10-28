@@ -11018,6 +11018,7 @@
         "Row.encodedSize()": "<inferred>",
         "Row.storageKey()": "<inferred>",
         "decode()": "<inferred>",
+        "decodeInto()": "<inferred>",
         "encodeKey()": "<inferred>",
         "encodeKeyValues()": "<inferred>",
         "keyDigest()": "<inferred>",
@@ -11025,7 +11026,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 49,
+        "try": 50,
         "catch": 0
       },
       "imports": [
@@ -11865,6 +11866,7 @@
         "decodeBoundBorrowingBytes()": "<inferred>",
         "decodeBoundInto()": "<inferred>",
         "decodeBoundWithOwnership()": "<inferred>",
+        "decodeInto()": "<inferred>",
         "encode()": "<inferred>",
         "encodeBound()": "<inferred>",
         "readAtom()": "<inferred>",
@@ -11879,7 +11881,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 118,
+        "try": 119,
         "catch": 0
       },
       "imports": [
@@ -14062,23 +14064,26 @@
       "errors": {
         "InvalidJsonConstant": 1,
         "InvalidJsonShape": 11,
-        "OutOfMemory": 1
+        "OutOfMemory": 1,
+        "WriteFailed": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "allocationSchedule()": "<inferred>",
+        "boundedAllocationSchedule()": "<inferred>",
         "parseFromSlice()": "<inferred>",
         "parseFromSliceOwned()": "<inferred>",
         "parseWithOptions()": "<inferred>",
         "shape()": "anyerror",
         "validateShape()": "anyerror",
         "valueAlloc()": "<inferred>",
+        "valueAllocBounded()": "<inferred>",
         "write()": "std . Io . Writer . Error"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 30,
+        "try": 34,
         "catch": 2
       },
       "imports": [
@@ -16753,7 +16758,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 13,
         "catch": 0
       },
       "imports": [
@@ -17180,8 +17185,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 54,
-        "catch": 10
+        "try": 61,
+        "catch": 12
       },
       "imports": [
         "root.zig",
@@ -20746,7 +20751,8 @@
     "packages/zig/transit-sql-service/src/SessionInspection.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
-        "CatalogNameNotFound": 1,
+        "CatalogNameNotFound": 2,
+        "TableDefinitionChanged": 1,
         "UnknownSqlSource": 1,
         "UnsupportedConstruct": 1
       },
@@ -20760,10 +20766,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
+        "try": 45,
         "catch": 0
       },
       "imports": [
+        "SessionStorage.zig",
         "root.zig",
         "std"
       ]
@@ -20800,6 +20807,20 @@
         "Session.zig",
         "root.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-sql-service/src/SessionStorage.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig"
       ]
     },
     "packages/zig/transit-sql-service/src/SourceSession.zig": {
@@ -26777,6 +26798,11 @@
           "owned",
           "buffered"
         ],
+        "DecodedRow": [
+          "wal",
+          "segment",
+          "projected"
+        ],
         "Edit": [
           "rename",
           "alter",
@@ -26791,7 +26817,8 @@
         ],
         "OwnedRow": [
           "wal",
-          "segment"
+          "segment",
+          "page"
         ],
         "ReadMode": [
           "point",
@@ -26803,7 +26830,9 @@
         "CompactionLimits.validate()": "<inferred>",
         "Guard.acquire()": "anyerror",
         "HistoryPoint.cursorSource()": "<inferred>",
+        "PageRows.init()": "<inferred>",
         "ReadLimits.validate()": "<inferred>",
+        "ReadPage.keep()": "<inferred>",
         "RowIndexBatch.append()": "<inferred>",
         "RowIndexBatch.flush()": "<inferred>",
         "RowIndexBatch.insert()": "<inferred>",
@@ -26868,7 +26897,7 @@
         "physicalSchema()": "<inferred>",
         "pin()": "<inferred>",
         "pinState()": "<inferred>",
-        "projectPhysicalRow()": "<inferred>",
+        "projectPhysicalRowInto()": "<inferred>",
         "publish()": "<inferred>",
         "publishMaintenance()": "<inferred>",
         "publishSegmentRows()": "<inferred>",
@@ -26876,6 +26905,8 @@
         "readCurrent()": "<inferred>",
         "readHistoryFrame()": "<inferred>",
         "readRow()": "<inferred>",
+        "readRowInto()": "<inferred>",
+        "readRowSchemaInto()": "<inferred>",
         "readRowWithColumns()": "<inferred>",
         "readRowWithSchema()": "<inferred>",
         "readSnapshot()": "<inferred>",
@@ -26919,7 +26950,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 615,
+        "try": 623,
         "catch": 15
       },
       "imports": [
@@ -27783,7 +27814,7 @@
       "grantStatement": "GRANT privilegeList ON authorizationObject TO grantee grantOption ? | GRANT identifier TO authorizationRole ( WITH membershipOption ( COMMA membershipOption ) * ) ?",
       "revokeStatement": "REVOKE ( GRANT OPTION FOR ) ? privilegeList ON authorizationObject FROM grantee revokeBehavior ? | REVOKE ( ( ADMIN | INHERIT | SET ) OPTION FOR ) ? identifier FROM authorizationRole revokeBehavior ?",
       "privilege": "CONNECT | USAGE | CREATE | SELECT | INSERT | UPDATE | DELETE",
-      "showStatement": "SHOW ( catalogKind | settingKey )",
+      "showStatement": "SHOW ( catalogKind | settingKey | STORAGE FOR identifier )",
       "settingKey": "identifier ( DOT identifier ) *",
       "sessionSettingStatement": "SET settingKey ( EQ | TO ) ( STRING | INTEGER | DEFAULT ) | RESET settingKey",
       "configurationSelect": "SELECT TRANSIT_RELOAD_CONF LPAREN RPAREN | SELECT projection FROM ( TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS ) LPAREN RPAREN whereClause ? ( ORDER BY identifier ( ASC | DESC ) ? ) ? limitClause ?",
@@ -27792,7 +27823,7 @@
       "explainStatement": "EXPLAIN selectStatement",
       "asOfClause": "FOR SYSTEM_TIME AS OF INTEGER",
       "identifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE",
       "TRANSIT_RELOAD_CONF": "'TRANSIT_RELOAD_CONF'",
       "TRANSIT_SETTINGS": "'TRANSIT_SETTINGS'",
       "TRANSIT_CONFIG_RELOADS": "'TRANSIT_CONFIG_RELOADS'",
@@ -27914,6 +27945,7 @@
       "REVOKE": "'REVOKE'",
       "ON": "'ON'",
       "SHOW": "'SHOW'",
+      "STORAGE": "'STORAGE'",
       "DESCRIBE": "'DESCRIBE'",
       "NOT": "'NOT'",
       "NULL_": "'NULL'",

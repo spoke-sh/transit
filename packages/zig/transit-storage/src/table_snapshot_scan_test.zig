@@ -451,6 +451,136 @@ test "Table snapshot pages enforce byte budgets and recheck rights after bufferi
     try t.expectEqual(exact_bytes, filtered.page.encoded_bytes);
 }
 
+test "Table page rows survive independent release scratch reuse cache eviction and owner close" {
+    // Exercise both cached views and temporary groups, followed by WAL rows.
+    for ([_]usize{ 0, 128 * 1024 }) |cache_bytes| {
+        var output: f.memory.AllocationProbe = .{ .parent = t.allocator };
+        var retained: ?P.OwnedRow = null;
+        defer if (retained) |*row| row.deinit();
+        {
+            var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+            defer wal.deinit();
+            var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+            defer objects.deinit();
+            var table = try owner(&wal, &objects);
+            defer table.deinit();
+            table.options.segment_cache_bytes = cache_bytes;
+            var access: Access = .{};
+            var payloads: [16][64]u8 = undefined;
+            var cells: [16][2]f.Types.Values.Cell = undefined;
+            var changes: [16]P.Change = undefined;
+            for (&payloads, &cells, &changes, 0..) |*payload, *values, *change, i| {
+                @memset(payload, @as(u8, @intCast('a' + i)));
+                values.* = .{ .{ .value = .{ .atom = .{ .signed = @intCast(i) } } }, .{ .value = .{ .atom = .{ .bytes = payload } } } };
+                change.* = .{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1 + i / 8, .ordinal = @intCast(i % 8) }, .cells = values } } };
+            }
+            _ = try table.apply(binding(&table, 1, .create), changes[0..8], .bulk, access.guard());
+            _ = try table.apply(binding(&table, 2, .insert), changes[8..16], .point, access.guard());
+            const handle = try pin(&table, 80, &access);
+            const Case = struct {
+                fn failures(allocator: std.mem.Allocator, source: *P, snapshot: P.SnapshotHandle) !void {
+                    // Stable failure ordinals even when the heap can otherwise
+                    // grow a scratch/output arena in place.
+                    var vtable = allocator.vtable.*;
+                    vtable.resize = std.mem.Allocator.noResize;
+                    vtable.remap = std.mem.Allocator.noRemap;
+                    const a: std.mem.Allocator = .{ .ptr = allocator.ptr, .vtable = &vtable };
+                    var allow: Access = .{};
+                    const before = source.root;
+                    defer t.expectEqualDeep(before, source.root) catch unreachable;
+                    var first = try source.scanSnapshot(a, snapshot, null, .{}, allow.guard());
+                    defer first.deinit();
+                    var last = try source.scanSnapshot(a, snapshot, first.next, .{}, allow.guard());
+                    defer last.deinit();
+                    var range = try source.rangeSnapshot(a, snapshot, .{}, null, .{}, allow.guard());
+                    defer range.deinit();
+                    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+                    const plan: f.LogicalQuery.Plan = .{ .schema = try definition.schema.rowType(&fields), .source_basis = @splat(3), .collations = .fromTable(definition.schema), .projection = &.{ 0, 1 } };
+                    var filtered = try source.scanSnapshotFiltered(a, snapshot, plan, null, .{}, allow.guard());
+                    defer filtered.deinit();
+                    try t.expectEqual(@as(u8, 8), first.count);
+                    try t.expectEqual(@as(u8, 8), last.count);
+                    try t.expectEqual(@as(u8, 8), range.count);
+                    try t.expectEqual(@as(u8, 8), filtered.page.count);
+                }
+            };
+            try t.checkAllAllocationFailures(t.allocator, Case.failures, .{ &table, handle });
+            const next = blk: {
+                var first = try table.scanSnapshot(output.allocator(), handle, null, .{}, access.guard());
+                defer first.deinit();
+                try t.expectEqual(@as(u8, 8), first.count);
+                retained = first.rows[0];
+                first.rows[0] = null;
+                var sibling = first.rows[1].?;
+                first.rows[1] = null;
+                // Deinit a sibling before the page container; the retained row
+                // must remain independently owned after both are released.
+                sibling.deinit();
+                break :blk first.next;
+            };
+            var second = try table.scanSnapshot(output.allocator(), handle, next, .{}, access.guard());
+            defer second.deinit();
+            try t.expectEqual(@as(u8, 8), second.count);
+            for (second.rows[0..second.count], 8..) |value, i| {
+                try t.expectEqual(@as(i128, @intCast(i)), value.?.row().cells[0].value.atom.signed);
+                try t.expectEqualSlices(u8, &payloads[i], value.?.row().cells[1].value.atom.bytes);
+            }
+            // Changing the selected projection replaces the cached group. The
+            // output owner cannot borrow that group or this new page's scratch.
+            var projected = try table.scanSnapshotColumns(output.allocator(), handle, &.{0}, null, .{}, access.guard());
+            defer projected.deinit();
+            try t.expectEqual(@as(u8, 8), projected.count);
+            @memset(std.mem.asBytes(&payloads), 0);
+        }
+        const expected: [64]u8 = @splat('a');
+        try t.expectEqual(@as(i128, 0), retained.?.row().cells[0].value.atom.signed);
+        try t.expectEqualSlices(u8, &expected, retained.?.row().cells[1].value.atom.bytes);
+        try t.expect(output.live_bytes > 0);
+        retained.?.deinit();
+        retained = null;
+        try t.expectEqual(@as(usize, 0), output.live_bytes);
+    }
+}
+
+test "lazy point reads release discarded physical values before returning" {
+    for ([_]P.Ingestion{ .point, .bulk }) |ingest| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        var access: Access = .{};
+        const payload: [16 * 1024]u8 = @splat('x');
+        const values = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .bytes = &payload } } } };
+        _ = try table.apply(binding(&table, 1, .create), &.{.{ .put = .{ .row = .{ .identity = .{ .origin = 7, .operation = 1, .ordinal = 0 }, .cells = &values } } }}, ingest, access.guard());
+        _ = try table.changeDefinition(binding(&table, 2, .alter), .{ .alter = .{ .change = .{ .drop = 2 }, .properties = "" } }, access.guard());
+        var key_buffer: [4096]u8 = undefined;
+        const key = try f.Collation.encodePrimaryKeySortKey(table.declaration.schema.schema, values[0..1], false, &key_buffer);
+        const Case = struct {
+            fn read(allocator: std.mem.Allocator, source: *P, row_key: []const u8) !void {
+                var vtable = allocator.vtable.*;
+                vtable.resize = std.mem.Allocator.noResize;
+                vtable.remap = std.mem.Allocator.noRemap;
+                const a: std.mem.Allocator = .{ .ptr = allocator.ptr, .vtable = &vtable };
+                var allow: Access = .{};
+                var row = (try source.get(a, row_key, allow.guard())).?;
+                defer row.deinit();
+                try t.expectEqual(@as(usize, 1), row.row().cells.len);
+                try t.expectEqual(@as(i128, 1), row.row().cells[0].value.atom.signed);
+            }
+        };
+        try t.checkAllAllocationFailures(t.allocator, Case.read, .{ &table, key });
+        var output: f.memory.AllocationProbe = .{ .parent = t.allocator };
+        {
+            var row = (try table.get(output.allocator(), key, access.guard())).?;
+            defer row.deinit();
+            try t.expect(output.live_bytes < 4 * 1024);
+        }
+        try t.expectEqual(@as(usize, 0), output.live_bytes);
+    }
+}
+
 test "current Table observations are bounded owned read-only pages with final authorization" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

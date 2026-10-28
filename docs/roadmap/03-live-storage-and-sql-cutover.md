@@ -776,6 +776,13 @@ pass, including 48 new automatic archive/compaction target and skip-progress
 publication cases. Aggregate contention, matched foreground latency and the
 broader failure/retention matrix still keep P4.4 and P4.5 open.
 
+At `aa8b68bae`, all six local catalog/maintenance checks pass with a new
+trusted-clock failure and missing-clock case while both collectors wait for
+reader grace. Accepted positions, persisted progress and orphan objects remain
+unchanged until a clock is available; the existing revocation, restart and
+eventual-collection schedule then completes. The [source-attributed result](../history/qualification/storage.md#collection-progress-across-clock-failure--2026-10-28)
+adds evidence for P4.5 without closing its installed failure/resource matrix.
+
 #### P5 — Qualify and reduce the remaining live read and wait costs
 
 Owners: local Table service/catalog, direct query readers, shared SQL service,
@@ -831,10 +838,100 @@ including failed backing attempts and balanced acquired/released bytes. Read-pag
 sizing now counts canonical bytes without a maximum-sized temporary row buffer;
 the focused snapshot/range/filter regression retains simultaneous owned outputs
 within a 128 KiB caller budget. This does not bound the complete storage owner or
-establish allocation-free reads: per-row ownership, cache/recovery allocations,
+establish allocation-free reads: page ownership, cache/recovery allocations,
 maintenance-active measurements and installed latency qualification remain open.
 The correction to PR #198's independent DDL digest fixture preserves production
 JSON and hash semantics; the complete catalog package passes all 90 tests.
+
+At `22f17efae`, bounded scan/range/filter paths reset one candidate arena and
+share immutable output storage per admitted page. Detached rows survive sibling
+release, cache replacement and Table closure; the last row releases the page's
+storage. Lazy point projection releases discarded physical values. Caller-arena
+row decoding has a sealed allocation-probe check: 32 decodes after warmup issue
+no backing allocation attempts. This is a decoder result, not a whole-read claim.
+The focused storage schedules cover ownership failures, byte limits, current
+revocation, filtered coverage and lazy schema interpretation; installed caller
+and common-revision qualification remain required for P5.3.
+
+The same committed source passes the owner measurement smoke matrix (32 Table
+rows, 1 KiB payloads, warm files, one measured repetition plus warmup). Against
+the previous counted probe, matching Table fixtures and I/O show scan allocation
+calls falling from 82 to 56, acquired bytes from 154,508 to 140,196, and peak
+tracked live bytes from 68,543 to 64,957. The four-row interval uses two-row pages:
+allocation calls remain 36, but resize attempts rise from 22 to 33 and peak
+tracked bytes from 54,487 to 54,931. Keep that small-page tradeoff visible. The
+candidate binary SHA-256 is
+`a2923a225025df752d35a91c9660cd1542aedde7401409dcfe0db56b43036050`;
+the earlier counted binary is
+`dac21098aca1106ac8affbb37391b507b06260e518e422278869af9205c9750b`.
+The unchanged owner driver records raw phase/allocation counters and independent
+value checks. These small component samples, collected alongside other checks,
+establish no latency improvement, installed result or native-owner comparison.
+
+Clean Debug qualification also exposed heap-layout-dependent allocation ordinals
+in the compaction failure sweep. `8345452a6` forces growth through allocation in
+that test so every injected failure is deterministic; root-preservation and leak
+checks remain intact. The focused Debug case passes. The earlier full run at
+`eeac33a8780cde4c6465b4fd96ab38e9c2430d00` finished with two failures (that sweep
+and the subsequently corrected DDL digest fixture), not a completed pass.
+
+The post-merge close-out also fixes two independent executable regressions:
+`109baad72` defers all Table maintenance classes until initial provisioning has
+established their owner, and `b6e10a3c4` emits console timing through a live I/O
+owner. All 193 CLI diagnostic cases pass. The read-page integration assertion
+at `ff9d2036e` checks the retained WAL source with a point read and compares its
+value with page-owned output; the six-test local catalog aggregate passes.
+
+At `ebab1ded6`, native grants batch their private policy-index changes before the
+unchanged conditional publication. The exact saved grant from a failed installed
+startup stages 14 pages / 13,799 bytes instead of 20 / 24,878. Core checks pass
+in Debug and ReleaseSafe, including failure and lost-acknowledgement injection
+at every staged page for new and replacement grants. The installed server
+logging/restart/admission-pressure schedule and the full handbook check pass.
+This changes no Station turn architecture or wire/stored format.
+
+The startup timeout investigation remains relevant to P4.4: the original binary
+also exceeds its two-second request deadline with maintenance disabled while
+disk syncs take about 9–10 ms. Later controls pass with both binaries after load
+eases. The original failed installation reaches readiness without reset or new
+request identity. These observations do not establish a latency improvement or
+resolve sustained contention. Production deadlines remain unchanged. Earlier
+clean core/experience failures stay recorded as failures; fresh committed-source
+qualification is still required before this continuation's PR.
+
+The continuation is rebased onto `fbbaeae12` (PR #205), retaining PR #203's
+SQL result, transport and TLS allocation work and the database-owned client-token
+contract. The bootstrap maintenance fix is also present upstream. Storage's new
+[foreground maintenance schedule](../../tests/storage/tables/maintenance.md)
+adds sixteen independently verified retained scans with Table maintenance
+disabled and during automatic flushing. It records node CPU, I/O and resident
+memory beside raw read durations and requires observed concurrent progress.
+At frozen source `4d778efa9`, its physical execution passes, including 258 rows
+flushed into ten segments and fixed-target archive/compaction recovery after
+SIGKILL. The first active retained scan takes 5.085 seconds, compared with
+1.602–1.780 seconds for control scans; node lifetime peak RSS reaches
+121,298,944 bytes. The [qualification account](../history/qualification/storage.md#foreground-reads-during-automatic-table-flushing--2026-10-28)
+records all scopes and limits. The clean core lane passes all 28 tasks at this
+source. Clean experience passes five tasks, then the single-executable console
+exceeds its 90-second deadline; later experience tasks and growth do not run.
+The original accepted ALTER completes after reopening the preserved installation
+with the identical binary and identity. A separate fresh control passes the
+unchanged default workflow, but does not establish the timeout's cause or
+replace the failed lane. The [packaging recovery account](../history/qualification/storage.md#installed-packaging-recovery-and-repository-qualification--2026-10-28)
+preserves those distinct outcomes. This adds no
+latency target, deadline increase or claim that aggregate maintenance or the
+installed zero-allocation gate is complete.
+
+At `89e88a39b`, the direct Table service allocates the encoded response size
+instead of a 16 MiB buffer for every request. A count pass preserves the exact
+wire limit, followed by serialization and the existing current-authority fence.
+All 64 protocol tests, six local catalog/maintenance tests and 41 fast checks
+pass. The installed foreground schedule also passes with the same saved source,
+driver hashes and configuration. Node lifetime peak RSS is 60,338,176 bytes in
+the control and 75,059,200 bytes during flushing; median scans are 1.319 and
+1.208 seconds respectively. The [follow-up account](../history/qualification/storage.md#response-allocation-follow-up)
+retains both runs and their uncontrolled-host limits. This is a measured
+allocation reduction, not closure of P4/P5's aggregate or latency gates.
 
 **Post-integration priority — 2026-10-27:** after merging PR #188, the user
 reports slow single-row INSERT and roughly 0.5-second queries against `items`.
@@ -988,7 +1085,7 @@ inspection adapters, Board API and its existing inspection UI.
   SQL inspection syntax must be specified/generated with its grammar and
   capability owner before exposure. Board inspection remains read-only and
   receives no raw storage handles or hidden flush/GC mutation endpoint.
-- [ ] P6.4 Register settings with the existing configuration owner, validation,
+- [x] P6.4 Register settings with the existing configuration owner, validation,
   retained generation and restart/dynamic-setting rules. Publish defaults,
   units, limits and failure behavior in the public storage/configuration guides.
   Demonstrate why an accepted point write may have no newly flushed segment.
@@ -1011,6 +1108,35 @@ direct collection fault harnesses each pass 15 SIGKILL schedules with the saved
 source-activity target preserved through deletion recovery. Backend/root paths,
 quota accounting, failure inspection and CLI/SQL/Board presentation still need
 their shared operations and qualification; this does not close P6.
+
+The SQL session adapter now implements `SHOW STORAGE FOR name` through the
+existing signed Table storage operation. Preparation freezes the definition;
+execution observes fresh accepted progress, and repeat/terminal disclosure keeps
+the ordinary current-inspection checks. The typed row preserves bounded backlog
+completeness, archive/checkpoint/history frontiers and fixed compaction targets.
+Native console and database-wire adapters share this read-only implementation,
+without a new wire definition or maintenance authority. Reference grammar and
+completion checks pass. At `78ca34357`, the installed `sessions-basic` slice
+passes native/PostgreSQL/MySQL execution, fresh observations from the original
+prepared statement, exact buffered repeats and post-buffer revocation. The
+ReleaseSafe artifacts are built at `72e5f59cf`; subsequent changes correct the
+independent test oracle's exclusive-frontier comparison and NULL tag, plus
+documentation. The full handbook check and all 41 fast checks pass before those
+two small oracle corrections; clean interfaces qualification remains required.
+Backend/root, quota/failure observations and Board presentation remain open.
+This is a partial P6.3 delivery and does not close any P6 acceptance checkbox.
+
+At `cf0209275`, the installed `just test server` schedule passes all fourteen
+storage-setting defaults, normalized byte/duration inputs, rejected out-of-range
+reloads, unchanged active node settings while restart is pending, and matching
+node values after restart. The same run preserves configuration generations,
+original reload outcomes, history-index recovery and missing-checkpoint refusal,
+then passes the complete server lifecycle. This closes P6.4 together with the
+published configuration owner and P2's WAL-only/automatic-flush observations.
+The [qualification account](../history/qualification/storage.md#installed-storage-settings--2026-10-28)
+retains the earlier fixture failure and exact sources. Clean qualification of
+the combined new source remains a P8 obligation; backend/root, quota/failure
+and Board inspection still keep P6.1–P6.3 open.
 
 #### P7 — Deliver the single executable local profile
 
@@ -1171,7 +1297,8 @@ creating another parallel milestone plan.
 | [#110](https://github.com/spoke-sh/transit/issues/110), [#122](https://github.com/spoke-sh/transit/issues/122) — open | Primary closure targets after P8. Reconcile delivered direct CRUD/read wiring now; retain every installed maintenance, packaging, recovery and performance gate. Correct transferred provider references to milestone 15 |
 | [#173](https://github.com/spoke-sh/transit/issues/173) — open | Close in P1 after deterministic reopen/original-request and full launcher evidence |
 | [#126](https://github.com/spoke-sh/transit/issues/126) — open | Complete installed native/payload obligations in P1/P4/P8. Reconcile milestone 2's delivered foundation. Close only after explicitly accounting for its still-broader provider obligation under milestone 15; otherwise keep that scope open |
-| [#113](https://github.com/spoke-sh/transit/issues/113), [#114](https://github.com/spoke-sh/transit/issues/114), [#115](https://github.com/spoke-sh/transit/issues/115), [#116](https://github.com/spoke-sh/transit/issues/116) — open | Reconcile each with milestone 2's completed local evidence in P0. Do not reimplement it because the issue is stale. Close satisfied scopes; retain any actual installed or provider remainder with an explicit owner |
+| [#113](https://github.com/spoke-sh/transit/issues/113), [#114](https://github.com/spoke-sh/transit/issues/114), [#115](https://github.com/spoke-sh/transit/issues/115) — closed | Foundation scopes were reconciled against PR #187. Preserve their local WAL, object publication and retained-Table evidence; qualify changed runtime integration here |
+| [#116](https://github.com/spoke-sh/transit/issues/116) — open | P2's automatic point flushing is delivered. Retain P4/P5/P6/P8 aggregate resource, inspection and installed qualification obligations; broader indexes and providers keep their assigned later owners |
 | [#118](https://github.com/spoke-sh/transit/issues/118), [#125](https://github.com/spoke-sh/transit/issues/125), [#127](https://github.com/spoke-sh/transit/issues/127), [#128](https://github.com/spoke-sh/transit/issues/128) — open | Consume the delivered local contracts, qualify changed projection/history/reader integration here, and retain broader historical/transaction/managed-computation/provider requirements with their numbered owners |
 | [#123](https://github.com/spoke-sh/transit/issues/123), [#124](https://github.com/spoke-sh/transit/issues/124), [#76](https://github.com/spoke-sh/transit/issues/76) — open | Complete and link the milestone 3 documentation, installed evidence and selected matched controls. These cross-milestone trackers do not automatically close with #110 |
 | [#117](https://github.com/spoke-sh/transit/issues/117), [#121](https://github.com/spoke-sh/transit/issues/121) — open | Retain distributed provider/concurrent-writer qualification with milestone 15; local success does not check off these profiles |

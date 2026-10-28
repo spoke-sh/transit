@@ -111,7 +111,7 @@ pub const Read = struct {
             .inspection => |inspection| {
                 const prepared = inspection.prepared;
                 metadata.kind = prepared.kind;
-                metadata.consistency = .exact_definitions;
+                metadata.consistency = if (prepared.storage) .independent_observations else .exact_definitions;
                 if (prepared.metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.interpretation.interpretation});
                 if (prepared.statement) |statement| {
                     if (statement.plan == .select) metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{statement.plan.select.binding.interpretation.interpretation}) else if (statement.plan == .relational) {
@@ -227,7 +227,7 @@ pub const Read = struct {
         result.rows[0] = cells;
         result.len = @intFromBool(cells != null);
         result.complete = cells == null or switch (self.value) {
-            .inspection => |inspection| inspection.index == inspection.prepared.rows.len,
+            .inspection => |inspection| inspection.index == inspection.prepared.count(),
             .probe => true,
             else => false,
         };
@@ -387,11 +387,9 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
     try self.current();
     const result = try self.allocator.create(Prepared);
     errdefer self.allocator.destroy(result);
-    if (self.native_profile) {
-        if (try self.fresh(Inspection.prepare, .{ self, sql })) |inspection| {
-            result.* = .{ .inspection = inspection };
-            return result;
-        }
+    if (try self.fresh(Inspection.prepare, .{ self, sql })) |inspection| {
+        result.* = .{ .inspection = inspection };
+        return result;
     }
     if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try self.freshOn(.settings, Settings.prepare, .{ self, sql })) |settings| result.* = .{ .settings = settings } else if (self.source) |source| result.* = .{ .source = try self.fresh(g.SourceSession.prepare, .{ source, sql }) } else result.* = .{ .native = try self.fresh(g.Statement.prepareDiagnostic, .{ self.allocator, &self.table, self.namespace, sql, self.dialect, if (self.native_profile) g.Statement.Profile.native else g.Statement.Profile.wire, read_options, &self.compile_binding }) };
     return result;

@@ -14,6 +14,20 @@ in [SQL gateways](SQL_GATEWAY_V1.md).
 The [logical result contract](SQL_RESULTS_V1.md) defines statement outcomes and
 consumption independently of this carriage.
 
+`SHOW STORAGE FOR name` prepares an exact Table definition in the selected
+database/schema and returns its storage observation through the same signed
+direct Table operation as typed callers. Each execution acquires a fresh
+observation, without creating a retained data cut or invoking maintenance.
+The result has metadata kind `catalog`, consistency `independent_observations`
+and the prepared definition. Its typed row identifies the observed exclusive
+accepted frontier; later physical or logical progress does not change an already
+buffered result. Preparation, disclosure, repeat fetch and terminal responses
+retain current inspection checks. Definition replacement invalidates the
+prepared binding. Backlog inspection counts at most 1,024 pending rows, with
+bounded manifest lookahead to establish completeness. Incomplete counts are
+lower bounds, never an estimate of the whole Table. Backend paths,
+quota use and maintenance failures are not inferred from these durable facts.
+
 ## Transport and authentication
 
 Requests use HTTP/1.1 POST with `application/json`, bounded Content-Length and

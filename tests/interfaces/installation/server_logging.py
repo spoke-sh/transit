@@ -120,6 +120,12 @@ def run(cli, node, host, board, gateway):
     try:
         # No logging config: defaults are readable even with unrelated ambient LOG_*.
         text_path = start(fixture, True, {'LOG_FORMAT': 'json'})
+        # Native-only bootstrap defers all Table maintenance. After the owner
+        # is provisioned, the same startup must restore the configured defaults.
+        node_config = json.loads((fixture.installation / 'node.json').read_text())
+        assert node_config['table'] is not None
+        maintenance = node_config['storage']['maintenance']
+        assert maintenance['flush']['enabled'] and maintenance['archive']['enabled'] and maintenance['compact'], maintenance
         time.sleep(.2)  # Let the bounded writer publish the just-observed ready transition.
         before = text_path.read_text().count('sql.connect.postgres ')
         time.sleep(2)
