@@ -128,6 +128,7 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
         return diagnostic.invalidFieldCause(err, "configuration", "contains an unknown field or invalid value", null);
     };
     if (self.query.statement_timeout_ceiling != 0 and (self.query.statement_timeout == 0 or self.query.statement_timeout > self.query.statement_timeout_ceiling)) return diagnostic.invalidField("query.statement_timeout", "must not exceed the configured ceiling", null);
+    self.storage.requests.validate() catch return diagnostic.invalidField("storage.requests", "request_bytes must fit data_bytes; all budgets must fit the documented bounds", null);
     if (self.version != 1) return diagnostic.invalidField("version", "must be 1", null);
     if (@import("builtin").os.tag != .linux) return diagnostic.invalidField("platform", "must be Linux x86_64", null);
     {

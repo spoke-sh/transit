@@ -2318,6 +2318,7 @@
     "GRANT SELECT, INSERT ON orders TO analyst;",
     "REVOKE SELECT ON orders FROM analyst;",
     "SHOW TABLES;",
+    "SHOW STORAGE;",
     "SHOW STORAGE FOR orders;",
     "SHOW STORAGE FOR storage;",
     "SHOW storage.limits.bytes;",

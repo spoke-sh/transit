@@ -9,6 +9,7 @@ import {
   type RelationalReference,
   type RelationalRequest,
 } from "@transit/board-client";
+import { TableStorage } from "./storage";
 import { QueryDiagnostic } from "./query-diagnostic";
 import type { Diagnostic } from "@transit/query-client";
 
@@ -344,6 +345,9 @@ export function RelationalWorkspace() {
               .join("; ")}
           </p>
           <p>Outputs: {proposed.columns.map((column) => column.name).join(", ")}</p>
+          {proposed.sources.map((source, index) => (
+            <TableStorage key={source.alias} source={source} route={routes[index]!} />
+          ))}
         </div>
       )}
       {opened && (

@@ -28,6 +28,16 @@ bounded manifest lookahead to establish completeness. Incomplete counts are
 lower bounds, never an estimate of the whole Table. Backend paths,
 quota use and maintenance failures are not inferred from these durable facts.
 
+`SHOW STORAGE` uses the native signed node storage read. It requires current
+realm-wide inspection in addition to the session's database/schema access.
+Its one typed row exposes backend/root, conservative physical admission bytes,
+direct request/control allocation counters and live maintenance state, limits
+and failure category. Unavailable fields are SQL NULL. The metadata observation
+has no Table definitions and declares `independent_observations`; it is not a
+data snapshot. Preparation, final disclosure, repeated batches and terminal
+responses recheck current realm-wide inspection. Each execution observes new
+counters; a repeated fetch preserves the original buffered values.
+
 ## Transport and authentication
 
 Requests use HTTP/1.1 POST with `application/json`, bounded Content-Length and

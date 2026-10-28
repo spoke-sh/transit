@@ -66,7 +66,7 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8) !?[]const u8 {
     if (try parser.takeWord("DESCRIBE")) return try parser.named(.source);
     if (try parser.takeWord("SHOW")) {
         if (!(try parser.takeWord("STORAGE"))) return null;
-        try parser.requireWord("FOR");
+        if (!(try parser.takeWord("FOR"))) return null;
         return try parser.named(.source);
     }
     return null;

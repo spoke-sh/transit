@@ -124,6 +124,24 @@ def exercise(library, board, root, authority, service, profile, restart, policy,
         assert not description['capabilities']['maintained']
         for number, routes in ((201, (0, 0)), (202, (0, 1))):
             original, explanation = propose(number, routes)
+            # A selected storage read uses the exact explained definition and
+            # current object grants; it creates no query or durable pin journal.
+            storage_read = dict(storage=dict(route=routes[0], binding=explanation['sources'][0]['binding']))
+            journal_before = (recovery / 'relational.json').read_bytes() if (recovery / 'relational.json').exists() else None
+            stored = request(storage_read)['storage']
+            assert stored['binding'] == explanation['sources'][0]['binding']
+            assert stored['observed']['live_rows'] == '4'
+            assert int(stored['observed']['changed_lsn']) <= int(stored['observed']['position']['next_lsn'])
+            assert ((recovery / 'relational.json').read_bytes() if (recovery / 'relational.json').exists() else None) == journal_before
+            forged = copy.deepcopy(storage_read)
+            forged['storage']['binding']['name'] = 'rel_right'
+            request(forged, 409)
+            policy(False)
+            try:
+                assert request(storage_read, 403)['diagnostic']['category'] == 'access'
+            finally:
+                policy(True)
+            assert request(storage_read)['storage']['binding'] == stored['binding']
             opened = request(dict(query=dict(open=original)))['query']['opened']
             assert request(dict(query=dict(open=original)))['query']['opened'] == opened
             assert opened['description'] == explanation

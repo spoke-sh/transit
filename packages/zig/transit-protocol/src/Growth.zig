@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.transaction-logical-guards.2026-10-28.
+/// SHA-256 of transit.native.v1.storage-observation-and-transaction-logical-guards.2026-10-28.
 pub const Definition = enum {
-    f6e7696ff8788e92814cd877a989121f7d2a5089c445b5155de22eff01f270d2,
+    @"4327831d2a07273573f6c7d707c5bb1456581509ab3dc175820f940392819f3d",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -312,6 +312,7 @@ pub const Query = struct {
     kind: union(enum) {
         authorization: p.Authorization.Query,
         capabilities: void,
+        storage: void,
         inspection: Inspection.Query,
         delivery: void,
         process: Id,
@@ -399,6 +400,7 @@ pub const Response = struct {
     body: union(enum) {
         authorization: p.Authorization.Result,
         capabilities: Capabilities,
+        storage: p.Storage.Observation,
         inspection: Inspection.Page,
         delivery: struct { next: ?Id },
         process: struct { process: Process, input: ?Input },
@@ -560,6 +562,7 @@ pub fn validateResponse(response: Response, query: Query) !void {
         !std.mem.eql(u8, @tagName(response.body), @tagName(query.kind))) return error.InvalidRead;
     switch (query.kind) {
         .authorization => |q| try p.Authorization.validateResult(response.body.authorization, q, query.realm, query.principal),
+        .storage => try response.body.storage.validate(),
         .delivery => if (response.body.delivery.next == 0) return error.InvalidRead,
         .inspection => try Inspection.validatePage(response.body.inspection, query, response.position),
         .snapshot_read => |q| try SnapshotRead.validateResult(response.body.snapshot_read, q),
@@ -706,7 +709,7 @@ test "leased snapshot signing matches independent canonical JSON fixtures" {
 
 test "contract definitions reject numeric enum aliases in both JSON decoders" {
     const t = std.testing;
-    for ([_][]const u8{ "0", "\"0\"", "\"0000000000000000000000000000000000000000000000000000000000000000\"", "\"previous-v1-definition\"", "\"f4155ebec2d3eae38ccb8894ab250a29138ef35d84792d83b4a9150e44a5b6fb\"", "\"901eb98b9b23d159d20c3216ca2c160c0cf303c8b3f751d8ace5c91562904fa8\"", "\"dec0151b4f9d664f75113d65fd43b3ba9a47f07ffb28fdda7e4b91b3d369bb60\"", "\"e8677230beea38e3f824c3413009a123a2386f7c6c7a1cfcaa7efe51e8486c78\"", "\"9454a601d54b923917307ccca9c9c70235378f011aa17a8073013eb0ddfa2c56\"", "\"e90c811e59e082a12accb35d8b7d4e4217ed1db5e023c340944b773f1cdd5e2a\"", "\"554fe1fda3e411cf8699db84285f655ae459494c04192fb6dfa66b29b00c12fa\"", "\"c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b\"", "\"312fcb8d609365bc55ffa7ddbe0242493e843256539f96889a51a2fba0f2b9c0\"", "\"1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f\"", "\"67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e\"", "\"c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd\"", "null", "false", "[]", "{}" }) |bytes| {
+    for ([_][]const u8{ "0", "\"0\"", "\"0000000000000000000000000000000000000000000000000000000000000000\"", "\"previous-v1-definition\"", "\"f6e7696ff8788e92814cd877a989121f7d2a5089c445b5155de22eff01f270d2\"", "\"8d33a5642dfcc05496cfe1b6558cdc07246ec5f17790750a5f28cfe9c81b3a8f\"", "\"f4155ebec2d3eae38ccb8894ab250a29138ef35d84792d83b4a9150e44a5b6fb\"", "\"901eb98b9b23d159d20c3216ca2c160c0cf303c8b3f751d8ace5c91562904fa8\"", "\"dec0151b4f9d664f75113d65fd43b3ba9a47f07ffb28fdda7e4b91b3d369bb60\"", "\"e8677230beea38e3f824c3413009a123a2386f7c6c7a1cfcaa7efe51e8486c78\"", "\"9454a601d54b923917307ccca9c9c70235378f011aa17a8073013eb0ddfa2c56\"", "\"e90c811e59e082a12accb35d8b7d4e4217ed1db5e023c340944b773f1cdd5e2a\"", "\"554fe1fda3e411cf8699db84285f655ae459494c04192fb6dfa66b29b00c12fa\"", "\"c7e556954e7f6e9cf79a65abf9d082372ea626174ca7a6b4422ae25083dffc8b\"", "\"312fcb8d609365bc55ffa7ddbe0242493e843256539f96889a51a2fba0f2b9c0\"", "\"1dbbcfbb8c493a1e1a1ef340811178dfb7068830b58f9412d97881d61ab75a9f\"", "\"67f02f8b95384ab69ae024f8dd8bc403aa7b358024fd345b4e28e538e392a15e\"", "\"c7446846aac6473237f91be61e004180fd8386136217c4cd09160b382e34cccd\"", "null", "false", "[]", "{}" }) |bytes| {
         try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Definition, t.allocator, bytes, .{}));
         const value = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
         defer value.deinit();

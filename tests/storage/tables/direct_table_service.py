@@ -18,7 +18,7 @@ def run(node, caller, mode="tables", *artifacts):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
-    with (direct_table_maintenance.directory() if mode == "maintenance" else tempfile.TemporaryDirectory(prefix="transit-direct-table-")) as directory:
+    with (direct_table_maintenance.directory() if mode in ("maintenance", "tables") else tempfile.TemporaryDirectory(prefix="transit-direct-table-")) as directory:
         root = Path(directory)
         profile = root / "profile.json"
         config = root / "node.json"
@@ -72,6 +72,7 @@ def run(node, caller, mode="tables", *artifacts):
         resource_faults = set()
         abi_faults = set()
         retention_faults = set()
+        accepted_inspections = []
         board_fault = {"next": None, "accepted": []}
 
         class Proxy(BaseHTTPRequestHandler):
@@ -98,6 +99,11 @@ def run(node, caller, mode="tables", *artifacts):
                         if record and record["format"] == 0x54584331:
                             assert response.status == 400 and json.loads(data) == {"err": "InvalidRequest"}, data
                             fault["transaction_record_refused"] = True
+                        operation = envelope["action"].get("operation")
+                        if mode == "tables" and not accepted_inspections and operation and operation["command"] == "inspect" and response.status == 200:
+                            result = json.loads(data)["result"]
+                            if "committed" in next(iter(result.values())):
+                                accepted_inspections.append((body, result))
                         resource = envelope["action"].get("resource_operation")
                         if mode == "resources" and resource and resource["binding"]["operation"] in (80000, 80001) and resource["command"] != "inspect" and response.status == 200:
                             parsed = json.loads(data)
@@ -443,6 +449,22 @@ def run(node, caller, mode="tables", *artifacts):
             assert fault["assertion_changed"]
             assert fault["delegated_pin"] and fault["history_pin"]
             segments = list((root / "native").rglob("*.tseg"))
+            assert accepted_inspections, "No accepted original operation available for pressure recovery"
+            stop(authority)
+            authority = None
+            settings["storage"] = {"requests": {"request_bytes": 1048576, "data_bytes": 1048576}}
+            settings["request_timeout_ms"] = 5000
+            config.write_text(json.dumps(settings))
+            authority = start()
+            try:
+                direct_table_maintenance.request_pressure(port, root, lambda: authority, accepted_inspections[0])
+            finally:
+                stop(authority)
+                authority = None
+                settings.pop("storage")
+                settings["request_timeout_ms"] = 60000
+                config.write_text(json.dumps(settings))
+                authority = start()
             assert segments, "Bulk acceptance created no .tseg object"
             stop(authority)
             authority = None

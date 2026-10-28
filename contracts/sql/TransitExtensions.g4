@@ -242,7 +242,7 @@ privilege
 
 // ALL is a contextual setting selector; execution reserves it for the listing.
 showStatement
-    : SHOW (catalogKind | settingKey | STORAGE FOR identifier)
+    : SHOW (catalogKind | settingKey | STORAGE (FOR identifier)?)
     ;
 settingKey: identifier (DOT identifier)*;
 sessionSettingStatement

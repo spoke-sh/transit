@@ -26,7 +26,9 @@ pub const Action = union(enum) {
     page: @FieldType(b.Action, "page"),
     close: b.Reference,
 };
-pub const Request = union(enum) { describe, query: Action, recover: struct { id: []const u8 } };
+pub const StorageRequest = struct { route: u16, binding: h.PreparedBinding };
+pub const Storage = struct { binding: h.PreparedBinding, observed: h.StorageObservation };
+pub const Request = union(enum) { describe, storage: StorageRequest, query: Action, recover: struct { id: []const u8 } };
 pub const Recovery = struct { id: []const u8, state: enum { acquiring, active, closing }, remaining_pins: u8 };
 pub const Profile = struct {
     capabilities: b.Capabilities,
@@ -35,7 +37,7 @@ pub const Profile = struct {
     recovery: ?Recovery,
     pub const json_schema_sequence_bounds = .{ .routes = 2 };
 };
-pub const Response = union(enum) { description: Profile, query: b.Result, recovered };
+pub const Response = union(enum) { description: Profile, storage: Storage, query: b.Result, recovered };
 const Pin = struct {
     operation: u64,
     handle: ?c.storage.TablePartition.SnapshotHandle,
@@ -269,6 +271,21 @@ fn recovery(record: ?Record) ?Recovery {
 }
 fn apply(self: *Self, allocator: std.mem.Allocator, request: Request, location: *q.fuze.Sql.Location) !Response {
     switch (request) {
+        .storage => |input| {
+            if (input.route >= self.caller.count) return error.InvalidRelationalSources;
+            const client = self.caller.catalogs[input.route];
+            const binding = try input.binding.native();
+            if (!std.meta.eql(binding.connection, client.connection)) return error.RelationalCallerChanged;
+            const response = try client.call(.{ .storage = .{ .object = binding.interpretation.interpretation.object, .pending_limit = 1024 } });
+            defer response.deinit();
+            const observed = response.value.result.storage;
+            if (!std.meta.eql(binding.interpretation, observed.interpretation)) return error.CatalogDefinitionChanged;
+            const current = try client.call(.{ .lookup = .{ .namespace = binding.namespace, .name = binding.name.slice() } });
+            defer current.deinit();
+            const current_binding = try c.DirectTableBinding.init(client.connection, current.value.result.lookup orelse return error.CatalogDefinitionChanged);
+            if (!std.meta.eql(binding, current_binding)) return error.CatalogDefinitionChanged;
+            return .{ .storage = .{ .binding = try h.PreparedBinding.foreign(allocator, binding), .observed = try h.StorageObservation.foreign(allocator, observed) } };
+        },
         .describe => {
             const profile = try self.caller.describe(allocator);
             return .{ .description = .{ .capabilities = profile.capabilities, .routes = profile.routes, .active = profile.active, .recovery = recovery(try self.read(allocator)) } };
@@ -305,7 +322,7 @@ pub fn applyStructured(self: *Self, allocator: std.mem.Allocator, request: Reque
     return self.apply(allocator, request, &location) catch |err| {
         const rejection = self.caller.service.last_rejection orelse wire.last_rejection;
         const action: b.Action = switch (request) {
-            .describe, .recover => .capabilities,
+            .describe, .storage, .recover => .capabilities,
             .query => |value| switch (value) {
                 .capabilities => .capabilities,
                 .explain => |s| .{ .explain = s },

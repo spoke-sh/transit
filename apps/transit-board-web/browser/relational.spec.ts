@@ -45,6 +45,12 @@ test("explicit relational pages recover the same host and clear on current denia
   await page.getByRole("button", { name: "Explain relational query", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Proposed plan · not executed" })).toBeVisible();
   expect(opens).toBe(0);
+  const storage = page.getByRole("region", { name: "Storage for l", exact: true });
+  await storage.getByRole("button", { name: "Inspect storage for l", exact: true }).click();
+  await expect(storage).toContainText("Current storage observation");
+  await expect(storage).toContainText("Accepted position");
+  await expect(storage).toContainText("History floor");
+  expect(opens).toBe(0);
   await page.route("**/api/v1/relational", async (route) => {
     if (refuseClose && route.request().postDataJSON().query?.close) {
       closeAttempts.push(route.request().postData()!);

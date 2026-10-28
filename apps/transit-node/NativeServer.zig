@@ -45,6 +45,7 @@ pub fn Host(comptime Provider: type) type {
                 .shared_pages = shared_pages,
                 .shared_pages_count = shared_pages_count,
                 .shared_access = engine.page_store.access,
+                .table_memory = try DirectRequestMemory.init(config.storage.requests),
             };
             diagnostics.event(.{ .name = "service.ready" });
             try http.serve(init.io, init.gpa, &listener, .{ .connections = 16, .requests = 4, .control_requests = 2, .wait_requests = 4, .header_timeout_ms = @min(1000, config.request_timeout_ms), .request_timeout_ms = config.request_timeout_ms, .requests_per_connection = 64 }, &context);
@@ -347,6 +348,22 @@ pub fn Host(comptime Provider: type) type {
                     };
                 }
                 return error.Conflict;
+            }
+            pub fn storage(self: *Server, engine: *Engine) !wire.protocol.Storage.Observation {
+                if (comptime @hasDecl(Provider, "storageObservation")) {
+                    var result = try Provider.storageObservation(engine);
+                    const data = &self.context.table_memory.data;
+                    const control = &self.context.table_memory.control;
+                    const data_used = data.used.load(.acquire);
+                    const control_used = control.used.load(.acquire);
+                    // Reserve publishes use before peak. Both observations are
+                    // real samples; a racing reservation cannot produce peak < use.
+                    result.data_requests = .{ .limit = data.limit, .used = data_used, .peak = @max(data_used, data.peak.load(.acquire)) };
+                    result.control_requests = .{ .limit = control.limit, .used = control_used, .peak = @max(control_used, control.peak.load(.acquire)) };
+                    result.request_limit_bytes = self.context.table_memory.request_bytes;
+                    return result;
+                }
+                return wire.protocol.Storage.Observation.unavailable;
             }
             /// An ordinary CAS loss accepted no transition. Reprepare only this exact
             /// signed identity/body at the new head; every grant, generation, sequence

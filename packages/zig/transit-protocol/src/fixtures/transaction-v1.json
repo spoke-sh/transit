@@ -1,6 +1,6 @@
 {
   "begin": {
-    "definition": "f6e7696ff8788e92814cd877a989121f7d2a5089c445b5155de22eff01f270d2",
+    "definition": "4327831d2a07273573f6c7d707c5bb1456581509ab3dc175820f940392819f3d",
     "identity": {
       "begin": {
         "scope": {
@@ -69,7 +69,7 @@
   },
   "cut": {
     "begin": {
-      "definition": "f6e7696ff8788e92814cd877a989121f7d2a5089c445b5155de22eff01f270d2",
+      "definition": "4327831d2a07273573f6c7d707c5bb1456581509ab3dc175820f940392819f3d",
       "identity": {
         "begin": {
           "scope": {
@@ -293,7 +293,7 @@
   },
   "prepared": {
     "attempt": {
-      "definition": "f6e7696ff8788e92814cd877a989121f7d2a5089c445b5155de22eff01f270d2",
+      "definition": "4327831d2a07273573f6c7d707c5bb1456581509ab3dc175820f940392819f3d",
       "transaction": {
         "begin": {
           "scope": {
@@ -541,7 +541,7 @@
   "observation": {
     "decided": {
       "attempt": {
-        "definition": "f6e7696ff8788e92814cd877a989121f7d2a5089c445b5155de22eff01f270d2",
+        "definition": "4327831d2a07273573f6c7d707c5bb1456581509ab3dc175820f940392819f3d",
         "transaction": {
           "begin": {
             "scope": {

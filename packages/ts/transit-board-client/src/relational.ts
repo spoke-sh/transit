@@ -11,6 +11,7 @@ export type RelationalReference = Extract<Result, { opened: unknown }>["opened"]
 export type RelationalPage = Extract<Result, { page: unknown }>["page"];
 export type RelationalOpened = Extract<Result, { opened: unknown }>["opened"];
 export type RelationalDescription = Description;
+export type RelationalStorage = Extract<RelationalResponse, { storage: unknown }>["storage"];
 export type RelationalProfile = Extract<
   RelationalResponse,
   { description: unknown }
@@ -65,35 +66,38 @@ function sameBinding(a: Binding, b: Binding): boolean {
     a.interpretation.retired === b.interpretation.retired
   );
 }
+function validBinding(b: Binding): boolean {
+  const object = b.interpretation.interpretation.object;
+  return (
+    sameScope(b.connection.scope, object.scope) &&
+    b.connection.branch === object.branch &&
+    b.connection.audience > 0 &&
+    b.connection.principal > 0 &&
+    b.namespace > 0 &&
+    decimal(object.scope.catalog, false, true) &&
+    decimal(object.branch, false, true) &&
+    decimal(object.object, false, true) &&
+    decimal(b.interpretation.interpretation.revision, false, true) &&
+    decimal(b.interpretation.content.bytes, false, true) &&
+    hex(b.interpretation.interpretation.digest, 32) &&
+    b.interpretation.interpretation.digest === b.interpretation.content.sha256 &&
+    hex(b.interpretation.schema_fingerprint, 32)
+  );
+}
 function description(value: Description): boolean {
   return (
     !value.executed &&
     hex(value.plan, 32) &&
     value.sources.length >= 1 &&
     value.sources.length <= 2 &&
-    value.sources.every((source) => {
-      const b = source.binding,
-        object = b.interpretation.interpretation.object;
-      return (
-        b.definition === value.definition &&
-        sameScope(b.connection.scope, object.scope) &&
-        b.connection.branch === object.branch &&
-        b.connection.audience > 0 &&
-        b.connection.principal > 0 &&
-        b.namespace > 0 &&
-        decimal(object.scope.catalog, false, true) &&
-        decimal(object.branch, false, true) &&
-        decimal(object.object, false, true) &&
-        decimal(b.interpretation.interpretation.revision, false, true) &&
-        decimal(b.interpretation.content.bytes, false, true) &&
-        hex(b.interpretation.interpretation.digest, 32) &&
-        b.interpretation.interpretation.digest === b.interpretation.content.sha256 &&
-        hex(b.interpretation.schema_fingerprint, 32) &&
+    value.sources.every(
+      (source) =>
+        source.binding.definition === value.definition &&
+        validBinding(source.binding) &&
         decimal(source.position.partition, false, true) &&
         decimal(source.position.next_lsn, false, true) &&
-        sameConnection(b.connection, value.sources[0]!.binding.connection)
-      );
-    }) &&
+        sameConnection(source.binding.connection, value.sources[0]!.binding.connection),
+    ) &&
     value.columns.length >= 1 &&
     value.columns.every(
       (c) => !c.optional && ("int64" in c.type || "uint64" in c.type || "utf8" in c.type),
@@ -131,6 +135,33 @@ export function validateRelational(value: unknown): value is RelationalResponse 
           r.connection.principal > 0 &&
           sameConnection(r.connection, routes[0]!.connection),
       )
+    );
+  }
+  if ("storage" in response) {
+    const { binding, observed } = response.storage;
+    if (!validBinding(binding)) return false;
+    for (const [key, value] of Object.entries(observed)) {
+      if (key === "position" || key === "pending_complete") continue;
+      if (value !== null && (typeof value !== "string" || !decimal(value))) return false;
+    }
+    return (
+      decimal(observed.position.partition, false, true) &&
+      decimal(observed.position.next_lsn, false, true) &&
+      BigInt(observed.changed_lsn) <= BigInt(observed.position.next_lsn) &&
+      BigInt(observed.pending_rows) <= BigInt(observed.live_rows) &&
+      BigInt(observed.history_floor) <= BigInt(observed.position.next_lsn) &&
+      BigInt(observed.archive_through) < BigInt(observed.position.next_lsn) &&
+      BigInt(observed.next_segment) > 0n &&
+      BigInt(observed.pending_rows) <= 1024n &&
+      (observed.pending_rows === "0") === (observed.oldest_pending_lsn === null) &&
+      (observed.pending_rows === "0") === (observed.pending_bytes === "0") &&
+      (observed.pending_complete ||
+        (observed.pending_rows === "1024" && BigInt(observed.live_rows) > 1024n)) &&
+      (observed.oldest_pending_lsn === null ||
+        BigInt(observed.oldest_pending_lsn) < BigInt(observed.position.next_lsn)) &&
+      (observed.recovery_through === null ||
+        (BigInt(observed.recovery_through) > 0n &&
+          BigInt(observed.recovery_through) < BigInt(observed.position.next_lsn)))
     );
   }
   if ("recovered" in response) return true;
@@ -221,6 +252,9 @@ export async function relationalQuery(
   }
   if ("describe" in owned) {
     if (!("description" in response)) throw new BoardError(0, "InvalidResponse");
+  } else if ("storage" in owned) {
+    if (!("storage" in response) || !sameBinding(owned.storage.binding, response.storage.binding))
+      throw new BoardError(0, "InvalidResponse");
   } else if ("recover" in owned) {
     if (!("recovered" in response)) throw new BoardError(0, "InvalidResponse");
   } else {

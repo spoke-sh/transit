@@ -311,3 +311,69 @@ def exercise(caller, endpoint, profile, root, restart, owner, node, request_memo
           f'after SIGKILL during accepted work; original, flushed and maintained '
           f'rows survive restart; zero segment rewrites for packed inputs; no further publications while idle; '
           f'convergence and verification {time.monotonic() - before:.3f}s.', flush=True)
+
+
+def request_pressure(port, root, owner, saved_inspection):
+    """Real concurrent body readers exhaust bytes while exact recovery remains usable."""
+    import select
+    import socket
+    from interfaces.http.serving import Key
+    from interfaces.installation.server_application_faults import native, post
+
+    key = Key(root, 'pressure-root', 17)
+    query = native(key, 42, 0, {'storage': {}})
+    def observed():
+        return post(port, '/v1/query', query)['body']['storage']
+    def memory():
+        value = observed()['data_requests']
+        assert value['used'] <= value['peak'] <= value['limit'] == 1048576, value
+        return value
+    before = process_usage(owner())
+    observations = []
+    for closure in ('disconnect', 'deadline'):
+        held = [socket.create_connection(('127.0.0.1', port), timeout=5) for _ in range(2)]
+        failure = None
+        try:
+            for connection in held:
+                connection.sendall(b'POST /table/v1 HTTP/1.1\r\nHost: localhost\r\nContent-Length: 8388608\r\nContent-Type: application/json\r\n\r\n')
+            # Both partial bodies have identical bounded prefixes; neither can
+            # reach authentication or durable admission. Alternate equal chunks
+            # until their aggregate allocation, not the active-lane count, refuses.
+            for _ in range(8):
+                for connection in held:
+                    connection.sendall(b' ' * 65536)
+                    time.sleep(.05)
+                    ready, _, _ = select.select(held, [], [], .05)
+                    if ready:
+                        # HTTPResponse only parses; it dispatches no new request.
+                        from http.client import HTTPResponse
+                        reply = HTTPResponse(ready[0]); reply.begin()
+                        failure = (reply.status, json.loads(reply.read()))
+                        break
+                if failure is not None:
+                    break
+            assert failure == (503, {'err': 'StorageQuota'}), failure
+            live = memory()
+            assert live['used'] > 0, 'No concurrent partial request remained charged'
+            original, expected = saved_inspection
+            recovered = post(port, '/table/v1', json.loads(original), headers={'X-Transit-Control': 'table'})
+            assert recovered['result'] == expected, 'Recovery changed the accepted original operation'
+            control = observed()['control_requests']
+            assert 0 < control['peak'] <= control['limit'] == 67108864
+            if closure == 'disconnect':
+                for connection in held:
+                    connection.close()
+            deadline = time.monotonic() + 8
+            while memory()['used']:
+                assert time.monotonic() < deadline, 'Joined body termination retained request bytes'
+                time.sleep(.05)
+            observations.append(dict(closure=closure, refused=failure[1]['err'],
+                                     ordinary=live, control=control, original_recovery=True,
+                                     released=memory()['used']))
+        finally:
+            for connection in held:
+                connection.close()
+    after = process_usage(owner())
+    assert before['pid'] == after['pid'] and before['start_ticks'] == after['start_ticks']
+    print(json.dumps(dict(profile='direct_request_pressure', schedules=observations,
+                          owner_before=before, owner_after=after)), flush=True)

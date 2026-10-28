@@ -558,6 +558,43 @@ test "authorization lost acknowledgements retry original signed operations and f
     try t.expectError(error.Forbidden, f.query(0, .{ .authorization = .{ .kind = .{ .resolve = try core.Value.init("reader") } } }));
 }
 
+test "storage inspection requires current realm-wide rights and fences buffered observations" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect), .pid = pid } });
+    try t.expectError(error.Forbidden, f.query(65536, .storage));
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
+    const unavailable = try f.query(65536, .storage);
+    try t.expectEqual(.unavailable, unavailable.body.storage.backend);
+    const Hooks = struct {
+        fixture: *Fixture,
+        calls: usize = 0,
+        revoke: bool = false,
+        pub fn begin(_: *@This(), _: *Engine, _: growing.Principal, _: @FieldType(g.Query, "kind")) !void {}
+        pub fn end(_: *@This(), _: *Engine, _: bool) void {}
+        pub fn storage(self: *@This(), _: *Engine) !core.protocol.Storage.Observation {
+            self.calls += 1;
+            var result = core.protocol.Storage.Observation.unavailable;
+            result.backend = .local;
+            result.root = try core.protocol.Storage.Path.init("/private/transit");
+            if (self.revoke) _ = try self.fixture.root(.{ .revoke = 65536 });
+            return result;
+        }
+    };
+    var hooks: Hooks = .{ .fixture = &f };
+    const signed = try g.signQuery(.{ .realm = 42, .principal = 65536, .kind = .storage }, f.worker_key);
+    const before = try f.journal.tail();
+    const observed = try f.engine.queryWithSnapshots(signed, &hooks);
+    try t.expectEqualStrings("/private/transit", observed.body.storage.root.?.slice());
+    try t.expectEqual(before, try f.journal.tail());
+    hooks.revoke = true;
+    try t.expectError(error.Conflict, f.engine.queryWithSnapshots(signed, &hooks));
+    try t.expectError(error.Forbidden, f.engine.queryWithSnapshots(signed, &hooks));
+    try t.expectEqual(2, hooks.calls);
+}
+
 test "named role native grants remain process scoped and current reads fence policy races" {
     var f: Fixture = .{};
     defer f.deinit();
