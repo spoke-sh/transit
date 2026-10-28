@@ -397,6 +397,16 @@ identity do not authorize another execution.
 
 ## Session lifetime and bounds
 
+Each connection retains 16 MiB of reusable formatting storage and a separate
+256 KiB sample window. The window copies rows under an exclusive lease so later
+fetches cannot overwrite sampled values; the lease ends after the initial table
+rows are rendered. Formatting capacity includes unused space and allocator
+overhead and is reused across statements. Exhaustion fails the current display
+without claiming complete coverage. These reserves are separate from the shared
+client's statement and transport storage; they do not increase native message,
+batch or per-result limits. I/O workers and request task storage are admitted
+once for the console lifetime.
+
 A session is an expiring handle, not a durable operation. Each session has at
 most 32 prepared statements and one active result cursor. Fetching the last batch
 again returns that batch under current rights. Acknowledging it advances the

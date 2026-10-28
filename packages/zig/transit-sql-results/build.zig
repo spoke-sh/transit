@@ -7,6 +7,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
+            .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
             .{ .name = "transit_fuze", .module = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize }).module("transit_fuze") },
             .{ .name = "transit_protocol", .module = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize }).module("transit_protocol") },
         },

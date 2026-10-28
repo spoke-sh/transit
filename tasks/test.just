@@ -204,6 +204,10 @@ sql-wire-gateway:
 sql-wire-encoding:
     zig build test-sql-wire-encoding -Doptimize=ReleaseSafe
 
+# Shared-client allocations across independent Unix, HTTP and TLS peers.
+sql-result-allocations:
+    zig build test-sql-result-allocations -Doptimize=ReleaseSafe
+
 sql-wire-placement profile:
     nix develop .#sql-wire --command zig build test-sql-wire-placement -Doptimize=ReleaseSafe -Dsql-wire-placement={{quote(profile)}}
 
@@ -316,6 +320,8 @@ station:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-memory && zig build test
+    cd packages/zig/transit-io && zig build test
     cd packages/zig/transit-config && zig build test
     cd packages/zig/transit-flight && zig build test
     cd packages/zig/transit-station-flight && zig build test

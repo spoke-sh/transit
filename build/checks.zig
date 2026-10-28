@@ -560,6 +560,8 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("test-http-transport", "Qualify single-send HTTP/TLS against independent peers").dependOn(&http_transport_test.step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_bindings.module("station_abi") })).step);
+    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") })).step);
+    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
     components_step.dependOn(&b.addRunArtifact(tests).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = telemetry.module("telemetry") })).step);
@@ -1572,10 +1574,31 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_postgres", .module = b.dependency("transit_postgres", .{ .target = target, .optimize = optimize }).module("transit_postgres") }, .{ .name = "transit_mysql", .module = b.dependency("transit_mysql", .{ .target = target, .optimize = optimize }).module("transit_mysql") } },
     }) });
+    sql_wire_encoding.root_module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
     build_test_step.dependOn(&sql_wire_encoding.step);
     const encoding_cost = b.addRunArtifact(sql_wire_encoding);
     encoding_cost.has_side_effects = true;
     b.step("test-sql-wire-encoding", "Measure framed row encoding separately from authority and transport").dependOn(&encoding_cost.step);
+    const allocation_client = b.addExecutable(.{ .name = "transit-sql-result-allocations", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/interfaces/sql/sql_result_allocations.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") },
+            .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
+            .{ .name = "transit_io", .module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") },
+        },
+    }) });
+    allocation_client.root_module.addCSourceFile(.{ .file = b.path("tests/interfaces/sql/allocation_probe.c"), .flags = &.{ "-std=c11", "-fno-builtin", "-Wall", "-Wextra", "-Werror" } });
+    build_test_step.dependOn(&allocation_client.step);
+    const allocation_test = b.addSystemCommand(&.{ "python3", "-B" });
+    allocation_test.addFileArg(b.path("tests/runner/launch.py"));
+    allocation_test.addFileArg(b.path("tests/interfaces/sql_sessions/allocations.py"));
+    allocation_test.addArtifactArg(allocation_client);
+    allocation_test.has_side_effects = true;
+    allocation_test.stdio = .inherit;
+    b.step("test-sql-result-allocations", "Enforce shared-client allocation bounds across transport replacement").dependOn(&allocation_test.step);
     const configuration_probe = b.addExecutable(.{ .name = "transit-configuration-probe", .root_module = b.createModule(.{
         .root_source_file = b.path("apps/transit-cli/ConfigurationProbe.zig"),
         .target = target,

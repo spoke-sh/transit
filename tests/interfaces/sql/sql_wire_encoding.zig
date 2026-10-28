@@ -2,6 +2,8 @@
 const std = @import("std");
 const pg = @import("transit_postgres");
 const my = @import("transit_mysql");
+const memory = @import("transit_memory");
+const Probe = memory.AllocationProbe;
 const rows = 10000;
 fn columns(comptime Column: type) [7]Column {
     var result: [7]Column = undefined;
@@ -80,6 +82,10 @@ fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values
         encode_ms: [5]f64 = undefined,
         decode_ms: [5]f64 = undefined,
         encode_allocations: [5]usize = undefined,
+        encode_backing: [5]Probe.Counts = undefined,
+        decode_backing: [5]Probe.Counts = undefined,
+        encode_reservations: [5]Probe.Counts = undefined,
+        decode_reservations: [5]Probe.Counts = undefined,
         decode_allocations: [5]usize = undefined,
         encoder_peak_bytes: [5]usize = undefined,
         decoder_peak_bytes: [5]usize = undefined,
@@ -88,14 +94,31 @@ fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values
     for ([_]usize{ 1, api.max_rows }, &samples) |maximum, *sample| {
         sample.* = .{ .batch_rows = maximum };
         for (0..6) |iteration| {
-            var encode_counter = std.testing.FailingAllocator.init(init.gpa, .{});
-            var decode_counter = std.testing.FailingAllocator.init(init.gpa, .{});
+            var encode_counter = Probe{ .parent = init.gpa };
+            var decode_counter = Probe{ .parent = init.gpa };
             var encode_memory: r.fuze.MemoryBudget = .{ .parent = encode_counter.allocator(), .limit = 16 * 1024 * 1024 };
             var decode_memory: r.fuze.MemoryBudget = .{ .parent = decode_counter.allocator(), .limit = 16 * 1024 * 1024 };
-            var encoded: std.heap.ArenaAllocator = .init(encode_memory.allocator());
+            var encode_workspace = try memory.Workspace.init(encode_memory.allocator(), api.max_message_bytes);
+            defer encode_workspace.deinit();
+            var frame_workspace = try memory.Workspace.init(encode_memory.allocator(), api.max_message_bytes);
+            defer frame_workspace.deinit();
+            var decode_workspace = try memory.Workspace.init(decode_memory.allocator(), 2 * api.max_message_bytes);
+            defer decode_workspace.deinit();
+            var encode_lease = try encode_workspace.acquire();
+            defer encode_lease.release(false) catch unreachable;
+            var decode_lease = try decode_workspace.acquire();
+            defer decode_lease.release(false) catch unreachable;
+            var encode_internal: Probe = .{ .parent = try encode_lease.allocator() };
+            var decode_internal: Probe = .{ .parent = try decode_lease.allocator() };
+            var encoded: std.heap.ArenaAllocator = .init(encode_internal.allocator());
             defer encoded.deinit();
-            var decoded: std.heap.ArenaAllocator = .init(decode_memory.allocator());
+            var decoded: std.heap.ArenaAllocator = .init(decode_internal.allocator());
             defer decoded.deinit();
+            // Finite admission precedes the measured interval. Every subsequent
+            // batch, including its first descriptor, must use these reserves.
+            encode_counter.begin(true);
+            decode_counter.begin(true);
+            var directory: [api.ResultFrame.max_columns][]const u8 = undefined;
             var cells: [api.max_rows][7]r.Types.Values.Cell = undefined;
             var views: [api.max_rows]r.Row = undefined;
             var offset: usize = 0;
@@ -112,8 +135,8 @@ fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values
                     view.* = row;
                 }
                 const encode_start = std.Io.Clock.awake.now(init.io);
-                const pages = try api.ResultColumns.encode(encode_memory.allocator(), encoded.allocator(), &fields, .fromRows(views[0..count]));
-                const frame = try api.ResultFrame.encode(encode_memory.allocator(), .{
+                const pages = try api.ResultColumns.encode(encode_internal.allocator(), encoded.allocator(), &fields, .fromRows(views[0..count]));
+                const frame = try api.ResultFrame.encodeInto(frame_workspace.buffer, .{
                     .instance = @splat(1),
                     .cursor = @splat(2),
                     .ordinal = batches,
@@ -126,12 +149,12 @@ fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values
                 });
                 encode_ns += @intCast(encode_start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds());
                 const decode_start = std.Io.Clock.awake.now(init.io);
-                const parsed = try api.ResultFrame.parseBorrowed(decoded.allocator(), frame);
+                const parsed = try api.ResultFrame.parseInto(decoded.allocator(), &directory, frame);
                 if (parsed.description) |description| {
                     const logical = try r.Types.decodeInto(decoded.allocator(), description.schema);
                     if (!std.mem.eql(u8, &try logical.fingerprint(), &schema_hash) or !std.mem.eql(u8, &try r.Observation.fingerprint(decoded.allocator(), description.observation), &observation_hash)) return error.InvalidResultIdentity;
                 }
-                const batch = try api.ResultColumns.decode(decode_memory.allocator(), decoded.allocator(), &fields, parsed.columns, parsed.rows);
+                const batch = try api.ResultColumns.decode(decode_internal.allocator(), decoded.allocator(), &fields, parsed.columns, parsed.rows);
                 decode_ns += @intCast(decode_start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds());
                 // Independent per-occurrence expectations, outside the timing.
                 // All scalar bytes must borrow the encoded frame, not a row matrix.
@@ -149,19 +172,29 @@ fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values
                 if (parsed.completion) |complete| if (complete.rows != rows) return error.InvalidResultCompletion;
                 bytes += frame.len;
                 peak_frame = @max(peak_frame, frame.len);
-                encode_memory.allocator().free(frame);
                 _ = decoded.reset(.free_all);
                 _ = encoded.reset(.free_all);
-                if (encode_memory.used != 0 or decode_memory.used != 0) return error.RetainedResultAllocation;
+                if (encode_internal.live_bytes != 0 or decode_internal.live_bytes != 0) return error.RetainedResultAllocation;
+                try encode_lease.reset();
+                try decode_lease.reset();
+                encode_internal.parent = try encode_lease.allocator();
+                decode_internal.parent = try decode_lease.allocator();
+                if (encode_memory.used != encode_workspace.buffer.len + frame_workspace.buffer.len or decode_memory.used != decode_workspace.buffer.len) return error.IncorrectReserveAccounting;
                 offset += count;
             }
             if (batches != (rows + maximum - 1) / maximum) return error.UnexpectedResultAmplification;
+            try encode_counter.verify();
+            try decode_counter.verify();
             if (iteration != 0) {
                 sample.encode_ms[iteration - 1] = @as(f64, @floatFromInt(encode_ns)) / 1e6;
                 sample.decode_ms[iteration - 1] = @as(f64, @floatFromInt(decode_ns)) / 1e6;
                 if (sample.framed_bytes != bytes) return error.UnstableEncodingSize;
-                sample.encode_allocations[iteration - 1] = encode_counter.alloc_index;
-                sample.decode_allocations[iteration - 1] = decode_counter.alloc_index;
+                sample.encode_allocations[iteration - 1] = encode_counter.counts.alloc_successes;
+                sample.decode_allocations[iteration - 1] = decode_counter.counts.alloc_successes;
+                sample.encode_backing[iteration - 1] = encode_counter.counts;
+                sample.decode_backing[iteration - 1] = decode_counter.counts;
+                sample.encode_reservations[iteration - 1] = encode_internal.counts;
+                sample.decode_reservations[iteration - 1] = decode_internal.counts;
                 sample.encoder_peak_bytes[iteration - 1] = encode_memory.peak;
                 sample.decoder_peak_bytes[iteration - 1] = decode_memory.peak;
             }
@@ -170,7 +203,7 @@ fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values
             sample.maximum_frame_bytes = peak_frame;
         }
     }
-    if (samples[0].batches <= samples[1].batches or samples[0].framed_bytes <= samples[1].framed_bytes or std.mem.min(usize, &samples[0].encode_allocations) <= std.mem.max(usize, &samples[1].encode_allocations)) return error.AmplificationControlNotDetected;
+    if (samples[0].batches <= samples[1].batches or samples[0].framed_bytes <= samples[1].framed_bytes) return error.AmplificationControlNotDetected;
     const output = try std.json.Stringify.valueAlloc(init.gpa, .{
         .profile = "native_result_encoding",
         .rows_per_sample = rows,
@@ -179,7 +212,7 @@ fn nativeResults(init: std.process.Init, values: [7]pg.gateway.fuze.Types.Values
         .repetitions = 5,
         .optimize = @tagName(@import("builtin").mode),
         .samples = samples,
-        .limits = "Actual TSR1/TCP1 encode/decode with independent scalar checks; one-row control versus full batches, initial schema/observation and verified terminal count. Counts allocator calls, not resize attempts. Encoder peak includes columns, scratch and frame; decoder peak excludes the borrowed input frame and stack/schema buffers. Each batch releases all accounted allocations. Timings exclude fixture generation and independent verification; include codec validation and initial metadata. No socket, service, query or storage work; no network throughput guarantee.",
+        .limits = "Actual TSR1/TCP1 encode/decode with independent scalar checks; one-row control versus full batches, initial schema/observation and verified terminal count. Backing alloc/growing-resize/remap attempts are forbidden after fixed admission; internal bounded reservations are reported separately. Encoder reserves 4 MiB columns/scratch plus 4 MiB frame; decoder reserves 8 MiB excluding borrowed frame and stack/schema buffers. Reset frees live contents while the entire reserve remains charged. Timings exclude fixture generation and independent verification; include codec validation and initial metadata. No socket, service, query, storage or OS-allocation claim; no network throughput guarantee.",
     }, .{});
     defer init.gpa.free(output);
     try std.Io.File.stdout().writeStreamingAll(init.io, output);

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "backing_budget": {"alloc_attempts": 0, "growing_resize_attempts": 0, "remap_attempts": 0},
+  "warmup": "Finite owner initialization and reservation, independent of retained row count; no new warmup per batch, retry or repeated statement.",
+  "limits": {"result_rows": 32, "canonical_batch_bytes": 1048576, "native_frame_bytes": 4194304, "client_resident_bytes_max": 16777216},
+  "profiles": [
+    {"id": "logical_batches", "owner": "packages/zig/transit-sql-results", "phase": "C", "gate": "pending", "cases": ["builder", "nested_values", "window_retention", "five_states", "alternating_sizes"]},
+    {"id": "binary_results", "owner": "packages/zig/transit-sql-protocol", "phase": "C", "gate": "pending", "cases": ["frame", "columns", "metadata", "validation", "malformed_frames"]},
+    {"id": "shared_sql_client", "owner": "packages/zig/transit-sql-client", "phase": "D", "gate": "pending", "cases": ["repeat_statements", "prepared_binds", "fetch_retry", "cancellation", "terminal", "eof"]},
+    {"id": "sql_transport", "owner": "packages/zig/transit-sql-client", "phase": "D", "gate": "pending", "cases": ["unix", "http", "tls", "idle_reconnect", "over_256_requests", "io_tasks"]},
+    {"id": "console", "owner": "apps/transit-cli", "phase": "D", "gate": "pending", "cases": ["formatting", "bounded_width_sampling", "slow_reader"]},
+    {"id": "sql_producer", "owner": "packages/zig/transit-sql", "phase": "E", "gate": "pending", "cases": ["read_batch", "cursor_replay", "source_page", "revocation", "control_reserve"]},
+    {"id": "sql_gateway", "owner": "apps/transit-sql-gateway", "phase": "E", "gate": "pending", "cases": ["request_scratch", "native", "postgres", "mysql", "tls", "credential_erasure"]},
+    {"id": "query_sources", "owner": "packages/zig/transit-fuze", "phase": "F", "gate": "pending", "cases": ["page_decode", "row_fallback", "arrow_retention", "source_and_authority_reads"]},
+    {"id": "storage_runtime", "owner": "packages/zig/transit-storage", "phase": "F", "gate": "pending", "cases": ["ingest", "wal", "memtable", "flush", "native_turn", "kv", "document", "recovery"]},
+    {"id": "cache_and_metering", "owner": "packages/zig/transit-storage", "phase": "G", "gate": "pending", "cases": ["new_keys", "eviction", "leases", "cpu_io", "pressure"]},
+    {"id": "strings_search", "owner": "packages/zig/transit-fuze", "phase": "H", "gate": "pending", "cases": ["collations", "padding", "hashing", "dictionary", "fsst", "bm25"]},
+    {"id": "compiled_execution", "owner": "packages/zig/transit-fuze", "phase": "I", "gate": "pending", "cases": ["fusion", "dense", "stencils", "aot", "code_cache"]},
+    {"id": "installed_os_allocations", "owner": "tests/performance", "phase": "J", "gate": "pending", "cases": ["all_backing_allocators", "direct_mappings", "worker_stacks", "tls", "allocator_bypass_negative_control"]}
+  ]
+}

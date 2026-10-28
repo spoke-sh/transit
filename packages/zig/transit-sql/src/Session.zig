@@ -442,7 +442,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     try self.validate(prepared);
     const read = try self.allocator.create(Read);
     errdefer self.allocator.destroy(read);
-    read.* = .{ .host = self, .value = undefined, .prepared = prepared, .builder = .init(self.allocator) };
+    read.* = .{ .host = self, .value = undefined, .prepared = prepared, .builder = try .init(self.allocator, self.config.limits.cycle_bytes) };
     errdefer read.builder.deinit();
     errdefer self.releasePins(read);
     switch (prepared.*) {
@@ -563,7 +563,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.WireValueOutOfRange => .{ "22003".*, "Value is out of range" },
         error.CatalogIdentityConflict, error.CatalogDefinitionChanged, error.TableDefinitionChanged => .{ "55000".*, "Prepared source changed; prepare again" },
         error.GatewayOwnerUnavailable, error.StaleGatewayCoordinator => .{ "55000".*, "Gateway owner is not ready; inspect admitted writes before retrying SQL" },
-        error.TooManyWireStatements, error.TooManyWirePortals, error.OutOfMemory, error.ResultRowTooLarge, error.SqlBatchTooLarge, error.InvalidResultBudget => .{ "54000".*, "Session capacity exceeded" },
+        error.TooManyWireStatements, error.TooManyWirePortals, error.OutOfMemory, error.ResultMemoryBudgetExceeded, error.ResultRowTooLarge, error.SqlBatchTooLarge, error.InvalidResultBudget => .{ "54000".*, "Session capacity exceeded" },
         error.CellTooLarge => .{ "54000".*, "Bound scalar exceeds the 4096-byte limit" },
         error.UnknownWireStatement, error.UnknownWirePortal => .{ "26000".*, "Unknown prepared statement or portal" },
         error.DuplicateWireStatement, error.DuplicateWirePortal => .{ "42P05".*, "Prepared name already exists" },

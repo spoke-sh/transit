@@ -1,0 +1,8 @@
+.{
+    .name = .transit_memory,
+    .version = "0.0.0",
+    .fingerprint = 0x2138bc995b76eff,
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{},
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

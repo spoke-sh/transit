@@ -295,6 +295,11 @@ pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column
         try PlainBuffers.encode(column.type, cells, &writer);
         return writer.buffered();
     }
+    // Recursive/wide plain values need no gathered temporary value array.
+    if (column.encoding == .plain) {
+        for (cells) |cell| if (cell == .value) try writeCanonicalValue(&writer, column.type, cell.value);
+        return writer.buffered();
+    }
     // 3. Collect `.value` cells for codec-specific encoding
     const values = try allocator.alloc(Values.Value, value_count);
     defer allocator.free(values);
@@ -305,9 +310,7 @@ pub fn encodeColumnPage(allocator: std.mem.Allocator, column: TableSchema.Column
     };
 
     switch (column.encoding) {
-        .plain => {
-            for (values) |val| try writeCanonicalValue(&writer, column.type, val);
-        },
+        .plain => unreachable,
         .bitpacked => try encodeBitpackedValues(&writer, column.type, values),
         .rle => try encodeRleValues(&writer, column.type, values),
         .dictionary => try encodeDictionaryValues(allocator, &writer, column.type, values),

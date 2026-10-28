@@ -37,7 +37,18 @@ fn localConfig(init: std.process.Init, allocator: std.mem.Allocator, diagnostic:
     defer record.deinit();
     return .{ .version = 1, .endpoint = try std.fmt.allocPrint(allocator, "unix:{s}", .{record.value.socket}), .account = try allocator.dupe(u8, record.value.account), .database = try allocator.dupe(u8, record.value.database), .instance = record.value.instance };
 }
-pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !void {
+pub fn run(original: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !void {
+    // Cancellation, settlement and the transport deadline nest at most six
+    // tasks. Two additional slots cover workers finishing already joined tasks.
+    const runtime = try @import("transit_io").Threaded.create(original.gpa, .{
+        .workers = 8,
+        .task_bytes = 1024 * 1024,
+        .environ = original.minimal.environ,
+        .argv0 = .init(original.minimal.args),
+    });
+    defer runtime.destroy();
+    var init = original;
+    init.io = runtime.io();
     diagnostic.style = @import("Style.zig").detect(init);
     var preferences = try Preferences.load(init, options, diagnostic);
     while (try connection(init, options, preferences, diagnostic)) |next| preferences = next;
@@ -87,7 +98,9 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     const terminal = options.sql == null and options.script == null and try std.Io.File.stdin().isTty(init.io) and try std.Io.File.stderr().isTty(init.io);
     var display: Console.Display = .{ .format = preferences.format orelse config.format };
-    var console: Console = .{ .init = init, .session = &display, .client = &client, .control = &control, .config = config, .password = if (password) |bytes| std.mem.trimEnd(u8, bytes, "\r\n") else null, .out = &output.interface, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic };
+    var render = try @import("Results.zig").Storage.init(init.gpa);
+    defer render.deinit();
+    var console: Console = .{ .init = init, .session = &display, .client = &client, .control = &control, .config = config, .password = if (password) |bytes| std.mem.trimEnd(u8, bytes, "\r\n") else null, .out = &output.interface, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic, .render = &render };
     if (options.sql) |sql| {
         if (isMeta(std.mem.trimStart(u8, sql, " \t\r\n"))) return diagnostic.invalidInvocation("-c requires a SQL statement");
         _ = try console.executeWithParameters(sql, parameters);
@@ -123,6 +136,7 @@ pub const Console = struct {
     batch: bool,
     preferences: Preferences,
     diagnostic: *Diagnostic,
+    render: *@import("Results.zig").Storage,
     next_connection: ?[]const u8 = null,
     had_error: bool = false,
     access_lost: bool = false,
@@ -160,8 +174,7 @@ pub const Console = struct {
         const failure = reply.result.err;
         self.diagnostic.envelope = failure.diagnostic;
         self.access_lost = std.mem.eql(u8, &failure.sqlstate, "42501") or std.mem.eql(u8, &failure.sqlstate, "28000");
-        const summary = try std.fmt.allocPrint(self.init.arena.allocator(), "SQL service: {s} ({s})", .{ failure.code, failure.sqlstate });
-        self.diagnostic.summary = summary;
+        self.diagnostic.sqlServiceSummary(failure.code, failure.sqlstate);
         self.diagnostic.next = null;
         return error.SqlServiceError;
     }
@@ -216,7 +229,7 @@ pub const Console = struct {
         return self.next_connection == null;
     }
     fn perform(self: *Console, text: []const u8, parameters: ?Input.Parameters) !void {
-        var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
+        var arena: std.heap.ArenaAllocator = .init(self.render.scratch.allocator());
         defer arena.deinit();
         const a = arena.allocator();
         if (try Input.commandPath(a, text)) |file| {
@@ -232,8 +245,8 @@ pub const Console = struct {
     fn poll(io: std.Io) !void {
         while (!Signals.interrupted()) try io.sleep(.fromMilliseconds(20), .awake);
     }
-    fn call(self: *Console, action: api.Action) !std.json.Parsed(api.Response) {
-        const Event = union(enum) { reply: anyerror!std.json.Parsed(api.Response), signal: anyerror!void };
+    fn call(self: *Console, action: api.Action) !sdk.Response {
+        const Event = union(enum) { reply: anyerror!sdk.Response, signal: anyerror!void };
         var events: [2]Event = undefined;
         var selection: std.Io.Select(Event) = .init(self.init.io, &events);
         defer while (selection.cancel()) |pending| switch (pending) {
@@ -306,7 +319,7 @@ pub const Console = struct {
             },
             .failure => |failure| {
                 self.diagnostic.envelope = failure.diagnostic;
-                self.diagnostic.summary = try std.fmt.allocPrint(self.init.arena.allocator(), "SQL service: {s} ({s})", .{ failure.code, failure.sqlstate });
+                self.diagnostic.sqlServiceSummary(failure.code, failure.sqlstate);
                 return error.SqlServiceError;
             },
         }
@@ -339,7 +352,7 @@ pub const Console = struct {
             self.diagnostic.next = "The rows already displayed are only a partial result.";
             if (self.session.format == .json) self.resultJson(.{ .complete_coverage = false, .displayed_rows = displayed, .completion = result.completion() }) catch {};
         }
-        var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
+        var arena: std.heap.ArenaAllocator = .init(self.render.scratch.allocator());
         defer arena.deinit();
         var table: ?@import("Results.zig").Table = null;
         defer if (table) |*value| value.deinit();
@@ -347,10 +360,10 @@ pub const Console = struct {
             try self.resultJson(.{ .profile = "sql_result_v1", .schema = q.fuze.LogicalJson.TypeEnvelope{ .definition = q.fuze.Types.definition, .type = result.schema }, .observation = result.observation, .complete_coverage = false });
         } else {
             timing.enter(.fetch);
-            const window = try sdk.results.Window.read(self.init.gpa, result, .{ .rows = @intCast(@min(32, limit)), .bytes = 256 * 1024 });
+            const window = try sdk.results.Window.readInto(&self.render.window, result, @intCast(@min(32, limit)));
             defer window.deinit();
             timing.enter(.render);
-            table = try @import("Results.zig").Table.init(self.init.gpa, result.schema, window.rows);
+            table = try @import("Results.zig").Table.init(self.render.scratch.allocator(), result.schema, window.rows);
             try table.?.begin(out);
             for (window.rows) |row| {
                 try table.?.write(out, row);

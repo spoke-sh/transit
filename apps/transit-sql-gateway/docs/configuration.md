@@ -97,6 +97,28 @@ are full. A cancelled command task is joined before freeing its host or buffers.
 Native terminal evidence, rather than a successful transport send, determines a
 write's result.
 
+Storage is reserved at service admission and reused across statements and
+connections. The registry reserves `limits.connections × limits.session_bytes`
+for logical sessions and one separate `limits.session_bytes` recovery slot.
+When a PostgreSQL or MySQL listener is configured, transport storage reserves
+`(limits.connections + 2) × limits.session_bytes`; the two cancellation slots
+remain independent of full data slots. Each native HTTP or Unix listener
+reserves eight 16 MiB request slots and four control slots, each containing
+16 MiB of request scratch plus `limits.session_bytes` of reusable control work.
+Frame, row, canonical-cell and session budgets retain their separate meanings.
+Freed temporary control objects return to their work reserve while request
+JSON and reply bytes remain alive.
+
+These capacities include allocator headers, alignment and retained slack inside
+each reserve; slot directories add their own accounted bytes. Capacity stays
+charged while idle. This is a backing-capacity bound, not a measurement of RSS.
+Account workers, source/authority clients, I/O tasks, stacks and OpenSSL own
+additional storage. Exhaustion has no general-heap fallback in these result
+reserves. Connection/request tasks join before reuse, and reassigned storage is
+erased so another account cannot inherit payloads or credentials. Retained
+cursor output outlives request buffers and sockets; retries preserve its ordinal
+and still require fresh disclosure authorization.
+
 Native HTTP capacity refusal maps to PostgreSQL SQLSTATE `53000`, or MySQL error
 1041 with SQLSTATE `HY000`. Bounded metadata acquisition can retry that explicit
 refusal within the command deadline. A failed query iterator is never restarted

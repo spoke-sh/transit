@@ -6,11 +6,37 @@ const g = @import("transit_sql");
 const api = g.session_protocol;
 const http = @import("transit_http_server");
 const tls = @import("transit_tls_server");
+const memory = @import("transit_memory");
 const Self = @This();
 registry: *g.Registry,
 tls_context: ?*const tls.Context,
 local: bool,
 loopback: bool,
+storage: *RequestStorage = undefined,
+pub const RequestStorage = struct {
+    pub const request_bytes = 16 * 1024 * 1024;
+    pub const data_slots = 8;
+    pub const control_slots = 4;
+    data: memory.Pool,
+    control: memory.Pool,
+    control_bytes: usize,
+    pub fn init(allocator: std.mem.Allocator, session_bytes: usize) !RequestStorage {
+        const control_bytes = try std.math.add(usize, request_bytes, session_bytes);
+        var data = try memory.Pool.init(allocator, &@as([data_slots]usize, @splat(request_bytes)));
+        errdefer data.deinit();
+        return .{ .data = data, .control = try .init(allocator, &@as([control_slots]usize, @splat(control_bytes))), .control_bytes = control_bytes };
+    }
+    pub fn deinit(self: *RequestStorage) void {
+        self.control.deinit();
+        self.data.deinit();
+    }
+    pub fn acquire(self: *RequestStorage, control: bool) !memory.Pool.Lease {
+        return if (control) self.control.acquire(self.control_bytes) else self.data.acquire(request_bytes);
+    }
+    pub fn reservedBytes(self: *const RequestStorage) usize {
+        return self.data.reservedBytes() + self.control.reservedBytes();
+    }
+};
 pub const Connection = struct {
     transport: tls.Transport,
     secure: ?tls.Session = null,
@@ -79,9 +105,19 @@ pub fn isControl(_: *Self, request: *std.http.Server.Request) bool {
     return std.mem.eql(u8, request.head.target, api.control_path);
 }
 pub fn connectionError(_: *Self, _: anyerror, _: bool) void {}
-pub fn handleConnection(self: *Self, _: std.Io, allocator: std.mem.Allocator, connection: *Connection, request: *std.http.Server.Request) !void {
-    var memory: g.query.QueryMemory = .{ .parent = allocator, .limit = 16 * 1024 * 1024 };
-    var arena: std.heap.ArenaAllocator = .init(memory.allocator());
+pub fn handleConnection(self: *Self, _: std.Io, _: std.mem.Allocator, connection: *Connection, request: *std.http.Server.Request) !void {
+    const lease = try self.storage.acquire(isControl(self, request));
+    defer lease.release(true) catch unreachable;
+    // Control execution frees and reuses temporary objects independently of the
+    // request arena. Neither domain can consume the other's configured budget.
+    const backing = lease.value.owner.buffer;
+    var scratch = memory.Workspace.fromBuffer(backing[0..RequestStorage.request_bytes]);
+    const scratch_lease = try scratch.acquire();
+    defer scratch_lease.release(false) catch unreachable;
+    var working: ?memory.Slab = if (isControl(self, request)) try .fromBuffer(@alignCast(backing[RequestStorage.request_bytes..])) else null;
+    defer if (working) |*slab| slab.deinit();
+    var budget: g.query.QueryMemory = .{ .parent = try scratch_lease.allocator(), .limit = RequestStorage.request_bytes };
+    var arena: std.heap.ArenaAllocator = .init(budget.allocator());
     defer arena.deinit();
     const a = arena.allocator();
     if (request.head.method != .POST or (!std.mem.eql(u8, request.head.target, api.data_path) and !isControl(self, request))) return http.respond(request, .not_found, "{\"err\":\"UnknownSqlRoute\"}");
@@ -92,7 +128,7 @@ pub fn handleConnection(self: *Self, _: std.Io, allocator: std.mem.Allocator, co
     const parsed = api.parse(api.Request, a, body) catch |err| return respond(request, try self.registry.failure(a, err));
     defer parsed.deinit();
     if (parsed.value.control() != control) return respond(request, try self.registry.failure(a, error.InvalidSqlLane));
-    const response = self.registry.request(a, parsed.value, connection.peer) catch |err| try self.registry.failure(a, err);
+    const response = self.registry.request(a, if (working) |*slab| slab.allocator() else a, parsed.value, connection.peer) catch |err| try self.registry.failure(a, err);
     try respond(request, response);
 }
 fn respond(request: *std.http.Server.Request, body: []const u8) !void {
@@ -100,5 +136,48 @@ fn respond(request: *std.http.Server.Request, body: []const u8) !void {
     try request.respond(body, .{ .keep_alive = request.head.keep_alive, .extra_headers = &.{ .{ .name = "content-type", .value = content_type }, .{ .name = "cache-control", .value = "no-store" }, .{ .name = "x-content-type-options", .value = "nosniff" } } });
 }
 pub fn serve(self: *Self, io: std.Io, allocator: std.mem.Allocator, listener: *std.Io.net.Server) !void {
-    return http.serve(io, allocator, listener, .{ .connections = 16, .requests = 8, .control_requests = 4, .header_timeout_ms = 1000, .request_timeout_ms = self.registry.configuration.limits.command_ms + 1000, .requests_per_connection = 256 }, self);
+    var storage = try RequestStorage.init(allocator, self.registry.configuration.limits.session_bytes);
+    defer storage.deinit();
+    self.storage = &storage;
+    // HTTP teardown joins every request before returning the reserved bytes.
+    return http.serve(io, allocator, listener, .{ .connections = 16, .requests = RequestStorage.data_slots, .control_requests = RequestStorage.control_slots, .header_timeout_ms = 1000, .request_timeout_ms = self.registry.configuration.limits.command_ms + 1000, .requests_per_connection = 256 }, self);
+}
+
+test "full native data slots leave separate erased control capacity available" {
+    const t = std.testing;
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    var storage = try RequestStorage.init(probe.allocator(), 4096);
+    defer storage.deinit();
+    try t.expectEqual(storage.reservedBytes(), probe.live_bytes);
+    var leases: [RequestStorage.data_slots]memory.Pool.Lease = undefined;
+    var acquired: usize = 0;
+    defer for (leases[0..acquired]) |lease| lease.release(true) catch unreachable;
+    probe.begin(true);
+    for (&leases) |*lease| {
+        lease.* = try storage.acquire(false);
+        acquired += 1;
+        _ = try (try lease.allocator()).dupe(u8, "account payload");
+    }
+    try t.expectError(error.MemoryPoolExhausted, storage.acquire(false));
+    const control = try storage.acquire(true);
+    {
+        var scratch = memory.Workspace.fromBuffer(control.value.owner.buffer[0..RequestStorage.request_bytes]);
+        const scratch_lease = try scratch.acquire();
+        defer scratch_lease.release(false) catch unreachable;
+        const payload = try (try scratch_lease.allocator()).dupe(u8, "cancellation request");
+        var working = try memory.Slab.fromBuffer(@alignCast(control.value.owner.buffer[RequestStorage.request_bytes..]));
+        defer working.deinit();
+        const a = working.allocator();
+        for (0..100) |_| {
+            const temporary = try a.alloc(u8, working.buffer.len - memory.Slab.granule);
+            @memset(temporary, 0xa5);
+            a.free(temporary);
+            try t.expectEqualStrings("cancellation request", payload);
+        }
+    }
+    try control.release(true);
+    const next = try storage.acquire(true);
+    defer next.release(true) catch unreachable;
+    try t.expect(std.mem.allEqual(u8, next.value.owner.buffer, 0));
+    try probe.verify();
 }

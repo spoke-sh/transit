@@ -119,12 +119,35 @@ repeated aliases of one Table share a pin. Parameterized relational SQL is exclu
 checks independently of a database wire protocol. The supervised SQL application
 creates sessions over each account’s shared `AccountRuntime`. PostgreSQL and
 MySQL retain their protocol admission and scalar encoding rules in their adapters.
+
+`Registry` reserves `limits.session_bytes` for each admitted connection slot and
+one independent recovery reserve at initialization. Session objects, prepared
+statements, reads and retained batches reuse those slabs across session lifetimes;
+slab headers, alignment and fragmentation consume their capacity. Idle capacity
+stays charged. A slot cannot be reassigned until its borrowers and controls have
+joined, its objects are freed and its bytes erased. `reservedBytes` reports this
+backing plus the slot directory, separately from account runtimes, sources,
+listener/request storage and worker stacks. Native controls allocate temporary
+execution objects from their request owner's separate reusable work reserve;
+request JSON and reply bytes have their own scratch budget. Neither pressure nor socket cleanup expires
+accepted operations or creates result completion.
+
+Once a logical batch has been encoded into retained cursor storage, failure to
+encode a request's response leaves that batch and ordinal intact. A repeated
+fetch checks current disclosure rights again. Failure while constructing the
+logical batch still closes the result as incomplete; it cannot restart a read.
+
 `Read.nextBatch` owns up to 32 logical rows and 1 MiB of canonical cell bytes,
 independently of direct Table/Arrow page sizes. It fills across source pulls,
 copies nested values before scratch reuse, retains a row that does not fit the
 remaining byte budget and rejects a row that cannot fit an empty batch. Current
 rights are checked after buffering. Exhaustion can accompany data or a subsequent
 empty terminal batch; neither creates another result.
+Each read reserves `limits.cycle_bytes` of aligned row representation storage
+within `limits.session_bytes`. This retained capacity includes nested-cell
+metadata and remains charged between batches. Representation exhaustion reports
+session capacity exceeded without advancing the row; canonical byte and row
+limits remain independent. The reserve is released when the read closes.
 Settings preparation and page reads use the settings transport's own rejection
 when deciding bounded recovery and reporting SQL errors. Transient page failures
 resume the retained continuation, including private ordered rows; current denial

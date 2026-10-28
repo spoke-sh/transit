@@ -69,6 +69,8 @@ imports, options and extra compilation dependencies.
 | `transit-sql` | `src/root.zig` | — | Session, account and accepted-operation recovery semantics |
 | `transit-sql-client` | `src/root.zig` | — | Endpoint validation, actual rendezvous files, Unix sockets and ownership refusal |
 | `transit-sql-results` | `src/root.zig` | — | Transport-independent result progress, observations and owned logical copies |
+| `transit-memory` | `src/root.zig` | — | Backing-allocation counters and negative controls for post-warmup allocation attempts |
+| `transit-io` | `src/root.zig` | — | Bounded task records, warmed worker reuse and cancellation |
 | `transit-sql-protocol` | `src/root.zig` | — | Session messages, logical cells and authentication |
 | `transit-station` | `src/root.zig` | Same module | Application turns, mailbox contracts and saved continuation |
 | `transit-station-app` | `src/root.zig` | Same module | Definitions and recoverable application publication |

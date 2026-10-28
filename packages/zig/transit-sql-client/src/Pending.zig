@@ -100,7 +100,7 @@ fn run(self: *Self, original: *Client, config: Client.Config, password: ?[]const
                     self.session_lost = true;
                     var pinned = config;
                     pinned.instance = original.instance;
-                    observer.* = try Client.init(original.allocator, original.io, pinned);
+                    observer.* = try original.observationClient(pinned);
                     client = &observer.*.?;
                     try client.open(pinned, password);
                     if (!std.mem.eql(u8, &self.account, &client.account.?)) return error.SqlObservationDenied;

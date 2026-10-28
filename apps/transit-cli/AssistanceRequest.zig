@@ -5,7 +5,7 @@ const sdk = @import("transit_sql_client");
 const api = sdk.protocol;
 const q = @import("transit_query");
 const Self = @This();
-const Reply = std.json.Parsed(api.Response);
+const Reply = sdk.Response;
 client: *sdk.Client,
 io: std.Io,
 future: ?std.Io.Future(anyerror!Reply) = null,

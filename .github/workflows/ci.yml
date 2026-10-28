@@ -179,6 +179,7 @@ jobs:
           path: |
             .cache/ci/*.json
             .cache/ci/runs/
+            .cache/allocations/runs/
             .cache/checks/*.json
             .cache/checks/runs/
             .cache/checks/phases/

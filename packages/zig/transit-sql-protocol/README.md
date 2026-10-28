@@ -12,6 +12,15 @@ Fuze's plain column codec: common scalar values borrow Arrow-compatible buffers;
 other types retain canonical logical cells and borrow variable payloads. The full
 five-state cell meaning remains available. The body owner must outlive its columns.
 
+`ResultFrame.encodeInto` writes to caller-owned 64-byte-aligned capacity, including
+initial metadata and zero padding. `encodedSize` checks the exact required bytes
+without allocating; `encode` provides the explicit owned-allocation variant.
+`parseInto` uses a caller-owned column directory and supplied initial-metadata
+allocator. The directory, metadata and immutable input must outlive every frame
+view. Columns retain their own typed validation; framing alone does not admit
+values. `ResultColumns` accepts separate scratch/output allocators, which can
+borrow fixed workspace leases. Reset those only after every view has ended.
+
 `Codec` carries prepared descriptors and standalone parameters in JSON control
 messages. Parameter encoding sizes the canonical value first, then writes and
 expands hex in one exact-size allocation. Result payloads use binary framing.

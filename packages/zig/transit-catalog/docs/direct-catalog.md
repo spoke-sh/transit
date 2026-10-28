@@ -242,6 +242,9 @@ defines the initialization evidence and separate cleanup/lifetime boundaries.
 
 `DirectTableProtocol.Ddl.digest` computes the same canonical intent digest used
 by admission; decoded child values belong to the supplied request arena.
+Hashing an already decoded DDL intent streams canonical JSON through a 1 KiB
+stack buffer, preserving the domain prefix and byte limit without reserving the
+maximum log payload size. Intent decoding and execution retain their own budgets.
 `DirectTableReader.open` inspects an existing durable pin and owns its original
 schema. Keep the pin handle separately while opening: a failed inspection does
 not release the pin. `next` checks every page against the exact retained

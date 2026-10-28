@@ -238,6 +238,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     // and the local executable. Process isolation and acceptance owners stay
     // unchanged; `transit` dispatches only the selected private role at startup.
     transit_cli.root_module.addImport("transit_node_role", node_artifact.root_module);
+    transit_cli.root_module.addImport("transit_io", b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io"));
     transit_cli.root_module.addImport("transit_query_host_role", query_host.root_module);
     transit_cli.root_module.addImport("transit_board_role", board.root_module);
     transit_cli.root_module.addImport("transit_sql_gateway_role", sql_gateway_app.root_module);

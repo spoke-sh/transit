@@ -94,7 +94,7 @@ combines that evidence at one revision.
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
 | 10 | [Managed computations and WAL-activated dataflows](10-sql-and-dataflows.md) | Planned | Complete analytical SQL (window functions, CTEs, universal `D-Join` subquery unnesting, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress and WAL-driven managed computations |
-| 11 | [Data structures, query optimization and runtime performance](11-data-structures-and-performance.md) | Planned | Zero-steady-state-allocation hot paths, per-morsel CPU/memory/IOPS metering, LeanStore/Umbra swizzled zero-copy buffer slabs, CedarDB directory-tagged join hash tables & WCOJ, statistics/costing, partitioning/clustering, LSM/`.tseg` compaction bounds and workload scorecards |
+| 11 | [Data structures, query optimization and runtime performance](11-data-structures-and-performance.md) | In Progress | Zero-steady-state-allocation hot paths, per-morsel CPU/memory/IOPS metering, LeanStore/Umbra swizzled zero-copy buffer slabs, CedarDB directory-tagged join hash tables & WCOJ, statistics/costing, partitioning/clustering, LSM/`.tseg` compaction bounds and workload scorecards |
 | 12 | [First-class strings, perfect hashing and vectorized search execution](12-vectorized-strings-and-search.md) | Planned | 16-byte collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD comparisons and vectorized 256-doc Block-Max BM25 / hybrid search |
 | 13 | [Data-centric pipeline fusion, AOT query compilation and adaptive specialization](13-data-centric-compilation-and-specialization.md) | Planned | HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up, `transit-app` AOT Zig query/view compilation and HyPer/Umbra/CedarDB benchmark baselines |
 | 14 | [Multi-model and multi-format foreign relations](14-multi-model-and-foreign-relations.md) | Planned | Document/graph projections (with WCOJ cyclic pattern matching), multi-model BM25/vector search composition, foreign formats, streaming CDC ingress and typed COPY/import/export |
@@ -139,6 +139,10 @@ combines that evidence at one revision.
 Performance measurement and amplification work remains tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76), alongside the reopened
 milestone trackers above.
+The [allocation-guidance implementation plan](11-data-structures-and-performance.md#implementation-plan-for-issue-194)
+tracks [issue #194](https://github.com/spoke-sh/transit/issues/194), starting with
+reusable result delivery and extending zero allocations after warmup through
+storage, query execution, strings/search and compilation in milestones 11–13.
 Standards, multi-model and branching work is tracked in
 [issue #31](https://github.com/spoke-sh/transit/issues/31).
 

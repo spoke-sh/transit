@@ -131,6 +131,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::sql-gateway` | Exercise signed gateway controls and direct Table outcome recovery through local durable owners; included in interfaces CI |
 | `just test::sql-wire-gateway` | Exercise the real TLS gateway with pinned PostgreSQL/MySQL CLI, C and Python clients, signed controls, socket faults and fenced restart; included in interfaces CI |
 | `just test::sql-wire-encoding` | Measure scalar validation and framed-row construction separately from TLS/native/storage work; also runs before the gateway proof |
+| `just test::sql-result-allocations` | Enforce warmed shared-client and I/O allocation bounds against independent Unix, HTTP and TLS peers, including retries and connection replacement |
 | `just test::flight` | Qualify native TLS Flight SQL through pinned PyArrow and ADBC Python/C consumers |
 | `just test::flight-outbound` | Record a TLS Flight effect through the RPC worker and replay typed Arrow after node/store loss with the peer stopped |
 | `just test::unified-query` | Run signed v1 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |

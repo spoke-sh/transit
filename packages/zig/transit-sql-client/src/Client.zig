@@ -2,7 +2,10 @@
 //! session remains bound to the observed instance across transport replacement.
 const std = @import("std");
 const api = @import("root.zig").protocol;
+pub const Response = @import("Response.zig");
+const Storage = @import("Storage.zig");
 const Self = @This();
+storage: *Storage,
 allocator: std.mem.Allocator,
 io: std.Io,
 http: std.http.Client,
@@ -31,6 +34,15 @@ pub const Config = struct {
     request_timeout_ms: u32 = 30000,
 };
 pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config) !Self {
+    return initStorage(allocator, io, config, null);
+}
+/// A separate authenticated observation session shares the bounded reserve.
+/// It cannot replace an active result's session or extend the settlement budget.
+pub fn observationClient(self: *Self, config: Config) !Self {
+    if (!std.mem.eql(u8, std.mem.trimEnd(u8, config.endpoint, "/"), self.endpoint)) return error.InvalidSqlEndpoint;
+    return initStorage(self.allocator, self.io, config, self.storage);
+}
+fn initStorage(allocator: std.mem.Allocator, io: std.Io, config: Config, existing: ?*Storage) !Self {
     if (config.version != 1 or config.request_timeout_ms == 0 or config.request_timeout_ms > 270000) return error.InvalidSqlClientConfiguration;
     if (std.mem.startsWith(u8, config.endpoint, "unix:")) {
         if (!std.fs.path.isAbsolute(config.endpoint[5..]) or config.authentication != .peer or config.ca_file != null or config.password_file != null) return error.InvalidSqlEndpoint;
@@ -47,11 +59,14 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config) !Self {
             if (config.authentication != .trust or config.ca_file != null or config.password_file != null or !(std.mem.eql(u8, host, "127.0.0.1") or std.mem.eql(u8, host, "[::1]"))) return error.InvalidSqlEndpoint;
         } else if (!std.mem.eql(u8, uri.scheme, "https") or config.authentication == .peer) return error.InvalidSqlEndpoint;
     }
-    var self: Self = .{ .allocator = allocator, .io = io, .http = .{ .allocator = allocator, .io = io, .connection_pool = .{ .free_size = 1 } }, .endpoint = std.mem.trimEnd(u8, config.endpoint, "/"), .timeout_ms = config.request_timeout_ms, .instance = config.instance };
+    const storage = if (existing) |storage| try storage.retain() else try Storage.create(allocator, config.endpoint);
+    errdefer storage.destroy();
+    const transport = storage.transport.allocator();
+    var self: Self = .{ .storage = storage, .allocator = storage.data.allocator(), .io = io, .http = .{ .allocator = transport, .io = io, .connection_pool = .{ .free_size = 1 } }, .endpoint = std.mem.trimEnd(u8, config.endpoint, "/"), .timeout_ms = config.request_timeout_ms, .instance = config.instance };
     errdefer self.http.deinit();
     if (config.ca_file) |file| {
         const now = std.Io.Clock.real.now(io);
-        try self.http.ca_bundle.addCertsFromFilePathAbsolute(allocator, io, now, file);
+        try self.http.ca_bundle.addCertsFromFilePathAbsolute(transport, io, now, file);
         self.http.now = now;
     }
     return self;
@@ -59,6 +74,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: Config) !Self {
 pub fn deinit(self: *Self) void {
     if (self.unix) |stream| stream.close(self.io);
     self.http.deinit();
+    self.storage.destroy();
     std.crypto.secureZero(u8, std.mem.asBytes(self));
 }
 pub fn open(self: *Self, config: Config, password: ?[]const u8) !void {
@@ -96,11 +112,11 @@ pub fn open(self: *Self, config: Config, password: ?[]const u8) !void {
 }
 /// No request is automatically replayed, including after a pooled socket dies.
 /// Mutation uncertainty remains attached to the caller's original token.
-pub fn call(self: *Self, action: api.Action) !std.json.Parsed(api.Response) {
+pub fn call(self: *Self, action: api.Action) !Response {
     return self.callAllocated(action, self.allocator);
 }
 /// Responses and transient message storage use the caller's bounded allocator.
-pub fn callAllocated(self: *Self, action: api.Action, allocator: std.mem.Allocator) !std.json.Parsed(api.Response) {
+pub fn callAllocated(self: *Self, action: api.Action, allocator: std.mem.Allocator) !Response {
     // The host gives idle HTTP headers one second. Replace a quiescent
     // transport before dispatch, without replaying any request or new session.
     if (self.last_call) |last| if (last.durationTo(std.Io.Clock.awake.now(self.io)).toMilliseconds() >= 500) {
@@ -116,24 +132,20 @@ pub fn callAllocated(self: *Self, action: api.Action, allocator: std.mem.Allocat
     errdefer self.last_call = .{ .nanoseconds = 0 };
     const input: api.Request = .{ .version = 1, .definition = api.native.current_definition, .instance = self.instance, .session = self.session, .action = action };
     try input.validate();
+    const lease = try self.storage.acquireResponse(allocator);
+    errdefer lease.release() catch unreachable;
     const body = try api.Json.valueAlloc(allocator, input);
     defer {
         std.crypto.secureZero(u8, body);
         allocator.free(body);
     }
     if (body.len > api.max_message_bytes) return error.SqlMessageTooLarge;
-    const arena = try allocator.create(std.heap.ArenaAllocator);
-    arena.* = .init(allocator);
-    errdefer {
-        arena.deinit();
-        allocator.destroy(arena);
-    }
     const Result = union(enum) { result: anyerror!Body, timeout: anyerror!void };
     var results: [2]Result = undefined;
     var selected: std.Io.Select(Result) = .init(self.io, &results);
     defer selected.cancelDiscard();
     try selected.concurrent(.timeout, sleep, .{ self.io, self.timeout_ms });
-    try selected.concurrent(.result, perform, .{ self, if (input.control()) api.control_path else api.data_path, body, arena.allocator() });
+    try selected.concurrent(.result, perform, .{ self, if (input.control()) api.control_path else api.data_path, body, try lease.allocator() });
     const received = switch (try selected.await()) {
         .result => |result| try result,
         .timeout => |result| {
@@ -143,7 +155,7 @@ pub fn callAllocated(self: *Self, action: api.Action, allocator: std.mem.Allocat
     };
     selected.cancelDiscard();
     self.last_call = std.Io.Clock.awake.now(self.io);
-    const response: std.json.Parsed(api.Response) = .{ .arena = arena, .value = try api.decodeResponse(arena.allocator(), received.bytes, received.binary) };
+    const response = try lease.decode(received.bytes, received.binary);
     if (self.instance) |instance| {
         if (!std.mem.eql(u8, &instance, &response.value.instance)) return error.SqlInstanceChanged;
     } else if (action == .hello) self.instance = response.value.instance else return error.SqlInstanceRequired;
@@ -162,9 +174,8 @@ fn responseBody(allocator: std.mem.Allocator, head: std.http.Client.Response.Hea
 }
 fn perform(self: *Self, path: []const u8, body: []const u8, allocator: std.mem.Allocator) anyerror!Body {
     if (std.mem.startsWith(u8, self.endpoint, "unix:")) return self.local(path, body, allocator);
-    const url = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ self.endpoint, path });
-    defer self.allocator.free(url);
-    var request = try self.http.request(.POST, try std.Uri.parse(url), .{ .headers = .{ .content_type = .{ .override = "application/json" }, .accept_encoding = .{ .override = "identity" } }, .redirect_behavior = .not_allowed, .keep_alive = true });
+    const target = self.storage.targets[@intFromBool(std.mem.eql(u8, path, api.control_path))];
+    var request = try self.http.request(.POST, target, .{ .headers = .{ .content_type = .{ .override = "application/json" }, .accept_encoding = .{ .override = "identity" } }, .redirect_behavior = .not_allowed, .keep_alive = true });
     defer request.deinit();
     request.transfer_encoding = .{ .content_length = body.len };
     var writer = try request.sendBodyUnflushed(&.{});
@@ -215,6 +226,24 @@ test "native SQL endpoints reject unsafe trust and credential-bearing URLs" {
     const t = std.testing;
     for ([_][]const u8{ "http://example.com:1", "http://user:password@127.0.0.1:1", "http://127.0.0.1:1/redirect", "https://localhost:443?token=secret" }) |endpoint| try t.expectError(error.InvalidSqlEndpoint, init(t.allocator, t.io, .{ .endpoint = endpoint, .authentication = .trust }));
     try t.expectError(error.InvalidSqlEndpoint, init(t.allocator, t.io, .{ .endpoint = "unix:relative" }));
+}
+
+test "observation clients reuse admission without another backing reserve" {
+    const t = std.testing;
+    var probe: @import("transit_memory").AllocationProbe = .{ .parent = t.allocator };
+    const config: Config = .{ .endpoint = "http://127.0.0.1:1", .authentication = .trust };
+    var client = try init(probe.allocator(), t.io, config);
+    defer client.deinit();
+    probe.begin(true);
+    for (0..100) |_| {
+        var observer = try client.observationClient(config);
+        try t.expect(observer.storage == client.storage);
+        try t.expectEqual(2, client.storage.references);
+        observer.deinit();
+        try t.expectEqual(1, client.storage.references);
+    }
+    try probe.verify();
+    try t.expectEqual(client.storage.reservedBytes(), probe.live_bytes);
 }
 
 test "HTTP result reception sizes aligned ownership to the declared bounded body" {

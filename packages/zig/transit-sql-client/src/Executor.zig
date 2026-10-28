@@ -67,6 +67,9 @@ pub fn execute(self: *Self, sql: []const u8, parameters: ?[]const r.fuze.Logical
     var pending = sdk.Pending.init(self.control, token);
     self.enter(.submit);
     const response = self.call(.{ .execute = .{ .sql = sql, .parameters = values, .token = token, .captured = options.captured } }, out.memory.allocator()) catch |err| {
+        // Slot refusal precedes dispatch. It cannot create an accepted attempt
+        // requiring settlement; other failures may follow a successful send.
+        if (err == error.SqlResponseCapacity or err == error.SqlResponseBusy) return err;
         out.value = try self.settle(&pending, err == error.ResultCancelled);
         return out;
     };
@@ -158,9 +161,9 @@ fn acknowledge(self: *Self) bool {
     cancellation.acknowledge(cancellation.context);
     return terminating;
 }
-pub fn call(self: *Self, action: api.Action, allocator: std.mem.Allocator) !std.json.Parsed(api.Response) {
+pub fn call(self: *Self, action: api.Action, allocator: std.mem.Allocator) !sdk.Response {
     if (self.cancellation == null) return self.client.callAllocated(action, allocator);
-    const Event = union(enum) { reply: anyerror!std.json.Parsed(api.Response), signal: anyerror!void };
+    const Event = union(enum) { reply: anyerror!sdk.Response, signal: anyerror!void };
     var events: [2]Event = undefined;
     var selection: std.Io.Select(Event) = .init(self.client.io, &events);
     defer while (selection.cancel()) |pending| switch (pending) {

@@ -178,6 +178,7 @@
                 kubectl-ate
                 kubectl-transit
               ]
+              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.strace ]
               ++ pkgs.lib.optionals (system == "x86_64-linux") [ toolchains.${system}.minio ];
 
               # Keep tool state and the default Kubernetes context checkout-local.

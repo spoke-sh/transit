@@ -2,6 +2,69 @@
 const std = @import("std");
 const q = @import("transit_query");
 const m = q.fuze.Unified;
+/// One console connection retains bounded formatting storage across statements.
+/// Window copies have an independent lease; per-row formatting never owns them.
+pub const Storage = struct {
+    pub const formatting_bytes = 16 * 1024 * 1024;
+    pub const window_bytes = 256 * 1024;
+    scratch: q.fuze.memory.Slab,
+    window: q.fuze.memory.Workspace,
+    pub fn init(allocator: std.mem.Allocator) !Storage {
+        var scratch = try q.fuze.memory.Slab.init(allocator, formatting_bytes);
+        errdefer scratch.deinit();
+        return .{ .scratch = scratch, .window = try .init(allocator, window_bytes) };
+    }
+    pub fn deinit(self: *Storage) void {
+        self.window.deinit();
+        self.scratch.deinit();
+    }
+    pub fn reservedBytes(_: *const Storage) usize {
+        return @sizeOf(Storage) + formatting_bytes + window_bytes;
+    }
+};
+test "console formatting reuses accounted reserves across schemas and statements" {
+    const t = std.testing;
+    var probe: q.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
+    var storage = try Storage.init(probe.allocator());
+    defer storage.deinit();
+    const a = storage.scratch.allocator();
+    const fields = [_]q.fuze.Types.Field{
+        .{ .name = "number", .type = .uint128 },
+        .{ .name = "text", .type = .utf8, .nullable = true, .optional = true },
+    };
+    var payload: [24000]u8 = undefined;
+    @memset(&payload, 27);
+    probe.begin(true);
+    for (0..300) |iteration| {
+        const cells = [_]q.fuze.Types.Values.Cell{
+            .{ .value = .{ .atom = .{ .unsigned = iteration } } },
+            switch (iteration % 4) {
+                0 => .null,
+                1 => .missing,
+                2 => .{ .type_error = .uint128 },
+                else => .{ .value = .{ .atom = .{ .bytes = &payload } } },
+            },
+        };
+        const count = 1 + iteration % 2;
+        const schema: q.fuze.Types.Type = .{ .structure = fields[0..count] };
+        var text: [4096]u8 = undefined;
+        var out: std.Io.Writer = .fixed(&text);
+        var display = try Table.init(a, schema, &.{cells[0..count]});
+        try display.begin(&out);
+        try display.write(&out, cells[0..count]);
+        try display.end(&out);
+        try t.expect(std.mem.indexOfScalar(u8, out.buffered(), 27) == null);
+        if (iteration % 4 == 3) try t.expect(std.mem.indexOf(u8, out.buffered(), "...") != null);
+        display.deinit();
+        var arena: std.heap.ArenaAllocator = .init(a);
+        defer arena.deinit();
+        var discard: std.Io.Writer.Discarding = .init(&text);
+        try logicalRow(arena.allocator(), &discard.writer, schema, cells[0..count]);
+    }
+    try probe.verify();
+    try t.expectEqual(Storage.formatting_bytes + Storage.window_bytes, probe.live_bytes);
+    try t.expectEqual(0, storage.scratch.live_bytes);
+}
 /// One verified logical output row. Projection can repeat source cells; escaped
 /// JSON size is not the storage row size or an implicit result byte budget.
 pub fn logicalRow(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: q.fuze.Types.Type, cells: []const q.fuze.Types.Values.Cell) !void {

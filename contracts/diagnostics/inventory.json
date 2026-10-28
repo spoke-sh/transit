@@ -281,6 +281,7 @@
         "Timing.zig",
         "server/Config.zig",
         "std",
+        "transit_io",
         "transit_query",
         "transit_sql_client"
       ]
@@ -377,7 +378,7 @@
       "open_error_set_uses": 18,
       "propagation": {
         "try": 61,
-        "catch": 6
+        "catch": 7
       },
       "imports": [
         "EnvelopeDiagnostic.zig",
@@ -707,6 +708,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Storage.init()": "<inferred>",
         "Table.begin()": "<inferred>",
         "Table.clipped()": "<inferred>",
         "Table.end()": "<inferred>",
@@ -722,7 +724,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 47,
+        "try": 49,
         "catch": 2
       },
       "imports": [
@@ -1968,19 +1970,22 @@
         "Connection.read()": "std . Io . Reader . StreamError",
         "Connection.send()": "std . Io . Writer . Error",
         "Connection.write()": "std . Io . Writer . Error",
+        "RequestStorage.acquire()": "<inferred>",
+        "RequestStorage.init()": "<inferred>",
         "handleConnection()": "<inferred>",
         "respond()": "<inferred>",
         "serve()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 14,
-        "catch": 4
+        "try": 22,
+        "catch": 6
       },
       "imports": [
         "builtin",
         "std",
         "transit_http_server",
+        "transit_memory",
         "transit_sql",
         "transit_tls_server"
       ]
@@ -2061,18 +2066,20 @@
         "Server.protocolTask()": "anyerror",
         "Server.serve()": "<inferred>",
         "Server.serveHealth()": "anyerror",
+        "Worker.create()": "<inferred>",
         "boundedHandle()": "<inferred>",
         "boundedHandle().Task.command()": "anyerror",
         "boundedHandle().Task.timeout()": "anyerror",
         "expireSessions()": "<inferred>",
         "main()": "<inferred>",
         "recoverSessions()": "<inferred>",
-        "run()": "<inferred>"
+        "run()": "<inferred>",
+        "workerReserveFailures()": "<inferred>"
       },
       "open_error_set_uses": 21,
       "propagation": {
-        "try": 160,
-        "catch": 19
+        "try": 163,
+        "catch": 20
       },
       "imports": [
         "Connection.zig",
@@ -2082,6 +2089,7 @@
         "builtin",
         "std",
         "transit_http_server",
+        "transit_memory",
         "transit_mysql",
         "transit_postgres",
         "transit_sql",
@@ -3777,7 +3785,8 @@
         "InvalidDirectCatalogName": 1,
         "InvalidDirectCatalogOperation": 4,
         "InvalidDirectCatalogProperties": 2,
-        "InvalidDirectCatalogRoot": 1
+        "InvalidDirectCatalogRoot": 1,
+        "WriteFailed": 4
       },
       "outcomes": {
         "Intent.action": [
@@ -3817,6 +3826,7 @@
         "Entry.validate()": "<inferred>",
         "Intent.digest()": "<inferred>",
         "Intent.validate()": "<inferred>",
+        "IntentHash.drain()": "std . Io . Writer . Error",
         "Name.validate()": "<inferred>",
         "Operation.validate()": "<inferred>",
         "Properties.decode()": "<inferred>",
@@ -3836,7 +3846,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 41,
-        "catch": 0
+        "catch": 3
       },
       "imports": [
         "root.zig",
@@ -8674,20 +8684,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-fuze/src/MemoryBudget.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {},
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 0,
-        "catch": 0
-      },
-      "imports": [
-        "std"
-      ]
-    },
     "packages/zig/transit-fuze/src/PhysicalCodecs.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -11991,7 +11987,6 @@
         "LogicalQuery.zig",
         "LogicalSchema.zig",
         "LogicalStream.zig",
-        "MemoryBudget.zig",
         "PhysicalCodecs.zig",
         "Prepared.zig",
         "QueryCollations.zig",
@@ -12031,6 +12026,7 @@
         "execute.zig",
         "model.zig",
         "std",
+        "transit_memory",
         "zarrow",
         "zarrow_compute"
       ]
@@ -12307,6 +12303,190 @@
         "WebSocket.zig",
         "builtin",
         "std"
+      ]
+    },
+    "packages/zig/transit-io/src/root.zig": {
+      "errors": {
+        "Closed": 2,
+        "InvalidIoCapacity": 1,
+        "UnknownHostName": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Threaded.create()": "<inferred>",
+        "Threaded.lookup()": "std . Io . net . HostName . LookupError",
+        "Threaded.warmWorkers()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 4
+      },
+      "imports": [
+        "std",
+        "transit_memory"
+      ]
+    },
+    "packages/zig/transit-memory/src/AllocationProbe.zig": {
+      "errors": {
+        "BackingAllocationAfterWarmup": 1
+      },
+      "outcomes": {},
+      "error_sets": {
+        "verify().<error>": [
+          "BackingAllocationAfterWarmup"
+        ]
+      },
+      "error_returns": {
+        "verify()": "error { BackingAllocationAfterWarmup }"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-memory/src/Budget.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 1
+      },
+      "imports": [
+        "Quota.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-memory/src/Pool.zig": {
+      "errors": {
+        "InvalidWorkspaceCapacity": 2,
+        "MemoryPoolExhausted": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Lease.allocator()": "<inferred>",
+        "Lease.release()": "<inferred>",
+        "Lease.reset()": "<inferred>",
+        "acquire()": "<inferred>",
+        "aligned()": "<inferred>",
+        "failures()": "<inferred>",
+        "init()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 13,
+        "catch": 1
+      },
+      "imports": [
+        "Workspace.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-memory/src/Quota.zig": {
+      "errors": {
+        "MemoryBudgetExceeded": 1
+      },
+      "outcomes": {},
+      "error_sets": {
+        "reserve().<error>": [
+          "MemoryBudgetExceeded"
+        ]
+      },
+      "error_returns": {
+        "reserve()": "error { MemoryBudgetExceeded }"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 2
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-memory/src/Slab.zig": {
+      "errors": {
+        "InvalidWorkspaceCapacity": 2,
+        "MemoryInUse": 1
+      },
+      "outcomes": {},
+      "error_sets": {
+        "reset().<error>": [
+          "MemoryInUse"
+        ]
+      },
+      "error_returns": {
+        "fromBuffer()": "<inferred>",
+        "init()": "<inferred>",
+        "reset()": "error { MemoryInUse }"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 3
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-memory/src/Workspace.zig": {
+      "errors": {
+        "InvalidMemoryMark": 1,
+        "InvalidWorkspaceCapacity": 1,
+        "StaleMemoryLease": 1,
+        "WorkspaceBusy": 1
+      },
+      "outcomes": {},
+      "error_sets": {
+        "Lease.validate().<error>": [
+          "StaleMemoryLease"
+        ]
+      },
+      "error_returns": {
+        "Lease.allocator()": "<inferred>",
+        "Lease.mark()": "<inferred>",
+        "Lease.release()": "<inferred>",
+        "Lease.reset()": "<inferred>",
+        "Lease.rewind()": "<inferred>",
+        "Lease.validate()": "error { StaleMemoryLease }",
+        "acquire()": "<inferred>",
+        "init()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 8,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-memory/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "AllocationProbe.zig",
+        "Budget.zig",
+        "Pool.zig",
+        "Quota.zig",
+        "Slab.zig",
+        "Workspace.zig"
       ]
     },
     "packages/zig/transit-mysql/src/Backend.zig": {
@@ -19079,7 +19259,7 @@
         "AuthenticationFailed": 3,
         "Canceled": 1,
         "InvalidSqlClientConfiguration": 1,
-        "InvalidSqlEndpoint": 5,
+        "InvalidSqlEndpoint": 6,
         "InvalidSqlHttpResponse": 5,
         "InvalidSqlResponse": 1,
         "ReadFailed": 1,
@@ -19104,7 +19284,9 @@
         "call()": "<inferred>",
         "callAllocated()": "<inferred>",
         "init()": "<inferred>",
+        "initStorage()": "<inferred>",
         "local()": "<inferred>",
+        "observationClient()": "<inferred>",
         "open()": "<inferred>",
         "perform()": "anyerror",
         "responseBody()": "<inferred>",
@@ -19112,10 +19294,12 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 44,
-        "catch": 1
+        "try": 45,
+        "catch": 2
       },
       "imports": [
+        "Response.zig",
+        "Storage.zig",
         "root.zig",
         "std"
       ]
@@ -19164,6 +19348,8 @@
         "SqlInstanceChanged": 1,
         "SqlObservationDenied": 2,
         "SqlOutcomeUnknown": 1,
+        "SqlResponseBusy": 1,
+        "SqlResponseCapacity": 1,
         "SqlResultUnavailable": 1,
         "SqlSessionUnavailable": 1
       },
@@ -19228,7 +19414,7 @@
         "InvalidResultTransition": 1,
         "InvalidSqlResponse": 2,
         "ReadFailed": 2,
-        "ResultCancelled": 1,
+        "ResultCancelled": 2,
         "ResultClosed": 1,
         "ResultIdentityChanged": 1,
         "SqlObservationDenied": 1,
@@ -19246,6 +19432,7 @@
           "count",
           "incomplete",
           "disconnect",
+          "cancelled",
           "duplicate"
         ]
       },
@@ -19262,12 +19449,13 @@
         "nativeFetch()": "<inferred>",
         "next()": "<inferred>",
         "open()": "<inferred>",
-        "openTransport()": "<inferred>"
+        "openTransport()": "<inferred>",
+        "requireStream()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 38,
-        "catch": 1
+        "try": 42,
+        "catch": 2
       },
       "imports": [
         "consumer_test.zig",
@@ -19309,6 +19497,62 @@
         "std"
       ]
     },
+    "packages/zig/transit-sql-client/src/Response.zig": {
+      "errors": {
+        "SqlResponseBusy": 1,
+        "StaleSqlResponse": 1
+      },
+      "outcomes": {},
+      "error_sets": {
+        "Lease.release().<error>": [
+          "StaleSqlResponse"
+        ],
+        "Lease.validate().<error>": [
+          "StaleSqlResponse"
+        ]
+      },
+      "error_returns": {
+        "Lease.allocator()": "<inferred>",
+        "Lease.decode()": "<inferred>",
+        "Lease.release()": "error { StaleSqlResponse }",
+        "Lease.validate()": "error { StaleSqlResponse }",
+        "Slot.acquire()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-client/src/Storage.zig": {
+      "errors": {
+        "SqlResponseCapacity": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "acquireResponse()": "<inferred>",
+        "create()": "<inferred>",
+        "failures()": "<inferred>",
+        "retain()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "Response.zig",
+        "root.zig",
+        "std",
+        "transit_memory"
+      ]
+    },
     "packages/zig/transit-sql-client/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -19324,6 +19568,7 @@
         "Discovery.zig",
         "Executor.zig",
         "Pending.zig",
+        "Response.zig",
         "transit_sql_protocol",
         "transit_sql_results"
       ]
@@ -19414,20 +19659,28 @@
     "packages/zig/transit-sql-protocol/src/ResultFrame.zig": {
       "errors": {
         "IncompatibleSqlDefinition": 1,
-        "InvalidResultFrame": 12,
+        "InvalidResultFrame": 14,
+        "ResultBufferTooSmall": 1,
+        "ResultDirectoryTooSmall": 1,
         "SqlMessageTooLarge": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "columnCount()": "<inferred>",
         "encode()": "<inferred>",
+        "encodeInto()": "<inferred>",
+        "encodedSize()": "<inferred>",
+        "layout()": "<inferred>",
         "parseBorrowed()": "<inferred>",
+        "parseInto()": "<inferred>",
         "rounded()": "<inferred>",
-        "shape()": "<inferred>"
+        "shape()": "<inferred>",
+        "writeInto()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 23,
         "catch": 0
       },
       "imports": [
@@ -19568,6 +19821,8 @@
         "Request.validate()": "<inferred>",
         "authenticationBinding()": "<inferred>",
         "decodeResponse()": "<inferred>",
+        "decodeResponseInto()": "<inferred>",
+        "decodeWithDirectory()": "<inferred>",
         "encodeResponse()": "<inferred>",
         "fingerprint()": "<inferred>",
         "name()": "<inferred>",
@@ -19577,7 +19832,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 29,
         "catch": 0
       },
       "imports": [
@@ -19649,6 +19904,9 @@
       "errors": {
         "InvalidResultBudget": 1,
         "InvalidResultRow": 1,
+        "OutOfMemory": 1,
+        "ResultBuilderNotReset": 1,
+        "ResultMemoryBudgetExceeded": 1,
         "ResultRowTooLarge": 1
       },
       "outcomes": {},
@@ -19656,16 +19914,18 @@
       "error_returns": {
         "allocationSchedule()": "<inferred>",
         "append()": "<inferred>",
+        "init()": "<inferred>",
         "reset()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 6,
-        "catch": 0
+        "try": 11,
+        "catch": 3
       },
       "imports": [
         "root.zig",
-        "std"
+        "std",
+        "transit_memory"
       ]
     },
     "packages/zig/transit-sql-results/src/Observation.zig": {
@@ -19782,8 +20042,8 @@
     },
     "packages/zig/transit-sql-results/src/Window.zig": {
       "errors": {
-        "InvalidResultBudget": 1,
-        "OutOfMemory": 2
+        "InvalidResultBudget": 2,
+        "OutOfMemory": 1
       },
       "outcomes": {
         "stop": [
@@ -19794,16 +20054,20 @@
       },
       "error_sets": {},
       "error_returns": {
-        "read()": "<inferred>"
+        "append()": "<inferred>",
+        "read()": "<inferred>",
+        "readInto()": "<inferred>",
+        "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 3,
+        "try": 12,
         "catch": 2
       },
       "imports": [
         "root.zig",
-        "std"
+        "std",
+        "transit_memory"
       ]
     },
     "packages/zig/transit-sql-results/src/root.zig": {
@@ -20723,18 +20987,20 @@
         "operationStatus()": "<inferred>",
         "recover()": "<inferred>",
         "request()": "<inferred>",
+        "reserveFailures()": "<inferred>",
         "response()": "<inferred>",
         "selectOperation()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 121,
-        "catch": 6
+        "try": 124,
+        "catch": 9
       },
       "imports": [
         "SessionSettings.zig",
         "root.zig",
-        "std"
+        "std",
+        "transit_memory"
       ]
     },
     "packages/zig/transit-sql/src/Session.zig": {
@@ -20777,6 +21043,7 @@
         "NullNotAllowed": 1,
         "OutOfMemory": 1,
         "Rejected": 3,
+        "ResultMemoryBudgetExceeded": 1,
         "ResultRowTooLarge": 1,
         "SettingNotSessionMutable": 1,
         "SettingOutOfRange": 1,
@@ -20851,7 +21118,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 82,
+        "try": 83,
         "catch": 8
       },
       "imports": [

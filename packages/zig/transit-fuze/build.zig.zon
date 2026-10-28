@@ -4,6 +4,7 @@
     .fingerprint = 0xe22d2ce923bd8bac,
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
+        .transit_memory = .{ .path = "../transit-memory" },
         .transit_protocol = .{ .path = "../transit-protocol" },
         .zarrow = .{
             .url = "git+https://github.com/rupurt/zarrow#4276ac30d63d1af159490b7dc70e15d749b8d01b",
