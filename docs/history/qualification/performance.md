@@ -97,6 +97,24 @@ receipt, with exact rows and mutation counts checked independently. The failed
 checkout and logs remain at `/var/tmp/transit-ci-d9x508hi`; this attempt is not
 reported as a lane pass.
 
+After rebasing onto `ee5c31c80`, clean interfaces at `093b33794` passes TLS and
+allocation checks and the SQL gateway's lost-reply, fencing, exact-value/count,
+retained-history and original-token capacity schedules. Its subsequent 67-row
+INSERT exceeds the unchanged ten-second authority budget with `AuthorityTimeout`;
+the enclosing gateway task and interface lane fail. The source, command and
+failure records remain in `/var/tmp/transit-ci-22fw2j1a`, and the local log is
+`rebased-interfaces.log` (SHA-256
+`7f6c9b0b7f0a09baef4cc4ae696d6449d25ffca9e9f01465d58b7230232bdd44`).
+
+The multiline Ctrl-C failure also recurs with the rebased console. Prompt
+rendering can finish writing visible bytes while its joined output task is
+still interruptible. `2650bccce` handles that interruption through the same
+clear-draft transition as input; termination signals still exit. The complete
+terminal suite passes with that binary, including 32 repeated clear-draft
+checks and the busy-keepalive case. `redraw-final.log` retains the result and
+`final-binaries.json` identifies the compiled console and matching runtime set.
+The repeated schedule is not a deterministic injection of every rendering race.
+
 ### Original decoupling comparison
 
 The [console workload](../../../tests/performance/console/statements.py) exercises

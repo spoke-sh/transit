@@ -2310,6 +2310,14 @@ its separate artifacts remain under
 `.cache/ci/clean/eaaf5ac72ace-transit-ci-5dvs0sa4/`. The disk-reopen command below
 also passes after the rebase. Neither run qualifies the new transaction API.
 
+At `2650bccce`, clean core passes its 41 fast checks, all 18 contract checks and
+the completed independent wire fixtures. The broader native/storage stress
+phase is deliberately interrupted to finish the focused console/session and
+latency qualification; the core lane remains **incomplete**. Its clean checkout
+and partial reports remain in `/var/tmp/transit-ci-pwc5pi7_`, with the invoking
+log at `.cache/write-lifecycle/clean-core.log`. These selected results do not
+establish full core or release qualification.
+
 The separate storage-package command
 `nix develop .#ci-formal --command zig build test -Dtest-filter='original DML retry'`
 passed the new disk-reopen cases for INSERT, UPDATE and DELETE. Each loses its
