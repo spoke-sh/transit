@@ -9,6 +9,63 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Reusable private Table maintenance workspace — 2026-10-28
+
+The question is whether sequential maintenance units can reuse bounded private
+storage without obtaining more backing memory after admission. The baseline at
+`e01dcc6e03e49203c57e056ae27cd2ee25f38c0a` adds the shared allocation probe;
+the candidate at `6e6f9dc4471d5eb75db97325bb0b3fc8c397c336` admits one slab
+under the existing maintenance byte budget. Both run
+`zig build test-local-catalog -Doptimize=ReleaseSafe --summary all` inside
+`nix develop`, sequentially against the real local disk backend. The baseline
+passes six tests and the candidate passes seven, including the new disabled-work
+and cold-admission refusal checks. An earlier baseline attempt at `60ec2468a`
+fails compilation because a restarted fixture omitted its allocator; it supplies
+no runtime result.
+
+| Private boundary observation | Baseline | Reused workspace |
+| --- | ---: | ---: |
+| Total scheduled units across four Tables | 122 | 122 |
+| Startup backing allocations | Included in work count | 1 |
+| Work backing allocations | 6,954 | 0 after the first unit |
+| Work growing resize/remap attempts | 21 / 0 | 0 / 0 after the first unit |
+| Backing allocations during sixteen idle units | 1,114 | 0 |
+| Peak requested private bytes in the four-Table schedule | 4,229,884 | 4,229,884 |
+| Peak occupied slab bytes, including headers/alignment | Not applicable | 4,230,400 |
+| Retained private backing after work | 0 | 134,217,728 |
+
+The candidate seals the parent allocator after its first unit. The subsequent
+121 work units and sixteen idle units must complete without allocation or
+growing resize/remap attempts. Removing the admitted workspace deliberately
+trips the sealed probe before catalog access. Discovery/recovery hints are
+discarded once while the workspace survives; this is not a process restart.
+Original receipts, logical positions, history floors and retained rows remain
+unchanged. Automatic collection's existing clock-failure, revocation, reopen
+and eventual-idle assertions also pass.
+
+Reuse changes the memory lifetime: the whole 128 MiB backing reservation stays
+admitted until the joined maintenance owner is destroyed. It is not equivalent
+to the approximately 4 MiB occupied by this schedule, nor to resident pages.
+The separate physical-flush case reports 29,397,310 peak private bytes in the
+baseline and 37,786,214 in the candidate. The complete test processes report
+rounded maximum RSS of `36M` and `282M`; those include other cases, simultaneously
+retained fixture workspaces and teardown. These increases must remain visible
+alongside the allocation reduction. Neither these single runs nor their elapsed
+times establish an installed speedup or aggregate memory improvement.
+
+The probe excludes engine caches, provider buffers, collection, foreground
+requests, stacks and the kernel file cache. The
+[qualification method](../../../tests/storage/tables/maintenance.md#private-maintenance-allocation-boundary)
+requires separate installed CPU/RSS/I/O and foreground observations. The complete
+request-arena and concurrent-admission gates remain open.
+
+Raw logs remain under `.cache/milestone3/`; the exact identities are:
+
+| Variant | Log SHA-256 | Test executable SHA-256 |
+| --- | --- | --- |
+| `maintenance-memory-baseline.log` | `f8f05813dea4f7017825d60240fe450ffb028f0e3fd907536efdeebc7b57023b` | `ec9c18b7c2a8602015ef3484dd0c9b43a651739d1c96c8a925902fae17fa2f7d` |
+| `maintenance-memory-reuse.log` | `a53bec7435a1019e99babf4bc3cc9d563911b57822b2eed4986be0cefc7aaafc` | `42479a66901861d9cf9c73005397e13ed7c9b577fe602b94f7d5409c7c54773c` |
+
 ## Installed packaging recovery and repository qualification — 2026-10-28
 
 At frozen source `4d778efa9ffc5a8ad3e012bcecee1cc9887621db`, the committed-source

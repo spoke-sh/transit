@@ -792,6 +792,15 @@ unchanged until a clock is available; the existing revocation, restart and
 eventual-collection schedule then completes. The [source-attributed result](../history/qualification/storage.md#collection-progress-across-clock-failure--2026-10-28)
 adds evidence for P4.5 without closing its installed failure/resource matrix.
 
+At `6e6f9dc44`, all seven local catalog/maintenance checks pass with a reusable
+private Table workspace. One admitted 128 MiB reserve serves 121 subsequent
+work units and sixteen idle units with its backing allocator sealed; a bypass
+negative control detects attempted fallback. The
+[allocation comparison](../history/qualification/storage.md#reusable-private-table-maintenance-workspace--2026-10-28)
+also records increased retained capacity and full-test peak RSS. This closes the
+measured repeated private-backing allocation problem, not P4.4's aggregate
+admission, installed resource or foreground contention gates.
+
 #### P5 — Qualify and reduce the remaining live read and wait costs
 
 Owners: local Table service/catalog, direct query readers, shared SQL service,
