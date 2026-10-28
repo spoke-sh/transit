@@ -62,6 +62,7 @@ imports, options and extra compilation dependencies.
 | `transit-observability` | `src/root.zig` | Same module | Stable instrumentation and bounded diagnostic projections |
 | `transit-postgres` | `src/root.zig` | — | PostgreSQL frames, scalar admission and session state |
 | `transit-protocol` | `src/root.zig` | Same module | Wire data, signed identities and compatibility rejection |
+| `transit-query-direct` | `src/root.zig` | Imported by query; standalone `test::packages` execution | Finite Table queries, bounded compute, count ranges and relational spill; dependency graph excludes Station |
 | `transit-query` | `src/root.zig`, `src/native_catalog_query_test.zig` | Own module only | Plans, bounded codecs, spill/workspace files; the catalog root adds durable authority/recovery assertions |
 | `transit-runtime-substrate` | `src/root.zig` | Same module | Provider identity validation; deployment qualification is separate |
 | `transit-serving` | `src/root.zig` | Same module | Admission, authorization and finite service recovery |

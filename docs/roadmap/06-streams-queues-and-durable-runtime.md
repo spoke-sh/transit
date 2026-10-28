@@ -1,6 +1,6 @@
 # 6. Declarative streams, queues and durable runtime architecture
 
-[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Feeds #127](https://github.com/spoke-sh/transit/issues/127) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Planned
+[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Feeds #127](https://github.com/spoke-sh/transit/issues/127) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress
 
 Decouple the database (`DirectCatalog`, `TablePartition`, `KV`, `Document`,
 `transit-query` and `transit-sql`) completely from the `Station` durable actor
@@ -278,6 +278,31 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
      declared Queues, Streams and Tables, operators and agents inspect queue
      depth, stuck leases, retry history and state through standard SQL and
      [Board](25-board-reimplementation.md) under current `policy_epoch` grants.
+
+## Database dependency separation — 2026-10-27
+
+The first implementation slice separates the existing database execution code
+from application runtime dependencies:
+
+- `transit-catalog` directly imports the public client/protocol, Fuze and storage.
+  Native page types and shared Document publication bounds no longer require
+  importing Station. The unused catalog actor fixture is removed.
+- `transit-query-direct` owns finite Table preparation/execution, relational
+  compilation/execution, bounded compute workers and relational spill. SQL
+  statements and sessions import it directly; captured-query integration calls
+  that same implementation. There is no second query engine or source decoder.
+- Both package build graphs reject transitive Station imports. Existing source
+  checks and consumers move with their implementation owners.
+
+This establishes a package boundary, not completion of Step 1. SQL admission,
+account-token binding and recovery still use `AccountRuntime`/`Ledger`;
+`ReadPins` still journals durable acquisitions. Remaining Step 1 work must replace
+those owners with database-owned token/outcome records and lease-fenced snapshot
+cuts, migrate provisioning and configuration/captured-operation recovery, and
+perform the current-v1 cutover with lost-reply, authorization and installed
+latency evidence. No one-round-trip or faster SELECT claim follows from moving
+these modules. Streams, Queues and the Station transaction replacement remain
+planned.
 
 ## Inherited Station cutover obligations
 
