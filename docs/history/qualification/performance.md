@@ -160,6 +160,28 @@ tasks are not reached. The clean checkout is `/var/tmp/transit-ci-zyqvd4b4`;
 `4792b4d8e195a2287e57d7e25577892d9926db0e3fd2bbea4a60848dc6c0f538`.
 The focused session pass does not replace this failed lane.
 
+Clean `growth` actually checks out `9ac5ad55d`, as recorded in
+`/var/tmp/transit-ci-w3dfas67/preparation.json` (the outer wrapper captured
+`f01dafdcf` just before the documentation commit and checkout). Thirteen tasks
+pass, including file-query bounds, native/Station recovery, local-owner recovery,
+payload service, the full local catalog check (1,248.09 s) and direct Table
+service (328.63 s). The catalog check observes eight cold versus zero warm WAL
+frames, maintenance of four Tables, retained graph collection and automatic
+collection/revocation after restart. The direct service covers 2,125 typed calls,
+CRUD/DDL, predicate UPDATE/DELETE, original receipts, pin-journal cleanup,
+retained pins across rewrite/drop/recreation, three restarts, current denial and
+reserved-control rejection.
+
+The following maintenance task fails during its 256-row fixture preparation with
+`AuthorityTimeout` under the caller's unchanged 30-second deadline. Its proxy
+then encounters a daemon-thread stderr lock error during interpreter shutdown;
+the process abort is not a successful proof. The task fails after 56.06 s and the
+lane after 2,479.44 s. The fixture remains at
+`/var/tmp/transit-table-maintenance-oz7de1uc`; `clean-growth.log` has SHA-256
+`58e7cbf4ee4b4ff08ec960ffaf388811e83c97509146fe7149cb66ea6584eb98`.
+Later growth tasks are not reached. This failure is neither attributed solely
+to shared-host load nor replaced by the earlier component maintenance pass.
+
 Clean fast checks at `9ac5ad55d` pass all 45 checks, including 7,569 local links
 across 664 files; the isolated checkout is `/var/tmp/transit-ci-0qm1r7fa`.
 The pinned documentation site check also passes types, tests and the production
