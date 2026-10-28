@@ -825,6 +825,17 @@ sizes above caches, and measured reduction in the selected live amplification
 and latency costs. Report regressions and uncertain samples. A component cache
 benchmark or shorter polling interval alone cannot pass this gate.
 
+The storage continuation uses the shared allocation probe in the
+[owner measurement harness](../../tests/performance/storage/storage_benchmark.md),
+including failed backing attempts and balanced acquired/released bytes. Read-page
+sizing now counts canonical bytes without a maximum-sized temporary row buffer;
+the focused snapshot/range/filter regression retains simultaneous owned outputs
+within a 128 KiB caller budget. This does not bound the complete storage owner or
+establish allocation-free reads: per-row ownership, cache/recovery allocations,
+maintenance-active measurements and installed latency qualification remain open.
+The correction to PR #198's independent DDL digest fixture preserves production
+JSON and hash semantics; the complete catalog package passes all 90 tests.
+
 **Post-integration priority — 2026-10-27:** after merging PR #188, the user
 reports slow single-row INSERT and roughly 0.5-second queries against `items`.
 These are user observations, not an attributed benchmark. Start P5.1's ordinary
