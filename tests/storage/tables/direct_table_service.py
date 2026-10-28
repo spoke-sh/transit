@@ -216,13 +216,15 @@ def run(node, caller, mode="tables", *artifacts):
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
             if mode == "maintenance":
-                def restart(flush):
+                def restart(flush, physical=False):
                     nonlocal authority
                     authority.kill()
                     authority.wait(timeout=15)
                     authority = None
                     settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 50, "operation_timeout_ms": 2000}
-                    settings["storage"] = {"maintenance": {"flush": {"enabled": flush}}}
+                    settings["storage"] = {"maintenance": {"flush": {"enabled": flush},
+                                                           "archive": {"enabled": physical},
+                                                           "compact": physical}}
                     config.write_text(json.dumps(settings))
                     authority = start()
                 direct_table_maintenance.exercise(caller, endpoint, profile, root, restart)

@@ -1,4 +1,4 @@
-"""Physical-disk automatic flush, original WAL snapshots and current rows."""
+"""Physical-disk automatic maintenance, fixed targets and retained rows."""
 from contextlib import contextmanager
 import hashlib
 import json
@@ -87,3 +87,78 @@ def exercise(caller, endpoint, profile, root, restart):
     print(f'Automatic Table flush: 258 WAL rows across three competing Tables; '
           f'{len(segments)} segment objects; original and current rows survive restart; '
           f'convergence including owner restart {elapsed:.3f}s.', flush=True)
+
+    def inspect():
+        observed = json.loads(call('inspect').stdout)
+        with (root / 'maintenance-observations.jsonl').open('a') as record:
+            record.write(json.dumps(observed) + '\n')
+        for first, current in zip(original, observed):
+            assert current['interpretation'] == first['interpretation']
+            assert current['changed_lsn'] == first['changed_lsn']
+            assert current['live_rows'] == first['live_rows']
+            assert current['history_floor'] == 0
+            assert current['pending']['complete'] and current['pending']['rows'] == 0
+        return observed
+
+    def settled(observed):
+        for current in observed:
+            work = current['maintenance']
+            if (work['archive_target'] is not None or work['compaction_target'] is not None
+                    or work['archived_source_lsn'] != work['archive_source_lsn']
+                    or work['compacted_source_lsn'] != work['compaction_source_lsn']):
+                return False
+            assert work['archived_source_lsn'] > 0 and work['compacted_source_lsn'] > 0
+            assert current['archive_through'] > 0
+            assert current['recovery_through'] >= current['archive_through']
+        return True
+
+    def converge(kill_pending=False):
+        deadline = time.monotonic() + 60
+        killed = False
+        while True:
+            observed = inspect()
+            if kill_pending and not killed and any(
+                    value['maintenance']['archive_target'] is not None
+                    or value['maintenance']['compaction_target'] is not None for value in observed):
+                # Stop at observed accepted work, then reopen with these classes
+                # disabled to inspect recovery before allowing further progress.
+                restart(True, False)
+                recovered = inspect()
+                for before, after in zip(observed, recovered):
+                    assert after['position']['next_lsn'] >= before['position']['next_lsn']
+                    for field, completed in (('archive_target', 'archived_source_lsn'),
+                                             ('compaction_target', 'compacted_source_lsn')):
+                        target = before['maintenance'][field]
+                        if target is None or after['maintenance'][completed] >= target['source_lsn']:
+                            continue
+                        resumed = after['maintenance'][field]
+                        assert resumed is not None, (field, before, after)
+                        assert resumed['source_lsn'] == target['source_lsn'], (field, before, after)
+                        cut = 'through_lsn' if field == 'archive_target' else 'before_segment'
+                        assert resumed[cut] == target[cut], (field, before, after)
+                restart(True, True)
+                killed = True
+                continue
+            if settled(observed):
+                assert not kill_pending or killed, 'No pending maintenance was interrupted'
+                return observed
+            assert time.monotonic() < deadline, observed
+            time.sleep(.1)
+
+    before = time.monotonic()
+    restart(True, True)
+    converge(kill_pending=True)
+    # Preserve original WAL, post-flush and post-compaction cuts independently.
+    call('maintained')
+    saved = profile.read_bytes()
+    converged = converge()  # New retention pins also need archive coverage.
+    restart(True, True)
+    call('maintained')
+    assert profile.read_bytes() == saved, 'Maintenance restart replaced retained cuts'
+    for _ in range(12):
+        assert inspect() == converged, 'Completed maintenance kept publishing work'
+        time.sleep(.2)
+    print(f'Automatic Table archive/checkpoint and compaction: three Tables settle '
+          f'after SIGKILL during accepted work; original, flushed and maintained '
+          f'rows survive restart; no further publications while idle; '
+          f'convergence and verification {time.monotonic() - before:.3f}s.', flush=True)

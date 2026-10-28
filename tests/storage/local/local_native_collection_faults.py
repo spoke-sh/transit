@@ -31,6 +31,7 @@ def run(binary, profile="native"):
         root = Path(temporary)
         original = root / "original"
         expected = call(original, "init")
+        assert expected["source_activity"] > 0, expected
         allocation_directory = "data-allocations" if profile == "direct" else "native-allocations"
         marker = (original / allocation_directory / expected["allocation"]).read_bytes()
         payload = (b"TNAT\x01b\0\0" + definition if profile == "native" else b"") + b"unaccepted bytes"
@@ -87,6 +88,7 @@ def run(binary, profile="native"):
                         child.wait(timeout=10)
             recovered = call(directory, "recover")
             assert recovered["position"] == expected["position"], (point, recovered)
+            assert recovered["source_activity"] == expected["source_activity"], (point, recovered)
             assert recovered["phase"] == "complete", (point, recovered)
             if profile == "native":
                 assert recovered["reclaimed"] > expected["previous_reclaimed"], (point, recovered)

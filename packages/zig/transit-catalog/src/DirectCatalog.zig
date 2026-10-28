@@ -1832,6 +1832,8 @@ pub const StorageObservation = struct {
     archive_through: u64,
     recovery_through: ?u64,
     history_floor: u64,
+    next_segment: u64,
+    maintenance: @FieldType(P.Root, "maintenance"),
 };
 pub const FlushTarget = struct { object: d.Object, through: d.Position };
 pub const FlushObservation = struct { target: FlushTarget, observed: StorageObservation, complete: bool };
@@ -1861,6 +1863,8 @@ fn storageState(view: *View, limit: u16, guard_value: P.Guard) !StorageObservati
         .archive_through = root.archive.through,
         .recovery_through = if (root.recovery) |known| known.next_lsn else null,
         .history_floor = root.history_floor,
+        .next_segment = root.next_segment,
+        .maintenance = root.maintenance,
     };
 }
 pub fn inspectStorage(self: *Self, object: d.Object, limit: u16, policy: Policy) !StorageObservation {

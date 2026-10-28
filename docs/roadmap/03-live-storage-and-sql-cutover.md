@@ -518,7 +518,7 @@ local node composition, `TablePartition`,
 [DirectStorageGraph](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig)
 and the backend's native/direct/payload maintenance owners.
 
-- [ ] P4.1 Extend the live scheduler with independently bounded work classes
+- [x] P4.1 Extend the live scheduler with independently bounded work classes
   for Table archive/recovery checkpoints/compaction and native/direct collection.
   Resume accepted progress after restart, including an unfinished collection;
   do not start a replacement pass over an incomplete durable one. Record source
@@ -614,7 +614,9 @@ Current maintenance authority, retained roots, creator epochs and the six-minute
 reader grace continue to own deletion decisions. This stored-format cutover uses
 shared definition
 `068aa25ef2626855f313426665bc773ee43efd5e6260183a03753cc368497271`.
-Four selected backend activity checks, 18 contract checks and 40 fast checks pass.
+All 54 backend checks pass, including the four selected activity checks, eight
+deletion sync failures and 35 marking sync failures. The 18 contract checks and
+40 fast checks also pass.
 The six-test disk node aggregate also passes: automatic collection survives
 revocation and reopen, removes both native and direct orphans, and settles after
 162 units without further fences or progress writes across repeated idle checks.
@@ -622,6 +624,22 @@ The same aggregate retains the Table maintenance and retained-graph assertions
 above; the production node builds. Installed process-death/convergence,
 foreground contention and aggregate resource qualification remain open. These
 results do not close P4.
+
+At shared definition `fe92bb37f7e18a8f4cf00b60ad7d21198b130a623376d87ee92a0bd6108cd388`,
+the real-node `just test direct-table-maintenance` schedule passes on physical
+disk. Three competing Tables flush 258 WAL rows into ten segments, then settle
+archive/checkpoint and compaction after SIGKILL during accepted work. With those
+classes disabled immediately after reopen, inspection verifies that each
+interrupted target either survives unchanged or has recorded completion. Original
+WAL, post-flush and post-compaction snapshots survive another restart. Repeated
+inspection observes no further Table publications after the fixed targets finish.
+Flush convergence takes 10.344 seconds; archive/compaction convergence and row
+verification take 38.233 seconds on this host. These are workload observations,
+not latency guarantees. Together with the six runtime checks and collection
+fault schedules, this closes P4.1's scheduling/restart scope. This installed
+Table schedule uses no trusted expiry clock; the runtime's controlled-clock
+collection checks remain distinct from installed reader-grace qualification.
+The aggregate resource and broader failure/retention matrix remain open.
 
 #### P5 — Qualify and reduce the remaining live read and wait costs
 
@@ -807,6 +825,21 @@ inspection adapters, Board API and its existing inspection UI.
 **Gate:** a user can answer where data is stored, what is accepted versus flushed,
 why maintenance is pending and what retains history, using public authorized
 interfaces. Inspection itself changes none of those states.
+
+The signed direct Table `storage` response now includes the accepted archive and
+compaction activity frontiers, fixed targets and exclusive next segment identity.
+It uses existing metadata-inspection rights, response-disclosure checks and the
+shared client's structural validation. No path or other Table's progress is
+disclosed. The mandatory response fields replace the shared definition with
+`fe92bb37f7e18a8f4cf00b60ad7d21198b130a623376d87ee92a0bd6108cd388`;
+the binary SQL result and automatic maintenance contracts remain part of this
+single current definition. The four-test selected catalog run passes, including
+malformed coverage/target rejection, and all 18 generated contract checks pass.
+The native and
+direct collection fault harnesses each pass 15 SIGKILL schedules with the saved
+source-activity target preserved through deletion recovery. Backend/root paths,
+quota accounting, failure inspection and CLI/SQL/Board presentation still need
+their shared operations and qualification; this does not close P6.
 
 #### P7 — Deliver the single executable local profile
 

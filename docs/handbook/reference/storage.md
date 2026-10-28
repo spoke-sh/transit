@@ -58,6 +58,12 @@ archive, recovery-checkpoint and history frontiers. Incomplete backlog counts
 are labelled as lower bounds. Historical readers can still retain WAL bytes
 after current rows have moved to segments.
 
+The same authorized observation reports fixed archive and compaction targets,
+their eligible source activity and completed activity. A null target with equal
+source/completed frontiers means that class has caught up at the observed root.
+It establishes neither physical WAL deletion nor object collection completion;
+those retain their separate recovery and reader-lifetime conditions.
+
 The direct `flush` operation executes one bounded unit at an explicit saved
 acceptance cut. Its completion condition excludes later writes; repeating the
 same target after uncertainty resolves accepted physical coverage. Inspection
