@@ -32,7 +32,8 @@ def schema(wide):
 @contextmanager
 def peer(mode, root):
     definition = re.search(r'\b([a-f0-9]{64})\b', (ROOT / 'packages/zig/transit-protocol/src/Growth.zig').read_text()).group(1)
-    state = dict(requests=0, queries=0, retries=0, turnovers=0, prepares=0, releases=0, commands=0, timeouts=0, cancellations=0)
+    state = dict(requests=0, queries=0, retries=0, turnovers=0, prepares=0, releases=0, commands=0, timeouts=0, cancellations=0, writes=0, observations=0, opens=0)
+    write_token = None
     active = {}
     dropped = set()
     lock = threading.Lock()
@@ -50,6 +51,7 @@ def peer(mode, root):
             self.requests = 0
 
         def do_POST(self):
+            nonlocal write_token
             request = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             assert request['definition'] == definition and request['version'] == 1
             action, value = next(iter(request['action'].items()))
@@ -60,7 +62,27 @@ def peer(mode, root):
             if action == 'hello':
                 result = dict(hello=dict(encoding=ENCODING, session_lease_ms=30000, maximum_message=4194304, maximum_batch=1048576, maximum_rows=32, capabilities=[]))
             elif action == 'open':
-                result = dict(opened=dict(session=[3] * 32, account=[4] * 32, database='transit', proof=''))
+                state['opens'] += 1
+                result = dict(opened=dict(session=[3 if state['opens'] == 1 else 5] * 32, account=[4] * 32, database='transit', proof=''))
+            elif action == 'execute' and value['sql'] == 'INSERT allocation_probe':
+                assert write_token is None, 'uncertain write was replayed'
+                write_token = value['token']
+                state['writes'] += 1
+                self.close_connection = True
+                self.connection.shutdown(socket.SHUT_RDWR)
+                return
+            elif action == 'status':
+                assert write_token is not None and value == dict(token=write_token)
+                state['observations'] += 1
+                if state['observations'] == 1:
+                    assert request['session'] == [3] * 32
+                    result = dict(err=dict(code='SqlSessionExpired', sqlstate=list(b'HY000'), message='Expired', retry='never', operation=None, diagnostic=None))
+                else:
+                    assert request['session'] == [5] * 32 and state['observations'] <= 3
+                    terminal = state['observations'] == 3
+                    result = dict(operation=dict(identity=dict(account=[4] * 32, id=42, kind='table'), command='insert', token=write_token,
+                                                 phase='terminal' if terminal else 'active', blocked=False, outcome='applied' if terminal else None,
+                                                 matched=1 if terminal else 0, changed=1 if terminal else 0))
             elif action == 'assist':
                 assert value['text'] in ('allocation_probe_timeout', 'allocation_probe_cancel', 'allocation_probe_barrier')
                 if value['text'] == 'allocation_probe_barrier':
@@ -203,7 +225,12 @@ def mappings(text):
             prefix, measured, timestamp = pending.pop(pid)
             assert prefix.startswith(resume[1] + '(')
             call = prefix + resume[2]
-        if call.startswith(('+++ ', '--- ')):
+        if call.startswith('+++ '):
+            if pid in pending:
+                _, began_in_interval, _ = pending.pop(pid)
+                assert not began_in_interval, 'thread exited during an unobserved allocation attempt'
+            continue
+        if call.startswith('--- '):
             continue
         syscall = re.match(r'(\w+)\((.*)\)\s+= (.*)', call)
         assert syscall, call
@@ -240,13 +267,19 @@ def trace_controls():
     begin = '1 1.000 prctl(PR_SET_NAME, "alloc_begin") = 0\n'
     end = '1 3.000 prctl(PR_SET_NAME, "alloc_end") = 0\n'
     assert mappings(begin + end) == []
+    # strace can emit an unknown unfinished syscall during pthread teardown
+    # after the end marker. It cannot invalidate a fully observed interval;
+    # the same event inside measurement must still fail closed.
+    teardown = '2 4.000 ???( <unfinished ...>\n2 4.100 +++ exited with 0 +++\n'
+    assert mappings(begin + end + teardown) == []
     trace = ('1 0.500 brk(NULL) = 0x1000\n' + begin +
              '2 2.000 mmap(NULL, 4096, PROT_READ, MAP_PRIVATE, -1, 0 <unfinished ...>\n'
              '1 2.100 brk(0x2000) = 0x2000\n'
              '2 2.200 <... mmap resumed>) = 0x3000\n' + end)
     assert {event['syscall'] for event in mappings(trace)} == {'brk', 'mmap'}
     for malformed in (begin, end, begin + begin + end, begin + 'unparsed\n' + end,
-                      begin + '1 2.000 mmap(NULL <unfinished ...>\n' + end):
+                      begin + '1 2.000 mmap(NULL <unfinished ...>\n' + end,
+                      begin + teardown + end):
         try:
             mappings(malformed)
         except AssertionError:
@@ -307,6 +340,7 @@ def main():
                     else:
                         assert report['statements'] == 300 and state['queries'] == 302
                         assert state['timeouts'] == state['cancellations'] == 1, state
+                        assert state['writes'] == 1 and state['observations'] == 3 and state['opens'] == 2, state
                         assert state['prepares'] == state['releases'] == 30 and state['commands'] == 1, state
                         assert state['requests'] > 256 and state['retries'] > 0 and state['turnovers'] > 0, state
                         assert report['libc_attempts'] == [0, 0, 0, 0] and events == [], profile

@@ -22,6 +22,11 @@ The peer also stalls partial responses for one timeout and one cancellation;
 an independent control connection confirms the exchange started before cancellation.
 A fresh read then checks that joined tasks returned their response and transport
 storage. These failed non-mutating calls do not establish statement completion.
+One lost write reply settles through its original token after the observation
+session expires. The peer checks one submission, a separate replacement observer,
+three token observations and the exact terminal operation/counts; the original
+interactive session identity remains unchanged. This proves client settlement
+and reuse against the peer, not durable acceptance by a Transit authority.
 HTTP/TLS peers use numeric IPv4 endpoints; DNS/NSS resolution is not
 qualified by this profile. A sealed allocator observes both client reserves and bounded I/O task
 storage after finite setup. On Linux/glibc the linked test-only interposer counts

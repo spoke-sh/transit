@@ -74,6 +74,23 @@ fn interrupted(executor: *sql.Executor) !void {
     try consume(executor, 33, false, false, false);
 }
 
+fn settlement(executor: *sql.Executor) !void {
+    const session = executor.client.session.?;
+    const instance = executor.client.instance.?;
+    const outcome = try executor.execute("INSERT allocation_probe", null, .{});
+    defer outcome.deinit();
+    if (outcome.value != .command or outcome.value.command.kind != .insert or
+        outcome.value.command.outcome != .applied or outcome.value.command.counts == null or
+        outcome.value.command.counts.?.matched != 1 or outcome.value.command.counts.?.changed != 1 or
+        outcome.value.command.operation == null or outcome.value.command.operation.?.id != 42)
+        return error.ChangedSettledOutcome;
+    // Discovery used a new observation session after expiry, preserving the
+    // original client identity instead of reopening an active result session.
+    if (!executor.session_lost or !std.meta.eql(session, executor.client.session.?) or
+        !std.meta.eql(session, executor.control.session.?) or !std.meta.eql(instance, executor.client.instance.?))
+        return error.ChangedInteractiveIdentity;
+}
+
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 3 and args.len != 4) return error.ExpectedEndpointAndCa;
@@ -125,6 +142,7 @@ pub fn main(init: std.process.Init) !void {
             return error.ChangedRetainedCompletion;
     }
     if (!negative) try interrupted(&executor);
+    if (!negative) try settlement(&executor);
     var libc: [4]u64 = undefined;
     if (transit_allocation_end(&libc) != 0) return error.UnsupportedAllocationObserver;
     try std.Io.File.stdout().writeStreamingAll(io, "allocation_end\n");
