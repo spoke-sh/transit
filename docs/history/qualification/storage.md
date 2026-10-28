@@ -9,6 +9,56 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Selective automatic Table compaction — 2026-10-27
+
+The implementation and checks committed at `1b826f09f` replace unconditional
+automatic relocation with bounded whole-input selection. The shared definition
+is `ed98a1fb80bc80e2534856d1eea5caeae705df1bff8e0347aa20009c935f58de`;
+saved roots require the new skipped-segment cursor and reject missing fields.
+The [contract](../../../contracts/TRANSIT_STORAGE_V1.md#resumable-table-maintenance-targets)
+distinguishes considered inputs from rewritten rows and physical collection.
+
+Inside the pinned Nix shell, the storage package's
+`zig build test -Doptimize=ReleaseSafe -Dtest-filter='Table maintenance' -Dtest-filter='Table compaction' --summary all`
+passes **10/10** checks. The disk fixture retains a 64-row packed segment and a
+mostly live eight-row segment, rewrites one eight-row segment with only two live
+rows, and merges two two-row segments. Exactly two new segments are accepted;
+all current values and the original 84-row snapshot survive. After the initial
+lost skip reply, each remaining unit uses a new disk owner. Lost replies preserve
+skip and relocation progress; each unit returns at most 24 candidate directory
+entries with a four-row relocation limit. Separate cases
+refuse private allocation and revoked publication, retain whole inputs when the
+encoded-byte budget is too small, and reject fabricated completion, skipped
+unexamined inputs and a missing persisted cursor. The first disk-test attempt
+incorrectly counted fixture-setup row decoding as selection work; the corrected
+test measures the counter delta across selection.
+
+The catalog's `-Dtest-filter='direct storage responses'` selection passes
+**4/4**, including the response test's 19 malformed observations and its flush
+checks. Generated contract checks pass **18/18** and fast checks **40/40**.
+These are selected checks, not a new complete package or clean-lane result.
+
+`just test direct-table-maintenance` then passes against the actual ReleaseSafe
+node on physical disk. Three competing Tables flush 258 WAL rows into ten
+segments in **7.952 seconds**, including owner restart. Archive/checkpoint and
+selective compaction settle after SIGKILL during accepted work; original WAL,
+post-flush and post-maintenance snapshots survive another restart. The ten
+packed/lone segment files retain their exact names and SHA-256 contents:
+**zero new segment objects and zero additional retained segment bytes** result
+from this maintenance pass. Repeated settled observations show no further Table publications.
+Convergence and row verification take **25.285 seconds**. This installed workload
+qualifies skipped inputs; the sparse rewrite and merge cases above are component
+checks. Timings are single shared-host observations, not a matched speedup or
+foreground latency bound.
+
+Raw logs remain under ignored `.cache/milestone3/` as
+`selective-compaction-final-tests.log`, `selective-compaction-response-tests.log`,
+`selective-compaction-contracts.log`, `selective-compaction-final-fast.log` and
+`selective-compaction-installed.log`. Power loss, aggregate foreground contention,
+larger sparse inputs, full dependent SDK/browser qualification and final clean
+lanes remain separate gates. Retained history can prevent object reclamation;
+this pass does not change retention or establish zero total maintenance I/O.
+
 ## Local foundation repository qualification — 2026-10-27
 
 The complete workspace `just check all` passes at clean committed source

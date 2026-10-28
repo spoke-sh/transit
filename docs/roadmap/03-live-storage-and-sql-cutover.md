@@ -557,12 +557,10 @@ and the backend's native/direct/payload maintenance owners.
   readers, not just each component's allocator. Back off failures without a busy
   retry loop or permission bypass; retain enough control reserve to recover.
   Qualify compaction eligibility and total bytes rewritten for packed segments,
-  sparse updates and deletes. The current scheduler's source-activity trigger
-  starts a pass over all pre-target live segment rows; with a small relocation
-  limit it can rewrite or split already packed segments after another write.
-  Select useful compaction work through bounded metadata inspection before
-  relocating rows, preserve restartable progress over skipped candidates, and
-  measure foreground latency and segment/write amplification. This is local
+  sparse updates and deletes. Select useful compaction work through bounded
+  metadata inspection before relocating rows, preserve restartable progress
+  over skipped candidates, and measure foreground latency and segment/write
+  amplification. This is local
   storage maintenance scope; broader indexes and group commit remain deferred.
 - [ ] P4.5 Exercise process death at accepted archive/checkpoint/flush/compaction
   and delete-progress boundaries, racing policy changes, pin release, new
@@ -668,6 +666,19 @@ collection checks remain distinct from installed reader-grace qualification.
 The aggregate resource and broader failure/retention matrix remain open.
 The full storage package also passes all 134 tests in `ReleaseSafe` at
 `960791aef`, covering the current WAL cleanup and Table maintenance formats.
+
+Selective compaction is delivered at `1b826f09f` under shared definition
+`ed98a1fb80bc80e2534856d1eea5caeae705df1bff8e0347aa20009c935f58de`.
+Automatic units retain packed/oversized inputs, rewrite whole sparse inputs or
+merge two whole adjacent inputs that fit their budgets. Accepted skip progress
+survives restart and cannot jump over an unexamined live segment. Ten focused
+storage checks, four selected response checks, 18 contract checks and 40 fast
+checks pass. The installed physical-disk schedule retains all ten original
+segments byte-for-byte through SIGKILL, convergence and three generations of
+retained reads. The [qualification account](../history/qualification/storage.md#selective-automatic-table-compaction--2026-10-27)
+records the controls, timings and limits. This closes the known healthy-segment
+rewrite/splitting flaw; aggregate contention, matched foreground latency and the
+broader failure/retention matrix still keep P4.4 and P4.5 open.
 
 #### P5 — Qualify and reduce the remaining live read and wait costs
 
