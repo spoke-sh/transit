@@ -160,7 +160,21 @@ test "full native data slots leave separate erased control capacity available" {
     }
     try t.expectError(error.MemoryPoolExhausted, storage.acquire(false));
     const control = try storage.acquire(true);
-    _ = try (try control.allocator()).dupe(u8, "cancellation request");
+    {
+        var scratch = memory.Workspace.fromBuffer(control.value.owner.buffer[0..RequestStorage.request_bytes]);
+        const scratch_lease = try scratch.acquire();
+        defer scratch_lease.release(false) catch unreachable;
+        const payload = try (try scratch_lease.allocator()).dupe(u8, "cancellation request");
+        var working = try memory.Slab.fromBuffer(@alignCast(control.value.owner.buffer[RequestStorage.request_bytes..]));
+        defer working.deinit();
+        const a = working.allocator();
+        for (0..100) |_| {
+            const temporary = try a.alloc(u8, working.buffer.len - memory.Slab.granule);
+            @memset(temporary, 0xa5);
+            a.free(temporary);
+            try t.expectEqualStrings("cancellation request", payload);
+        }
+    }
     try control.release(true);
     const next = try storage.acquire(true);
     defer next.release(true) catch unreachable;
