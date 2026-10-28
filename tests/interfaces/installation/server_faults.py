@@ -290,6 +290,37 @@ def gateway(fixture):
     print(f"Transit gateway: native denial/status, private headers, body limit and stalled-data control passed; health {elapsed * 1000:.2f} ms, sampled RSS {rss} bytes", flush=True)
 
 
+def unavailable_bootstrap(cli, node, host):
+    """Lost provisioning receipts preserve the live node and exact request."""
+    from interfaces.installation.server_application_faults import arm, install_peer, wait_file
+    fixture = Fixture(cli, node, host)
+    install_peer(fixture)
+    arm(fixture, 'spawn', 'bootstrap-spawn', principal=0)
+    success = False
+    try:
+        fixture.start()
+        wait_file(fixture.root / 'dropped-bootstrap-spawn.json', timeout=60)
+        original = json.loads((fixture.root / 'dropped-bootstrap-spawn.json').read_text())
+        wait_file(fixture.root / 'retried-bootstrap-spawn', timeout=15)
+        retry = json.loads((fixture.root / 'retried-bootstrap-spawn').read_text())
+        assert retry == dict(peer=original['peer'], node=original['node']), (original, retry)
+        (fixture.root / 'release-bootstrap-spawn').touch()
+        fixture.ready()
+        signed = json.loads(bytes.fromhex(original['body']))
+        assert signed['request']['command'] == dict(spawn={})
+        assert json.loads(bytes.fromhex(original['receipt']))['position'] == fixture.record()['provision'][0]
+        assert 'server.retry' not in Path(fixture.logs[-1].name).read_text()
+        fixture.console('SELECT COUNT(*) FROM items;\n')
+        success = True
+        print('Transit provisioning: a lost accepted provisioning receipt retries byte-for-byte on the same live node and reaches SQL readiness.', flush=True)
+    finally:
+        fixture.cleanup()
+        if success:
+            shutil.rmtree(fixture.root)
+        else:
+            print(f'Failed live provisioning evidence retained at {fixture.root}', flush=True)
+
+
 def partial_bootstrap(cli, node, host):
     fixture = Fixture(cli, node, host)
     success = False
@@ -383,6 +414,7 @@ def run(cli, node, host):
     from interfaces.installation.server_startup import empty_installation
     empty_installation(cli, node, host)
     configured_hosts(cli, node, host)
+    unavailable_bootstrap(cli, node, host)
     partial_bootstrap(cli, node, host)
     rollback(cli, node, host)
     print(f"Transit server bootstrap/gateway/rollback faults: passed in {time.monotonic() - started:.2f}s", flush=True)

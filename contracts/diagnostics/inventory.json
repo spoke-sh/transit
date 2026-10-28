@@ -1541,7 +1541,7 @@
       "errors": {
         "AccessDenied": 2,
         "AuthorityRollback": 1,
-        "AuthorityTransportDenied": 1,
+        "AuthorityTransportDenied": 2,
         "ChildExited": 4,
         "ConfigurationUnavailable": 1,
         "InstallationIdentityMismatch": 2,
@@ -1554,7 +1554,7 @@
         "ProcessUnavailable": 1,
         "RestartBudgetExhausted": 1,
         "RoleReadinessTimeout": 1,
-        "ServerStopped": 5,
+        "ServerStopped": 6,
         "StorageIdentityMismatch": 1,
         "UnsafeBoardPrincipal": 2
       },
@@ -1577,16 +1577,18 @@
       "error_returns": {
         "cycle()": "<inferred>",
         "node()": "<inferred>",
+        "provision()": "<inferred>",
+        "provision().operation()": "anyerror",
         "ready()": "<inferred>",
         "run()": "<inferred>",
         "start()": "<inferred>",
         "supervise()": "<inferred>",
         "worker()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 90,
-        "catch": 8
+        "try": 91,
+        "catch": 9
       },
       "imports": [
         "../Diagnostic.zig",
