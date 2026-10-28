@@ -95,6 +95,9 @@ def validate(manifest, surface, files):
         if kind == 'error':
             assert own_causes == set(surface['sources'][boundary['registry']]['errors']), 'unclassified registry error'
         tests_exist(boundary['tests'], files)
+        for pattern in boundary['owners']:
+            assert any(fnmatchcase(path, pattern) and path not in boundary['exclude']
+                       for path in surface['sources']), ('missing diagnostic owner', identity, pattern)
         owners = [path for path in surface['sources'] if any(fnmatchcase(path, pattern) for pattern in boundary['owners']) and path not in boundary['exclude']]
         assert owners, identity
         exceptions = {}
@@ -145,6 +148,11 @@ def self_test(manifest, surface, files):
     changed = copy.deepcopy(manifest)
     changed['boundaries'][0]['tests'][0]['name'] = 'missing executable case'
     rejected(changed_manifest=changed)
+    for pattern in ('packages/zig/missing-owner/src/Owner.zig',
+                    'packages/zig/missing-owner/src/*.zig'):
+        changed = copy.deepcopy(manifest)
+        changed['boundaries'][0]['owners'].append(pattern)
+        rejected(changed_manifest=changed)
     changed = copy.deepcopy(manifest)
     changed['boundaries'].append(copy.deepcopy(boundary))
     changed['boundaries'][-1]['id'] = 'overlapping-boundary'

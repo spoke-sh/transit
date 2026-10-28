@@ -465,14 +465,14 @@
       "meaning": "One catalog traversal and its owned block index; durable root cardinality does not grow the stack."
     },
     {
-      "source": "packages/zig/transit-query/src/DirectTableQuery.zig",
+      "source": "packages/zig/transit-query-direct/src/DirectTableQuery.zig",
       "symbol": "max_rows",
       "expression": "8",
       "classification": "working-set",
       "meaning": "Owned rows per result disclosure batch; the row API requests one."
     },
     {
-      "source": "packages/zig/transit-query/src/DirectTableQuery.zig",
+      "source": "packages/zig/transit-query-direct/src/DirectTableQuery.zig",
       "symbol": "max_bytes",
       "expression": "16 * 1024 * 1024",
       "classification": "working-set",
