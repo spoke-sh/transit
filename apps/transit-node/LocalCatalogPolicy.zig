@@ -180,6 +180,7 @@ fn registered(context: *anyopaque, kind: a.Kind, logical: u64) !?p.Authorization
 }
 
 test {
+    _ = @import("DirectRequestMemory.zig");
     _ = @import("local_catalog_policy_test.zig");
     _ = @import("LocalTableHost.zig");
     _ = @import("LocalTableMaintenance.zig");

@@ -9,7 +9,7 @@ import shutil
 import sys
 
 from interfaces.installation.server import Fixture
-from interfaces.installation.server_sql import account, apply, call, denied, freeze, wait_status
+from interfaces.installation.server_sql import account, account_state, apply, call, denied, freeze, wait_status
 
 
 def run(cli, node, host, board, gateway, *, bundle=None, source_install=False):
@@ -54,7 +54,7 @@ def run(cli, node, host, board, gateway, *, bundle=None, source_install=False):
             args.append('--ssl-ca='+str(fixture.installation / 'sql/tls/ca.pem'))
         return (denied if reject else call)([*args, '-e', query], env=selected)
 
-    def start(first=False):
+    def start(first=False, *, revoked=False):
         if first:
             # Exercise the documented YAML shape, including duration strings.
             base = "\n".join(f'{key}: {json.dumps(value)}' for key, value in fixture.config.items() if key != 'sql')
@@ -81,6 +81,12 @@ sql:
             fixture.path.write_text(json.dumps(fixture.config))
         fixture.start()
         fixture.ready(timeout=300)
+        if revoked:
+            # With its only account revoked, the SQL service cannot become
+            # accepting. Require the authority failure, not generic unavailability.
+            return wait_status(fixture, lambda s: s['service']['state'] == 'unavailable' and
+                               s['service']['error_type'] == 'AccessDenied' and
+                               account_state(s, 'owner') == 'unavailable')
         return wait_status(fixture, lambda s: s['service']['state'] == 'accepting' and
                            all(item['initialized'] for item in s['accounts']))
 
@@ -161,8 +167,9 @@ sql:
         pg('SELECT 1', reject=True)
         mysql('SELECT 1', reject=True)
         fixture.stop()
-        status = start()
-        wait_status(fixture, lambda s: account(s, 'owner')['state'] == 'unavailable')
+        status = start(revoked=True)
+        assert account(status, 'owner')['initialized']
+        assert status['service']['postgres_port'] is None and status['service']['mysql_port'] is None
         pg('SELECT 1', reject=True)
         mysql('SELECT 1', reject=True)
         after = json.loads((folder / 'account.json').read_text())

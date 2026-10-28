@@ -9,6 +9,7 @@ const g = wire.protocol.Growth;
 const http = @import("transit_http_server");
 const memory = @import("transit_memory");
 const Notifications = @import("Notifications.zig");
+const DirectRequestMemory = @import("DirectRequestMemory.zig");
 
 pub const Metrics = struct {
     requests: u64 = 0,
@@ -255,8 +256,11 @@ pub fn Host(comptime Provider: type) type {
                         if (!std.mem.eql(u8, hint, "table")) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
                         break :blk true;
                     } else false;
-                    const response = self.tableWork(request, owner, control) catch |err| switch (err) {
+                    var budget = self.context.table_memory.request(self.allocator, control);
+                    defer std.debug.assert(budget.used == 0);
+                    const response = self.tableWork(request, owner, control, budget.allocator()) catch |err| switch (err) {
                         error.Canceled => return error.Canceled,
+                        error.OutOfMemory => return self.failure(request, if (budget.exhausted) (if (control) error.ControlCapacity else error.StorageQuota) else err),
                         error.InvalidBody => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody }),
                         error.InvalidRequest => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
                         error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),
@@ -270,7 +274,7 @@ pub fn Host(comptime Provider: type) type {
                         error.ClientOperationMissing, error.InvalidDirectRecord, error.DirectRecordMissing, error.InvalidClientToken, error.InvalidPlanEncoding, error.InvalidProjection, error.InvalidTableBinary, error.TablePayloadTooLarge, error.InvalidTableMutationIntent, error.InvalidInsertRowIdentity, error.InvalidTableStatementIntent, error.InvalidTableAccessRequest, error.InvalidMutationPlan, error.MutationBatchTooLarge, error.UnsupportedTableMutationShape, error.TableBatchTooLarge, error.InvalidTableReadBudget, error.InvalidTableCursor, error.InvalidTableSnapshotCursor, error.TableReadBudgetTooSmall, error.InvalidTableKey, error.TableSchemaChanged => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
                         else => return self.failure(request, err),
                     };
-                    defer self.allocator.free(response);
+                    defer budget.allocator().free(response);
                     // Typed results distinguish admission, commitment and reads;
                     // a successful HTTP exchange alone is not a native receipt.
                     self.observation.protocol_outcome = if (self.read_only) .read else .none;
@@ -280,9 +284,9 @@ pub fn Host(comptime Provider: type) type {
             /// All request parsing and catalog scratch ends before either a
             /// success or failure response waits on the transport. The separately
             /// allocated result crosses the final authority fence inside execute.
-            fn tableWork(self: *Server, request: *std.http.Server.Request, owner: anytype, control: bool) ![]const u8 {
+            fn tableWork(self: *Server, request: *std.http.Server.Request, owner: anytype, control: bool, backing: std.mem.Allocator) ![]const u8 {
                 const w = Provider.TableHost.Protocol;
-                var arena = std.heap.ArenaAllocator.init(self.allocator);
+                var arena = std.heap.ArenaAllocator.init(backing);
                 defer arena.deinit();
                 const allocator = arena.allocator();
                 const bytes = request.readerExpectNone(&.{}).allocRemaining(allocator, .limited(w.max_request_bytes)) catch |err| return switch (err) {
@@ -310,7 +314,7 @@ pub fn Host(comptime Provider: type) type {
                             self.changed.publishAll(self.io);
                         }
                     }
-                    break :execution owner.execute(self.io, self.engine, &arena, self.allocator, parsed.value);
+                    break :execution owner.execute(self.io, self.engine, &arena, backing, parsed.value);
                 };
             }
             fn failure(self: *Server, request: *std.http.Server.Request, err: anyerror) !void {
@@ -470,6 +474,7 @@ pub fn Host(comptime Provider: type) type {
             shared_pages_count: usize = 0,
             shared_pages_epoch: u64 = 1,
             shared_access: u64 = 0,
+            table_memory: DirectRequestMemory = .{},
 
             fn touchShared(self: *Context) u64 {
                 if (self.shared_access == std.math.maxInt(u64)) {
