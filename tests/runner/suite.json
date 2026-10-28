@@ -4,6 +4,7 @@
     "formal": [
       "test::model",
       "test::wal-model",
+      "test::transaction-decision-model",
       "test::model-delivery",
       "test::console-model",
       "test::statement-result-model",
@@ -640,6 +641,22 @@
         ],
         "tasks": [
           "test::statement-result-model"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "transaction-decision-proof": {
+        "paths": [
+          "tests/verification/models/TransactionDecision.tla",
+          "tests/verification/models/TransactionDecision.cfg",
+          "tests/verification/models/transaction_decision_model.py"
+        ],
+        "depends_on": [
+          "tlc-support"
+        ],
+        "tasks": [
+          "test::transaction-decision-model"
         ],
         "resources": [
           "formal-cpu"

@@ -188,6 +188,7 @@ jobs:
             .cache/verification/model/*.json
             .cache/verification/model/*.log
             .cache/verification/wal-model/
+            .cache/verification/transaction-decision-model/
             .cache/verification/console-model/
             .cache/verification/statement-result-model/
             .cache/verification/mutations/*.json

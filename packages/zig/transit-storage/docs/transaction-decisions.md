@@ -109,3 +109,9 @@ defines the exact object and journal formats. Focused component checks run with
 They cover paged disk reopen, exact identity, complete preparation membership,
 lost replies, pre/post-append failures, fencing and bounded allocation. They do
 not exercise installed SQL, actual Table preparation, process death or power loss.
+
+The [finite decision model](../../../../tests/verification/models/README.md#finite-transaction-decision-model)
+checks the journal's decision and knowledge obligations with two abstract
+participants and two epochs, including six negative controls. It assumes atomic
+log append and truthful guarded verification. Its operation-boundary mapping is
+not an implementation refinement proof or a Table isolation/visibility proof.

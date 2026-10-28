@@ -145,9 +145,10 @@ def main():
     for row in workers:
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
     assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": []}
-    assert LANES["formal"] == ["test::model", "test::wal-model", "test::model-delivery",
+    assert LANES["formal"] == ["test::model", "test::wal-model", "test::transaction-decision-model", "test::model-delivery",
                                "test::console-model", "test::statement-result-model", "test::sql-rewrites"]
     assert ".cache/verification/wal-model/" in artifacts["with"]["path"].splitlines()
+    assert ".cache/verification/transaction-decision-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/console-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/statement-result-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/allocations/runs/" in artifacts["with"]["path"].splitlines()
@@ -298,8 +299,9 @@ def main():
                   ["tests/README.md", "packages/zig/transit-core/src/lib.zig"]):
         assert select(paths)["full"], paths
     assert select(["tests/verification/models/Wal.tla"])["lanes"] == {"formal": ["test::wal-model"]}
+    assert select(["tests/verification/models/TransactionDecision.tla"])["lanes"] == {"formal": ["test::transaction-decision-model"]}
     assert select(["tests/verification/models/StatementResult.tla"])["lanes"] == {"formal": ["test::statement-result-model"]}
-    assert select(["tests/verification/models/tlc_support.py"])["lanes"] == {"formal": ["test::console-model", "test::statement-result-model"]}
+    assert select(["tests/verification/models/tlc_support.py"])["lanes"] == {"formal": ["test::transaction-decision-model", "test::console-model", "test::statement-result-model"]}
     assert select(["sdks/go/client/types.go"])["lanes"] == {"bindings-2": ["bindings::go-sdk-test"]}
     for event in ("push", "merge_group", "workflow_dispatch", "unknown"):
         assert select(["README.md"], event)["full"]

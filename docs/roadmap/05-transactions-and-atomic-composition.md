@@ -115,7 +115,7 @@ this header and the roadmap index together.
 
 | Package | Outcome | Status |
 | --- | --- | --- |
-| P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types and validation; runtime/model correspondence remains open |
+| P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types, validation and finite decision-journal model; complete local isolation/runtime correspondence remains open |
 | P1 | Database admission, original-token binding, transaction quotas and caller boundary | Planned |
 | P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: immutable paged participant directories; acquisition and workspace integration remain open |
 | P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | In progress: fenced decision journal with exact preparation membership; Table preparation and visibility integration remain open |

@@ -284,6 +284,10 @@ model *args:
 wal-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/wal_model.py {{args}}
 
+# One original transaction decision, bounded safety and six negative controls.
+transaction-decision-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/transaction_decision_model.py {{args}}
+
 # Finite editor model, every exported edge replayed against production Zig,
 # removed-guard controls and borrower release under explicit fairness.
 console-model *args:
