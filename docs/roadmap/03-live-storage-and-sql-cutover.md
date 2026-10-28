@@ -388,6 +388,16 @@ Document source semantics and current Table caller authentication. This removes
 an unused adapter only: the active private-turn `TableBridge` and its SDK
 consumers still require P1.5's atomicity-preserving migration or removal.
 
+The physical-disk `just test local-owner-recovery` schedule now also loses the
+native journal sync acknowledgment for an atomic turn that changes one KV
+resource and immutable block, retains the previous read version, consumes its
+input, and records output/effect intents. Exact retry after in-process owner
+replacement and another process restart preserves one receipt, both block
+versions, two consumed inputs and one still-pending output/effect pair. The
+existing allocation-queue fault and three-reopen-budget checks also pass. This
+qualifies native acceptance and replay, not connector dispatch or the remaining
+named KV/Document installation matrix; P1.4 remains open.
+
 #### P2 — Make point flushing automatic and inspectable
 
 Owners: local Table host/service, `TablePartition`, shared storage settings and
@@ -648,6 +658,8 @@ fault schedules, this closes P4.1's scheduling/restart scope. This installed
 Table schedule uses no trusted expiry clock; the runtime's controlled-clock
 collection checks remain distinct from installed reader-grace qualification.
 The aggregate resource and broader failure/retention matrix remain open.
+The full storage package also passes all 134 tests in `ReleaseSafe` at
+`960791aef`, covering the current WAL cleanup and Table maintenance formats.
 
 #### P5 — Qualify and reduce the remaining live read and wait costs
 
