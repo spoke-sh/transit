@@ -8,7 +8,7 @@ existing installation.
 
 ## Artifacts and platforms
 
-The [release workflow](../../../.github/workflows/release.yml) builds a static
+The [release workflow](../../../.github/workflows/release.yml) builds static
 Linux x86_64 and ARM64 bundles using the pinned Zig compiler, musl and OpenSSL 3.6.4. Its
 executables do not require Nix or host shared libraries. The archive includes
 `transit` with embedded Board assets, `transit-admin`, `transit-node`,
@@ -43,8 +43,8 @@ Follow the language's [installation guide](sdks.md) using the extracted package
 files as a local package source. Public npm, PyPI, crates.io and other registry
 publication is not enabled.
 
-Native SDK libraries and helper processes require Linux x86_64 with glibc 2.28
-or newer. They use the system loader and archive-relative library paths, without
+Native SDK libraries and helper processes target Linux 5.10 or newer on x86_64,
+with glibc 2.28 or newer. They use the system loader and archive-relative library paths, without
 Nix dependencies. Language runtimes and their documented dependencies remain
 separate requirements. `sdk-manifest.json` identifies the compiler, native target,
 contract definition and SHA-256 digest of every language package; the main
