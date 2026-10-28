@@ -19,6 +19,7 @@ on:
       - 'tests/runner/test_publication.py'
       - 'tests/runner/test_version_build.py'
       - 'tests/interfaces/installation/release.py'
+      - 'tests/interfaces/installation/published.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -69,8 +70,24 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+  installed:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-artifacts
+          path: dist/release
+      - name: Install and qualify downloaded artifacts without Nix
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: python3 -B tests/runner/launch.py tests/interfaces/installation/published.py --artifacts dist/release --version "$(cat VERSION)" --revision "$EXPECTED_REVISION"
   publish:
-    needs: [qualification, build]
+    needs: [qualification, build, installed]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -97,3 +114,19 @@ jobs:
           printf '%s' "$GH_TOKEN" | nix develop .#release --command skopeo login ghcr.io --username "$REGISTRY_USER" --password-stdin
           printf '%s' "$GH_TOKEN" | nix develop .#release --command helm registry login ghcr.io --username "$REGISTRY_USER" --password-stdin
           nix develop .#release --command python3 -B tasks/publish_release.py dist/release
+  published:
+    needs: publish
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install the public release without authentication or Nix
+        env:
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: python3 -B tests/runner/launch.py tests/interfaces/installation/published.py --version "$(cat VERSION)" --revision "$EXPECTED_REVISION"
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+      - name: Verify anonymous container and chart downloads
+        run: nix develop .#release --command python3 -B tasks/verify_release_registries.py

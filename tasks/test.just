@@ -734,6 +734,11 @@ release prefix:
     python3 -B tests/runner/test_version_build.py
     python3 -B tests/runner/launch.py tests/interfaces/installation/release.py "$1"
 
+# Verify the real installer against downloaded release artifacts, without building.
+[positional-arguments]
+release-install artifacts version revision:
+    python3 -B tests/runner/launch.py tests/interfaces/installation/published.py --artifacts "$1" --version "$2" --revision "$3"
+
 # Linux/Docker: real ENOSPC inside one newly allocated ext4 image.
 server-capacity:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe

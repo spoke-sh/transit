@@ -205,3 +205,9 @@ The distribution workflow separately builds static executables, exercises
 [test::release](../../tasks/test.just) outside the checkout, validates Helm and
 runs container SQL before any tag publication. These checks do not establish
 macOS/Windows support or a completed registry publication.
+
+The release workflow additionally runs `test::release-install` on downloaded
+artifacts on a fresh runner without Nix. The published path uses anonymous HTTPS,
+then checks the exact expected release/commit, installed binary hashes, embedded
+Board assets and inspection, SQL and retained restart. Public registry checks use
+empty Docker and Helm credential stores; failure does not retract published bytes.

@@ -55,6 +55,15 @@ checkout or workflow dry run does not create a public release. The installer
 requires Linux x86_64, `curl`, `tar`, `sha256sum` and ordinary POSIX utilities.
 Checksums detect corrupted downloads; they share the release host's trust.
 
+For an offline installation, download the archive, `SHA256SUMS` and `install.sh`
+from the same release into one directory, then run:
+
+```sh
+sh install.sh --version 0.0.1 --from "$PWD" --prefix "$HOME/.local"
+```
+
+The offline path uses the same archive checks and installation rules.
+
 Each version is installed beneath `<prefix>/lib/transit/<version>`, with command
 symlinks in `<prefix>/bin`. Put that bin directory on `PATH` and run
 `transit --version`. Installation refuses to overwrite an existing version
@@ -97,6 +106,8 @@ not supply these, install Substrate, or authorize bootstrap or replacement.
 
 Tag pushes run full ordinary CI plus the distribution build, installed startup,
 SQL/restart, container and Helm checks. Only successful tag builds can publish.
+Downloaded artifacts also pass the real installer and embedded Board/SQL/restart
+checks on a fresh runner before publication, without a Nix installation.
 Pull requests and manual dispatch build artifacts without publishing. Tag names
 must match `VERSION` at a clean commit. Builds retain artifacts in GitHub Actions;
 publication uses those artifacts without rebuilding them.
@@ -106,7 +117,10 @@ before reusing them; different bytes under an existing version are refused.
 Registry uploads can precede completion of the GitHub Release. A failed run leaves
 those versioned objects visible; rerunning the same source/artifacts reuses
 identical objects and fills missing ones. The GitHub Release remains a draft until
-all uploads succeed. Published versions and their tags must not be replaced.
+all uploads succeed. Published versions and their tags must not be replaced. A final job installs
+from the public GitHub Release and checks anonymous container/chart downloads.
+A failed public-download check leaves the release visible and requires fixing
+its access or distribution failure; it never replaces versioned artifacts.
 
 GitHub's repository token needs `packages: write` for GHCR and `contents: write`
 for Release assets. Package visibility is configured in GitHub Packages; confirm

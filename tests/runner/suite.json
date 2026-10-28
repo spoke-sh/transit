@@ -291,7 +291,8 @@
       "transit-board::relational-browser",
       "bindings::authorization",
       "test::console-latency-tls",
-      "test::release"
+      "test::release",
+      "test::release-install"
     ]
   },
   "nested_tasks": {
