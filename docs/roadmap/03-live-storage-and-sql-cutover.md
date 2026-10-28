@@ -1071,7 +1071,7 @@ inspection adapters, Board API and its existing inspection UI.
   SQL inspection syntax must be specified/generated with its grammar and
   capability owner before exposure. Board inspection remains read-only and
   receives no raw storage handles or hidden flush/GC mutation endpoint.
-- [ ] P6.4 Register settings with the existing configuration owner, validation,
+- [x] P6.4 Register settings with the existing configuration owner, validation,
   retained generation and restart/dynamic-setting rules. Publish defaults,
   units, limits and failure behavior in the public storage/configuration guides.
   Demonstrate why an accepted point write may have no newly flushed segment.
@@ -1111,6 +1111,18 @@ documentation. The full handbook check and all 41 fast checks pass before those
 two small oracle corrections; clean interfaces qualification remains required.
 Backend/root, quota/failure observations and Board presentation remain open.
 This is a partial P6.3 delivery and does not close any P6 acceptance checkbox.
+
+At `cf0209275`, the installed `just test server` schedule passes all fourteen
+storage-setting defaults, normalized byte/duration inputs, rejected out-of-range
+reloads, unchanged active node settings while restart is pending, and matching
+node values after restart. The same run preserves configuration generations,
+original reload outcomes, history-index recovery and missing-checkpoint refusal,
+then passes the complete server lifecycle. This closes P6.4 together with the
+published configuration owner and P2's WAL-only/automatic-flush observations.
+The [qualification account](../history/qualification/storage.md#installed-storage-settings--2026-10-28)
+retains the earlier fixture failure and exact sources. Clean qualification of
+the combined new source remains a P8 obligation; backend/root, quota/failure
+and Board inspection still keep P6.1–P6.3 open.
 
 #### P7 — Deliver the single executable local profile
 
@@ -1271,7 +1283,8 @@ creating another parallel milestone plan.
 | [#110](https://github.com/spoke-sh/transit/issues/110), [#122](https://github.com/spoke-sh/transit/issues/122) — open | Primary closure targets after P8. Reconcile delivered direct CRUD/read wiring now; retain every installed maintenance, packaging, recovery and performance gate. Correct transferred provider references to milestone 15 |
 | [#173](https://github.com/spoke-sh/transit/issues/173) — open | Close in P1 after deterministic reopen/original-request and full launcher evidence |
 | [#126](https://github.com/spoke-sh/transit/issues/126) — open | Complete installed native/payload obligations in P1/P4/P8. Reconcile milestone 2's delivered foundation. Close only after explicitly accounting for its still-broader provider obligation under milestone 15; otherwise keep that scope open |
-| [#113](https://github.com/spoke-sh/transit/issues/113), [#114](https://github.com/spoke-sh/transit/issues/114), [#115](https://github.com/spoke-sh/transit/issues/115), [#116](https://github.com/spoke-sh/transit/issues/116) — open | Reconcile each with milestone 2's completed local evidence in P0. Do not reimplement it because the issue is stale. Close satisfied scopes; retain any actual installed or provider remainder with an explicit owner |
+| [#113](https://github.com/spoke-sh/transit/issues/113), [#114](https://github.com/spoke-sh/transit/issues/114), [#115](https://github.com/spoke-sh/transit/issues/115) — closed | Foundation scopes were reconciled against PR #187. Preserve their local WAL, object publication and retained-Table evidence; qualify changed runtime integration here |
+| [#116](https://github.com/spoke-sh/transit/issues/116) — open | P2's automatic point flushing is delivered. Retain P4/P5/P6/P8 aggregate resource, inspection and installed qualification obligations; broader indexes and providers keep their assigned later owners |
 | [#118](https://github.com/spoke-sh/transit/issues/118), [#125](https://github.com/spoke-sh/transit/issues/125), [#127](https://github.com/spoke-sh/transit/issues/127), [#128](https://github.com/spoke-sh/transit/issues/128) — open | Consume the delivered local contracts, qualify changed projection/history/reader integration here, and retain broader historical/transaction/managed-computation/provider requirements with their numbered owners |
 | [#123](https://github.com/spoke-sh/transit/issues/123), [#124](https://github.com/spoke-sh/transit/issues/124), [#76](https://github.com/spoke-sh/transit/issues/76) — open | Complete and link the milestone 3 documentation, installed evidence and selected matched controls. These cross-milestone trackers do not automatically close with #110 |
 | [#117](https://github.com/spoke-sh/transit/issues/117), [#121](https://github.com/spoke-sh/transit/issues/121) — open | Retain distributed provider/concurrent-writer qualification with milestone 15; local success does not check off these profiles |

@@ -93,6 +93,39 @@ are not a multi-run speedup estimate. Serialization now makes two passes over
 each response, which still allocates its exact output. Large-response CPU cost,
 concurrent foreground writes and aggregate admission bounds remain unqualified.
 
+## Installed storage settings — 2026-10-28
+
+At `cf0209275fc0d6c75f50419268fe7418049472a3`, `just test server` passes the
+existing installed configuration and complete local server lifecycle on physical
+disk. The configuration schedule now checks all fourteen storage settings through
+`transit_settings()`: defaults, byte/duration normalization, accepted configured
+values separated from active values, restart-pending flags and the actual node
+configuration after restart. An archive work limit above eight is rejected without
+replacing the accepted configuration or changing the running node. The existing
+exact reload retries, competing generations, history-index recovery and refusal
+of missing retained configuration remain in the same passing schedule.
+
+The enclosing server trace also passes console results, interrupted original
+operation recovery, role/manager replacement, revocation and DROP/name reuse.
+Its runtime is 324.16 seconds, excluding the build; this is one correctness
+schedule, not a latency benchmark.
+Raw log: `.cache/milestone3/storage-settings-server-retry.log`, SHA-256
+`33396ca75ef95c406de1c6337f1e547329b668b392289a1d1ca1309134fae905`.
+
+The first attempt at `e897fb493` failed in the fixture: console discovery validated
+the deliberately invalid local file before connecting, so no reload command
+completion existed. The corrected schedule uses its saved public connection to
+ask the running configuration owner to reject that file. Its assertion still
+requires a recorded rejection and unchanged accepted/active settings. The failed
+log remains `.cache/milestone3/storage-settings-server.log`, SHA-256
+`c8a5fb5422f7ea6850ee0f2ca272d4483599f22e13ded4f146b960737e38a00f`;
+its private installation remains `/var/tmp/transit-server-proof-4ixihwpl`.
+The successful fixture is removed by its ordinary cleanup.
+
+This establishes the settings lifecycle, not live backend/path, quota-use,
+maintenance-failure or Board inspection. The complete combined clean-source
+qualification remains separate.
+
 ## Original SQL diagnostic outcome recovery — 2026-10-27
 
 Two retained physical-disk diagnostics are reopened with their original
