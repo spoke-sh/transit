@@ -2251,6 +2251,29 @@
       "limits": "Admission establishes no acquired cut, retained data pin, private workspace, decision, serializability or interactive SQL transaction. CONNECT authorizes saving caller-supplied selection descriptors; execution requires independent current Table authorization. Graph traversal checks retained pages, not an installed physical deletion schedule.",
       "model": null,
       "qualification": "Component checks and clean-source gates must be recorded with their exact source; registration does not establish executed proof."
+    },
+    {
+      "id": "TRANSACTION-03",
+      "claim": "Private Table evaluation reuses typed DML without public WAL acceptance, exposes provisional counts and preserves consumed identities across private rollback",
+      "owner": "packages/zig/transit-storage/docs/transaction-decisions.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TableWorkspace.zig",
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-storage/src/table_partition_test.zig"
+      ],
+      "profile": "Single retained Table, private row and predicate evaluation, disk-backed object reopen and explicit build-budget refusal",
+      "tasks": [
+        "check::native"
+      ],
+      "scenarios": [
+        "Private inserts and predicate updates read their own writes while public Table roots and WAL frontiers remain unchanged",
+        "Private rollback preserves consumed statement sequences and operation receipts; readonly writes and released-pin reads refuse",
+        "Disk reopen restores private segment rows from an explicitly saved state while public Table recovery contains only original accepted rows",
+        "An outer counting budget covers the component test lifetime and a small build allowance refuses without a public prefix"
+      ],
+      "limits": "No installed workspace owner, durable statement/result settlement, common-cut acquisition, aggregate transaction quota, retained workspace graph, segment identity reservation, Table preparation, SQL or savepoint/cursor interface is established. The embedding host must retain the borrowed owner and persist state/counters/results before exposing completion.",
+      "model": null,
+      "qualification": "Component executions must be recorded with their source and resource bounds; registration alone does not qualify installed transactions."
     }
   ]
 }

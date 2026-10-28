@@ -5309,6 +5309,7 @@
     "packages/zig/transit-catalog/src/DirectTransaction.zig": {
       "errors": {
         "InvalidTransactionBegin": 1,
+        "InvalidTransactionDirectory": 2,
         "TransactionCapacity": 1,
         "TransactionIdentityConflict": 1
       },
@@ -5321,7 +5322,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 12,
         "catch": 0
       },
       "imports": [
@@ -26880,9 +26881,11 @@
         "InvalidTableSegment": 2,
         "InvalidTableSnapshotCursor": 8,
         "InvalidTableStatementIntent": 1,
+        "InvalidTransactionWorkspace": 1,
         "LostAcknowledgement": 1,
         "MissingTableInterpretation": 2,
         "OutOfMemory": 3,
+        "PrivateTableWorkspace": 2,
         "QueryConflict": 1,
         "QueryTypeError": 2,
         "StorageCandidateTooLarge": 1,
@@ -26915,6 +26918,7 @@
         "TableStatementScanLimit": 2,
         "UnknownColumn": 3,
         "UnsupportedTableAction": 2,
+        "UnsupportedTransactionStatement": 1,
         "WriteFailed": 1
       },
       "outcomes": {
@@ -27074,7 +27078,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 623,
+        "try": 624,
         "catch": 15
       },
       "imports": [
@@ -27351,6 +27355,44 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/TableWorkspace.zig": {
+      "errors": {
+        "InvalidTransactionWorkspace": 3,
+        "ReadOnlyTransaction": 1,
+        "TableSnapshotNotPinned": 1,
+        "TableSnapshotReleased": 1,
+        "TransactionIdentityConflict": 4,
+        "TransactionStatementConflict": 3,
+        "TransactionStatementLimit": 1
+      },
+      "outcomes": {
+        "Outcome": [
+          "provisional",
+          "rejected"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "State.validate()": "<inferred>",
+        "execute()": "<inferred>",
+        "get()": "<inferred>",
+        "init()": "<inferred>",
+        "requireSource()": "<inferred>",
+        "rollback()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 21,
+        "catch": 0
+      },
+      "imports": [
+        "TableDeclaration.zig",
+        "TableDmlIntent.zig",
+        "TablePartition.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/TransactionDecisionLog.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
@@ -27618,6 +27660,7 @@
         "TableSnapshot.zig",
         "TableStorageRoots.zig",
         "TableStorageWalk.zig",
+        "TableWorkspace.zig",
         "TransactionDecisionLog.zig",
         "TransactionDirectory.zig",
         "TransitLog.zig",

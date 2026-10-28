@@ -117,7 +117,7 @@ this header and the roadmap index together.
 | --- | --- | --- |
 | P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types, validation and finite decision-journal model; complete local isolation/runtime correspondence remains open |
 | P1 | Database admission, original-token binding, transaction quotas and caller boundary | In progress: original-token begin admission, coordination partition reservation, limits and signed caller fixture; execution admission and settlement remain open |
-| P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: immutable paged participant directories; acquisition and workspace integration remain open |
+| P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: immutable paged directories and private Table DML/read-your-writes evaluator; common-cut acquisition, durable workspace ownership and quotas remain open |
 | P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | In progress: fenced decision journal with exact preparation membership; Table preparation and visibility integration remain open |
 | P4 | Restart/failure settlement, retained roots, cleanup and maintenance | Planned |
 | P5 | Provisional statement results, SQL session controls and shared client | Planned |

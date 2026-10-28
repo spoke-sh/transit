@@ -2700,6 +2700,13 @@ test "transaction admission refusals do not allocate partitions or consume token
     changed = binding;
     changed.intent.transaction.begin.catalog.next_lsn += 1;
     try t.expectError(error.TransactionCatalogChanged, catalog.clientToken(.{ .bind = changed }, access.policy()));
+    var malformed = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), binding.intent.transaction.begin.identity, .participants, 100, 1, 1024 * 1024);
+    defer malformed.deinit();
+    try malformed.restore(binding.intent.transaction.begin.tables);
+    malformed.root.count += 1;
+    changed = binding;
+    changed.intent.transaction.begin.tables = try malformed.seal();
+    try t.expectError(error.InvalidTransactionDirectory, catalog.clientToken(.{ .bind = changed }, access.policy()));
     catalog.options.client_token_quota = 0;
     try t.expectError(error.ClientTokenCapacity, catalog.clientToken(.{ .bind = binding }, access.policy()));
     try t.expectEqualDeep(before, catalog.store.root);

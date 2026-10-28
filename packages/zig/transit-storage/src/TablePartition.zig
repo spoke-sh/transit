@@ -314,6 +314,9 @@ recovery_archive: ?Archive.Coverage = null,
 recovery_work: RecoveryWork = .{},
 /// Failure injection at the durable append/reply boundary.
 lose_reply: bool = false,
+/// Private evaluation reuses the Table mutation engine but never appends to
+/// the accepted Table log. Only TableWorkspace constructs this mode.
+workspace: bool = false,
 
 pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaration.Definition, log: Log.Log, objects: Objects.ObjectStore, options: Options) !Self {
     try definition.validate();
@@ -420,6 +423,7 @@ pub fn recover(self: *Self) !void {
 }
 
 pub fn recoveryState(self: *Self) !RecoveryState {
+    if (self.workspace) return error.PrivateTableWorkspace;
     try self.ready();
     return .{ .root = self.root, .chain = self.chain };
 }
@@ -428,6 +432,7 @@ pub fn recoveryState(self: *Self) !RecoveryState {
 /// A newer accepted checkpoint supersedes an older hint. New storage owners
 /// always use recover(); neither this hint nor recovery authorizes disclosure.
 pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
+    if (self.workspace) return error.PrivateTableWorkspace;
     self.recovery_required = true;
     self.index.clearCache();
     if (self.segment_cache) |*cached| cached.deinit(self.allocator);
@@ -1536,6 +1541,19 @@ fn publish(self: *Self, proposed: r.Record, row_bytes: []const u8, guard: Guard)
     try self.requireMaintenanceProgress(self.root, record);
     try self.requireReceiptTransition(self.root, record);
     try self.requireHistoryRetentionTransition(self.root, record);
+    if (self.workspace) {
+        // Private row locations must be immutable segments. A virtual workspace
+        // frontier can never be used as an accepted WAL row location.
+        switch (record.action) {
+            .mutation => |value| if (value.ingestion != .bulk or value.binding.action == .create or row_bytes.len != 0) return error.InvalidTransactionWorkspace,
+            .operation => {},
+            else => return error.UnsupportedTransactionStatement,
+        }
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+        self.root = record.root;
+        return;
+    }
     if (self.root.next_lsn == 0) _ = try Declaration.stage(self.objects, &self.declaration);
     const buffer = try self.allocator.alloc(u8, Log.max_payload_bytes);
     defer self.allocator.free(buffer);

@@ -49,14 +49,18 @@ pub fn inspectSelection(allocator: std.mem.Allocator, objects: c.storage.Transit
     defer directory.deinit();
     try directory.restore(reference.begin.tables);
     var after: ?u64 = null;
+    var count: u64 = 0;
     while (true) {
         const page = try directory.page(after);
         for (page.entries) |slot| if (slot) |entry| {
+            count = try std.math.add(u64, count, 1);
+            if (count > directory.root.count) return error.InvalidTransactionDirectory;
             try entry.participant.requireLocalTable(reference.begin);
             if (entry.participant.state.access != .read) return error.InvalidTransactionBegin;
         };
         after = page.next orelse break;
     }
+    if (count != directory.root.count or directory.root.writes != 0) return error.InvalidTransactionDirectory;
 }
 
 test "transaction admission signature binds the complete independent begin fixture" {
