@@ -934,7 +934,7 @@
     },
     "apps/transit-cli/Terminal.zig": {
       "errors": {
-        "ConsoleInterrupted": 6,
+        "ConsoleInterrupted": 7,
         "ConsoleOutputTimeout": 1,
         "ConsoleQuit": 3,
         "IncompleteSqlStatement": 2,
@@ -960,6 +960,7 @@
         "Editor.dispatch()": "<inferred>",
         "Editor.draw()": "<inferred>",
         "Editor.drawDraft()": "<inferred>",
+        "Editor.drawFrame()": "<inferred>",
         "Editor.drawMenu()": "<inferred>",
         "Editor.drawSearch()": "<inferred>",
         "Editor.echo()": "<inferred>",
@@ -986,7 +987,7 @@
       "open_error_set_uses": 4,
       "propagation": {
         "try": 140,
-        "catch": 19
+        "catch": 20
       },
       "imports": [
         "AssistanceRequest.zig",
