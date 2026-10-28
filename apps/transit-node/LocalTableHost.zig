@@ -93,7 +93,7 @@ fn stripe(action: w.Action) ?usize {
         else => null,
     };
 }
-pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, request: w.Request, output: []u8) ![]const u8 {
+pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, request: w.Request) ![]const u8 {
     const write = exclusive(request.action);
     if (write) try self.directory.lock(io) else try self.directory.lockShared(io);
     defer if (write) self.directory.unlock(io) else self.directory.unlockShared(io);
@@ -112,7 +112,7 @@ pub fn execute(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, a
     var options = self.options;
     if (index) |slot| options.table_recovery = &self.table_recovery[slot];
     var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered };
-    return service.execute(arena, request, output);
+    return service.execute(arena, request);
 }
 
 test "projected and filtered Table reads share the retained object's host lock" {

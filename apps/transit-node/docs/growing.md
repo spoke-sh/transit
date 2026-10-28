@@ -131,6 +131,11 @@ volatile hints; cold recovery still depends on retained replay/checkpoint covera
 
 Direct requests accept at most 8 MiB and buffer at most 16 MiB of response, in
 addition to bounded schema/row conversion, index caches and private storage work.
+Response serialization counts the encoded bytes before allocating the final
+buffer. Small observations therefore do not reserve the 16 MiB maximum. This
+requires two encoding passes and still allocates request-owned output; it does
+not establish allocation-free reads. The current-authority fence runs after
+serialization, and the buffer lives through the joined response write.
 They use the listener's ordinary request lanes. `X-Transit-Control: table` uses
 reserved admission only for exact operation inspection/cancellation and pin
 release; the parsed action is checked and native authorization still applies.

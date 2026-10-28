@@ -79,6 +79,60 @@ pub fn valueAlloc(allocator: std.mem.Allocator, value: anytype) ![]u8 {
     return output.toOwnedSlice();
 }
 
+/// Count pure value serialization before allocating the final output. Limit
+/// refusal is WriteFailed, as with a full fixed writer; backing failure remains
+/// OutOfMemory. This trades a second encoding pass for no maximum-sized buffer
+/// or intermediate growable copies. Custom jsonStringify methods must be pure.
+pub fn valueAllocBounded(allocator: std.mem.Allocator, value: anytype, limit: usize) ![]u8 {
+    var scratch: [256]u8 = undefined;
+    var count: std.Io.Writer.Discarding = .init(&scratch);
+    var counter: std.json.Stringify = .{ .writer = &count.writer };
+    try write(value, &counter);
+    if (count.fullCount() > limit) return error.WriteFailed;
+    const size: usize = @intCast(count.fullCount());
+    const output = try allocator.alloc(u8, size);
+    errdefer allocator.free(output);
+    var writer: std.Io.Writer = .fixed(output);
+    var encoder: std.json.Stringify = .{ .writer = &writer };
+    try write(value, &encoder);
+    std.debug.assert(writer.buffered().len == size);
+    return output;
+}
+
+test "bounded JSON uses exact encoded bytes and refuses before allocating" {
+    const value = .{ .bytes = [_]u8{ 'i', 'd', 0 }, .text = @as([]const u8, "\"\n"), .absent = @as(?u64, null) };
+    const expected = "{\"bytes\":[105,100,0],\"text\":\"\\\"\\n\",\"absent\":null}";
+    var memory: [expected.len]u8 = undefined;
+    var fixed: std.heap.FixedBufferAllocator = .init(&memory);
+    try std.testing.expectError(error.WriteFailed, valueAllocBounded(fixed.allocator(), value, expected.len - 1));
+    try std.testing.expectEqual(0, fixed.end_index);
+    const encoded = try valueAllocBounded(fixed.allocator(), value, expected.len);
+    try std.testing.expectEqualStrings(expected, encoded);
+    try std.testing.expectEqual(expected.len, fixed.end_index);
+}
+
+test "bounded JSON counts escaped bytes across scratch drains" {
+    const quotes: [300]u8 = @splat('"');
+    var memory: [602]u8 = undefined;
+    var fixed: std.heap.FixedBufferAllocator = .init(&memory);
+    const value: []const u8 = &quotes;
+    try std.testing.expectError(error.WriteFailed, valueAllocBounded(fixed.allocator(), value, 601));
+    try std.testing.expectEqual(0, fixed.end_index);
+    const encoded = try valueAllocBounded(fixed.allocator(), value, 602);
+    try std.testing.expectEqual(602, encoded.len);
+    try std.testing.expectEqual('"', encoded[0]);
+    for (0..quotes.len) |i| try std.testing.expectEqualStrings("\\\"", encoded[1 + 2 * i ..][0..2]);
+    try std.testing.expectEqual('"', encoded[601]);
+}
+
+fn boundedAllocationSchedule(allocator: std.mem.Allocator) !void {
+    const encoded = try valueAllocBounded(allocator, .{ .name = "bounded value", .values = [_]u64{ 1, 2, 3 } }, 1024);
+    defer allocator.free(encoded);
+}
+test "bounded JSON reports backing allocation failure without leaks" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, boundedAllocationSchedule, .{});
+}
+
 fn allocationSchedule(allocator: std.mem.Allocator) !void {
     const encoded = try valueAlloc(allocator, .{ .name = "bounded value", .values = [_]u64{ 1, 2, 3 } });
     defer allocator.free(encoded);

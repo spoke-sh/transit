@@ -244,7 +244,6 @@ pub fn Host(comptime Provider: type) type {
                     self.observation.protocol_outcome = if (self.read_only) .read else .uncertain;
                     self.observation.realm = parsed.value.connection.scope.realm;
                     self.observation.operation = parsed.value.transport().operation;
-                    const output = try allocator.alloc(u8, w.max_response_bytes);
                     self.beginWork();
                     const before = self.engine.head.position;
                     const executed = execution: {
@@ -259,7 +258,7 @@ pub fn Host(comptime Provider: type) type {
                                 self.changed.publishAll(self.io);
                             }
                         }
-                        break :execution owner.execute(self.io, self.engine, &arena, parsed.value, output);
+                        break :execution owner.execute(self.io, self.engine, &arena, parsed.value);
                     };
                     const response = executed catch |err| switch (err) {
                         error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),

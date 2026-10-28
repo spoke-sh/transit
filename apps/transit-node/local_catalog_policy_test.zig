@@ -105,8 +105,7 @@ fn dispatchWithSeed(service: anytype, action: c.DirectTableProtocol.Action, dele
     const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .borrow = input.borrow, .proof = signed };
     const bytes = try p.Json.valueAlloc(alloc, request);
     const parsed = try w.Request.parse(alloc, bytes);
-    const output = try alloc.alloc(u8, 1024 * 1024);
-    const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, try service.execute(&arena, parsed.value, output));
+    const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, try service.execute(&arena, parsed.value));
     errdefer response.deinit();
     try c.DirectTableClient.validateResponse(alloc, parsed.value, response.value);
     if (response.value.result == .lookup and response.value.result.lookup != null) {
@@ -145,8 +144,8 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
         host: *Host,
         engine: *Engine,
         configuration: D.Configuration,
-        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, request: c.DirectTableProtocol.Request, output: []u8) ![]const u8 {
-            return self.host.execute(self.engine.journal.backend.io, self.engine, arena, request, output);
+        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, request: c.DirectTableProtocol.Request) ![]const u8 {
+            return self.host.execute(self.engine.journal.backend.io, self.engine, arena, request);
         }
     };
     var options = service.options;
