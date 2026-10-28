@@ -56,6 +56,17 @@ The storage components use the neutral [transaction bindings](DATA_LIFECYCLE_V1.
 Their [integration contract](../packages/zig/transit-storage/docs/transaction-decisions.md)
 separates these formats from installed transaction execution.
 
+`TableWorkspace.State` is an internal owned descriptor of private evaluation:
+mandatory `definition`, exact `begin`, retained `source`, private Table `root`,
+`last_statement` and `changed`. Its positions describe private evaluator progress,
+not Table WAL acceptance. The evaluator accepts bulk immutable row storage and
+returns transaction-attributed provisional counts or rejection. It cannot export
+an accepted Table recovery hint. Restoration requires the original live pin;
+rollback retains consumed statement/operation identities. The embedding owner
+must publish and retain the descriptor and its referenced pages before it becomes
+durable work. The descriptor alone defines no installed workspace wire protocol,
+collector root or transaction decision.
+
 `TransactionDirectory` objects start with `TXDIR1` followed by two zero bytes,
 then the mandatory 32-byte shared definition at offsets `8..40`, then canonical
 typed JSON. Total object size is at most 16 KiB. Canonical JSON uses declaration

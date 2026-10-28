@@ -3394,3 +3394,167 @@ test "Table index batches share paths and reject duplicate identities across pri
         try t.expect((try table.get(t.allocator, try key(1000, &bytes), access.guard())) == null);
     }
 }
+
+fn workspaceBegin() p.Transaction.Begin {
+    return .{ .definition = p.Growth.current_definition, .identity = .{ .begin = .{ .scope = object.scope, .principal = 4, .operation = 100 }, .branch = 1 }, .mode = .serializable, .selection = .explicit_tables, .tables = .{ .content = .{ .bytes = 100, .sha256 = @splat(1) }, .count = 1 }, .catalog = .{ .partition = 1, .next_lsn = 1 }, .limits = .{ .resident_bytes = P.default_build_resident_bytes, .workspace_bytes = 64 * 1024 * 1024, .participants = 10, .statements = 100, .savepoints = 10 } };
+}
+fn workspaceInsert(workspace: *s.TableWorkspace, sequence: u64, operation: u64, value: *const f.Types.Values.Cell, guard: P.Guard) !s.TableWorkspace.Outcome {
+    const proposed = binding(&workspace.table, operation);
+    var row = change(value, operation);
+    row.put.row.identity = try s.TableDmlIntent.insertIdentity(proposed.identity, 0);
+    return workspace.execute(.{ .transaction = workspace.begin.identity, .sequence = sequence, .intent = proposed.intent }, .{ .binding = proposed, .interpretation = workspace.table.root.declared(), .changes = &.{row}, .ingestion = .bulk }, guard);
+}
+
+test "transaction workspace reads private writes and rollback preserves consumed statement identities" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const first: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    const second: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+    const third: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 3 } } };
+    _ = try table.apply(binding(&table, 1), &.{change(&first, 1)}, .point, access.guard());
+    const begin = workspaceBegin();
+    const pin = try table.pin(begin.identity.begin, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+    const public = table.root;
+    var workspace = try s.TableWorkspace.init(t.allocator, &table, begin, pin, null, access.guard());
+    defer workspace.deinit();
+    const saved = workspace.state();
+    const result = try workspaceInsert(&workspace, 1, 2, &second, access.guard());
+    try t.expect(result == .provisional);
+    try t.expectEqual(@as(u64, 1), result.provisional.affected);
+    try t.expectError(error.PrivateTableWorkspace, workspace.table.recoveryState());
+    try t.expectError(error.PrivateTableWorkspace, workspace.table.recover());
+    try t.expectEqualDeep(public, table.root);
+    try t.expectEqual(public.next_lsn, try wal.log().tail(17));
+    var key_bytes: [4096]u8 = undefined;
+    const second_key = try key(2, &key_bytes);
+    var own = (try workspace.get(t.allocator, second_key, access.guard())).?;
+    own.deinit();
+    try t.expect(try table.get(t.allocator, second_key, access.guard()) == null);
+    try workspace.rollback(saved);
+    try t.expect(try workspace.get(t.allocator, second_key, access.guard()) == null);
+    try t.expectEqual(@as(u64, 1), workspace.last_statement);
+    try t.expectError(error.TransactionStatementConflict, workspaceInsert(&workspace, 1, 3, &third, access.guard()));
+    try t.expectError(error.TransactionStatementConflict, workspaceInsert(&workspace, 2, 2, &second, access.guard()));
+    _ = try workspaceInsert(&workspace, 3, 3, &third, access.guard());
+    try t.expectEqual(@as(u64, 2), workspace.table.root.live_rows);
+    try t.expectEqual(public.next_lsn, try wal.log().tail(17));
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.PermissionDenied, workspace.get(t.allocator, second_key, access.guard()));
+    access.deny_at = std.math.maxInt(usize);
+    try table.releaseSnapshot(pin, access.guard());
+    try t.expectError(error.TableSnapshotReleased, workspace.get(t.allocator, second_key, access.guard()));
+}
+
+test "transaction workspace restores private rows after disk reopen without public data acceptance" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const begin = workspaceBegin();
+    var state: s.TableWorkspace.State = undefined;
+    var access: Access = .{};
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var table = try owner(&wal, &objects);
+        defer table.deinit();
+        const first: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+        const second: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+        _ = try table.apply(binding(&table, 1), &.{change(&first, 1)}, .point, access.guard());
+        const pin = try table.pin(begin.identity.begin, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+        var workspace = try s.TableWorkspace.init(t.allocator, &table, begin, pin, null, access.guard());
+        defer workspace.deinit();
+        _ = try workspaceInsert(&workspace, 1, 2, &second, access.guard());
+        state = workspace.state();
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var workspace = try s.TableWorkspace.init(t.allocator, &table, begin, state.source, state, access.guard());
+    defer workspace.deinit();
+    try t.expectEqual(@as(u64, 2), workspace.table.root.live_rows);
+    try t.expectEqual(@as(u64, 1), table.root.live_rows);
+    try t.expectEqual(@as(u64, 2), try wal.log().tail(17));
+    var key_bytes: [4096]u8 = undefined;
+    var own = (try workspace.get(t.allocator, try key(2, &key_bytes), access.guard())).?;
+    own.deinit();
+    var read_only = begin;
+    read_only.mode = .read_only;
+    var read_workspace = try s.TableWorkspace.init(t.allocator, &table, read_only, state.source, null, access.guard());
+    defer read_workspace.deinit();
+    const third: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 3 } } };
+    try t.expectError(error.ReadOnlyTransaction, workspaceInsert(&read_workspace, 1, 3, &third, access.guard()));
+}
+
+test "transaction workspace predicate DML and budget refusal preserve the public WAL" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var table = try owner(&wal, &objects);
+    defer table.deinit();
+    var access: Access = .{};
+    const one: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+    _ = try table.apply(binding(&table, 1), &.{change(&one, 1)}, .point, access.guard());
+    const begin = workspaceBegin();
+    const pin = try table.pin(begin.identity.begin, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+    const public = table.root;
+    var memory: f.MemoryBudget = .{ .parent = t.allocator, .limit = P.default_build_resident_bytes };
+    {
+        var workspace = try s.TableWorkspace.init(memory.allocator(), &table, begin, pin, null, access.guard());
+        defer workspace.deinit();
+        var compiled = try f.TableDml.compile(t.allocator, "UPDATE events SET id = 2 WHERE id = 1", "events", schema, null);
+        defer compiled.deinit();
+        var proposed = binding(&workspace.table, 2);
+        proposed.action = .update;
+        proposed.intent = try compiled.plan.fingerprint(t.allocator);
+        proposed.expected_data = .{ .partition = 17, .next_lsn = workspace.table.root.next_lsn };
+        const result = try workspace.execute(.{ .transaction = begin.identity, .sequence = 1, .intent = proposed.intent }, .{ .binding = proposed, .interpretation = workspace.table.root.declared(), .changes = &.{}, .ingestion = .bulk, .statement = compiled.plan }, access.guard());
+        try t.expect(result == .provisional);
+        try t.expectEqual(@as(u64, 1), result.provisional.affected);
+        try t.expect(workspace.changed);
+        try t.expectEqualDeep(public, table.root);
+        try t.expectEqual(public.next_lsn, try wal.log().tail(17));
+        try t.expect(workspace.residentPeak() <= begin.limits.resident_bytes);
+    }
+    try t.expectEqual(@as(usize, 0), memory.used);
+    try t.expect(memory.peak <= memory.limit);
+    // Acquisition shares the resident allowance with retained evaluator state.
+    // Both configured exhaustion and parent failure release every allocation.
+    var small = begin;
+    small.limits.resident_bytes = 4096;
+    try t.expectError(error.TransactionMemoryLimit, s.TableWorkspace.init(t.allocator, &table, small, pin, null, access.guard()));
+    var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    try t.expectError(error.OutOfMemory, s.TableWorkspace.init(failing.allocator(), &table, begin, pin, null, access.guard()));
+    small.limits.resident_bytes = 1024 * 1024;
+    {
+        var limited = try s.TableWorkspace.init(t.allocator, &table, small, pin, null, access.guard());
+        defer limited.deinit();
+        const before = limited.table.root;
+        const two: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+        try t.expectError(error.TransactionMemoryLimit, workspaceInsert(&limited, 1, 2, &two, access.guard()));
+        try t.expectEqualDeep(before, limited.table.root);
+        try t.expectEqual(@as(u64, 1), limited.last_statement);
+        try t.expect(limited.residentPeak() <= small.limits.resident_bytes);
+    }
+    // A smaller independent Table build cap refuses the statement without
+    // accepting a public prefix or implying transaction rollback.
+    table.options.build_resident_bytes = 4096;
+    var workspace = try s.TableWorkspace.init(t.allocator, &table, begin, pin, null, access.guard());
+    defer workspace.deinit();
+    const two: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+    const refused = try workspaceInsert(&workspace, 1, 2, &two, access.guard());
+    try t.expect(refused == .rejected);
+    try t.expectEqual(.work_limit, refused.rejected.reason);
+    try t.expect(!workspace.changed);
+    try t.expectEqual(@as(u64, 1), workspace.last_statement);
+    try t.expectEqual(public.next_lsn, try wal.log().tail(17));
+}

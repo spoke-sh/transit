@@ -2604,3 +2604,168 @@ test "client account budgets and request fences persist with exact admission" {
     try t.expectEqual(@as(u64, 9216), usage.bytes);
     try t.expectEqual(@as(u64, 0), usage.pending);
 }
+
+fn transactionToken(catalog: *D, operation: u64, token: u8, count: u64) !c.DirectClientToken.Binding {
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
+    const identity: p.Transaction.Identity = .{ .begin = .{ .scope = scope, .principal = 1, .operation = operation }, .branch = 1 };
+    var directory = try s.TransactionDirectory.init(t.allocator, catalog.data_objects, identity, .participants, 100, 1, 1024 * 1024);
+    defer directory.deinit();
+    for (0..count) |i| try directory.put(.{ .participant = .{ .state = .{
+        .kind = .table,
+        .guard = .{ .source = .{ .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = i + 1000 }, .revision = 1, .digest = @splat(1) }, .manifest = null, .checkpoint_lsn = 0, .accepted = .{ .partition = i + 1000, .next_lsn = 1 } }, .changed_lsn = 1 },
+        .access = .read,
+    } } });
+    const reference: c.DirectTransaction.Reference = .{ .connection = connection, .namespace = 1, .begin = .{
+        .definition = p.Growth.current_definition,
+        .identity = identity,
+        .mode = .serializable,
+        .selection = .explicit_tables,
+        .tables = try directory.seal(),
+        .catalog = .{ .partition = 1, .next_lsn = catalog.store.root.next_lsn },
+        .limits = .{ .resident_bytes = 65536, .workspace_bytes = 1048576, .participants = 100, .statements = 1000, .savepoints = 32 },
+    } };
+    return .{ .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(9), .token = @splat(token) }, .fingerprint = @splat(token + 1), .intent = .{ .transaction = reference } };
+}
+
+test "transaction admission recovers original token and exclusive partition after lost disk reply" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var binding: c.DirectClientToken.Binding = undefined;
+    var access: Access = .{};
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        binding = try transactionToken(&catalog, 55, 1, 17);
+        catalog.store.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.clientToken(.{ .bind = binding }, access.policy()));
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    const receipt = (try catalog.clientToken(.{ .lookup = binding.key }, access.policy())).?;
+    try t.expectEqualDeep(binding, receipt.binding);
+    try t.expectEqual(@as(?u64, 2), receipt.coordination);
+    try t.expectEqual(@as(u64, 2), receipt.position.next_lsn);
+    try t.expectEqual(@as(u64, 0), try wal.log().tail(receipt.coordination.?));
+    const before = catalog.store.root;
+    var racing = binding;
+    racing.intent.transaction.begin.identity.begin.operation += 1;
+    racing.intent.transaction.begin.tables.content.sha256 = @splat(99);
+    try t.expectEqualDeep(receipt, (try catalog.clientToken(.{ .bind = racing }, access.policy())).?);
+    try t.expectEqualDeep(before, catalog.store.root);
+    // Another token cannot reserve a second coordinator for this begin identity.
+    racing = binding;
+    racing.key.token = @splat(2);
+    racing.intent.transaction.begin.catalog.next_lsn = before.next_lsn;
+    try t.expectError(error.DataIdentityConflict, catalog.clientToken(.{ .bind = racing }, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    const create = try creation(7, 70, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    var table = (try resolve(&catalog, &access, "events")).?;
+    defer table.deinit();
+    try t.expectEqual(@as(u64, 3), table.table.root.partition);
+    try t.expectEqualDeep(receipt, (try catalog.clientToken(.{ .bind = binding }, access.policy())).?);
+    const progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+    try t.expectError(error.ClientOperationPending, catalog.clientProgress(.{ .update = .{ .key = binding.key, .expected = progress.revision, .pending = false, .cancel = false, .record = null } }, access.policy()));
+    access.deny_at = access.calls + 1;
+    try t.expectError(error.CatalogDenied, catalog.clientToken(.{ .lookup = binding.key }, access.policy()));
+}
+
+test "transaction admission refusals do not allocate partitions or consume token quota" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try transactionToken(&catalog, 55, 1, 9);
+    const before = catalog.store.root;
+    var changed = binding;
+    changed.intent.transaction.begin.limits.workspace_bytes = catalog.options.transaction_limits.workspace_bytes + 1;
+    try t.expectError(error.TransactionCapacity, catalog.clientToken(.{ .bind = changed }, access.policy()));
+    changed = binding;
+    changed.intent.transaction.begin.tables.content.sha256 = @splat(99);
+    try t.expectError(error.MissingTransactionDirectory, catalog.clientToken(.{ .bind = changed }, access.policy()));
+    changed = binding;
+    changed.intent.transaction.begin.catalog.next_lsn += 1;
+    try t.expectError(error.TransactionCatalogChanged, catalog.clientToken(.{ .bind = changed }, access.policy()));
+    var malformed = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), binding.intent.transaction.begin.identity, .participants, 100, 1, 1024 * 1024);
+    defer malformed.deinit();
+    try malformed.restore(binding.intent.transaction.begin.tables);
+    malformed.root.count += 1;
+    changed = binding;
+    changed.intent.transaction.begin.tables = try malformed.seal();
+    try t.expectError(error.InvalidTransactionDirectory, catalog.clientToken(.{ .bind = changed }, access.policy()));
+    catalog.options.client_token_quota = 0;
+    try t.expectError(error.ClientTokenCapacity, catalog.clientToken(.{ .bind = binding }, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    try t.expectEqual(@as(u64, 1), try wal.log().tail(1));
+    catalog.options.client_token_quota = 1;
+    const receipt = (try catalog.clientToken(.{ .bind = binding }, access.policy())).?;
+    var invalid = receipt;
+    invalid.coordination = null;
+    try t.expectError(error.InvalidClientToken, invalid.validate());
+    invalid = receipt;
+    invalid.coordination = 1;
+    try t.expectError(error.InvalidClientToken, invalid.validate());
+    const bytes = try std.json.Stringify.valueAlloc(t.allocator, receipt, .{});
+    defer t.allocator.free(bytes);
+    const parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
+    defer parsed.deinit();
+    var value = parsed.value;
+    try t.expect(value.object.swapRemove("coordination"));
+    const missing = try std.json.Stringify.valueAlloc(t.allocator, value, .{});
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, std.json.parseFromSlice(c.DirectClientToken.Receipt, t.allocator, missing, .{}));
+}
+
+test "transaction admission retains selected directory pages through the catalog graph" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try transactionToken(&catalog, 55, 1, 73);
+    _ = try catalog.clientToken(.{ .bind = binding }, access.policy());
+    var workspace: @import("direct_storage_graph_test.zig").Workspace = .{};
+    defer workspace.deinit();
+    try workspace.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+    var at: usize = 0;
+    var steps: usize = 0;
+    while (at < workspace.jobs.items.len) : (at += 1) {
+        var work = workspace.jobs.items[at];
+        while (!try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &workspace)) {
+            steps += 1;
+            if (steps > 10000) return error.FixtureBudget;
+        }
+    }
+    var selected = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), binding.intent.transaction.begin.identity, .participants, 100, 0, 1);
+    defer selected.deinit();
+    try selected.restore(binding.intent.transaction.begin.tables);
+    const node = selected.root.entries.?;
+    var walker = try c.DirectCatalogWalk.init(catalog.store.root, .{ .reference = node, .kind = .pages_only });
+    var pages: usize = 0;
+    while (try walker.next(t.allocator, &selected.index)) |edge| switch (edge) {
+        .page => |page| {
+            var name: [96]u8 = undefined;
+            try t.expect(workspace.marks.contains(try s.TreeStore.key(page.reference.location, &name)));
+            pages += 1;
+        },
+        .declaration => return error.UnexpectedDeclaration,
+    };
+    try t.expect(pages > 1);
+}

@@ -30,6 +30,7 @@ pub const NamespaceChange = struct {
     }
 };
 pub const Reference = union(enum) {
+    transaction: c.DirectTransaction.Reference,
     external: External,
     table: c.DirectTableIntent.Reference,
     name_assertion: c.NameAssertion.Binding,
@@ -52,6 +53,7 @@ pub const Reference = union(enum) {
     }
     pub fn identity(self: Reference) p.DataLifecycle.Operation {
         return switch (self) {
+            .transaction => |value| value.identity(),
             .external => |value| value.identity(),
             .table => |value| value.binding.identity,
             .name_assertion => |value| value.identity(),
@@ -66,6 +68,13 @@ pub const Reference = union(enum) {
     }
     pub fn digest(self: Reference) ![32]u8 {
         return switch (self) {
+            .transaction => blk: {
+                var bytes: [max_bytes]u8 = undefined;
+                var hasher = std.crypto.hash.sha2.Sha256.init(.{});
+                hasher.update("transit.catalog.transaction.binding.v1\x00");
+                hasher.update(try encode(self, &bytes));
+                break :blk hasher.finalResult();
+            },
             .external => |value| blk: {
                 var bytes: [max_bytes]u8 = undefined;
                 var digest_value = std.crypto.hash.sha2.Sha256.init(.{});
@@ -84,6 +93,7 @@ pub const Reference = union(enum) {
         if (!std.meta.eql(self, other)) return error.DataIdentityConflict;
     }
     pub fn admit(self: Reference, client: c.DirectTableClient) !std.json.Parsed(w.Response) {
+        if (self == .transaction) return error.TransactionOperationRequired;
         if (self == .external) return error.ExternalOperationOwnerRequired;
         if (self == .table) return self.table.admit(client);
         if (self == .namespace_change) {
@@ -97,6 +107,7 @@ pub const Reference = union(enum) {
         try self.validate();
         if (!std.meta.eql(self.connection(), client.connection)) return error.CatalogIdentityConflict;
         return switch (self) {
+            .transaction => error.TransactionOperationRequired,
             .external => error.ExternalOperationOwnerRequired,
             .table => |value| value.operation(client, command, steps),
             .name_assertion => |value| client.call(.{ .name_assertion = .{ .binding = value, .command = switch (command) {

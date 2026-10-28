@@ -2225,6 +2225,55 @@
       "limits": "The model assumes atomic conditional log append and truthful participant verification under a common guard. Component tests supply verification callbacks, not actual Table owners. No installed transactions, consistent-cut acquisition, Table preparation/visibility, serializability, SQL, retention integration, liveness, power-loss experiment or implementation refinement is established. Model counterexamples are not automatically replayed against Zig.",
       "model": "tests/verification/models/TransactionDecision.tla",
       "qualification": "Execution evidence is retained under .cache/verification/transaction-decision-model/ and CI artifacts. The component integration contract records the remaining host obligations."
+    },
+    {
+      "id": "TRANSACTION-02",
+      "claim": "Transaction begin admission atomically binds the original account/token to one exclusive coordination partition and retains its selected directory pages",
+      "owner": "contracts/DIRECT_TABLE_V1.md",
+      "implementation": [
+        "packages/zig/transit-catalog/src/DirectTransaction.zig",
+        "packages/zig/transit-catalog/src/DirectCatalog.zig",
+        "packages/zig/transit-catalog/src/DirectCatalogStore.zig",
+        "packages/zig/transit-catalog/src/DirectStorageGraph.zig",
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig"
+      ],
+      "profile": "Local Catalog original-token admission; disk reopen plus bounded-page graph and signed fixture checks",
+      "tasks": [
+        "check::native",
+        "check::contracts"
+      ],
+      "scenarios": [
+        "Lost accepted reply and disk reopen recover the original coordination partition; racing proposals return the winner",
+        "Another token cannot allocate a second coordinator for a begin identity; later Table allocation cannot reuse the reserved partition",
+        "Limits, stale Catalog observations, missing selections and current CONNECT denial cannot create successful admission",
+        "Mandatory coordination fields reject omission; 73 selected Table descriptors retain every reachable directory page beyond the resident cache"
+      ],
+      "limits": "Admission establishes no acquired cut, retained data pin, private workspace, decision, serializability or interactive SQL transaction. CONNECT authorizes saving caller-supplied selection descriptors; execution requires independent current Table authorization. Graph traversal checks retained pages, not an installed physical deletion schedule.",
+      "model": null,
+      "qualification": "Component checks and clean-source gates must be recorded with their exact source; registration does not establish executed proof."
+    },
+    {
+      "id": "TRANSACTION-03",
+      "claim": "Private Table evaluation reuses typed DML without public WAL acceptance, exposes provisional counts and preserves consumed identities across private rollback",
+      "owner": "packages/zig/transit-storage/docs/transaction-decisions.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/TableWorkspace.zig",
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "packages/zig/transit-storage/src/table_partition_test.zig"
+      ],
+      "profile": "Single retained Table, private row and predicate evaluation, disk-backed object reopen and evaluator-lifetime resident accounting",
+      "tasks": [
+        "check::native"
+      ],
+      "scenarios": [
+        "Private inserts and predicate updates read their own writes while public Table roots and WAL frontiers remain unchanged",
+        "Private rollback preserves consumed statement sequences and operation receipts; readonly writes and released-pin reads refuse",
+        "Disk reopen restores private segment rows from an explicitly saved state while public Table recovery contains only original accepted rows",
+        "A shared evaluator budget meters initialization, retained caches and builders; acquisition, statement and independent build-cap refusals leave no public prefix and parent OOM remains distinct"
+      ],
+      "limits": "No installed workspace owner, durable statement/result settlement, common-cut acquisition, aggregate transaction quota, retained workspace graph, segment identity reservation, Table preparation, SQL or savepoint/cursor interface is established. The embedding host must retain the borrowed owner and persist state/counters/results before exposing completion.",
+      "model": null,
+      "qualification": "Component executions must be recorded with their source and resource bounds; registration alone does not qualify installed transactions."
     }
   ]
 }

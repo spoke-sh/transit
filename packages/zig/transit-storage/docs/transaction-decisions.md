@@ -31,6 +31,53 @@ earlier roots survive later private inserts. Failed insertion leaves the current
 private root unchanged. Staged orphan objects require an owning retained-graph
 and cleanup policy; this component deletes nothing.
 
+## Private Table evaluation
+
+`TableWorkspace` opens an existing retained Table pin with current authorization
+and borrows that Table owner's serialized lifetime. It uses `TablePartition`'s
+typed row and predicate DML evaluator against private copy-on-write roots.
+Reads include the retained WAL-backed rows and private segment-backed writes.
+New row data uses bulk immutable segments; private evaluator positions cannot
+become accepted WAL row locations. Statement results carry explicit provisional
+counts or a rejection reason, with their transaction and statement attribution.
+The public Table root and WAL remain unchanged.
+
+`State` contains the exact begin descriptor, retained source, private root,
+monotonic statement counter and whether data differs through accepted private
+mutations. Restoring it checks the begin, interpretation, source identity and
+live pin. `get` and `execute` recheck the pin and current rights. A released pin
+cannot be revived by a saved workspace. A private Table cannot export a normal
+recovery hint or recover through the public Table log.
+
+Rollback restores private data while retaining consumed operation receipts,
+statement sequence and monotonic private storage frontiers. A discarded
+statement's operation or sequence cannot be assigned to replacement work.
+The transaction host separately owns persistent savepoint names, read/conflict
+dependencies, cursor invalidation and original statement-result recovery.
+Workspace rollback neither publishes an abort nor cancels external work.
+
+One stable budget meters the evaluator's heap allocations from initialization
+through destruction, including its private Table caches, mutation builders and
+budget context. `residentPeak` reports that lifetime peak. Configured exhaustion
+returns `TransactionMemoryLimit`; parent allocation failure remains `OutOfMemory`.
+The Table's smaller independent build budget can also return a provisional
+statement rejection with `work_limit`. Borrowed Table owners, caller-owned
+output, provider buffers, stack capacity and retained workspace bytes have
+separate owners. The host must reserve their capacity and aggregate concurrent
+workspaces; one evaluator's allowance is not an installation-wide limit.
+
+Small allowances can reject even a small statement because the Table encoder
+reserves bounded row and segment buffers. The component checks exercise the
+existing 64 MiB Table allowance, refuse initialization with 4 KiB, and refuse
+a statement under an independent 4 KiB build cap without public acceptance.
+
+Before service use, the transaction owner must durably publish every accepted
+workspace state, failed statement sequence and result, retain its referenced
+data/receipt pages, enforce aggregate quotas and protect private segment identity
+allocation at preparation. State descriptors alone are not a retained root or
+preparation proof. This evaluator supplies no SQL session, common-cut acquisition,
+coordinator, participant preparation or public savepoint interface.
+
 ## Frozen attempt and decision
 
 The embedding catalog must reserve one distinct coordination partition for the

@@ -59,6 +59,13 @@ and the catalog's retained dependency graph.
   journal. Their [integration contract](docs/transaction-decisions.md) requires
   catalog admission, Table preparation/common-decision visibility and retained
   graph ownership before runtime use. They expose no installed SQL transaction.
+- `TableWorkspace.zig`: Private typed row and predicate DML over an authorized
+  retained Table pin, using the existing Table evaluator and immutable indexes.
+  Read-your-writes and private rollback preserve consumed statement identities;
+  results are provisional and never append to the public Table WAL. Its
+  [integration obligations](docs/transaction-decisions.md#private-table-evaluation)
+  include durable state/result ownership, retention, aggregate quotas and commit
+  preparation before service use.
 - `OrderedKeyIndex.zig`: Full ordered keys up to 4 KiB, mapped to row hashes
   through immutable 64-byte key chunks over `TreeStore`. Point lookup and
   inclusive/exclusive range seeking use bounded paths; mutation candidates share

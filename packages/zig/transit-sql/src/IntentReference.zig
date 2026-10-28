@@ -13,6 +13,7 @@ pub const namespaceDigest = c.DirectIntent.namespaceDigest;
 pub fn commandKind(self: Reference) !g.results.Command {
     return switch (self) {
         .external => error.ExternalOperationOwnerRequired,
+        .transaction => error.TransactionOperationRequired,
         .table => |value| switch (value.binding.action) {
             .create => .create_table,
             .alter, .rename => .alter_table,

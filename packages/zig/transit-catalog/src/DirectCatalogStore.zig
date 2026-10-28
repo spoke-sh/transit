@@ -316,6 +316,12 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
     } else {
         if (!std.meta.eql(accepted, c.DirectClientToken.Progress.initial(accepted.receipt)) or
             record.root.client_token_count != try std.math.add(u64, before.client_token_count, 1)) return error.InvalidDirectCatalogTransition;
+        if (accepted.receipt.coordination) |partition| {
+            if (partition != before.next_partition or record.root.next_partition != try std.math.add(u64, before.next_partition, 1) or
+                accepted.receipt.binding.intent.transaction.begin.catalog.partition != before.configuration.partition or
+                accepted.receipt.binding.intent.transaction.begin.catalog.next_lsn != before.next_lsn)
+                return error.InvalidDirectCatalogTransition;
+        }
     }
     var unchanged = record.root;
     unchanged.next_lsn = before.next_lsn;
@@ -324,6 +330,7 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
     unchanged.client_operations = before.client_operations;
     unchanged.client_pending = before.client_pending;
     unchanged.client_accounts = before.client_accounts;
+    if (prior == null and accepted.receipt.coordination != null) unchanged.next_partition = before.next_partition;
     const usage = (try self.clientUsage(before, key)) orelse c.DirectClientToken.Usage{ .limits = accepted.receipt.binding.budget.limits };
     const after_usage = try self.clientUsage(record.root, key) orelse return error.InvalidDirectCatalogTransition;
     if (!std.meta.eql(try usage.transition(prior, accepted), after_usage)) return error.InvalidDirectCatalogTransition;

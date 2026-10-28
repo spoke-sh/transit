@@ -23,6 +23,7 @@ pub const TablePartitionRecord = @import("TablePartitionRecord.zig");
 pub const TablePartition = @import("TablePartition.zig");
 pub const TableDmlIntent = @import("TableDmlIntent.zig");
 pub const TransactionDirectory = @import("TransactionDirectory.zig");
+pub const TableWorkspace = @import("TableWorkspace.zig");
 pub const TransactionDecisionLog = @import("TransactionDecisionLog.zig");
 
 test {
