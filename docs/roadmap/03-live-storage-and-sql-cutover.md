@@ -227,12 +227,12 @@ incomplete-prefix and original-operation recovery rules while evolving that
 contract. Coordinate any shared-definition replacement and regenerated resources
 across the two branches; neither branch may retain a parallel legacy definition.
 
-Remaining work here includes P0's baseline diagnosis, P1.4's broader resource
-matrix, P1.5's retained Station Table boundary and cleanup, P4's automatic
-archive/checkpoint/compaction/collection, P5's measured
-reader/recovery reuse and waiting, P6's storage views and P8's
-full common-revision qualification. Unfinished bounded WAL cleanup is a follow-up
-to the early PR. Coordinate P5 reader lifetime and P6 SQL inspection changes with
+Remaining work here includes P0's baseline diagnosis, P1.5's current caller
+qualification, P4's aggregate resource/retention/failure matrix, P5's measured
+direct reader/recovery reuse, P6's storage views and P8's full common-revision
+qualification. The installed resource matrix and automatic maintenance scheduling
+are delivered below; D5 assigns the Station replacement to milestone 6.
+Coordinate P5 reader lifetime and P6 SQL inspection changes with
 the statement-result owner instead of editing its result lifecycle independently.
 
 #### P0 — Freeze the contracts and baseline
@@ -873,6 +873,16 @@ original binaries: all 16 saved operations are terminal, and the second-cycle
 UPDATE has one matched/changed row. Independent readback verifies key -1 at 200
 and keys 0–8 at 100, without submitting another UPDATE. Its original deadline
 failure remains part of the latency investigation.
+
+The separate instrumented baseline's failed three-row INSERT is also recovered
+under its original identity: eleven terminal operations and the exact twelve
+expected rows. The instrumented `ff2d2e45e` diagnostic instead retains an
+incomplete upload for its second `delete_absent` operation. Original-identity
+public cancellation durably abandons that upload, without inventing a Table
+outcome; nineteen preceding operations and all nine expected rows survive another
+restart. The [qualification account](../history/qualification/storage.md#original-sql-diagnostic-outcome-recovery--2026-10-27)
+preserves both failed latency controls, matching binary identities and distinct
+settlement evidence. Neither recovery closes P5's current-source performance gate.
 
 **Progress PR boundary:** the user requested another mergeable increment so
 statement-result work can build on the read-reuse, shorter journal locks,

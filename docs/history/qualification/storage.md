@@ -9,6 +9,50 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Original SQL diagnostic outcome recovery — 2026-10-27
+
+Two retained physical-disk diagnostics are reopened with their original
+ReleaseSafe executables and shared definition
+`47c035195248bf570ed52323112b2a32622ee69714ffb7719124218e034b1b2b`.
+All five executable hashes match their original reports before restart; private
+copies preserve both installations before recovery. Current-definition binaries
+are not used against these older installations. Public operation inspection and
+independent row readback establish the following, without replacement mutations:
+
+- The instrumented `8b19eaebb` run (`--repeat 1 --rows 8`) had timed out during
+  its three-row INSERT. All eleven original operations are terminal after
+  restart. The INSERT's original receipt reports three matched/changed rows;
+  SELECT verifies keys 0–8 at 100 and the three inserted negative keys at 1, 2
+  and 3, for exactly twelve rows.
+- The instrumented node-only `ff2d2e45e` run, with other roles at `8b19eaebb`
+  (`--repeat 2 --rows 8`), had timed out on the second `delete_absent` case.
+  Nineteen original operations are terminal, but operation 990 remains
+  `uploading` across repeated inspection after restart. It has no Table-owner
+  operation or outcome: this is incomplete SQL admission. Public cancellation
+  using its original identity moves it to `abandoned`, with cancellation
+  requested, no owner outcome and zero matched/changed rows. Another restart
+  preserves that state and all nineteen preceding operation records. SELECT
+  verifies exactly keys 0–8 at 100 before and after closure. Abandonment is not
+  an applied DELETE or a Table cancellation receipt.
+
+The original reports remain ignored under `.cache/milestone3/` as
+`current-instrumented.json` (SHA-256
+`c0622d3647ec0cb5aa738ffd38b7598eb22b35feb47bc5a13e4b9f4c26bc23e8`)
+and `staging-diagnostic.json` (SHA-256
+`7692cfb0b8f105c335fb4232a6487f35ad1af84457792fcd5d1dbc07c8b9701a`).
+Recovery records are `instrumented-original-recovery.json`, its independent
+`instrumented-original-recovery-verification.json`,
+`staging-diagnostic-original-recovery.json`,
+`staging-diagnostic-original-closure.json` and
+`staging-diagnostic-closure-restart.json`.
+
+Both original 30-second submission failures remain failed latency controls.
+These recoveries distinguish accepted Table work from incomplete SQL upload;
+they do not resolve the actor-ledger admission cost, qualify current binaries,
+or establish the milestone's final matched performance comparison. The
+[runtime replacement handoff](../../roadmap/06-streams-queues-and-durable-runtime.md#inherited-station-cutover-obligations)
+retains those separate obligations.
+
 ## Installed named resources and native owner recovery — 2026-10-27
 
 The installed local resource matrix passes with shared definition

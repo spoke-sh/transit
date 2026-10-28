@@ -303,6 +303,11 @@ them back through the private engine or remove the catalog's separate
   evidence from milestone 3 into matched before/after measurements of
   database-owned idempotency and snapshot cuts. Request totals including
   background work must remain distinguishable from statement-attributable work.
+  Preserve the distinction between [an accepted INSERT recovered by its original
+  receipt and an incomplete SQL upload durably abandoned through original-identity
+  cancellation](../history/qualification/storage.md#original-sql-diagnostic-outcome-recovery--2026-10-27).
+  Neither settlement converts its original submission deadline into a passing
+  latency sample.
 - [ ] Replace query-host/courier polling through Queue waits and transactional
   outboxes, retaining disconnect/cancellation, wakeup-race, current-policy,
   fencing and shutdown checks. Measure idle requests/CPU and first-work latency;
