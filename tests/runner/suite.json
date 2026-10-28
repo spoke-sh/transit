@@ -5,6 +5,7 @@
       "test::model",
       "test::wal-model",
       "test::transaction-decision-model",
+      "test::table-transaction-model",
       "test::model-delivery",
       "test::console-model",
       "test::statement-result-model",
@@ -657,6 +658,22 @@
         ],
         "tasks": [
           "test::transaction-decision-model"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "table-transaction-proof": {
+        "paths": [
+          "tests/verification/models/TableTransaction.tla",
+          "tests/verification/models/TableTransaction.cfg",
+          "tests/verification/models/table_transaction_model.py"
+        ],
+        "depends_on": [
+          "transaction-decision-proof"
+        ],
+        "tasks": [
+          "test::table-transaction-model"
         ],
         "resources": [
           "formal-cpu"

@@ -115,7 +115,7 @@ this header and the roadmap index together.
 
 | Package | Outcome | Status |
 | --- | --- | --- |
-| P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types, validation and finite decision-journal model; complete local isolation/runtime correspondence remains open |
+| P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types, validation, finite decision-journal and local Table isolation/publication models; runtime correspondence remains open |
 | P1 | Database admission, original-token binding, transaction quotas and caller boundary | In progress: original-token begin admission, coordination partition reservation, limits and signed caller fixture; execution admission and settlement remain open |
 | P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: immutable paged directories and private Table DML/read-your-writes evaluator; common-cut acquisition, durable workspace ownership and quotas remain open |
 | P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | In progress: fenced decision journal with exact preparation membership; Table preparation and visibility integration remain open |
@@ -128,6 +128,10 @@ this header and the roadmap index together.
 
 The neutral types validate descriptor shape only. They establish no transaction
 service, acquired consistent cut, serializable execution or durable decision.
+The [Table transaction model](../../tests/verification/models/README.md#finite-local-table-transaction-model)
+checks selected finite programs for common-cut acquisition, whole-Table OCC,
+savepoint dependencies, private reads and atomic visibility. Its algorithm-level
+evidence does not discharge production replay or installed qualification in P3/P4/P9.
 The storage directory and decision-journal components have separate disk/recovery
 checks and an explicit [integration contract](../../packages/zig/transit-storage/docs/transaction-decisions.md).
 Their verification callbacks are not yet connected to Table owners. Catalog

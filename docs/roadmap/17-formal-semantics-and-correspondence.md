@@ -159,6 +159,14 @@ of layout and SIMD optimizations.
 
 ### T4. Transaction decisions, isolation and atomic outbox publication
 
+The executable [decision-journal](../../tests/verification/models/README.md#finite-transaction-decision-model)
+and [local Table transaction](../../tests/verification/models/README.md#finite-local-table-transaction-model)
+models cover separate finite safety boundaries. The latter adds interrupted
+common-cut acquisition, whole-Table conflict validation, savepoint dependencies,
+private reads and common-decision visibility. Production trace replay and complete
+runtime correspondence remain open; these model checks do not establish installed
+transaction support or a proof for arbitrary histories.
+
 Candidate: the discussion's `TransactionSSI.tla`, renamed for the chosen protocol.
 The initial planned local profile in [Milestone 5](05-transactions-and-atomic-composition.md)
 selects whole-object optimistic validation, while [Milestone 9](09-indexing-and-access-paths.md)

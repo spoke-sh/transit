@@ -2274,6 +2274,29 @@
       "limits": "No installed workspace owner, durable statement/result settlement, common-cut acquisition, aggregate transaction quota, retained workspace graph, segment identity reservation, Table preparation, SQL or savepoint/cursor interface is established. The embedding host must retain the borrowed owner and persist state/counters/results before exposing completion.",
       "model": null,
       "qualification": "Component executions must be recorded with their source and resource bounds; registration alone does not qualify installed transactions."
+    },
+    {
+      "id": "TRANSACTION-04",
+      "claim": "The finite local Table algorithm acquires a common cut, retains rollback read dependencies, admits only serializable committed histories and exposes all written Tables through one decision",
+      "owner": "tests/verification/models/README.md",
+      "implementation": [
+        "tests/verification/models/TableTransaction.tla",
+        "tests/verification/models/table_transaction_model.py"
+      ],
+      "profile": "Algorithm model: two original transactions, two Tables and five finite statement programs; no production implementation correspondence",
+      "tasks": [
+        "test::table-transaction-model"
+      ],
+      "scenarios": [
+        "Write skew and whole-Table validation against an independent serial-history predicate",
+        "A read-only snapshot alongside two-Table publication and independently scheduled finalization",
+        "Interrupted incremental pin acquisition with stale partial-source revalidation",
+        "Savepoint rollback retaining prior read dependencies and private read-your-writes",
+        "Competing preparations, definition changes and seven independent missing-obligation controls"
+      ],
+      "limits": "Safety only; blocked states and terminal deadlocks are allowed. The journal's atomic fenced original decision is assumed. Model crashes release the acquisition fence while accepted logical state remains durable. No automatic Zig replay, production refinement, arbitrary programs/cardinality, physical storage, constraints, retained graph, resource accounting or installed SQL qualification follows.",
+      "model": "tests/verification/models/TableTransaction.tla",
+      "qualification": "Exact source/configuration hashes, completion counts and named counterexamples are retained under .cache/verification/table-transaction-model/ and CI artifacts; executed results belong in docs/history/qualification/verification.md."
     }
   ]
 }

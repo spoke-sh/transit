@@ -288,6 +288,10 @@ wal-model *args:
 transaction-decision-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/transaction_decision_model.py {{args}}
 
+# Common cuts, whole-Table OCC, private rollback and common-decision visibility.
+table-transaction-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/table_transaction_model.py {{args}}
+
 # Finite editor model, every exported edge replayed against production Zig,
 # removed-guard controls and borrower release under explicit fairness.
 console-model *args:
