@@ -9,6 +9,94 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Transport-independent statement results — 2026-10-27
+
+The [result contract](../../../contracts/SQL_RESULTS_V1.md),
+[semantic library](../../../packages/zig/transit-sql-results/README.md) and
+[shared client](../../../packages/zig/transit-sql-client/README.md) separate a
+command's owner-attributed outcome from a finite typed relation. PR #190 delivers
+the model, bounded service batches, shared reader/settlement, console migration
+and native binary carriage. The follow-up based on merge `e03cb007b` makes the
+PostgreSQL/MySQL adapters consume the same `CommandCompletion`. Matched and
+changed counts remain distinct; a database success frame requires a validated
+applied/unchanged outcome. This follow-up does not replace the shared definition
+`c28797e8d36912bfca884567bf72256f7304e0e64ed278b90894d7e22b311914`.
+
+The pinned Linux x86_64 environment uses Zig
+`0.17.0-dev.2267+48abf1a34` and ReleaseSafe installed executables. These are the
+executed focused checks; broader integration and performance evidence are
+recorded separately rather than inferred from package passes:
+
+- `just test::sql-wire-contracts` passes the six semantic/protocol/client/service/
+  adapter package suites and independent PostgreSQL/MySQL scalar fixtures after
+  adapter commit `7b55d1c96`. Model tests enumerate all partitions of zero through
+  eight occurrences, both terminal shapes and row/column layouts. The public
+  consumer runs against scripted and native adapters without a fetch/status loop.
+  Negative controls reject fabricated completion, duplicate delivery and altered
+  identities/counts. Exhaustive allocator failures release ownership; the native
+  reader consumes 16,384 rows with a 128 KiB accounted allocator. This finite
+  correspondence is not a temporal proof of arbitrary network histories.
+- `just test::sql-sessions` passes at `da4766c69`, including independent TLS/SCRAM,
+  exact wide values, original-token recovery after service replacement, current
+  denial on buffered data/metadata/empty-terminal repeats and retained pin recovery.
+  Captured KV and Table results return 41 rows as 32 + 9; Document returns 12 in
+  one batch. Every captured batch is repeated for exact equality. Observation
+  remains an independent-source vector rather than an atomic snapshot.
+- `just test::server-single-executable` passes the copied executable's default
+  startup/Board, bare-console DDL/DML/lazy ALTER, exact values across restart,
+  identical defaults/YAML/environment identities, child/manager death and
+  UI disable/re-enable. The role-death schedule now waits for SQL readiness before
+  killing a role. `just test::server-sql-lifetimes` passes after `5b9e2a1e9`
+  initializes the independent binary decoder: PostgreSQL/MySQL idle sessions
+  survive 32 seconds, a one-second native lease expires, and partial frames have
+  finite lifetimes.
+- At `8a866f513`, `just test::server-faults` passes the core lifecycle in 313.08 s
+  and bootstrap/gateway/rollback schedules in 90.53 s. Reload rejection uses the
+  shared rejected completion and authoritative pending-restart state. Lost SQL
+  admission/status/fetch replies preserve one submission and original-token
+  observation; a held response does not prevent another console progressing.
+  `just test::server-sql-faults` also passes: accepted allocation and initialization
+  requests recover their exact identities after manager SIGKILL, occupied ports
+  reject before enrollment changes, and a revoked worker remains revoked.
+
+The logs are `/var/tmp/transit-m4-completion-wire-owners.log`,
+`/var/tmp/transit-m4-completion-native.log`,
+`/var/tmp/transit-m4-completion-installed-rerun.log`,
+`/var/tmp/transit-m4-completion-lifetimes-rerun.log`,
+`/var/tmp/transit-m4-completion-server-faults.log` and
+`/var/tmp/transit-m4-completion-sql-setup-faults.log`. These local paths are retained
+investigation records, not portable artifacts or evidence for later source.
+
+### Failed controls and recovery limits
+
+The initial lifetime/direct-Table runs fail during bootstrap on unavailable
+authority replies. `f1eb1734a` gives saved provisioning owners a finite 30-second
+retry window while retaining their live processes and exact persisted request;
+each transport attempt remains bounded by the configured two-second limit.
+A deliberately dropped accepted spawn receipt replaces the node on the control
+binary. The corrected schedule verifies identical node/proxy PIDs, byte-identical
+request/receipt recovery and SQL readiness without an automatic restart. It does
+not establish the cause of every earlier unavailable observation.
+
+Two full fault attempts stop on fixture assumptions: rejected reloads were
+expected to be applied, and a five-second observation budget could expire before
+durable write admission. The write-loss schedule now gates its pause on accepted
+admission and releases it at the selected status loss, using the console's normal
+30-second budget. A separate five-second refusal case still proves bounded
+uncertainty and no admitted operation. The frozen pre-result-model control takes
+4.087–4.866 seconds merely to admit three ordinary writes (6.365–7.432 seconds
+through completion). Some diagnostic attempts under concurrent disk work also
+exceed 30 seconds. They remain failures; neither the corrected schedule nor the
+later pass establishes a five-second latency bound or attributes all delay to
+contention. No production SQL deadline was increased.
+
+The earlier retained installed ALTER attempt under a foreign result definition
+is still unresolved at original operation 174: inspection finds uploading work
+with no terminal outcome. Original CREATE 81 and INSERT 126 are observed applied.
+No SQL was submitted again to resolve those identities. Fresh compatible ALTER
+passes do not turn the unresolved original into a pass, authorize data reset or
+permit the current binary to reinterpret that installation.
+
 ## Finite retained SQL point reads — 2026-10-25
 
 On `765b287b` plus finite point selection, the pinned-shell command
@@ -1609,4 +1697,3 @@ translation. The passing rerun includes the corrected assertion and host lock
 routing. These focused runs do not close the broad history-replay timeout or
 establish final committed-HEAD clean qualification, borrowed batches, relational
 text pushdown, physical Table collection or a performance improvement.
-
