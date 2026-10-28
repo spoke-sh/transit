@@ -21099,7 +21099,7 @@
         "AccessDenied": 2,
         "Canceled": 2,
         "Cancelled": 2,
-        "ClientOperationConflict": 2,
+        "ClientOperationConflict": 1,
         "GatewayCatalogDenied": 1,
         "GatewayConfigurationChanged": 1,
         "GatewayDeadline": 1,
@@ -21118,7 +21118,6 @@
       "error_returns": {
         "Deadline.check()": "<inferred>",
         "ReadSources.resolve()": "anyerror",
-        "accept()": "<inferred>",
         "activate()": "<inferred>",
         "admit()": "<inferred>",
         "advance()": "<inferred>",
@@ -21132,15 +21131,14 @@
         "lookup()": "<inferred>",
         "resumeOperation()": "<inferred>",
         "status()": "<inferred>",
-        "submit()": "<inferred>",
         "tick()": "<inferred>",
         "waitIdle()": "<inferred>",
         "waitProgress()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 76,
-        "catch": 9
+        "try": 72,
+        "catch": 8
       },
       "imports": [
         "root.zig",

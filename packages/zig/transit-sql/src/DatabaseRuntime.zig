@@ -233,7 +233,7 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
     // commit_saved resolves an existing receipt before execution. Repeating it
     // with the original frozen reference needs no preceding inspection RPC.
     // Cancellation retains its separate owner transition below.
-    if (dml(reference) and !state.cancel) {
+    if (reference == .table and (reference.table.binding.action == .insert or reference.table.binding.action == .update or reference.table.binding.action == .delete) and !state.cancel) {
         const response = try caller.call(.{ .commit_saved = reference.table });
         defer response.deinit();
         if (try g.Terminal.fromReference(reference, response.value.result) != null) _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = false, .record = state.record });
@@ -286,10 +286,6 @@ fn available(self: *Self, observer: *g.Client, deadline: Deadline, comptime func
     }
 }
 pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.OperationRecords.Operation {
-    defer self.notify();
-    return self.accept(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation);
-}
-fn accept(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.OperationRecords.Operation {
     try deadline.check(self.io);
     try self.available(observer, deadline, Self.fence, .{ self, observer });
     table.lease = self.lease();
@@ -321,38 +317,13 @@ fn accept(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table:
         return err;
     };
     operation.* = receipt.position.next_lsn;
+    self.notify();
     return try self.execution.operationFromState(c.DirectClientToken.Progress.initial(receipt));
-}
-fn dml(reference: c.DirectIntent.Reference) bool {
-    return reference == .table and switch (reference.table.binding.action) {
-        .insert, .update, .delete => true,
-        else => false,
-    };
-}
-
-/// Ordinary submissions drive one bounded owner transition in the request.
-/// Acceptance remains durable and recovery-owned if the wait loses its reply;
-/// status and lookup remain observation-only. Re-read current cancellation and
-/// pending bookkeeping rather than reconstructing them from an old receipt.
-pub fn submit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.OperationRecords.Operation {
-    defer self.notify();
-    const item = try self.accept(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation);
-    try deadline.check(self.io);
-    var source = try observer.source();
-    const state = try self.available(observer, deadline, g.Client.Source.operation, .{ &source, item.id });
-    if (dml(state.receipt.binding.intent)) {
-        self.available(observer, deadline, Self.advance, .{ self, &source, state }) catch |err| {
-            // Recovery can settle the same receipt concurrently. A stale CAS
-            // does not erase the committed outcome; the caller observes it next.
-            if (err != error.ClientOperationConflict and !observer.transport.contended(err)) return err;
-        };
-    }
-    return item;
 }
 pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !struct { terminal: g.Terminal, completion: g.results.CommandCompletion } {
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
-    const item = try self.submit(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation);
+    const item = try self.admit(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation);
     var source = try observer.source();
     const state = try self.available(observer, deadline, g.Client.Source.operation, .{ &source, item.id });
     const intent = state.receipt.binding.intent;

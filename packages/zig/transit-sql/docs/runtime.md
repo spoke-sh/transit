@@ -47,14 +47,12 @@ record, local file or generation number never grants database access.
 
 Single-partition DML uses `commit_saved`: the partition evaluates the complete
 frozen intent and publishes its rows, indexes and outcome in one `TWAL1` append.
-Ordinary native and wire submissions drive this bounded owner transition in the
-submitting request. They reread current pending/cancellation bookkeeping after
-acceptance and return the owner's verified terminal outcome when it completes.
-`commit_saved` already resolves an original receipt before execution, so normal
-DML does not need an additional pre-commit inspection request. Recovery may race
-the foreground attempt; both retain the same reference and CAS settlement.
-An uncertain reply still leaves accepted work with the recovery owner. Status and
-lookup remain observation-only, and disclosure retains current authorization.
+`commit_saved` resolves an original receipt before execution, so ordinary DML
+recovery calls it directly without an additional pre-commit inspection request.
+The pending record supplies the original frozen reference and current
+cancellation state. An uncertain reply still leaves accepted work with the
+recovery owner. Status and lookup remain observation-only, and disclosure
+retains current authorization.
 
 There is no intermediate Table admission record on this path. Catalog token
 acceptance and pending-index settlement are separate durable decisions; this
