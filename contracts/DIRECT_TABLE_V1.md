@@ -134,7 +134,10 @@ and 1,024 savepoints. These admission ceilings do not preallocate those resource
 the operation's token budget separately charges account capacity. A capacity or
 stale-Catalog refusal does not allocate a partition or accept a token. Generic
 intent execution rejects transaction references with `TransactionOperationRequired`.
-Generic progress updates cannot settle them without a transaction owner outcome.
+Generic progress updates reject transaction entries with
+`TransactionOperationRequired`, including changes to the record, cancellation,
+pending flag and exact repeats. Transaction-owned operations must preserve their
+workspace and original decision; generic client bookkeeping cannot replace them.
 The admission interface alone does not provide interactive SQL transactions.
 
 Catalog recovery requires the explicit `coordination` field and validates its

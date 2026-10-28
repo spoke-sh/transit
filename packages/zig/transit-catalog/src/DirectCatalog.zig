@@ -899,6 +899,10 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     const current = try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy);
     try check(current);
     if (request != .update) return .{ .state = state };
+    // Transaction workspace, cancellation and settlement belong to the
+    // transaction owner. Generic client bookkeeping cannot replace that state
+    // or manufacture a cancellation request while the original attempt lives.
+    if (state.receipt.binding.intent == .transaction) return error.TransactionOperationRequired;
     const value = request.update;
     if (state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
     if (!std.meta.eql(state.revision, value.expected)) return error.ClientOperationConflict;

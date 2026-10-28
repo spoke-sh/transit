@@ -2675,7 +2675,14 @@ test "transaction admission recovers original token and exclusive partition afte
     try t.expectEqual(@as(u64, 3), table.table.root.partition);
     try t.expectEqualDeep(receipt, (try catalog.clientToken(.{ .bind = binding }, access.policy())).?);
     const progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
-    try t.expectError(error.ClientOperationPending, catalog.clientProgress(.{ .update = .{ .key = binding.key, .expected = progress.revision, .pending = false, .cancel = false, .record = null } }, access.policy()));
+    const record = try c.DirectRecord.store(objects.objectStore(), binding.key.scope(), 1, "not transaction state");
+    const protected = catalog.store.root;
+    for ([_]bool{ false, true }) |pending| for ([_]bool{ false, true }) |cancel| for ([_]?c.DirectRecord.Reference{ null, record }) |replacement| {
+        try t.expectError(error.TransactionOperationRequired, catalog.clientProgress(.{ .update = .{ .key = binding.key, .expected = progress.revision, .pending = pending, .cancel = cancel, .record = replacement } }, access.policy()));
+        try t.expectEqualDeep(protected, catalog.store.root);
+    };
+    try catalog.recover();
+    try t.expectEqualDeep(progress, (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?);
     access.deny_at = access.calls + 1;
     try t.expectError(error.CatalogDenied, catalog.clientToken(.{ .lookup = binding.key }, access.policy()));
 }
