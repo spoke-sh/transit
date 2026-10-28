@@ -12,6 +12,10 @@ authority: *wire.Client,
 service: *wire.Client,
 connection: w.Connection,
 key: p.Ed25519.KeyPair,
+/// An already observed signing epoch, never a cached authorization decision.
+/// The owner still authenticates the claim and checks current policy on every
+/// request. Rotation rejects this epoch; no refresh or replay is implicit.
+credential_epoch: ?u64 = null,
 /// When present, key authenticates this delegation's executor. The connection
 /// still identifies its original caller and selected role.
 delegation: ?c.DirectReadDelegation = null,
@@ -97,6 +101,28 @@ test "direct caller attempt evidence survives reads and service rejection" {
 }
 
 pub const validateResponse = @import("DirectTableResponse.zig").validate;
+
+test "observed signing epoch needs no identity round trip and binds the complete request" {
+    const t = std.testing;
+    const fixture = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8, edge_digest: [32]u8 }, t.allocator, @embedFile("fixtures/direct-dependency-v1.json"));
+    defer fixture.deinit();
+    // No server: preparing the claim must not perform an identity request.
+    var transport = wire.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer transport.deinit();
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(1));
+    var caller: Self = .{ .allocator = t.allocator, .authority = &transport, .service = &transport, .connection = fixture.value.request.connection, .key = key, .credential_epoch = 7 };
+    const first = try caller.signed(.describe, @splat(5));
+    try first.proof.verify(key.public_key.toBytes());
+    try t.expectEqual(7, first.proof.claim.credential_epoch);
+    try t.expectEqual(caller.connection.principal, first.proof.claim.principal);
+    try t.expectEqual(caller.connection.role, first.proof.claim.role);
+    caller.credential_epoch = 8;
+    const rotated = try caller.signed(.describe, @splat(5));
+    try t.expect(!std.meta.eql(first.proof, rotated.proof));
+    var changed = first;
+    changed.nonce[0] ^= 1;
+    if (changed.validate(t.allocator)) |_| return error.UnboundRequest else |_| {}
+}
 /// Current rights and exact interpretation only. This prepares no mutation or
 /// snapshot, and the returned subject does not authorize a later operation.
 pub fn require(self: Self, requested: c.DirectCatalog.AccessRequest) !p.Authorization.Verified {
@@ -122,7 +148,11 @@ pub fn signed(self: Self, action: w.Action, nonce: [16]u8) !w.Request {
     }
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease };
     const authority: wire.AuthorizationClient = .{ .transport = self.authority, .realm = self.connection.scope.realm, .principal = if (self.borrow) |borrow| borrow.binding.executor else if (self.delegation) |delegation| delegation.binding.executor else self.connection.principal, .role = if (self.delegation != null) null else self.connection.role, .key = self.key };
-    const proof = (try authority.proof(self.connection.audience, try w.Request.context(input, self.allocator))).signed;
+    const context = try w.Request.context(input, self.allocator);
+    const proof = if (self.credential_epoch) |epoch|
+        try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = authority.realm, .principal = authority.principal, .credential_epoch = epoch, .role = authority.role, .audience = self.connection.audience, .context = context }, self.key)
+    else
+        (try authority.proof(self.connection.audience, context)).signed;
     const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .borrow = input.borrow, .lease = input.lease, .proof = proof };
     try request.validate(self.allocator);
     return request;

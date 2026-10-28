@@ -47,10 +47,11 @@ rights, not a common data frontier.
 The difficult interruption lies between remote pin acceptance and receiving its
 handle. [`ReadCache`](../../../packages/zig/transit-sql/src/ReadCache.zig) stores
 the original principal, acquisition identity and expected frontier in a Catalog
-record before the first request. It records the returned handle before exposing
-the query. Each account route has 64 durable slots; the account shares 64 resident entries
-across routes.
-concurrent statements borrow an entry for the same Table definition and changed
+record before the first request. The returned handle stays in the resident cache;
+recovery resolves the recorded owner and expected cut through `pin_status`, as it
+does for a lost acquisition reply. Each account route has 64 durable slots; the
+account shares 64 resident entries across routes. Concurrent statements borrow
+an entry for the same Table definition and changed
 LSN. A warm hit checks current metadata and authority without a new durable pin
 or a per-query filesystem sync. Borrow counts protect in-flight cursors during
 eviction; closing a cursor releases its borrow, not the cache's durable pin.

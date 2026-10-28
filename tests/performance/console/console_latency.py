@@ -17,8 +17,8 @@ import time
 from harness.processes import children, command
 from harness.local_installation import freeze_executables
 from interfaces.installation.server import Fixture
-from harness.services import free_port
 from harness.http_probe import Probe
+from runner.paths import ROOT
 
 
 def digest(path):
@@ -154,10 +154,14 @@ def main():
     parser.add_argument('--worker-interval-ms', type=int, choices=range(1, 60001), metavar='1..60000')
     parser.add_argument('--single', action='store_true', help='measure only the first empty SELECT')
     parser.add_argument('--repeat', type=int, default=1, choices=range(1, 101), metavar='1..100')
+    parser.add_argument('--statements', action='store_true',
+                        help='persistent human table console: empty/warm SELECT, INSERT, refreshed SELECT, verified JSON readback')
     parser.add_argument('--age-queries', type=int, default=0, choices=range(1001), metavar='0..1000',
                         help='execute this many unmeasured SELECTs before measurements')
     parser.add_argument('--instrument', action='store_true',
                         help='count native/Table attempts and owner work through a loopback proxy; adds overhead')
+    parser.add_argument('--owner-metrics', action=argparse.BooleanOptionalAction, default=True,
+                        help='also enable optional native owner-work response diagnostics')
     parser.add_argument('--rows', type=int, default=0, choices=range(513), metavar='0..512',
                         help='seed a fixed narrow/variable-width result workload')
     parser.add_argument('--historical-result-profile', action='store_true',
@@ -166,6 +170,8 @@ def main():
     parser.add_argument('--representations', action='store_true',
                         help='run separate payload-only row/column LZ4/Zstd experiments after timing samples')
     args = parser.parse_args()
+    if args.statements and (args.rows or args.single or args.age_queries or args.representations or args.historical_result_profile):
+        parser.error('--statements uses its own fixed workload; select only repetitions and instrumentation/owner overrides')
     if args.historical_result_profile and not args.binary_revision:
         parser.error('--historical-result-profile requires --binary-revision')
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
@@ -179,33 +185,34 @@ def main():
         node = binaries['node']
         node_fields = {'resident_pages': args.resident_pages}
         if args.instrument:
-            real_port = free_port()
-            node_fields.update(port=real_port, request_metrics=True)
-        gate = fixture.root / 'probe-gate' if args.instrument else None
-        override(fixture, 'node', node_fields, gate)
+            # Proxy only SQL's upstream requests. Interposing the node's public
+            # port also captures bootstrap/self-traffic and can block recovery
+            # behind idle upstream connections or the proxy's occupied port.
+            probes['native'] = Probe(f"http://127.0.0.1:{fixture.config['ports']['node']}", native=True)
+            if args.owner_metrics:
+                node_fields['request_metrics'] = True
+            override(fixture, 'sql_gateway', {'native_url': probes['native'].url})
+        override(fixture, 'node', node_fields)
         override(fixture, 'query_host', {'interval_ms': args.worker_interval_ms,
                                        'idle_max_interval_ms': 0 if args.worker_interval_ms is not None else None})
         fixture.path.write_text(json.dumps(fixture.config))
         print(json.dumps({'binary_revision': args.binary_revision, 'driver_sha256': digest(__file__),
+              'driver_helpers': {name: digest(ROOT / 'tests' / name) for name in (
+                  'performance/console/statements.py', 'performance/mutations/mutation_latency.py', 'harness/http_probe.py')},
+              'source_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+              'source_diff_sha256': hashlib.sha256(subprocess.check_output(['git', 'diff', '--binary', 'HEAD'], cwd=ROOT)).hexdigest(),
               'system': platform.platform(), 'machine': platform.machine(), 'logical_cpus': os.cpu_count(),
               'load_average': os.getloadavg(),
-              'sample_method': 'sequential post-bootstrap; no timing warmup; RSS sampled every 20 ms',
+              'sample_method': 'persistent console; first external elapsed time includes connection startup' if args.statements else 'sequential post-bootstrap; no timing warmup; RSS sampled every 20 ms',
               'executables': {role: digest(path) for role, path in
               binaries.items()}, 'source_rows': args.rows, 'historical_result_profile': args.historical_result_profile, 'instrumented': args.instrument,
               'age_queries': args.age_queries, 'repeat': args.repeat, 'execution': 'server_session',
               'cache_condition': 'post-bootstrap; later queries share the node cache',
+              'probe_scope': 'SQL gateway upstream only' if args.instrument else None,
+              'owner_metrics': args.instrument and args.owner_metrics,
               'overrides': {'resident_pages': args.resident_pages,
                             'worker_interval_ms': args.worker_interval_ms}}), flush=True)
         fixture.start()
-        if gate:
-            deadline = time.monotonic() + 90
-            while not gate.exists():
-                assert fixture.process.poll() is None, Path(fixture.logs[-1].name).read_text()
-                assert time.monotonic() < deadline, 'node did not reach measurement gate'
-                time.sleep(0.02)
-            probes['native'] = Probe(f'http://127.0.0.1:{real_port}',
-                                     fixture.config['ports']['node'], native=True)
-            Path(str(gate) + '.ready').touch()
         fixture.ready()
         invalid = subprocess.run([fixture.cli, 'console', '--no-rc'],
                                  input='.timer on\nCREATE KV items (UTF8);', cwd=fixture.root,
@@ -234,6 +241,12 @@ def main():
             script.write_text('.timer on\n' + sql + '\n')
             return measured_run([fixture.cli, 'console', '--no-rc', '--format', mode,
                                  '-f', str(script)], fixture.root, node=authority[0])
+
+        if args.statements:
+            from performance.console.statements import run
+            run(fixture, args.repeat, probes)
+            success = True
+            return
 
         if args.rows:
             # Independent setup operations stay inside the compiler's statement

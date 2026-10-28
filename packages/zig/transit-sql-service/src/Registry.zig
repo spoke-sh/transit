@@ -429,8 +429,10 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
         .fetch => |value| {
             const cursor = if (slot.cursor) |*current| current else return error.SqlResultIncomplete;
             if (!std.mem.eql(u8, &cursor.id, &value.cursor)) return error.SqlResultIncomplete;
-            try cursor.disclosure.validate(host, cursor.prepared);
-            if (value.batch == cursor.batch.ordinal) return .{ .batch = cursor.batch };
+            if (value.batch == cursor.batch.ordinal) {
+                try cursor.disclosure.validate(host, cursor.prepared);
+                return .{ .batch = cursor.batch };
+            }
             if (cursor.batch.completion != null or value.batch != cursor.batch.ordinal + 1) return error.InvalidSqlCursor;
             return .{ .batch = try self.batch(slot, value.batch) };
         },
@@ -522,7 +524,10 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
     // Finish every fallible acquisition before publishing the cursor. Struct
     // result-location semantics may initialize destination fields before a
     // later `try` fails; request cleanup must never see such a partial owner.
+    if (owned) host.fresh_prepared = prepared;
+    defer host.fresh_prepared = null;
     const read = try host.openRead(prepared, values);
+    read.validated_open = true;
     slot.cursor = .{ .id = id, .prepared = prepared, .owned = owned, .read = read, .arena = arena, .batch_arena = .init(slot.memory.allocator()) };
     retained = true;
     owned = false;
@@ -533,7 +538,10 @@ fn batch(self: *Self, slot: *Slot, ordinal: u64) !api.Batch {
     _ = cursor.batch_arena.reset(.free_all);
     const allocator = cursor.batch_arena.allocator();
     const host = slot.host.?;
-    try host.validate(cursor.prepared);
+    if (ordinal > 0) {
+        try host.validate(cursor.prepared);
+        cursor.read.?.validated_open = true;
+    }
     const fields = cursor.prepared.fields();
     const result = try cursor.read.?.nextBatch(@min(api.max_rows, g.ReadBatch.max_rows));
     var rows: [api.max_rows]g.results.Row = undefined;
@@ -555,7 +563,6 @@ fn batch(self: *Self, slot: *Slot, ordinal: u64) !api.Batch {
     }
     cursor.batch = .{ .instance = self.instance, .cursor = cursor.id, .ordinal = ordinal, .schema = cursor.schema_hash, .observation = cursor.observation_hash, .description = if (ordinal == 0) .{ .schema = cursor.schema.?, .observation = cursor.observation.? } else null, .rows = result.len, .columns = columns, .completion = if (result.complete) .{ .rows = cursor.rows } else null };
     cursor.disclosure = cursor.read.?.disclosure;
-    try cursor.disclosure.validate(host, cursor.prepared);
     if (result.complete) {
         host.closeRead(cursor.read.?);
         cursor.read = null;
@@ -595,7 +602,7 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
     var cancelled: std.atomic.Value(bool) = .init(false);
     var active: std.atomic.Value(bool) = .init(false);
     var budget: g.query.QueryMemory = .{ .parent = working, .limit = self.configuration.limits.session_bytes };
-    const host = try g.Session.init(budget.allocator(), self.io, self.configuration, account, self.runtimes[account], credential, database, .transit, &cancelled, &active);
+    const host = try g.Session.initOptions(budget.allocator(), self.io, self.configuration, account, self.runtimes[account], credential, database, .transit, &cancelled, &active, .{ .capture_settings = false });
     defer host.deinit();
     try host.selectSource(source_name);
     try host.begin();
@@ -658,7 +665,8 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
     if (reference.kind == .captured) {
         return self.response(allocator, .{ .operation = if (input.action == .cancel) try g.CapturedOperations.cancel(host, reference.id) else if (input.action == .@"resume") try g.CapturedOperations.resumeOperation(host, reference.id) else try g.CapturedOperations.status(host, reference.id) });
     }
-    _ = try operationStatus(host, reference);
+    const current_status = try operationStatus(host, reference);
+    if (input.action == .status) return self.response(allocator, .{ .operation = current_status });
     if (input.action == .cancel) try host.fresh(g.DatabaseRuntime.cancel, .{ runtime, &host.observer, reference.id });
     if (input.action == .@"resume") try runtime.resumeOperation(&host.observer, reference.id);
     return self.response(allocator, .{ .operation = try operationStatus(host, reference) });
@@ -672,7 +680,9 @@ fn selectOperation(host: *g.Session, ref: g.SessionOperations.Reference) !void {
     const database = for (host.account.databases) |database| {
         if (std.meta.eql(database.binding, binding)) break database.name;
     } else return error.GatewayDatabaseDenied;
-    try host.selectDatabase(database);
+    if (!std.mem.eql(u8, host.database, database) or host.source != null) {
+        try host.selectDatabase(database);
+    }
     if (ref.kind == .captured) try g.CapturedOperations.select(host, ref.id);
 }
 fn operationReference(host: *g.Session, id: u64) !g.SessionOperations.Reference {

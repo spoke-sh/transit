@@ -9,6 +9,37 @@ from performance.mutations.mutation_latency import Console, supervisor_evidence,
 
 
 class Evidence(unittest.TestCase):
+    def test_human_table_and_command_wait_for_stdout_and_timer(self):
+        from performance.console.statements import phases, verify_table
+        output = '┌───────┬───────┐\n│ id    │ value │\n│ int64 │ int64 │\n├───────┼───────┤\n│ 1     │ 10    │\n└───────┴───────┘\n1 rows; complete coverage\n'
+        verify_table(output, [(1, 10)])
+        with self.assertRaises(AssertionError):
+            verify_table(output, [(1, 11)])
+        with self.assertRaises(AssertionError):
+            phases('Time: 8 ms (submit 7 ms, render 0 ms)')
+        for text in (output, 'Statement completed. Matched 1; changed 1.\n'):
+            for timing_first in (False, True):
+                script = '''import sys,time
+sys.stdin.readline()
+streams = [(sys.stdout, %r), (sys.stderr, 'Time: 7 ms (submit 7 ms, render 0 ms)\\n')]
+if %r: streams.reverse()
+for stream, text in streams:
+ for part in (text[:5], text[5:]):
+  stream.write(part);stream.flush();time.sleep(.01)
+sys.stdin.readline()
+''' % (text, timing_first)
+                shell = Console.__new__(Console)
+                shell.mode = 'table'
+                shell.process = subprocess.Popen([sys.executable, '-c', script], stdin=subprocess.PIPE,
+                                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                shell.buffers = [bytearray(), bytearray()]
+                try:
+                    value, measurement = shell.call('SELECT * FROM items')
+                    self.assertEqual(value, text)
+                    self.assertEqual(phases(measurement['timing'])[0], 7)
+                finally:
+                    shell.close()
+
     def test_completion_timeline_matches_input_and_keeps_receipt_overlap(self):
         def event(operation, start, end, **fields):
             return dict(operation=operation, start_ns=start, response_ns=end, status=200, pid=2, **fields)

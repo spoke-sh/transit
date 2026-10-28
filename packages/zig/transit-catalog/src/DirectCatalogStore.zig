@@ -292,9 +292,12 @@ pub fn clientUsage(self: *Self, basis: r.Root, key: c.DirectClientToken.Key) !?c
 }
 pub fn clientIndices(self: *Self, next: *r.Root, state: c.DirectClientToken.Progress) !void {
     const key = state.receipt.binding.key;
+    const prior = try self.clientTokenAt(self.root, key);
     const usage = (try self.clientUsage(self.root, key)) orelse c.DirectClientToken.Usage{ .limits = state.receipt.binding.budget.limits };
-    const updated = try usage.transition(try self.clientTokenAt(self.root, key), state);
-    next.client_accounts = try self.tree().put(next.client_accounts, try c.DirectClientToken.usageKey(key), try r.pageValue(updated));
+    const updated = try usage.transition(prior, state);
+    if (prior == null or !std.meta.eql(updated, usage)) {
+        next.client_accounts = try self.tree().put(next.client_accounts, try c.DirectClientToken.usageKey(key), try r.pageValue(updated));
+    }
     var at: [8]u8 = undefined;
     std.mem.writeInt(u64, &at, self.root.next_lsn, .little);
     const value = try pages.Value.init(&at);

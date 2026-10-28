@@ -10,6 +10,7 @@ generation: u64 = 0,
 active: bool = false,
 exhausted: bool = false,
 peak: usize = 0,
+dirty_bytes: usize = 0,
 
 pub fn init(parent: std.mem.Allocator, capacity: usize) !Self {
     if (capacity == 0) return error.InvalidWorkspaceCapacity;
@@ -20,6 +21,7 @@ pub fn init(parent: std.mem.Allocator, capacity: usize) !Self {
 }
 /// The supplied backing owner accounts for and outlives this workspace.
 pub fn fromBuffer(buffer: []align(alignment) u8) Self {
+    @memset(buffer, 0);
     return .{ .parent = null, .buffer = buffer, .fixed = .init(buffer) };
 }
 pub fn deinit(self: *Self) void {
@@ -71,7 +73,11 @@ pub const Lease = struct {
     /// without requiring payload-wide writes for every immutable data view.
     pub fn release(self: Lease, erase: bool) !void {
         try self.validate();
-        if (erase) std.crypto.secureZero(u8, self.owner.buffer);
+        self.owner.dirty_bytes = @max(self.owner.dirty_bytes, self.owner.fixed.end_index);
+        if (erase) {
+            std.crypto.secureZero(u8, self.owner.buffer[0..self.owner.dirty_bytes]);
+            self.owner.dirty_bytes = 0;
+        }
         self.owner.fixed.reset();
         self.owner.active = false;
     }
@@ -83,6 +89,7 @@ fn alloc(context: *anyopaque, len: usize, alignment_: std.mem.Alignment, ra: usi
     const result = self.fixed.allocator().rawAlloc(len, alignment_, ra);
     self.exhausted = result == null;
     self.peak = @max(self.peak, self.fixed.end_index);
+    self.dirty_bytes = @max(self.dirty_bytes, self.fixed.end_index);
     return result;
 }
 fn resize(context: *anyopaque, bytes: []u8, alignment_: std.mem.Alignment, len: usize, ra: usize) bool {
@@ -91,6 +98,7 @@ fn resize(context: *anyopaque, bytes: []u8, alignment_: std.mem.Alignment, len: 
     const result = self.fixed.allocator().rawResize(bytes, alignment_, len, ra);
     self.exhausted = !result;
     self.peak = @max(self.peak, self.fixed.end_index);
+    self.dirty_bytes = @max(self.dirty_bytes, self.fixed.end_index);
     return result;
 }
 fn remap(context: *anyopaque, bytes: []u8, alignment_: std.mem.Alignment, len: usize, ra: usize) ?[*]u8 {
@@ -100,6 +108,27 @@ fn free(context: *anyopaque, bytes: []u8, alignment_: std.mem.Alignment, ra: usi
     const self: *Self = @ptrCast(@alignCast(context));
     std.debug.assert(self.active);
     self.fixed.allocator().rawFree(bytes, alignment_, ra);
+}
+
+test "erasure covers freed shrunk rewound and earlier un-erased leases" {
+    const t = std.testing;
+    var workspace = try init(t.allocator, 4096);
+    defer workspace.deinit();
+    var lease = try workspace.acquire();
+    const a = try lease.allocator();
+    const point = try lease.mark();
+    const bytes = try a.alloc(u8, 2048);
+    @memset(bytes, 0xa5);
+    try t.expect(a.resize(bytes, 32));
+    a.free(bytes[0..32]);
+    try lease.rewind(point);
+    try lease.reset();
+    try lease.release(false);
+    const next = try workspace.acquire();
+    _ = try (try next.allocator()).dupe(u8, "shorter");
+    try next.release(true);
+    try t.expect(std.mem.allEqual(u8, workspace.buffer, 0));
+    try t.expectEqual(0, workspace.dirty_bytes);
 }
 
 test "workspace reset preserves charged capacity without backing allocation" {

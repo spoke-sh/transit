@@ -113,7 +113,9 @@ pub fn handleConnection(self: *Self, _: std.Io, _: std.mem.Allocator, connection
     const backing = lease.value.owner.buffer;
     var scratch = memory.Workspace.fromBuffer(backing[0..RequestStorage.request_bytes]);
     const scratch_lease = try scratch.acquire();
-    defer scratch_lease.release(false) catch unreachable;
+    // The nested owner accounts for scratch allocations, not the outer raw
+    // pool lease. Erase its used range before returning the shared slot.
+    defer scratch_lease.release(true) catch unreachable;
     var working: ?memory.Slab = if (isControl(self, request)) try .fromBuffer(@alignCast(backing[RequestStorage.request_bytes..])) else null;
     defer if (working) |*slab| slab.deinit();
     var budget: g.query.QueryMemory = .{ .parent = try scratch_lease.allocator(), .limit = RequestStorage.request_bytes };
@@ -163,7 +165,7 @@ test "full native data slots leave separate erased control capacity available" {
     {
         var scratch = memory.Workspace.fromBuffer(control.value.owner.buffer[0..RequestStorage.request_bytes]);
         const scratch_lease = try scratch.acquire();
-        defer scratch_lease.release(false) catch unreachable;
+        defer scratch_lease.release(true) catch unreachable;
         const payload = try (try scratch_lease.allocator()).dupe(u8, "cancellation request");
         var working = try memory.Slab.fromBuffer(@alignCast(control.value.owner.buffer[RequestStorage.request_bytes..]));
         defer working.deinit();

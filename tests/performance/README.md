@@ -73,6 +73,28 @@ hashes, compare value digests, and record background load. Do not compare latenc
 while concurrent heavy builds or proofs are running. These observations are not
 service guarantees or complete deployment memory measurements.
 
+`just test::console-latency --statements --repeat 5` exercises one persistent
+`transit console --no-rc --format table` with `.timer on`. It verifies an empty
+SELECT, warm SELECTs, single-row INSERT completions and the complete updated
+contents after each write, then switches the same session to JSON for independent
+typed readback. Each sample retains the human output, total and phase timings;
+the summary uses empirical distributions without estimating tails from a small
+sample. The first external elapsed time includes connection startup; the console
+timer measures the statement. Later samples reuse the session. This is the real
+console script path and table renderer, without terminal editor/PTY timing.
+The timer's submit phase includes server preparation and execution; a zero
+client compile phase does not mean the server did no planning. The wait phase
+includes observing durable completion, not just the client's polling sleep.
+
+Add `--instrument` in a separate run to count the SQL gateway's upstream native
+and Table operations, including Catalog token/record work and direct commits.
+The probe observes only SQL upstream traffic, leaving installation bootstrap and
+other services on their ordinary endpoint. The statement workload rejects
+Station send/turn dispatch in its measured windows. Proxy and background recovery
+work affect these measurements; summed request durations may overlap and are
+not pure query-engine time. Setup and idle observations remain separate. Run
+baseline and candidate sequentially with matching options and no competing builds.
+
 `just test::sql-wire-encoding` also exercises the actual native result encoder and
 decoder, independently of SQL execution. It checks 10,000 scalar rows with binary
 payloads and NULL, compares one-row and full-batch controls, and reports frame

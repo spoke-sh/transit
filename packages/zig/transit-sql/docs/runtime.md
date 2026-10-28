@@ -67,6 +67,15 @@ There are no per-query SQL pin files or local fsyncs. The installer retains
 recovery for disabled accounts with outstanding pins as well as pending writes.
 Denied cleanup remains visible and does not authorize expiry.
 
+Only the acquisition identity and expected cut require a durable cache record;
+the returned handle stays in the resident entry. Recovery resolves that same
+identity with `pin_status`, including when the acquisition reply was lost. An
+unborrowed stale cut for the same Table is replaced before consuming another
+empty slot. Eviction still records closure before releasing a pin. Startup
+reconciliation scans each route's bounded slots; successful sweeps stop until
+an acquisition or cleanup failure requires another pass. Pending writes take
+priority over idle pin reconciliation.
+
 Socket loss, timeout and stopping a wait are not rollback. The service continues
 accepted work under current rights. A new statement without the original token
 creates new work. Status, inventory, metadata preparation and source inspection

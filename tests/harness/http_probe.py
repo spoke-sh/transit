@@ -19,15 +19,24 @@ TABLE_ACTIONS = frozenset('''initialize describe namespace namespaces
     dependencies resource_preview resource_operation resource_lookup resource_list
     check check_set list lookup observe storage flush read_current read_authority
     name_assertion preview name_preview preview_rows preview_statement stage
-    admit_saved admit_ddl admit_rows admit_statement operation pin retain_history
+    admit_saved commit_saved admit_ddl admit_rows admit_statement operation pin retain_history
     pin_status snapshot history_start history_source history history_scan read_key
     scan column_scan filter_scan key_range release'''.split())
+TABLE_CONTROL_ACTIONS = {
+    'client_token': frozenset(('bind', 'lookup')),
+    'client_progress': frozenset(('inspect', 'operation', 'list', 'update')),
+    'record': frozenset(('stage', 'read')),
+}
 
 
 def table_operation(body):
     try:
         action = json.loads(body)['action']
         tag = action if isinstance(action, str) else next(iter(action)) if isinstance(action, dict) and len(action) == 1 else None
+        if tag in TABLE_CONTROL_ACTIONS and isinstance(action, dict):
+            nested = action[tag]
+            kind = next(iter(nested)) if isinstance(nested, dict) and len(nested) == 1 else nested if isinstance(nested, str) else None
+            return 'table:' + tag + ':' + (kind if kind in TABLE_CONTROL_ACTIONS[tag] else 'other')
         return 'table:' + (tag if tag in TABLE_ACTIONS else 'other')
     except (ValueError, KeyError, TypeError):
         return 'table:other'

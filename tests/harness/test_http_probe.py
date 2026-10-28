@@ -4,10 +4,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import threading
 import json
 import unittest
-from harness.http_probe import Probe
+from harness.http_probe import Probe, table_operation
 
 
 class Reuse(unittest.TestCase):
+    def test_database_runtime_actions_have_bounded_labels(self):
+        for tag, kind in (('client_token', 'bind'), ('client_progress', 'inspect'),
+                          ('client_progress', 'update'), ('record', 'read')):
+            self.assertEqual(table_operation(json.dumps({'action': {tag: {kind: 'PRIVATE'}}})),
+                             f'table:{tag}:{kind}')
+            self.assertEqual(table_operation(json.dumps({'action': {tag: {'PRIVATE': 'PRIVATE'}}})),
+                             f'table:{tag}:other')
+        self.assertEqual(table_operation(json.dumps({'action': {'commit_saved': 'PRIVATE'}})), 'table:commit_saved')
+
     def test_direct_table_actions_are_bounded_and_do_not_retain_payloads(self):
         secret = 'private-name-row-or-signed-proof'
         received = []
