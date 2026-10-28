@@ -1,4 +1,4 @@
-# 19. Operations, backup, restore and upgrades
+# 20. Operations, backup, restore and upgrades
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -9,13 +9,13 @@ upgrade procedures before automatic clustered placement depends on them.
 
 ## Prerequisites and scope
 
-Follow [replication and durable failover](18-replication-and-failover.md) over the
+Follow [replication and durable failover](19-replication-and-failover.md) over the
 [installed storage/runtime](03-live-storage-and-sql-cutover.md). Consume complete
 catalog/native-owner recovery roots, retained history and current authority from
 [data lifecycle](01-declarative-data-lifecycle.md) and
 [storage](02-storage-and-query-performance.md). The first operational profile
 uses local or explicitly managed replicated placements; it does not depend on
-the later automatic scheduler. [Clustered execution](20-clustered-execution.md)
+the later automatic scheduler. [Clustered execution](21-clustered-execution.md)
 must subsequently prove these procedures across moving workers and partitions.
 
 The [deployment reference](../handbook/reference/deployment.md),
@@ -98,28 +98,28 @@ outbox eligibility; activation and reconciliation remain separately governed.
 
 ## Boundaries with other milestones
 
-Backups bind [index definitions and generations](08-indexing-and-access-paths.md)
+Backups bind [index definitions and generations](09-indexing-and-access-paths.md)
 to the selected data cut. Record copied index objects or an explicit rebuild
 requirement with complete authoritative inputs; a rebuildable index is not an
 excuse to omit constraint definitions or required history. Verify query coverage
 and constraint enforcement before restored work becomes eligible. Include index
 format/comparator compatibility in upgrade preflight and current-v1 cutover.
 Expose rebuild/repair progress and measure temporary capacity, recovery time and
-foreground latency under the [performance scorecard](10-data-structures-and-performance.md).
+foreground latency under the [performance scorecard](11-data-structures-and-performance.md).
 Test interrupted backup, rebuild and upgrade while index publication or retirement
 is in progress.
 
-[Branches, merges and restore](14-branches-merges-and-restore.md) owns logical
+[Branches, merges and restore](15-branches-merges-and-restore.md) owns logical
 application-data restore as a new forward successor under current realm policy.
 This milestone owns backup media, installation disaster recovery, operational
 activation and runtime upgrades. Both preserve the ban on revived grants,
-retired processes and historical effects. [Release distribution](30-releases.md)
+retired processes and historical effects. [Release distribution](31-releases.md)
 packages the qualified artifacts and procedures; it does not invent their
 upgrade semantics. Broader distributed placement is qualified by its own owner.
 
 ## Formal model follow-through
 
-Reassess the [T1/T4/T7 recovery candidates](16-formal-semantics-and-correspondence.md#later-ownership-and-extensions)
+Reassess the [T1/T4/T7 recovery candidates](17-formal-semantics-and-correspondence.md#later-ownership-and-extensions)
 against the delivered backup/PITR and upgrade contracts. Extend selected coverage
 and retention models to complete backup roots, transaction decisions and
 current-authority restore activation; replay corresponding failure histories.

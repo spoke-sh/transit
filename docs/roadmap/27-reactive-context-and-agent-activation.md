@@ -1,4 +1,4 @@
-# 26. Reactive context, subscriptions and agent activation
+# 27. Reactive context, subscriptions and agent activation
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -9,12 +9,12 @@ the same versioned event without an open MCP connection owning the application.
 
 ## Prerequisites and scope
 
-Extend [managed computation scheduling](09-sql-and-dataflows.md),
-[native full-text, vector and hybrid retrieval](13-multi-model-and-foreign-relations.md),
-[enterprise RLS, masking and WLM governance](21-control-and-policy-plane.md),
-[published resources](22-published-resources-and-investigations.md),
-[proposal lifecycle](23-reviewed-data-collaboration.md) and the
-[MCP service](25-mcp-service-and-apps.md). Durable source/change semantics stay
+Extend [managed computation scheduling](10-sql-and-dataflows.md),
+[native full-text, vector and hybrid retrieval](14-multi-model-and-foreign-relations.md),
+[enterprise RLS, masking and WLM governance](22-control-and-policy-plane.md),
+[published resources](23-published-resources-and-investigations.md),
+[proposal lifecycle](24-reviewed-data-collaboration.md) and the
+[MCP service](26-mcp-service-and-apps.md). Durable source/change semantics stay
 with their current owners; this milestone supplies consumer-specific conditions,
 governed hybrid context assembly (combining relational/bitemporal filters, BM25
 full-text search and vector similarity under a single `SnapshotId`, branch and
@@ -53,7 +53,7 @@ within the caller's WLM resource group. Reasoning loops remain applications.
 
 ## Formal model follow-through
 
-Extend the [T5 handoff and checkpoint candidate](16-formal-semantics-and-correspondence.md#t5-snapshot-to-history-handoff-and-consumer-checkpoints)
+Extend the [T5 handoff and checkpoint candidate](17-formal-semantics-and-correspondence.md#t5-snapshot-to-history-handoff-and-consumer-checkpoints)
 when the durable-interest and activation contracts settle. Preserve the declared
 meaning of every-change capture, net changes or latest-result notification;
 check resume, duplicate application, explicit gaps and current disclosure.
@@ -78,7 +78,7 @@ Extend that journey through an authorized action and a later business observatio
 Bind the initial assessment, original action identity and subsequent observation
 without replacing the original prediction. Exercise delayed, missing and
 contradictory feedback as well as known success and failure. Use the
-[observation measures](29-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+[observation measures](30-qualification-and-benchmarks.md#observation-and-consequence-evidence)
 to qualify both sides of the loop; a notification or completed tool call alone
 does not establish the application's business consequence.
 

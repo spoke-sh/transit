@@ -242,6 +242,51 @@ Start from the [SQL session contract](contracts/SQL_SESSION_V1.md),
   Until then, keep adapters to current APIs small and preserve their guarantees;
   do not introduce a competing console-only result protocol.
 
+### Database decoupling, declarative streams and queues, and durable runtime composition: future implementation direction
+
+Keep the database (**Control & Policy Plane** and **Direct Data Plane**:
+`DirectCatalog`, `TablePartition`, `KV`, `Document`, `Stream`, `Queue`,
+`transit-query`, and `transit-sql`) completely independent of `Station` actor
+turns (`GenServer`, `AccountRuntime`, `Ledger`), and re-architect `Station` on
+top of first-class declarative database primitives. This is architectural
+direction across the [data model](docs/handbook/reference/data-model.md),
+[streams reference](docs/handbook/reference/streams.md),
+[Station reference](docs/handbook/reference/station.md) and
+[Milestone 6](docs/roadmap/06-streams-queues-and-durable-runtime.md), not a
+claim that `CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `CREATE QUEUE`,
+`ENQUEUE INTO`, or `CLAIM ... FROM` already exist in current builds.
+
+- **Decouple `transit-sql` and the database from `Station` actor turns:**
+  Do not route SQL DDL/DML admission, idempotency token deduplication, or
+  snapshot pins through `Station` `GenServer` actors or `STATE_V1` 256-byte KV
+  turns. Enforce client operation idempotency (`(AccountId, ClientToken) -> OperationId, CommitLSN`),
+  snapshot cuts, and `policy_epoch` lease fencing directly in `DirectCatalog`,
+  `TablePartition`, and the transaction log so single-partition writes commit in
+  one round-trip to `TransitLog` (`TWAL1`) and `SELECT` reads hot lease-cached
+  partition state.
+- **First-class declarative `STREAM` and `QUEUE` primitives with dedicated grammar:**
+  Elevate `STREAM` and `QUEUE` to catalog-declared data primitives alongside
+  `TABLE`, `KV`, and `DOCUMENT`, using explicit workload verbs decoupled from
+  relational table `INSERT`/`SELECT` syntax:
+  - **Streams (`CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `COMMIT OFFSET`):**
+    Append-only, partitioned, schema-bound event logs over `TransitLog` (`TWAL1`)
+    automatically tiered to `.tseg` segments in `TransitObjectStore` with
+    zero-copy buffer-pool tail reads and consumer-group watermark tracking.
+  - **Queues (`CREATE QUEUE`, `ENQUEUE INTO`, `CLAIM ... FROM ... WITH LEASE`, `ACK`, `NACK`, `EXTEND LEASE`):**
+    Log-structured competing and `key_fifo` queues storing payloads once in
+    `TWAL1`/`.tseg` and tracking per-offset `Available`, `Acquired`, `Acked`, and
+    `Archived/DLQ` states via compressed Roaring Bitmaps, an in-memory fenced
+    lease heap (`_lease_epoch`), a lock-free `key_fifo` entity-key affinity
+    table, and a Hashed Hierarchical Timing Wheel for `visible_at` delays and
+    retry backoff without B-tree page rewrite amplification.
+- **Re-architect `Station` on top of Queues, Streams, Tables/KV and Transactions:**
+  Model a `Station` behavior's inbox as a declared `key_fifo` `QUEUE`, its state
+  as declared `TABLE`/`KV`/`DOCUMENT` objects (without 256-byte value or 4-key
+  mutation ceilings), and its replay journal and effect outbox as declared
+  `STREAM`s/`QUEUE`s, committing inbox lease `ACK`s, state mutations, and
+  outbound `PRODUCE`/`ENQUEUE` intents atomically in a single database
+  transaction without external `courier` polling.
+
 ### Resource control, vectorized strings, perfect hashing and data-centric compilation: future implementation direction
 
 Design storage, query and protocol hot paths for predictable CPU cache residency,

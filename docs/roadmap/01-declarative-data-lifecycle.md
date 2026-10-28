@@ -994,7 +994,7 @@ source/column identities, declared comparison/collation semantics, constraint
 dependencies, build generations and exact coverage to the existing
 snapshot/publication model. Declaration, maintenance progress and conditional
 coverage publication have distinct types and validation. The
-[indexing owner](08-indexing-and-access-paths.md) still delivers secondary access
+[indexing owner](09-indexing-and-access-paths.md) still delivers secondary access
 paths, online lifecycle and planner eligibility; this foundation adds no
 executable index syntax or catalog operation.
 
@@ -1134,9 +1134,9 @@ This milestone does not itself deliver the installed lifecycle, transaction
 sessions, automatic scheduling, historical SQL, branches or a universal health
 boolean. [Local storage and `.tseg` segments](02-storage-and-query-performance.md)
 replace the underlying B-tree page store;
-[provider/writer qualification](17-storage-providers-and-concurrency.md) delivers
+[provider/writer qualification](18-storage-providers-and-concurrency.md) delivers
 partitioned concurrency;
-[managed computations](09-sql-and-dataflows.md) add WAL-driven activation and
-service-owned maintenance; [historical catalogs](07-standards-and-catalogs.md)
+[managed computations](10-sql-and-dataflows.md) add WAL-driven activation and
+service-owned maintenance; [historical catalogs](08-standards-and-catalogs.md)
 extend the same identities and interpretation model. The kernel stays generic.
 Definitions and reads never grant rights or dispatch external effects.

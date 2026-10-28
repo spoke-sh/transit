@@ -15,8 +15,11 @@ Follow [statement results](04-statement-results-and-consumption.md), the
 [storage foundation](02-storage-and-query-performance.md). Resolve atomic-domain,
 isolation and snapshot contracts with [data lifecycle](01-declarative-data-lifecycle.md)
 and #125/#111 before dependent persistent formats; the delivery position does
-not defer those decisions. Coordinate client contracts with the
-[early programming foundation](06-client-foundation-and-language-apis.md).
+not defer those decisions. Coordinate stream/queue outbox, consumer-checkpoint
+and durable-runtime turn composition with
+[declarative streams, queues and durable runtime](06-streams-queues-and-durable-runtime.md)
+and client contracts with the
+[early programming foundation](07-client-foundation-and-language-apis.md).
 
 At source `7f9343cc`, the [SQL reference](../handbook/reference/sql.md) and
 [session contract](../../contracts/SQL_SESSION_V1.md) do not offer interactive
@@ -74,8 +77,8 @@ executable syntax or implemented transaction support.
    The foundation selects whole-object optimistic validation under ordered
    participant guards for the first local Table profile. Because whole-Table
    read conflict detection aborts concurrent read-write transactions touching
-   disjoint keys on the same Table, [indexing and access paths](08-indexing-and-access-paths.md)
-   and [concurrent-writer qualification](17-storage-providers-and-concurrency.md)
+   disjoint keys on the same Table, [indexing and access paths](09-indexing-and-access-paths.md)
+   and [concurrent-writer qualification](18-storage-providers-and-concurrency.md)
    explicitly own the progression to fine-grained key-range and predicate-level
    Serializable Snapshot Isolation (SSI / index-range conflict tracking) over the
    same transaction session and recovery contract; neither can weaken the
@@ -129,7 +132,13 @@ executable syntax or implemented transaction support.
    one-KV-resource turns: direct writes inside a handler remain independent unless
    an explicitly extended owning contract qualifies composition. Define when a
    durable consumer's checkpoint and mutations share this domain; otherwise
-   expose separately recoverable steps. Do not automatically rerun application
+   expose separately recoverable steps. [Milestone 6](06-streams-queues-and-durable-runtime.md)
+   decouples `transit-sql` from `Station` actor turns, introduces first-class
+   declarative `STREAM` (`PRODUCE INTO` / `CONSUME ... FROM`) and `QUEUE`
+   (`ENQUEUE INTO` / `CLAIM ... FROM` / `ACK` / `NACK`) primitives, and
+   re-architects `Station` turns to commit inbox Queue lease `ACK`s, Table/KV/Document
+   state mutations and outbox `PRODUCE`/`ENQUEUE` intents atomically over this
+   transaction foundation. Do not automatically rerun application
    callbacks containing arbitrary I/O after a conflict or uncertain commit.
 6. **Deliver shared callers and the current-v1 cutover.** Put execution and
    decision recovery in the owning service and reusable submission/settlement in
@@ -144,8 +153,8 @@ executable syntax or implemented transaction support.
 ## Later owners and execution gates
 
 Define index-maintenance, constraint and DDL interactions with the
-[historical catalog](07-standards-and-catalogs.md) and
-[indexing owner](08-indexing-and-access-paths.md) before dependent formats.
+[historical catalog](08-standards-and-catalogs.md) and
+[indexing owner](09-indexing-and-access-paths.md) before dependent formats.
 Every constraint advertised here must already be enforceable in the supported
 domain, expanding from primary-key and `NOT NULL` checks to declarative row-level
 `CHECK` constraints and cross-table `FOREIGN KEY` referential integrity as those
@@ -161,24 +170,24 @@ or referentially invalid commits. Choose isolation mechanisms on their own evide
 not because a tree offers optimistic traversal. Include indexed/unindexed and
 parent/child foreign-key histories in later qualification.
 
-[Historical catalogs](07-standards-and-catalogs.md) retain exact interpretation;
-[dataflows](09-sql-and-dataflows.md) consume complete transaction changes without
+[Historical catalogs](08-standards-and-catalogs.md) retain exact interpretation;
+[dataflows](10-sql-and-dataflows.md) consume complete transaction changes without
 publishing half a multi-object update. General `MERGE`/upsert and prepared-plan
 features stay with SQL composition; this milestone owns their transaction
-interactions. [Foreign relations](13-multi-model-and-foreign-relations.md) owns
+interactions. [Foreign relations](14-multi-model-and-foreign-relations.md) owns
 typed `COPY`/import/export and its adapters. Foreign observations are not
 automatically transactional participants, and exporting bytes cannot be undone
 by local rollback.
 
-[Branches](14-branches-merges-and-restore.md) own multi-commit histories, merge
-validation and forward restore. [Investigations](22-published-resources-and-investigations.md)
+[Branches](15-branches-merges-and-restore.md) own multi-commit histories, merge
+validation and forward restore. [Investigations](23-published-resources-and-investigations.md)
 own retained multi-call bases, including honestly independent source vectors.
 Neither requires keeping an interactive transaction open for hours or days.
 
 The first qualified deployment is an explicitly bounded atomic domain over the
-local foundations. [Provider/concurrent-writer qualification](17-storage-providers-and-concurrency.md),
-[replication](18-replication-and-failover.md), [operations](19-operations-and-recovery.md)
-and [clustered execution](20-clustered-execution.md) extend and requalify decision
+local foundations. [Provider/concurrent-writer qualification](18-storage-providers-and-concurrency.md),
+[replication](19-replication-and-failover.md), [operations](20-operations-and-recovery.md)
+and [clustered execution](21-clustered-execution.md) extend and requalify decision
 durability, fencing and placement. Design all experiences together without
 claiming arbitrary distributed atomicity before those profiles execute.
 

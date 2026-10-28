@@ -1,4 +1,4 @@
-# 22. Published business resources and consistent investigations
+# 23. Published business resources and consistent investigations
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -11,16 +11,16 @@ separately maintained business semantics.
 ## Prerequisites and scope
 
 Consume [statement results and client consumption](04-statement-results-and-consumption.md),
-[historical interpretation](07-standards-and-catalogs.md),
-[managed computations](09-sql-and-dataflows.md), the selected
-[foreign sources](13-multi-model-and-foreign-relations.md),
-[branches](14-branches-merges-and-restore.md) and the
-[access plane](21-control-and-policy-plane.md). Finite resources can be qualified
+[historical interpretation](08-standards-and-catalogs.md),
+[managed computations](10-sql-and-dataflows.md), the selected
+[foreign sources](14-multi-model-and-foreign-relations.md),
+[branches](15-branches-merges-and-restore.md) and the
+[access plane](22-control-and-policy-plane.md). Finite resources can be qualified
 before maintained activation or every foreign format is implemented. Current
 application bindings and named queries are foundations, not an implemented
 publication/disclosure contract for enriched resources.
 
-[Board reimplementation](24-board-reimplementation.md) consumes these resources
+[Board reimplementation](25-board-reimplementation.md) consumes these resources
 and investigation bases for saved workbooks and shared evidence. This milestone
 qualifies their public operations independently of that frontend; a Board save
 or share control cannot supply missing persistence, disclosure or retention
