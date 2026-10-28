@@ -289,8 +289,10 @@ The direct Table route also includes its request-owned catalog/Table WAL and
 object attempts, merged into the lane's counters on both success and failure.
 `request_memory` records backing allocation, growing-resize and remap attempts,
 acquired bytes, peak bytes and bytes still live immediately before writing the
-response. The probe covers the handler allocator, including the direct Table
-parse/catalog/response arena. It excludes engine caches, provider-owned buffers,
+response. The probe covers the handler allocator, including direct Table parsing,
+catalog work and serialized output. Direct Table requests release parsing and
+catalog scratch before response transmission, retaining only the independently
+owned response after the final authority fence. The probe excludes engine caches, provider-owned buffers,
 HTTP socket buffers, task stacks and maintenance. Live request bytes remain
 owned until the response finishes or its cancelled handler joins; the header
 is a pre-write snapshot, not a post-cleanup measurement. These counters are

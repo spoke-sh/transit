@@ -105,7 +105,15 @@ fn dispatchWithSeed(service: anytype, action: c.DirectTableProtocol.Action, dele
     const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .borrow = input.borrow, .proof = signed };
     const bytes = try p.Json.valueAlloc(alloc, request);
     const parsed = try w.Request.parse(alloc, bytes);
-    const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, try service.execute(&arena, parsed.value));
+    const encoded = work: {
+        var temporary = std.heap.ArenaAllocator.init(t.allocator);
+        defer temporary.deinit();
+        break :work try service.execute(&temporary, t.allocator, parsed.value);
+    };
+    defer t.allocator.free(encoded);
+    // Decode only after all catalog/read scratch is gone. Revocation cases also
+    // verify that a separately allocated but denied response does not leak.
+    const response = try p.Json.parseFromSliceOwned(w.Response, t.allocator, encoded);
     errdefer response.deinit();
     try c.DirectTableClient.validateResponse(alloc, parsed.value, response.value);
     if (response.value.result == .lookup and response.value.result.lookup != null) {
@@ -144,8 +152,8 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
         host: *Host,
         engine: *Engine,
         configuration: D.Configuration,
-        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, request: c.DirectTableProtocol.Request) ![]const u8 {
-            return self.host.execute(self.engine.journal.backend.io, self.engine, arena, request);
+        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: c.DirectTableProtocol.Request) ![]const u8 {
+            return self.host.execute(self.engine.journal.backend.io, self.engine, arena, output_allocator, request);
         }
     };
     var options = service.options;
@@ -173,6 +181,22 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
     defer restored.deinit();
     try t.expectEqualDeep(cold.value.result, restored.value.result);
     std.debug.print("Name lookup WAL frames: cold {d}, warm {d}; revocation rechecked.\n", .{ cold_frames, warm_frames });
+}
+
+fn dispatchWithoutOutput(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action) !void {
+    const Adapter = struct {
+        service: *@import("LocalTableService.zig"),
+        engine: *Engine,
+        configuration: D.Configuration,
+        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, _: std.mem.Allocator, request: c.DirectTableProtocol.Request) ![]const u8 {
+            var failure = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+            const result = self.service.execute(arena, failure.allocator(), request);
+            try t.expect(failure.has_induced_failure);
+            return result;
+        }
+    };
+    var adapter: Adapter = .{ .service = service, .engine = service.engine, .configuration = service.configuration };
+    try t.expectError(error.OutOfMemory, dispatch(&adapter, action));
 }
 
 fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.DirectClientToken.Receipt {
@@ -235,7 +259,11 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.
     const row_admitted = try dispatch(&service, .{ .admit_rows = work });
     defer row_admitted.deinit();
     try t.expect(row_admitted.value.result.rows == .admitted);
-    const rows = try dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } });
+    // Output allocation fails after the accepted mutation. Inspect the exact
+    // original operation; never invent another identity or infer rejection.
+    try dispatchWithoutOutput(&service, .{ .operation = .{ .binding = work.binding, .command = .execute, .steps = 1 } });
+    try t.expect(table_recovered == null);
+    const rows = try dispatch(&service, .{ .operation = .{ .binding = work.binding, .command = .inspect, .steps = 1 } });
     defer rows.deinit();
     try t.expectEqual(@as(u64, 1), rows.value.result.rows.committed.outcome.affected);
     const bulk_storage = try dispatch(&service, .{ .storage = .{ .object = binding.target, .pending_limit = 1 } });

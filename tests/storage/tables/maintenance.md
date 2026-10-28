@@ -36,7 +36,9 @@ on success and killed/joined on failure; incomplete samples do not pass.
 Both arms enable the node's opt-in request metrics. The existing HTTP fixture
 collects `request_memory` from each direct response into bounded operation-label
 totals and maxima; it retains no request, row, key or credential bytes. Missing
-or invalid observations fail the measurement. Each phase records allocation,
+or invalid observations fail the measurement. The counted live bytes must equal
+the independently received HTTP response length, proving that no request scratch
+remains charged during transmission. Each phase records allocation,
 growing-resize and remap attempts, acquired bytes, and maximum live/peak bytes
 through the complete handler allocator before response transmission. Totals
 include concurrent inspection traffic, separated from `scan` by operation.

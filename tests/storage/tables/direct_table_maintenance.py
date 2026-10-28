@@ -31,7 +31,7 @@ class RequestMemory:
             self.operations = {}
             self.invalid = 0
 
-    def observe(self, action, header):
+    def observe(self, action, header, response_bytes):
         tag = action if isinstance(action, str) else next(iter(action)) if isinstance(action, dict) and len(action) == 1 else None
         label = tag if tag in TABLE_ACTIONS else 'other'
         try:
@@ -39,6 +39,7 @@ class RequestMemory:
             assert set(values) == set(self.fields)
             assert all(type(values[name]) is int and 0 <= values[name] < 2**64 for name in self.fields)
             assert values['live_bytes'] <= values['peak_bytes'] <= values['acquired_bytes']
+            assert values['live_bytes'] == response_bytes, 'Request scratch survives into response transmission'
         except (AssertionError, ValueError, TypeError, KeyError):
             with self.lock:
                 self.invalid += 1
