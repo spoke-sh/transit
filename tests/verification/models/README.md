@@ -183,7 +183,7 @@ are [logical results](../../../contracts/SQL_RESULTS_V1.md) and
 [native sessions](../../../contracts/SQL_SESSION_V1.md). The
 [query-engine account](../../../docs/handbook/internals/query-engine.md#finite-result-transition-models)
 explains the argument and exclusions; the
-[qualification ledger](../../../docs/history/qualification/verification.md)
+[qualification ledger](../../../docs/history/qualification/verification.md#sql-result-progress-and-session-models--2026-10-27)
 records executed bounds and outcomes.
 
 ### Logical progress and implementation correspondence

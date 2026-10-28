@@ -379,7 +379,7 @@ consumption and release. The implemented
 checks those transitions independently of transport. Two finite TLA+ models
 make the safety obligations executable; their
 [method and bounds](../../../tests/verification/models/README.md#finite-sql-result-models)
-and [executed evidence](../../history/qualification/verification.md)
+and [executed evidence](../../history/qualification/verification.md#sql-result-progress-and-session-models--2026-10-27)
 remain separately attributable.
 
 The progress model checks counter bounds, identity admission, terminal evidence,
