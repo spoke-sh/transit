@@ -193,7 +193,15 @@ fn beginInitialization(self: *Self, index: usize, allocator: std.mem.Allocator) 
     var key = try q.wire.readKey(allocator, self.installation.init.io, try E.accountPath(self.installation, allocator, entry.record.name, "table.seed"));
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     var client: g.Client = .{ .transport = self.installation.wire, .execution = .{ .configuration = try entry.record.execution(allocator, self.installation.config.realm) }, .principal = entry.record.principals.table, .key = key };
-    _ = try client.table(entry.record.binding).require(.{ .namespace = entry.record.binding.namespace, .target = null, .access = .schema });
+    _ = client.table(entry.record.binding).require(.{ .namespace = entry.record.binding.namespace, .target = null, .access = .schema }) catch |err| {
+        // Credential enrollment and database access are separate publications.
+        // An operator may grant CONNECT/USAGE after binding the credential;
+        // keep refreshing proposals for every account while that grant is absent.
+        // Denial never authorizes initialization or consumes the service's
+        // startup-failure budget.
+        if (err == error.AccessDenied) return;
+        return err;
+    };
     entry.record.initialized = true;
     try self.saveAccount(allocator, &entry.record);
     try E.controlProfile(self.installation, allocator, entry.record);
