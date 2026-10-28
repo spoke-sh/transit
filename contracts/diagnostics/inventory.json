@@ -10907,6 +10907,7 @@
         "Row.encodedSize()": "<inferred>",
         "Row.storageKey()": "<inferred>",
         "decode()": "<inferred>",
+        "decodeInto()": "<inferred>",
         "encodeKey()": "<inferred>",
         "encodeKeyValues()": "<inferred>",
         "keyDigest()": "<inferred>",
@@ -10914,7 +10915,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 49,
+        "try": 50,
         "catch": 0
       },
       "imports": [
@@ -11754,6 +11755,7 @@
         "decodeBoundBorrowingBytes()": "<inferred>",
         "decodeBoundInto()": "<inferred>",
         "decodeBoundWithOwnership()": "<inferred>",
+        "decodeInto()": "<inferred>",
         "encode()": "<inferred>",
         "encodeBound()": "<inferred>",
         "readAtom()": "<inferred>",
@@ -11768,7 +11770,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 118,
+        "try": 119,
         "catch": 0
       },
       "imports": [
@@ -26976,6 +26978,11 @@
           "owned",
           "buffered"
         ],
+        "DecodedRow": [
+          "wal",
+          "segment",
+          "projected"
+        ],
         "Edit": [
           "rename",
           "alter",
@@ -26990,7 +26997,8 @@
         ],
         "OwnedRow": [
           "wal",
-          "segment"
+          "segment",
+          "page"
         ],
         "ReadMode": [
           "point",
@@ -27002,7 +27010,9 @@
         "CompactionLimits.validate()": "<inferred>",
         "Guard.acquire()": "anyerror",
         "HistoryPoint.cursorSource()": "<inferred>",
+        "PageRows.init()": "<inferred>",
         "ReadLimits.validate()": "<inferred>",
+        "ReadPage.keep()": "<inferred>",
         "RowIndexBatch.append()": "<inferred>",
         "RowIndexBatch.flush()": "<inferred>",
         "RowIndexBatch.insert()": "<inferred>",
@@ -27065,7 +27075,7 @@
         "physicalSchema()": "<inferred>",
         "pin()": "<inferred>",
         "pinState()": "<inferred>",
-        "projectPhysicalRow()": "<inferred>",
+        "projectPhysicalRowInto()": "<inferred>",
         "publish()": "<inferred>",
         "publishMaintenance()": "<inferred>",
         "publishSegmentRows()": "<inferred>",
@@ -27073,6 +27083,8 @@
         "readCurrent()": "<inferred>",
         "readHistoryFrame()": "<inferred>",
         "readRow()": "<inferred>",
+        "readRowInto()": "<inferred>",
+        "readRowSchemaInto()": "<inferred>",
         "readRowWithColumns()": "<inferred>",
         "readRowWithSchema()": "<inferred>",
         "readSnapshot()": "<inferred>",
@@ -27116,7 +27128,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 607,
+        "try": 615,
         "catch": 14
       },
       "imports": [
