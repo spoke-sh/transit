@@ -29,7 +29,7 @@ every object. Initialization rounds capacity down to a multiple of 64 bytes.
 Admission charges that full capacity and initializes allocator metadata without
 filling unused payload pages. Backing capacity is not a resident-page promise;
 the parent allocator and host determine page residency. Ordinary borrower
-allocations retain Zig's initialization checks. Destruction and `reset(true)`
+allocations retain Zig's normal initialization behavior. Destruction and `reset(true)`
 still erase the complete reserve.
 `fromBuffer` borrows an exclusively leased aligned reserve; its backing owner
 remains responsible for accounting and release. `reset(true)` requires no live

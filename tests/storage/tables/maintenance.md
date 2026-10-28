@@ -57,25 +57,23 @@ them or establish a zero-allocation read path.
 Run `just test local-catalog` to exercise the composed local maintenance owner
 with its real disk backend. The
 [catalog policy fixture](../../../apps/transit-node/local_catalog_policy_test.zig)
-puts an allocation probe immediately below the private Table maintenance
-workspace. The first unit admits the configured reserve; later units must
-complete with that backing allocator sealed. The schedule spans flush, archive,
+puts an allocation probe below the private Table maintenance budget.
+The schedule spans flush, archive,
 checkpoint, WAL cleanup and compaction across four Tables, then sixteen idle
-units. It discards volatile discovery and recovery hints once while preserving
-the workspace. This is not a process restart; the installed schedule above owns
+units. It discards volatile discovery and recovery hints once.
+This is not a process restart; the installed schedule above owns
 that failure boundary.
 
-The `Local Table maintenance backing allocations` record separates the initial
-unit from subsequent work and idle units. Requested live bytes, occupied slab
-bytes including headers/alignment, and retained backing capacity are different
-measurements. Freed temporary values leave the backing reserve admitted until
-the maintenance owner is joined and destroyed. A negative control removes the
-workspace temporarily: the sealed allocator must detect the attempted fallback
-before catalog access. Separate cold-admission and disabled-work controls check
-that allocation refusal cannot advance discovery or publish work.
+The `Local Table maintenance backing allocations` record separates all work
+units, including startup, from subsequent idle units. The probe is unsealed:
+it records backing allocation and growing resize/remap attempts, successes,
+requested/acquired/released bytes and peak live bytes. Every unit must release
+its private allocations before the next begins. A zero retained-byte count is
+not a zero-allocation result. The
+[retained-workspace experiment](../../../docs/history/qualification/storage.md#reusable-private-table-maintenance-workspace--2026-10-28)
+records why reducing those counts alone did not justify keeping its reserve.
 
 This probe excludes native engine caches, provider I/O buffers, collection,
-foreground requests and worker stacks. Passing it establishes reuse only at the
-named private boundary. Pair its counts and retained capacity with installed
+foreground requests and worker stacks. Pair its counts and peak bytes with installed
 CPU/RSS/I/O and foreground measurements before making a resource improvement
 claim. It does not establish an aggregate node bound or zero-allocation storage.

@@ -291,12 +291,9 @@ it does not bound total work across a pass. Changing limits alone does not start
 a new pass. Compaction completion does not promise that every segment was rewritten.
 
 `storage.maintenance.resident_bytes` limits shared private Table maintenance
-workspace to 32–512 MiB, default 128 MiB. It requires restart. The local executor
-allocates one reusable reserve on its first enabled unit and retains it while
-idle; allocation headers and alignment count against that capacity. Sequential
-Table work shares the reserve for catalog/Table owners, read caches, index
-staging and encoding, without heap fallback when full. Native authority caches
-and bounded backend I/O buffers retain
+workspace to 32–512 MiB, default 128 MiB. It requires restart and includes
+catalog/Table owners, read caches, index staging
+and encoding. Native authority caches and bounded backend I/O buffers retain
 their separate limits. The node's maintenance operation deadline bounds each
 turn. Timeout, revocation, allocation budget or disk quota refusal leaves accepted
 rows recoverable; subsequent turns advance through the other Tables. No flush

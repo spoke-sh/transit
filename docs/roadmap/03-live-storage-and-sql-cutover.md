@@ -668,7 +668,7 @@ wire limits and individual operator budgets do not establish a byte cap for
 that whole arena or the sum of concurrent requests and maintenance. Qualify an
 explicit request-wide limit and independent control capacity, including exhausted
 data admission, slow response writes, cancellation and original-operation recovery.
-The reusable private maintenance workspace alone cannot close this gate.
+A private maintenance budget alone cannot close this gate.
 
 **Gate:** the installed owner converges on eligible maintenance under a finite
 workload, resumes it after process death and preserves every retained obligation.
@@ -797,14 +797,16 @@ private Table workspace. One admitted 128 MiB reserve serves 121 subsequent
 work units and sixteen idle units with its backing allocator sealed; a bypass
 negative control detects attempted fallback. The
 [allocation comparison](../history/qualification/storage.md#reusable-private-table-maintenance-workspace--2026-10-28)
-also records increased retained capacity and full-test peak RSS. This closes the
-measured repeated private-backing allocation problem, not P4.4's aggregate
-admission, installed resource or foreground contention gates.
-Its installed maintenance schedule also passes, but active RSS rises by about
-128 MiB without a clear latency/CPU improvement. The follow-up at `79c04aec0`
-avoids eagerly filling unused slab capacity and passes 18 memory-package tests,
-including an independent negative control. Its installed resource comparison is
-still required before accepting the workspace as a performance improvement.
+also records increased retained capacity and full-test peak RSS.
+Its installed maintenance schedule passes, but active RSS rises by about
+128 MiB without a clear latency/CPU improvement. Avoiding eager slab-capacity
+initialization passes 18 memory-package tests and the installed schedule at
+`bcaecb701`, reducing active RSS to about 92 MB. That still exceeds the
+approximately 54 MB baseline without a clear timing/CPU benefit. The retained
+maintenance workspace is therefore not adopted; the existing per-unit budget
+and backing-allocation measurements remain. The shared slab-initialization fix
+retains full capacity accounting and erasure. P4.4's aggregate admission,
+installed resource and foreground contention gates remain open.
 
 #### P5 — Qualify and reduce the remaining live read and wait costs
 

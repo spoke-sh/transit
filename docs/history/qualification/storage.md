@@ -123,6 +123,33 @@ reset and zero remaining charges after destruction. Restoring the previous
 initializer makes only that new check fail; the other 17 checks pass.
 These are package controls, not an installed RSS result for this follow-up.
 
+The subsequent installed schedule passes at
+`bcaecb7015d0c5d83798b23fe9621b2ec5d527c9`, with all retained-value, restart,
+fixed-target and idle assertions. Flush convergence takes 8.080 seconds and
+archive/compaction recovery plus verification take 22.157 seconds. Active reads
+have minimum/median/maximum durations of 1.087/1.194/4.079 seconds; node CPU
+is 19.98 seconds. Active RSS after the phase falls to 92,319,744 bytes and
+lifetime peak RSS to 98,619,392 bytes. The disabled arm ends at 53,919,744 bytes.
+Kernel write-byte growth remains 11,550,720; kernel reads are 200,704 bytes in
+this run, reinforcing the uncontrolled-cache limitation. All 41 committed-source
+clean fast checks also pass at that revision.
+
+The follow-up removes most of the initial reserve's extra RSS, but the remaining
+approximately 38 MB increase over the original baseline has no clear measured
+CPU/latency benefit. **The retained maintenance workspace is not adopted.** The
+local owner returns to its existing per-unit byte budget and releases private
+allocations after every unit; allocation instrumentation remains. The shared
+slab-initialization correction retains its independent memory-owner tests and
+full accounting/erasure behavior. This decision makes no zero-allocation or
+aggregate node resource claim.
+
+The follow-up log is
+`.cache/milestone3/slab-admission-installed-maintenance.log`, SHA-256
+`1eaac401d896faa04f5845ccd11f595d1ec1b85178d3fa374d4ff666c6848a95`.
+Node SHA-256 is
+`5f18a7bb7fe4ea689fb604a4d675f898a81c40d65ecdbe8063505d74bdf1027f`;
+the caller remains `d6d1f6b5e2787edb1c8ceab27d19fe89cc0c90f87c42b0fcb62bb0e87469ddf6`.
+
 ## Installed packaging recovery and repository qualification — 2026-10-28
 
 At frozen source `4d778efa9ffc5a8ad3e012bcecee1cc9887621db`, the committed-source
@@ -167,6 +194,34 @@ Raw records remain under `.cache/milestone3/`:
 | `single-executable-original-inspection.log` | `3f807b5d3203f81dba61881383d295182f09903dee2cbfe1e69fc2fe08d988d8` |
 | `single-executable-control.log` | `4f663b846acfd066ffb3102ddb498013ab4b7d06b84e6079c0f02f924951bb9f` |
 | `single-executable-health.jsonl` | `4e0b71f5263b90dce73af1eeb110f954611bb3fe4218c0de75cd4cd09a7c3eba` |
+
+### Headless shutdown observation
+
+The later clean experience run at `77f9fb503` passes its first five tasks and
+the default single-executable workflow, then exceeds the headless fixture's
+20-second shutdown deadline. Its manager logs completion after approximately
+31 seconds. The private installation at `/var/tmp/transit-server-proof-pjh7mc58`
+has no database-wire listeners; attributing that delay to active wire draining
+is unsupported. The log `current-77f9fb503-clean-experience.log` under
+`.cache/milestone3/` has SHA-256
+`87605dd07a1a7573b1055d114b94481f4da846c7c5b9b3d0b988f7125cd5a468`.
+
+After preserving a stopped copy at
+`/var/tmp/transit-m3-headless-before-ilnf3rgp`, two diagnostic reopens use the
+same installation, configuration and executable SHA-256
+`c0f0e320308d82f7a1544df5cca78d75a8444c2a3e172759407adc5521c4904e`.
+Both reach local SQL admission before SIGTERM. Shutdown takes 0.827 seconds
+with process-state observation and 0.821 seconds with signal/wait/exit tracing;
+both managers exit zero and every owned role joins. Installation/provisioning
+identities remain unchanged; no SQL is submitted. The diagnostic log is
+`.cache/milestone3/headless-shutdown-inspection.log`, SHA-256
+`ec73c5d9159f862220192bafb251f21515bcb58999dacef89b7f880b962f66e8`.
+
+The complete [GitHub experience lane](https://github.com/spoke-sh/transit/actions/runs/40683696166/job/122801112580)
+also passes at merge source `cd68d6c63310c04637e741cf26272d87bc2da95c`,
+including default/headless packaging and browser checks. These later results
+do not reproduce or establish the cause of the earlier local shutdown failure.
+No production or fixture deadline changes.
 
 ## Collection progress across clock failure — 2026-10-28
 

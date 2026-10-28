@@ -323,17 +323,6 @@ read-only; explicit `flush` targets use current Table control authority and the
 same direct partition. Current rows, logical changes and retained history have
 separate frontiers.
 
-The local Table executor lazily allocates one reusable slab at the configured
-`storage.maintenance.resident_bytes` capacity when an enabled class first runs.
-Flush, archive, trim and compaction borrow that same reserve sequentially. Every
-unit releases its private catalog, row, cache and index allocations before the
-next unit begins; shutdown joins the executor before freeing the reserve.
-Headers and alignment consume part of the capacity. Exhaustion refuses the
-unit without allocating an additional heap buffer. The entire reserve remains
-charged while idle. Native authority caches, provider I/O buffers, request lanes
-and worker stacks are separate allocations; this workspace is not a bound on
-whole-node resident memory.
-
 The following allocation ledger and physical collection details apply to
 Ursula. Local allocation accounting and retained-object limits are described in
 the [local backend](../../../packages/zig/transit-backend-local/README.md).

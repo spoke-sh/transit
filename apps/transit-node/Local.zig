@@ -114,7 +114,6 @@ fn runOwner(init: std.process.Init, config: Config, mode: anytype, diagnostics: 
 
 fn runServices(init: std.process.Init, engine: *Engine, lanes: []Lane, config: Config, maintenance_engine: ?*Engine, diagnostics: *telemetry.Runtime) !void {
     var table_maintenance: ?TableMaintenance = if (lanes[0].table) |host| .{ .host = host, .allocator = init.gpa } else null;
-    defer if (table_maintenance) |*work| work.deinit();
     const Task = struct {
         fn maintain(process: std.process.Init, owned: *Engine, settings: Maintenance.Config, runtime: *telemetry.Runtime, extension: ?Maintenance.Extension(Self)) anyerror!void {
             return Maintenance.run(Self, process, owned, settings, runtime, extension);
