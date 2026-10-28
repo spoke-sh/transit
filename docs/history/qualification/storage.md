@@ -54,6 +54,45 @@ tail-latency guarantee, zero-allocation path or aggregate resource bound. Larger
 Table populations, foreground writes and archive/compaction contention remain
 separate qualification obligations.
 
+### Response allocation follow-up
+
+At clean source `89e88a39be4eacbb0b5250c177dd8285771a3258`, direct Table
+responses count their encoded size before allocating output, replacing the
+unconditional 16 MiB response allocation. The wire bound, request-owned lifetime
+and final authority fence remain unchanged. The protocol suite passes 64/64,
+including exact escaped-byte bounds, refusal before allocation and backing
+failure. All six local catalog/maintenance checks and all 41 fast checks pass.
+
+The same installed maintenance task passes again. Its retained-source profile
+SHA-256 (`86a6a118af09e4fe8433c77b6c2699c18f3938ea4f4237f2434585c7527aa023`),
+both driver hashes, toolchain lock, row/page counts and configuration overrides
+match the preceding run. The observations are:
+
+| Observation | Table maintenance disabled | Automatic flushing |
+| --- | ---: | ---: |
+| Scan duration, minimum / median / maximum (seconds) | 1.247 / 1.319 / 1.421 | 1.058 / 1.208 / 4.220 |
+| Whole measured phase (seconds) | 21.311 | 24.862 |
+| Node user + system CPU during phase (seconds) | 22.65 | 20.02 |
+| Node lifetime peak RSS (bytes) | 60,338,176 | 75,059,200 |
+| Node kernel write-byte increase | 0 | 11,550,720 |
+
+All 32 retained scans verify their values. Flushing again produces ten segments,
+in 8.230 seconds including restart. Archive/checkpoint/compaction recovery,
+original snapshots, unchanged packed segments and idle convergence pass in
+22.623 seconds. Raw evidence remains in
+`.cache/milestone3/response-sizing-foreground-maintenance.log`, SHA-256
+`786e78f999e47f71c8b3c7163a521979c021eab41733fbc542b5fbfc0f2e114b`.
+Node SHA-256 is
+`a127427e4d39b540fd91dee46d41de5e03d23748cf9fed1b1507f8d63137a66a`;
+caller SHA-256 is
+`334b1e52093210148e4b53c64123661335d61e4526598129731e7541178bbc1e`.
+
+The fixture/source identities make the workload comparable; they do not control
+host load or cache state between runs. Lower observed CPU, RSS and scan times
+are not a multi-run speedup estimate. Serialization now makes two passes over
+each response, which still allocates its exact output. Large-response CPU cost,
+concurrent foreground writes and aggregate admission bounds remain unqualified.
+
 ## Original SQL diagnostic outcome recovery — 2026-10-27
 
 Two retained physical-disk diagnostics are reopened with their original
