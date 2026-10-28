@@ -22,6 +22,11 @@ test("explicit relational pages recover the same host and clear on current denia
       opens++;
   });
   await page.goto("/operations");
+  const nodeStorage = page.getByRole("region", { name: "Storage observation", exact: true });
+  await expect(nodeStorage).toContainText("Observed at authority position");
+  await expect(nodeStorage).toContainText("local");
+  await expect(nodeStorage).toContainText("/native");
+  await expect(nodeStorage).toContainText("disabled");
   const worksheet = page.getByRole("region", { name: "Relational worksheet" });
   await expect(worksheet).toBeVisible();
   await page.getByLabel("Relational SQL", { exact: true }).fill(process.env.BOARD_RELATIONAL_SQL!);

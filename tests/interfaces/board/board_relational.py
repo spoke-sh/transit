@@ -68,13 +68,13 @@ def exercise(library, board, root, authority, service, profile, restart, policy,
         if child is not None and child.poll() is None:
             (child.kill if crash else child.terminate)()
             child.wait(timeout=15)
-    def request(action, status=200, extra=None):
+    def request(action, status=200, extra=None, path='/api/v1/relational'):
         headers = {'Origin': origin, 'Content-Type': 'application/json'}
         if extra:
             headers.update(extra)
-        payload = json.dumps(action).encode()
+        payload = json.dumps(action).encode() if action is not None else None
         for attempt in range(8):
-            req = urllib.request.Request(origin + '/api/v1/relational', payload, headers)
+            req = urllib.request.Request(origin + path, payload, headers)
             try:
                 response = http.open(req, timeout=10)
             except urllib.error.HTTPError as error:
@@ -85,7 +85,7 @@ def exercise(library, board, root, authority, service, profile, restart, policy,
                 time.sleep(.15)
                 continue
             assert actual == status, (action, actual, value)
-            if status == 200:
+            if status == 200 and path == '/api/v1/relational':
                 observed.append(value)
             return value
         raise AssertionError('Board stayed rate-limited')
@@ -117,6 +117,17 @@ def exercise(library, board, root, authority, service, profile, restart, policy,
         assert request({'describe': {}})['description']['recovery'] is None
     try:
         child = start()
+        node_storage = request(None, path='/api/v1/storage')
+        assert node_storage['realm'] == 42 and node_storage['position'] > 0
+        assert node_storage['backend'] == 'local'
+        assert node_storage['root'] == str((root / 'native').resolve())
+        assert node_storage['allocated_bytes'] > 0
+        assert node_storage['request_limit_bytes'] == 128 * 1024 * 1024
+        for field in ('data_requests', 'control_requests'):
+            memory = node_storage[field]
+            assert 0 <= memory['used'] <= memory['peak'] <= memory['limit']
+        assert node_storage['maintenance']['state'] == 'disabled'
+        assert request(None, path='/api/v1/storage')['position'] == node_storage['position']
         request({'describe': {}}, 403, {'Origin': 'http://foreign.invalid'})
         description = request({'describe': {}})['description']
         assert description['active'] is None and description['recovery'] is None
