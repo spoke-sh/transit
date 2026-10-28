@@ -155,12 +155,10 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile)
     try t.expectEqual(@as(u64, 2), second.outcome.live_rows);
     profile.saved = .{ .create = binding, .insert = work.binding, .snapshot = snapshot, .first = first, .second = second };
 }
-fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, profile: Profile, directory: std.Io.Dir) !void {
+fn retainedRows(init: std.process.Init, client: c.DirectTableClient, profile: Profile) !c.DirectTableReader {
     const saved = profile.saved.?;
-    try t.expectEqualDeep(saved.second, (try inspect(client, saved.insert)).rows.committed);
-    try t.expectEqualDeep(saved.second, (try execute(client, saved.insert)).rows.committed);
     var reader = try c.DirectTableReader.open(init.gpa, client, saved.snapshot);
-    defer reader.deinit();
+    errdefer reader.deinit();
     try t.expectEqual(@as(u64, 1), reader.basis.row_count);
     try t.expectEqualDeep(saved.first.outcome.position, reader.basis.accepted);
     var page = (try reader.next(client, .{})).?;
@@ -174,6 +172,14 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     var foreign = client;
     foreign.connection.role = profile.role;
     try t.expectError(error.CatalogIdentityConflict, reader.check(foreign));
+    return reader;
+}
+fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, profile: Profile, directory: std.Io.Dir) !void {
+    const saved = profile.saved.?;
+    try t.expectEqualDeep(saved.second, (try inspect(client, saved.insert)).rows.committed);
+    try t.expectEqualDeep(saved.second, (try execute(client, saved.insert)).rows.committed);
+    var reader = try retainedRows(init, client, profile);
+    defer reader.deinit();
     const current = try client.call(.{ .lookup = .{ .namespace = 1, .name = "events" } });
     defer current.deinit();
     try t.expectEqual(@as(u64, 2), current.value.result.lookup.?.row_count);
@@ -486,6 +492,9 @@ pub fn main(init: std.process.Init) !void {
             profile.conditions = try Conditions.prepare(init.gpa, client);
             profile.history = try History.prepare(client);
             try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "pressure-read")) {
+            var reader = try retainedRows(init, client, profile);
+            defer reader.deinit();
         } else if (std.mem.eql(u8, args[2], "recover")) {
             try Delegation.recover(client, &profile.delegation.?);
             std.debug.print("Direct Table recovery: retained delegation passed\n", .{});

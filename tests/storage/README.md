@@ -13,7 +13,7 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 | Local owner replacement and atomic state/block/version/intent recovery | [Recovery schedule](local/local_owner_recovery.py), [real-node fault wrapper](local/local_owner_fault_node.zig); `just test local-owner-recovery` |
 | Authenticated standalone payload lifecycle | [Local payload service](local/local_payload_service.py); `just test local-payload-service` |
 | Direct Table graph collection, expiry and retained pins | [Disk collection](local/direct_collection.zig), [collection process faults](local/local_native_collection_faults.py) |
-| Direct Table service and restart behavior | [Direct Table schedule](tables/direct_table_service.py) |
+| Direct Table service, slow body/response pressure, reserved original-outcome recovery and restart | [Direct Table schedule](tables/direct_table_service.py) |
 | Automatic Table maintenance, concurrent retained reads and restart | [Method and resource observations](tables/maintenance.md), [schedule](tables/direct_table_maintenance.py), [public caller](tables/direct_table_maintenance.zig); `just test direct-table-maintenance` |
 | Physical codecs and independent bytes | [Codec fixtures](codecs/column_codecs.py) |
 | Ursula/provider-specific conformance | [Provider storage](providers/storage.py), [pages](providers/pages.py), [blocks](providers/block_storage.py), [authority growth](providers/growing.py), [cold-store fixture](providers/cold_storage.py) |
@@ -28,6 +28,18 @@ not establish the backend. Performance drivers and budgets live in
 Physical disk, process death, injected failure and modeled power loss are
 distinct evidence. Automatic runner records identify completed commands; archived
 results do not qualify current source.
+
+The direct Table service schedule measures backing bytes for a retained scan
+whose values the public caller verifies independently. Its response-pressure
+arm repeats that same immutable read on one bounded keep-alive connection with
+a small client receive window. A blocked response remains charged while partial
+bodies exhaust the configured aggregate allowance. Both disconnect and request
+deadline schedules require all backing bytes to return to zero; signed control
+inspection must still recover the original accepted operation during pressure.
+The numeric record includes request limits, retained response bytes and whole-node
+CPU, RSS and I/O observations. It does not treat socket buffers or the OS page
+cache as part of the request allocator, or measure these schedules as latency
+benchmarks.
 
 `just test::local-data-collection` exercises explicit Table history expiry,
 snapshot retention, original receipts and admitted work through physical
