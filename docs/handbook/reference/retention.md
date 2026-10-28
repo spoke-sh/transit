@@ -86,8 +86,13 @@ compaction preserves values and resource revisions. The separate
 retains complete catalog control history, Table recovery, unexpired history, live
 snapshots, original receipts and admitted work. It reclaims expired graph objects
 only after proving that none of those owners need them. Saved direct-intent
-references and permanent identity reservations remain retained. Automatic local
-collection scheduling remains separate from these component operations.
+references and permanent identity reservations remain retained. The local
+maintenance executor schedules native and direct collection using separate
+source-allocation activity and durable pass progress. It resumes an incomplete
+pass before starting another and still requires current maintenance authority
+and reader grace before deleting anything. See the
+[storage configuration](configuration.md#immutable-storage) for eligibility and
+work limits; scheduling grants no logical expiry.
 
 Documents add an explicit merge epoch/history floor. Old replicas may need
 resynchronization after opted-in compaction; they cannot replay stale edits into
