@@ -98,7 +98,7 @@ sql:
         assert policies['flush']['enabled'] and policies['archive']['enabled'] and policies['compact'], policies
         folder = fixture.installation / 'sql/accounts/owner'
         retained = json.loads((folder / 'account.json').read_text())
-        assert retained['bootstrap_owner'] and retained['journal']['receipts'][12] is not None
+        assert retained['bootstrap_owner'] and retained['journal']['receipts'][0] is not None
         assert not (folder / 'bind-credential.json').exists()
         assert json.loads((folder / 'verifier.json').read_text())['verifier'] is None
         assert not list((fixture.installation / 'sql/tls').iterdir())
@@ -167,7 +167,7 @@ sql:
         mysql('SELECT 1', reject=True)
         after = json.loads((folder / 'account.json').read_text())
         assert after['identity'] == retained['identity'] and after['principals'] == retained['principals']
-        assert after['journal']['receipts'][12] == retained['journal']['receipts'][12]
+        assert after['journal']['receipts'][0] == retained['journal']['receipts'][0]
         assert not (folder / 'bind-credential.json').exists()
         print('Local SQL: required TLS rejects plaintext; revoked trust login stays revoked across restart with unchanged bootstrap receipt.', flush=True)
         success = True
@@ -206,9 +206,9 @@ def bootstrap_fault(cli, node, host, board, gateway, *, embedded=False):
         wait_file(fixture.root / 'dropped-owner-binding.json', timeout=180)
         path = fixture.installation / 'sql/accounts/owner/account.json'
         frozen = json.loads(path.read_text())
-        assert frozen['journal']['pending']['index'] == 12
+        assert frozen['journal']['pending']['index'] == 0
         assert 'publish' in frozen['journal']['pending']['signed']['request']['command']['authorization']
-        assert frozen['journal']['receipts'][12] is None
+        assert frozen['journal']['receipts'][0] is None
         owned = descendants(fixture.process.pid)
         fixture.stop(kill=True); joined(owned)
         (fixture.root / 'release-owner-binding').touch()
@@ -217,7 +217,7 @@ def bootstrap_fault(cli, node, host, board, gateway, *, embedded=False):
         wait_file(fixture.root / 'retried-owner-binding')
         after = json.loads(path.read_text())
         assert after['identity'] == frozen['identity'] and after['principals'] == frozen['principals']
-        assert after['journal']['receipts'][12] is not None and after['journal']['pending'] is None
+        assert after['journal']['receipts'][0] is not None and after['journal']['pending'] is None
         assert after['initialized'] and after['login_role'] == owner_role
         assert not (path.parent / 'bind-credential.json').exists()
         env = dict(os.environ, PGSSLMODE='disable')
