@@ -15,7 +15,10 @@ operations; [contribution instructions](AGENTS.md) describe their test boundary.
 `just test::sql-result-allocations` runs 300 statements per transport against a
 finite-relation peer. It varies schemas, widths and batch counts, repeats one
 lost fetch ordinal, crosses the 256-request connection boundary and replaces idle
-sockets. HTTP/TLS peers use numeric IPv4 endpoints; DNS/NSS resolution is not
+sockets. Thirty statements prepare and bind an independently encoded parameter;
+a command completion stays retained through the run. Four retained responses
+force the next submission to fail before dispatch without damaging their data.
+HTTP/TLS peers use numeric IPv4 endpoints; DNS/NSS resolution is not
 qualified by this profile. A sealed allocator observes both client reserves and bounded I/O task
 storage after finite setup. On Linux/glibc the linked test-only interposer counts
 malloc/calloc/realloc/aligned allocation attempts; pinned `strace` observes all

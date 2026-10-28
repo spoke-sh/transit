@@ -9,10 +9,11 @@ extern "c" fn transit_allocation_end(*[4]u64) c_int;
 extern "c" fn transit_allocation_negative() void;
 fn negativeWorker() void {}
 
-fn consume(executor: *sql.Executor, length: usize, wide: bool, retry: bool) !void {
+fn consume(executor: *sql.Executor, length: usize, wide: bool, retry: bool, prepared: bool) !void {
     var text: [80]u8 = undefined;
     const statement = try std.fmt.bufPrint(&text, "SELECT {d} {s} {s}", .{ length, if (wide) "wide" else "narrow", if (retry) "retry" else "once" });
-    const outcome = try executor.execute(statement, null, .{});
+    const bindings = [_]sql.results.fuze.LogicalJson.Atom{.{ .unsigned = "7" }};
+    const outcome = try executor.execute(statement, if (prepared) &bindings else null, .{});
     defer outcome.deinit();
     if (outcome.value != .rows) return error.ExpectedRows;
     const result = &outcome.value.rows;
@@ -27,6 +28,23 @@ fn consume(executor: *sql.Executor, length: usize, wide: bool, retry: bool) !voi
         count += 1;
     }
     if (count != length or result.completion() == null or result.completion().?.rows != length) return error.IncompleteRelation;
+}
+fn capacity(executor: *sql.Executor) !void {
+    var retained: [4]sql.Response = undefined;
+    var count: usize = 0;
+    defer for (retained[0..count]) |response| response.deinit();
+    for (&retained) |*response| {
+        response.* = try executor.client.call(.touch);
+        count += 1;
+    }
+    if (executor.execute("SET allocation_probe", null, .{})) |unexpected| {
+        unexpected.deinit();
+        return error.ExpectedCapacityRefusal;
+    } else |err| if (err != error.SqlResponseCapacity) return err;
+    for (retained) |response| {
+        try response.validate();
+        if (response.value.result != .closed) return error.ChangedRetainedResponse;
+    }
 }
 
 pub fn main(init: std.process.Init) !void {
@@ -54,7 +72,7 @@ pub fn main(init: std.process.Init) !void {
     control.account = client.account;
     var executor: sql.Executor = .{ .client = &client, .control = &control, .config = config };
     // Handshake, first TLS connection and finite worker admission are setup.
-    try consume(&executor, 1, false, false);
+    try consume(&executor, 1, false, false, false);
     try std.Io.File.stdout().writeStreamingAll(io, "allocation_begin\n");
     probe.begin(true);
     if (transit_allocation_begin() != 0) return error.UnsupportedAllocationObserver;
@@ -68,10 +86,16 @@ pub fn main(init: std.process.Init) !void {
         const worker = try std.Thread.spawn(.{}, negativeWorker, .{});
         worker.join();
     }
+    const retained = if (negative) null else try executor.execute("SET allocation_probe", null, .{});
+    defer if (retained) |outcome| outcome.deinit();
+    if (!negative) try capacity(&executor);
     for (0..statements) |iteration| {
         if (iteration == 250) try io.sleep(.fromMilliseconds(600), .awake);
         const length = ([_]usize{ 0, 1, 31, 32, 33, 70 })[iteration % 6];
-        try consume(&executor, length, iteration % 7 == 0, iteration == 299);
+        try consume(&executor, length, iteration % 7 == 0, iteration == 299, iteration % 10 == 0);
+        if (retained.?.value != .command or retained.?.value.command.kind != .set or
+            retained.?.value.command.outcome != .applied or retained.?.value.command.counts != null)
+            return error.ChangedRetainedCompletion;
     }
     var libc: [4]u64 = undefined;
     if (transit_allocation_end(&libc) != 0) return error.UnsupportedAllocationObserver;

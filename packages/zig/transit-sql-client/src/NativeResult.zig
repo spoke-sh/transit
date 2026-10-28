@@ -172,7 +172,7 @@ const TestScript = struct {
     requests: usize = 0,
     closed: usize = 0,
     empty_terminal: bool = false,
-    fault: enum { none, identity, ordinal, schema, observation, count, incomplete, disconnect, duplicate } = .none,
+    fault: enum { none, identity, ordinal, schema, observation, count, incomplete, disconnect, cancelled, duplicate } = .none,
     fn frame(self: *TestScript, allocator: std.mem.Allocator, ordinal: u64) !api.Batch {
         const fields = [_]r.Types.Field{.{ .name = "n", .type = .uint128 }};
         const count = @min(self.maximum, self.length - self.position);
@@ -224,6 +224,7 @@ const TestScript = struct {
         self.requests += 1;
         try t.expectEqual(self.requests, ordinal);
         if (self.fault == .disconnect) return error.ReadFailed;
+        if (self.fault == .cancelled) return error.ResultCancelled;
         return self.response(allocator, ordinal);
     }
     fn response(self: *TestScript, allocator: std.mem.Allocator, ordinal: u64) !sdk.Response {
@@ -293,6 +294,11 @@ fn requireStream(result: *r.ResultSet, length: usize) !void {
     try t.expectEqual(length, result.completion().?.rows);
 }
 test "native projection rejects substituted evidence and missing or false terminals" {
+    const memory = @import("transit_memory");
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    const storage = try @import("Storage.zig").create(probe.allocator(), "unix:/unused");
+    defer storage.destroy();
+    probe.begin(true);
     const cases = .{
         .{ TestScript{ .fault = .identity }, error.ResultIdentityChanged },
         .{ TestScript{ .fault = .ordinal }, error.ResultIdentityChanged },
@@ -301,16 +307,18 @@ test "native projection rejects substituted evidence and missing or false termin
         .{ TestScript{ .fault = .count }, error.InvalidResultCount },
         .{ TestScript{ .fault = .incomplete }, error.InvalidResultChunk },
         .{ TestScript{ .fault = .disconnect }, error.ReadFailed },
+        .{ TestScript{ .fault = .cancelled }, error.ResultCancelled },
     };
     inline for (cases) |case| {
         var script = case[0];
-        var result = try script.open(t.allocator);
+        var result = try script.open(storage.data.allocator());
         defer result.deinit();
         try t.expectError(case[1], @import("consumer_test.zig").consume(&result));
         try t.expect(result.completion() == null);
-        try t.expectEqual(.failed, result.progress.outcome);
+        try t.expectEqual(if (case[1] == error.ResultCancelled) .cancelled else .failed, std.meta.activeTag(result.progress.outcome));
         try t.expectEqual(1, script.closed);
     }
+    try probe.verify();
 }
 test "oracle negative control catches an adapter emitting duplicate occurrences" {
     var script: TestScript = .{ .fault = .duplicate };

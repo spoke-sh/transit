@@ -18,7 +18,7 @@ import threading
 from runner.paths import ROOT
 from runner import capture
 from interfaces.sql_sessions.result_frame import encode_fixture, CONTENT_TYPE, ENCODING
-from query.logical.fuze_types import DEFINITION
+from query.logical.fuze_types import DEFINITION, descriptor
 
 
 def schema(wide):
@@ -32,7 +32,7 @@ def schema(wide):
 @contextmanager
 def peer(mode, root):
     definition = re.search(r'\b([a-f0-9]{64})\b', (ROOT / 'packages/zig/transit-protocol/src/Growth.zig').read_text()).group(1)
-    state = dict(requests=0, queries=0, retries=0, turnovers=0)
+    state = dict(requests=0, queries=0, retries=0, turnovers=0, prepares=0, releases=0, commands=0)
     active = {}
     dropped = set()
     lock = threading.Lock()
@@ -64,10 +64,25 @@ def peer(mode, root):
                 result = dict(closed={})
                 if action == 'close_result':
                     active.pop(bytes(value), None)
+            elif action == 'prepare':
+                state['prepares'] += 1
+                result = dict(described=dict(statement=[7] * 32, schema=schema('wide' in value['sql']),
+                                             parameters=[descriptor('uint64').hex()], mutation=False))
+            elif action == 'release':
+                assert value == [7] * 32
+                state['releases'] += 1
+                result = dict(closed={})
+            elif action == 'execute' and value['sql'] == 'SET allocation_probe':
+                state['commands'] += 1
+                result = dict(completion=dict(kind='set', outcome='applied', counts=None,
+                                              operation=None, pending_restart=False, diagnostic=None))
             else:
                 if action == 'execute':
                     match = re.fullmatch(r'SELECT (\d+) (wide|narrow) (retry|once)', value['sql'])
                     assert match
+                    if value['parameters']:
+                        desc = descriptor('uint64')
+                        assert value['parameters'] == [(b'FVL1' + struct.pack('<H', len(desc)) + desc + b'\1\3' + struct.pack('<Q', 7)).hex()]
                     with lock:
                         state['queries'] += 1
                         cursor = state['queries'].to_bytes(32, 'little')
@@ -266,6 +281,7 @@ def main():
                         assert report['statements'] == 0 and state['queries'] == 1
                     else:
                         assert report['statements'] == 300 and state['queries'] == 301
+                        assert state['prepares'] == state['releases'] == 30 and state['commands'] == 1, state
                         assert state['requests'] > 256 and state['retries'] > 0 and state['turnovers'] > 0, state
                         assert report['libc_attempts'] == [0, 0, 0, 0] and events == [], profile
                     profile['status'] = 'passed'
