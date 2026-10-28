@@ -10,6 +10,7 @@
 | Structural page experiments | [Geometry/codec runner](storage/page_layout.py), [native probe](storage/page_layout.zig); private variants, without provider I/O or native latency claims |
 | Offered load and scale | [Load driver](load/growing_load.py), [scale matrix](scale/scale.json), [matrix runner](scale/scale.py) |
 | Console and mutation latency | [Console runner](console/console_latency.py), [mutation runner](mutations/mutation_latency.py), [transport probe](../harness/http_probe.py) |
+| Result codec allocations and paired costs | [Method and budgets](results/README.md), [comparison runner](results/codecs.py) |
 
 Use the existing `just test` benchmark commands. Python entry points use
 [the test launcher](../runner/README.md); pass the matching built binary and the
@@ -36,8 +37,10 @@ new run after a path migration; qualify and freeze a matching comparison basis.
 ## SQL result consumption
 
 The [allocation coverage inventory](allocations.json) records owner boundaries,
-warmup limits and pending qualification. Its entries are scope declarations,
-not passing evidence. `transit-memory`'s allocation probe counts attempts as well
+warmup limits, allocator owners, executable checks and remaining gaps. An
+`executable` entry identifies an available scoped gate; `component` means the
+local reserve checks do not cover every composed owner. Neither records a pass:
+the corresponding run artifacts establish execution. `transit-memory`'s allocation probe counts attempts as well
 as successes and can forbid backing allocation/growth after warmup. Counters
 inside one owner do not establish process-wide or OS-level allocation behavior.
 

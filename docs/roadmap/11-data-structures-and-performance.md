@@ -247,7 +247,7 @@ benchmark and Internals owners as implementation lands.
 
 ## Implementation plan for issue #194
 
-**Review status: accepted for phases A–E; implementation in progress.**
+**Review status: phases A–E implemented; scoped qualification recorded below.**
 Source inspection uses `e377f2945`, which includes
 [PR #193](https://github.com/spoke-sh/transit/pull/193). This plan proposes how to implement
 [issue #194](https://github.com/spoke-sh/transit/issues/194) through the existing
@@ -271,36 +271,47 @@ The issue stays open across those checkpoints. Completing its first checkpoint
 does not complete the broader guidance or this milestone's unrelated optimizer
 and workload obligations.
 
-### Progress checkpoint for shared memory consumers
+### Result-path implementation checkpoint
 
-The progress delivery exposes `transit-memory` and `transit-io` as independently
-buildable libraries and adopts them in the existing result/client/console path.
-It also reserves SQL session, recovery, native request and wire-connection memory.
-This is a reusable foundation for other implementation work; A–E remain in
-progress and issue #194 stays open.
+The A–E implementation exposes `transit-memory` and `transit-io` as independently
+buildable libraries and adopts them in result, client, console, SQL session and
+gateway owners. The [executed qualification](../history/qualification/sql.md#admitted-result-memory-and-transport-reuse--2026-10-28)
+records the passing allocation, lifetime, protocol and recovery profiles and the
+remaining clean-lane/installed-startup failures. Issue #194 stays open for F–J;
+this checkpoint does not complete the broader milestone or establish a passing
+whole-repository qualification.
 
-| Area | Implemented scope | Remaining qualification or implementation |
+| Area | Implemented scope | Qualification boundary |
 | --- | --- | --- |
-| A–B | Attempt-counting guard, fixed workspaces/slabs/pools, generation leases, shared quota accounting and independent libc/OS negative controls | Complete installed-owner inventory and matched timing budgets |
-| C | Transactional batch storage, caller-owned binary framing/directories and retained windows | Composed source/Arrow lifetimes and matched latency/throughput regression assessment |
-| D | Independent response leases, fixed client/transport reserves, warmed I/O workers, prepared binds, reconnect/retry, timeout/cancellation and uncertain-write settlement checks | Wider schema/concurrent-owner installed profiles, DNS/NSS allocation coverage and slow-consumer measurements |
-| E | Independent cursor/session, recovery, native request/control and PostgreSQL/MySQL connection reserves; streaming DDL intent hashing | Whole-service task/TLS allocation work, explicit framing-refusal/retry injection and composed producer allocation gates |
+| A–B | Owner coverage inventory, fixed workspaces/slabs/pools, generation leases, shared quota accounting, attempt-counting guard and independent libc/OS negative controls | Counters name their backing owners; OS observation covers the numeric-endpoint client profile, with hidden allocator limits explicit |
+| C | Transactional batch storage, caller-owned binary framing/directories and retained windows | Fixed paired codec budgets; existing type/five-state, malformed-input, allocation-failure and borrowed-buffer checks |
+| D | Independent response leases, client/transport reserves, prestarted I/O, prepared binds, reconnect/retry, cancellation and uncertain-write settlement | 300 repeated statements, a 16,384-row stream, retained wide window and Arrow view, more than 256 requests, idle replacement and delayed consumption over Unix/numeric IPv4 HTTP/TLS |
+| E | Independent session, recovery, native request/control and wire-connection reserves, streaming DDL intent hashing, admitted gateway I/O and OpenSSL memory | Real-authority framing refusal at current and advancing ordinals, exact repeats, terminal counts and revocation; independent repeated TLS connections and distinct-worker cleanup |
 
-The client allocation driver observes Unix, numeric-loopback HTTP and TLS against
-an independent finite peer. It checks backing allocator attempts, libc calls and
-process/thread memory acquisition after one setup interval. Its write-settlement
-schedule proves client identity preservation, not server durable acceptance.
-Service authorization, buffered disclosure and recovery retain their separate
-real-service checks. The result TLA+ models and concrete Progress replay continue
-to constrain completion and delivery; they do not establish allocation behavior.
+The [coverage manifest](../../tests/performance/allocations.json) identifies
+executable gates, component checks and pending owners. The client driver observes
+backing attempts, libc calls and process/thread memory acquisition after one setup
+interval. Its write-settlement schedule proves client identity preservation,
+not durable acceptance by the service. The real-service tests independently
+retain authorization, buffered disclosure, cancellation, accepted-work recovery
+and control-capacity obligations. Result TLA+ models and concrete Progress replay
+constrain completion and delivery; they do not establish allocation behavior.
 
-No whole-service zero-allocation or speedup claim follows from this checkpoint.
-The codecs retain identical wire bytes and existing limits. Preliminary timing
-samples were not isolated matched comparisons and include a slower 32-row encoder;
-freeze and run the comparison before declaring the performance gate complete.
-Server reserves deliberately charge idle capacity, including separate control and
-recovery storage; documented capacities are not measured RSS. The source/storage
-and durable-runtime work remains with F, followed by G–J in their owning milestones.
+The [paired codec gate](../../tests/performance/results/README.md) freezes a 5%
+median regression limit for native encode/decode and unchanged database-protocol
+controls. The [retained five-pair comparison](../history/qualification/performance.md#result-reserves-and-codec-costs--2026-10-28)
+passed all eight cases; earlier
+unmatched samples included a slower full-batch encoder and cannot establish a
+regression or speedup. Codec results exclude source, transport and storage work.
+Existing larger-batch first-output latency costs remain recorded in the
+[batching qualification](../history/qualification/performance.md#statement-result-batching-and-consumption--2026-10-27).
+
+Server reserves charge idle capacity, separate control/recovery storage, crypto
+metadata and requested worker stacks; these capacities are not measured RSS.
+Hostname DNS/NSS, AccountRuntime background work and source/authority/storage
+allocators remain outside the admitted result-path profiles. Source and durable
+owners remain F work, followed by G–I and J's composed qualification. No whole-service
+zero-allocation or end-to-end speedup claim follows from the A–E component gates.
 
 ### Allocation contract and measurement boundary
 

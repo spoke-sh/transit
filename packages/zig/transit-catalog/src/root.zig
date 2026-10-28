@@ -44,6 +44,9 @@ pub const AuthorizationLowering = @import("AuthorizationLowering.zig");
 pub const TableValues = @import("TableValues.zig");
 pub const TableLowering = @import("TableLowering.zig");
 test {
+    // Keep hash contracts discoverable even when a test filter removes their
+    // indirect callers in the catalog lifecycle suite.
+    _ = @import("DirectCatalogRecords.zig");
     _ = DirectTableClient;
     _ = DirectTableDiagnostic;
     _ = DirectCatalogRetention;

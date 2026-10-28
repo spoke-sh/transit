@@ -1,0 +1,39 @@
+diff --git a/contracts/diagnostics/mappings.json b/contracts/diagnostics/mappings.json
+index 89a975836..3d3861397 100644
+--- a/contracts/diagnostics/mappings.json
++++ b/contracts/diagnostics/mappings.json
+@@ -891,2 +891,2 @@
+-        "packages/zig/transit-query-direct/src/DirectTableQuery.zig",
+-        "packages/zig/transit-query-direct/src/DirectTableScan.zig",
++        "packages/zig/transit-query/src/TableQuery.zig",
++        "packages/zig/transit-query/src/TableScan.zig",
+diff --git a/docs/handbook/internals/storage-runtime.md b/docs/handbook/internals/storage-runtime.md
+index 95076ca56..c9e9c6db5 100644
+--- a/docs/handbook/internals/storage-runtime.md
++++ b/docs/handbook/internals/storage-runtime.md
+@@ -1048,3 +1048,2 @@ marks and later arrivals. The
+-both owners, restart, revocation and idle convergence; the
+-[storage test guide](../../../tests/storage/README.md) owns its reproduction
+-command. These finite controls do not establish a maximum
++both owners, restart, revocation and idle convergence through the
++[local catalog proof task](../../../tasks/test.just). These finite controls do not establish a maximum
+diff --git a/tests/interfaces/cli/diagnostic_mappings.py b/tests/interfaces/cli/diagnostic_mappings.py
+index 116b7ba76..3b7ca22ed 100644
+--- a/tests/interfaces/cli/diagnostic_mappings.py
++++ b/tests/interfaces/cli/diagnostic_mappings.py
+@@ -98,3 +97,0 @@ def validate(manifest, surface, files):
+-        for pattern in boundary['owners']:
+-            assert any(fnmatchcase(path, pattern) and path not in boundary['exclude']
+-                       for path in surface['sources']), ('missing diagnostic owner', identity, pattern)
+@@ -151,5 +147,0 @@ def self_test(manifest, surface, files):
+-    for pattern in ('packages/zig/missing-owner/src/Owner.zig',
+-                    'packages/zig/missing-owner/src/*.zig'):
+-        changed = copy.deepcopy(manifest)
+-        changed['boundaries'][0]['owners'].append(pattern)
+-        rejected(changed_manifest=changed)
+diff --git a/tests/storage/README.md b/tests/storage/README.md
+index e2ccd2d9d..f7f4984d5 100644
+--- a/tests/storage/README.md
++++ b/tests/storage/README.md
+@@ -12 +11,0 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
+-| Automatic native/direct collection scheduling, restart, revocation and idle convergence | [Node collection schedule](../../apps/transit-node/local_collection_test.zig); `just test::local-catalog` |

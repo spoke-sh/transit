@@ -91,6 +91,16 @@
         ]
       },
       {
+        "id": "result-codec-gates",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/performance/results/test_codecs.py"
+        ]
+      },
+      {
         "id": "storage_benchmark_test",
         "phase": "static",
         "command": [

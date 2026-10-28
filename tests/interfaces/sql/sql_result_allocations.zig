@@ -26,8 +26,59 @@ fn consume(executor: *sql.Executor, length: usize, wide: bool, retry: bool, prep
             if (bytes.len != 24000 or !std.mem.allEqual(u8, bytes, 'a' + @as(u8, @intCast(count % 26)))) return error.ChangedValue;
         }
         count += 1;
+        if (length == 16384 and count % 1024 == 0) try executor.client.io.sleep(.fromMilliseconds(1), .awake);
     }
     if (count != length or result.completion() == null or result.completion().?.rows != length) return error.IncompleteRelation;
+}
+fn retainedWindow(executor: *sql.Executor, workspace: *memory.Workspace) !void {
+    const window = blk: {
+        const outcome = try executor.execute("SELECT 70 wide once", null, .{});
+        defer outcome.deinit();
+        if (outcome.value != .rows) return error.ExpectedRows;
+        break :blk try sql.results.Window.readInto(workspace, &outcome.value.rows, 33);
+    };
+    defer window.deinit();
+    if (window.start != 0 or window.rows.len != 33 or window.stop != .row_limit or window.completion != null)
+        return error.ChangedRetainedWindow;
+    // Closing the source does not complete its prefix. Later statements reuse
+    // response/codec slots while this independent window keeps its own lease.
+    try consume(executor, 16384, false, false, false);
+    try window.validate();
+    for (window.rows, 0..) |row, index| {
+        if (row.len != 2 or row[0].value.atom.unsigned != index) return error.ChangedRetainedWindow;
+        const bytes = row[1].value.atom.bytes;
+        if (bytes.len != 24000 or !std.mem.allEqual(u8, bytes, 'a' + @as(u8, @intCast(index % 26))))
+            return error.ChangedRetainedWindow;
+    }
+}
+fn retainedArrow(executor: *sql.Executor) !void {
+    const outcome = try executor.execute("SELECT 70 narrow once", null, .{});
+    defer outcome.deinit();
+    if (outcome.value != .rows) return error.ExpectedRows;
+    const result = &outcome.value.rows;
+    {
+        const batch = (try result.nextBatch()) orelse return error.ExpectedRows;
+        if (batch.len != 32) return error.ChangedRetainedArrow;
+        const selected = try batch.slice(7, 19);
+        var buffers: [3]sql.results.fuze.arrow.SharedBuffer = undefined;
+        const arrow = try (try selected.columnAt(0)).arrowValues(&buffers);
+        const values: sql.results.fuze.arrow.PrimitiveArray(u64) = .{ .data = &arrow };
+        for (0..100) |_| {
+            const response = try executor.client.call(.touch);
+            defer response.deinit();
+            try response.validate();
+            if (response.value.result != .closed) return error.InvalidBarrier;
+            for (0..selected.len) |row| if (try values.value(row) != 7 + row) return error.ChangedRetainedArrow;
+        }
+        // This borrowed Arrow view ends before the next pull. Touch responses
+        // may reuse other slots, but never this batch's retained frame lease.
+    }
+    var count: usize = 32;
+    while (try result.nextRow()) |row| {
+        if (row[0].value.atom.unsigned != count) return error.ChangedValue;
+        count += 1;
+    }
+    if (count != 70 or result.completion() == null or result.completion().?.rows != 70) return error.IncompleteRelation;
 }
 fn capacity(executor: *sql.Executor) !void {
     var retained: [4]sql.Response = undefined;
@@ -115,6 +166,8 @@ pub fn main(init: std.process.Init) !void {
     control.session = client.session;
     control.account = client.account;
     var executor: sql.Executor = .{ .client = &client, .control = &control, .config = config };
+    var window = try memory.Workspace.init(probe.allocator(), 1024 * 1024);
+    defer window.deinit();
     // Handshake, first TLS connection and finite worker admission are setup.
     try consume(&executor, 1, false, false, false);
     try std.Io.File.stdout().writeStreamingAll(io, "allocation_begin\n");
@@ -141,6 +194,8 @@ pub fn main(init: std.process.Init) !void {
             retained.?.value.command.outcome != .applied or retained.?.value.command.counts != null)
             return error.ChangedRetainedCompletion;
     }
+    if (!negative) try retainedArrow(&executor);
+    if (!negative) try retainedWindow(&executor, &window);
     if (!negative) try interrupted(&executor);
     if (!negative) try settlement(&executor);
     var libc: [4]u64 = undefined;
@@ -149,6 +204,10 @@ pub fn main(init: std.process.Init) !void {
     const report = try std.json.Stringify.valueAlloc(init.gpa, .{
         .profile = "shared_sql_client_allocations",
         .statements = statements,
+        .long_result_rows = if (negative) @as(usize, 0) else 16384,
+        .retained_window_rows = if (negative) @as(usize, 0) else 33,
+        .retained_arrow_rows = if (negative) @as(usize, 0) else 19,
+        .window_reserved_bytes = window.buffer.len,
         .negative_control = negative,
         .libc_attempts = libc,
         .backing = probe.counts,

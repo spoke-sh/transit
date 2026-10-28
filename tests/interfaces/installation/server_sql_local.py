@@ -90,6 +90,12 @@ sql:
         assert not fixture.installation.exists()
         sql['accounts'] = [dict(name='owner', role='local_owner', authentication='trust', bootstrap_owner=True)]
         status = start(first=True)
+        # The native-only bootstrap cannot run Table physical policies. Its
+        # owned restart must restore all configured policies with the Table host.
+        node_config = json.loads((fixture.installation / 'node.json').read_text())
+        assert node_config['table'] is not None and node_config['maintenance'] is not None
+        policies = node_config['storage']['maintenance']
+        assert policies['flush']['enabled'] and policies['archive']['enabled'] and policies['compact'], policies
         folder = fixture.installation / 'sql/accounts/owner'
         retained = json.loads((folder / 'account.json').read_text())
         assert retained['bootstrap_owner'] and retained['journal']['receipts'][12] is not None

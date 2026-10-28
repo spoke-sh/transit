@@ -18,6 +18,14 @@ lost fetch ordinal, crosses the 256-request connection boundary and replaces idl
 sockets. Thirty statements prepare and bind an independently encoded parameter;
 a command completion stays retained through the run. Four retained responses
 force the next submission to fail before dispatch without damaging their data.
+A separate 33-row wide window spans two wire batches, survives early source
+close, and remains unchanged while a 16,384-row result streams through the same
+client with periodic consumer delays. Its independent 1 MiB reserve is charged
+throughout; the incomplete prefix never becomes a completed result.
+A sliced Arrow value view also remains borrowed from a retained first batch
+while 100 touch responses reuse other response slots. The view and its buffer
+directory end before the next result pull; borrowing does not extend their
+documented lifetime or establish a storage retention pin.
 The peer also stalls partial responses for one timeout and one cancellation;
 an independent control connection confirms the exchange started before cancellation.
 A fresh read then checks that joined tasks returned their response and transport
@@ -45,6 +53,14 @@ under `.cache/allocations/runs/`, including failures. No network writes or paylo
 are traced. Measurement starts after finite initialization and ends before report
 serialization; replacements and retries stay inside it. Counts from independent
 parent peer processes are not attributed to the Transit client.
+
+The separate `just test::sql-gateway` real-authority fixture injects response
+allocation failure into buffered data, empty and metadata results. It also
+fails framing after advancing across three data batches: retrying that ordinal
+must retain every exact row and report the final count once. Buffered repeats
+must remain byte-identical, while credential revocation must reject disclosure
+and clear the cursor. This proves producer failure/retry semantics; it does not
+attribute allocations in the composed source and authority services.
 
 Use `just test::sql-sessions` and the affected installed SQL task from the
 [test module](../../../tasks/test.just). Measurements describe elapsed work;

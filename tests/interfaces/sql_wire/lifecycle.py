@@ -1,6 +1,8 @@
 """Socket/account bounds and independent readiness under pressure."""
 from concurrent.futures import ThreadPoolExecutor
 import json
+import errno
+import os
 import socket
 import struct
 import time
@@ -35,6 +37,25 @@ def connection_denied(postgres, message):
         assert executor.submit(attempt).result(timeout=20), message
 
 
+def close_observed(descriptor, close):
+    # Closing a client handle does not join the server's TLS/session cleanup or
+    # erasure of its retained reserve. Keep a duplicate only to observe peer EOF
+    # before starting an independent authentication-capacity schedule.
+    with socket.socket(fileno=os.dup(descriptor)) as observer:
+        close()
+        try:
+            observer.shutdown(socket.SHUT_WR)
+        except OSError as error:
+            if error.errno != errno.ENOTCONN:
+                raise
+        observer.settimeout(5)
+        try:
+            while observer.recv(16384):
+                pass
+        except ConnectionResetError:
+            pass  # A peer reset also closes this already-settled connection.
+
+
 def capacity(postgres, health_port):
     # The fixture explicitly configures eight normal slots plus cancellation
     # reserve, with eight slots per account and four authentication attempts.
@@ -54,9 +75,9 @@ def capacity(postgres, health_port):
         health(health_port)
     finally:
         if wire:
-            wire.close()
+            close_observed(wire.sock.fileno(), wire.close)
         for connection in connections:
-            connection.close()
+            close_observed(connection.pgconn.socket, connection.close)
 
     # Headers consume authentication slots, but cannot hold them indefinitely.
     held=[]

@@ -333,10 +333,14 @@ fn node(self: *Self, allocator: std.mem.Allocator) !void {
     const table = try @import("Tables.zig").node(installation);
     var storage = config.storage;
     // Native bootstrap first publishes the catalog's scope and grants. The
-    // owned restart in cycle() activates the Table host and configured flushing
+    // owned restart in cycle() activates the Table host and its physical policies
     // together, before workers or SQL can accept data. There is no Table to
     // maintain during that initial native-only bootstrap.
-    if (table == null) storage.maintenance.flush.enabled = false;
+    if (table == null) {
+        storage.maintenance.flush.enabled = false;
+        storage.maintenance.archive.enabled = false;
+        storage.maintenance.compact = false;
+    }
     try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .local_directory = try installation.path("data/native"), .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = storage, .table = table, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
     const node_args = [_][]const u8{ node_config, "--bootstrap" };
     try self.start(allocator, .node, try config.command(allocator, self.executable, .node, node_args[0..if (installation.record.genesis_observed) @as(usize, 1) else 2]), &.{}, false);

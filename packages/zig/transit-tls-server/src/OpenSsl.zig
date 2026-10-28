@@ -17,6 +17,13 @@ pub const SSL_FILETYPE_PEM = 1;
 pub const SSL_ERROR_WANT_READ = 2;
 pub const SSL_ERROR_ZERO_RETURN = 6;
 pub extern "c" fn OpenSSL_version_num() c_ulong;
+pub extern "c" fn CRYPTO_set_mem_functions(
+    *const fn (usize, ?[*:0]const u8, c_int) callconv(.c) ?*anyopaque,
+    *const fn (?*anyopaque, usize, ?[*:0]const u8, c_int) callconv(.c) ?*anyopaque,
+    *const fn (?*anyopaque, ?[*:0]const u8, c_int) callconv(.c) void,
+) c_int;
+pub extern "c" fn OPENSSL_cleanup() void;
+pub extern "c" fn OPENSSL_thread_stop() void;
 pub extern "c" fn TLS_server_method() ?*const SSL_METHOD;
 pub extern "c" fn SSL_CTX_new(?*const SSL_METHOD) ?*SSL_CTX;
 pub extern "c" fn SSL_CTX_free(*SSL_CTX) void;

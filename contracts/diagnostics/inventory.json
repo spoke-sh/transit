@@ -2043,7 +2043,7 @@
           "command",
           "timeout"
         ],
-        "run().Result": [
+        "serve().Result": [
           "postgres",
           "mysql",
           "native",
@@ -2074,11 +2074,12 @@
         "main()": "<inferred>",
         "recoverSessions()": "<inferred>",
         "run()": "<inferred>",
+        "serve()": "<inferred>",
         "workerReserveFailures()": "<inferred>"
       },
       "open_error_set_uses": 21,
       "propagation": {
-        "try": 163,
+        "try": 165,
         "catch": 20
       },
       "imports": [
@@ -2089,6 +2090,7 @@
         "builtin",
         "std",
         "transit_http_server",
+        "transit_io",
         "transit_memory",
         "transit_mysql",
         "transit_postgres",
@@ -12324,14 +12326,14 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Threaded.barrier()": "<inferred>",
         "Threaded.create()": "<inferred>",
-        "Threaded.lookup()": "std . Io . net . HostName . LookupError",
-        "Threaded.warmWorkers()": "<inferred>"
+        "Threaded.lookup()": "std . Io . net . HostName . LookupError"
       },
       "open_error_set_uses": 0,
       "propagation": {
         "try": 6,
-        "catch": 4
+        "catch": 6
       },
       "imports": [
         "std",
@@ -27522,6 +27524,28 @@
         "std"
       ]
     },
+    "packages/zig/transit-tls-server/src/Memory.zig": {
+      "errors": {
+        "ExpectedForeignTlsMemoryRefusal": 1,
+        "TlsMemoryAlreadyInitialized": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "create()": "<inferred>",
+        "rejectedInstallation()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 4
+      },
+      "imports": [
+        "OpenSsl.zig",
+        "std",
+        "transit_memory"
+      ]
+    },
     "packages/zig/transit-tls-server/src/OpenSsl.zig": {
       "errors": {},
       "outcomes": {},
@@ -27537,20 +27561,23 @@
     "packages/zig/transit-tls-server/src/probe.zig": {
       "errors": {
         "InvalidSslRequest": 2,
-        "Usage": 2
+        "Usage": 3
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "exchange()": "<inferred>",
         "main()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
+        "try": 23,
         "catch": 0
       },
       "imports": [
         "std",
+        "transit_io",
+        "transit_memory",
         "transit_tls_server"
       ]
     },
@@ -27595,6 +27622,7 @@
       },
       "imports": [
         "LocalTrust.zig",
+        "Memory.zig",
         "OpenSsl.zig",
         "std"
       ]

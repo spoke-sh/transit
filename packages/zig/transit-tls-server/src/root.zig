@@ -3,8 +3,10 @@
 const std = @import("std");
 const c = @import("OpenSsl.zig");
 pub const LocalTrust = @import("LocalTrust.zig");
+pub const Memory = @import("Memory.zig");
 test {
     _ = LocalTrust;
+    _ = Memory;
 }
 pub const max_record_bytes = 18432;
 pub const max_handshake_bytes = 65536;
