@@ -868,6 +868,30 @@ checks remain intact. The focused Debug case passes. The earlier full run at
 `eeac33a8780cde4c6465b4fd96ab38e9c2430d00` finished with two failures (that sweep
 and the subsequently corrected DDL digest fixture), not a completed pass.
 
+The post-merge close-out also fixes two independent executable regressions:
+`109baad72` defers all Table maintenance classes until initial provisioning has
+established their owner, and `b6e10a3c4` emits console timing through a live I/O
+owner. All 193 CLI diagnostic cases pass. The read-page integration assertion
+at `ff9d2036e` checks the retained WAL source with a point read and compares its
+value with page-owned output; the six-test local catalog aggregate passes.
+
+At `ebab1ded6`, native grants batch their private policy-index changes before the
+unchanged conditional publication. The exact saved grant from a failed installed
+startup stages 14 pages / 13,799 bytes instead of 20 / 24,878. Core checks pass
+in Debug and ReleaseSafe, including failure and lost-acknowledgement injection
+at every staged page for new and replacement grants. The installed server
+logging/restart/admission-pressure schedule and the full handbook check pass.
+This changes no Station turn architecture or wire/stored format.
+
+The startup timeout investigation remains relevant to P4.4: the original binary
+also exceeds its two-second request deadline with maintenance disabled while
+disk syncs take about 9–10 ms. Later controls pass with both binaries after load
+eases. The original failed installation reaches readiness without reset or new
+request identity. These observations do not establish a latency improvement or
+resolve sustained contention. Production deadlines remain unchanged. Earlier
+clean core/experience failures stay recorded as failures; fresh committed-source
+qualification is still required before this continuation's PR.
+
 **Post-integration priority — 2026-10-27:** after merging PR #188, the user
 reports slow single-row INSERT and roughly 0.5-second queries against `items`.
 These are user observations, not an attributed benchmark. Start P5.1's ordinary
