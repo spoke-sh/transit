@@ -2917,7 +2917,11 @@ test "transaction acquisition refuses mixed policy epochs before cut publication
 }
 
 fn insertSelected(catalog: *D, access: *Access, operation: u64) !P.Evidence {
-    var view = (try resolve(catalog, access, "selected_0")).?;
+    return insertSelectedTable(catalog, access, "selected_0", operation);
+}
+
+fn insertSelectedTable(catalog: *D, access: *Access, name: []const u8, operation: u64) !P.Evidence {
+    var view = (try resolve(catalog, access, name)).?;
     defer view.deinit();
     const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = view.table.root.interpretation.object, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = @splat(3) };
     const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = @intCast(operation) } } }};
@@ -2942,7 +2946,13 @@ test "transaction common cut preserves WAL rows across physical flush and reject
         _ = try catalog.flushStorage(.{ .object = inserted.binding.target, .through = inserted.outcome.position }, access.policy());
         if (change) {
             _ = try insertSelected(&catalog, &access, 501);
+            // A's original pin contains only 500. B acquires 502 strictly
+            // after A changes, so old-A/new-B never existed as one common cut.
+            // This is the finite model's interrupted-acquisition obligation
+            // exercised against the real catalog and Table pin owners.
+            _ = try insertSelectedTable(&catalog, &access, "selected_1", 502);
             try t.expectError(error.TransactionConflict, catalog.acquireTransaction(binding.key, access.policy()));
+            try t.expect((try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?.record == null);
             continue;
         }
         const acquired = try catalog.acquireTransaction(binding.key, access.policy());
