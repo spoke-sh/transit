@@ -45,6 +45,15 @@ permissions again after buffering. The local node supplies those boundaries in
 `LocalTableService` and `LocalCatalogRunner`. The dispatcher is an implementation
 interface, not an authenticated endpoint or another policy store.
 
+Returned values borrow the dispatch output allocator. Temporary read owners,
+staged-intent decoding and row/schema encoding buffers use the catalog allocator
+and are released before dispatch returns. Embeddings that retain an output arena
+should give the catalog a reclaimable backing allocator so temporary work does
+not accumulate in that arena. The local node uses the request arena's backing
+allocator for catalog work, then releases the arena before transmitting its
+separately owned serialized response. Both allocations remain request-accounted;
+these lifetime boundaries do not establish an aggregate request memory limit.
+
 `DirectTableClient.signed` binds a typed action to the caller's current native
 credential; `call` makes one owned HTTP exchange and validates the response
 against that exact request. It checks result kind, operation attribution,

@@ -49,7 +49,9 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, output_allocator: s
         @field(self.engine.journal.observe.metrics, name) +|= @field(control.observe.metrics, name);
         @field(self.engine.journal.observe.metrics, name) +|= @field(data.observe.metrics, name);
     };
-    var catalog = try D.init(allocator, self.configuration, control.log(), control.objects(), data.log(), data.objects(), self.options);
+    // Recovery, page owners and encoding scratch must actually release their
+    // allocations when their scopes end. Only returned values borrow the arena.
+    var catalog = try D.init(arena.child_allocator, self.configuration, control.log(), control.objects(), data.log(), data.objects(), self.options);
     defer catalog.deinit();
     if (self.recovery_state) |prior| try catalog.recoverSince(prior.*) else try catalog.recover();
     // Preserve fully accepted progress even when final disclosure is denied.

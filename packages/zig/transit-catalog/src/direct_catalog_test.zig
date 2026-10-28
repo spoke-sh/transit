@@ -497,6 +497,59 @@ fn resolve(catalog: *D, access: *Access, name: []const u8) !?D.View {
     return catalog.resolve(t.allocator, 1, try a.Name.init(name), access.policy());
 }
 
+test "direct dispatch retains encoded output independently of temporary read owners" {
+    const Fixture = struct {
+        fn ddl(_: *anyopaque, _: *D, _: p.DataLifecycle.Binding, _: D.Policy, _: u16) !D.Observation {
+            return error.UnexpectedDispatchExecution;
+        }
+        fn namespace(_: *anyopaque, _: *D, _: c.DirectNamespace.Binding, _: D.Policy, _: u16) !c.DirectNamespace.Observation {
+            return error.UnexpectedDispatchExecution;
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var output_probe: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
+    var output = std.heap.ArenaAllocator.init(output_probe.allocator());
+    defer output.deinit();
+    const result = blk: {
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        const create = try creation(7, 1, "events");
+        _ = try catalog.admit(create, access.policy());
+        _ = try catalog.perform(create.binding, access.policy());
+        _ = try catalog.settle(create.binding, access.policy());
+        var view = (try resolve(&catalog, &access, "events")).?;
+        defer view.deinit();
+        const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 2 }, .target = create.binding.target, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = @splat(3) };
+        const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+        const inserted = (try catalog.applyRows(.{ .binding = binding, .interpretation = view.table.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(binding.identity, 0), .cells = &cells }, .expect = .absent } }}, .ingestion = .point }, access.policy())).committed;
+        const pin = try catalog.pinRows(create.binding.target, .{ .scope = scope, .principal = 1, .operation = 100 }, inserted.outcome.position, access.policy());
+        const execution: c.DirectTableDispatch.Execution = .{ .context = &catalog, .ddl = Fixture.ddl, .namespace = Fixture.namespace };
+        const scanned = try c.DirectTableDispatch.apply(output.allocator(), &catalog, access.policy(), .{ .scan = .{ .snapshot = .{ .object = create.binding.target, .handle = pin }, .after = null, .limits = .{} } }, null, execution);
+        try t.expectEqual(1, scanned.page.rows.len);
+        // A one-cell result must not keep megabytes of owner caches, WAL
+        // decoding or row encoding scratch in its caller's output arena.
+        std.debug.print("Direct dispatch retained output: {d} backing bytes for {d} encoded row bytes.\n", .{ output_probe.live_bytes, scanned.page.rows[0].base64.len });
+        try t.expect(output_probe.live_bytes < 64 * 1024);
+        var other_output = std.heap.ArenaAllocator.init(t.allocator);
+        defer other_output.deinit();
+        const lookup = try c.DirectTableDispatch.apply(other_output.allocator(), &catalog, access.policy(), .{ .lookup = .{ .namespace = 1, .name = "events" } }, null, execution);
+        try t.expectEqualDeep(scanned.page.interpretation, lookup.lookup.?.interpretation);
+        break :blk scanned;
+    };
+    // Neither another dispatch nor destruction of the catalog/read owners can
+    // invalidate returned bytes. Decode against the independently known schema.
+    const encoded = try result.page.rows[0].decode(t.allocator, c.fuze.TableRow.max_bytes);
+    defer t.allocator.free(encoded);
+    var decoded = try c.fuze.TableRow.decode(t.allocator, .{ .object = 7, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} }, encoded);
+    defer decoded.deinit();
+    try t.expectEqual(@as(i64, 42), decoded.row().cells[0].value.atom.signed);
+}
+
 test "direct storage observations and original flush cuts survive later writes and lost publication replies" {
     const Fixture = struct {
         fn insert(catalog: *D, access: *Access, operation: u64, value: i64) !P.Evidence {
