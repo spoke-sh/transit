@@ -462,9 +462,13 @@ defines connection scope, racing proposals and lost-reply handling.
 
 `DirectCatalog.Options.client_token_quota` defaults to 1,000,000 bindings,
 independently of resident pages. Capacity refusal never expires identities or
-prevents authorized original-token lookup and retry. SQL's account ledger,
-reservations and recovery scheduler have not switched to this interface. Tokens
-currently retain complete Table DDL/DML intent references only.
+prevents authorized original-token lookup and retry. SQL's database runtime uses
+this same original-token owner for reservations and recovery. Tokens retain
+Table DDL/DML, namespace, conditional name, external-owner and transaction begin
+references. Transaction admission atomically reserves a coordination partition
+with its token receipt; it establishes no acquired snapshot or commit decision.
+Its selection is paged and its ceilings come from `Options.transaction_limits`.
+See the token contract for exact fields, permissions and execution boundaries.
 
 `DirectTablePreparedDdl.prepare` owns the parsed CREATE/ALTER/DROP definition and
 its exact current metadata under the caller's rights. `bind` takes a separate

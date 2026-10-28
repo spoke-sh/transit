@@ -64,6 +64,12 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 
 ## Current native definition
 
+Client-token receipts require an explicit nullable coordination partition.
+Transaction begin acceptance reserves that partition in the same Catalog record
+as its original token. Earlier receipts cannot acquire a default owner; they
+reject under the replaced shared definition. Preserve their histories and resolve
+uncertain work with the matching build before choosing a fresh installation.
+
 The current catalog root requires a durable client-token directory and its
 accepted-binding count. The shared definition changes with this stored layout;
 earlier catalog roots, installations, saved requests and generated bindings

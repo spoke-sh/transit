@@ -6,6 +6,29 @@ const d = c.protocol.DataLifecycle;
 const Graph = c.DirectStorageGraph;
 const P = s.TablePartition;
 
+pub const Workspace = struct {
+    jobs: std.ArrayList(Graph.Work) = .empty,
+    marks: std.StringHashMap(void) = .init(t.allocator),
+    pub fn deinit(self: *@This()) void {
+        var keys = self.marks.keyIterator();
+        while (keys.next()) |key| t.allocator.free(key.*);
+        self.marks.deinit();
+        self.jobs.deinit(t.allocator);
+    }
+    pub fn enqueue(self: *@This(), work: Graph.Work) !void {
+        try self.jobs.append(t.allocator, work);
+    }
+    pub fn mark(self: *@This(), key: []const u8, _: s.TransitObjectStore.ObjectMeta) !void {
+        if (self.marks.contains(key)) return;
+        const owned = try t.allocator.dupe(u8, key);
+        errdefer t.allocator.free(owned);
+        try self.marks.put(owned, {});
+    }
+    pub fn visited(_: *@This(), _: [32]u8) !bool {
+        return false;
+    }
+};
+
 test "direct graph retains physical and ADD interpretations without receipt or history roots" {
     const Fixture = struct {
         fn acquire(_: *anyopaque) !P.Guard.Fence {
@@ -15,28 +38,6 @@ test "direct graph retains physical and ADD interpretations without receipt or h
         fn binding(table: *P, id: u64, action: d.Action) d.Binding {
             return .{ .definition = c.protocol.Growth.current_definition, .identity = .{ .scope = table.root.interpretation.object.scope, .principal = 4, .operation = id }, .target = table.root.interpretation.object, .action = action, .expected_definition = if (action == .create) null else table.root.interpretation, .expected_data = null, .intent = @splat(1) };
         }
-        const Workspace = struct {
-            jobs: std.ArrayList(Graph.Work) = .empty,
-            marks: std.StringHashMap(void) = .init(t.allocator),
-            fn deinit(self: *@This()) void {
-                var keys = self.marks.keyIterator();
-                while (keys.next()) |key| t.allocator.free(key.*);
-                self.marks.deinit();
-                self.jobs.deinit(t.allocator);
-            }
-            pub fn enqueue(self: *@This(), work: Graph.Work) !void {
-                try self.jobs.append(t.allocator, work);
-            }
-            pub fn mark(self: *@This(), key: []const u8, _: s.TransitObjectStore.ObjectMeta) !void {
-                if (self.marks.contains(key)) return;
-                const owned = try t.allocator.dupe(u8, key);
-                errdefer t.allocator.free(owned);
-                try self.marks.put(owned, {});
-            }
-            pub fn visited(_: *@This(), _: [32]u8) !bool {
-                return false;
-            }
-        };
     };
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();
@@ -55,7 +56,7 @@ test "direct graph retains physical and ADD interpretations without receipt or h
     _ = try table.changeDefinition(Fixture.binding(&table, 3, .alter), .{ .alter = .{ .change = .{ .default = .{ .column = 2, .value = .{ .value = .{ .atom = .{ .signed = 9 } } } } }, .properties = "graph" } }, guard);
     // A snapshot root owns rows and their interpretation, without retaining the
     // historical records or receipts that could accidentally mask a missed edge.
-    var workspace: Fixture.Workspace = .{};
+    var workspace: Workspace = .{};
     defer workspace.deinit();
     try workspace.enqueue(.{ .table_root = .{ .root = table.root, .archive = table.root.archive, .role = .snapshot } });
     var at: usize = 0;

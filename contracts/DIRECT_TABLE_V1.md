@@ -71,19 +71,20 @@ Changing the selected role, branch or audience cannot create a second binding
 under the same key; an incompatible connection conflicts.
 
 `bind` carries that key, a nonzero 32-byte request `fingerprint`, and one complete
-`DirectTableIntent.Reference`. The caller commits to its entire original request,
+`DirectIntent.Reference`. The caller commits to its entire original request,
 including parameters and database selection. The database does not interpret or
 certify that fingerprint's SQL meaning. It verifies the saved intent's immutable
 bytes, checks current original-operation rights and claims that operation
 identity before accepting the token in the catalog WAL. Token payloads support
-Table DDL/DML; namespace changes, conditional name assertions, configuration
-operations and captured computations are excluded.
+Table DDL/DML, namespace changes, conditional name assertions, transaction begin
+descriptors and external-owner records.
 
 The first accepted binding wins. A concurrent or repeated bind with the same key
 and fingerprint returns the original receipt, even if the proposal has a
 different operation ID or snapshot basis. Dispatch only the returned reference.
 A different fingerprint conflicts. The response is an optional receipt containing
-the original binding and catalog `position`; successful `bind` always returns a
+the original binding, catalog `position` and mandatory nullable `coordination`;
+successful `bind` always returns a
 receipt. `lookup` returns null for absence and never admits or executes data.
 Lookup requires current CONNECT; existing-reference disclosure also requires
 current rights for the original Table operation, including on exact retries and
@@ -110,9 +111,36 @@ and quota refusal to `StorageQuota`. Storage failure can leave acceptance unknow
 Catalog roots require the token directory and count fields. Earlier definitions
 reject under the shared-v1 cutover without a default, converter or data reset.
 SQL database sessions use these same public operations. The intent is a tagged
-`DirectIntent.Reference`: Table, conditional name, namespace change or external
+`DirectIntent.Reference`: Table, conditional name, namespace change, transaction or external
 owner. External records fix their connection, namespace, operation and immutable
 `DirectRecord` content; the external owner establishes its domain outcome.
+
+A transaction reference fixes the connection, selected namespace and
+`Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog
+observation, the complete paged selection of read-only Table descriptors and
+configured limits. It atomically reserves the next unused partition with the
+token receipt. `coordination` contains that partition only for a transaction;
+other receipts require explicit null. A repeated token returns its original
+partition. A begin operation cannot reserve another partition through a different
+account or token. Table allocation shares the same monotonic partition frontier.
+CONNECT authorizes saving and recovering this caller-supplied descriptor. The
+descriptor grants no Table access and establishes no acquired cut, retained pin,
+workspace or decision. Selection descriptors do not make nonexistent Tables
+readable. Execution must independently acquire and authorize its complete cut.
+
+`DirectCatalog.Options.transaction_limits` caps each requested limit: defaults
+are 16 MiB resident work, 1 GiB workspace, 100,000 participants, 100,000 statements
+and 1,024 savepoints. These admission ceilings do not preallocate those resources;
+the operation's token budget separately charges account capacity. A capacity or
+stale-Catalog refusal does not allocate a partition or accept a token. Generic
+intent execution rejects transaction references with `TransactionOperationRequired`.
+Generic progress updates cannot settle them without a transaction owner outcome.
+The admission interface alone does not provide interactive SQL transactions.
+
+Catalog recovery requires the explicit `coordination` field and validates its
+allocation transition. Earlier receipts reject under the current-v1 definition;
+there is no inferred partition or default. Retained Catalog history roots the
+accepted selection's index pages, including those exceeding the resident cache.
 
 `client_progress.inspect` selects a token; `operation` selects its immutable
 Catalog acceptance ID within an exact account/connection scope. `list` returns

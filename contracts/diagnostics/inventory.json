@@ -3388,7 +3388,7 @@
         "CatalogRegistrationRequired": 7,
         "ClientOperationConflict": 2,
         "ClientOperationMissing": 1,
-        "ClientOperationPending": 5,
+        "ClientOperationPending": 6,
         "ClientTokenCapacity": 1,
         "ConflictingRetry": 1,
         "DataIdentityConflict": 4,
@@ -3424,6 +3424,7 @@
         "TableRetired": 2,
         "TableSchemaChanged": 1,
         "TableSnapshotReleased": 2,
+        "TransactionCatalogChanged": 1,
         "UnrepresentableEbcdic037": 1,
         "UnsupportedTableAction": 2
       },
@@ -3584,7 +3585,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 783,
+        "try": 790,
         "catch": 8
       },
       "imports": [
@@ -3982,7 +3983,7 @@
         "InvalidClientToken": 5,
         "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 15,
-        "InvalidDirectCatalogTransition": 85,
+        "InvalidDirectCatalogTransition": 86,
         "InvalidPartitionLease": 1,
         "LostAcknowledgement": 1
       },
@@ -4030,7 +4031,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 178,
+        "try": 179,
         "catch": 1
       },
       "imports": [
@@ -4078,7 +4079,7 @@
         "ClientTokenConflict": 1,
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
-        "InvalidClientToken": 10,
+        "InvalidClientToken": 12,
         "InvalidTableResponse": 2
       },
       "outcomes": {
@@ -4207,10 +4208,12 @@
         "DataIdentityConflict": 2,
         "ExternalOperationOwnerRequired": 2,
         "IncompatibleDefinition": 1,
-        "InvalidGatewayIntent": 2
+        "InvalidGatewayIntent": 2,
+        "TransactionOperationRequired": 2
       },
       "outcomes": {
         "Reference": [
+          "transaction",
           "external",
           "table",
           "name_assertion",
@@ -4235,7 +4238,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 25,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -4568,7 +4571,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 85,
+        "try": 91,
         "catch": 1
       },
       "imports": [
@@ -5303,6 +5306,29 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTransaction.zig": {
+      "errors": {
+        "InvalidTransactionBegin": 1,
+        "TransactionCapacity": 1,
+        "TransactionIdentityConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Reference.validate()": "<inferred>",
+        "inspectSelection()": "<inferred>",
+        "requireLimits()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/Inspection.zig": {
       "errors": {
         "InvalidCatalogPage": 3
@@ -5393,10 +5419,12 @@
         "DataIdentityConflict": 6,
         "ImmutableObjectConflict": 1,
         "IncompatibleDefinition": 1,
+        "InvalidClientToken": 1,
         "InvalidOperationBinding": 6
       },
       "outcomes": {
         "Stored": [
+          "transaction",
           "external",
           "data",
           "name_assertion",
@@ -5408,6 +5436,7 @@
       "error_sets": {},
       "error_returns": {
         "Stored.requireSame()": "<inferred>",
+        "Stored.transaction.validate()": "<inferred>",
         "Stored.validate()": "<inferred>",
         "claim()": "<inferred>",
         "claimAssertion()": "<inferred>",
@@ -5416,6 +5445,7 @@
         "claimNamespace()": "<inferred>",
         "claimResource()": "<inferred>",
         "claimStored()": "<inferred>",
+        "claimTransaction()": "<inferred>",
         "key()": "<inferred>",
         "lookup()": "<inferred>",
         "lookupAssertion()": "<inferred>",
@@ -5426,7 +5456,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
+        "try": 21,
         "catch": 1
       },
       "imports": [
@@ -5735,6 +5765,7 @@
         "DirectTableReader.zig",
         "DirectTableTyped.zig",
         "DirectTableValues.zig",
+        "DirectTransaction.zig",
         "Inspection.zig",
         "Model.zig",
         "NameAssertion.zig",
@@ -13842,7 +13873,7 @@
           "deadline"
         ],
         "Definition": [
-          "a716998e2831c843eedd24c792311f4d33aa0444460522f8f26cf4ad54b29ff7"
+          "@\"901eb98b9b23d159d20c3216ca2c160c0cf303c8b3f751d8ace5c91562904fa8\""
         ],
         "Effect.phase": [
           "pending",
@@ -21114,7 +21145,8 @@
     },
     "packages/zig/transit-sql/src/IntentReference.zig": {
       "errors": {
-        "ExternalOperationOwnerRequired": 1
+        "ExternalOperationOwnerRequired": 1,
+        "TransactionOperationRequired": 1
       },
       "outcomes": {},
       "error_sets": {},

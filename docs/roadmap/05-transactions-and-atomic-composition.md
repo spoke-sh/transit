@@ -116,7 +116,7 @@ this header and the roadmap index together.
 | Package | Outcome | Status |
 | --- | --- | --- |
 | P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types, validation and finite decision-journal model; complete local isolation/runtime correspondence remains open |
-| P1 | Database admission, original-token binding, transaction quotas and caller boundary | Planned |
+| P1 | Database admission, original-token binding, transaction quotas and caller boundary | In progress: original-token begin admission, coordination partition reservation, limits and signed caller fixture; execution admission and settlement remain open |
 | P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: immutable paged participant directories; acquisition and workspace integration remain open |
 | P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | In progress: fenced decision journal with exact preparation membership; Table preparation and visibility integration remain open |
 | P4 | Restart/failure settlement, retained roots, cleanup and maintenance | Planned |
@@ -131,7 +131,8 @@ service, acquired consistent cut, serializable execution or durable decision.
 The storage directory and decision-journal components have separate disk/recovery
 checks and an explicit [integration contract](../../packages/zig/transit-storage/docs/transaction-decisions.md).
 Their verification callbacks are not yet connected to Table owners. Catalog
-admission, common-cut acquisition, private workspace/savepoint execution,
+begin admission now reserves a coordination partition through the original-token
+owner and retains its selected directory pages. Common-cut acquisition, private workspace/savepoint execution,
 Table predecessor barriers, common-decision visibility, retained-graph integration
 and public callers must land before an installed transaction profile is claimed.
 

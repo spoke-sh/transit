@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "a716998e2831c843eedd24c792311f4d33aa0444460522f8f26cf4ad54b29ff7"
+definition = "901eb98b9b23d159d20c3216ca2c160c0cf303c8b3f751d8ace5c91562904fa8"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -316,6 +316,33 @@ token_digest = hashlib.sha256(b"transit.catalog.client-token.v1\0" +
     struct.pack("<4Q", 42, 3, 2**64 - 1, 4) + bytes([11] * 32) + bytes([12] * 16)).digest()
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-client-token-v1.json",
         (json.dumps({"request": token_request, "public_key": public_key, "key_digest": list(token_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# A transaction has the same original-token owner, with a separate typed begin
+# descriptor. This vector checks bytes/signatures, not selection acquisition.
+transaction_begin = {
+    "definition": definition,
+    "identity": {"begin": binding["identity"], "branch": 1},
+    "mode": "serializable", "selection": "explicit_tables",
+    "tables": {"content": {"bytes": 512, "sha256": [31] * 32}, "count": 17},
+    "catalog": {"partition": 1, "next_lsn": 19},
+    "limits": {"resident_bytes": 65536, "workspace_bytes": 1048576,
+               "participants": 100, "statements": 1000, "savepoints": 32},
+}
+transaction_reference = {"connection": request_input["connection"], "namespace": 1, "begin": transaction_begin}
+transaction_binding = {**token_binding, "intent": {"transaction": transaction_reference}}
+transaction_input = {**request_input, "action": {"client_token": {"bind": transaction_binding}}}
+transaction_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(transaction_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-transaction-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    transaction_request = {**transaction_input, "proof": {"claim": transaction_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(transaction_claim)).digest())}}
+validator.validate(transaction_request)
+for field in transaction_begin:
+    invalid = copy.deepcopy(transaction_request)
+    del invalid["action"]["client_token"]["bind"]["intent"]["transaction"]["begin"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-transaction-v1.json",
+        (json.dumps({"request": transaction_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
 host_reference = copy.deepcopy(native_reference)
 host_reference["connection"]["scope"]["catalog"] = str(2**64 - 1)
 host_reference["connection"]["branch"] = "1"

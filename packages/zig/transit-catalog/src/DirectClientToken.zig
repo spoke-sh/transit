@@ -128,10 +128,17 @@ pub const Binding = struct {
 pub const Receipt = struct {
     binding: Binding,
     position: p.DataLifecycle.Position,
+    /// Catalog-reserved transaction decision partition, never a commit LSN.
+    /// Mandatory even when null so older receipts cannot gain a default owner.
+    coordination: ?u64,
     pub fn validate(self: Receipt) !void {
         try self.binding.validate();
         try self.position.validate();
         if (self.position.next_lsn < 2) return error.InvalidClientToken;
+        if ((self.binding.intent == .transaction) != (self.coordination != null)) return error.InvalidClientToken;
+        if (self.coordination) |partition| {
+            if (partition <= self.position.partition or partition == std.math.maxInt(u64)) return error.InvalidClientToken;
+        }
     }
 };
 
@@ -295,7 +302,7 @@ test "direct client token signing and key identity match independent fixtures" {
     changed.action = .{ .client_token = .{ .lookup = binding.key } };
     try t.expect(!changed.transport().mutation);
 
-    const response: w.Response = .{ .definition = p.Growth.current_definition, .context = fixture.request.proof.claim.context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = fixture.request.proof.claim.context }, .result = .{ .client_token = .{ .binding = binding, .position = .{ .partition = 1, .next_lsn = 2 } } } };
+    const response: w.Response = .{ .definition = p.Growth.current_definition, .context = fixture.request.proof.claim.context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = fixture.request.proof.claim.context }, .result = .{ .client_token = .{ .binding = binding, .coordination = null, .position = .{ .partition = 1, .next_lsn = 2 } } } };
     try c.DirectTableClient.validateResponse(t.allocator, fixture.request, response);
     var damaged = response;
     damaged.result.client_token = null;

@@ -76,6 +76,12 @@ admit or execute data. See the
 for identity, quota and uncertainty rules. SQL account recovery uses these
 Catalog records independently of Station.
 
+`DirectTransaction.Reference` binds a begin descriptor through that token owner.
+Acceptance reserves one coordination partition and preserves it across lost
+replies and retries. The paged selection remains a descriptor: this operation
+does not acquire a common cut or execute a transaction. Its limits and current
+execution boundary are specified in the token contract.
+
 `DirectTableBridge.Session` owns one immutable local intent. SQL `compile` and
 typed `prepare` return saved work; `load` and `forget` are local operations.
 Persist saved work before staging, and the complete returned reference before

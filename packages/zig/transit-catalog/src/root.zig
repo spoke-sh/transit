@@ -76,3 +76,4 @@ pub const testing = if (@import("builtin").is_test) struct {
 pub const DirectIntent = @import("DirectIntent.zig");
 pub const DirectRecord = @import("DirectRecord.zig");
 pub const DirectClientToken = @import("DirectClientToken.zig");
+pub const DirectTransaction = @import("DirectTransaction.zig");

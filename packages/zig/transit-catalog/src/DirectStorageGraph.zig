@@ -81,6 +81,14 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const record = try walk.next(allocator, log) orelse return true;
             try workspace.enqueue(.{ .catalog_root = .{ .root = record.root } });
             if (record.action == .operation) try workspace.enqueue(.{ .catalog_intent = .{ .configuration = record.root.configuration, .operation = record.action.operation } });
+            if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction) {
+                const begin = record.action.client_token.receipt.binding.intent.transaction.begin;
+                var selected = try s.TransactionDirectory.init(allocator, index.store, begin.identity, .participants, begin.limits.participants, 0, 1);
+                defer selected.deinit();
+                try selected.restore(begin.tables);
+                try markContent(workspace, try s.TransactionDirectory.objectKey(begin.tables.content, &key_buffer), begin.tables.content);
+                if (selected.root.entries) |reference| try workspace.enqueue(.{ .catalog_walk = try .init(record.root, .{ .reference = reference, .kind = .pages_only }) });
+            }
             return false;
         },
         .catalog_root => |*value| {

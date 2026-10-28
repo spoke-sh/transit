@@ -28,6 +28,7 @@ pub const Options = struct {
     /// Durable token capacity, independent of the bounded resident page cache.
     /// Exhaustion refuses new bindings; it never forgets accepted identities.
     client_token_quota: u64 = 1_000_000,
+    transaction_limits: p.Transaction.Limits = c.DirectTransaction.default_limits,
     table: P.Options = .{},
     /// Optional same-storage-owner hint, serialized by the embedding host.
     /// No request allocations, permission or retained read are cached here.
@@ -774,6 +775,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
 fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectIntent.Reference, policy: Policy) !P.Guard {
     try reference.validate();
     return switch (reference) {
+        .transaction => self.guard(allocator, policy, null, null, .database),
         .external => self.guard(allocator, policy, null, null, .database),
         .table => |value| self.operationGuard(allocator, value.binding, value.namespace, policy),
         .namespace_change => |value| self.namespaceGuard(allocator, value.binding, policy),
@@ -823,10 +825,20 @@ pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Po
     try check(current);
     if (self.store.root.client_token_count >= self.options.client_token_quota) return error.ClientTokenCapacity;
     const usage = (try self.store.clientUsage(self.store.root, key)) orelse c.DirectClientToken.Usage{ .limits = binding.budget.limits };
-    _ = try usage.transition(null, c.DirectClientToken.Progress.initial(.{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn + 1 } }));
+    const coordination: ?u64 = if (reference == .transaction) self.store.root.next_partition else null;
+    const receipt: c.DirectClientToken.Receipt = .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = try std.math.add(u64, self.store.root.next_lsn, 1) }, .coordination = coordination };
+    try receipt.validate();
+    _ = try usage.transition(null, c.DirectClientToken.Progress.initial(receipt));
     // A token claims the complete original identity before accepting its
     // reference; this is independent of data admission and execution.
     switch (reference) {
+        .transaction => |value| {
+            if (value.begin.catalog.partition != self.config().partition or value.begin.catalog.next_lsn != self.store.root.next_lsn)
+                return error.TransactionCatalogChanged;
+            try c.DirectTransaction.inspectSelection(self.allocator, self.data_objects, value, self.options);
+            try check(current);
+            try c.OperationBinding.claimTransaction(self.allocator, self.store.objects, value, try key.digest());
+        },
         .external => |value| {
             const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, value.record);
             defer self.allocator.free(bytes);
@@ -849,7 +861,7 @@ pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Po
     var next = self.store.root;
     next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
     next.client_token_count = try std.math.add(u64, next.client_token_count, 1);
-    const receipt: c.DirectClientToken.Receipt = .{ .binding = binding, .position = .{ .partition = self.config().partition, .next_lsn = next.next_lsn } };
+    if (coordination != null) next.next_partition = try std.math.add(u64, next.next_partition, 1);
     const state = c.DirectClientToken.Progress.initial(receipt);
     try self.store.clientIndices(&next, state);
     try self.store.publish(next, .{ .client_token = state }, current);
@@ -912,6 +924,7 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
 }
 fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy) !void {
     switch (reference) {
+        .transaction => return error.ClientOperationPending,
         // External owners interpret their own progress. No external completion
         // or authorization is inferred from removing a recovery index entry.
         .external => {},
