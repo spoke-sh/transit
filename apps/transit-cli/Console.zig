@@ -225,7 +225,7 @@ pub const Console = struct {
             self.diagnostic.emit(self.init.io, err);
         };
         try @import("Output.zig").write(self.init, self.out, "");
-        self.diagnostic.reportTiming();
+        self.diagnostic.reportTiming(self.init.io);
         return self.next_connection == null;
     }
     fn perform(self: *Console, text: []const u8, parameters: ?Input.Parameters) !void {

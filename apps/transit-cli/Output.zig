@@ -4,7 +4,7 @@ const Signals = @import("Signals.zig");
 pub fn write(init: std.process.Init, out: *std.Io.Writer, bytes: []const u8) !void {
     return writeIo(init.io, out, bytes);
 }
-fn writeIo(sink_io: std.Io, out: *std.Io.Writer, bytes: []const u8) !void {
+pub fn writeIo(sink_io: std.Io, out: *std.Io.Writer, bytes: []const u8) !void {
     const Result = union(enum) { written: anyerror!void, stopped: anyerror!void };
     const Task = struct {
         fn emit(writer: *std.Io.Writer, value: []const u8) !void {
