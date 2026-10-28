@@ -353,7 +353,7 @@ Owners: [Local](../../apps/transit-node/Local.zig),
   opted-in reclamation. Reuse the component's one-attempt marker and reserved
   namespace; do not repeat a PUT merely because its reply or bytes are missing.
   Define any missing service boundary before implementing its adapters.
-- [ ] P1.4 Exercise named KV/Document provisioning, native input/state/output,
+- [x] P1.4 Exercise named KV/Document provisioning, native input/state/output,
   captured blocks and effect records in the installed local profile after owner
   replacement. Replay dispatches no external effect. Keep the existing native
   one-KV-resource turn boundary and direct Table acceptance separate.
@@ -437,15 +437,19 @@ explicit D5 handoff even though its eventual target writes already use the
 direct Table owner. P1.5's final acceptance still requires the affected current
 caller qualification, rather than treating this inventory as executed evidence.
 
-The physical-disk `just test local-owner-recovery` schedule now also loses the
+The physical-disk `just test local-owner-recovery` schedule also loses the
 native journal sync acknowledgment for an atomic turn that changes one KV
 resource and immutable block, retains the previous read version, consumes its
 input, and records output/effect intents. Exact retry after in-process owner
 replacement and another process restart preserves one receipt, both block
 versions, two consumed inputs and one still-pending output/effect pair. The
 existing allocation-queue fault and three-reopen-budget checks also pass. This
-qualifies native acceptance and replay, not connector dispatch or the remaining
-named KV/Document installation matrix; P1.4 remains open.
+qualifies native acceptance and replay, not connector dispatch. The current
+`ed98a1fb` resource matrix additionally passes named provisioning/dependency
+faults, all 139 KV/Document resources and original receipts after SIGKILL, and
+the Document worker/node crash schedule with a one-page recovery cache.
+[Source-attributed execution and limits](../history/qualification/storage.md#installed-named-resources-and-native-owner-recovery--2026-10-27)
+close P1.4; complete SDK and final clean qualification remain P8 work.
 
 #### P2 — Make point flushing automatic and inspectable
 
@@ -726,7 +730,9 @@ checks pass. The installed physical-disk schedule retains all ten original
 segments byte-for-byte through SIGKILL, convergence and three generations of
 retained reads. The [qualification account](../history/qualification/storage.md#selective-automatic-table-compaction--2026-10-27)
 records the controls, timings and limits. This closes the known healthy-segment
-rewrite/splitting flaw; aggregate contention, matched foreground latency and the
+rewrite/splitting flaw. At `e9aee40c9`, all 149 local storage SIGKILL schedules
+pass, including 48 new automatic archive/compaction target and skip-progress
+publication cases. Aggregate contention, matched foreground latency and the
 broader failure/retention matrix still keep P4.4 and P4.5 open.
 
 #### P5 — Qualify and reduce the remaining live read and wait costs

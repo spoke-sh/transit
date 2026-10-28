@@ -9,6 +9,46 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Installed named resources and native owner recovery — 2026-10-27
+
+The installed local resource matrix passes with shared definition
+`ed98a1fb80bc80e2534856d1eea5caeae705df1bff8e0347aa20009c935f58de`,
+ReleaseSafe and physical-disk fixtures under `/var/tmp`. The named-resource and
+Document runs start at `733863df1`; owner recovery runs after the rebase onto
+`68a4c5a75`. The rebased runtime, contracts and these fixture sources are
+byte-identical to the pre-rebase source (`git diff --quiet` over their owners).
+The rebase adds planning and independent statement-result formal checks, not a
+different storage definition or native runtime.
+
+- `just test direct-named-resources` passes named KV/Document provisioning,
+  original saved bindings, current revocation and dependency protection through
+  eight withheld staging replies, four withheld dependency replies and eleven
+  abrupt node replacements (107 typed catalog calls). Its growth schedule then
+  initializes and independently reads all 139 KV/Document objects through
+  eight-entry directory pages. All typed values and the first original receipt
+  survive another SIGKILL/restart (1,437 typed catalog calls).
+- `just test document-local` passes worker/node deaths during staged
+  publication, accepted change and checkpoint recovery. The finish uses one
+  resident page and verifies exact retries at `node`, `accept`, `checkpoint`
+  and `collect` boundaries. The fixture observes 519 native turns, at most four
+  mutations per turn and values at most 256 bytes. Phase times are 5.179 seconds
+  staging, 35.849 acceptance, 184.663 checkpoint and 453.778 final recovery.
+  These are single-run costs under the existing native state contract, not a
+  database latency target or a claim of improved runtime throughput.
+- `just test local-owner-recovery` passes original receipts, allocation-queue
+  recovery, the bounded in-process reopen budget and abrupt process restart.
+  Losing the native journal sync acknowledgment for an atomic input/KV/block/
+  output/effect turn still recovers one original receipt, the current and
+  retained old blocks, two consumed inputs and one pending output/effect pair.
+  Replay records no new effect attempt and dispatches no external effect.
+
+Raw logs are the ignored `.cache/milestone3/named-resources-ed98.log`,
+`document-local-ed98.log` and `local-owner-recovery-ed98.log`. This closes the
+installed resource/replacement matrix in milestone 3 P1.4. It does not qualify
+connector dispatch, transaction-backed Station replacement, the complete SDK
+matrix, host power loss or the final common-revision clean lanes. Native turns
+and direct Table acceptance remain separate atomic domains.
+
 ## Selective automatic Table compaction — 2026-10-27
 
 The implementation and checks committed at `1b826f09f` replace unconditional
@@ -58,6 +98,22 @@ Raw logs remain under ignored `.cache/milestone3/` as
 larger sparse inputs, full dependent SDK/browser qualification and final clean
 lanes remain separate gates. Retained history can prevent object reclamation;
 this pass does not change retention or establish zero total maintenance I/O.
+
+At `e9aee40c9`, `just test local-storage-faults` passes **149 SIGKILL
+schedules** with the same `ed98a1fb` definition on physical disk. The existing
+101 WAL/object/archive/compaction/checkpoint schedules remain. Forty-eight new
+schedules kill automatic archive target creation/completion and compaction
+target creation, each of two skipped dense segments, and completion. Each
+transition is interrupted before acceptance, during a partial WAL write, after
+each of four sync boundaries, after publication and before reply. A separate
+Python oracle fixes the expected roots, target cursors and completed frontiers;
+it checks current/pinned values, the original receipt, logical history, segment
+identity, continuation after restart and an idle final unit. Archive completion
+does not grant physical WAL trim. The raw log is the ignored
+`.cache/milestone3/maintenance-target-faults-ed98.log`; the verification catalog
+also passes with 77 invariants, 75 classified bounds and 15 SDK scenarios.
+These are process-death boundaries with the host/page cache still alive, not
+power-loss evidence or the remaining aggregate contention/failure qualification.
 
 ## Local foundation repository qualification — 2026-10-27
 
