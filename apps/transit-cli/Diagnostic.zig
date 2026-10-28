@@ -18,12 +18,26 @@ column: ?u64 = null,
 role: ?[]const u8 = null,
 port: ?u16 = null,
 summary: ?[]const u8 = null,
+summary_storage: [512]u8 = undefined,
 next: ?[]const u8 = null,
 cause: ?anyerror = null,
 usage: ?[]const u8 = null,
 help: []const u8 = "transit --help",
 show_help: bool = false,
 presentation: enum { general, invocation, option, argument, configuration, json, field } = .general,
+
+/// The diagnostic owner outlives the connection, response and formatting slot.
+pub fn sqlServiceSummary(self: *Self, code: []const u8, sqlstate: [5]u8) void {
+    self.summary = std.fmt.bufPrint(&self.summary_storage, "SQL service: {s} ({s})", .{ code, sqlstate }) catch "SQL service returned an error";
+}
+
+test "SQL summary owns response bytes after connection cleanup" {
+    var self: Self = .{};
+    var code = "Denied".*;
+    self.sqlServiceSummary(&code, "42501".*);
+    @memset(&code, 0);
+    try std.testing.expectEqualStrings("SQL service: Denied (42501)", self.summary.?);
+}
 
 pub fn fail(self: *Self, err: anyerror, summary: []const u8, next: ?[]const u8) anyerror {
     self.setFailure(err, summary, next);
