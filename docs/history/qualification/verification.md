@@ -2277,7 +2277,7 @@ methods now live beside their [scenario owners](../../../tests/verification/simu
 
 ## Durable SQL write lifecycle models — 2026-10-28
 
-At [`67c44d32a0b7`](https://github.com/spoke-sh/transit/commit/67c44d32a0b7),
+At [`68fc4d6817f2`](https://github.com/spoke-sh/transit/commit/68fc4d6817f2),
 `nix develop .#ci-formal --command just ci clean --lane formal` passed all eight
 formal tasks from a clean clone. The new write-lifecycle task exhausted twenty
 row-lifecycle safety profiles and five separate token profiles, detected fifteen
@@ -2299,16 +2299,21 @@ The locked TLA+ 1.7.4/TLC 2.19 runs used one worker, seed 1, fingerprint 0, a
 512 MiB heap and a 60-second per-process bound, with no depth cutoff. The clean
 runner retained source/configuration/binary identities, exact commands, logs,
 counterexamples and independent replay projections under
-`.cache/ci/clean/67c44d32a0b7-transit-ci-_zv631p5/verification/write-lifecycle-model/`.
+`.cache/ci/clean/68fc4d6817f2-transit-ci-03hn1p6l/verification/write-lifecycle-model/`.
 The clean completion record is the sibling `formal.json`; hosted CI retains the
 same model artifacts through its configured artifact upload.
 
-This rerun follows the rebase onto merged transaction admission and private
-workspace support (`ee5c31c80`). The earlier clean run at pre-rebase
+This final run includes the stronger atomic-visibility invariant: an independent
+row inserted before freezing must participate in the statement; only a row
+inserted after commit may remain outside its successor. The preceding rebased
+clean run at `67c44d32a0b7` also passed and remains under
+`.cache/ci/clean/67c44d32a0b7-transit-ci-_zv631p5/`. Both follow the rebase onto
+merged transaction admission and private workspace support (`ee5c31c80`).
+The earlier clean run at pre-rebase
 `eaaf5ac72aceadc410f08f641d5fdd85ba217781` passed the same profiles/counts;
 its separate artifacts remain under
 `.cache/ci/clean/eaaf5ac72ace-transit-ci-5dvs0sa4/`. The disk-reopen command below
-also passes after the rebase. Neither run qualifies the new transaction API.
+also passes after the rebase. These runs do not qualify the new transaction API.
 
 At `2650bccce`, clean core passes its 41 fast checks, all 18 contract checks and
 the completed independent wire fixtures. The broader native/storage stress

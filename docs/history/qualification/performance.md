@@ -115,6 +115,71 @@ checks and the busy-keepalive case. `redraw-final.log` retains the result and
 `final-binaries.json` identifies the compiled console and matching runtime set.
 The repeated schedule is not a deterministic injection of every rendering race.
 
+### Rebased recovery-path comparison and installed-server limit
+
+The final focused `sessions-basic` profile passes with runtime source
+`67c44d32a0b7949362cfc369d504da9e74fc42ee` and console source `2650bccce`.
+It covers the lost native commit reply and original identity/counts, typed
+native/PostgreSQL/MySQL reads, outage and revocation schedules, real TLS console
+completion and restart token resolution. The driver reports a dirty checkout
+because qualification prose was being edited; the compiled product binaries
+were unchanged. `rebased-sessions-basic.log` has SHA-256
+`d1e207ac35dc156fafbca0186aa1b393919a7e12d5b9f6624f04e28d96de5cc1`.
+This focused pass does not replace the failed clean interface lane above.
+
+Three sequential unproxied TLS workloads compare the final recovery-only change
+with the gateway built from `ee5c31c80`. All other executables are byte-identical;
+`final-binaries.json` and `control-current/identity.json` retain their identities.
+The candidate gateway has SHA-256
+`f503b3f119a576e9bb4566f1d2f47f5b8c65c27d39cd68b44ca37a66384bf1d5`;
+the control gateway has SHA-256
+`18d1d56acaa7f74fb7795eb0b6f5154355059c03164bd2d1ba38b8ce05e56f76`.
+The console and statement driver are identical across all three runs. Candidate
+A uses driver source `e303e8f6`; candidate B uses `68fc4d681`, whose intervening
+change only strengthens the model's atomic-visibility invariant. The fixture
+uses file-backed storage, eight resident pages and a 30-second native budget.
+
+| Console timer median | Candidate A | Current-main gateway control | Identical candidate B |
+| --- | ---: | ---: | ---: |
+| Warm SELECT, six samples | 222 ms | 212 ms | 229 ms |
+| INSERT, five samples | 2,313 ms | 1,123 ms | 470 ms |
+| SELECT after INSERT, five samples | 2,503 ms | 1,349 ms | 606 ms |
+| Changed UPDATE, five samples | 3,651 ms | 2,138 ms | 750 ms |
+| Unchanged UPDATE, five samples | 2,196 ms | 1,154 ms | 520 ms |
+| DELETE, five samples | 2,544 ms | 1,599 ms | 718 ms |
+
+All three workloads pass exact row/count/schema and typed-readback checks.
+However, the identical candidate's INSERT medians differ by almost fivefold;
+its second INSERT range is 444–2,204 ms. Other work is active on this shared
+host. These runs establish neither causal benefit nor regression from removing
+one inspection RPC, and the fastest run is not an achieved latency target.
+Warm-read stability does not identify the source of durable-path variation.
+
+The raw reports under `.cache/write-lifecycle/` retain per-statement phases,
+outputs, binary hashes and host load:
+
+| Report | SHA-256 |
+| --- | --- |
+| `final-statements.jsonl` | `3a051191611e4e89e3c113aca1cb644ce715873b6f294a5cb3cce8aef09db535` |
+| `control-current-statements.jsonl` | `71f90285960ba296875a1521dfd6fab5a991937236095480389782ad6191356f` |
+| `final-repeat-statements.jsonl` | `76fa5117d1bd3e701f26607ebbde9a80862b5ffbeff386592cd1cb6bb2bbacbe` |
+
+The final default installed-server run at clean driver source `68fc4d681`
+reaches readiness and completes three INSERTs (406, 452 and 475 ms), two
+read-after-write checks and three warm SELECTs. The SELECT immediately after
+the third INSERT fails with `Conflict (55000): SqlServiceError`; the workload
+stops before UPDATE/DELETE and before typed readback. Its default two-second
+native attempt budget and resident-page configuration are unchanged. This is a
+**failed** workload, not a qualified 452 ms INSERT result. The logs do not identify
+the underlying conflict, and no baseline equivalence or harmless retry is
+assumed. The private installation remains at
+`/var/tmp/transit-server-proof-lfepi0hk`. `final-installed-statements.jsonl` has
+SHA-256 `221da1629f8296426baecd43e5c62a0c1321c4d9ce0bbf18e728230d435a9ec2`;
+its `.stderr` has SHA-256
+`141ce930e7ddb7aa908efaea60cb2ec32e860aa0a7ff33d824d3a26db39d77c9`.
+The installed conflict, broader authority timeout and controlled latency
+qualification remain open in [#211](https://github.com/spoke-sh/transit/issues/211).
+
 ### Original decoupling comparison
 
 The [console workload](../../../tests/performance/console/statements.py) exercises
