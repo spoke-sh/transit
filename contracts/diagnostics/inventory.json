@@ -12477,7 +12477,8 @@
     "packages/zig/transit-memory/src/Slab.zig": {
       "errors": {
         "InvalidWorkspaceCapacity": 2,
-        "MemoryInUse": 1
+        "MemoryInUse": 1,
+        "OutOfMemory": 1
       },
       "outcomes": {},
       "error_sets": {
@@ -12492,7 +12493,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 2,
+        "try": 1,
         "catch": 3
       },
       "imports": [

@@ -800,6 +800,11 @@ negative control detects attempted fallback. The
 also records increased retained capacity and full-test peak RSS. This closes the
 measured repeated private-backing allocation problem, not P4.4's aggregate
 admission, installed resource or foreground contention gates.
+Its installed maintenance schedule also passes, but active RSS rises by about
+128 MiB without a clear latency/CPU improvement. The follow-up at `79c04aec0`
+avoids eagerly filling unused slab capacity and passes 18 memory-package tests,
+including an independent negative control. Its installed resource comparison is
+still required before accepting the workspace as a performance improvement.
 
 #### P5 — Qualify and reduce the remaining live read and wait costs
 

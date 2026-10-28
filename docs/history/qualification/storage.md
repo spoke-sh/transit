@@ -66,6 +66,63 @@ Raw logs remain under `.cache/milestone3/`; the exact identities are:
 | `maintenance-memory-baseline.log` | `f8f05813dea4f7017825d60240fe450ffb028f0e3fd907536efdeebc7b57023b` | `ec9c18b7c2a8602015ef3484dd0c9b43a651739d1c96c8a925902fae17fa2f7d` |
 | `maintenance-memory-reuse.log` | `a53bec7435a1019e99babf4bc3cc9d563911b57822b2eed4986be0cefc7aaafc` | `42479a66901861d9cf9c73005397e13ed7c9b577fe602b94f7d5409c7c54773c` |
 
+### Installed cost of the initial workspace
+
+The same `6e6f9dc44` candidate passes `just test direct-table-maintenance`,
+including independent values for all 258 rows, foreground overlap with flushing,
+fixed targets after SIGKILL, retained cuts after restart and idle convergence.
+Flushing produces ten segments in 8.062 seconds; subsequent archive/compaction
+recovery and verification take 22.417 seconds without rewriting packed segments.
+Total task time, including compilation, is 341.95 seconds.
+
+Compare the automatic-flush arm with the earlier `77f9fb503` clean growth run.
+Both retain profile SHA-256
+`86a6a118af09e4fe8433c77b6c2699c18f3938ea4f4237f2434585c7527aa023`, sixteen
+independently checked scans and identical fixture limits. Each is a single run
+with uncontrolled host/cache state, so small timing differences are not evidence
+of a speedup or slowdown.
+
+| Active flush observation | Before retained workspace | Initial workspace |
+| --- | ---: | ---: |
+| Scan duration minimum / median / maximum (seconds) | 1.147 / 1.203 / 4.748 | 1.142 / 1.215 / 4.131 |
+| Node CPU during phase (seconds) | 20.37 | 20.29 |
+| Node RSS after phase (bytes) | 53,850,112 | 187,965,440 |
+| Node lifetime peak RSS (bytes) | 74,219,520 | 194,596,864 |
+| Node kernel write-byte increase | 11,550,720 | 11,550,720 |
+
+The candidate's disabled-maintenance arm ends at 53,911,552 resident bytes.
+The active arm's approximately 128 MiB additional RSS prevents accepting this
+candidate as an aggregate resource improvement. Reduced backing allocation
+counts have not produced a clear installed latency or CPU improvement.
+The pinned Zig allocator's typed allocation helper fills the whole returned
+slice with `undefined`, which poisons unused capacity in ReleaseSafe builds.
+This supplies an initialization mechanism to investigate; occupied private bytes
+and admitted capacity remain distinct quantities.
+
+The candidate log is `.cache/milestone3/maintenance-workspace-installed.log`,
+SHA-256 `a34214bc6349dcccfc1d8086f9b3abe1207180abb4b57f8ab6a8428b13b7d109`.
+Node and caller SHA-256 identities are respectively
+`2dcd2460dd35a6b9bb3362b96a7b5c387630fa1b9a3f67a00b66d8e02c57762a` and
+`d6d1f6b5e2787edb1c8ceab27d19fe89cc0c90f87c42b0fcb62bb0e87469ddf6`.
+The baseline record remains in
+`.cache/milestone3/current-77f9fb503-clean-growth.log`, SHA-256
+`88b0a047c4268c2f80100eef885c1153752f76b730e91b89aecc2d4c62cf4f8b`;
+that lane is incomplete because its final duplicate catalog growth schedule was
+deliberately interrupted. Its completed maintenance task remains distinct from
+lane completion.
+
+### Admission initialization control
+
+At `79c04aec0`, `Slab.init` obtains raw aligned backing through its supplied
+allocator, charges the full capacity and initializes its own metadata without
+filling unused payload bytes. Ordinary borrower allocations, `reset(true)` and
+full-reserve destruction retain their initialization/erasure behavior. The
+standalone memory package passes all 18 tests in ReleaseSafe. A prefilled backing
+control verifies untouched unused bytes, full budget/probe charges, erasure on
+reset and zero remaining charges after destruction. Restoring the previous
+initializer makes only that new check fail; the other 17 checks pass.
+These are package controls, not an installed RSS result for this follow-up.
+
 ## Installed packaging recovery and repository qualification — 2026-10-28
 
 At frozen source `4d778efa9ffc5a8ad3e012bcecee1cc9887621db`, the committed-source
