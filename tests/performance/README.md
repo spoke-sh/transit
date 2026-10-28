@@ -96,7 +96,10 @@ or establish that a failed installed-server sample passed.
 Add `--instrument` in a separate run to count the SQL gateway's upstream native
 and Table operations, including Catalog token/record work and direct commits.
 The probe observes only SQL upstream traffic, leaving installation bootstrap and
-other services on their ordinary endpoint. The statement workload rejects
+other services on their ordinary endpoint. Each instrumented statement retains
+a bounded native operation trace, including failed statements, with owner/provider
+work counters and no native payloads or credentials. Truncated trace windows report
+the omitted count. The statement workload rejects
 Station send/turn dispatch in its measured windows. Proxy and background recovery
 work affect these measurements; summed request durations may overlap and are
 not pure query-engine time. Setup and idle observations remain separate. Run
