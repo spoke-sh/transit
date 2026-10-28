@@ -10,6 +10,9 @@ const P = c.storage.TablePartition;
 const Self = @This();
 
 host: *Host,
+/// Private Table workspace backing; provider and engine caches have their own
+/// lifetimes and are accounted separately from this allocation boundary.
+allocator: std.mem.Allocator,
 cursors: struct {
     flush: c.DirectCatalog.MaintenanceCursor = .{},
     archive: c.DirectCatalog.MaintenanceCursor = .{},
@@ -48,7 +51,7 @@ const Age = struct { object: u64, since_ms: i64 };
 pub fn step(raw: *anyopaque, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, signed: g.SignedRequest) !bool {
     const self: *Self = @ptrCast(@alignCast(raw));
     try settings.validate();
-    var memory: c.fuze.MemoryBudget = .{ .parent = engine.journal.backend.allocator, .limit = settings.resident_bytes };
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = settings.resident_bytes };
     defer self.last_peak_bytes = memory.peak;
     self.last_rows = 0;
     self.last_object = null;
@@ -168,7 +171,7 @@ const Authority = struct {
 
 test "physical flush age hints cannot delay evicted Tables or track durable cardinality" {
     const t = std.testing;
-    var work: Self = .{ .host = undefined };
+    var work: Self = .{ .host = undefined, .allocator = undefined };
     const settings: c.protocol.Storage.Flush = .{};
     const pending: P.PendingRows = .{ .rows = 1, .bytes = 100, .oldest_lsn = 7 };
     try t.expect(!work.eligible(1, .{}, 1000, settings));

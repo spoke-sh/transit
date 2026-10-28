@@ -1017,7 +1017,7 @@ const PhysicalPause = struct {
 fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAuthority.Name, expected: c.storage.TablePartition.Evidence, retained: c.storage.TablePartition.SnapshotHandle) !void {
     const Work = @import("LocalTableMaintenance.zig");
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
-    var work: Work = .{ .host = &host };
+    var work: Work = .{ .host = &host, .allocator = t.allocator };
     const settings: p.Storage.Maintenance = .{ .flush = .{ .enabled = true } };
     const request: g.Request = .{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .checkpoint };
     const signed = try g.sign(request, try key(17));
@@ -1140,7 +1140,8 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
     }
     try t.expect(before.items.len >= 4);
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
-    var work: Work = .{ .host = &host };
+    var allocations: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
+    var work: Work = .{ .host = &host, .allocator = allocations.allocator() };
     const settings: p.Storage.Maintenance = .{
         .flush = .{ .enabled = true, .rows = 1, .work_rows = 2 },
         .archive = .{ .enabled = true, .work_frames = 2 },
@@ -1158,7 +1159,7 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
         if (units == 4096) return error.FixtureBudget;
         if (units == 17) {
             // Lose scheduling/recovery hints once while accepted targets remain.
-            work = .{ .host = &host };
+            work = .{ .host = &host, .allocator = allocations.allocator() };
             host.table_recovery = @splat(null);
             idle = 0;
         }
@@ -1168,8 +1169,27 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
         };
         peak = @max(peak, work.last_peak_bytes);
         try t.expect(work.last_peak_bytes <= settings.resident_bytes);
+        try t.expectEqual(0, allocations.live_bytes);
         idle = if (progressed) 0 else idle + 1;
     }
+    const active_allocations = allocations.counts;
+    const active_peak = allocations.peak_bytes;
+    allocations.begin(false);
+    for (0..16) |_| try t.expect(!try Work.step(&work, engine, settings, signed));
+    try t.expectEqual(0, allocations.live_bytes);
+    const measurement = try std.json.Stringify.valueAlloc(t.allocator, .{
+        .boundary = "private_table_maintenance",
+        .tables = before.items.len,
+        .active_units = units,
+        .active = active_allocations,
+        .active_peak_bytes = active_peak,
+        .idle_units = 16,
+        .idle = allocations.counts,
+        .idle_peak_bytes = allocations.peak_bytes,
+        .retained_bytes = allocations.live_bytes,
+    }, .{});
+    defer t.allocator.free(measurement);
+    std.debug.print("Local Table maintenance backing allocations: {s}\n", .{measurement});
     for (before.items) |original| {
         var view = (try catalog.maintenanceOpen(t.allocator, original.object, guard)).?;
         defer view.deinit();
