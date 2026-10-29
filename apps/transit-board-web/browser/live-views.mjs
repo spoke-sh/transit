@@ -187,7 +187,8 @@ try {
   await counter.getByRole("button", { name: "Follow counter", exact: true }).click();
   await expect(counter.locator("#status")).toHaveAttribute("data-phase", "current");
   await expect(counter.locator("#rows tr").first()).toHaveText("11");
-  await board.goto(config.board);
+  // Reactive inspection lives in Operations; the home page opens Catalog.
+  await board.goto(new URL("/operations", config.board).href);
   await board.getByRole("button", { name: "Follow metadata", exact: true }).click();
   await expect(board.getByLabel("Live Table metadata").getByRole("status")).toContainText(
     "current",

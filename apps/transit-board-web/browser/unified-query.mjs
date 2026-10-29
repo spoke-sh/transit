@@ -93,7 +93,8 @@ await page.route("**/api/v1/query", async (route) => {
   await route.continue();
 });
 try {
-  await page.goto(origin);
+  // Resource inspection lives in Operations; the home page opens Catalog.
+  await page.goto(new URL("/operations", origin).href);
   await page.getByRole("button", { name: `Select resource ${resource}`, exact: true }).click();
   await page.getByRole("button", { name: "Enter resource", exact: true }).click();
   const draft = page.getByLabel("SQL draft", { exact: true });
