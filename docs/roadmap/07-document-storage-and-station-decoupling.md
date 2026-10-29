@@ -1,6 +1,6 @@
 # 7. Logical document storage, `.tseg` trees and Station decoupling
 
-[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** Planned
+[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Native State #126](https://github.com/spoke-sh/transit/issues/126) · [Layouts & Codecs #128](https://github.com/spoke-sh/transit/issues/128) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · **Status:** In Progress — core and private storage foundation
 
 Decouple `Document` (`DOCUMENT`) completely from the `Station` durable actor
 runtime ([`transit-station-document`](../../packages/zig/transit-station-document/README.md),
@@ -196,8 +196,33 @@ gateway exchange capture over it.
 ## Implementation plan for initial Document decoupling
 
 **Plan basis:** `origin/main` at `1116604e90f79f1d9c879b4262f62993da4990f1`,
-2026-10-28. **Delivery status:** Planned; the packages and checks below are work
-to implement, not new runtime evidence.
+2026-10-28. **Delivery status:** Core and private storage foundation implemented;
+the database acceptance and public cutover gates below remain planned.
+
+### Initial implementation scope
+
+The first slice extracts the unchanged canonical change model, codec and merge
+evaluator into [`transit-document`](../../packages/zig/transit-document/README.md),
+with an owner-supplied immutable-index interface and no Station dependency.
+The existing service composes this evaluator with its current Station index,
+publication and caller boundaries.
+
+[`DocumentIndex`](../../packages/zig/transit-storage/docs/document-index.md)
+adds bounded `.tseg` causal-record staging, paged directories, immutable roots
+and scoped candidate workspaces in `transit-storage`. This is a portion of P1
+and P2: it preserves current logical/change bounds and stages private roots.
+It does not implement the new logical algebra, succinct topology,
+`DocumentPartition`, direct catalog initialization, WAL acceptance, retention
+walking or public consumer cutover. The shared definition and installed wire
+formats do not change in this slice.
+
+The public cutover remains gated on the M5/M6 state/input/output transaction
+decision. Keeping the installed callers on their current authority while the
+foundation is established avoids introducing another public acceptance model.
+The component guide links executable checks; full milestone acceptance requires
+the schedules and gates below.
+
+### Intended initial public outcome
 
 The first outcome is a declared Document whose initialization, accepted edits,
 revision reads and recovery belong to the database. A caller can create it,
