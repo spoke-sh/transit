@@ -1,5 +1,6 @@
 """Real authorized notification waits, with bounded admission and revocation."""
 from concurrent.futures import ThreadPoolExecutor
+from http.client import HTTPResponse, RemoteDisconnected
 import json
 import socket
 import time
@@ -53,18 +54,32 @@ def run(post, sign_query, query, command, pid, seed, public, url, remote_command
     # The fixture's 800 ms request deadline cancels a 1,000 ms idle wait.
     # Exercise all slots, then reuse all of them: cancellation must release
     # both the authority mutex and volatile/admission registrations.
+    # Wait hints may wake spuriously, and a previous response can reach the
+    # client just before its admission slot is released. Neither response
+    # proves cancellation: require an actual deadline close for every caller.
     current = query({'process': pid})['position']
     endpoint = urlsplit(url)
     body = json.dumps(read).encode()
     def canceled():
-        with socket.create_connection((endpoint.hostname, endpoint.port), timeout=3) as peer:
-            peer.sendall((f'POST /v1/query HTTP/1.1\r\nHost: {endpoint.netloc}\r\n'
-                          f'Content-Length: {len(body)}\r\nX-Transit-Wait: {current}:1000\r\n\r\n').encode() + body)
-            try:
-                response = peer.recv(4096)
-                assert response == b'', ('deadline unexpectedly returned a response', response)
-            except ConnectionResetError:
-                pass
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            with socket.create_connection((endpoint.hostname, endpoint.port), timeout=max(.01, deadline-time.monotonic())) as peer:
+                started = time.monotonic()
+                peer.sendall((f'POST /v1/query HTTP/1.1\r\nHost: {endpoint.netloc}\r\n'
+                              f'Content-Length: {len(body)}\r\nX-Transit-Wait: {current}:1000\r\n\r\n').encode() + body)
+                response = HTTPResponse(peer)
+                try:
+                    response.begin()
+                except (RemoteDisconnected, ConnectionResetError):
+                    assert time.monotonic() - started >= .6, 'connection closed before the request deadline'
+                    return
+                with response:
+                    value = json.load(response)
+                    assert (response.status == 200 and value['position'] == current) or (
+                        response.status == 503 and value == {'err': 'HttpCapacity'}
+                    ), (response.status, value)
+            time.sleep(.02)
+        raise AssertionError('No request reached deadline cancellation within the socket budget')
     with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(lambda _: canceled(), range(4)))
         pending = [pool.submit(wait, read, current, 100) for _ in range(4)]
