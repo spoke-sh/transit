@@ -11,7 +11,7 @@
   color: #646b72;
 }
 .data-workbench .eyebrow {
-  color: #727982;
+  color: #646b72;
   font-size: 10px;
   letter-spacing: 0.12em;
 }
@@ -116,7 +116,7 @@
 .column-select small {
   display: block;
   margin-top: 5px;
-  color: #727982;
+  color: #646b72;
   font-size: 11px;
   font-weight: 400;
 }
@@ -138,7 +138,7 @@
   border: 1px dashed #d9dfe4;
   border-radius: 6px;
   margin: 24px 0;
-  color: #727982;
+  color: #646b72;
 }
 .workbench-empty h2 {
   color: #30363c;
@@ -197,7 +197,7 @@
 }
 .workbench-profile dt,
 .workbench-evidence dt {
-  color: #727982;
+  color: #646b72;
   margin-bottom: 4px;
 }
 .workbench-profile dd,
@@ -254,7 +254,7 @@
 }
 .workbench-grid td[data-cell-state="null"],
 .workbench-grid td[data-cell-state="missing"] {
-  color: #727982;
+  color: #646b72;
   font-style: italic;
 }
 .workbench-grid td[data-cell-state="type_error"],
