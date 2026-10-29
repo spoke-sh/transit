@@ -5,6 +5,18 @@ draft-budget declarations derive directly from `transit-query.Workspace`, with
 CSP-compatible generated validators. Board's OpenAPI reflection is checked against
 the same owning definitions. This package does not compile SQL or confer authority.
 
+`StatementReader` and `describeReads` bind the shared Zig SQL client's
+`ReadWorkspace` through its generated schema. `run` submits once; `refresh` checks
+the original reader; `next` requests a bounded display window; `close` releases it.
+A failed response never implicitly executes SQL again. Runtime validation checks
+typed cells, full-width counts, result identity and completion. Requests are
+limited to 64 KiB and replies to 4 MiB. The facade defaults to Board's same-origin
+`/api/v1/sql-read`; an injected `ReadTransport` must preserve that contract.
+Consumers clear cached presentation on every failed observation and close on
+departure. A successful close response is distinct from aborting a browser wait.
+Views carry exact canonical observation JSON as an opaque string, not JavaScript
+numbers. This read facade does not replace finite Live or captured-query owners.
+
 `httpTransport(path, timeoutMs)` calls one configured same-origin host. It bounds
 requests to 64 KiB and decoded replies to 1 MiB before parsing, validates response
 structure and semantic cell/budget bounds. At most three retries

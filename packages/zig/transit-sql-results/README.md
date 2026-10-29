@@ -36,6 +36,14 @@ completion. A previously received terminal survives truncation, but its count
 does not imply that the window contains every row. The caller can continue
 streaming or close the result.
 
+Interactive sources may implement `Source.validate_disclosure`. Calling
+`ResultSet.holdDisclosure` retains the last source scope after exhaustion until
+explicit close/deinit or source lease expiry. `validateDisclosure` checks current
+access without advancing; unsupported or closed sources refuse it. Validation
+covers the current chunk, not earlier metadata with different authorization
+subjects. Ordinary readers keep automatic closure on exhaustion. Holding a
+disclosure scope does not pin source history or grant continuing access.
+
 `Batch` separates value layout from result progress. `fromRows` borrows existing
 rows; `fromColumns` borrows cell columns, Fuze vector views or verified plain
 column buffers. `nextBatch` returns the remaining bounded view without transposing

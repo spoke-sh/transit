@@ -112,6 +112,38 @@ or arrange independent control access. Expiry produces an incomplete prefix.
 `openCaptured` explicitly opens a retained captured operation as a new consumption;
 it never repairs or splices an interrupted reader.
 
+## Interactive read views
+
+`Executor.read(sql, options)` prepares through the service and executes that exact
+prepared statement only when its typed description is non-mutating, row-returning
+and has no unbound parameters. It rejects commands even when the configured
+account can write. It never classifies SQL text or retries an uncertain execution.
+The returned outcome owns both the prepared handle and the result.
+
+`ReadWorkspace.apply` composes this operation with `ReadView` for serialized
+interactive hosts. Its generated [neutral schema](api/read.schema.json) defines
+describe, explicit run, observe, next-window and close. Four readers share one
+workspace, with a five-minute absolute lifetime. IDs bind the exact SQL and optional
+expected Table definition. Repeated next requests bind the last delivered position;
+an uncertain advance cannot create another SELECT. Expiry is checked on each
+request; deinitialization releases all readers. Native session leases independently
+bound abandoned remote resources.
+
+Each view owns at most 100 rows in a 2 MiB allocation budget and has a 4 MiB JSON
+response ceiling. Exceeding a byte budget fails closed; it cannot imply completion.
+Metadata windows retain one source chunk because different chunks can contain
+different authorization subjects. Data windows can span source chunks. Counts
+and full-width values use lossless strings. Observation evidence is an opaque
+canonical JSON string; it is not a retention pin or an atomic snapshot claim.
+
+Every disclosure revalidates the held source, including empty and terminal
+windows. The optional expected Table definition is compared with the executed
+result's authoritative interpretation before disclosure, not before execution;
+it prevents a renamed or recreated source from supplying preview rows. Consumers
+must clear displayed values on failed validation, hide them while inactive, and
+close the reader on departure. A result can retain verified completion while
+only part of it has been displayed.
+
 ## Low-level connection controls
 
 `Client.init` validates endpoint/trust configuration. `open` negotiates the current

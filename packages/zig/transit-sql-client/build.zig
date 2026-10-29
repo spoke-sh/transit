@@ -9,4 +9,6 @@ pub fn build(b: *std.Build) void {
     const tests = b.addTest(.{ .root_module = module });
     b.step("test", "Test native SQL session client and local discovery").dependOn(&b.addRunArtifact(tests).step);
     b.step("check", "Compile the native SQL client").dependOn(&tests.step);
+    const schema = b.addExecutable(.{ .name = "transit-sql-read-schema", .root_module = b.createModule(.{ .root_source_file = b.path("src/read_schema.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_sql_client", .module = module }} }) });
+    b.step("schema", "Export the shared browser read contract").dependOn(&b.addRunArtifact(schema).step);
 }
