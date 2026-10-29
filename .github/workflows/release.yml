@@ -17,6 +17,7 @@ on:
       - 'sdks/**'
       - 'bindings/**'
       - 'tasks/*release*'
+      - 'tasks/bindings.just'
       - 'tasks/package_sdks.py'
       - 'tasks/package_handbook.py'
       - 'docs/handbook/**'
