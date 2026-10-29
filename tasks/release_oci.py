@@ -9,6 +9,30 @@ import tempfile
 INDEX = 'application/vnd.oci.image.index.v1+json'
 IMAGE = 'application/vnd.oci.image.manifest.v1+json'
 PLATFORMS = {'x86_64': 'amd64', 'aarch64': 'arm64'}
+# OCI's optional fields use Go omitempty during Docker-to-OCI conversion. Docker
+# inspection can additionally return unused container defaults, depending on its
+# API version. Only these explicit defaults are equivalent to absent fields;
+# preserve every non-default setting (including Docker-only settings) for comparison.
+# https://github.com/opencontainers/image-spec/blob/v1.1.1/specs-go/v1/config.go
+CONFIG_DEFAULTS = {
+    'User': '', 'ExposedPorts': {}, 'Env': [], 'Entrypoint': [], 'Cmd': [],
+    'Volumes': {}, 'WorkingDir': '', 'Labels': {}, 'StopSignal': '', 'ArgsEscaped': False,
+    'Hostname': '', 'Domainname': '', 'AttachStdin': False, 'AttachStdout': False,
+    'AttachStderr': False, 'Tty': False, 'OpenStdin': False, 'StdinOnce': False,
+    'Image': '', 'NetworkDisabled': False, 'MacAddress': '', 'OnBuild': [], 'Shell': [],
+}
+
+
+def execution_settings(config):
+    result = {}
+    for key, value in config.items():
+        if value is None:
+            continue
+        default = CONFIG_DEFAULTS.get(key)
+        if type(value) is type(default) and value == default:
+            continue
+        result[key] = value
+    return result
 
 
 def copy_image(source, destination, *options):
@@ -68,13 +92,16 @@ def exported(layout, architecture, original):
     descriptor, = json.loads((layout / 'index.json').read_text())['manifests']
     manifest = json.loads(blob(layout, descriptor))
     config = json.loads(blob(layout, manifest['config']))
-    # Conversion omits Docker's null configuration fields and changes its config
+    # Conversion omits Docker's default configuration fields and changes its config
     # digest. Compare the actual execution configuration and uncompressed layers
     # to the image that was run, then record the exported OCI config identity.
-    normalize = lambda value: {key: item for key, item in value.items() if item is not None}
+    actual, expected = execution_settings(config['config']), execution_settings(original['Config'])
+    changed = sorted(key for key in actual.keys() | expected.keys() if actual.get(key) != expected.get(key))
+    if changed:
+        raise ValueError('OCI conversion changed image execution settings: ' + ', '.join(changed))
     rootfs = {'type': original['RootFS']['Type'], 'diff_ids': original['RootFS']['Layers']}
-    if normalize(config['config']) != normalize(original['Config']) or config['rootfs'] != rootfs:
-        raise ValueError('OCI conversion changed image execution settings or layers')
+    if config['rootfs'] != rootfs:
+        raise ValueError('OCI conversion changed image layers')
     digest = manifest['config']['digest']
     return {'config': digest, 'manifest': native(layout, architecture, digest)}
 

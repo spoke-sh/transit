@@ -1,6 +1,7 @@
 """Publication refuses ambiguous registry state and altered local artifacts."""
 import json
 import hashlib
+import copy
 from pathlib import Path
 import runpy
 import subprocess
@@ -23,6 +24,47 @@ publish = publisher['publish']
 
 
 class Publication(unittest.TestCase):
+    def test_image_export_preserves_settings_across_docker_default_fields(self):
+        # Docker's inspection API includes defaults that OCI serialization omits.
+        settings = {'User': '65532:65532', 'Env': ['PATH=/bin', 'HOME=/tmp'],
+                    'Entrypoint': ['/bin/transit'], 'Cmd': ['server'],
+                    'WorkingDir': '/data', 'Labels': {'org.opencontainers.image.version': '0.0.1'}}
+        defaults = {'Hostname': '', 'Domainname': '', 'AttachStdin': False,
+                    'AttachStdout': False, 'AttachStderr': False, 'Tty': False,
+                    'OpenStdin': False, 'StdinOnce': False, 'Image': '',
+                    'ArgsEscaped': False, 'OnBuild': None, 'Volumes': None,
+                    'ExposedPorts': {}, 'StopSignal': '', 'Shell': []}
+        original = {'Config': settings | defaults,
+                    'RootFS': {'Type': 'layers', 'Layers': ['sha256:' + 'a' * 64]}}
+        with tempfile.TemporaryDirectory() as temporary:
+            layout = Path(temporary)
+            blobs = layout / 'blobs/sha256'
+            blobs.mkdir(parents=True)
+            def put(value, media):
+                data = json.dumps(value).encode()
+                digest = hashlib.sha256(data).hexdigest()
+                (blobs / digest).write_bytes(data)
+                return {'mediaType': media, 'digest': 'sha256:' + digest, 'size': len(data)}
+            config = put({'os': 'linux', 'architecture': 'amd64', 'config': settings,
+                          'rootfs': {'type': 'layers', 'diff_ids': original['RootFS']['Layers']}},
+                         'application/vnd.oci.image.config.v1+json')
+            manifest = put({'schemaVersion': 2, 'config': config, 'layers': []}, oci['IMAGE'])
+            (layout / 'index.json').write_text(json.dumps({'schemaVersion': 2, 'manifests': [manifest]}))
+            self.assertEqual(oci['exported'](layout, 'x86_64', original)['config'], config['digest'])
+            for key, value in {'User': '0', 'Env': ['PATH=/other'], 'Entrypoint': ['/other'],
+                               'Cmd': ['console'], 'WorkingDir': '/', 'StopSignal': 'SIGKILL',
+                               'ArgsEscaped': True, 'OpenStdin': True, 'Shell': ['/bin/sh'],
+                               'Labels': {'org.opencontainers.image.version': 'foreign'}}.items():
+                with self.subTest(key=key):
+                    changed = copy.deepcopy(original)
+                    changed['Config'][key] = value
+                    with self.assertRaisesRegex(ValueError, key):
+                        oci['exported'](layout, 'x86_64', changed)
+            changed = copy.deepcopy(original)
+            changed['RootFS']['Layers'] = ['sha256:' + 'b' * 64]
+            with self.assertRaisesRegex(ValueError, 'layers'):
+                oci['exported'](layout, 'x86_64', changed)
+
     def test_only_explicit_missing_manifest_allows_new_tag(self):
         for error in ('unauthorized', 'TLS handshake failed', 'too many requests'):
             with self.subTest(error=error), patch('subprocess.run', return_value=
