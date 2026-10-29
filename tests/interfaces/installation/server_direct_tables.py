@@ -13,6 +13,7 @@ import time
 
 from harness.processes import children, command
 from interfaces.installation.server import Fixture
+from harness.sql_placement import call as placement
 from interfaces.cli.table_console import atom, records
 from interfaces.installation.server_application_faults import ExistingKey, native, post
 from interfaces.http.serving import compact
@@ -136,6 +137,23 @@ def run(cli, node, host, board, gateway):
         fixture.start()
         fixture.ready(timeout=300)
         before = fixture.record()
+        hosted = placement(fixture)
+        assert hosted['state'] == 'running' and hosted['local_requests']['table'] > 0
+        assert not any('/sql/gateway.json' in command(pid) for pid in children(fixture.process.pid))
+        saved = json.loads((fixture.installation / 'sql/gateway.json').read_text())
+        repeated = dict(start=dict(expected=None, configuration=saved))
+        placement(fixture, repeated, lose_reply=True)
+        assert placement(fixture, repeated)['fingerprint'] == hosted['fingerprint']
+        changed = saved | {'native_url': 'http://127.0.0.1:1'}
+        rejected = placement(fixture, dict(start=dict(expected=None, configuration=changed)))
+        assert rejected['state'] == 'failed' and rejected['failure'] == 'SqlDeploymentChanged'
+        assert placement(fixture)['state'] == 'running'
+        try:
+            placement(fixture, definition="0" * 64)
+            raise AssertionError('Foreign definition accepted')
+        except EOFError:
+            pass
+        print('Installed co-host: typed dispatch, exact start retry after lost reply, stale replacement and foreign definition rejection passed.', flush=True)
         configuration = json.loads((fixture.installation / 'node.json').read_text())
         assert configuration['table']['catalog']['scope']['resource'] == before['provision'][5]
         assert configuration['table']['registrar']['principal'] == 26

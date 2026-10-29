@@ -1088,10 +1088,22 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     single_server_test.has_side_effects = true;
     single_server_test.stdio = .inherit;
     b.step("test-server-single-executable", "Prove default server, console and Board from one copied executable").dependOn(&single_server_test.step);
+    // Same production node, with only the SQL host import decorated by a
+    // test-owned typed-boundary fault injector. No fault switch ships at runtime.
+    const fault_host = b.createModule(.{
+        .root_source_file = b.path("tests/interfaces/installation/sql_fault_host.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "sql_host", .module = node_artifact.root_module.import_table.get("transit_sql_host").? }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") } },
+    });
+    const fault_node_module = b.createModule(.{ .root_source_file = b.path("apps/transit-node/main.zig"), .target = target, .optimize = optimize, .link_libc = true });
+    var node_imports = node_artifact.root_module.import_table.iterator();
+    while (node_imports.next()) |entry| fault_node_module.addImport(entry.key_ptr.*, if (std.mem.eql(u8, entry.key_ptr.*, "transit_sql_host")) fault_host else entry.value_ptr.*);
+    const fault_node = b.addExecutable(.{ .name = "transit-node-fault-fixture", .root_module = fault_node_module });
     const direct_fault_test = b.addSystemCommand(&.{ "python3", "-B" });
     direct_fault_test.addFileArg(b.path("tests/runner/launch.py"));
     direct_fault_test.addFileArg(b.path("tests/interfaces/installation/server_direct_faults.py"));
-    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| direct_fault_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, query_host, board, sql_gateway_app }) |artifact| direct_fault_test.addArtifactArg(artifact);
     direct_fault_test.has_side_effects = true;
     direct_fault_test.stdio = .inherit;
     b.step("test-server-direct-faults", "Prove installed direct Table recovery and control during data-owner failures").dependOn(&direct_fault_test.step);
@@ -1122,7 +1134,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             run.addDirectoryArg2(.{ .relative = .{ .base = .install_prefix } }, .{});
             run.step.dependOn(b.getInstallStep());
         } else {
-            for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| run.addArtifactArg(artifact);
+            for ([_]*std.Build.Step.Compile{ transit_cli, if (comptime std.mem.eql(u8, proof[0], "test-server-sql")) fault_node else node_artifact, query_host, board, sql_gateway_app }) |artifact| run.addArtifactArg(artifact);
         }
         run.step.dependOn(&operation_install.step);
         run.has_side_effects = true;
@@ -1162,6 +1174,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     build_test_step.dependOn(&flight_gateway.step);
     build_test_step.dependOn(&sql_gateway_app.step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = sql_gateway_app.root_module })).step);
+    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = node_artifact.root_module.import_table.get("transit_sql_host").? })).step);
     const flight_test = b.addSystemCommand(&.{ "python3", "-B" });
     if (b.option([]const u8, "flight-placement", "Run Flight in compose or reference placement")) |profile| {
         flight_test.addFileArg(b.path("examples/flight/run.py"));

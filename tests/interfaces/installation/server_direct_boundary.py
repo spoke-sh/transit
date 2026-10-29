@@ -143,7 +143,8 @@ def run_node(binary, directory, upstream_port):
     server.daemon_threads = True
     for name in (signal.SIGTERM, signal.SIGINT):
         signal.signal(name, lambda *_: stopping.set())
-    child = subprocess.Popen([*binary, str(upstream_config), *sys.argv[2:]], preexec_fn=parent_death)
+    child = subprocess.Popen([*binary, str(upstream_config), *sys.argv[2:]], preexec_fn=parent_death,
+                             env=os.environ | {"TEST_TRANSIT_DIRECT_BOUNDARY": str(directory)})
     (directory / f'node-{child.pid}.pid').write_text(f'{child.pid} {process_start(child.pid)}')
     thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': .05}, daemon=True)
     thread.start()

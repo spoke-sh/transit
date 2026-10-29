@@ -10,7 +10,7 @@ const Discovery = @import("transit_sql_client").Discovery;
 const Settings = @import("SqlSettings.zig");
 const Installation = @import("Installation.zig");
 const Files = @import("Files.zig");
-const Process = @import("Process.zig");
+const Deployment = @import("transit_sql_host").Deployment;
 const Provider = @import("Provider.zig");
 const Self = @This();
 const telemetry = q.wire.observability.telemetry;
@@ -23,7 +23,9 @@ setup_arena: std.heap.ArenaAllocator,
 executable: []const u8,
 meta: E.Meta,
 entries: std.ArrayList(Entry) = .empty,
-service: Process = .{},
+control_socket: []const u8,
+service_fingerprint: ?[32]u8 = null,
+pending_start: bool = false,
 service_count: usize = 0,
 service_started: ?std.Io.Timestamp = null,
 trust: ?Trust.Paths = null,
@@ -62,7 +64,7 @@ pub fn recover(installation: *Installation) !void {
 pub fn create(installation: *Installation, allocator: std.mem.Allocator, executable: []const u8, diagnostics: *telemetry.Runtime) !?*Self {
     const meta = (try E.open(installation, allocator)) orelse return null;
     const self = try allocator.create(Self);
-    self.* = .{ .diagnostics = diagnostics, .installation = installation, .allocator = allocator, .setup_arena = .init(installation.init.gpa), .executable = executable, .meta = meta };
+    self.* = .{ .diagnostics = diagnostics, .installation = installation, .allocator = allocator, .setup_arena = .init(installation.init.gpa), .executable = executable, .meta = meta, .control_socket = try Deployment.socketPath(allocator, installation.init.io, installation.init.environ_map.get("XDG_RUNTIME_DIR"), installation.config.installation) };
     errdefer self.destroy();
     try self.tick();
     return self;
@@ -147,8 +149,18 @@ fn configuredAccount(self: *Self, name: []const u8) ?Settings.Account {
     for (self.installation.config.sql.accounts) |account| if (std.mem.eql(u8, account.name, name)) return account;
     return null;
 }
+fn hostCall(self: *Self, allocator: std.mem.Allocator, action: Deployment.Action, timeout_ms: u32) !std.json.Parsed(Deployment.Status) {
+    return Deployment.call(allocator, self.installation.init.io, self.control_socket, action, timeout_ms) catch |err| switch (err) {
+        error.FileNotFound, error.ConnectionRefused, error.ConnectionResetByPeer, error.EndOfStream, error.Timeout, error.SocketNotConnected, error.ConnectionTimedOut, error.BrokenPipe => error.AuthorityUnavailable,
+        else => err,
+    };
+}
 pub fn stop(self: *Self) void {
-    self.service.stopWithTimeout(self.installation.init.io, self.installation.config.sql.drain_ms + 1000);
+    if (self.service_fingerprint) |fingerprint| {
+        const result = Deployment.call(self.installation.init.gpa, self.installation.init.io, self.control_socket, .{ .stop = fingerprint }, self.installation.config.sql.drain_ms + 2000) catch return;
+        defer result.deinit();
+        if (result.value.state == .stopped) self.service_fingerprint = null;
+    }
 }
 pub fn destroy(self: *Self) void {
     self.stop();
@@ -208,17 +220,33 @@ fn beginInitialization(self: *Self, index: usize, allocator: std.mem.Allocator) 
 }
 fn startService(self: *Self, allocator: std.mem.Allocator) !void {
     const installation = self.installation;
-    self.service.stopWithTimeout(installation.init.io, installation.config.sql.drain_ms + 1000);
-    var accounts: std.ArrayList(g.Configuration.Account) = .empty;
-    for (self.entries.items) |*entry| if (entry.record.initialized) {
-        try self.activate(allocator, &entry.record);
-        try accounts.append(allocator, try self.runtimeAccount(allocator, entry.*));
-    };
-    if (accounts.items.len == 0) return;
     const file = try E.path(installation, allocator, "gateway.json");
-    try Files.json(installation.init.io, allocator, file, try self.configuration(allocator, accounts.items, true));
-    try self.service.start(installation.init, self.executable, try E.path(installation, allocator, "gateway.launch.json"), .{ .argv = try installation.config.command(allocator, self.executable, .sql_gateway, &.{file}), .environment = &installation.config.logging.environment() }, false);
-    self.service_count = accounts.items.len;
+    if (!self.pending_start) {
+        var accounts: std.ArrayList(g.Configuration.Account) = .empty;
+        for (self.entries.items) |*entry| if (entry.record.initialized) {
+            try self.activate(allocator, &entry.record);
+            try accounts.append(allocator, try self.runtimeAccount(allocator, entry.*));
+        };
+        if (accounts.items.len == 0) return;
+        try Files.json(installation.init.io, allocator, file, try self.configuration(allocator, accounts.items, true));
+        self.pending_start = true;
+    }
+    // Keep this exact saved configuration through a lost lifecycle reply. A
+    // retry must not consume another activation generation or replay SQL.
+    const configuration_value = try Files.read(g.Configuration, installation.init.io, allocator, file);
+    const expected = try Deployment.fingerprint(allocator, configuration_value);
+    // A confirmed stopped host can follow node replacement. It no longer
+    // owns the old fingerprint; account generations still fence durable work.
+    const current = try self.hostCall(allocator, .status, installation.config.sql.request_timeout_ms);
+    defer current.deinit();
+    if (current.value.state == .stopped) self.service_fingerprint = null;
+    const status = try self.hostCall(allocator, .{ .start = .{ .expected = self.service_fingerprint, .configuration = configuration_value } }, installation.config.sql.drain_ms + 2000);
+    defer status.deinit();
+    if (status.value.fingerprint == null or !std.mem.eql(u8, &expected, &status.value.fingerprint.?)) return error.GatewayOwnerUnavailable;
+    self.service_fingerprint = expected;
+    self.pending_start = false;
+    if (status.value.state != .running) return error.GatewayOwnerUnavailable;
+    self.service_count = configuration_value.accounts.len;
     self.service_started = std.Io.Clock.awake.now(installation.init.io);
     self.status = .starting;
     self.service_was_ready = false;
@@ -294,8 +322,11 @@ fn advance(self: *Self, allocator: std.mem.Allocator) !void {
     };
     if (self.entries.items.len == 0) self.status = if (self.installation.config.sql.listening()) .awaiting_authorization else .recovery;
     if (initialized != self.service_count) try self.startService(allocator);
-    if (self.service.child != null) {
-        if (!self.service.alive()) return error.GatewayOwnerUnavailable;
+    if (self.service_fingerprint) |fingerprint| {
+        const observed = try self.hostCall(allocator, .status, self.installation.config.sql.request_timeout_ms);
+        defer observed.deinit();
+        if (observed.value.state == .stopped) self.service_fingerprint = null;
+        if (observed.value.state != .running or observed.value.fingerprint == null or !std.mem.eql(u8, &fingerprint, &observed.value.fingerprint.?)) return error.GatewayOwnerUnavailable;
         const recovery = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/recovery", .{self.installation.config.sql.health_port});
         if (Provider.health(self.installation.init, recovery)) {
             self.service_started = std.Io.Clock.awake.now(self.installation.init.io);
