@@ -10,7 +10,7 @@ import subprocess
 import time
 
 from runner.paths import ROOT
-from verification.models.tlc_support import complete
+from verification.models.tlc_support import complete, run_traces
 
 MODELS = Path(__file__).resolve().parent
 MUTANTS = {
@@ -64,6 +64,7 @@ def runner_controls():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("binary", help="built TransactionDecisionLog trace adapter")
     parser.add_argument("--seconds", type=int, default=60)
     args = parser.parse_args()
     if args.seconds <= 0:
@@ -76,7 +77,7 @@ def main():
         time.strftime("%Y%m%dT%H%M%S") + f"-{os.getpid()}")
     destination.mkdir(parents=True)
     sources = [MODELS / "TransactionDecision.tla", MODELS / "TransactionDecision.cfg",
-               MODELS / "tlc_support.py", Path(__file__),
+               MODELS / "tlc_support.py", MODELS / "transaction_decision_state.zig", Path(__file__),
                ROOT / "packages/zig/transit-storage/src/TransactionDecisionLog.zig",
                ROOT / "packages/zig/transit-storage/src/TransactionDirectory.zig"]
     evidence = {"version": 1, "status": "inconclusive", "participants": 2,
@@ -86,6 +87,7 @@ def main():
                 "dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True)),
                 "sources": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                             for p in sources}, "checks": []}
+    traces = {}
     try:
         template = (MODELS / "TransactionDecision.cfg").read_text()
         for guard in (None, *MUTANTS):
@@ -115,14 +117,31 @@ def main():
                 evidence["distinct_states"] = states
             else:
                 actions = counterexample(result.returncode, output, MUTANTS[guard])
+                traces[guard] = actions
                 (local / "counterexample.json").write_text(json.dumps({
                     "violation": MUTANTS[guard], "actions": actions,
-                    "implementation_replay": False}, indent=2) + "\n")
+                    "implementation_replay": True}, indent=2) + "\n")
             evidence["checks"].append({"guard": name, "status": "passed" if guard is None else "detected",
                                        "seconds": round(time.monotonic() - started, 3)})
+        expected = {
+            "CheckFrozen": {"decision": "none", "last_error": "TransactionNotFrozen", "tail": 0},
+            "CheckComplete": {"decision": "preparing", "last_error": "InvalidTransactionDecision", "tail": 1},
+            "CheckFence": {"decision": "preparing", "last_error": "StaleWriterEpoch", "tail": 1},
+            "CheckPolicy": {"decision": "preparing", "last_error": "AccessDenied", "tail": 1},
+            "CheckStable": {"decision": "committed", "last_error": "none", "tail": 2},
+            "CheckDisclosure": {"knowledge": "denied", "last_error": "AccessDenied"},
+        }
+        replayed = run_traces(args.binary, list(traces.values()), destination, args.seconds)
+        for (guard, events), actual in zip(traces.items(), replayed, strict=True):
+            for field, value in expected[guard].items():
+                if actual[field] != value:
+                    raise AssertionError(f"{guard} replay {events}: {actual} != {expected[guard]}")
+        (destination / "replay-results.json").write_text(json.dumps(replayed, indent=2) + "\n")
+        evidence["implementation_replay"] = {"counterexamples": len(traces)}
+        evidence["binary_sha256"] = hashlib.sha256(Path(args.binary).read_bytes()).hexdigest()
         evidence["status"] = "passed"
-        print(f"Transaction decision TLC: {evidence['distinct_states']} states exhausted; six negative controls detected. "
-              "Table visibility, isolation and implementation refinement are outside this model.")
+        print(f"Transaction decision TLC: {evidence['distinct_states']} states exhausted; "
+              f"six negative controls detected and replayed against Zig.")
         print(f"Evidence: {destination.relative_to(ROOT)}")
     finally:
         (destination / "evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")

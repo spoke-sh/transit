@@ -140,6 +140,7 @@ def main():
             code, output = run_tlc("WriteTokens", config, destination / f"tokens-{name}", args.seconds)
             generated, states = complete(code, output)
             evidence["checks"].append({"name": f"tokens-{name}", "status": "exhausted", "generated": generated, "distinct": states})
+        token_traces = {}
         for module, guards in (("WriteLifecycle", GUARDS), ("WriteTokens", TOKEN_GUARDS)):
             for guard, invariant in guards.items():
                 name = f"{module}-{guard}"
@@ -150,10 +151,13 @@ def main():
                 code, output = run_tlc(module, configure(module, **fields), local, args.seconds)
                 actions = counterexample(code, output, invariant)
                 (local / "counterexample.json").write_text(json.dumps({"violation": invariant, "actions": actions,
-                    "implementation_replay": False}, indent=2) + "\n")
+                    "implementation_replay": True}, indent=2) + "\n")
                 evidence["checks"].append({"name": name, "status": "detected", "invariant": invariant})
                 if module == "WriteLifecycle":
                     traces[guard] = actions
+                else:
+                    mode = "TokenIsolation" if guard == "CheckAccount" else "TokenConflict"
+                    token_traces[guard] = [mode, *actions]
         # These expected projections are independent, fixed fixture oracles.
         # The replay does not execute a second implementation of the TLA model.
         committed = {"rows": [2, 2, 0], "decision": "committed", "matched": 2, "changed": 2}
@@ -164,16 +168,30 @@ def main():
                              "last_error": "StaleWriterEpoch" if key == "CheckFence" else "PermissionDenied"}
         expected["CheckDisclosure"] = {"rows": [1, 1, 0], "decision": "not_observed", "matched": 0,
                                        "changed": 0, "last_error": "PermissionDenied"}
-        replayed = run_traces(args.binary, list(traces.values()), destination, args.seconds)
-        for (guard, events), actual in zip(traces.items(), replayed, strict=True):
+        expected_tokens = {
+            "CheckScope": {"replies": [1, 3], "unique_tokens": 1, "last_error": "ClientTokenConflict"},
+            "CheckFingerprint": {"replies": [1, 3], "unique_tokens": 1, "last_error": "ClientTokenConflict"},
+            "CheckBinding": {"replies": [1, 0], "target1": 1, "unique_tokens": 1, "last_error": "none"},
+            "CheckRecovery": {"replies": [1, 0], "retained": True, "unique_tokens": 1, "last_error": "none"},
+            "CheckAccount": {"replies": [1, 2], "unique_tokens": 2, "last_error": "none"},
+        }
+        all_traces = list(traces.values()) + list(token_traces.values())
+        replayed = run_traces(args.binary, all_traces, destination, args.seconds)
+        replayed_lifecycle = replayed[:len(traces)]
+        replayed_tokens = replayed[len(traces):]
+        for (guard, events), actual in zip(traces.items(), replayed_lifecycle, strict=True):
             for field, value in expected[guard].items():
                 if actual[field] != value:
                     raise AssertionError(f"{guard} replay {events}: {actual} != {expected[guard]}")
             if actual["retained_rows"] != 2:
                 raise AssertionError("retained snapshot changed")
+        for (guard, events), actual in zip(token_traces.items(), replayed_tokens, strict=True):
+            for field, value in expected_tokens[guard].items():
+                if actual[field] != value:
+                    raise AssertionError(f"{guard} token replay {events}: {actual} != {expected_tokens[guard]}")
         (destination / "replay-results.json").write_text(json.dumps(replayed, indent=2) + "\n")
         evidence["implementation_replay"] = {"selected_lifecycle_counterexamples": len(traces),
-                                              "tokens": False, "truncate": False, "finite_edge_correspondence": False}
+                                              "tokens": len(token_traces), "truncate": False, "finite_edge_correspondence": False}
         evidence["binary_sha256"] = hashlib.sha256(Path(args.binary).read_bytes()).hexdigest()
         evidence["status"] = "passed"
         print(f"Write lifecycle TLC: {len(profiles) + len(token_profiles)} finite profiles exhausted; "
