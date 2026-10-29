@@ -495,10 +495,43 @@ conflict frontiers; it does not promise contiguous historical WAL coverage.
 Temporary directories, one Table
 owner and decoding work share the admitted resident-byte limit. Catalog caches,
 provider buffers and fixed stack buffers have separate owners. Aggregate
-capacity, workspace-byte accounting and cleanup still require transaction-host
-integration. This component operation has no signed request or SQL adapter and
-does not execute private statements or decide a commit.
+capacity and cleanup still require transaction-host integration. This component
+operation has no signed request or SQL adapter and does not decide a commit.
 See the token contract for exact fields, permissions and execution boundaries.
+
+`admitTransactionStatement` freezes one original bulk DML request before private
+execution. Sequences start at one and are contiguous across Tables; at most one
+statement is pending per transaction. The request binds its neutral statement,
+Table operation and immutable `TableDmlIntent` content. A permanent operation
+claim prevents reuse as an autocommit operation, even after a lost admission
+reply. Another request cannot replace the pending statement.
+
+`executeTransactionStatement` resumes that request and publishes its private
+Table root and provisional outcome together through the original catalog token.
+Exact retries recover the original matched/affected counts or rejection. No
+Table data WAL append occurs. A storage/memory failure can leave the original
+statement pending; it does not establish rejection or transaction abort.
+`transactionTableState` returns the accepted private evaluator state, including
+its original live source pin, under current SELECT permission. This is not a
+Table recovery checkpoint. Each operation requires the host's exclusive database
+publication fence; statement disclosure rechecks current SELECT and original
+DML permissions under one writer/policy epoch.
+
+Private Table roots and completed statements use separate paged directories.
+Catalog recovery records retain both directories, pending intents, private data,
+operation evidence and source dependencies through `DirectStorageGraph`.
+Transient owners share the admitted resident budget. `workspace_bytes` bounds a
+conservative cumulative charge for accepted private staging, including repeated
+immutable puts and a 32 KiB metadata allowance per publication. Provider buffers,
+fixed stack buffers, permanent identity claims and catalog publication indexes
+have separate owners. Failed unreachable staging consumes physical storage until
+collection; this charge is not a provider disk quota or aggregate account limit.
+Generic caller records cannot stage or read any workspace record format.
+
+These are embedding component operations. Signed caller requests, SQL sessions,
+durable savepoint controls, participant preparation, common-decision visibility,
+abort settlement and automatic cleanup are not supplied by workspace publication.
+
 
 `DirectTablePreparedDdl.prepare` owns the parsed CREATE/ALTER/DROP definition and
 its exact current metadata under the caller's rights. `bind` takes a separate

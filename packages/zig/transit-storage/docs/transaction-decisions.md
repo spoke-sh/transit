@@ -74,11 +74,12 @@ rollback and reopen with a 16 MiB lifetime allowance and one cached index page.
 They refuse initialization with 4 KiB and a statement under an independent 4 KiB
 build cap without public acceptance.
 
-Before service use, the transaction owner must durably publish every accepted
-workspace state, failed statement sequence and result, retain its referenced
-data/receipt pages, enforce aggregate quotas and protect private segment identity
-allocation at preparation. State descriptors alone are not a retained root or
-preparation proof. This evaluator supplies no SQL session, common-cut acquisition,
+The catalog [workspace owner](../../transit-catalog/docs/direct-catalog.md)
+publishes accepted private states, consumed statement identities and provisional
+results and retains their data/receipt pages. Before service use, the host must
+still enforce aggregate quotas and protect private segment identity allocation
+at preparation. A state descriptor alone is not a retained root or preparation
+proof. This evaluator supplies no SQL session, common-cut acquisition,
 coordinator, participant preparation or public savepoint interface.
 
 ## Frozen attempt and decision

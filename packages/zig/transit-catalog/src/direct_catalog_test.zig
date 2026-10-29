@@ -2777,7 +2777,7 @@ test "transaction admission retains selected directory pages through the catalog
             try t.expect(workspace.marks.contains(try s.TreeStore.key(page.reference.location, &name)));
             pages += 1;
         },
-        .declaration => return error.UnexpectedDeclaration,
+        .declaration, .value => return error.UnexpectedDeclaration,
     };
     try t.expect(pages > 1);
 }
@@ -3005,7 +3005,7 @@ test "transaction common cut source pages remain reachable through catalog histo
             try t.expect(workspace.marks.contains(try s.TreeStore.key(page.reference.location, &name)));
             count += 1;
         },
-        .declaration => return error.UnexpectedDeclaration,
+        .declaration, .value => return error.UnexpectedDeclaration,
     };
     try t.expect(count > 1);
 }
@@ -3028,4 +3028,187 @@ test "transaction acquisition meters temporary memory and authorizes before reve
     access.deny_at = access.calls + 1;
     try t.expectError(error.CatalogDenied, catalog.acquireTransaction(binding.key, access.policy()));
     try t.expectEqualDeep(before, catalog.store.root);
+}
+
+fn workspaceRequest(catalog: *D, access: *Access, key: c.DirectClientToken.Key, object_id: u64, sequence: u64, operation: u64) !c.DirectTransactionWorkspace.Request {
+    const object: p.DataLifecycle.Object = .{ .scope = scope, .branch = 1, .object = object_id };
+    const state = try catalog.transactionTableState(key, object, access.policy());
+    const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = object, .action = .insert, .expected_definition = state.root.interpretation, .expected_data = null, .intent = @splat(3) };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = @intCast(operation) } } }};
+    const request: s.TableDmlIntent.Request = .{ .binding = binding, .interpretation = state.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(binding.identity, 0), .cells = &cells }, .expect = .absent } }}, .ingestion = .bulk };
+    return .{ .statement = .{ .transaction = state.begin.identity, .sequence = sequence, .intent = binding.intent }, .binding = binding, .intent = try s.TableDmlIntent.stage(t.allocator, catalog.data_objects, request) };
+}
+
+test "transaction durable workspace recovers lost admission and outcome replies without public writes" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var binding: c.DirectClientToken.Binding = undefined;
+    var request: c.DirectTransactionWorkspace.Request = undefined;
+    var expected: s.TableWorkspace.Outcome = undefined;
+    for (0..3) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        if (restart == 0) {
+            try catalog.initialize(access.policy());
+            binding = try selectedTransaction(&catalog, &access, 2);
+            _ = try catalog.acquireTransaction(binding.key, access.policy());
+            request = try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500);
+            catalog.store.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.admitTransactionStatement(binding.key, request, access.policy()));
+        } else if (restart == 1) {
+            try t.expect(try catalog.admitTransactionStatement(binding.key, request, access.policy()) == null);
+            var loaded = try s.TableDmlIntent.load(t.allocator, objects.objectStore(), request.intent);
+            defer loaded.deinit();
+            try t.expectError(error.DataIdentityConflict, catalog.applyRows(loaded.request, access.policy()));
+            catalog.store.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.executeTransactionStatement(binding.key, request, access.policy()));
+        } else {
+            const before = catalog.store.root;
+            expected = try catalog.executeTransactionStatement(binding.key, request, access.policy());
+            try t.expect(expected == .provisional);
+            try t.expectEqual(@as(u64, 1), expected.provisional.affected);
+            try t.expectEqualDeep(before, catalog.store.root);
+            const state = try catalog.transactionTableState(binding.key, request.binding.target, access.policy());
+            try t.expectEqual(@as(u64, 1), state.root.live_rows);
+            const acquired = try catalog.acquireTransaction(binding.key, access.policy());
+            try t.expectEqual(@as(u64, 2), acquired.cut.sources.count);
+            var view = (try resolve(&catalog, &access, "selected_0")).?;
+            defer view.deinit();
+            try t.expectEqual(@as(u64, 0), view.table.root.live_rows);
+            try t.expectEqual(@as(u64, 2), try wal.log().tail(view.table.root.partition));
+            var conflict = request;
+            conflict.binding.identity.operation += 1;
+            try t.expectError(error.TransactionStatementConflict, catalog.executeTransactionStatement(binding.key, conflict, access.policy()));
+            access.denied_metadata = 110;
+            try t.expectError(error.CatalogDenied, catalog.executeTransactionStatement(binding.key, request, access.policy()));
+            try t.expectError(error.CatalogDenied, catalog.transactionTableState(binding.key, request.binding.target, access.policy()));
+            access.denied_metadata = null;
+            try t.expectEqualDeep(expected, try catalog.executeTransactionStatement(binding.key, request, access.policy()));
+        }
+    }
+}
+
+test "transaction durable workspace pages and private data remain reachable beyond one cache page" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 9);
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    for (0..9) |i| {
+        const request = try workspaceRequest(&catalog, &access, binding.key, i + 10, i + 1, i + 500);
+        _ = try catalog.executeTransactionStatement(binding.key, request, access.policy());
+    }
+    // A separately admitted statement must retain its frozen bytes even before
+    // any private Table state or result exists for that sequence.
+    const pending = try workspaceRequest(&catalog, &access, binding.key, 10, 10, 600);
+    try t.expect(try catalog.admitTransactionStatement(binding.key, pending, access.policy()) == null);
+    var graph: @import("direct_storage_graph_test.zig").Workspace = .{};
+    defer graph.deinit();
+    try graph.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+    var at: usize = 0;
+    while (at < graph.jobs.items.len) : (at += 1) {
+        var work = graph.jobs.items[at];
+        while (true) {
+            const before = graph.jobs.items.len;
+            const done = try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &graph);
+            try t.expect(graph.jobs.items.len - before <= 3);
+            if (done) break;
+        }
+    }
+    var name: [96]u8 = undefined;
+    try t.expect(graph.marks.contains(try s.TableDmlIntent.key(pending.intent, &name)));
+    var segments: usize = 0;
+    for (objects.objects.items) |stored| {
+        if (std.mem.startsWith(u8, stored.key, "table-segments/")) {
+            try t.expect(graph.marks.contains(stored.key));
+            segments += 1;
+        }
+    }
+    try t.expectEqual(@as(usize, 9), segments);
+    const progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+    const head = try c.DirectTransactionWorkspace.recover(t.allocator, catalog.data_objects, progress);
+    try t.expectEqual(@as(u64, 10), head.last_statement);
+    try t.expect((try catalog.store.index.load(head.tables.?)).height > 0);
+    try t.expect((try catalog.store.index.load(head.statements.?)).height > 0);
+    for (0..9) |i| {
+        const state = try catalog.transactionTableState(binding.key, .{ .scope = scope, .branch = 1, .object = i + 10 }, access.policy());
+        try t.expectEqual(@as(u64, 1), state.root.live_rows);
+    }
+    _ = try catalog.executeTransactionStatement(binding.key, pending, access.policy());
+    try t.expectEqual(@as(u64, 2), (try catalog.transactionTableState(binding.key, pending.binding.target, access.policy())).root.live_rows);
+}
+
+test "transaction durable workspace rejects out of order and concurrent statements without consuming them" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 1);
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    const first = try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500);
+    const second = try workspaceRequest(&catalog, &access, binding.key, 10, 2, 501);
+    var before = catalog.store.root;
+    try t.expectError(error.TransactionStatementConflict, catalog.admitTransactionStatement(binding.key, second, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    _ = try catalog.admitTransactionStatement(binding.key, first, access.policy());
+    before = catalog.store.root;
+    try t.expectError(error.TransactionStatementPending, catalog.executeTransactionStatement(binding.key, second, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    _ = try catalog.executeTransactionStatement(binding.key, first, access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, second, access.policy());
+    try t.expectEqual(@as(u64, 2), (try catalog.transactionTableState(binding.key, first.binding.target, access.policy())).root.live_rows);
+}
+
+test "transaction durable workspace quota refusal preserves pending work and original private root" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const first_binding = try selectedTransaction(&catalog, &access, 1);
+    var binding = first_binding;
+    binding.key.token = @splat(2);
+    binding.intent.transaction.begin.identity.begin.operation += 1;
+    binding.intent.transaction.begin.limits.workspace_bytes = 40 * 1024;
+    // Rebind the paged selection to this distinct original begin.
+    var old = try s.TransactionDirectory.init(t.allocator, catalog.data_objects, first_binding.intent.transaction.begin.identity, .participants, 100, 1, 1024 * 1024);
+    defer old.deinit();
+    try old.restore(first_binding.intent.transaction.begin.tables);
+    var selected = try s.TransactionDirectory.init(t.allocator, catalog.data_objects, binding.intent.transaction.begin.identity, .participants, 100, 1, 1024 * 1024);
+    defer selected.deinit();
+    try selected.put((try old.get(10)).?);
+    binding.intent.transaction.begin.tables = try selected.seal();
+    binding.intent.transaction.begin.catalog.next_lsn = catalog.store.root.next_lsn;
+    _ = try catalog.clientToken(.{ .bind = binding }, access.policy());
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    const request = try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500);
+    _ = try catalog.admitTransactionStatement(binding.key, request, access.policy());
+    const before = catalog.store.root;
+    try t.expectError(error.TransactionWorkspaceLimit, catalog.executeTransactionStatement(binding.key, request, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    const state = try catalog.transactionTableState(binding.key, request.binding.target, access.policy());
+    try t.expectEqual(@as(u64, 0), state.root.live_rows);
+    const progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+    const head = try c.DirectTransactionWorkspace.recover(t.allocator, catalog.data_objects, progress);
+    try t.expectEqualDeep(request, head.pending.?);
+    try t.expect(head.charged_bytes <= binding.intent.transaction.begin.limits.workspace_bytes);
+    access.denied_metadata = 110;
+    try t.expectError(error.CatalogDenied, catalog.executeTransactionStatement(binding.key, request, access.policy()));
 }

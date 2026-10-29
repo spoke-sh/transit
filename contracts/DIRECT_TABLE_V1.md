@@ -148,14 +148,45 @@ format `0x54584331`. Its canonical JSON contains mandatory `definition`, `cut`
 and `coordination`; its encoded size is at most 16 KiB. The neutral cut binds the
 original begin, an immutable `sources` directory and its catalog acceptance
 position. The coordination partition must match the original token receipt;
-the cut position must equal the progress revision and follow begin admission in
-that same catalog partition. No signed acquisition operation is exposed by this
+the cut position must equal the acquisition progress revision and follow begin
+admission in that same catalog partition. Later workspace records preserve this
+original acquisition position separately from their current progress revision. No signed acquisition operation is exposed by this
 record format. The embedding host must hold the catalog/Table publication fence,
 and the owner checks current Table rights under the publication policy epoch.
 This format is reserved: generic `record.stage` and `record.read` reject it with
 `TransactionOperationRequired`. CONNECT-only caller-record access cannot disclose
 server-owned cut evidence after a participant's read rights have been revoked.
 HTTP maps `TransactionOperationRequired` to `400 InvalidRequest`.
+
+Catalog-owned private workspaces use canonical JSON `DirectRecord` formats
+`0x54585731` (head), `0x54585431` (private Table state) and `0x54584f31`
+(completed statement), each at most 32 KiB. All are reserved from generic record
+stage/read. A head requires `definition`, original `acquired` evidence, catalog
+`revision`, nullable `tables` and `statements` B-tree roots, `last_statement`,
+nullable `pending` request and `charged_bytes`. Its revision equals the current
+token progress; acquired evidence still binds the original receipt and cut.
+No missing persisted field receives a current-state default.
+
+A request binds `statement`, exact Table `binding` and immutable DML `intent`
+content. Only bulk INSERT/UPDATE/DELETE without prerequisite authority participates.
+Statement sequences start at one, increase by one across Tables and are consumed
+on admission. One pending request excludes a different statement until its
+original evaluation is resolved. A completed record pairs the request with its
+transaction-attributed provisional outcome or rejection. Private Table records
+use `TableWorkspace.State`; they are not Table WAL acceptances. Directory keys
+are nonzero Table IDs or statement sequences as eight big-endian bytes; values
+are record length as eight little-endian bytes followed by its SHA-256 digest.
+
+The catalog publishes completed outcome and private root in one token-progress
+acceptance. Original operation claims distinguish transaction statements from
+ordinary Table operations. Lost replies require original request recovery;
+resource/storage failures can leave admitted statements pending. Current SELECT
+and original DML permissions gate execution and repeated outcome disclosure.
+The embedding host serializes all database publication throughout these component
+calls. No signed workspace action or SQL transaction syntax is exposed by these
+formats. The [component guide](../packages/zig/transit-catalog/docs/direct-catalog.md)
+defines resident and cumulative staging charges and the remaining host boundaries.
+
 
 Catalog recovery requires the explicit `coordination` field and validates its
 allocation transition. Earlier receipts reject under the current-v1 definition;

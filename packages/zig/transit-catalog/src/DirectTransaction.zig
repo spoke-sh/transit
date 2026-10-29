@@ -35,6 +35,12 @@ pub const Acquired = struct {
 
     pub fn load(allocator: std.mem.Allocator, objects: c.storage.TransitObjectStore.ObjectStore, state: c.DirectClientToken.Progress) !Acquired {
         const record = state.record orelse return error.TransactionCutNotAcquired;
+        if (record.format == c.DirectTransactionWorkspace.head_format) {
+            const W = c.DirectTransactionWorkspace;
+            const head = try W.load(W.Head, allocator, objects, record, state.receipt.binding.key.scope(), W.head_format);
+            try head.validate(state);
+            return head.acquired;
+        }
         if (record.format != format or record.content.bytes > max_bytes or
             !std.meta.eql(record.scope, state.receipt.binding.key.scope())) return error.InvalidTransactionCut;
         const bytes = try c.DirectRecord.load(allocator, objects, record);
