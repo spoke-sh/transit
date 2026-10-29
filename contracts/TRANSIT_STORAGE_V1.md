@@ -796,6 +796,11 @@ other payloads use `.data`. Each has a `.checks` file containing one SHA-256 per
 64 KiB payload chunk. The descriptor commits the checksum file itself. Staging
 links content without replacing an existing file and verifies an existing exact
 copy on retry. All content is synced before its descriptor can become visible.
+The payload and checksum files each receive a file sync, followed by one shared
+`objects/` directory sync covering both names. An observed existing name on
+retry still requires content verification and synchronization. Descriptor
+publication retains its own file and `keys/` directory barriers. These barriers
+complete within each put; a lone writer does not wait for another operation.
 
 Every mutation holds the key's POSIX lock through reading the current descriptor,
 testing the condition, staging content and atomically replacing/syncing the new
@@ -838,7 +843,7 @@ The [process fixture](../tests/storage/local/local_objects.py), run by the root 
 checks competing conditional/immutable publication through separate processes.
 The [disk component cases](../packages/zig/transit-storage/src/disk_objects_test.zig)
 cover bounded allocation, verified ranges, stale observations, definition rejection
-and six sync failure points. They do not qualify filesystem rollback, distributed
+and five sync failure points. They do not qualify filesystem rollback, distributed
 locks, durable snapshot pins or installed catalog transactions.
 
 ## Native authority on local storage

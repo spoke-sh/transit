@@ -36,12 +36,17 @@ fn syncIterated(io: std.Io, dir: std.Io.Dir) !void {
     const file: std.Io.File = .{ .handle = dir.handle, .flags = .{ .nonblocking = false } };
     try file.sync(io);
 }
-fn publish(io: std.Io, dir: std.Io.Dir, path: []const u8, bytes: []const u8, replace: bool) !void {
+// Sync bytes and link/replace the name. The caller must sync the containing
+// directory before depending on its persistence or acknowledging publication.
+fn publishName(io: std.Io, dir: std.Io.Dir, path: []const u8, bytes: []const u8, replace: bool) !void {
     var temporary = try dir.createFileAtomic(io, path, .{ .replace = replace, .permissions = .fromMode(0o600) });
     defer temporary.deinit(io);
     try temporary.file.writeStreamingAll(io, bytes);
     try temporary.file.sync(io);
     if (replace) try temporary.replace(io) else try temporary.link(io);
+}
+fn publish(io: std.Io, dir: std.Io.Dir, path: []const u8, bytes: []const u8, replace: bool) !void {
+    try publishName(io, dir, path, bytes, replace);
     try syncIterated(io, dir);
 }
 
@@ -149,7 +154,7 @@ fn verify(file: std.Io.File, io: std.Io, bytes: []const u8) !void {
     }
 }
 fn content(self: *Self, directory: std.Io.Dir, filename: []const u8, bytes: []const u8) !void {
-    publish(self.io, directory, filename, bytes, false) catch |err| switch (err) {
+    publishName(self.io, directory, filename, bytes, false) catch |err| switch (err) {
         error.PathAlreadyExists => {
             const file = try directory.openFile(self.io, filename, .{ .follow_symlinks = false });
             defer file.close(self.io);
@@ -157,7 +162,6 @@ fn content(self: *Self, directory: std.Io.Dir, filename: []const u8, bytes: []co
             // A retry can meet an earlier uncertain link. Establish durability
             // of that same content before publishing a new descriptor.
             try file.sync(self.io);
-            try syncIterated(self.io, directory);
         },
         else => return err,
     };
@@ -174,6 +178,10 @@ fn stage(self: *Self, key: []const u8, bytes: []const u8, kind: Kind) !Record {
     var filename: [144]u8 = undefined;
     try self.content(self.objects_dir, contentName(key, record.meta.sha256, false, &filename), bytes);
     try self.content(self.objects_dir, contentName(key, record.meta.sha256, true, &filename), checks);
+    // Both files have durable bytes and final names in this same directory.
+    // One directory barrier covers the pair, including observed names on exact
+    // retry. No descriptor may become visible before this barrier succeeds.
+    try syncIterated(self.io, self.objects_dir);
     return record;
 }
 pub fn putImmutable(self: *Self, key: []const u8, bytes: []const u8, expected: [32]u8) !object.ObjectMeta {

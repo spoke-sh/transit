@@ -248,6 +248,72 @@ test "object write errors leave private partial files unpublished and exact retr
     }
 }
 
+test "object publication probe accounts for every file and directory barrier" {
+    const Probe = struct {
+        const Event = enum { payload, checks, content_names, descriptor, descriptor_name, unknown };
+        var real: std.Io = undefined;
+        var enabled: bool = false;
+        var content_dir: @FieldType(std.Io.Dir, "handle") = undefined;
+        var keys_dir: @FieldType(std.Io.Dir, "handle") = undefined;
+        var events: [8]Event = undefined;
+        var count: usize = 0;
+        var omitted: usize = 0;
+        fn sync(context: ?*anyopaque, file: std.Io.File) std.Io.File.SyncError!void {
+            try real.vtable.fileSync(context, file);
+            if (!enabled) return;
+            const stat = file.stat(real) catch return error.InputOutput;
+            const event: Event = if (stat.kind == .directory)
+                (if (file.handle == content_dir) .content_names else if (file.handle == keys_dir) .descriptor_name else .unknown)
+            else if (stat.kind == .file)
+                (switch (stat.size) {
+                    65537 => .payload,
+                    64 => .checks,
+                    512 => .descriptor,
+                    else => .unknown,
+                })
+            else
+                .unknown;
+            if (count == events.len) {
+                omitted += 1;
+            } else {
+                events[count] = event;
+                count += 1;
+            }
+        }
+    };
+    Probe.real = t.io;
+    var vtable = t.io.vtable.*;
+    vtable.fileSync = Probe.sync;
+    var io = t.io;
+    io.vtable = &vtable;
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
+    defer owner.deinit();
+    Probe.content_dir = owner.disk.?.objects_dir.handle;
+    Probe.keys_dir = owner.disk.?.keys_dir.handle;
+    const payload: [65537]u8 = @splat(0xa5); // Two chunks; distinct file sizes.
+    Probe.enabled = true;
+    defer Probe.enabled = false;
+    for ([_]bool{ true, false }) |immutable| {
+        Probe.count = 0;
+        Probe.omitted = 0;
+        if (immutable) {
+            _ = try owner.objectStore().putImmutable("new", &payload, hash(&payload));
+        } else {
+            try t.expect(try owner.objectStore().putConditional("head", .if_none_match, &payload));
+        }
+        try t.expectEqual(@as(usize, 0), Probe.omitted);
+        try t.expectEqualSlices(Probe.Event, &.{ .payload, .checks, .content_names, .descriptor, .descriptor_name }, Probe.events[0..Probe.count]);
+    }
+    Probe.enabled = false;
+    // Read through an independent owner, including the second payload chunk.
+    var reader = try open(tmp.dir);
+    defer reader.deinit();
+    var bytes: [2]u8 = undefined;
+    try t.expectEqualSlices(u8, payload[65535..], try reader.objectStore().getRange("new", 65535, 2, &bytes));
+}
+
 test "object publication sync failures leave a complete old or complete new descriptor" {
     const Fault = struct {
         var real: *const std.Io.VTable = undefined;
@@ -265,22 +331,39 @@ test "object publication sync failures leave a complete old or complete new desc
     vtable.fileSync = Fault.sync;
     var io = t.io;
     io.vtable = &vtable;
-    for (1..7) |failure| {
-        var tmp = t.tmpDir(.{});
-        defer tmp.cleanup();
-        var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
-        defer owner.deinit();
-        try t.expect(try owner.objectStore().putConditional("head", .if_none_match, "before"));
-        Fault.remaining = failure;
-        try t.expectError(error.InputOutput, owner.objectStore().putConditional("head", .{ .if_match = hash("before") }, "after"));
-        try t.expectEqual(@as(usize, 0), Fault.remaining);
-        var reopened = try open(tmp.dir);
-        defer reopened.deinit();
-        const expected: []const u8 = if (failure == 6) "after" else "before";
-        var bytes: [16]u8 = undefined;
-        try t.expectEqualStrings(expected, try reopened.objectStore().getRange("head", 0, bytes.len, &bytes));
-        try t.expectEqualDeep(hash(expected), (try owner.objectStore().head("head")).?.sha256);
-        try t.expect(try reopened.objectStore().putConditional("head", .{ .if_match = hash(expected) }, "reconciled"));
+    for ([_]bool{ false, true }) |immutable| {
+        for (1..6) |failure| {
+            var tmp = t.tmpDir(.{});
+            defer tmp.cleanup();
+            var owner = try Store.openDiskAt(t.allocator, io, tmp.dir, "objects");
+            defer owner.deinit();
+            try t.expect(try owner.objectStore().putConditional("head", .if_none_match, "before"));
+            Fault.remaining = failure;
+            if (immutable) {
+                try t.expectError(error.InputOutput, owner.objectStore().putImmutable("new", "after", hash("after")));
+            } else {
+                try t.expectError(error.InputOutput, owner.objectStore().putConditional("head", .{ .if_match = hash("before") }, "after"));
+            }
+            try t.expectEqual(@as(usize, 0), Fault.remaining);
+            var reopened = try open(tmp.dir);
+            defer reopened.deinit();
+            if (immutable) {
+                const observed = try reopened.objectStore().head("new");
+                if (failure == 5) {
+                    try t.expectEqualDeep(hash("after"), observed.?.sha256);
+                } else try t.expectEqual(null, observed);
+                _ = try reopened.objectStore().putImmutable("new", "after", hash("after"));
+                var bytes: [16]u8 = undefined;
+                try t.expectEqualStrings("after", try reopened.objectStore().getRange("new", 0, bytes.len, &bytes));
+                try t.expectError(error.ImmutableObjectConflict, reopened.objectStore().putImmutable("new", "different", hash("different")));
+                continue;
+            }
+            const expected: []const u8 = if (failure == 5) "after" else "before";
+            var bytes: [16]u8 = undefined;
+            try t.expectEqualStrings(expected, try reopened.objectStore().getRange("head", 0, bytes.len, &bytes));
+            try t.expectEqualDeep(hash(expected), (try owner.objectStore().head("head")).?.sha256);
+            try t.expect(try reopened.objectStore().putConditional("head", .{ .if_match = hash(expected) }, "reconciled"));
+        }
     }
 }
 

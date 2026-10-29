@@ -12,6 +12,7 @@ const Fault = struct {
     var sync_count: usize = 0;
     var delete_count: usize = 0;
     var publish_count: usize = 0;
+    var content_links: usize = 0;
 
     fn stop() noreturn {
         std.Io.File.stdout().writeStreamingAll(real, "{\"stopped\":true}\n") catch std.process.exit(91);
@@ -44,6 +45,19 @@ const Fault = struct {
         publish_count += 1;
         if (std.mem.eql(u8, point, "publish") or numbered("publish", publish_count)) stop();
     }
+    fn linked(name: []const u8) void {
+        if (!std.mem.endsWith(u8, name, ".tseg") and !std.mem.endsWith(u8, name, ".data") and !std.mem.endsWith(u8, name, ".checks")) return;
+        content_links += 1;
+        if (numbered("content-link", content_links)) stop();
+    }
+    fn preserve(context: ?*anyopaque, old: std.Io.Dir, from: []const u8, new: std.Io.Dir, to: []const u8) std.Io.Dir.RenamePreserveError!void {
+        try real.vtable.dirRenamePreserve(context, old, from, new, to);
+        linked(to);
+    }
+    fn fileLink(context: ?*anyopaque, file: std.Io.File, new: std.Io.Dir, to: []const u8, options: std.Io.File.HardLinkOptions) std.Io.File.HardLinkError!void {
+        try real.vtable.fileHardLink(context, file, new, to, options);
+        linked(to);
+    }
     fn delete(context: ?*anyopaque, dir: std.Io.Dir, name: []const u8) std.Io.Dir.DeleteFileError!void {
         try real.vtable.dirDeleteFile(context, dir, name);
         // Atomic-file housekeeping is not a retained WAL segment deletion.
@@ -57,6 +71,7 @@ const Fault = struct {
         sync_count = 0;
         delete_count = 0;
         publish_count = 0;
+        content_links = 0;
     }
     fn acknowledged() void {
         if (std.mem.eql(u8, point, "ack")) stop();
@@ -281,6 +296,8 @@ pub fn main(init: std.process.Init) !void {
     vtable.fileSync = Fault.sync;
     vtable.fileWritePositional = Fault.write;
     vtable.dirRename = Fault.rename;
+    vtable.dirRenamePreserve = Fault.preserve;
+    vtable.fileHardLink = Fault.fileLink;
     vtable.dirDeleteFile = Fault.delete;
     var io = init.io;
     io.vtable = &vtable;

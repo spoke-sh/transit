@@ -110,11 +110,11 @@ def run(binary):
                 rows(directory, floor, [*payloads, "successor"])
 
         for operation in ("replace", "immutable"):
-            for point in [*(f"sync-{i}" for i in range(1, 7)), "publish", "ack"]:
+            for point in [*(f"sync-{i}" for i in range(1, 6)), "content-link-1", "content-link-2", "publish", "ack"]:
                 directory = root / f"objects-{operation}-{point}"
                 assert call(directory, "objects-init") == {"initialized": True}
                 kill(directory, f"objects-{operation}", point)
-                published = point in ("sync-6", "publish", "ack")
+                published = point in ("sync-5", "publish", "ack")
                 key = "head" if operation == "replace" else "new.tseg"
                 expected = ("after" if published else "before") if operation == "replace" else (
                     "immutable" if published else None)
@@ -138,7 +138,7 @@ def run(binary):
             assert result == dict(archived=archived, tail=3 + archived, rows=2,
                                   pinned=1, receipt=1, history=2, current=[1, 2], next_segment=1), result
 
-        archive_points = ["sync-1", "sync-5", "sync-6", "sync-11", "sync-12",
+        archive_points = ["sync-1", "sync-4", "sync-5", "sync-9", "sync-10",
                           "before-accept", "accept-write", "accept-sync-1",
                           "accept-sync-2", "accept-sync-3", "accept-publish",
                           "accept-sync-4", "ack"]
@@ -167,8 +167,8 @@ def run(binary):
                 assert not (directory / "wal" / f"part-17-{lsn}.twal").exists()
             table_rows(directory, 3)
 
-        compact_points = ["sync-1", "sync-5", "sync-6", "sync-11", "sync-12",
-                          "sync-17", "sync-18", "before-accept", "accept-write",
+        compact_points = ["sync-1", "sync-4", "sync-5", "sync-9", "sync-10",
+                          "sync-14", "sync-15", "before-accept", "accept-write",
                           "accept-sync-1", "accept-sync-2", "accept-sync-3",
                           "accept-publish", "accept-sync-4", "ack"]
         for point in compact_points:
@@ -185,7 +185,7 @@ def run(binary):
             assert call(directory, "table-compact-inspect") == expected
             assert call(directory, "table-compact") == dict(next_segment=4, rows=0)
             assert call(directory, "table-compact-inspect") == expected
-        checkpoint_points = [*(f"sync-{i}" for i in range(1, 7)), "before-accept",
+        checkpoint_points = [*(f"sync-{i}" for i in range(1, 6)), "before-accept",
                              "accept-write", "accept-sync-1", "accept-sync-2",
                              "accept-sync-3", "accept-publish", "accept-sync-4", "ack"]
         for point in checkpoint_points:
@@ -267,7 +267,9 @@ def run(binary):
                 assert call(directory, "table-archive-maintenance") == dict(worked=False, tail=7)
                 assert call(directory, "table-archive-maintenance-inspect") == archive_state(4)
                 assert metadata(directory / "wal")["floor"] == 0
-    assert schedules == 149, schedules
+    # Three removed per-content directory boundaries (two object paths and one
+    # checkpoint), plus four new unsynced-link crash cuts across both put kinds.
+    assert schedules == 150, schedules
     print(f"Local storage: {schedules} SIGKILL schedules preserve acknowledged WAL data, "
           "fences, resumable trim, complete object descriptors, exact immutable retries "
           "and Table archival/compaction/checkpoints, including automatic targets and skip progress, "
