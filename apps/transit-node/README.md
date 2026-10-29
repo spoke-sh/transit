@@ -57,6 +57,10 @@ publication can return `Conflict`; uncertain outcomes still require the original
 request identity. This does not create independent write shards or establish
 per-principal fairness.
 
+Request deadlines cancel and join active work, release its admission lane and
+close the connection. A lost reply leaves any accepted mutation unresolved;
+callers retain its original signed identity for recovery.
+
 A read whose final authority cut races a publication may repeat the same signed
 selector at most eight times. Each attempt rechecks signature, current rights and
 source identity; sustained contention still returns `Conflict`. Expired cuts,

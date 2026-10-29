@@ -317,6 +317,9 @@ pub fn Host(comptime Provider: type) type {
                 };
             }
             fn failure(self: *Server, request: *std.http.Server.Request, err: anyerror) !void {
+                // The HTTP deadline owns cancellation and joins this handler
+                // before closing its socket. Do not turn it into a new reply.
+                if (err == error.Canceled or err == error.Cancelled) return err;
                 self.work_failure = @errorName(err);
                 const refusal = @import("ServiceFailure.zig").native(err);
                 return self.json(request, refusal.status, wire.protocol.ErrorResponse{ .err = refusal.code });
