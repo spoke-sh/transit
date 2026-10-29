@@ -1,6 +1,7 @@
 """Independent transaction histories through installed native, PG and MySQL clients."""
 import json
 import os
+import subprocess
 import time
 import psycopg
 import mysql.connector
@@ -43,7 +44,7 @@ def rows(client, sql):
     return decoded, observation
 
 
-def run(root, port, postgres, mysql_options, restart, faults, authority):
+def run(root, port, postgres, mysql_options, restart, faults, authority, console):
     first, second = Client(root, port).open(), Client(root, port).open()
     for table in ('tx_left', 'tx_right'):
         command(first, f'CREATE TABLE {table} (id INT64 PRIMARY KEY, amount INT64)')
@@ -155,6 +156,7 @@ def run(root, port, postgres, mysql_options, restart, faults, authority):
         assert cursor.fetchall() == [(8,)]
         cursor.close()
     extended(root, port, faults, authority)
+    console_controls(root, port, console)
     lifetimes(root, port, restart)
     print(json.dumps(dict(profile='installed_table_transactions', source=provenance(ROOT),
                           common_cut=True, private_reads=True, private_join=True,
@@ -288,6 +290,33 @@ def extended(root, port, faults, authority):
                           buffered_revocation=True, checkpoint_state_outbox=True,
                           lost_commit_reply=True, aborted_intent_excluded=True,
                           application_dispatch_policy=True, unknown_remote_outcome=True)), flush=True)
+
+
+def console_controls(root, port, binary):
+    consumer = root/'transaction-console'
+    consumer.mkdir()
+    home = consumer/'home'
+    home.mkdir()
+    password = consumer/'password'
+    password.write_text('proof-password')
+    password.chmod(0o600)
+    config = consumer/'connection.yaml'
+    config.write_text(f'version: 1\nendpoint: https://localhost:{port}\naccount: proof\ndatabase: data\nauthentication: scram\nca_file: {root/"certificate.pem"}\npassword_file: {password}\nformat: table\n')
+    script = consumer/'transaction.sql'
+    script.write_text('BEGIN;\nUPDATE tx_left SET amount=82 WHERE id=1;\nSAVEPOINT kept;\nUPDATE tx_left SET amount=83 WHERE id=1;\nROLLBACK TO kept;\nSELECT amount FROM tx_left;\nROLLBACK;\nBEGIN READ ONLY;\nCOMMIT;\n')
+    result = subprocess.run([binary, 'console', '--config', str(config), '--no-rc', '-f', str(script)],
+                            cwd=consumer, env={'PATH': '/unavailable', 'HOME': str(home), 'LANG': 'C'},
+                            capture_output=True, text=True, timeout=180)
+    assert result.returncode == 0, (result.stdout, result.stderr)
+    assert result.stdout.count('Statement completed provisionally. Matched 1; changed 1.') == 2
+    assert 'Transaction workspace (provisional rows).' in result.stdout and '82' in result.stdout
+    assert 'Transaction rolled back to savepoint.' in result.stdout
+    assert 'Transaction rolled back.' in result.stdout and 'Transaction committed.' in result.stdout
+    check = Client(root, port).open()
+    assert rows(check, 'SELECT amount FROM tx_left')[0] == [[8]]
+    check.close()
+    print(json.dumps(dict(profile='installed_transaction_console', provisional_counts=True,
+                          private_rows=True, savepoints=True, rollback=True, commit=True)), flush=True)
 
 
 def lifetimes(root, port, restart):
