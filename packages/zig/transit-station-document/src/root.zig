@@ -21,7 +21,6 @@ test {
     _ = Document;
     _ = Model;
     _ = codec;
-    _ = @import("transit_document");
     _ = @import("service_test.zig");
     _ = @import("remote_test.zig");
 }

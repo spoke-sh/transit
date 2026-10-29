@@ -11,6 +11,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const serving = context.serving;
     const web_dependencies = context.web_dependencies;
     const document = context.document;
+    const document_core = b.dependency("transit_document", .{ .target = target, .optimize = optimize });
     const station_grpc = context.station_grpc;
     const station_flight = context.station_flight;
     const flight = context.flight;
@@ -358,6 +359,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving.module("transit_serving") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = http_server.module("transit_http_server") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = document.module("transit_station_document") })).step);
+    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = document_core.module("transit_document") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = grpc.module("transit_grpc") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = exchange.module("transit_exchange") })).step);
@@ -743,7 +745,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const domains = b.addSystemCommand(&.{ "python3", "-B" });
     domains.addFileArg(b.path("tests/runner/launch.py"));
     domains.addFileArg(b.path("tests/verification/simulation/domains/domain_simulation.py"));
-    inline for (.{ document.module("transit_station_document"), exchange.module("transit_exchange"), serving.module("transit_serving"), core.module("transit_core"), catalog.module("transit_catalog") }) |module| {
+    inline for (.{ document_core.module("transit_document"), document.module("transit_station_document"), exchange.module("transit_exchange"), serving.module("transit_serving"), core.module("transit_core"), catalog.module("transit_catalog") }) |module| {
         domains.addArtifactArg(b.addTest(.{ .root_module = module, .filters = &.{"simulation:"} }));
     }
     domains.addPassthruArgs();
