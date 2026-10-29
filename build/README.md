@@ -98,6 +98,10 @@ Pull requests build nightly candidates without publishing, so installed SDK
 checks exercise prerelease dependency pins and native-loader version markers.
 Manual candidates can select stable or nightly versions; tag publication uses
 the exact stable version in `VERSION`.
+New PR commits cancel their obsolete candidate runs so qualification follows the
+latest source. Nightly and stable publication runs stay serialized and are never
+automatically cancelled by an update. Cancelled candidates retain their failed
+or incomplete outcome; they supply no passing release evidence.
 
 Downloaded runtime archives also supply the Board onboarding gate on both native
 Linux architectures. The workbench schedule runs the single installed executable

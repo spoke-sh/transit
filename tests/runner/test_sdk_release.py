@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / 'tasks'))
 try:
     assemble = runpy.run_path(str(ROOT / 'tasks/assemble_release.py'))['assemble']
     package = runpy.run_path(str(ROOT / 'tasks/package_sdks.py'))['package']
+    describe = runpy.run_path(str(ROOT / 'tasks/release_identity.py'))['describe']
 finally:
     sys.path.pop(0)
 
@@ -27,12 +28,15 @@ class SdkRelease(unittest.TestCase):
             (source / 'sdks/zig').mkdir(parents=True)
             (source / 'VERSION').write_text('0.0.1\n')
             (source / 'sdks/zig/build.zig.zon').write_text('.{ .version = "0.0.1" }\n')
+            (source / 'third_party/vendor').mkdir(parents=True)
+            (source / 'third_party/vendor/build.zig.zon').write_text('.{ .version = "0.0.1" }\n')
             for args in (['init', '-q'], ['add', '.'], ['-c', 'user.name=Fixture',
                          '-c', 'user.email=fixture@example.invalid', '-c', 'commit.gpgSign=false',
                          'commit', '-qm', 'test(release): source fixture']):
                 subprocess.run(['git', *args], cwd=source, check=True)
             revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=source, text=True).strip()
-            identity = {'release': '0.0.1-nightly.20261029.g' + revision[:12], 'base_version': '0.0.1'}
+            epoch = int(subprocess.check_output(['git', 'show', '-s', '--format=%ct', 'HEAD'], cwd=source))
+            identity = describe('0.0.1', revision, epoch, 'nightly', '20261029')
             notices = root / 'notices'
             notices.mkdir()
             (notices / 'LICENSE').write_text('Fixture notice\n')
@@ -54,6 +58,12 @@ class SdkRelease(unittest.TestCase):
                 with tarfile.open(archive) as bundle:
                     record, = [member for member in bundle if member.name.endswith('/sdk-manifest.json')]
                     self.assertNotIn('target', json.load(bundle.extractfile(record)))
+                    prefix = archive.name.removesuffix('.tar.gz') + '/'
+                    self.assertEqual(bundle.extractfile(prefix + 'VERSION').read().decode().strip(), identity['release'])
+                    zon = bundle.extractfile(prefix + 'sdks/zig/build.zig.zon').read().decode()
+                    self.assertEqual(zon, '.{ .version = "' + identity['package_versions']['zig'] + '" }\n')
+                    self.assertEqual(bundle.extractfile(prefix + 'third_party/vendor/build.zig.zon').read(),
+                                     b'.{ .version = "0.0.1" }\n')
             self.assertEqual(*archives)
 
     def test_mismatched_identity_does_not_mutate_runtime(self):

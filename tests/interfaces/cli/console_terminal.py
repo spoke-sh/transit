@@ -20,7 +20,11 @@ ANSI = re.compile(rb'\x1b\[[0-?]*[ -/]*[@-~]')
 class Terminal(Shell):
     def __init__(self, binary, config=None, format='json', shared_output=False, cwd=None, home=None, *, env=None, pass_fds=()):
         self.history_home = tempfile.TemporaryDirectory(prefix='transit-terminal-home-') if home is None else None
-        environment = os.environ | {'HOME': str(home) if home is not None else self.history_home.name} | (env or {})
+        # Build/CI settings (including TRANSIT_RELEASE_IDENTITY) are not runtime
+        # server configuration. Only explicit fixture overrides may reach the
+        # console; keep terminal/editor tooling from the surrounding environment.
+        environment = {key: value for key, value in os.environ.items() if not key.startswith('TRANSIT_')}
+        environment |= {'HOME': str(home) if home is not None else self.history_home.name} | (env or {})
         environment = {key: value for key, value in environment.items() if value is not None}
         self.master, self.slave = pty.openpty()
         self.resize(80)

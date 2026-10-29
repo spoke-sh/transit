@@ -26,6 +26,9 @@ buildGoModule {
   meta = {
     description = "Pinned MinIO executable for Transit's local development profile";
     license = lib.licenses.agpl3Plus;
-    platforms = [ "x86_64-linux" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-linux"
+    ];
   };
 }

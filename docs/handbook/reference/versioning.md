@@ -52,8 +52,10 @@ Stable releases use three-part versions. Nightly distribution derives
 Its immutable tag is `nightly-YYYYMMDD-g<12-character-sha>`; the full SHA and
 contract definition remain in every artifact manifest. The release identity also
 records package-native versions: Python uses `<VERSION>.devYYYYMMDD+g<sha>`,
-Ruby uses `<VERSION>.nightly.YYYYMMDD.g<sha>`, and the other SDK packages use
-the SemVer prerelease. Exact internal pins and embedded loader expectations
+Ruby uses `<VERSION>.nightly.YYYYMMDD.g<sha>`, and Zig uses
+`<VERSION>-dev.g<sha>` to fit its 32-byte manifest limit. Zig's archive name and
+release manifest retain the full nightly identity, including its date. The other
+SDK packages use the SemVer prerelease. Exact internal pins and embedded loader expectations
 follow that mapping in isolated packaging inputs. The source manifests retain
 `VERSION`; nightly packaging does not commit daily version changes. Use patch
 increments for compatible corrections and minor increments for additions or

@@ -17,6 +17,7 @@ on:
       - 'sdks/**'
       - 'bindings/**'
       - 'tasks/*release*'
+      - 'tasks/bindings.just'
       - 'tasks/package_sdks.py'
       - 'tasks/package_handbook.py'
       - 'docs/handbook/**'
@@ -28,6 +29,10 @@ on:
       - 'tests/interfaces/installation/release.py'
       - 'tests/interfaces/installation/published.py'
       - 'tests/interfaces/installation/server_applications.py'
+      - 'tests/interfaces/installation/board_workbench.py'
+      - 'tests/interfaces/cli/console_terminal.py'
+      - 'tests/interfaces/cli/console_edit.py'
+      - 'apps/transit-board-web/browser/workbench.spec.ts'
       - 'tests/sdk/**'
   workflow_dispatch:
     inputs:
@@ -50,7 +55,9 @@ env:
   TRANSIT_RELEASE_IDENTITY: ${{ github.workspace }}/.cache/release-identity.json
 concurrency:
   group: release-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  # PR candidates cannot publish. Qualify the latest commit promptly, while
+  # immutable tag/nightly publication must finish or fail without interruption.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   prepare:
     runs-on: ubuntu-24.04
@@ -326,6 +333,14 @@ jobs:
           chmod +x .cache/sdk-release/native/bin/* .cache/sdk-release/c-sdk/bin/*
           mkdir -p .cache/runtime
           tar -xf "dist/release/transit-${{ needs.prepare.outputs.version }}-linux-${{ matrix.architecture }}.tar.gz" --strip-components=1 -C .cache/runtime
+      - name: Fetch locked Rust registry dependencies
+        if: matrix.language == 'rust'
+        # The consumer job has a fresh Cargo cache. Preparation may download
+        # locked third-party crates; installed consumer builds remain offline.
+        run: |
+          nix develop .#bindings --command cargo fetch --locked --manifest-path sdks/rust/transit-client/Cargo.toml
+          nix develop .#bindings --command cargo fetch --locked --manifest-path sdks/rust/transit-station-sdk/Cargo.toml
+          nix develop .#bindings --command cargo fetch --locked --manifest-path examples/station-sdk/rust/Cargo.toml
       - name: Qualify installed raw client and available Station adapter
         env:
           LANGUAGE: ${{ matrix.language }}
