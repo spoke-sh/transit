@@ -132,6 +132,14 @@ The baseline inventory above records the pre-implementation state; the current
 behavior. The milestone remains `In Progress` while the placement, protocol and
 qualification gates below remain open.
 
+The first [recovery qualification](../history/qualification/sql.md#event-driven-sql-recovery--2026-10-29)
+passes the clean interfaces lane. Its [matched console comparison](../history/qualification/performance.md#event-driven-sql-recovery--2026-10-29)
+observes zero post-statement idle upstream calls but higher INSERT, unchanged
+UPDATE and DELETE latency from foreground settlement. Fresh reads improve and
+warm reads are approximately unchanged. This evidence does not close P2–P6 or
+the #211 latency targets; preserve the regressions when evaluating subsequent
+co-hosting and commit-envelope work.
+
 ### Performance objectives and experiment design
 
 Use #211's actual-console targets as the primary scorecard. They are engineering

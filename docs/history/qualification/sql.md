@@ -9,6 +9,58 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Event-driven SQL recovery — 2026-10-29
+
+Runtime source `0785666ff488234003986ab1729a3a8c9feb31e5` adds foreground pending
+settlement, bounded scheduling claims, generation-based recovery notifications,
+complete paged discovery and actual session-expiry deadlines. The
+[runtime guide](../../../packages/zig/transit-sql/docs/runtime.md) and
+[SQL sessions](../../handbook/reference/sql-sessions.md) own current semantics.
+This is the recovery phase of [M8](../../roadmap/08-gateway-architecture-and-protocol-ingress.md),
+with co-hosting, protocol-host separation and the M6/M7 data-kind handoffs still
+open. The [performance account](performance.md#event-driven-sql-recovery--2026-10-29)
+records the mixed latency results and idle-traffic reduction separately.
+
+The SQL and SQL-service package unit checks pass, including notifications racing
+sweep completion, cancelled parking, startup/retry obligations and reserve
+accounting. The complete clean `interfaces` lane passes all 22 tasks at
+`bfe91aa56aaa4acb1960e84eace4958f29a90703`. Its native disk-backed schedule
+recovers lost token/commit/settlement replies, preserves original counts across
+fenced replacements and drains 31 operations over four pages. It verifies
+foreground pending-capacity release and observes zero upstream requests after
+both recovery owners finish discovery. Result tests preserve 17 allocation
+refusals, 15 exact repeats, two advanced-batch recoveries and three disclosure
+revocations. SQL dispatch uses zero Station sends/turns in that native schedule.
+
+The full session schedule passes retained KV and Table results with 41 rows in
+32/9 batches and Document results with 12 rows, including exact repeated batches
+after SQL service replacement. It also passes original-pin cleanup, foreground
+activation failure and readiness restoration, current denial while unready,
+cancellation, expiry, TLS/SCRAM and concurrent sessions. The transaction suite
+passes provisional outcomes, savepoints, conflicts, original lost-reply recovery
+and explicit attachment. The same lane passes the database driver matrix,
+relational recovery, HTTP/gRPC/Flight boundaries and real HTTP/gRPC examples.
+These local disk/restart checks do not establish power-loss recovery or a pass
+for every CI lane.
+
+The first clean attempt at `4ffb5fd6a` stops on a stale MySQL expectation that
+`BEGIN` is unsupported. The corrected raw-wire check verifies BEGIN/ROLLBACK
+status flags and preserves rejection of unsupported isolation and autocommit-off.
+An earlier session attempt waits for readiness loss after revocation without a
+foreground activation check; that assumption depended on the removed idle poll.
+The replacement test explicitly fails activation before revoking disclosure,
+then still requires access denial while unready. Failed installations and original
+logs are retained privately; later passes do not relabel those attempts.
+
+The separate clean fast check at `c394c4f18` passes all 47 checks after recording
+the reviewed recovery-owner diagnostic inventory. Documentation lint, types,
+nine reference-transform tests and the production site build pass. Clean lane
+reports are under `.cache/ci/clean/bfe91aa56aaa-transit-ci-tfg11kbq/` and
+`.cache/ci/clean/c394c4f18c00-transit-ci-8it0zyct/`; local iteration and failed-run
+logs remain under `.cache/m8-gateway/`. Reproduction uses the package unit checks,
+`just ci clean --lane interfaces`, `just ci clean --check fast` and
+`just transit-docs::check` in the pinned development shell.
+
 ## Database-owned SQL runtime — 2026-10-28
 
 Source `3b4737ebe` replaces SQL's Station account actors with Catalog-owned

@@ -11,6 +11,69 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## Persistent console statement latency — 2026-10-28
 
+### Event-driven SQL recovery — 2026-10-29
+
+The recovery change removes observed idle SQL polling, but it does **not** meet
+[issue #211's](https://github.com/spoke-sh/transit/issues/211) 10–100× interactive
+target. Foreground pending-accounting settlement adds latency to small INSERT,
+unchanged UPDATE and DELETE in both measured rounds. Subsequent fresh reads and
+changed UPDATE improve; warm SELECT is approximately unchanged. The
+[retained comparison](../../../tests/evidence/sql-recovery-2026-10-29/README.md)
+preserves both rounds, executable/driver hashes, raw samples and separate
+instrumented evidence. [SQL qualification](sql.md#event-driven-sql-recovery--2026-10-29)
+owns the correctness and recovery results.
+
+Frozen control is `3f14da60e4ec3dd3657a430f79bfc665a3bf7f6c`; candidate is
+`bfe91aa56aaa4acb1960e84eace4958f29a90703`. Each pair runs control then candidate
+through the default installed persistent console, with no residency, interval or
+deadline overrides. Both pairs pass all 47 statements per arm, including exact
+completion/counts and independent typed readback. All five binaries in each arm
+belong to its declared revision and use pinned Zig `0.17.0-dev.2267+48abf1a34`,
+ReleaseSafe and the same current definition. The shared Linux x86_64 host exposes
+48 CPUs on a Threadripper 3960X, with the fixture on NVMe-backed ext4. No competing
+owned build or runtime proof runs during measurement; unrelated host services
+remain active. CPU affinity/frequency are uncontrolled and CPU quota is not
+established by the recorded root-cgroup observation.
+
+External console elapsed-time medians, milliseconds; each mutation/fresh-read
+case has five samples per arm and warm SELECT has six:
+
+| Statement | Round 1 control | Round 1 candidate | Round 2 control | Round 2 candidate |
+| --- | ---: | ---: | ---: | ---: |
+| Warm SELECT | 100.0 | 102.4 | 95.9 | 95.4 |
+| INSERT | 261.9 | 297.2 | 257.2 | 292.7 |
+| SELECT after INSERT | 353.1 | 296.5 | 355.8 | 291.4 |
+| Changed UPDATE | 416.9 | 387.8 | 421.0 | 372.9 |
+| Unchanged UPDATE | 261.3 | 306.5 | 267.7 | 304.5 |
+| SELECT after UPDATE | 504.2 | 402.9 | 502.5 | 392.1 |
+| DELETE | 295.5 | 342.8 | 316.9 | 351.0 |
+| SELECT after DELETE | 568.5 | 426.1 | 539.5 | 419.3 |
+
+Round 1 uses measurement source `c394c4f18`; round 2 uses `113e601a2`, which
+adds only a separate three-second idle observation after verified statements and
+console closure. The statement workload/timing remains unchanged. Cold SELECT
+is a single observation per arm: 669.9 → 802.5 ms in round 1 and 274.7 → 274.4 ms
+in round 2. Zero-match observations are also single samples and remain in the
+raw records. Neither round supplies tail percentiles or an isolated-host ratio.
+
+The initial three-second idle window follows readiness and includes startup
+discovery: node CPU rises 0.44 → 0.78 seconds in round 1 and 0.42 → 0.80 seconds
+in round 2. The new post-statement window instead observes **0.41 → 0.05 CPU
+seconds**. Separate instrumented one-repeat runs pass all 15 statements per arm;
+their post-statement windows count **208 → 0 SQL upstream requests**. Startup
+windows count 206 → 418 requests, consistent with the candidate completing its
+bounded pin-slot discovery promptly. Readiness alone does not certify a drained
+recovery backlog, and whole-node CPU includes work outside SQL.
+
+The instrumented candidate INSERT uses 18 upstream requests, including one
+pending-accounting update taking 41.9 ms and one `commit_saved` taking 101.3 ms.
+These are diagnostic request observations, not an additive timing model or
+uninstrumented latency. The additional foreground update explains a concrete
+cost to investigate alongside the paired regressions. No durability barrier was
+removed and no earlier acknowledgement was substituted for verified completion.
+Co-hosted execution, the combined token/commit envelope and fresh-cut work remain
+open; the 190/19 ms INSERT and 10–20 ms warm-read objectives remain unmet here.
+
 ### Shared content-directory barrier — 2026-10-29
 
 The question is whether removing one redundant object-publication directory
