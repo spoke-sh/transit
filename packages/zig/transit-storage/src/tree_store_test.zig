@@ -78,3 +78,23 @@ test "a private index budget failure cannot change the accepted root" {
     const value = (try tree.get(root, try key(1))).?;
     try t.expectEqualStrings("accepted", value.slice());
 }
+
+test "second-chance cache retains loaded root pages across staging churn" {
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var store = try s.TreeStore.init(t.allocator, objects.objectStore(), 2);
+    defer store.deinit();
+    const tree: pages.Tree(s.TreeStore) = .{ .store = &store };
+    try store.begin(1024 * 1024);
+    const hot_root = try tree.put(null, try key(1), try pages.Value.init("hot"));
+    store.end();
+    _ = try store.load(hot_root);
+    const misses_before = store.misses;
+    for (0..4) |i| {
+        try store.begin(1024 * 1024);
+        defer store.end();
+        _ = try tree.put(null, try key(100 + i), try pages.Value.init("transient"));
+        _ = try store.load(hot_root);
+    }
+    try t.expectEqual(misses_before, store.misses);
+}

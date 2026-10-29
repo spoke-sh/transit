@@ -443,18 +443,31 @@ pub fn refresh(self: *Self) !void {
     if (self.workspace) return error.PrivateTableWorkspace;
     try self.ready();
     if (try self.log.tail(self.root.partition) != self.root.next_lsn)
-        try self.recoverSince(try self.recoveryState());
+        try self.recoverSinceOptions(try self.recoveryState(), true);
 }
 
 /// Revalidate a previously checked boundary, then replay only its successors.
 /// A newer accepted checkpoint supersedes an older hint. New storage owners
 /// always use recover(); neither this hint nor recovery authorizes disclosure.
 pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
+    return self.recoverSinceOptions(prior, false);
+}
+
+fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !void {
     if (self.workspace) return error.PrivateTableWorkspace;
+    const had_prior_root = self.root.next_lsn != 0;
+    const prior_declared = self.root.declared();
     self.recovery_required = true;
-    self.index.clearCache();
-    if (self.segment_cache) |*cached| cached.deinit(self.allocator);
-    self.segment_cache = null;
+    if (!retain_cache) {
+        self.index.clearCache();
+        if (self.segment_cache) |*cached| cached.deinit(self.allocator);
+        self.segment_cache = null;
+    }
+    errdefer {
+        self.index.clearCache();
+        if (self.segment_cache) |*cached| cached.deinit(self.allocator);
+        self.segment_cache = null;
+    }
     const end = try self.log.tail(self.root.partition);
     if (end < self.root.next_lsn) return error.TableHistoryMissing;
     var next = emptyRoot(try self.declaration.stored(), self.root.partition);
@@ -535,7 +548,7 @@ pub fn recoverSince(self: *Self, prior: ?RecoveryState) !void {
     for ([_]?pages.Reference{ next.rows, next.scan_rows, next.identities, next.ordered_rows, next.physical_schemas, next.column_origins, next.receipts, next.pins, next.history_pins, next.operations, next.pending, next.archive.directory }) |reference| if (reference) |ref| {
         _ = try self.index.load(ref);
     };
-    if (end != 0) {
+    if (end != 0 and (!retain_cache or !had_prior_root or !std.meta.eql(next.declared(), prior_declared))) {
         const declaration = try Declaration.load(self.allocator, self.objects, next.declared());
         self.declaration.deinit();
         self.declaration = declaration;
