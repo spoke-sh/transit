@@ -319,6 +319,12 @@ owned service processes; per-language native/port startup, allocation reserves,
 cancellation and joined-close measurements remain part of P0/P8. The future data
 bridge and shared catalog/SQL context are not supplied by these package moves.
 
+The [installed SQL resource baseline](../history/qualification/performance.md#shared-client-resource-baseline--2026-10-29)
+records 47 verified statements in both arms with matching measurement drivers,
+8 owned processes and 9 console threads. It retains the observed slower
+candidate timings and shared-host limits; it establishes no resource-sharing
+improvement or zero-allocation claim.
+
 ### Proposed neutral client-context contract
 
 This is the P0 decision record for P2–P6. Implementing it requires neutral Zig

@@ -1,7 +1,8 @@
 //! Deterministic neutral query columns, values, predicates and plans.
 //! No source acquisition, publication, credentials, transport or scheduling.
 //! Composite conversions use the caller's operation arena. Column admission
-//! borrows names/descriptors; Plan.native and foreign projections detach values.
+//! borrows names/descriptors. Plan.native copies schema/names but borrows UTF-8
+//! predicate text; foreign projections detach their returned values.
 const std = @import("std");
 const f = @import("root.zig");
 const m = f.Unified;
