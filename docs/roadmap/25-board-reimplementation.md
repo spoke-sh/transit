@@ -1,6 +1,6 @@
 # 25. Board reimplementation and data-first workbench
 
-[Roadmap](README.md) · **Status:** Planned
+[Roadmap](README.md) · **Status:** In Progress
 
 Reimplement Board as the installed interface for discovering data, explaining
 computations and reviewing governed changes. Deliver the focused catalog,
@@ -69,10 +69,50 @@ or agent activation require their own contracts.
 
 ## Initial-pass implementation plan
 
-**Review state:** proposed for review; implementation has not started. This plan
-is based on repository revision `db4ae576e` and
-[board-data D2](../design/board-data/D2.md), reviewed on 2026-10-28. Planning does
-not change this milestone's `Planned` status or complete its later workflows.
+**Review state:** initial-pass implementation authorized on 2026-10-28. The
+plan below records the intended scope at repository revision `db4ae576e` and
+[board-data D2](../design/board-data/D2.md). The delivered boundary and remaining
+qualification are recorded below; the full milestone remains In Progress.
+
+### Implementation boundary and retained capabilities
+
+The initial implementation adds the catalog shell, exact-definition Table pages,
+explicit bounded previews, integer/decimal window profiles, registered relationship
+pages and unsaved narrative/SQL workbooks. `DirectCatalogRead`, `Executor.read`,
+`ReadView` and `ReadWorkspace` own the public adaptation; React uses `DataCatalog`
+and `StatementReader`. Configuration and current limits belong in the
+[workbench guide](../../apps/transit-board/docs/workbench.md).
+
+| Existing capability | Initial-pass disposition |
+| --- | --- |
+| Built-in home | Catalog replaces the process-led landing; published application entry screens remain declared |
+| Atlas, resource, process/journey, activity and connector inspection | Existing routes retained under Operations; named KV/Document projections remain in Resources |
+| Finite Live, Follow and captured queries | Existing public query client retained; the new read workspace has no equivalent subscription/capture contract |
+| Relational journal and original pin recovery | Existing relational interface retained to resolve its recorded work; no journal migration or deletion |
+| Definition editing and `/recovery/definition` | Existing application client and separately authorized workflows retained |
+| SQL assistance and editor history | Existing operational editor retains these features; new session cells use native text editing without a second parser |
+| Ordinary new SQL and Table previews | Shared read-only logical result reader; no new raw fetch or snapshot loop in Board |
+
+Implementation refinements to the plan:
+
+- Preview binding is verified against the executed result before disclosure. It
+  is not an execution-time definition pin; changed interpretations fail closed.
+- Value-allocation exhaustion fails the read instead of returning a smaller
+  byte-limited prefix. Row windows remain at most 100 rows and metadata retains
+  one source chunk for complete authorization revalidation.
+- Command/failure/unresolved outcomes remain in the general Zig Executor. This
+  browser facade exposes read results and typed refusals; it does not introduce
+  command execution or a browser settlement protocol.
+- Cleanup is requested on navigation/replacement. A lost close response is not
+  proof of remote release; fixed reader lifetimes and native leases bound abandoned
+  ownership. There is no durable or cross-restart browser reader recovery.
+- Dedicated graphs, durable/shared workbooks, transaction presentation and
+  governed changes remain outside this pass. Registered edge lists do not imply
+  foreign keys, join cardinality or freshness.
+
+The acceptance checklist below remains the qualification inventory. Registered
+checks alone do not establish a pass; installed/browser and clean-source outcomes
+must accompany the change review.
 
 ### Outcome and scope
 

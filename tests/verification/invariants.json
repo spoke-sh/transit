@@ -2319,6 +2319,31 @@
       "limits": "Safety only; blocked states and terminal deadlocks are allowed. The journal's atomic fenced original decision is assumed. Model crashes release the acquisition fence while accepted logical state remains durable. No automatic Zig replay, production refinement, arbitrary programs/cardinality, physical storage, constraints, retained graph, resource accounting or installed SQL qualification follows.",
       "model": "tests/verification/models/TableTransaction.tla",
       "qualification": "Exact source/configuration hashes, completion counts and named counterexamples are retained under .cache/verification/table-transaction-model/ and CI artifacts; executed results belong in docs/history/qualification/verification.md."
+    },
+    {
+      "id": "BOARD-DATA-01",
+      "claim": "Board explores authorized catalog definitions and read-only logical results without re-executing uncertain reads or claiming complete display coverage",
+      "owner": "docs/handbook/reference/board-api.md",
+      "implementation": [
+        "packages/zig/transit-sql-client/src/ReadWorkspace.zig",
+        "packages/zig/transit-sql-client/src/ReadView.zig",
+        "apps/transit-board/Workbench.zig"
+      ],
+      "profile": "Current-v1 private Board with explicit catalog and SQL connections",
+      "tasks": [
+        "transit-board::workbench-test",
+        "transit-board::workbench-browser",
+        "transit-board::check"
+      ],
+      "scenarios": [
+        "145 rows across native batches and two bounded windows, exact repeat and empty terminal",
+        "Strong configured account cannot mutate through read admission",
+        "Expected source definition mismatch, bounded reader capacity, terminal revocation",
+        "Keyboard Run, no edit execution, lost reply original observation, denial clearing and accessibility"
+      ],
+      "limits": "Session-local four-reader host; no durable workbook, transaction snapshot or whole-source statistics.",
+      "model": null,
+      "qualification": "Executable scenarios; executed evidence is recorded in the qualification owner."
     }
   ]
 }

@@ -11,6 +11,7 @@ install:
 
 # Regenerate Board's OpenAPI, TypeScript types, and CSP-compatible validators.
 generate:
+    zig build sql-read-api > packages/zig/transit-sql-client/api/read.schema.json
     python3 -B packages/ts/transit-diagnostics/generate.py
     vp exec node packages/ts/transit-diagnostics/validators.mjs
     zig build query-api
@@ -33,6 +34,7 @@ generate:
 
 # Check typed contract and generated browser-resource drift.
 contract:
+    artifact=$(mktemp); trap 'rm -f "$artifact"' EXIT; zig build sql-read-api > "$artifact"; cmp "$artifact" packages/zig/transit-sql-client/api/read.schema.json
     vp exec node --test tests/interfaces/board/validator_schema.mjs
     python3 -B packages/ts/transit-diagnostics/generate.py --check
     vp exec node packages/ts/transit-diagnostics/validators.mjs --check
@@ -106,6 +108,16 @@ relational-browser:
 # Prove the direct worksheet and durable original pin cleanup against the real node.
 relational-test:
     zig build test-direct-board -Doptimize=ReleaseSafe
+
+# Installed catalog and shared read results, including completed-result revocation.
+workbench-test:
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    python3 -B tests/runner/launch.py tests/interfaces/installation/board_workbench.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host zig-out/bin/transit-board zig-out/bin/transit-sql-gateway
+
+# The same real installation with keyboard, accessibility and embedded asset checks.
+workbench-browser:
+    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    python3 -B tests/runner/launch.py tests/interfaces/installation/board_workbench.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host zig-out/bin/transit-board zig-out/bin/transit-sql-gateway --browser
 
 # Open a disposable counter realm for interactive inspection; Ctrl-C cleans it up.
 demo: build

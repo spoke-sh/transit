@@ -105,7 +105,8 @@
       "test::server-sql-local",
       "transit-board::test",
       "transit-board::query-test",
-      "launchers::local::test-station"
+      "launchers::local::test-station",
+      "transit-board::workbench-test"
     ],
     "launchers": [
       "test::build",
@@ -138,7 +139,8 @@
       "transit-board::grpc-browser",
       "test::reactive-browser",
       "test::reactive-views",
-      "test::reactive-views-lifecycle"
+      "test::reactive-views-lifecycle",
+      "transit-board::workbench-browser"
     ]
   },
   "tiers": {

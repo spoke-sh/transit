@@ -38,7 +38,7 @@ test("captured HTTP evidence is inspection-only and clears after read revocation
       mode,
       process.env.BOARD_HTTP_STATE!,
     ]);
-  await page.goto("/");
+  await page.goto("/atlas");
   await page.getByRole("button", { name: `Select resource ${resource}`, exact: true }).click();
   await page.getByRole("button", { name: "Inspect records", exact: true }).click();
   const records = page.getByRole("region", { name: `Resource ${resource} records`, exact: true });

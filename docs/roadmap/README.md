@@ -118,7 +118,7 @@ combines that evidence at one revision.
 | 22 | [Enterprise identity and the Control & Policy Plane](22-control-and-policy-plane.md) | Planned | Trusted enterprise identity, security-barrier RLS, dynamic column masking, GDPR crypto-shredding/purge, Hierarchical Workload Management (WLM) and shared branch/publication policy |
 | 23 | [Published business resources and consistent investigations](23-published-resources-and-investigations.md) | Planned | Deliberate resource exposure, disclosure policy and retained multi-call investigation bases |
 | 24 | [Versioned proposals and reviewed publication](24-reviewed-data-collaboration.md) | Planned | Comparable branch proposals, branching-only policy and exact reviewed publication |
-| 25 | [Board reimplementation and data-first workbench](25-board-reimplementation.md#initial-pass-implementation-plan) | Planned | Initial-pass plan: catalog, bounded previews and session workbooks over public Transit/result APIs; full scope adds durable workbooks, lineage and governed changes with preserved operational inspection |
+| 25 | [Board reimplementation and data-first workbench](25-board-reimplementation.md#initial-pass-implementation-plan) | In Progress | Initial implementation: catalog, bounded previews and session workbooks over public Transit/result APIs; full scope adds durable workbooks, lineage and governed changes with preserved operational inspection |
 
 ### Phase V: Agents and mixed application composition
 
