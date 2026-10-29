@@ -213,6 +213,11 @@ Tag pushes run full ordinary CI plus the distribution build, installed startup,
 SQL/restart, container and Helm checks. Only successful stable-tag or scheduled/manual nightly publication runs can publish.
 Downloaded artifacts also pass the real installer and embedded Board/SQL/restart
 checks on a fresh runner before publication, without a Nix installation.
+Board's Catalog, dataset previews and temporary Workbook use the installed
+executable's embedded assets. Their API and browser checks use explicitly
+configured data connections and run on both Linux architectures. Saved/shared
+workbooks and governed review are not included; see the
+[workbench's current limits](../../../apps/transit-board/docs/workbench.md).
 Pull requests and manual release-candidate dispatches build artifacts without publishing.
 The separate nightly workflow can publish from `main`. Stable tag names
 must match `VERSION` at a clean commit. Builds retain artifacts in GitHub Actions;

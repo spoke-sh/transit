@@ -52,6 +52,12 @@ SDK and installer matrix must complete before closing their acceptance items.
 - Native Linux x86_64 and ARM64 jobs build and exercise every SDK family and
   container image. Assembly verifies both image closures and publishes one OCI
   index per executable; installed and anonymous checks run on both architectures.
+- Downloaded release executables run Board's catalog/result API schedule and a
+  native Chromium onboarding gate on both Linux architectures. These reuse the
+  workbench's explicit catalog/SQL connections, bounded previews and temporary
+  workbook scenarios. Runtime and frontend assets come from the release archive;
+  source-built Board checks remain separate. The added jobs still require
+  successful hosted execution before this onboarding item is qualified.
 
 ## Remaining dependencies
 
@@ -62,9 +68,11 @@ SDK and installer matrix must complete before closing their acceptance items.
   its process, terminal and native I/O integration. Packaging cannot remove those
   runtime safety requirements. Linux ARM64 SDK and container jobs are part of the distribution matrix;
   successful native hosted execution remains required before advertising that release set.
-- Board catalog discovery, dataset previews, saved workbooks and governed review
-  depend on [the planned workbench](27-board-reimplementation.md). This release
-  work tests the implemented inspection UI and embedded assets only.
+- Board catalog discovery, dataset previews and temporary workbooks are
+  implemented; the release workflow now exercises them from installed packages.
+  Saved/shared workbooks and governed review still depend on the remaining
+  [workbench scope](27-board-reimplementation.md), and cannot yet complete those
+  capability-dependent onboarding criteria.
 - Installed MCP business-resource/App checks depend on
   [the planned MCP service](28-mcp-service-and-apps.md). There is no endpoint
   or App package to distribute yet.

@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 from interfaces.installation.server_board import Board
+from interfaces.installation.board_workbench import installed as workbench
 from interfaces.cli.table_console import records
 
 def run(prefix):
@@ -50,6 +51,7 @@ def run(prefix):
         else:
             print(f'Private failed release installation retained at {fixture.root}', file=sys.stderr)
     print('Static release: embedded Board assets/inspection, SQL acceptance/results and retained restart passed')
+    workbench(prefix)
 
 
 if __name__ == '__main__':

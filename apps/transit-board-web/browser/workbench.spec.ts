@@ -3,6 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 
 test("installed catalog, exact preview, profiles and session workbook", async ({ page }) => {
   const errors: string[] = [];
+  const externalRequests: string[] = [];
   const scripts = new Map<string, Response>();
   let runs = 0;
   page.on("pageerror", (error) => errors.push(error.message));
@@ -11,6 +12,8 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
       scripts.set(response.url(), response);
   });
   page.on("request", (request) => {
+    if (new URL(request.url()).origin !== new URL(process.env.BOARD_TEST_URL!).origin)
+      externalRequests.push(request.url());
     if (request.url().endsWith("/api/v1/sql-read") && request.postDataJSON()?.action.run) runs++;
   });
   await page.goto("/");
@@ -88,6 +91,7 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   ).toEqual([]);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   expect(errors).toEqual([]);
+  expect(externalRequests).toEqual([]);
   expect(scripts.size).toBeLessThanOrEqual(5);
   for (const response of scripts.values()) {
     expect(response.status()).toBe(200);

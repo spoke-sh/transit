@@ -739,6 +739,11 @@ release prefix:
 release-install artifacts version revision:
     python3 -B tests/runner/launch.py tests/interfaces/installation/published.py --artifacts "$1" --version "$2" --revision "$3"
 
+# Browser onboarding against the installed release's embedded runtime and assets.
+[positional-arguments]
+release-board prefix:
+    python3 -B tests/runner/launch.py tests/interfaces/installation/board_workbench.py --installed "$1" --browser
+
 # Linux/Docker: real ENOSPC inside one newly allocated ext4 image.
 server-capacity:
     zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe

@@ -98,3 +98,12 @@ Pull requests build nightly candidates without publishing, so installed SDK
 checks exercise prerelease dependency pins and native-loader version markers.
 Manual candidates can select stable or nightly versions; tag publication uses
 the exact stable version in `VERSION`.
+
+Downloaded runtime archives also supply the Board onboarding gate on both native
+Linux architectures. The workbench schedule runs the single installed executable
+with its embedded roles and assets from a private directory, using explicit
+proof-only catalog and SQL credentials. API checks cover paginated discovery,
+exact-definition previews, complete/empty results, write refusal and revocation.
+Chromium checks Catalog, column profiles and temporary Workbook cells and rejects
+external asset requests. This job installs browser tooling but does not build the
+frontend or runtime; ordinary source-built Board checks remain separate.

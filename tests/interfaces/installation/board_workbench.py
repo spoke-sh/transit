@@ -12,11 +12,16 @@ from interfaces.installation.server_board import Board
 from harness.local_installation import freeze_executables
 
 
-def run(cli, node, host, board, gateway, browser=False):
+def run(cli, node, host, board, gateway=None, browser=False, *, embedded=False):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
-    os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(Path(gateway).resolve())
     fixture = Board(cli, node, host, board)
-    freeze_executables(fixture)
+    if embedded:
+        # The copied release executable owns every runtime role and frontend
+        # asset. No sibling executable, source asset or developer PATH is used.
+        fixture.config['executables'] = {}
+    else:
+        fixture.config['executables']['sql_gateway'] = str(Path(gateway).resolve())
+        freeze_executables(fixture)
     config_file = fixture.root / 'workbench.json'
     config_file.write_text('{}')
     fixture.config['board']['workbench_file'] = str(config_file)
@@ -135,5 +140,13 @@ def run(cli, node, host, board, gateway, browser=False):
             print(f'Workbench evidence retained: {fixture.root}', file=sys.stderr)
 
 
+def installed(prefix, browser=False):
+    binary = Path(prefix).resolve() / 'bin/transit'
+    run(binary, binary, binary, binary, browser=browser, embedded=True)
+
+
 if __name__ == '__main__':
-    run(*sys.argv[1:6], browser='--browser' in sys.argv[6:])
+    if sys.argv[1] == '--installed':
+        installed(sys.argv[2], browser='--browser' in sys.argv[3:])
+    else:
+        run(*sys.argv[1:6], browser='--browser' in sys.argv[6:])
