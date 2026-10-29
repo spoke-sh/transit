@@ -93,6 +93,15 @@ remote execution and the remaining ingress/qualification gates stay open.
 Further unmerged work is outside this source basis. The initial implementation
 slice below starts M9 without claiming its remaining gateway or data-kind gates.
 
+**Integration refresh:** the value/reader slice is rebased onto
+`d64ebb7ce78346f83b96e81d498e38c90e591999`, including M8's PR #239. Typed
+signed Table/native dispatch and installed node SQL co-hosting are now delivered
+for the selected path. Configuration/reload still belongs to the installation
+gateway; coarse remote execution, the remaining transport work and full placement
+qualification stay open. Consume this partial handoff without treating P2a–P2c
+as complete. The retained resource comparison below predates co-hosting and
+measures the historical remote gateway placement, not this rebased runtime.
+
 ### Starting point and selected outcome
 
 An ordinary installed application should declare a Table, inspect its exact
@@ -131,7 +140,7 @@ whether they are in the representative new-feature set.
 | [M5](05-transactions-and-atomic-composition.md), Completed for local Tables | Signed controls, provisional results, savepoints, original transaction handle, common cuts and explicit reattachment | P5 exposes the selected profile. Preserve whole-Table conflicts, explicit decision/cleanup and unsupported-participant refusal; do not assume reserved participant tags execute. |
 | [M6](06-streams-queues-and-durable-runtime.md), In Progress | Delivered database/SQL decoupling; future direct KV, Stream/Queue operations and state/input/output transaction composition | P1 preserves the delivered database boundary. P7 waits for native operations, recovery evidence and the Station atomicity migration where affected. |
 | [M7](07-document-storage-and-station-decoupling.md), In Progress | Shared Document semantics now; direct Document lifecycle and public replacement later | Reuse its types without copying merge logic. Do not expose private staged roots as accepted revisions or implement a temporary Station-backed direct Document API. |
-| [M8](08-gateway-architecture-and-protocol-ingress.md#implementation-plan--2026-10-28), In Progress | Delivered foreground settlement/event-driven recovery; upcoming typed dispatch, coarse statement/control submission, bounded transport/control lanes and sans-I/O codecs | P0/P1 and deterministic context work can proceed. P4–P6 live integration follows M8 P2a–P2c and the applicable P3/P4 native transport changes. P8 needs those qualified paths, not completion of unrelated Flight/Serving or new data-kind coverage. |
+| [M8](08-gateway-architecture-and-protocol-ingress.md#implementation-plan--2026-10-28), In Progress | Delivered foreground settlement/event-driven recovery and selected typed local dispatch/node co-hosting; configuration handoff, coarse remote submission, transport/control lanes and sans-I/O work remain | P0/P1 and deterministic context work can proceed. P4–P6 consume the delivered local seam while preserving M8's remaining P2a–P2c and applicable P3/P4 gates. P8 needs those qualified paths, not completion of unrelated Flight/Serving or new data-kind coverage. |
 | [M13](13-data-structures-and-performance.md), In Progress | Memory/I/O reserves, accounting definitions, current SQL result lifetimes and regression measures | Share allocator/context changes and baseline workloads. M9 owns new client/bridge overhead; M13 owns broader database optimization and scorecards. |
 | [M19](19-service-and-sdk-coverage.md), In Progress | Existing Go raw and SDK/console coverage | Preserve existing installed consumers during migration. New parity follows this foundation instead of extending the Station-shaped data bridge. |
 | [M20](20-formal-semantics-and-correspondence.md#t2-statement-results-disclosure-and-uncertain-settlement), In Progress | Result/settlement models and implementation correspondence | Supply deterministic context/recovery transitions and replay fixtures; do not wait for all formal work or claim full refinement from bounded checks. |

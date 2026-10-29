@@ -22,6 +22,10 @@ Control is `4c536bc3fd3e80a5e5f473bbec70635b69aac5b9`; candidate is
 `96786c46df12903a54a936828f43e492052e0fc8`. Both use pinned Zig
 `0.17.0-dev.2267+48abf1a34`, ReleaseSafe and the same current definition. The
 command is `just test::console-latency --statements --repeat 5 --resources`.
+These revisions use the historical remote SQL gateway placement and remain
+reachable through the evidence branch linked in the retained comparison. The
+implementation rebase includes later node co-hosting; these measurements do not
+qualify that placement or the rebased runtime.
 Each owned build completes before measurement. The shared Linux/NVMe host has
 48 logical CPUs, unrelated active builds/services and no affinity/frequency
 control. Load averages at the start are 3.84/4.78/4.55 and 8.98/10.92/8.18.

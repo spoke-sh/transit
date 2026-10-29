@@ -13,6 +13,13 @@ Control `4c536bc3fd3e80a5e5f473bbec70635b69aac5b9` and candidate
 just test::console-latency --statements --repeat 5 --resources
 ```
 
+These original revisions remain reachable from the
+[`evidence/client-foundation-2026-10-29` branch](https://github.com/spoke-sh/transit/tree/evidence/client-foundation-2026-10-29)
+after the implementation rebase. Run the recorded command at those revisions:
+their default is the historical remote SQL gateway placement. This comparison
+does not measure the subsequently merged node co-hosting implementation; the
+current driver selects historical placement explicitly with `--remote-sql`.
+
 Each arm builds all five selected executables with pinned Zig
 `0.17.0-dev.2267+48abf1a34` and ReleaseSafe, freezes them, then verifies all 47
 statements and typed readbacks. The [control](control.jsonl) and
