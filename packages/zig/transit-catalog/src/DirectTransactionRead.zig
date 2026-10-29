@@ -31,7 +31,7 @@ pub fn view(context: Context, head: c.DirectTransactionWorkspace.Head, source: c
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.transaction.private-read.v1\x00");
     hash.update(writer.buffered());
-    const result: c.protocol.Transaction.ReadView = .{ .cut = head.acquired.cut, .revision = head.revision, .last_statement = head.last_statement, .source = source, .private = .{ .bytes = writer.buffered().len, .sha256 = hash.finalResult() } };
+    const result: c.protocol.Transaction.ReadView = .{ .cut = head.acquired.cut, .revision = head.revision, .last_statement = head.last_statement, .source = source, .private_position = .{ .partition = state.root.partition, .next_lsn = state.root.next_lsn }, .private = .{ .bytes = writer.buffered().len, .sha256 = hash.finalResult() } };
     try result.validate();
     return result;
 }

@@ -47,7 +47,7 @@ def directory(binaries):
 
 
 def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all", repeat="5", instrumentation=""):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-kv","sessions-table","console-statements")
+    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-kv","sessions-table","transactions","console-statements")
     assert instrumentation in ('', '--instrument')
     instrumented = instrumentation == '--instrument'
     assert not instrumented or slice == 'console-statements'
@@ -122,7 +122,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             if settings_binding is not None:
                 configuration['settings'] = dict(url=settings_faults.url if settings_faults is not None else f'http://127.0.0.1:{settings_port}', binding=settings_binding)
             configuration['mysql_port'] = mysql_port
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table', 'console-statements'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table', 'transactions', 'console-statements'):
                 configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
                 configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv', 'sessions-table') else []
                 if session_faults is not None:
@@ -162,7 +162,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 from interfaces.sql_sessions.faults import Faults
                 settings_faults = Faults(f'http://127.0.0.1:{settings_port}')
 
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table', 'transactions'):
                 from interfaces.sql_sessions.faults import Faults
                 session_faults = Faults(url)
             if slice in ('sessions', 'sessions-kv', 'sessions-table'):
@@ -188,7 +188,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 tls(root, session_port, str(Path(console).resolve()), repeat,
                     probes={'native': probe} if instrumented else {})
                 return
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table', 'transactions'):
                 from interfaces.sql_sessions.native import run as sessions
                 source_processes = {}
                 def select_source(name):
@@ -243,6 +243,10 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                         except (ConnectionRefusedError, FileNotFoundError):
                             assert server.poll() is None and time.monotonic() < deadline
                             time.sleep(.02)
+                if slice == 'transactions':
+                    from interfaces.sql_sessions.transactions import run as transactions
+                    transactions(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions, session_faults, lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'))
+                    return
                 sessions(root, session_port, client_options(root,sql_port,mysql_port)[0], restart_sessions, str(Path(console).resolve()), lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), select_source, lambda: call(ledger, 'source-pin-status'), {'sessions-basic': (), 'sessions-kv': (('kv', 41),), 'sessions-table': (('table', 41),)}.get(slice), session_faults, lambda: server.pid)
                 return
             if slice == 'cli':

@@ -165,7 +165,7 @@ pub fn tick(self: *Self) !bool {
     var progressed = false;
     for (page.entries) |slot| if (slot) |reference| {
         self.after = reference.id;
-        if (reference.kind != .table) continue;
+        if (reference.kind != .table and reference.kind != .transaction) continue;
         self.advance(&source, try source.operation(reference.id)) catch |err| {
             self.direct_work_failure.store(@intFromError(err), .release);
             if (wire.Client.unavailable(err) or err == error.ClientOperationConflict or self.background.contended(err) or err == error.AccessDenied) break;
@@ -230,6 +230,10 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
     const reference = state.receipt.binding.intent;
     if (reference == .external) return;
     const caller = source.direct(state);
+    if (reference == .transaction_call) {
+        _ = try g.TransactionWork.advance(caller, state, state.cancel);
+        return;
+    }
     // commit_saved resolves an existing receipt before execution. Repeating it
     // with the original frozen reference needs no preceding inspection RPC.
     // Cancellation retains its separate owner transition below.
@@ -257,6 +261,11 @@ pub fn cancel(self: *Self, observer: *g.Client, id: u64) !void {
     try self.fence(observer);
     var source = try observer.source();
     const state = try source.operation(id);
+    if (state.receipt.binding.intent == .transaction_call) {
+        _ = try g.TransactionWork.advance(source.direct(state), state, true);
+        self.notify();
+        return;
+    }
     _ = try c.DirectClientToken.update(source.direct(state), .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = state.pending, .cancel = true, .record = state.record });
     self.notify();
 }
@@ -380,6 +389,7 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
     const state = try source.operation(id);
     const intent = state.receipt.binding.intent;
     try requireRoute(state, table, namespace);
+    if (intent == .transaction_call) return g.TransactionWork.status(table.*, state);
     const response = try intent.operation(table.*, .inspect, 1);
     defer response.deinit();
     const outcome = try g.Terminal.fromReference(intent, response.value.result);
@@ -391,4 +401,55 @@ fn project(self: *Self, state: c.DirectClientToken.Progress, outcome: ?g.Termina
     const identity: g.results.Operation = .{ .account = self.execution.configuration.account, .id = state.id() };
     const completion = if (outcome) |terminal| try terminal.completion(command, identity) else null;
     return .{ .identity = identity, .command = command, .token = state.receipt.binding.key.token, .phase = if (completion != null) .terminal else .ready, .blocked = false, .cancellation_requested = state.cancel, .outcome = if (completion) |value| value.outcome else null, .matched = if (completion) |value| value.counts.?.matched else 0, .changed = if (completion) |value| value.counts.?.changed else 0, .diagnostic = diagnostic };
+}
+
+/// Submit one frozen transaction command through the existing SQL token owner.
+/// The exact reference is retained before its native owner admits or executes it.
+pub const TransactionSubmission = struct { token: [16]u8, fingerprint: [32]u8, call: c.DirectTransactionCall };
+pub fn submitTransaction(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, namespace: u64, request: g.TransactionWork.Request, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, submission: *?TransactionSubmission) !g.session_protocol.Operation {
+    defer self.notify();
+    try deadline.check(self.io);
+    try self.available(observer, deadline, Self.fence, .{ self, observer });
+    table.lease = self.lease();
+    var source = try observer.source();
+    if (try self.available(observer, deadline, g.Client.Source.lookup, .{ &source, nonce, @as(?[32]u8, fingerprint) })) |state| {
+        operation.* = state.id();
+        try requireRoute(state, table, namespace);
+        return g.TransactionWork.project(table.*, state, try self.available(observer, deadline, g.TransactionWork.advance, .{ table.*, state, false }));
+    }
+    var caller = table.*;
+    caller.transaction = null;
+    const call = try g.TransactionWork.build(allocator, self.io, self.execution.configuration, caller, namespace, nonce, fingerprint, request);
+    // Preserve complete original recovery material before a bind can be sent.
+    submission.* = .{ .token = nonce, .fingerprint = fingerprint, .call = call };
+    return self.resumeTransactionSubmission(observer, caller, submission.*.?, deadline, operation);
+}
+pub fn resumeTransactionSubmission(self: *Self, observer: *g.Client, caller: c.DirectTableClient, submission: TransactionSubmission, deadline: Deadline, operation: *?u64) !g.session_protocol.Operation {
+    defer self.notify();
+    try self.available(observer, deadline, Self.fence, .{ self, observer });
+    if (!std.meta.eql(caller.connection, submission.call.connection)) return error.CatalogIdentityConflict;
+    var control = caller;
+    control.transaction = null;
+    const binding: c.DirectClientToken.Binding = .{
+        .key = .{ .definition = p.Growth.current_definition, .connection = control.connection, .account = self.execution.configuration.account, .token = submission.token },
+        .fingerprint = submission.fingerprint,
+        .intent = .{ .transaction_call = submission.call },
+        .budget = self.execution.configuration.budget(c.DirectTransactionCall.reservation_bytes),
+    };
+    const receipt = self.available(observer, deadline, c.DirectClientToken.bind, .{ control, binding }) catch |err| {
+        if (observer.transport.contended(err)) {
+            var source = try observer.source();
+            if (try self.available(observer, deadline, g.Client.Source.lookup, .{ &source, submission.token, @as(?[32]u8, submission.fingerprint) })) |original| {
+                operation.* = original.id();
+                try requireRoute(original, &control, submission.call.namespace);
+                return g.TransactionWork.status(control, original);
+            }
+        }
+        return err;
+    };
+    operation.* = receipt.position.next_lsn;
+    var source = try observer.source();
+    const state = try self.available(observer, deadline, g.Client.Source.operation, .{ &source, operation.*.? });
+    const result = try self.available(observer, deadline, g.TransactionWork.advance, .{ control, state, false });
+    return g.TransactionWork.project(control, state, result);
 }

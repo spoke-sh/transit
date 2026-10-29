@@ -80,7 +80,7 @@ def run(root,sql_port,mysql_port):
         cursor = connection.execute('DELETE FROM wire_rows WHERE id=%s', (1,), prepare=True)
         assert cursor.rowcount == 1
         assert connection.execute('SELECT COUNT(*) FROM wire_rows').fetchone() == (0,)
-        for sql in ('BEGIN', 'SET autocommit=0', 'INSERT INTO wire_rows (id) VALUES (2); INSERT INTO wire_rows (id) VALUES (3)'):
+        for sql in ('BEGIN ISOLATION LEVEL READ COMMITTED', 'SET autocommit=0', 'INSERT INTO wire_rows (id) VALUES (2); INSERT INTO wire_rows (id) VALUES (3)'):
             try:
                 connection.execute(sql)
             except psycopg.Error:

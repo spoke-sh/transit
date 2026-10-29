@@ -150,6 +150,7 @@ pub const Binding = struct {
         try self.key.validate();
         try self.intent.validate();
         try self.budget.validate();
+        if (self.intent == .transaction_call and self.budget.bytes < c.DirectTransactionCall.reservation_bytes) return error.ClientTokenBudget;
         if (!std.meta.eql(self.key.connection, self.intent.connection()) or
             std.mem.allEqual(u8, &self.fingerprint, 0)) return error.InvalidClientToken;
         if (self.intent == .external and !std.mem.eql(u8, &self.key.account, &self.intent.external.record.scope.account)) return error.InvalidClientToken;

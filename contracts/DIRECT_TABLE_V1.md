@@ -151,7 +151,7 @@ Generic progress updates reject transaction entries with
 `TransactionOperationRequired`, including changes to the record, cancellation,
 pending flag and exact repeats. Transaction-owned operations must preserve their
 workspace and original decision; generic client bookkeeping cannot replace them.
-The admission interface alone does not provide interactive SQL transactions.
+The SQL session owner composes this admission interface through the durable caller-command boundary below.
 
 The catalog component's common-cut acquisition publishes a `DirectRecord` with
 format `0x54584331`. Its canonical JSON contains mandatory `definition`, `cut`
@@ -1321,3 +1321,34 @@ stack. Release drops those dependencies, permitting later collection; neither
 release nor rollback promises immediate physical deletion. Resident and cumulative
 workspace limits apply, and a resource refusal leaves accepted rollback work
 pending until recovery or explicit full abort.
+
+Private read evidence also carries `private_position`, the virtual evaluator
+frontier used to guard a subsequent private predicate mutation. It can advance
+without any public WAL acceptance. The source guard and public accepted position
+remain separate; only the common decision publishes private state.
+
+## Durable transaction caller commands
+
+`DirectIntent.Reference.transaction_call` freezes a caller command before native
+child admission. It fixes the signed connection, namespace, outer operation and
+one begin, statement, savepoint or settle command. Outer and child operation IDs
+must differ. Its `DirectClientToken` binding owns original account/token recovery;
+its 37,376-byte reservation covers the bounded command/result record. Generic
+intent execution and progress settlement cannot complete this work.
+
+The signed `transaction.call` operation advances at most the requested bounded
+steps. Its control flag must match a settlement command. It preserves original
+child identities through lost replies, native-owner completion and outer-result
+publication. Partial decisions can be observed while cleanup remains pending;
+only final cleanup closes the outer pending directory entry. Definitive
+precondition refusals are durable typed results. Unavailable storage, authority
+or quota does not manufacture rejection. `call_outcome` observes the exact result
+under current authority; statement/savepoint outcome lookup likewise preserves
+original results after rollback or parent closure. Retained catalog history keeps
+frozen DML alive even before native child admission.
+
+The caller's cancellation request is sticky observation/workflow state. It does
+not replace the frozen command with abort, undo a decision or establish that a
+remote reply was never accepted. Explicit settle commands retain the original
+transaction attempt and the common decision owner. See [SQL sessions](SQL_SESSION_V1.md#table-transactions-and-recovery)
+for attachment and uncertainty behavior.

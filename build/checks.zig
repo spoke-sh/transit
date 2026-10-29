@@ -80,7 +80,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .root_source_file = b.path("tests/interfaces/cli/diagnostic_grammar.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
     }) });
     b.step("diagnostic-grammar", "Build the public compiler diagnostic corpus consumer").dependOn(&b.addInstallArtifact(diagnostic_grammar, .{}).step);
     const mutation_latency_client = b.addExecutable(.{ .name = "transit-mutation-latency-client", .root_module = b.createModule(.{
@@ -372,7 +372,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .target = target,
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_client", .module = b.dependency("transit_client", .{ .target = target, .optimize = optimize }).module("transit_client") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") }, .{ .name = "transit_observability", .module = observations.module("transit_observability") } },
-    }), .filters = b.option([]const []const u8, "local-catalog-test-filter", "Run selected local catalog integration tests") orelse &.{} }));
+    }) }));
     b.step("test-local-catalog", "Verify direct catalog lifecycle against current local native policy").dependOn(&local_catalog_tests.step);
     components_step.dependOn(&local_catalog_tests.step);
     const local_data_collection_tests = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{

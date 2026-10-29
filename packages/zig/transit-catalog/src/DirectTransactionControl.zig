@@ -43,6 +43,7 @@ pub const Status = struct {
     revision: c.protocol.DataLifecycle.Position,
     begin: x.Begin,
     acquired: bool,
+    cut: ?x.Cut,
     last_statement: u64,
     pending_statement: bool,
     last_control: u64,
@@ -51,6 +52,29 @@ pub const Status = struct {
     attempt: ?x.Attempt,
     observation: x.Observation,
     cleanup_complete: bool,
+
+    pub fn validate(status: Status) !void {
+        try status.begin.validate();
+        try status.revision.validate();
+        try status.observation.validate();
+        if (status.acquired != (status.cut != null)) return error.InvalidTableResponse;
+        if (status.cut) |cut| {
+            try cut.validate();
+            try status.begin.requireSame(cut.begin);
+        }
+        if (status.last_control > status.begin.limits.statements or status.savepoints > status.begin.limits.savepoints or
+            (status.pending_control and (status.pending_statement or status.attempt != null)) or status.last_statement > status.begin.limits.statements or status.revision.partition != status.begin.catalog.partition or status.revision.next_lsn <= status.begin.catalog.next_lsn or
+            (status.cleanup_complete and status.observation != .decided) or (status.attempt != null and status.pending_statement)) return error.InvalidTableResponse;
+        if (status.attempt) |attempt| {
+            try attempt.validate();
+            if (!std.meta.eql(attempt.transaction, status.begin.identity) or attempt.last_statement != status.last_statement) return error.InvalidTableResponse;
+            switch (status.observation) {
+                .preparing => |found| try found.requireSame(attempt),
+                .decided => |decision| try decision.requireAttempt(attempt),
+                .not_observed, .unavailable, .denied => {},
+            }
+        } else if (status.observation == .decided or status.observation == .preparing) return error.InvalidTableResponse;
+    }
 };
 
 pub fn load(allocator: std.mem.Allocator, objects: c.storage.TransitObjectStore.ObjectStore, progress: c.DirectClientToken.Progress) !State {

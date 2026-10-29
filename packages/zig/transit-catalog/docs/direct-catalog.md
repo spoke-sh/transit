@@ -768,3 +768,22 @@ limit. Stack lookup and rollback use bounded resident state over durable records
 Saved and partially restored roots participate in storage reachability. See the
 [savepoint contract](../../../../contracts/DIRECT_TABLE_V1.md#durable-savepoint-controls)
 for retry, quota and storage semantics.
+
+
+### Caller commands and original outcomes
+
+`DirectTransactionCall` binds an outer client token to one exact native begin,
+statement, savepoint or settlement request before the child owner can accept it.
+The caller command uses its own operation claim and a 37,376-byte reserved record;
+that receipt is separate from the original transaction statement and decision.
+`DirectTransactionClient.advanceCall` drives bounded work and `callOutcome`
+observes it. Generic operation/progress routes reject these entries.
+
+Frozen statement references remain reachable before child admission. Original
+statement and savepoint outcomes remain inspectable after rollback and after
+transaction cleanup under current rights. Durable typed precondition refusals
+prevent endless recovery of impossible commands; unavailable storage or authority
+keeps the command unresolved. A partial decision stays in the pending directory
+until cleanup completes. Cancellation is sticky caller state, not an implicit
+abort request. The [wire contract](../../../../contracts/DIRECT_TABLE_V1.md#durable-transaction-caller-commands)
+defines the exact boundary.

@@ -54,6 +54,12 @@ points do not accept it. `STORAGE` remains a contextual identifier, including in
 dotted setting names. See [SHOW](../../docs/handbook/reference/sql/show.md) for the
 bounded backlog and accepted-frontier semantics.
 
+`transactionStatement` lowers through `transit-sql.TransactionSql` to the shared
+session controls. It accepts serializable or read-only BEGIN/START, COMMIT,
+ROLLBACK and named savepoint controls. Other isolation levels, chaining, nested
+transactions and implicit commits are excluded. See
+[transactions](../../docs/handbook/reference/sql/transactions.md).
+
 ## Reproducible reference checks
 
 From the pinned development shell:

@@ -27,6 +27,14 @@ original token and frozen intent after interruption and settles pending accounti
 separately. Status remains observation-only; ordinary retries never recompile
 accepted SQL against later data.
 
+`SessionTransaction` attaches temporary sessions to Catalog-owned Table
+transactions. `TransactionSql` parses common BEGIN/COMMIT/ROLLBACK and savepoint
+controls; `TransactionWork` freezes each caller command before native admission.
+Private reads bypass the independent read-pin cache and retain one exact workspace
+revision. The shared result model reports provisional counts and actual decisions.
+See [Table transactions](../../../docs/handbook/reference/sql/transactions.md) for
+scope, session loss, conflicts and resource limits.
+
 `ConfigurationOperations` records the original reload identity and expected
 configuration generation in Catalog before dispatch. `CapturedOperations` stages
 a complete compiled bundle and publishes each complete signed Query request

@@ -31,6 +31,7 @@ pub const ConfigurationOperations = @import("ConfigurationOperations.zig");
 pub const OperatorConfiguration = @import("OperatorConfiguration.zig");
 pub const Registry = @import("Registry.zig");
 pub const Session = @import("Session.zig");
+pub const SessionTransaction = @import("SessionTransaction.zig");
 pub const SessionSettings = @import("SessionSettings.zig");
 pub const SourceSession = @import("SourceSession.zig");
 pub const ReadSources = @import("ReadSources.zig");

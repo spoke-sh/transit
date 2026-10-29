@@ -14,7 +14,7 @@ pub const head_format: u32 = 0x54585731;
 pub const table_format: u32 = 0x54585431;
 pub const statement_format: u32 = 0x54584f31;
 pub fn reserved(format: u32) bool {
-    return format == head_format or format == table_format or format == statement_format or format == c.DirectTransactionControl.format or format == c.DirectTransactionSavepoint.saved_format or format == c.DirectTransactionSavepoint.result_format;
+    return format == head_format or format == table_format or format == statement_format or format == c.DirectTransactionControl.format or format == c.DirectTransactionCall.format or format == c.DirectTransactionSavepoint.saved_format or format == c.DirectTransactionSavepoint.result_format;
 }
 
 pub const Request = struct {

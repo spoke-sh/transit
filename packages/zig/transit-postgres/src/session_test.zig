@@ -83,6 +83,9 @@ const Host = struct {
         self.writes += 1;
         return .{ .kind = .update, .outcome = self.outcome, .counts = .{ .matched = 1, .changed = if (self.invalid_counts) 2 else 0 }, .operation = .{ .account = @splat(7), .id = 42 }, .pending_restart = false, .diagnostic = null };
     }
+    pub fn transactionStatus(_: *Host) g.results.Transaction.SessionState {
+        return .idle;
+    }
     pub fn begin(_: *Host) !void {}
     pub fn end(_: *Host) void {}
     pub fn diagnostic(self: *Host, err: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {

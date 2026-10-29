@@ -11,6 +11,8 @@ pub const Subject = union(enum) {
 subjects: [g.ReadBatch.max_rows]?Subject = @splat(null),
 len: u8 = 0,
 origins: bool = false,
+transaction: ?g.catalog.protocol.Transaction.Handle = null,
+transaction_context: ?g.catalog.DirectTransactionRead.Context = null,
 pub fn append(self: *Self, subject: ?Subject) !void {
     const value = subject orelse return;
     if (self.len == self.subjects.len) return error.InvalidReadBatch;
@@ -19,6 +21,7 @@ pub fn append(self: *Self, subject: ?Subject) !void {
 }
 pub fn validate(self: Self, host: *g.Session, prepared: *g.Session.Prepared) !void {
     try host.validate(prepared);
+    if (self.transaction_context != null and (!std.meta.eql(self.transaction_context, host.table.transaction) or !std.meta.eql(self.transaction, host.transaction.handle))) return error.TransactionReadChanged;
     if (self.origins) {
         const settings = try @import("SessionSettings.zig").client(host);
         if (!try host.freshOn(.settings, g.query.SettingsClient.canSeeOrigins, .{settings})) return error.ConfigurationDenied;

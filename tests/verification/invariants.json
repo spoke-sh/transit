@@ -2434,6 +2434,35 @@
       "qualification": "Executable scenarios; executed evidence is recorded in the qualification owner."
     },
     {
+      "id": "TRANSACTION-SQL-01",
+      "claim": "Local Table SQL transactions preserve provisional statement identities, a common retained cut and one durable decision across authenticated callers and gateway replacement",
+      "owner": "contracts/SQL_SESSION_V1.md",
+      "implementation": [
+        "packages/zig/transit-sql/src/TransactionWork.zig",
+        "packages/zig/transit-sql-service/src/SessionTransaction.zig",
+        "packages/zig/transit-catalog/src/DirectTransactionCall.zig",
+        "tests/interfaces/sql_sessions/transactions.py"
+      ],
+      "profile": "One local fenced Catalog, branch one, Table participants, conservative whole-Table serializable OCC and read-only retained cuts",
+      "tasks": [
+        "test::sql-transactions",
+        "test::sql-wire-contracts",
+        "test::catalog",
+        "test::table-transaction-model",
+        "test::transaction-decision-model"
+      ],
+      "scenarios": [
+        "Private DML, two-Table reads, savepoint rollback and original rolled-back statement retry",
+        "Lost commit reply, original decision retry, write skew, absent keys, phantoms, collation and DDL conflicts",
+        "Gateway replacement and explicit original handle attachment; PostgreSQL I/T/E and MySQL IN_TRANS",
+        "Current buffered disclosure rights, keyless duplicate occurrences and Table checkpoint/data/outbox atomicity",
+        "Application-owned fake outbox dispatcher rejects replay/denial and preserves an unknown remote result"
+      ],
+      "limits": "Disk-backed local installation and bounded finite histories. No native KV/Document/Stream/Queue participants, real connector execution, automatic transaction expiry, arbitrary distributed atomicity, strict real-time serializability, host power-loss or liveness guarantee. Fake dispatch policy is not an installed connector. Formal model checks and selected production histories remain distinct from implementation refinement.",
+      "model": "tests/verification/models/TableTransaction.tla",
+      "qualification": "Execution evidence belongs in docs/history/qualification/transactions.md; registration alone is not a pass."
+    },
+    {
       "id": "SQL-READ-01",
       "claim": "Resident Table owners, incremental recoverSince replay, transaction temporary owner isolation and ReadCache snapshot pins preserve cold-replay equivalence and never advertise a closing pin",
       "owner": "docs/handbook/internals/storage-runtime.md",

@@ -46,6 +46,11 @@
       "source": "packages/zig/transit-query/src/SettingsSql.zig",
       "contract": "contracts/CONFIGURATION_V1.md",
       "behavior": "Pure shared settings plans and typed metadata compilation; no reads, authority checks or reload dispatch."
+    },
+    "transaction": {
+      "source": "packages/zig/transit-sql/src/TransactionSql.zig",
+      "contract": "contracts/SQL_SESSION_V1.md",
+      "behavior": "Pure shared transaction-control parser. No admission, private statement execution or durable decision."
     }
   },
   "cases": [
@@ -670,7 +675,7 @@
     },
     {
       "id": "literal-string",
-      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
@@ -2265,7 +2270,7 @@
     },
     {
       "id": "literal-string.wrong-source",
-      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
@@ -5792,7 +5797,7 @@
     },
     {
       "id": "ddl-collation-cp037-literal",
-      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_CP037 DEFAULT '東京')",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_CP037 DEFAULT '\u6771\u4eac')",
       "profile": "table_ddl",
       "grammar": "sql",
       "root": "statement",
@@ -5801,6 +5806,369 @@
         "accepted": false,
         "code": "sql.unrepresentable_cp037",
         "category": "binding"
+      }
+    },
+    {
+      "id": "transaction-control-0",
+      "sql": "BEGIN",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-1",
+      "sql": "BEGIN WORK",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-2",
+      "sql": "BEGIN TRANSACTION",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-3",
+      "sql": "START TRANSACTION",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-4",
+      "sql": "BEGIN ISOLATION LEVEL SERIALIZABLE",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-5",
+      "sql": "BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-6",
+      "sql": "BEGIN READ ONLY",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-7",
+      "sql": "BEGIN READ WRITE ISOLATION LEVEL SERIALIZABLE",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-8",
+      "sql": "COMMIT",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-9",
+      "sql": "COMMIT WORK",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-10",
+      "sql": "COMMIT TRANSACTION",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-11",
+      "sql": "ROLLBACK",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-12",
+      "sql": "ROLLBACK WORK",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-13",
+      "sql": "ROLLBACK TRANSACTION",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-14",
+      "sql": "ROLLBACK TO p",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-15",
+      "sql": "ROLLBACK TO SAVEPOINT p",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-16",
+      "sql": "SAVEPOINT p",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-17",
+      "sql": "RELEASE p",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-control-18",
+      "sql": "RELEASE SAVEPOINT p",
+      "profile": "transaction",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-begin",
+      "sql": "SELECT id AS BEGIN FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-start",
+      "sql": "SELECT id AS START FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-transaction",
+      "sql": "SELECT id AS TRANSACTION FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-work",
+      "sql": "SELECT id AS WORK FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-isolation",
+      "sql": "SELECT id AS ISOLATION FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-level",
+      "sql": "SELECT id AS LEVEL FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-serializable",
+      "sql": "SELECT id AS SERIALIZABLE FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-read",
+      "sql": "SELECT id AS READ FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-only",
+      "sql": "SELECT id AS ONLY FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-write",
+      "sql": "SELECT id AS WRITE FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-commit",
+      "sql": "SELECT id AS COMMIT FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-rollback",
+      "sql": "SELECT id AS ROLLBACK FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-savepoint",
+      "sql": "SELECT id AS SAVEPOINT FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "transaction-contextual-release",
+      "sql": "SELECT id AS RELEASE FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
       }
     }
   ]

@@ -7,7 +7,7 @@ const f = q.fuze;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
-    profile: enum { query, template, declaration, table_ddl, mutation, application, relational, authorization, settings } = .query,
+    profile: enum { query, template, declaration, table_ddl, mutation, application, relational, authorization, settings, transaction } = .query,
     value_type: f.Unified.Type = .int64,
     source: []const u8 = "items",
     basis: []const u8 = "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)",
@@ -19,6 +19,9 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
     };
     const source: f.Unified.Sql.Source = .{ .name = try f.Unified.Name.init(case.source), .schema = .{ .columns = &columns } };
     switch (case.profile) {
+        .transaction => {
+            _ = (try @import("transit_sql_service").database.TransactionSql.parse(case.sql, .transit)) orelse return error.UnsupportedStatement;
+        },
         .settings => {
             var value = (try q.SettingsSql.parse(allocator, case.sql, .transit)) orelse return error.UnsupportedStatement;
             defer value.deinit();

@@ -79,6 +79,7 @@
       "test::sql-gateway",
       "test::sql-wire-gateway",
       "test::sql-sessions",
+      "test::sql-transactions",
       "test::relational-callers",
       "test::relational-maintenance",
       "test::relational-exchanges",
@@ -326,6 +327,9 @@
     "check::fast": [
       "test::diagnostic-inventory",
       "test::diagnostic-mappings"
+    ],
+    "test::sql-transactions": [
+      "test::sql-wire-encoding"
     ]
   },
   "environments": {

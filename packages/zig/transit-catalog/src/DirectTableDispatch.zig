@@ -72,11 +72,15 @@ fn historySource(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, de
 pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
     switch (action) {
         .transaction => |request| return .{ .transaction = switch (request) {
+            .call => |value| .{ .call = try catalog.transactionCall(value.key, value.steps, value.control, value.cancel, policy) },
+            .call_outcome => |value| .{ .call = try catalog.transactionCallOutcome(value, policy) },
             .begin => |value| .{ .begun = try catalog.beginTransaction(value, policy) },
             .acquire => |key| .{ .acquired = try catalog.acquireTransaction(key, policy) },
             .inspect => |key| .{ .status = try catalog.inspectTransaction(key, policy) },
             .stage => |value| .{ .staged = try catalog.stageTransactionStatement(value.key, value.basis, value.sequence, value.work, policy) },
             .statement => |value| .{ .statement = if (value.execute) try catalog.executeTransactionStatement(value.key, value.request, policy) else try catalog.admitTransactionStatement(value.key, value.request, policy) },
+            .statement_outcome => |value| .{ .statement = try catalog.transactionStatementOutcome(value.key, value.request, policy) },
+            .savepoint_outcome => |value| .{ .savepoint_outcome = try catalog.transactionSavepointOutcome(value.key, value.request, policy) },
             .savepoint => |value| .{ .savepoint = try catalog.transactionSavepoint(value.key, value.request, value.steps, policy) },
             .advance => |value| .{ .status = try catalog.resumeTransaction(value.key, value.steps, policy) },
             .settle => |value| .{ .status = try catalog.settleTransaction(value.key, value.operation, value.command, value.steps, policy) },

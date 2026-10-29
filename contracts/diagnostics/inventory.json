@@ -301,7 +301,7 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 83,
+        "try": 84,
         "catch": 18
       },
       "imports": [
@@ -3459,7 +3459,7 @@
         "CatalogObservationChanged": 1,
         "CatalogRegistrationRequired": 8,
         "ClientOperationConflict": 2,
-        "ClientOperationMissing": 10,
+        "ClientOperationMissing": 14,
         "ClientOperationPending": 6,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 1,
@@ -3490,8 +3490,8 @@
         "InvalidTransactionDirectory": 1,
         "InvalidTransactionPreparation": 1,
         "InvalidTransactionRead": 4,
-        "InvalidTransactionWork": 4,
-        "InvalidTransactionWorkspace": 4,
+        "InvalidTransactionWork": 6,
+        "InvalidTransactionWorkspace": 5,
         "MissingRequiredField": 1,
         "NamedResourceAllocationUnreconciled": 1,
         "NamedResourceNativeUnavailable": 4,
@@ -3511,17 +3511,18 @@
         "TableSnapshotReleased": 3,
         "TransactionAuthorityChanged": 1,
         "TransactionCatalogChanged": 1,
-        "TransactionConflict": 6,
+        "TransactionConflict": 7,
+        "TransactionControlConflict": 1,
         "TransactionControlPending": 4,
         "TransactionCutNotAcquired": 2,
-        "TransactionIdentityConflict": 2,
+        "TransactionIdentityConflict": 6,
         "TransactionMemoryLimit": 7,
         "TransactionObjectNotSelected": 3,
-        "TransactionOperationRequired": 10,
+        "TransactionOperationRequired": 15,
         "TransactionPreparationMissing": 2,
         "TransactionPrepared": 2,
         "TransactionReadChanged": 3,
-        "TransactionStatementConflict": 3,
+        "TransactionStatementConflict": 4,
         "TransactionStatementLimit": 1,
         "TransactionStatementPending": 5,
         "TransactionWorkspaceLimit": 2,
@@ -3607,6 +3608,7 @@
         "dependentRequirements()": "<inferred>",
         "directRecord()": "<inferred>",
         "entry()": "<inferred>",
+        "executeTransactionCall()": "anyerror",
         "executeTransactionStatement()": "<inferred>",
         "flushStorage()": "<inferred>",
         "freezeTransaction()": "<inferred>",
@@ -3636,6 +3638,7 @@
         "namespaceReason()": "<inferred>",
         "namespaceRegistration()": "<inferred>",
         "observe()": "<inferred>",
+        "observeTransactionCall()": "anyerror",
         "open()": "<inferred>",
         "openTransaction()": "<inferred>",
         "operationGuard()": "<inferred>",
@@ -3654,6 +3657,7 @@
         "previewNamespace()": "<inferred>",
         "previewResource()": "<inferred>",
         "previewRows()": "<inferred>",
+        "publishTransactionCall()": "<inferred>",
         "publishTransactionControl()": "<inferred>",
         "publishTransactionWorkspace()": "<inferred>",
         "rangeRows()": "<inferred>",
@@ -3671,7 +3675,7 @@
         "releaseRows()": "<inferred>",
         "requestGuard()": "<inferred>",
         "requireClientLease()": "<inferred>",
-        "requireClientTerminal()": "<inferred>",
+        "requireClientTerminal()": "anyerror",
         "requireInitialized()": "<inferred>",
         "requirements()": "<inferred>",
         "resolve()": "<inferred>",
@@ -3707,9 +3711,14 @@
         "storageState()": "<inferred>",
         "storedSchema()": "<inferred>",
         "terminal()": "<inferred>",
+        "transactionCall()": "anyerror",
+        "transactionCallOutcome()": "anyerror",
+        "transactionObservationHead()": "<inferred>",
         "transactionReadHead()": "anyerror",
         "transactionSavepoint()": "anyerror",
+        "transactionSavepointOutcome()": "anyerror",
         "transactionStatementBounded()": "<inferred>",
+        "transactionStatementOutcome()": "anyerror",
         "transactionStatementWork()": "<inferred>",
         "transactionTableState()": "<inferred>",
         "transactionTableStateBounded()": "<inferred>",
@@ -3717,10 +3726,10 @@
         "validateEntry()": "<inferred>",
         "verifiedObject()": "<inferred>"
       },
-      "open_error_set_uses": 4,
+      "open_error_set_uses": 11,
       "propagation": {
-        "try": 1043,
-        "catch": 16
+        "try": 1097,
+        "catch": 18
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -4247,6 +4256,7 @@
     "packages/zig/transit-catalog/src/DirectClientToken.zig": {
       "errors": {
         "ClientBudgetConflict": 1,
+        "ClientTokenBudget": 1,
         "ClientTokenCapacity": 1,
         "ClientTokenConflict": 1,
         "DataIdentityConflict": 3,
@@ -4389,6 +4399,7 @@
       "outcomes": {
         "Reference": [
           "transaction",
+          "transaction_call",
           "external",
           "table",
           "name_assertion",
@@ -4757,7 +4768,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 164,
+        "try": 165,
         "catch": 1
       },
       "imports": [
@@ -4949,7 +4960,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 160,
+        "try": 164,
         "catch": 0
       },
       "imports": [
@@ -5533,6 +5544,59 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTransactionCall.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "DataIdentityConflict": 1,
+        "InvalidClientToken": 1,
+        "InvalidTableResponse": 9,
+        "InvalidTransactionWork": 1,
+        "ReadOnlyTransaction": 1,
+        "TransactionControlConflict": 1,
+        "TransactionControlPending": 1,
+        "TransactionCutNotAcquired": 1,
+        "TransactionFrozen": 1,
+        "TransactionIdentityConflict": 2,
+        "TransactionObjectNotSelected": 1,
+        "TransactionOperationRequired": 1,
+        "TransactionReadChanged": 1,
+        "TransactionSavepointMissing": 1,
+        "TransactionStatementConflict": 1,
+        "TransactionStatementPending": 1
+      },
+      "outcomes": {
+        "Result": [
+          "rejected",
+          "begun",
+          "statement",
+          "savepoint",
+          "settled"
+        ],
+        "work": [
+          "begin",
+          "statement",
+          "savepoint",
+          "settle"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Result.requireCall()": "<inferred>",
+        "Result.validate()": "<inferred>",
+        "Stored.validate()": "<inferred>",
+        "beginRequest()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 21,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTransactionClient.zig": {
       "errors": {
         "CatalogIdentityConflict": 1
@@ -5543,17 +5607,21 @@
         "acquire()": "<inferred>",
         "admit()": "<inferred>",
         "advance()": "<inferred>",
+        "advanceCall()": "<inferred>",
         "begin()": "<inferred>",
         "call()": "<inferred>",
+        "callOutcome()": "<inferred>",
         "execute()": "<inferred>",
         "inspect()": "<inferred>",
         "savepoint()": "<inferred>",
+        "savepointOutcome()": "<inferred>",
         "settle()": "<inferred>",
-        "stage()": "<inferred>"
+        "stage()": "<inferred>",
+        "statementOutcome()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 15,
         "catch": 0
       },
       "imports": [
@@ -5563,6 +5631,7 @@
     },
     "packages/zig/transit-catalog/src/DirectTransactionControl.zig": {
       "errors": {
+        "InvalidTableResponse": 4,
         "InvalidTransactionControl": 6
       },
       "outcomes": {
@@ -5574,11 +5643,12 @@
       "error_sets": {},
       "error_returns": {
         "State.validate()": "<inferred>",
+        "Status.validate()": "<inferred>",
         "load()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 7,
+        "try": 15,
         "catch": 0
       },
       "imports": [
@@ -5615,9 +5685,9 @@
     "packages/zig/transit-catalog/src/DirectTransactionRequest.zig": {
       "errors": {
         "InvalidClientToken": 1,
-        "InvalidTableResponse": 12,
+        "InvalidTableResponse": 11,
         "InvalidTransactionBegin": 1,
-        "InvalidTransactionWork": 5,
+        "InvalidTransactionWork": 6,
         "TransactionCapacity": 1
       },
       "outcomes": {
@@ -5626,22 +5696,28 @@
           "authorized_catalog_tables"
         ],
         "Request": [
+          "call",
+          "call_outcome",
           "begin",
           "acquire",
           "inspect",
           "stage",
           "statement",
+          "statement_outcome",
+          "savepoint_outcome",
           "savepoint",
           "advance",
           "settle"
         ],
         "Result": [
+          "call",
           "begun",
           "acquired",
           "staged",
           "statement",
           "status",
-          "savepoint"
+          "savepoint",
+          "savepoint_outcome"
         ]
       },
       "error_sets": {},
@@ -5652,7 +5728,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 29,
         "catch": 0
       },
       "imports": [
@@ -5833,6 +5909,7 @@
       },
       "outcomes": {
         "Stored": [
+          "transaction_call",
           "transaction_savepoint",
           "transaction_attempt",
           "transaction_statement",
@@ -5859,6 +5936,7 @@
         "claimStored()": "<inferred>",
         "claimTransaction()": "<inferred>",
         "claimTransactionAttempt()": "<inferred>",
+        "claimTransactionCall()": "<inferred>",
         "claimTransactionSavepoint()": "<inferred>",
         "claimTransactionStatement()": "<inferred>",
         "key()": "<inferred>",
@@ -6182,6 +6260,7 @@
         "DirectTableTyped.zig",
         "DirectTableValues.zig",
         "DirectTransaction.zig",
+        "DirectTransactionCall.zig",
         "DirectTransactionClient.zig",
         "DirectTransactionControl.zig",
         "DirectTransactionRead.zig",
@@ -13144,7 +13223,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 66,
+        "try": 67,
         "catch": 0
       },
       "imports": [
@@ -14295,7 +14374,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"491441b64b1f92bba9c351625cebf29dac5b3f41964c7a59bec791f5a32898c9\""
+          "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
         ],
         "Effect.phase": [
           "pending",
@@ -14843,14 +14922,16 @@
     },
     "packages/zig/transit-protocol/src/Transaction.zig": {
       "errors": {
+        "IncompatibleDefinition": 1,
         "IncompleteTransactionCut": 1,
         "InvalidTransactionAttempt": 1,
         "InvalidTransactionBegin": 1,
         "InvalidTransactionDecision": 1,
         "InvalidTransactionGuard": 2,
+        "InvalidTransactionHandle": 2,
         "InvalidTransactionLimits": 1,
         "InvalidTransactionPreparation": 1,
-        "InvalidTransactionRead": 1,
+        "InvalidTransactionRead": 2,
         "InvalidTransactionStatement": 1,
         "ReadOnlyTransaction": 1,
         "TransactionConflict": 1,
@@ -14859,6 +14940,14 @@
         "UnsupportedTransactionParticipant": 2
       },
       "outcomes": {
+        "CallRefusal": [
+          "stale_workspace",
+          "statement_conflict",
+          "control_conflict",
+          "transaction_closed",
+          "unsupported_scope",
+          "identity_conflict"
+        ],
         "Decision.outcome": [
           "committed",
           "aborted"
@@ -14911,6 +15000,7 @@
         "Decision.requireAttempt()": "<inferred>",
         "Decision.validate()": "<inferred>",
         "Directory.validate()": "<inferred>",
+        "Handle.validate()": "<inferred>",
         "Identity.requireObject()": "<inferred>",
         "Identity.validate()": "<inferred>",
         "Limits.validate()": "<inferred>",
@@ -14926,7 +15016,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 51,
+        "try": 53,
         "catch": 0
       },
       "imports": [
@@ -15195,12 +15285,11 @@
       "errors": {
         "CatalogIdentityConflict": 1,
         "InvalidQueryBudget": 2,
-        "InvalidRelationalSources": 3,
+        "InvalidRelationalSources": 4,
         "RelationalCallerChanged": 2,
         "RelationalResidentBudget": 2,
         "RelationalSourceChanged": 2,
-        "TableNotFound": 1,
-        "UnsupportedRelationalConsistency": 2
+        "TableNotFound": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -15212,7 +15301,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 25,
         "catch": 0
       },
       "imports": [
@@ -15228,24 +15317,26 @@
         "OutOfMemory": 1,
         "RelationalResidentBudget": 2,
         "RelationalSourceChanged": 2,
-        "UnsupportedRelationalConsistency": 1
+        "UnsupportedRelationalConsistency": 3
       },
       "outcomes": {
         "Consistency": [
           "per_resource_snapshot_vector",
           "independent_table_snapshots",
+          "transaction",
           "atomic"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "Options.requireClient()": "<inferred>",
         "next()": "<inferred>",
         "openPreparedRetained()": "<inferred>",
         "schema()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 12,
         "catch": 1
       },
       "imports": [
@@ -15256,9 +15347,11 @@
     "packages/zig/transit-query-direct/src/DirectRelationalTables.zig": {
       "errors": {
         "InvalidRelationalSources": 1,
+        "InvalidTransactionRead": 2,
         "QueryClosed": 3,
         "QueryPageBudget": 4,
         "RelationalSourceChanged": 3,
+        "TransactionReadChanged": 1,
         "UnknownRelationalSource": 1
       },
       "outcomes": {},
@@ -20044,7 +20137,7 @@
         "InvalidSqlClientConfiguration": 1,
         "InvalidSqlEndpoint": 6,
         "InvalidSqlHttpResponse": 5,
-        "InvalidSqlResponse": 1,
+        "InvalidSqlResponse": 2,
         "ReadFailed": 1,
         "SqlInstanceChanged": 1,
         "SqlInstanceRequired": 1,
@@ -20064,6 +20157,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "attachTransaction()": "<inferred>",
         "call()": "<inferred>",
         "callAllocated()": "<inferred>",
         "init()": "<inferred>",
@@ -20077,7 +20171,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 45,
+        "try": 47,
         "catch": 2
       },
       "imports": [
@@ -20567,7 +20661,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -20601,6 +20695,7 @@
           "touch",
           "reset",
           "context",
+          "attach_transaction",
           "prepare",
           "describe",
           "release",
@@ -20630,6 +20725,7 @@
           "challenge",
           "opened",
           "context",
+          "attached",
           "described",
           "operation",
           "operations",
@@ -20658,6 +20754,7 @@
           "challenge",
           "opened",
           "context",
+          "attached",
           "described",
           "batch",
           "operation",
@@ -20719,7 +20816,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 29,
+        "try": 32,
         "catch": 0
       },
       "imports": [
@@ -20816,12 +20913,15 @@
       ]
     },
     "packages/zig/transit-sql-results/src/Observation.zig": {
-      "errors": {},
+      "errors": {
+        "InvalidTransactionObservation": 2
+      },
       "outcomes": {
         "Data": [
           "source",
           "table",
-          "independent_table_snapshots"
+          "independent_table_snapshots",
+          "transaction"
         ],
         "Data.source.position": [
           "native_revision",
@@ -20845,11 +20945,12 @@
       },
       "error_sets": {},
       "error_returns": {
-        "fingerprint()": "<inferred>"
+        "fingerprint()": "<inferred>",
+        "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 1,
+        "try": 6,
         "catch": 0
       },
       "imports": [
@@ -20923,8 +21024,48 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 17,
+        "try": 18,
         "catch": 3
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-results/src/Transaction.zig": {
+      "errors": {
+        "InvalidTransactionCompletion": 11
+      },
+      "outcomes": {
+        "SessionState": [
+          "idle",
+          "active",
+          "failed"
+        ],
+        "StatementRefusal": [
+          "definition_changed",
+          "data_changed",
+          "duplicate_key",
+          "missing_row",
+          "invalid_rows",
+          "work_limit"
+        ],
+        "evidence": [
+          "refused",
+          "begun",
+          "statement",
+          "savepoint",
+          "decided"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -20963,7 +21104,7 @@
     },
     "packages/zig/transit-sql-results/src/root.zig": {
       "errors": {
-        "InvalidCommandCompletion": 9,
+        "InvalidCommandCompletion": 11,
         "InvalidCommandCounts": 2,
         "InvalidResultRow": 1
       },
@@ -20985,14 +21126,22 @@
           "discard_all",
           "reset",
           "reload",
-          "capture"
+          "capture",
+          "begin",
+          "commit",
+          "rollback",
+          "savepoint",
+          "release_savepoint",
+          "rollback_to_savepoint"
         ],
         "Operation.kind": [
           "table",
           "configuration",
-          "captured"
+          "captured",
+          "transaction"
         ],
         "Outcome": [
+          "provisional",
           "applied",
           "unchanged",
           "rejected",
@@ -21020,7 +21169,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 4,
+        "try": 5,
         "catch": 0
       },
       "imports": [
@@ -21029,6 +21178,7 @@
         "Observation.zig",
         "Progress.zig",
         "ResultSet.zig",
+        "Transaction.zig",
         "Window.zig",
         "std",
         "transit_fuze",
@@ -21039,7 +21189,8 @@
       "errors": {
         "CatalogIdentityConflict": 1,
         "ConfigurationDenied": 1,
-        "InvalidReadBatch": 1
+        "InvalidReadBatch": 1,
+        "TransactionReadChanged": 1
       },
       "outcomes": {
         "Subject": [
@@ -21263,7 +21414,7 @@
         "OutOfMemory": 1,
         "QueryDenied": 3,
         "ResultIdentityChanged": 1,
-        "SqlAdmissionTokenRequired": 3,
+        "SqlAdmissionTokenRequired": 4,
         "SqlInstanceChanged": 1,
         "SqlMessageTooLarge": 1,
         "SqlOperationBindingChanged": 2,
@@ -21306,7 +21457,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 122,
+        "try": 126,
         "catch": 9
       },
       "imports": [
@@ -21335,7 +21486,7 @@
         "DuplicateWirePortal": 1,
         "DuplicateWireStatement": 1,
         "EmptyWireQuery": 1,
-        "ExpectedGatewayRead": 1,
+        "ExpectedGatewayRead": 2,
         "ExpectedGatewayWrite": 1,
         "ExpectedIdentifier": 1,
         "GatewayCredentialChanged": 2,
@@ -21351,10 +21502,13 @@
         "InvalidSettingUnit": 1,
         "InvalidSettingValue": 1,
         "InvalidSqlSyntax": 1,
+        "InvalidTransactionObservation": 2,
+        "InvalidTransactionRead": 1,
         "InvalidWireValue": 1,
         "MissingResultObservation": 1,
         "NullNotAllowed": 1,
         "OutOfMemory": 1,
+        "ReadOnlyTransaction": 1,
         "Rejected": 3,
         "ResultMemoryBudgetExceeded": 1,
         "ResultRowTooLarge": 1,
@@ -21364,13 +21518,20 @@
         "SqlReadLeaseCapacity": 1,
         "SqlReadRecoveryRequired": 1,
         "SqlTokenConflict": 1,
+        "SqlTransactionActive": 4,
+        "SqlTransactionClosed": 1,
+        "SqlTransactionFailed": 1,
+        "SqlTransactionPending": 1,
+        "SqlTransactionRejected": 1,
+        "SqlTransactionRequired": 1,
         "StaleGatewayCoordinator": 1,
         "StandaloneConfigurationOperationRequired": 1,
         "StatementTimedOut": 1,
         "TableDefinitionChanged": 2,
-        "TableNotFound": 1,
+        "TableNotFound": 2,
         "TooManyWirePortals": 1,
         "TooManyWireStatements": 1,
+        "TransactionReadChanged": 1,
         "UnexpectedToken": 1,
         "UnknownSetting": 1,
         "UnknownSqlSource": 1,
@@ -21378,6 +21539,8 @@
         "UnknownWireStatement": 1,
         "UnsupportedExecutionCycle": 1,
         "UnsupportedGatewayStatement": 1,
+        "UnsupportedTransactionIsolation": 1,
+        "UnsupportedTransactionStatement": 1,
         "UnsupportedWireType": 1,
         "WireParameterCountMismatch": 2,
         "WireParameterTypeMismatch": 1,
@@ -21389,6 +21552,7 @@
           "settings"
         ],
         "Prepared": [
+          "transaction",
           "native",
           "probe",
           "settings",
@@ -21412,6 +21576,7 @@
         "Read.nextBatch()": "<inferred>",
         "Read.observation()": "<inferred>",
         "Read.pull()": "<inferred>",
+        "Read.transactionBasis()": "<inferred>",
         "Read.validateDisclosure()": "<inferred>",
         "acquireRead()": "<inferred>",
         "begin()": "<inferred>",
@@ -21434,8 +21599,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 83,
-        "catch": 8
+        "try": 96,
+        "catch": 9
       },
       "imports": [
         "SessionInspection.zig",
@@ -21521,6 +21686,40 @@
         "root.zig"
       ]
     },
+    "packages/zig/transit-sql-service/src/SessionTransaction.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "SqlTransactionActive": 2,
+        "SqlTransactionClosed": 2,
+        "SqlTransactionFailed": 3,
+        "SqlTransactionPending": 5,
+        "SqlTransactionRejected": 1,
+        "SqlTransactionRequired": 1,
+        "TransactionIdentityConflict": 3,
+        "UnsupportedTransactionStatement": 6
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "adopt()": "<inferred>",
+        "attach()": "<inferred>",
+        "execute()": "<inferred>",
+        "reconcile()": "<inferred>",
+        "refresh()": "<inferred>",
+        "request()": "<inferred>",
+        "require()": "<inferred>",
+        "submit()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 22,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-sql-service/src/SourceSession.zig": {
       "errors": {
         "NullParameterUnsupported": 1,
@@ -21575,6 +21774,7 @@
         "Registry.zig",
         "Session.zig",
         "SessionSettings.zig",
+        "SessionTransaction.zig",
         "SourceSession.zig",
         "transit_query",
         "transit_sql"
@@ -21659,7 +21859,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 3,
+        "try": 4,
         "catch": 0
       },
       "imports": [
@@ -21672,6 +21872,7 @@
         "AccessDenied": 2,
         "Canceled": 2,
         "Cancelled": 2,
+        "CatalogIdentityConflict": 1,
         "ClientOperationConflict": 1,
         "GatewayCatalogDenied": 1,
         "GatewayConfigurationChanged": 1,
@@ -21707,16 +21908,18 @@
         "project()": "<inferred>",
         "requireRoute()": "<inferred>",
         "resumeOperation()": "<inferred>",
+        "resumeTransactionSubmission()": "<inferred>",
         "status()": "<inferred>",
         "submit()": "<inferred>",
+        "submitTransaction()": "<inferred>",
         "tick()": "<inferred>",
         "waitIdle()": "<inferred>",
         "waitProgress()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 83,
-        "catch": 8
+        "try": 99,
+        "catch": 9
       },
       "imports": [
         "root.zig",
@@ -21901,7 +22104,8 @@
         "Kind": [
           "table",
           "configuration",
-          "captured"
+          "captured",
+          "transaction"
         ]
       },
       "error_sets": {},
@@ -21994,7 +22198,8 @@
       "errors": {
         "ExternalOperationOwnerRequired": 1,
         "GatewayIdentityConflict": 1,
-        "InvalidGatewayTerminal": 18
+        "InvalidGatewayTerminal": 18,
+        "TransactionOperationRequired": 1
       },
       "outcomes": {
         "kind": [
@@ -22022,6 +22227,100 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 22,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql/src/TransactionSql.zig": {
+      "errors": {
+        "ExpectedIdentifier": 2,
+        "InvalidCatalogName": 1,
+        "InvalidSqlSyntax": 3,
+        "UnsupportedTransactionIsolation": 1,
+        "UnsupportedTransactionStatement": 2
+      },
+      "outcomes": {
+        "Control": [
+          "begin",
+          "commit",
+          "rollback",
+          "savepoint",
+          "release_savepoint",
+          "rollback_to_savepoint"
+        ],
+        "Word": [
+          "begin",
+          "start",
+          "transaction",
+          "work",
+          "isolation",
+          "level",
+          "serializable",
+          "read",
+          "only",
+          "write",
+          "commit",
+          "rollback",
+          "to",
+          "savepoint",
+          "release"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Parser.advance()": "<inferred>",
+        "Parser.eat()": "<inferred>",
+        "Parser.name()": "<inferred>",
+        "Parser.require()": "<inferred>",
+        "parse()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 27,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql/src/TransactionWork.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 1,
+        "GatewayRecordTooLarge": 1,
+        "InvalidTransactionCompletion": 1,
+        "MissingGatewayTerminal": 1,
+        "ReadOnlyTransaction": 1,
+        "SqlTransactionClosed": 1,
+        "SqlTransactionPending": 1,
+        "TransactionIdentityConflict": 1,
+        "TransactionOperationRequired": 2,
+        "UnsupportedTransactionStatement": 1
+      },
+      "outcomes": {
+        "Request": [
+          "begin",
+          "statement",
+          "savepoint",
+          "settle"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "build()": "<inferred>",
+        "handle()": "<inferred>",
+        "key()": "<inferred>",
+        "project()": "<inferred>",
+        "randomOperation()": "<inferred>",
+        "status()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 23,
         "catch": 0
       },
       "imports": [
@@ -22087,6 +22386,8 @@
         "SessionOperations.zig",
         "Statement.zig",
         "Terminal.zig",
+        "TransactionSql.zig",
+        "TransactionWork.zig",
         "Type.zig",
         "transit_catalog",
         "transit_client",
@@ -28704,7 +29005,10 @@
   },
   "grammars": {
     "contracts/sql/TransitExtensions.g4": {
-      "statement": "( selectStatement | mutationStatement | extensionStatement ) SEMI ? EOF",
+      "statement": "( selectStatement | mutationStatement | extensionStatement | transactionStatement ) SEMI ? EOF",
+      "transactionStatement": "( BEGIN ( WORK | TRANSACTION ) ? | START TRANSACTION ) transactionOptions ? | COMMIT ( WORK | TRANSACTION ) ? | ROLLBACK ( WORK | TRANSACTION ) ? ( TO SAVEPOINT ? identifier ) ? | SAVEPOINT identifier | RELEASE SAVEPOINT ? identifier",
+      "transactionOptions": "ISOLATION LEVEL SERIALIZABLE transactionAccess ? | transactionAccess ( ISOLATION LEVEL SERIALIZABLE ) ?",
+      "transactionAccess": "READ ( ONLY | WRITE )",
       "authorizationStatement": "authorizationCommand SEMI ? EOF",
       "authorizationCommand": "grantStatement | revokeStatement | CREATE ROLE identifier ( WITH ? roleOptions ) ? | ALTER ROLE identifier ( RENAME TO identifier | WITH ? roleOptions ) | DROP ROLE identifier | CREATE SCHEMA identifier ( AUTHORIZATION authorizationRole ) ? | ALTER SCHEMA identifier RENAME TO identifier | ALTER ( DATABASE identifier | SCHEMA identifier | TABLE identifier ( DOT identifier ) ? ) OWNER TO authorizationRole | DROP SCHEMA identifier RESTRICT ? | ALTER DEFAULT PRIVILEGES ( FOR ROLE authorizationRole ) ? IN SCHEMA identifier ( GRANT privilegeList ON TABLES TO grantee grantOption ? | REVOKE ( GRANT OPTION FOR ) ? privilegeList ON TABLES FROM grantee revokeBehavior ? ) | SET ROLE identifier | RESET ROLE",
       "roleOptions": "roleOption +",
@@ -28787,7 +29091,21 @@
       "explainStatement": "EXPLAIN selectStatement",
       "asOfClause": "FOR SYSTEM_TIME AS OF INTEGER",
       "identifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE",
+      "BEGIN": "'BEGIN'",
+      "START": "'START'",
+      "TRANSACTION": "'TRANSACTION'",
+      "WORK": "'WORK'",
+      "ISOLATION": "'ISOLATION'",
+      "LEVEL": "'LEVEL'",
+      "SERIALIZABLE": "'SERIALIZABLE'",
+      "READ": "'READ'",
+      "ONLY": "'ONLY'",
+      "WRITE": "'WRITE'",
+      "COMMIT": "'COMMIT'",
+      "ROLLBACK": "'ROLLBACK'",
+      "SAVEPOINT": "'SAVEPOINT'",
+      "RELEASE": "'RELEASE'",
       "TRANSIT_RELOAD_CONF": "'TRANSIT_RELOAD_CONF'",
       "TRANSIT_SETTINGS": "'TRANSIT_SETTINGS'",
       "TRANSIT_CONFIG_RELOADS": "'TRANSIT_CONFIG_RELOADS'",

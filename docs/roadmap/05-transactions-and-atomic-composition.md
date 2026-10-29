@@ -120,11 +120,11 @@ this header and the roadmap index together.
 | P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: paged common-cut acquisition, original-pin recovery, catalog-owned private statement/root recovery and cumulative staging charges; aggregate account reservations, server-owned catalog selection, typed Zig controls, host fencing and revision-bound private read scans; SQL integration and deployment-wide scheduling remain open |
 | P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | In progress: actual Table preparation barriers, common-decision verification and restartable publication; signed host integration and policy-revocation fixture; installed qualification remains open |
 | P4 | Restart/failure settlement, retained roots, cleanup and maintenance | In progress: original-attempt commit/abort recovery, paged cleanup, pin/reservation release and decision/preparation graph retention; automatic host scheduling and installed failure qualification remain open |
-| P5 | Provisional statement results, SQL session controls and shared client | Planned |
-| P6 | Typed Zig, console and PostgreSQL/MySQL adapters and inspection | Planned |
+| P5 | Provisional statement results, SQL session controls and shared client | In progress: shared provisional/decision evidence, durable caller commands, session controls and explicit reattachment; installed verification remains open |
+| P6 | Typed Zig, console and PostgreSQL/MySQL adapters and inspection | In progress: signed typed controls, Zig SDK SQL client, console outcome presentation and PostgreSQL/MySQL state; installed verification remains open |
 | P7 | Savepoints, cursor invalidation and resource/failure schedules | In progress: durable named controls, paged rollback, exact retry, preserved sequence/dependency frontiers, cursor invalidation and retained-root graph; SQL controls and installed resource/failure schedules remain open |
-| P8 | Table outbox/checkpoints and explicit participant extension handoff | Planned |
-| P9 | Installed caller, anomaly, recovery and resource qualification | Planned |
+| P8 | Table outbox/checkpoints and explicit participant extension handoff | In progress: executable three-Table checkpoint/data/outbox example and M6 participant handoff; installed verification remains open |
+| P9 | Installed caller, anomaly, recovery and resource qualification | In progress: installed native/PG/MySQL histories, anomaly and outbox schedules; no completion claim until executed evidence is recorded |
 
 The neutral types validate descriptor shape only. They establish no transaction
 service, acquired consistent cut, serializable execution or durable decision.
@@ -253,8 +253,8 @@ whole-object optimistic validation, participant preparation/common-decision
 visibility, provisional statements, savepoints and Table outbox boundary. Its
 native KV/Document and cross-owner exclusions do not remove the broader
 composition outcomes above. Add those owners only through explicit participant
-contracts and their failure histories. The selected profile is planned, not
-executable syntax or implemented transaction support.
+contracts and their failure histories. The work-package status above distinguishes delivered controls from outstanding
+qualification. Public references own the executable syntax and exact limits.
 
 1. **Select the atomic domain and isolation contract.** Define database/catalog,
    branch, object, partition and writer identities and their relationships.

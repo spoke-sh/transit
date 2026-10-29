@@ -119,7 +119,7 @@ pub fn fromDml(allocator: std.mem.Allocator, connection: w.Connection, metadata:
             .delete => .delete,
         },
         .expected_definition = prepared.interpretation.interpretation,
-        .expected_data = if (plan.action == .insert or metadata.workspace != null) null else metadata.position,
+        .expected_data = if (plan.action == .insert) null else if (metadata.workspace) |private| private.private_position else metadata.position,
         .intent = @splat(0),
     };
     try original.validate();

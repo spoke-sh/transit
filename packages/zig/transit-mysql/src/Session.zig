@@ -40,9 +40,11 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             try self.transport.writeAll(bytes);
         }
         fn metadataEnd(self: *Self) !void {
+            self.backend.transaction = self.host.transactionStatus() != .idle;
             if (self.flags & m.Handshake.deprecate_eof == 0) try self.send(try self.backend.eof());
         }
         fn resultEnd(self: *Self) !void {
+            self.backend.transaction = self.host.transactionStatus() != .idle;
             try self.send(if (self.flags & m.Handshake.deprecate_eof != 0) try self.backend.ok(0, true) else try self.backend.eof());
         }
         fn columns(prepared: *Host.Prepared, buffer: []m.Backend.Column) ![]const m.Backend.Column {
@@ -80,7 +82,8 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             if (prepared.mutation()) {
                 const result = try self.host.write(prepared, values);
                 try result.validate();
-                if (result.outcome != .applied and result.outcome != .unchanged) return error.InvalidWireCompletion;
+                if (result.outcome != .applied and result.outcome != .unchanged and result.outcome != .provisional) return error.InvalidWireCompletion;
+                self.backend.transaction = self.host.transactionStatus() != .idle;
                 const affected = if (result.counts) |counts| if (result.kind == .update and self.flags & m.Handshake.found_rows == 0) counts.changed else counts.matched else 0;
                 try self.send(try self.backend.ok(affected, false));
                 return;
@@ -138,6 +141,7 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             const command = try m.Command.decode(payload);
             if (command == .quit) return false;
             try self.host.begin();
+            self.backend.transaction = self.host.transactionStatus() != .idle;
             switch (command) {
                 .query => |sql| {
                     const prepared = try self.host.prepare(sql);

@@ -91,6 +91,10 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const record = try walk.next(allocator, log) orelse return true;
             try workspace.enqueue(.{ .catalog_root = .{ .root = record.root } });
             if (record.action == .operation) try workspace.enqueue(.{ .catalog_intent = .{ .configuration = record.root.configuration, .operation = record.action.operation } });
+            if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction_call) {
+                const call = record.action.client_token.receipt.binding.intent.transaction_call;
+                if (call.work == .statement) try workspace.enqueue(.{ .transaction_intent = call.work.statement.request });
+            }
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction) {
                 // Replay retains historical catalog directories. Private workspace
                 // data belongs only to the latest accepted token at this cut.

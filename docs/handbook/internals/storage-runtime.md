@@ -1829,6 +1829,41 @@ freeze, prepare, decision and publication reply boundaries; independent row
 values, logical/policy conflicts and missing successor data are their oracles.
 The separate storage `transaction preparation barrier` test includes a public
 flush between evaluation and preparation. These methods distinguish disk reopen
-and injected lost replies from process death or power loss. Installed SQL,
-automatic scheduling and cross-provider atomicity require separate integration
-and evidence; this component account does not establish them.
+and injected lost replies from process death or power loss. The SQL runtime now schedules these exact caller commands from the Catalog pending
+directory, including decision cleanup after connection loss. Its independent
+installed histories are recorded in the [transaction qualification](../../history/qualification/transactions.md).
+Cross-provider atomicity, host power loss and implementation refinement remain
+outside these methods.
+
+
+### SQL attachment and private-result correspondence
+
+A temporary SQL session holds a versioned transaction handle, a failed-state bit
+and at most one uncertain frozen caller command. The Catalog holds the acquired
+cut, private roots, original statement/control outcomes and common decision.
+`SessionTransaction` installs a private read context only after inspecting that
+original owner. `TransactionWork` lowers a control or private DML through the
+existing client-token directory; no Station actor supplies admission or recovery.
+
+The command record is frozen before its first possible bind. A lost reply can
+therefore repeat the exact native child request without compiling SQL again or
+choosing new IDs. Status reads observe only. Explicit execution/reconciliation
+may attach a completed BEGIN or clear an attachment after a confirmed decision.
+Closing a session cannot settle the parent transaction. This deliberately trades
+automatic abandoned-transaction expiry for explicit recovery and bounded aggregate
+reservations; capacity pressure supplies no authority to erase accepted work.
+
+Private reads commit their source guards and private roots to one acquired cut
+and workspace revision. Both query compilation and bounded disclosure require
+that revision. A savepoint rollback publishes a new head only after its paged
+restoration completes, so buffered data from earlier heads cannot become a result
+at the restored head. Whole-Table dependency validation includes the original
+selected set, even when rollback removes private mutations. This costs concurrency
+but preserves the serializable conflict frontier without per-predicate tracking.
+
+The finite Table model expresses acquisition, private reads, rollback, preparation
+and common-decision visibility. Component disk schedules and installed SQL histories
+check the corresponding owners with independent value/decision oracles. They are
+selected implementation histories, not automatic replay of every TLC state or a
+refinement proof; the model's finite programs, symbolic values and truthful-storage
+assumptions remain explicit in the [model guide](../../../tests/verification/models/README.md#finite-local-table-transaction-model).

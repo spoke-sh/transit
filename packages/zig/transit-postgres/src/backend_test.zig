@@ -14,7 +14,7 @@ test "independent PostgreSQL backend frames cover metadata, binary NULL, uint64 
     const expected = fixtures.value;
     var backend: pg.Backend = .{ .allocator = t.allocator };
     defer backend.deinit();
-    try check(expected.ready, try backend.ready());
+    try check(expected.ready, try backend.ready(.idle));
     try check(expected.mechanisms, try backend.authenticate(.mechanisms, ""));
     try check(expected.parameters, try backend.parameters(&.{ 1700, 25 }));
     var formats: pg.Frontend.Formats = .{ .count = 1 };

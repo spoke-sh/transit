@@ -39,10 +39,13 @@ execution_diagnostic: ?q.protocol.Diagnostic = null,
 compile_binding: f.Sql.Binding = .{},
 fresh_current: bool = false,
 fresh_prepared: ?*const Prepared = null,
+transaction: g.SessionTransaction.State = .{},
+transaction_completion: ?g.results.CommandCompletion = null,
 const ObservationSource = enum { native, settings };
 pub const Options = struct { capture_settings: bool = true };
 pub const read_options: g.direct.DirectRelationalQuery.Options = .{ .consistency = .independent_table_snapshots, .budgets = .{ .resident_bytes = 16 * 1024 * 1024, .spill_bytes = 16 * 1024 * 1024, .result_bytes = 16 * 1024 * 1024, .output_rows = 10000, .work_steps = 1000000, .source_pins = 2 }, .requests = 10000, .spill_work = 10000 };
 pub const Prepared = union(enum) {
+    transaction: g.database.TransactionSql.Control,
     native: g.Statement,
     probe: g.Probe,
     settings: Settings.Prepared,
@@ -53,7 +56,7 @@ pub const Prepared = union(enum) {
         return switch (self.*) {
             .native => |*value| value.parameters(),
             .source => |*value| value.template.parameterTypes(),
-            .probe, .settings, .inspection, .captured => &.{},
+            .probe, .settings, .inspection, .captured, .transaction => &.{},
         };
     }
     pub fn fields(self: *const Prepared) []const f.Types.Field {
@@ -61,6 +64,7 @@ pub const Prepared = union(enum) {
             .native => |*value| value.fields(),
             .source => |*value| value.output.type.structure,
             .captured => |*value| value.output.type.structure,
+            .transaction => &.{},
             .probe => |value| value.fields(),
             .inspection => |value| value.output,
             .settings => |value| if (value.output) |output| output.type.structure else &.{},
@@ -68,6 +72,7 @@ pub const Prepared = union(enum) {
     }
     pub fn mutation(self: *const Prepared) bool {
         return switch (self.*) {
+            .transaction => true,
             .native => |*value| value.kind() != .select,
             .probe => |value| value.kind == .set,
             .inspection, .source, .captured => false,
@@ -110,18 +115,35 @@ pub const Read = struct {
     emitted: bool = false,
     emitted_rows: u64 = 0,
     validated_open: bool = false,
+    transaction: ?p.Transaction.Handle = null,
+    transaction_context: ?c.DirectTransactionRead.Context = null,
     pub fn dataBasis(self: *Read, allocator: std.mem.Allocator) !?g.results.Observation.Data {
         return switch (self.value) {
             .single => |*query| blk: {
                 const scan = &query.execution.scan;
                 const source = scan.reader.basis;
+                if (source.workspace) |view| break :blk try self.transactionBasis(allocator, &.{view});
                 break :blk .{ .table = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = try scan.reader.schema.schema.fingerprint() } };
             },
-            .relational => |query| .{ .independent_table_snapshots = try allocator.dupe(f.Relational.Cut, query.execution.bound.cuts) },
+            .relational => |query| blk: {
+                if (self.transaction != null) {
+                    var views: [f.Relational.max_sources]p.Transaction.ReadView = undefined;
+                    const count = query.tables.declarations.len;
+                    for (query.tables.scans[0..count], views[0..count]) |scan, *view| view.* = scan.?.reader.basis.workspace orelse return error.InvalidTransactionObservation;
+                    break :blk try self.transactionBasis(allocator, views[0..count]);
+                }
+                break :blk .{ .independent_table_snapshots = try allocator.dupe(f.Relational.Cut, query.execution.bound.cuts) };
+            },
             .source => |source| sourceBasis(source.query.basis),
             .captured => |captured| if (captured.basis) |value| sourceBasis(value) else null,
             else => null,
         };
+    }
+    fn transactionBasis(self: *Read, allocator: std.mem.Allocator, views: []const p.Transaction.ReadView) !g.results.Observation.Data {
+        const first = views[0];
+        const result: g.results.Observation.Data = .{ .transaction = .{ .handle = self.transaction orelse return error.InvalidTransactionObservation, .cut = first.cut, .revision = first.revision, .last_statement = first.last_statement, .sources = try allocator.dupe(p.Transaction.ReadView, views) } };
+        try g.results.Observation.validate(.{ .data = result });
+        return result;
     }
     pub fn observation(self: *Read, allocator: std.mem.Allocator) !g.results.Observation.Value {
         if (try self.dataBasis(allocator)) |data| return .{ .data = data };
@@ -179,7 +201,7 @@ pub const Read = struct {
             try self.host.current();
         }
         try self.builder.reset(maximum, g.results.BatchBuilder.max_bytes);
-        self.disclosure = .{};
+        self.disclosure = .{ .transaction = self.transaction, .transaction_context = self.transaction_context };
         var complete = false;
         while (self.builder.len < maximum) {
             if (self.input_index == self.input.len) {
@@ -207,7 +229,7 @@ pub const Read = struct {
         if (self.value == .settings) {
             if (self.value.settings.settings) |settings| self.disclosure.origins = settings.origins orelse false;
         }
-        try self.disclosure.validate(self.host, self.prepared);
+        try self.validateDisclosure();
         self.emitted_rows = try std.math.add(u64, self.emitted_rows, self.builder.len);
         return .{ .rows = self.builder.rows, .len = self.builder.len, .complete = complete };
     }
@@ -322,7 +344,9 @@ fn currentOnce(self: *Self) !void {
     try credential.checkIdentity(identity.principal, identity.login_role, identity.credential_epoch);
     self.table.credential_epoch = identity.credential_epoch;
     self.observer.credential_epoch = identity.credential_epoch;
-    _ = try self.table.require(.{ .namespace = self.namespace, .target = null, .access = .schema });
+    var ordinary = self.table;
+    ordinary.transaction = null;
+    _ = try ordinary.require(.{ .namespace = self.namespace, .target = null, .access = .schema });
     // Revocation can also withdraw account readiness. Report the caller's
     // current denial before waiting for that account to recover; readiness is
     // still required before the activation fence and any result disclosure.
@@ -370,6 +394,8 @@ pub fn begin(self: *Self) !void {
     self.cancellation.store(false, .release);
     self.operation = null;
     self.terminal = null;
+    self.transaction_completion = null;
+    self.table.transaction = null;
     self.fresh_prepared = null;
     self.deadline.start = std.Io.Clock.awake.now(self.io);
     self.deadline.milliseconds = self.commandMilliseconds();
@@ -385,13 +411,19 @@ pub fn end(self: *Self) void {
     self.fresh_prepared = null;
     self.active.store(false, .release);
 }
+pub fn transactionStatus(self: *const Self) g.results.Transaction.SessionState {
+    if (!self.transaction.active()) return .idle;
+    return if (self.transaction.failed or self.transaction.pending != null) .failed else .active;
+}
 pub fn reset(self: *Self) !void {
+    if (self.transaction.active()) return error.SqlTransactionActive;
     self.fresh_current = false;
     try self.current();
     self.operation = null;
     self.settings_session.reset();
 }
 pub fn selectSource(self: *Self, name: ?[]const u8) !void {
+    if (self.transaction.active()) return error.SqlTransactionActive;
     if (self.source) |source| {
         self.fresh_current = false;
         source.deinit();
@@ -406,6 +438,7 @@ pub fn sourceName(self: *const Self) ?[]const u8 {
     return if (self.source) |source| source.configuration.name else null;
 }
 pub fn selectDatabase(self: *Self, name: []const u8) !void {
+    if (self.transaction.active()) return error.SqlTransactionActive;
     try self.current();
     const binding = try self.account.database(name);
     var candidate = self.table;
@@ -422,6 +455,11 @@ pub fn selectDatabase(self: *Self, name: []const u8) !void {
         break;
     };
 }
+pub fn readOptions(self: *const Self) g.direct.DirectRelationalQuery.Options {
+    var result = read_options;
+    if (self.table.transaction != null) result.consistency = .transaction;
+    return result;
+}
 pub fn prepare(self: *Self, sql: []const u8) !*Prepared {
     self.sql_diagnostic = null;
     self.compile_binding = .{};
@@ -436,13 +474,21 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
     } else {
         try self.current();
     }
+    try g.SessionTransaction.reconcile(self);
+    const control = try g.database.TransactionSql.parse(sql, self.dialect);
+    if (control == null) try g.SessionTransaction.refresh(self);
     const result = try self.allocator.create(Prepared);
     errdefer self.allocator.destroy(result);
+    if (control) |value| {
+        result.* = .{ .transaction = value };
+        try g.SessionTransaction.require(self, result);
+        return result;
+    }
     if (try self.fresh(Inspection.prepare, .{ self, sql })) |inspection| {
         result.* = .{ .inspection = inspection };
         return result;
     }
-    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try self.freshOn(.settings, Settings.prepare, .{ self, sql })) |settings| result.* = .{ .settings = settings } else if (self.source) |source| result.* = .{ .source = try self.fresh(g.SourceSession.prepare, .{ source, sql }) } else result.* = .{ .native = try self.fresh(g.Statement.prepareDiagnostic, .{ self.allocator, &self.table, self.namespace, sql, self.dialect, if (self.native_profile) g.Statement.Profile.native else g.Statement.Profile.wire, read_options, &self.compile_binding }) };
+    if (try g.Probe.parse(sql, self.dialect)) |probe| result.* = .{ .probe = probe } else if (try self.freshOn(.settings, Settings.prepare, .{ self, sql })) |settings| result.* = .{ .settings = settings } else if (self.source) |source| result.* = .{ .source = try self.fresh(g.SourceSession.prepare, .{ source, sql }) } else result.* = .{ .native = try self.fresh(g.Statement.prepareDiagnostic, .{ self.allocator, &self.table, self.namespace, sql, self.dialect, if (self.native_profile) g.Statement.Profile.native else g.Statement.Profile.wire, self.readOptions(), &self.compile_binding }) };
     return result;
 }
 pub fn destroy(self: *Self, prepared: *Prepared) void {
@@ -454,6 +500,8 @@ pub fn destroy(self: *Self, prepared: *Prepared) void {
     self.allocator.destroy(prepared);
 }
 pub fn validate(self: *Self, prepared: *Prepared) !void {
+    try g.SessionTransaction.require(self, prepared);
+    if (prepared.* != .transaction) try g.SessionTransaction.refresh(self);
     try self.deadline.check(self.io);
     try self.current();
     switch (prepared.*) {
@@ -465,7 +513,7 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
         .captured => |*captured| try g.CapturedOperations.validateResult(self, captured),
         .inspection => |*inspection| try self.fresh(Inspection.validate, .{ inspection, self }),
         .settings => |*settings| try self.freshOn(.settings, Settings.authorize, .{ self, &settings.plan }),
-        .probe => {}, // current() already validates the login and database.
+        .probe, .transaction => {}, // current() already validates the login and database.
     }
 }
 pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !void {
@@ -475,7 +523,7 @@ pub fn bind(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.At
             var bound = try self.source.?.bind(statement, values);
             bound.deinit();
         },
-        .probe, .settings, .inspection, .captured => if (values.len != 0) return error.WireParameterCountMismatch,
+        .probe, .settings, .inspection, .captured, .transaction => if (values.len != 0) return error.WireParameterCountMismatch,
     }
 }
 pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
@@ -487,6 +535,7 @@ pub fn openRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Value
 }
 
 fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !*Read {
+    try g.SessionTransaction.require(self, prepared);
     if (self.fresh_prepared == prepared) {
         self.fresh_prepared = null;
     } else {
@@ -494,10 +543,11 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     }
     const read = try self.allocator.create(Read);
     errdefer self.allocator.destroy(read);
-    read.* = .{ .host = self, .value = undefined, .prepared = prepared, .builder = try .init(self.allocator, self.config.limits.cycle_bytes) };
+    read.* = .{ .host = self, .value = undefined, .prepared = prepared, .builder = try .init(self.allocator, self.config.limits.cycle_bytes), .transaction = self.transaction.handle, .transaction_context = self.table.transaction };
     errdefer read.builder.deinit();
     errdefer self.releasePins(read);
     switch (prepared.*) {
+        .transaction => return error.ExpectedGatewayRead,
         .captured => |*captured| read.value = .{ .captured = try g.CapturedOperations.Read.init(self, captured) },
         .source => |*statement| read.value = .{ .source = try g.SourceSession.Read.init(self.source.?, statement, values) },
         .inspection => |*inspection| read.value = .{ .inspection = .{ .host = self, .prepared = inspection } },
@@ -509,6 +559,15 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
             var snapshots: [f.Relational.max_sources]c.DirectTableProtocol.Snapshot = undefined;
             for (0..count) |i| {
                 const binding = if (statement.plan == .relational) statement.plan.relational.bindings[i] else statement.plan.select.binding;
+                if (self.table.transaction != null) {
+                    const response = try self.table.call(.{ .lookup = .{ .namespace = binding.namespace, .name = binding.name.slice() } });
+                    defer response.deinit();
+                    const metadata = response.value.result.lookup orelse return error.TableNotFound;
+                    try binding.check(self.table.connection, metadata);
+                    const view = metadata.workspace orelse return error.InvalidTransactionRead;
+                    snapshots[i] = .{ .object = metadata.interpretation.interpretation.object, .handle = .{ .owner = view.cut.begin.identity.begin, .content = view.private } };
+                    continue;
+                }
                 var shared: ?usize = null;
                 for (read.pins[0..i], 0..) |slot, j| if (slot) |pin| if (std.meta.eql(pin.table, binding)) {
                     shared = j;
@@ -526,7 +585,7 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
                 try self.io.randomSecure(&nonce);
                 var path: [64]u8 = undefined;
                 const name = try std.fmt.bufPrint(&path, "sql-{x}", .{nonce});
-                read.value = .{ .relational = try statement.openRelational(self.allocator, self.io, self.directory, name, &self.table, snapshots[0..count], read_options, self.cancellation) };
+                read.value = .{ .relational = try statement.openRelational(self.allocator, self.io, self.directory, name, &self.table, snapshots[0..count], self.readOptions(), self.cancellation) };
             } else read.value = .{ .single = try statement.openSelect(self.allocator, &self.table, values, snapshots[0], .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation) };
         },
     }
@@ -573,6 +632,7 @@ fn releasePins(self: *Self, read: *Read) void {
 }
 pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.results.CommandCompletion {
     try self.validate(prepared);
+    if (prepared.* == .transaction or self.transaction.handle != null) return g.SessionTransaction.execute(self, prepared, values);
     if (prepared.* == .settings) {
         try Settings.mutate(self, &prepared.settings);
         return .{ .kind = if (prepared.settings.plan.statement == .reset) .reset else .set, .outcome = .applied, .counts = null, .operation = null, .pending_restart = false, .diagnostic = null };
@@ -592,6 +652,7 @@ pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.A
     return result.completion;
 }
 pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []const u8, detail: ?[]const u8 } {
+    if (self.transaction.handle != null) self.transaction.failed = true;
     const rejected = self.observationRejection(self.diagnostic_source);
     const remote = err == error.Conflict or err == error.Rejected or err == error.AuthorityUnavailable;
     if (self.diagnostics) |diagnostics| diagnostics.event(.{ .name = "sql.request.failed", .level = .warn, .outcome = .failed, .error_type = if (remote and rejected != null) @tagName(rejected.?) else @errorName(err) });
@@ -619,6 +680,27 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.CellTooLarge => .{ "54000".*, "Bound scalar exceeds the 4096-byte limit" },
         error.UnknownWireStatement, error.UnknownWirePortal => .{ "26000".*, "Unknown prepared statement or portal" },
         error.DuplicateWireStatement, error.DuplicateWirePortal => .{ "42P05".*, "Prepared name already exists" },
+        error.SqlTransactionActive => .{ "25001".*, "A transaction is already attached; settle it before changing session scope" },
+        error.SqlTransactionRequired => .{ "25P01".*, "No transaction is attached to this session" },
+        error.SqlTransactionFailed => .{ "25P02".*, "Transaction requires ROLLBACK or ROLLBACK TO SAVEPOINT" },
+        error.SqlTransactionPending => .{ "55000".*, "The original transaction command is unresolved; inspect or resume its original token" },
+        error.SqlTransactionClosed => .{ "25000".*, "Transaction is closing or already decided; inspect its original operation" },
+        error.TransactionReadChanged => .{ "55000".*, "Transaction workspace changed; discard the old result cursor" },
+        error.UnsupportedTransactionStatement, error.UnsupportedTransactionIsolation => .{ "0A000".*, "Operation is outside the selected serializable Table transaction profile" },
+        error.ReadOnlyTransaction => .{ "25006".*, "The transaction is read only" },
+        error.SqlTransactionRejected => blk: {
+            const completion = self.transaction_completion orelse break :blk .{ "XX000".*, "Missing transaction outcome" };
+            const evidence = completion.transaction.?.evidence;
+            if (evidence == .decided) break :blk .{ "40001".*, "The transaction decision differs from the requested outcome; inspect its original decision" };
+            if (evidence == .statement) break :blk switch (evidence.statement.refusal.?) {
+                .duplicate_key => .{ "23505".*, "Primary key already exists in the transaction workspace" },
+                .missing_row => .{ "02000".*, "Required row is absent from the transaction workspace" },
+                .invalid_rows => .{ "23000".*, "Row constraints rejected the transaction statement" },
+                .work_limit => .{ "54000".*, "Transaction statement work budget exceeded" },
+                .data_changed, .definition_changed => .{ "40001".*, "Transaction source changed" },
+            };
+            break :blk .{ "55000".*, "The original transaction command was refused; inspect its recorded outcome" };
+        },
         error.GatewayMutationRejected => blk: {
             const terminal = self.terminal orelse break :blk .{ "XX000".*, "Missing terminal observation" };
             break :blk switch (terminal.kind) {
@@ -654,12 +736,14 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.EmptyWireQuery => .{ "42601".*, "Query is empty" },
         else => .{ "XX000".*, "Request failed; inspect admitted work before retrying SQL" },
     };
-    const detail = if (self.operation) |id| std.fmt.bufPrint(&self.detail_buffer, "Gateway operation {d}; sending SQL again creates new work", .{id}) catch null else null;
+    const detail = if (self.transaction.pending) |pending| std.fmt.bufPrint(&self.detail_buffer, "Original transaction command token {x}; inspect this token before repeating SQL", .{pending.token}) catch null else if (self.operation) |id| std.fmt.bufPrint(&self.detail_buffer, "Gateway operation {d}; sending SQL again creates new work", .{id}) catch null else null;
     return .{ .state = info[0], .message = info[1], .detail = detail };
 }
 
 test "capacity diagnostics retain operation uncertainty and do not override denial" {
     var host: Self = undefined;
+    host.transaction = .{};
+    host.transaction_completion = null;
     host.diagnostics = null;
     host.diagnostic_source = .native;
     host.operation = 17;
@@ -711,6 +795,8 @@ test "pure preparation retries transport loss within its budget but never retrie
         }
     };
     var host: Self = undefined;
+    host.transaction = .{};
+    host.transaction_completion = null;
     host.io = t.io;
     var config: g.Configuration = undefined;
     config.request_timeout_ms = 5000;
@@ -763,6 +849,8 @@ test "settings observations use their own rejection and retain terminal decision
     var config: g.Configuration = undefined;
     config.request_timeout_ms = 5000;
     var host: Self = undefined;
+    host.transaction = .{};
+    host.transaction_completion = null;
     host.io = t.io;
     host.config = &config;
     host.diagnostics = null;

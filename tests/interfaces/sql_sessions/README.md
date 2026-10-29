@@ -10,6 +10,7 @@ operations; [contribution instructions](AGENTS.md) describe their test boundary.
 | Current disclosure rights and resources | [security.py](security.py), [resources.py](resources.py) |
 | Disconnects, replacement and cancellation | [faults.py](faults.py), [boundaries.py](boundaries.py) |
 | Node and Table storage observations, wire consumers and buffered revocation | [storage.py](storage.py), executed by [native.py](native.py) before captured-query workloads |
+| Table transactions, original decisions and checkpoint/outbox histories | [transactions.py](transactions.py), via `just test::sql-transactions` |
 | Console peer and measurements | [editor_peer.py](editor_peer.py), [measurements.py](measurements.py) |
 | Shared client allocation bounds over Unix, HTTP and TLS | [allocations.py](allocations.py), [client probe](../sql/sql_result_allocations.zig) |
 

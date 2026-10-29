@@ -45,6 +45,7 @@ pub const Request = struct {
                 if ((value.authentication == .scram) != (value.first.len != 0)) return error.InvalidAuthentication;
             },
             .authenticate => |value| if (value.final.len > 512) return error.InvalidScramMessage,
+            .attach_transaction => |value| try value.validate(),
             .prepare => |value| try sql(value.sql),
             .execute => |value| {
                 if ((value.sql == null) == (value.statement == null)) return error.InvalidSqlExecution;
@@ -70,6 +71,7 @@ pub const Action = union(enum) {
     touch,
     reset,
     context,
+    attach_transaction: results.protocol.Transaction.Handle,
     prepare: struct { sql: []const u8 },
     describe: Id,
     release: Id,
@@ -97,13 +99,14 @@ pub const Operation = struct {
     matched: u64 = 0,
     changed: u64 = 0,
     owner_operation: ?[16]u8 = null,
+    transaction: ?results.Transaction = null,
     configuration_phase: ?enum { applying, applied, pending_restart, rejected, partial } = null,
     diagnostic: ?@import("transit_protocol").Diagnostic = null,
     pub fn validate(self: Operation) !void {
         if (self.identity.id == 0 or ((self.phase == .terminal) != (self.outcome != null))) return error.InvalidSqlOperation;
         if (self.phase == .terminal) {
             _ = try self.completion();
-        } else if (self.matched != 0 or self.changed != 0) return error.InvalidSqlOperation;
+        } else if (self.matched != 0 or self.changed != 0 or self.transaction != null) return error.InvalidSqlOperation;
         if ((self.phase == .ready or self.phase == .active) and self.command == null) return error.InvalidSqlOperation;
     }
     pub fn completion(self: Operation) !results.CommandCompletion {
@@ -111,10 +114,14 @@ pub const Operation = struct {
         const value: results.CommandCompletion = .{
             .kind = self.command.?,
             .outcome = self.outcome.?,
-            .counts = if (self.identity.kind == .table) .{ .matched = self.matched, .changed = self.changed } else null,
+            .counts = switch (self.command.?) {
+                .insert, .update, .delete, .create_table, .alter_table, .drop_table, .create_schema, .alter_schema, .drop_schema => .{ .matched = self.matched, .changed = self.changed },
+                else => null,
+            },
             .operation = self.identity,
             .pending_restart = self.configuration_phase == .pending_restart,
             .diagnostic = self.diagnostic,
+            .transaction = self.transaction,
         };
         try value.validate();
         return value;
@@ -132,7 +139,8 @@ pub const Response = struct {
         hello: struct { encoding: []const u8, session_lease_ms: u32, maximum_message: u32, maximum_batch: u32, maximum_rows: u8, capabilities: []const []const u8 },
         challenge: struct { id: Id, message: []const u8 },
         opened: struct { session: Id, account: Account, database: []const u8, proof: []const u8 = "" },
-        context: struct { account: Account, database: []const u8, source: ?[]const u8, sources: []const struct { name: []const u8, sql_name: []const u8, kind: enum { kv, table, document }, resource: u64, revision: u64, contract: [32]u8 } },
+        context: struct { account: Account, database: []const u8, source: ?[]const u8, transaction: ?results.protocol.Transaction.Handle, sources: []const struct { name: []const u8, sql_name: []const u8, kind: enum { kv, table, document }, resource: u64, revision: u64, contract: [32]u8 } },
+        attached: results.protocol.Transaction.Handle,
         described: Description,
         batch: Batch,
         operation: Operation,
@@ -155,6 +163,7 @@ pub const JsonResponse = struct {
         challenge: @FieldType(R, "challenge"),
         opened: @FieldType(R, "opened"),
         context: @FieldType(R, "context"),
+        attached: @FieldType(R, "attached"),
         described: @FieldType(R, "described"),
         operation: @FieldType(R, "operation"),
         operations: @FieldType(R, "operations"),
@@ -182,6 +191,8 @@ pub fn validateResponse(response: Response) !void {
         .operation => |value| try value.validate(),
         .operations => |page| for (page.entries) |value| try value.validate(),
         .completion => |value| try value.validate(),
+        .attached => |value| try value.validate(),
+        .context => |value| if (value.transaction) |handle| try handle.validate(),
         .batch => |value| {
             if (!std.mem.eql(u8, &value.instance, &response.instance) or value.rows > max_rows or
                 (value.rows == 0 and value.completion == null)) return error.InvalidResultChunk;
@@ -307,4 +318,30 @@ test "result cutover rejects JSON rows foreign definitions and old command shape
         accepted.deinit();
         return error.AcceptedObsoleteCompletion;
     } else |_| {}
+}
+
+test "transaction attachment requests and replies require valid original recovery material" {
+    const t = std.testing;
+    const handle: results.protocol.Transaction.Handle = .{
+        .definition = native.current_definition,
+        .identity = .{ .begin = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .principal = 4, .operation = 5 }, .branch = 1 },
+        .account = @splat(1),
+        .token = @splat(2),
+        .audience = 6,
+        .role = null,
+    };
+    const request: Request = .{ .version = 1, .definition = native.current_definition, .instance = @splat(3), .session = @splat(4), .action = .{ .attach_transaction = handle } };
+    try request.validate();
+    const bytes = try Json.valueAlloc(t.allocator, request);
+    defer t.allocator.free(bytes);
+    const parsed = try parse(Request, t.allocator, bytes);
+    defer parsed.deinit();
+    try t.expectEqualDeep(request, parsed.value);
+    var response: Response = .{ .version = 1, .definition = native.current_definition, .instance = @splat(3), .result = .{ .attached = handle } };
+    try validateResponse(response);
+    response.result.attached.identity.branch = 2;
+    try t.expectError(error.UnsupportedTransactionDomain, validateResponse(response));
+    var invalid = request;
+    invalid.action.attach_transaction.account = @splat(0);
+    try t.expectError(error.InvalidTransactionHandle, invalid.validate());
 }

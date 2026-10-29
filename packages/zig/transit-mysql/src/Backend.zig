@@ -7,6 +7,7 @@ const Self = @This();
 allocator: std.mem.Allocator,
 maximum: u32 = g.Limits.max_frame_bytes,
 sequence: u8 = 0,
+transaction: bool = false,
 bytes: std.ArrayList(u8) = .empty,
 pub const Column = struct { name: []const u8, type: g.Type };
 pub fn deinit(self: *Self) void {
@@ -42,21 +43,22 @@ fn finish(self: *Self) []const u8 {
     self.sequence +%= 1;
     return self.bytes.items;
 }
-/// Status always reports autocommit, no transaction and no additional results.
+/// Explicit transactions retain configured autocommit and set SERVER_STATUS_IN_TRANS.
 pub fn ok(self: *Self, affected: u64, terminator: bool) ![]const u8 {
     try self.begin();
     errdefer self.bytes.clearRetainingCapacity();
     try self.append(&.{if (terminator) 0xfe else 0x00});
     try self.length(affected);
     try self.length(0); // No generated IDs are supplied by the Table contract.
-    try self.int(u16, 2);
+    try self.int(u16, 2 | @as(u16, @intFromBool(self.transaction)));
     try self.int(u16, 0);
     return self.finish();
 }
 pub fn eof(self: *Self) ![]const u8 {
     try self.begin();
     errdefer self.bytes.clearRetainingCapacity();
-    try self.append("\xfe\x00\x00\x02\x00");
+    try self.append("\xfe\x00\x00");
+    try self.int(u16, 2 | @as(u16, @intFromBool(self.transaction)));
     return self.finish();
 }
 pub fn failure(self: *Self, code: u16, state: [5]u8, message: []const u8) ![]const u8 {
