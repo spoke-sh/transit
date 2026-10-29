@@ -156,6 +156,8 @@ def main():
     parser.add_argument('--repeat', type=int, default=1, choices=range(1, 101), metavar='1..100')
     parser.add_argument('--statements', action='store_true',
                         help='persistent human table console: empty/warm SELECT, INSERT/UPDATE/DELETE, refreshed SELECT, verified JSON readback')
+    parser.add_argument('--resources', action='store_true',
+                        help='sample owned process/thread/RSS/PSS counts between timed statements (Linux)')
     parser.add_argument('--age-queries', type=int, default=0, choices=range(1001), metavar='0..1000',
                         help='execute this many unmeasured SELECTs before measurements')
     parser.add_argument('--instrument', action='store_true',
@@ -170,6 +172,8 @@ def main():
     parser.add_argument('--representations', action='store_true',
                         help='run separate payload-only row/column LZ4/Zstd experiments after timing samples')
     args = parser.parse_args()
+    if args.resources and not args.statements:
+        parser.error('--resources requires --statements')
     if args.statements and (args.rows or args.single or args.age_queries or args.representations or args.historical_result_profile):
         parser.error('--statements uses its own fixed workload; select only repetitions and instrumentation/owner overrides')
     if args.historical_result_profile and not args.binary_revision:
@@ -198,7 +202,8 @@ def main():
         fixture.path.write_text(json.dumps(fixture.config))
         print(json.dumps({'binary_revision': args.binary_revision, 'driver_sha256': digest(__file__),
               'driver_helpers': {name: digest(ROOT / 'tests' / name) for name in (
-                  'performance/console/statements.py', 'performance/mutations/mutation_latency.py', 'harness/http_probe.py')},
+                  'performance/console/statements.py', 'performance/console/resources.py',
+                  'performance/mutations/mutation_latency.py', 'harness/http_probe.py', 'harness/processes.py')},
               'source_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
               'source_diff_sha256': hashlib.sha256(subprocess.check_output(['git', 'diff', '--binary', 'HEAD'], cwd=ROOT)).hexdigest(),
               'system': platform.platform(), 'machine': platform.machine(), 'logical_cpus': os.cpu_count(),
@@ -207,6 +212,7 @@ def main():
               'executables': {role: digest(path) for role, path in
               binaries.items()}, 'source_rows': args.rows, 'historical_result_profile': args.historical_result_profile, 'instrumented': args.instrument,
               'age_queries': args.age_queries, 'repeat': args.repeat, 'execution': 'server_session',
+              'resource_snapshots': args.resources,
               'cache_condition': 'post-bootstrap; later queries share the node cache',
               'probe_scope': 'SQL gateway upstream only' if args.instrument else None,
               'owner_metrics': args.instrument and args.owner_metrics,
@@ -249,7 +255,9 @@ def main():
 
         if args.statements:
             from performance.console.statements import run
-            run(fixture, args.repeat, probes)
+            from performance.console.resources import snapshot
+            run(fixture, args.repeat, probes,
+                resource_observer=(lambda pid: snapshot(fixture.process.pid, pid)) if args.resources else None)
             idle_sample('idle_after_statements')
             success = True
             return
