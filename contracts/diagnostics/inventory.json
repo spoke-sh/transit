@@ -7,6 +7,7 @@
         "Conflict": 1,
         "DocumentNotFound": 1,
         "ExchangeNotFound": 1,
+        "Forbidden": 2,
         "InvalidAuthorityResponse": 1,
         "InvalidResourceRead": 1,
         "QueryChanged": 12,
@@ -26,12 +27,13 @@
         "participation()": "<inferred>",
         "records()": "<inferred>",
         "state()": "<inferred>",
+        "storage()": "<inferred>",
         "unifiedQuery()": "<inferred>",
         "unifiedQueryDiagnostic()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 33,
         "catch": 4
       },
       "imports": [
@@ -140,7 +142,7 @@
       "open_error_set_uses": 6,
       "propagation": {
         "try": 56,
-        "catch": 46
+        "catch": 47
       },
       "imports": [
         "Growing.zig",
@@ -1261,7 +1263,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 37,
-        "catch": 16
+        "catch": 17
       },
       "imports": [
         "../Diagnostic.zig",
@@ -2297,8 +2299,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 59,
-        "catch": 2
+        "try": 60,
+        "catch": 3
       },
       "imports": [
         "DataAllocations.zig",
@@ -3086,6 +3088,25 @@
         "transit_query"
       ]
     },
+    "packages/zig/transit-board-api/src/Storage.zig": {
+      "errors": {
+        "InvalidStorageObservation": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "project()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-board-api/src/export.zig": {
       "errors": {},
       "outcomes": {},
@@ -3097,7 +3118,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 78,
+        "try": 81,
         "catch": 0
       },
       "imports": [
@@ -3182,6 +3203,7 @@
         "InspectionDiagnostic.zig",
         "Json.zig",
         "Query.zig",
+        "Storage.zig",
         "std",
         "transit_protocol",
         "transit_query",
@@ -5332,12 +5354,14 @@
         "Reference.foreign()": "<inferred>",
         "Reference.native()": "<inferred>",
         "RowOperation.foreign()": "<inferred>",
+        "StorageObservation.foreign()": "<inferred>",
+        "StorageObservation.optional()": "<inferred>",
         "Stored.foreign()": "<inferred>",
         "Stored.native()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 133,
+        "try": 153,
         "catch": 0
       },
       "imports": [
@@ -13958,7 +13982,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"53974aff8eb79a045fdec030d2817d9df3c98c2fa755f437d503bb73edc5446b\""
+          "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
         ],
         "Effect.phase": [
           "pending",
@@ -14002,6 +14026,7 @@
         "Query.kind": [
           "authorization",
           "capabilities",
+          "storage",
           "inspection",
           "delivery",
           "process",
@@ -14034,6 +14059,7 @@
         "Response.body": [
           "authorization",
           "capabilities",
+          "storage",
           "inspection",
           "delivery",
           "process",
@@ -14096,7 +14122,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 62,
+        "try": 63,
         "catch": 2
       },
       "imports": [
@@ -14449,23 +14475,57 @@
     },
     "packages/zig/transit-protocol/src/Storage.zig": {
       "errors": {
-        "InvalidStorageBudget": 4
+        "InvalidStorageBudget": 5,
+        "InvalidStorageObservation": 9,
+        "UnexpectedToken": 3,
+        "WriteFailed": 1
       },
-      "outcomes": {},
+      "outcomes": {
+        "Activity.state": [
+          "disabled",
+          "waiting",
+          "running",
+          "failed"
+        ],
+        "Failure": [
+          "capacity",
+          "denied",
+          "clock",
+          "timeout",
+          "recovery",
+          "storage",
+          "other"
+        ],
+        "Observation.backend": [
+          "unavailable",
+          "local",
+          "ursula"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "Archive.validate()": "<inferred>",
         "Flush.validate()": "<inferred>",
         "Limits.validate()": "<inferred>",
-        "Maintenance.validate()": "<inferred>"
+        "Maintenance.validate()": "<inferred>",
+        "Memory.validate()": "<inferred>",
+        "Observation.validate()": "<inferred>",
+        "Path.init()": "<inferred>",
+        "Path.jsonParse()": "<inferred>",
+        "Path.jsonParseFromValue()": "<inferred>",
+        "Path.jsonSchema()": "std . Io . Writer . Error",
+        "Path.jsonStringify()": "<inferred>",
+        "Path.validate()": "<inferred>",
+        "Requests.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 2,
-        "catch": 0
+        "try": 11,
+        "catch": 3
       },
       "imports": [
-        "root.zig"
+        "root.zig",
+        "std"
       ]
     },
     "packages/zig/transit-protocol/src/Transaction.zig": {
@@ -16792,14 +16852,15 @@
     },
     "packages/zig/transit-query/src/RelationalWorkspace.zig": {
       "errors": {
+        "CatalogDefinitionChanged": 3,
         "FileNotFound": 1,
         "IncompatibleDefinition": 1,
         "InvalidQueryCursor": 2,
         "InvalidQueryRequest": 4,
         "InvalidRelationalRecovery": 15,
-        "InvalidRelationalSources": 2,
+        "InvalidRelationalSources": 3,
         "QueryIdentityMismatch": 5,
-        "RelationalCallerChanged": 1,
+        "RelationalCallerChanged": 2,
         "RelationalRecoveryRequired": 1,
         "RelationalRecoverySyncFailed": 1,
         "RelationalSourceChanged": 1,
@@ -16826,11 +16887,13 @@
         ],
         "Request": [
           "describe",
+          "storage",
           "query",
           "recover"
         ],
         "Response": [
           "description",
+          "storage",
           "query",
           "recovered"
         ]
@@ -16853,7 +16916,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 65,
+        "try": 71,
         "catch": 6
       },
       "imports": [
@@ -20962,6 +21025,7 @@
       "errors": {
         "CatalogIdentityConflict": 1,
         "CatalogNameNotFound": 2,
+        "Forbidden": 1,
         "TableDefinitionChanged": 1,
         "UnknownSqlSource": 1,
         "UnsupportedConstruct": 1
@@ -20972,11 +21036,12 @@
         "Read.next()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareSource()": "<inferred>",
-        "validate()": "<inferred>"
+        "validate()": "<inferred>",
+        "validateNode()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
+        "try": 50,
         "catch": 0
       },
       "imports": [

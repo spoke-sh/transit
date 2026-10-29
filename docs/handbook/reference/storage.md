@@ -263,3 +263,21 @@ Provider adapters and component conflict tests therefore do not establish a
 lock-free runtime, distributed atomicity or interchangeable durability guarantees.
 The [storage analysis](../internals/storage-runtime.md#four-tier-storage-architecture-tseg-segments-and-multi-writer-occ)
 explains the intended topology and its remaining integration boundaries.
+
+
+### Direct request allocation limits
+
+The node bounds ordinary direct Table allocations by
+`storage.requests.request_bytes` (128 MiB per request) and
+`storage.requests.data_bytes` (256 MiB across requests). Reserved recovery
+requests use `storage.requests.control_bytes` (64 MiB across requests).
+These restart settings accept integer byte quantities from 1 MiB up to their
+defaults; the per-request limit must fit the ordinary aggregate limit. Request
+scratch and retained responses share these budgets until response delivery is
+joined. Exhaustion refuses ordinary work with `StorageQuota`, or reserved work
+with `ControlCapacity`. Inspect the original operation after an uncertain write.
+
+`SHOW STORAGE` reports the node's resolved root, configured limits, live charged
+bytes and maintenance activity under realm-wide inspection authority. Null means
+unavailable. These independent counters exclude process stacks, sockets and
+filesystem caches; they are not a total resident-memory measurement.

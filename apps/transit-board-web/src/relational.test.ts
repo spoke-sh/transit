@@ -58,6 +58,44 @@ describe("relational browser boundaries", () => {
       },
     };
     const position = { partition: "18446744073709551615", next_lsn: "18446744073709551615" };
+    const storage = {
+      binding,
+      observed: {
+        position,
+        changed_lsn: "18446744073709551614",
+        live_rows: "4",
+        pending_rows: "0",
+        pending_bytes: "0",
+        pending_complete: true,
+        oldest_pending_lsn: null,
+        archive_through: "0",
+        recovery_through: null,
+        history_floor: "3",
+        next_segment: "2",
+        archive_source_lsn: "0",
+        archived_source_lsn: "0",
+        archive_target_source_lsn: null,
+        archive_target_through_lsn: null,
+        compaction_source_lsn: "0",
+        compacted_source_lsn: "0",
+        compaction_target_source_lsn: null,
+        compaction_target_before_segment: null,
+        compaction_target_after_segment: null,
+      },
+    };
+    expect(validateRelational({ storage })).toBe(true);
+    for (const change of [
+      { live_rows: 4 },
+      { pending_rows: "5" },
+      { pending_complete: false },
+      { archive_through: position.next_lsn },
+      { next_segment: "0" },
+    ])
+      expect(
+        validateRelational({
+          storage: { ...storage, observed: { ...storage.observed, ...change } },
+        }),
+      ).toBe(false);
     const opened = {
       reference,
       description: {

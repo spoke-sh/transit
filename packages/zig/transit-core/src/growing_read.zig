@@ -110,11 +110,11 @@ pub fn withSnapshots(engine: anytype, signed: g.SignedQuery, hooks: anytype) any
     if (comptime @TypeOf(hooks) != void) try hooks.begin(engine, principal, query.kind);
     var success = false;
     defer if (comptime @TypeOf(hooks) != void) hooks.end(engine, success);
-    const result = try authorized(engine, principal, query);
+    const result = try authorized(engine, principal, query, hooks);
     success = true;
     return result;
 }
-fn authorized(engine: anytype, principal: growth.Principal, query: g.Query) anyerror!g.Response {
+fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hooks: anytype) anyerror!g.Response {
     if (query.kind == .snapshot_read) return @import("growing_snapshot_read.zig").read(engine, principal, query.realm, query.kind.snapshot_read);
     const position = engine.head.position;
     var current = try engine.state();
@@ -129,6 +129,17 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query) anye
         },
         .inspection => |q| .{ .inspection = try @import("growing_inspection.zig").read(engine, principal, q) },
         .identity => .{ .identity = .{ .principal = query.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid, .policy_revision = principal.revision } },
+        .storage => blk: {
+            // Node-wide paths and totals require realm-wide inspection. A
+            // process grant must never disclose unrelated storage activity.
+            if (principal.grant.pid != null) return error.Forbidden;
+            if (comptime @TypeOf(hooks) != void) {
+                if (@hasDecl(@typeInfo(@TypeOf(hooks)).pointer.child, "storage")) {
+                    break :blk .{ .storage = try hooks.storage(engine) };
+                }
+            }
+            break :blk .{ .storage = p.Storage.Observation.unavailable };
+        },
         .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .immutable_blocks = @hasDecl(@TypeOf(engine.page_store.*), "stageBlock") and @hasDecl(@TypeOf(engine.page_store.*), "loadBlock"), .leased_snapshots = engine.snapshot_epoch != null and engine.clock != null, .snapshot_read = engine.snapshot_epoch != null and engine.clock != null, .worker_rotation = true, .declarative_authorization = true, .runtime_bindings = true, .station = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
         .open_snapshot => |q| blk: {
             const now = try snapshotTime(engine);

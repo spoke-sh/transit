@@ -9,6 +9,22 @@ _default:
 build:
     python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize Debug
 
+# Build portable glibc 2.28 packages for GitHub Releases, without publishing.
+[positional-arguments]
+release-build output:
+    python3 -B bindings/release.py "$1"
+
+# Qualify those installed packages through their owning raw/Station consumers.
+[positional-arguments]
+release-test packages runtime *args:
+    python3 -B tests/runner/launch.py tests/sdk/release.py "$@"
+
+# Build the archived SDK's actual application, then exercise install and replacement.
+[positional-arguments]
+release-zig archive runtime:
+    zig build test-operation-fixture -Dtarget=x86_64-linux-musl -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
+    python3 -B tests/runner/launch.py tests/sdk/release_zig.py "$@"
+
 # Regenerate declarations and shared schemas from the reviewed Zig ABI exports.
 generate:
     just contract::client-generate contract::station-generate

@@ -151,13 +151,16 @@ pub fn run(comptime Provider: type, init: std.process.Init, engine: *Provider.En
         observation.event.realm = engine.genesis.realm;
         Provider.trace(engine, observation.span.context);
         defer Provider.trace(engine, null);
+        if (@hasDecl(Provider, "observeMaintenance")) Provider.observeMaintenance(engine, true, null);
         const outcome = boundedStep(Provider, init.io, engine, config, key, &progress, &observation, extension) catch |err| {
+            if (@hasDecl(Provider, "observeMaintenance")) Provider.observeMaintenance(engine, false, err);
             observation.fail(err);
             observation.finish();
             if (err == error.Canceled) return err;
             try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
             continue;
         };
+        if (@hasDecl(Provider, "observeMaintenance")) Provider.observeMaintenance(engine, false, null);
         if (std.mem.eql(u8, observation.event.operation.?, "scan")) observation.event.operation = @tagName(outcome);
         observation.event.position = engine.head.position;
         observation.event.level = if (outcome == .idle) .debug else .info;

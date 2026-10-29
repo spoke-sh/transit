@@ -4,12 +4,16 @@ const std = @import("std");
 const memory = @import("transit_memory");
 const Self = @This();
 
-pub const request_bytes = 128 * 1024 * 1024;
-pub const data_bytes = 256 * 1024 * 1024;
-pub const control_bytes = 64 * 1024 * 1024;
+const Requests = @import("transit_client").protocol.Storage.Requests;
+const defaults: Requests = .{};
+request_bytes: u32 = defaults.request_bytes,
+data: memory.Quota = .{ .limit = defaults.data_bytes },
+control: memory.Quota = .{ .limit = defaults.control_bytes },
 
-data: memory.Quota = .{ .limit = data_bytes },
-control: memory.Quota = .{ .limit = control_bytes },
+pub fn init(settings: Requests) !Self {
+    try settings.validate();
+    return .{ .request_bytes = settings.request_bytes, .data = .{ .limit = settings.data_bytes }, .control = .{ .limit = settings.control_bytes } };
+}
 
 /// Keep both this owner and the returned single-request budget at stable
 /// addresses until parsing, private work and the joined response write end.
@@ -17,7 +21,7 @@ pub fn request(self: *Self, parent: std.mem.Allocator, control: bool) memory.Bud
     return .{
         .parent = parent,
         .quota = if (control) &self.control else &self.data,
-        .limit = if (control) control_bytes else request_bytes,
+        .limit = if (control) self.control.limit else self.request_bytes,
     };
 }
 

@@ -67,9 +67,9 @@ class RequestMemory:
 
 
 @contextmanager
-def directory():
-    root = Path(tempfile.mkdtemp(prefix='transit-table-maintenance-', dir='/var/tmp'))
-    print(f'Direct Table maintenance proof: {root}', flush=True)
+def directory(profile="maintenance"):
+    root = Path(tempfile.mkdtemp(prefix=f'transit-table-{profile}-', dir='/var/tmp'))
+    print(f'Direct Table {profile} proof: {root}', flush=True)
     try:
         yield str(root)
     except BaseException:
@@ -311,3 +311,161 @@ def exercise(caller, endpoint, profile, root, restart, owner, node, request_memo
           f'after SIGKILL during accepted work; original, flushed and maintained '
           f'rows survive restart; zero segment rewrites for packed inputs; no further publications while idle; '
           f'convergence and verification {time.monotonic() - before:.3f}s.', flush=True)
+
+
+def request_pressure(port, root, owner, saved_inspection):
+    """Real concurrent body readers exhaust bytes while exact recovery remains usable."""
+    import select
+    import socket
+    from interfaces.http.serving import Key
+    from interfaces.installation.server_application_faults import native, post
+
+    key = Key(root, 'pressure-root', 17)
+    query = native(key, 42, 0, {'storage': {}})
+    def observed():
+        return post(port, '/v1/query', query)['body']['storage']
+    def memory():
+        value = observed()['data_requests']
+        assert value['used'] <= value['peak'] <= value['limit'] == 1048576, value
+        return value
+    before = process_usage(owner())
+    observations = []
+    for closure in ('disconnect', 'deadline'):
+        held = [socket.create_connection(('127.0.0.1', port), timeout=5) for _ in range(2)]
+        failure = None
+        try:
+            for connection in held:
+                connection.sendall(b'POST /table/v1 HTTP/1.1\r\nHost: localhost\r\nContent-Length: 8388608\r\nContent-Type: application/json\r\n\r\n')
+            # Both partial bodies have identical bounded prefixes; neither can
+            # reach authentication or durable admission. Alternate equal chunks
+            # until their aggregate allocation, not the active-lane count, refuses.
+            for _ in range(8):
+                for connection in held:
+                    connection.sendall(b' ' * 65536)
+                    time.sleep(.05)
+                    ready, _, _ = select.select(held, [], [], .05)
+                    if ready:
+                        # HTTPResponse only parses; it dispatches no new request.
+                        from http.client import HTTPResponse
+                        reply = HTTPResponse(ready[0]); reply.begin()
+                        failure = (reply.status, json.loads(reply.read()))
+                        break
+                if failure is not None:
+                    break
+            assert failure == (503, {'err': 'StorageQuota'}), failure
+            live = memory()
+            assert live['used'] > 0, 'No concurrent partial request remained charged'
+            original, expected = saved_inspection
+            recovered = post(port, '/table/v1', json.loads(original), headers={'X-Transit-Control': 'table'})
+            assert recovered['result'] == expected, 'Recovery changed the accepted original operation'
+            control = observed()['control_requests']
+            assert 0 < control['peak'] <= control['limit'] == 67108864
+            if closure == 'disconnect':
+                for connection in held:
+                    connection.close()
+            deadline = time.monotonic() + 8
+            while memory()['used']:
+                assert time.monotonic() < deadline, 'Joined body termination retained request bytes'
+                time.sleep(.05)
+            observations.append(dict(closure=closure, refused=failure[1]['err'],
+                                     ordinary=live, control=control, original_recovery=True,
+                                     released=memory()['used']))
+        finally:
+            for connection in held:
+                connection.close()
+    after = process_usage(owner())
+    assert before['pid'] == after['pid'] and before['start_ticks'] == after['start_ticks']
+    print(json.dumps(dict(profile='direct_request_pressure', schedules=observations,
+                          owner_before=before, owner_after=after)), flush=True)
+
+
+def response_pressure(port, root, owner, saved_inspection, scan, limit):
+    """Retain a real response in a blocked socket write, then exhaust shared bytes."""
+    from http.client import HTTPResponse
+    import select
+    import socket
+    from interfaces.http.serving import Key
+    from interfaces.installation.server_application_faults import native, post
+
+    key = Key(root, 'response-pressure-root', 17)
+    query = native(key, 42, 0, {'storage': {}})
+    original, response_bytes, baseline_peak = scan
+    assert response_bytes > 65536 and response_bytes <= baseline_peak <= limit <= 134217728
+    packet = (f'POST /table/v1 HTTP/1.1\r\nHost: localhost\r\nContent-Length: {len(original)}\r\n'
+              'Content-Type: application/json\r\n\r\n').encode() + original
+
+    def observed():
+        value = post(port, '/v1/query', query)['body']['storage']
+        data = value['data_requests']
+        assert data['used'] <= data['peak'] <= data['limit'] == limit, data
+        return value
+
+    def wait_used(expected, seconds):
+        deadline = time.monotonic() + seconds
+        while True:
+            data = observed()['data_requests']
+            if data['used'] == expected:
+                return data
+            assert time.monotonic() < deadline, (expected, data)
+            time.sleep(.02)
+
+    before = process_usage(owner())
+    observations = []
+    for closure in ('disconnect', 'deadline'):
+        slow = socket.socket()
+        slow.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+        slow.settimeout(5)
+        held = []
+        try:
+            slow.connect(('127.0.0.1', port))
+            # Repeating an immutable retained scan creates no pins or writes.
+            # Stay within the listener's 64-request connection bound. Queued
+            # responses fill the transport buffers without changing server
+            # socket settings or allocating a larger data fixture.
+            slow.sendall(packet * 64)
+            assert slow.recv(4096, socket.MSG_PEEK).startswith(b'HTTP/1.1 200 ')
+            wait_used(response_bytes, 3)
+            time.sleep(.1)
+            retained = observed()['data_requests']
+            assert retained['used'] == response_bytes, 'Response was not retained through the blocked write'
+
+            held = [socket.create_connection(('127.0.0.1', port), timeout=5) for _ in range(2)]
+            for connection in held:
+                connection.sendall(b'POST /table/v1 HTTP/1.1\r\nHost: localhost\r\nContent-Length: 8388608\r\nContent-Type: application/json\r\n\r\n')
+            failure = None
+            for _ in range(31):
+                for connection in held:
+                    connection.sendall(b' ' * 262144)
+                    ready, _, _ = select.select(held, [], [], .01)
+                    if ready:
+                        reply = HTTPResponse(ready[0]); reply.begin()
+                        failure = (reply.status, json.loads(reply.read()))
+                        break
+                if failure is not None:
+                    break
+            assert failure == (503, {'err': 'StorageQuota'}), failure
+            pressured = observed()['data_requests']
+            request, expected = saved_inspection
+            recovered = post(port, '/table/v1', json.loads(request), headers={'X-Transit-Control': 'table'})
+            assert recovered['result'] == expected, 'Slow response blocked original-operation recovery'
+            control = observed()['control_requests']
+            assert 0 < control['peak'] <= control['limit'] == 67108864
+            for connection in held:
+                connection.close()
+            held.clear()
+            wait_used(response_bytes, 1)
+            if closure == 'disconnect':
+                slow.close()
+            wait_used(0, 8)
+            observations.append(dict(closure=closure, retained_response_bytes=response_bytes,
+                                     baseline_peak_bytes=baseline_peak, ordinary=pressured,
+                                     control=control, refused=failure[1]['err'],
+                                     original_recovery=True, released=0))
+        finally:
+            slow.close()
+            for connection in held:
+                connection.close()
+    after = process_usage(owner())
+    assert (before['pid'], before['start_ticks']) == (after['pid'], after['start_ticks'])
+    print(json.dumps(dict(profile='direct_response_pressure', schedules=observations,
+                          owner_before=before, owner_after=after)), flush=True)

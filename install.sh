@@ -4,22 +4,31 @@ set -eu
 
 fail() { printf '%s\n' "error: $*" >&2; exit 1; }
 version=
+source_directory=
 prefix=${HOME:?HOME is required}/.local
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --version) [ "$#" -ge 2 ] || fail '--version requires MAJOR.MINOR.PATCH'; version=$2; shift 2 ;;
     --prefix) [ "$#" -ge 2 ] || fail '--prefix requires a directory'; prefix=$2; shift 2 ;;
-    --help) printf '%s\n' 'Usage: install.sh [--version MAJOR.MINOR.PATCH] [--prefix DIRECTORY]'; exit 0 ;;
+    --from) [ "$#" -ge 2 ] || fail '--from requires a directory'; source_directory=$2; shift 2 ;;
+    --help) printf '%s\n' 'Usage: install.sh [--version MAJOR.MINOR.PATCH] [--prefix DIRECTORY] [--from DIRECTORY]'; exit 0 ;;
     *) fail "unknown option: $1" ;;
   esac
 done
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64) platform=linux-x86_64 ;;
-  *) fail 'release executables currently support Linux x86_64; macOS and Windows require runtime portability work' ;;
+  Linux:aarch64|Linux:arm64) platform=linux-aarch64 ;;
+  *) fail 'release executables support Linux x86_64 and ARM64; macOS and Windows require runtime portability work' ;;
 esac
-for tool in curl tar sha256sum awk mktemp readlink; do
+for tool in tar sha256sum awk mktemp readlink; do
   command -v "$tool" >/dev/null 2>&1 || fail "$tool is required"
 done
+if [ -n "$source_directory" ]; then
+  [ -n "$version" ] || fail '--from requires --version'
+  [ -d "$source_directory" ] || fail '--from directory does not exist'
+else
+  command -v curl >/dev/null 2>&1 || fail 'curl is required'
+fi
 base=https://github.com/spoke-sh/transit/releases
 if [ -z "$version" ]; then
   url=$(curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
@@ -33,8 +42,12 @@ trap 'rm -rf "$temporary"' EXIT
 trap 'exit 1' HUP INT TERM
 asset=transit-$version-$platform.tar.gz
 for file in "$asset" SHA256SUMS; do
-  curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
-    --output "$temporary/$file" "$base/download/v$version/$file"
+  if [ -n "$source_directory" ]; then
+    cp "$source_directory/$file" "$temporary/$file"
+  else
+    curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
+      --output "$temporary/$file" "$base/download/v$version/$file"
+  fi
 done
 awk -v asset="$asset" '$2 == asset { print; count++ } END { if (count != 1) exit 1 }' \
   "$temporary/SHA256SUMS" > "$temporary/checksum" || fail 'missing or duplicate archive checksum'

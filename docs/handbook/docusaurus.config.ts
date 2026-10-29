@@ -10,6 +10,9 @@ import { downloads } from "./lib/downloads";
 const root = path.resolve(__dirname, "../..");
 const url = process.env.TRANSIT_DOCS_URL ?? "https://spoke-sh.github.io";
 const baseUrl = process.env.TRANSIT_DOCS_BASE_URL ?? "/transit/";
+const revision = process.env.TRANSIT_DOCS_REVISION ?? "main";
+if (revision !== "main" && !/^[0-9a-f]{40}$/.test(revision))
+  throw new Error("TRANSIT_DOCS_REVISION must be main or a full Git commit");
 if (!/^\/(?:[A-Za-z0-9_-]+\/)*$/.test(baseUrl))
   throw new Error("TRANSIT_DOCS_BASE_URL must start and end with / and contain path segments only");
 const generated = path.join(__dirname, ".generated/static");
@@ -56,7 +59,7 @@ const config: Config = {
         Object.assign(parsed.frontMatter, {
           slug: `/${page.route}`,
           title: page.label,
-          custom_edit_url: `${repository}/edit/main/${source}`,
+          custom_edit_url: `${repository}/${revision === "main" ? "edit" : "blob"}/${revision}/${source}`,
         });
       return parsed;
     },
@@ -78,7 +81,7 @@ const config: Config = {
           exclude: [],
           routeBasePath: "/",
           sidebarPath: "./sidebars.ts",
-          beforeDefaultRemarkPlugins: [[repositoryLinks, { root, baseUrl }]],
+          beforeDefaultRemarkPlugins: [[repositoryLinks, { root, baseUrl, revision }]],
         },
         blog: false,
         theme: { customCss: "./src/css/custom.css" },

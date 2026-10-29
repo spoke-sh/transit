@@ -35,6 +35,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     const config = parsed.value;
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
     try config.storage.maintenance.validate();
+    try config.storage.requests.validate();
     const physical = config.storage.maintenance;
     if ((physical.flush.enabled or physical.archive.enabled or physical.compact) and (config.table == null or config.maintenance == null)) return error.LocalTableMaintenanceRequiresOwner;
     if (mode.maintain) return error.LocalMaintenanceRequiresOwner;
@@ -61,6 +62,16 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
 fn runOwner(init: std.process.Init, config: Config, mode: anytype, diagnostics: *telemetry.Runtime) !void {
     var owner = try backend.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), config.local_directory, config.storage.limits);
     defer owner.deinit();
+    owner.maintenance_settings = config.storage.maintenance;
+    if (config.maintenance) |maintenance| owner.maintenance_activity = .{
+        .enabled = true,
+        .state = .waiting,
+        .completed_steps = 0,
+        .failed_steps = 0,
+        .last_failure = null,
+        .interval_ms = maintenance.interval_ms,
+        .operation_timeout_ms = maintenance.operation_timeout_ms,
+    };
     var pages = try PageStore.init(&owner, config.resident_pages);
     defer pages.deinit();
     pages.observe = .{ .runtime = diagnostics, .enabled = config.request_metrics };
@@ -153,6 +164,43 @@ fn runServices(init: std.process.Init, engine: *Engine, lanes: []Lane, config: C
         .maintenance => |result| result,
         .recovery => |result| result,
     };
+}
+
+/// Called only within a signed realm-wide inspection and its final authority
+/// check. Snapshot the small live owner record; never enumerate physical files.
+pub fn storageObservation(engine: *Engine) !core.protocol.Storage.Observation {
+    const owner = engine.journal.backend;
+    try owner.mutex.lock(owner.io);
+    defer owner.mutex.unlock(owner.io);
+    var result = core.protocol.Storage.Observation.unavailable;
+    result.backend = .local;
+    result.root = owner.resolved_root;
+    result.allocated_bytes = owner.allocated;
+    result.limits = owner.limits;
+    result.maintenance = owner.maintenance_activity;
+    result.settings = owner.maintenance_settings;
+    return result;
+}
+
+pub fn observeMaintenance(engine: *Engine, running: bool, failure: ?anyerror) void {
+    const owner = engine.journal.backend;
+    owner.mutex.lockUncancelable(owner.io);
+    defer owner.mutex.unlock(owner.io);
+    const value = &owner.maintenance_activity;
+    value.state = if (running) .running else if (failure != null) .failed else .waiting;
+    if (running) return;
+    if (failure) |err| {
+        value.failed_steps = @min(core.protocol.max_counter, value.failed_steps +| 1);
+        value.last_failure = switch (err) {
+            error.StorageMaintenanceBudget, error.StorageQuota, error.OutOfMemory => .capacity,
+            error.Forbidden, error.Unauthorized, error.CatalogDenied, error.AuthorizationChanged => .denied,
+            error.ClockUnavailable, error.ClockUncertain, error.ClockRollback => .clock,
+            error.MaintenanceTimeout => .timeout,
+            error.LocalWalReopenRequired, error.WalRecoveryRequired => .recovery,
+            error.InputOutput, error.NoSpaceLeft, error.DiskQuota => .storage,
+            else => .other,
+        };
+    } else value.completed_steps = @min(core.protocol.max_counter, value.completed_steps +| 1);
 }
 
 pub const Lane = struct {

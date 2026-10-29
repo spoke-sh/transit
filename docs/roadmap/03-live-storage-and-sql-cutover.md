@@ -95,7 +95,7 @@ executables may remain supported deployment entry points over the same modules;
 the default local profile must no longer need them beside `transit`. Application
 workers and external connectors remain separately installed applications.
 Release signing, platform expansion and distribution channels remain in
-[milestone 31](31-releases.md).
+[milestone 31](33-releases.md).
 
 **D3 — Limit lazy evolution to edits with a proved projection.** Include
 non-key column rename, nullable/constant-default ADD COLUMN and supported
@@ -107,7 +107,7 @@ than converting every absent historical value to NULL. Key, type, codec,
 collation and constraint changes that require validation/reindexing retain an
 explicit bounded existing path or explicit refusal. General online rewrites,
 new constraints and arbitrary historical SQL remain in milestones
-[8](08-standards-and-catalogs.md) and [9](09-indexing-and-access-paths.md).
+[8](09-standards-and-catalogs.md) and [9](10-indexing-and-access-paths.md).
 
 **D4 — Compose maintenance; do not widen logical retention.** Automatic flush,
 archive/checkpoint, bounded compaction and safe collection operate within
@@ -116,9 +116,9 @@ default. Physical WAL trimming needs recoverable archive/checkpoint coverage;
 logical expiry needs explicit policy; deletion additionally needs a complete
 retained graph and read-lifetime fences. These are separate transitions.
 Automatic computation activation stays in
-[milestone 10](10-sql-and-dataflows.md), distributed providers/writers in
-[18](18-storage-providers-and-concurrency.md), and general cache/index/group-commit
-optimization in [11](11-data-structures-and-performance.md).
+[milestone 10](11-sql-and-dataflows.md), distributed providers/writers in
+[18](20-storage-providers-and-concurrency.md), and general cache/index/group-commit
+optimization in [11](12-data-structures-and-performance.md).
 
 The existing [SQL session contract](../../contracts/SQL_SESSION_V1.md) remains
 the result boundary. Fix storage/read ownership, current-policy disclosure and
@@ -193,7 +193,7 @@ close-out must:
   samples, source/build identities and unresolved limits before closing P4/P5/P8.
 
 The broader allocator, buffer-manager, provider and query-engine replacements
-retain their [performance roadmap owners](11-data-structures-and-performance.md).
+retain their [performance roadmap owners](12-data-structures-and-performance.md).
 Storage measurement and focused fixes required for this installed cutover remain
 here; neither the later roadmap nor SQL decoupling substitutes for them.
 
@@ -398,7 +398,7 @@ Owners: [Local](../../apps/transit-node/Local.zig),
   captured blocks and effect records in the installed local profile after owner
   replacement. Replay dispatches no external effect. Keep the existing native
   one-KV-resource turn boundary and direct Table acceptance separate.
-- [ ] P1.5 Audit and resolve the retained Station Table implementation and its
+- [x] P1.5 Audit and resolve the retained Station Table implementation and its
   public bindings. The general actor-backed catalog/service and query-host Table
   role are removed, but `TableCreation`, `TableWrite`, `TableStatement`,
   `TableReader`, `TableData` and `TablePages` still implement application-private
@@ -413,6 +413,28 @@ Owners: [Local](../../apps/transit-node/Local.zig),
   cannot silently replace one atomic turn. The milestone 6 replacement must move
   affected contracts, SDKs, examples, tests and documentation together under the
   current-v1 policy; this milestone preserves their current installed behavior.
+
+**Retained caller audit — 2026-10-28:** the source inventory at `05fda5b01`
+confirms that SQL's database runtime, SQL service and gateway do not invoke the
+private Station Table engine. `transit-sql` also rejects a Station dependency in
+its build graph. The following active consumers remain; removing them in this
+milestone would change existing native-turn atomicity or caller contracts.
+
+| Owner and consumers | Current boundary and migration obligation |
+| --- | --- |
+| Station `TableCreation`, `TableWrite`, `TableStatement`, `TableAlter`, `TableCleanup`, `TableReader`, `TableData`, `TablePages` and retained history/change helpers | Application-private native-resource state; final head, receipt, input progress and outputs share the native turn. Replace with declared data and a transaction envelope preserving those decisions. |
+| Station `Query`, its stored records and `Metadata` interpretation; `growing_query` and application-runtime fixtures | Captures read the private Table at a current or retained native cut. Move stored capture/progress records and inspection together; reading direct catalog Tables already uses separate direct readers. |
+| Station bindings `TableBridge`, `GrowingActions` and `GrowingAbi`; Python, TypeScript, Rust, C and C++ Table wrappers | Foreign handlers call the shared Zig turn implementation. Migrate actions, generated ABI declarations, language APIs and ownership/revocation checks as one definition cutover. |
+| Station SDK query example, `sdk_table_work`, Station unit/integration checks and the declarative benchmark | Exercise the application-state profile, not direct SQL acceptance. Preserve their exact result/commit assertions until replacement callers are executable. |
+
+The shared Fuze schemas/codecs and the catalog's `DirectTableBridge` are separate
+owners and are not removal targets. No remaining private query/caching adapter
+can be deleted merely because ordinary SQL no longer uses it: the consumers
+above still require its current profile. The
+[milestone 6 migration owner](06-streams-queues-and-durable-runtime.md#inherited-station-cutover-obligations)
+retains coordinated replacement of these storage, capture and SDK surfaces,
+including the native input/state/output boundary. P1.5 closes this audit and
+handoff only; it does not certify that replacement or the broader installed gates.
 
 **Gate:** deterministic recovery-required injection completes the original
 bootstrap request exactly once, the complete launcher schedule passes, payload
@@ -702,6 +724,17 @@ shared capacity until freed. The
 records exact source and evidence. Installed slow-write/cancellation exhaustion,
 combined foreground/maintenance pressure and whole-owner memory remain open;
 this partial result does not close P4.4 or the common-revision P8 gate.
+
+The next [installed pressure schedule](../history/qualification/storage.md#installed-slow-clients-and-reserved-recovery)
+passes incomplete-body and blocked-response exhaustion, disconnect and request
+deadline cleanup, and reserved inspection of the unchanged original operation.
+All 2,128 typed calls in its direct Table service schedule pass. Node observations
+and configured request budgets share the native contract; these observations
+distinguish unavailable data, independently sampled owner counters and durable
+Table progress. The rebased combined definition passes clean fast/contract
+checks. Whole-owner resources, combined maintenance pressure, matched latency
+and final dependent lanes remain required; the installed SQL SELECT conflicts
+remain integration blockers owned by the SQL continuation.
 
 **Gate:** the installed owner converges on eligible maintenance under a finite
 workload, resumes it after process death and preserves every retained obligation.
@@ -1446,7 +1479,7 @@ to this installed integration owner. Preserve #108's original acceptance gates:
   identities, requested lifetime, actual result evidence and data-source
   freshness. SQL/SDK and Board projections reuse qualified operations; reading
   or explaining a declaration activates no work. Automatic scheduling stays
-  with [managed computations](10-sql-and-dataflows.md).
+  with [managed computations](11-sql-and-dataflows.md).
 
 Original lifecycle acceptance, retained from milestone 1:
 
@@ -1469,7 +1502,7 @@ Original lifecycle acceptance, retained from milestone 1:
   These are review questions; the implementation must define exact status types.
 
 Distributed-provider and concurrent-writer integration transfers explicitly to
-[milestone 18](18-storage-providers-and-concurrency.md), retaining #117/#121 and
+[milestone 18](20-storage-providers-and-concurrency.md), retaining #117/#121 and
 their #124 proof gates. This milestone remains In Progress. #108's delivered
 lifecycle acceptance is recorded separately; #110 retains the remaining installed
 storage, maintenance and performance obligations. Neither the split nor the
@@ -1537,8 +1570,8 @@ paged-manifest clarification of the original artifact gate.
    into the requested table definition, avoiding synchronous full-table segment
    rewrites on the interactive DDL path while deferring physical rewrites to
    background compaction or the phased online rewrite contract in
-   [historical catalogs](08-standards-and-catalogs.md) and
-   [online maintenance](09-indexing-and-access-paths.md).
+   [historical catalogs](09-standards-and-catalogs.md) and
+   [online maintenance](10-indexing-and-access-paths.md).
    Remove pre-commit mirrors, dummy leases/time, swallowed errors and borrowed
    command memory. Retire superseded Table staging/storage consumers through
    #112 rather than shipping dual writable authorities or silent fallbacks.
@@ -1575,7 +1608,7 @@ paged-manifest clarification of the original artifact gate.
 Record installed local baselines for durable data operations and native runtime
 work, separating admission, WAL sync, execution/turn commit, recovery and result
 delivery. Include candidate segments, range-read bytes and peak resident memory.
-The later [performance scorecard](11-data-structures-and-performance.md) extends
+The later [performance scorecard](12-data-structures-and-performance.md) extends
 these measurements; it cannot replace this cutover's existing matched controls
 with library-only timings or defer a missing bounded access path.
 

@@ -40,6 +40,9 @@ cp "$FIXTURE_DOWNLOADS/${url##*/}" "$output"
         (self.tools / 'curl').chmod(0o755)
         self.env = os.environ | {'PATH': str(self.tools) + ':' + os.environ['PATH'],
                                  'FIXTURE_DOWNLOADS': str(self.downloads)}
+        # The controls exercise archive selection independently of their host.
+        (self.tools / 'uname').write_text('#!/bin/sh\ncase "$1" in -s) echo Linux;; -m) echo x86_64;; esac\n')
+        (self.tools / 'uname').chmod(0o755)
         self.asset = self.downloads / 'transit-0.0.1-linux-x86_64.tar.gz'
         archive(self.source, self.asset, 'transit-0.0.1-linux-x86_64', 123)
         self.checksum()
@@ -58,6 +61,17 @@ cp "$FIXTURE_DOWNLOADS/${url##*/}" "$output"
         self.assertTrue((self.prefix / 'bin/transit').is_symlink())
         self.assertIn('Transit 0.0.1', subprocess.check_output([str(self.prefix / 'bin/transit')], text=True))
         self.assertNotEqual(self.install().returncode, 0)
+
+    def test_offline_install_uses_the_same_checksum_gate(self):
+        args = ['sh', str(ROOT / 'install.sh'), '--version', '0.0.1',
+                '--prefix', str(self.prefix), '--from', str(self.downloads)]
+        result = subprocess.run(args, env=self.env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.prefix / 'bin/transit').is_symlink())
+        self.asset.write_bytes(b'corrupt')
+        rejected = subprocess.run(args, env=self.env, capture_output=True, text=True)
+        self.assertIn('checksum mismatch', rejected.stderr)
+        self.assertTrue((self.prefix / 'bin/transit').is_symlink())
 
     def test_corruption_never_changes_existing_binary(self):
         (self.prefix / 'bin').mkdir(parents=True)
@@ -89,6 +103,14 @@ cp "$FIXTURE_DOWNLOADS/${url##*/}" "$output"
         (self.tools / 'uname').chmod(0o755)
         self.assertIn('Linux x86_64', self.install().stderr)
         self.assertFalse(self.prefix.exists())
+
+    def test_arm64_selects_its_own_archive(self):
+        (self.tools / 'uname').write_text('#!/bin/sh\ncase "$1" in -s) echo Linux;; -m) echo aarch64;; esac\n')
+        self.asset = self.downloads / 'transit-0.0.1-linux-aarch64.tar.gz'
+        archive(self.source, self.asset, 'transit-0.0.1-linux-aarch64', 123)
+        self.checksum()
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_archive_reproducibility_ignores_checkout_mtimes(self):
         original = self.asset.read_bytes()

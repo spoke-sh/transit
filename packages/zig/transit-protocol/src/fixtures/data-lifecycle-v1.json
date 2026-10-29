@@ -1,6 +1,6 @@
 {
   "binding": {
-    "definition": "53974aff8eb79a045fdec030d2817d9df3c98c2fa755f437d503bb73edc5446b",
+    "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
     "identity": {
       "scope": {
         "realm": 1,
@@ -107,7 +107,7 @@
   },
   "commit": {
     "binding": {
-      "definition": "53974aff8eb79a045fdec030d2817d9df3c98c2fa755f437d503bb73edc5446b",
+      "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
       "identity": {
         "scope": {
           "realm": 1,
@@ -392,7 +392,7 @@
     }
   },
   "snapshot": {
-    "definition": "53974aff8eb79a045fdec030d2817d9df3c98c2fa755f437d503bb73edc5446b",
+    "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
     "owner": {
       "scope": {
         "realm": 1,
@@ -489,7 +489,7 @@
     "not_observed": {}
   },
   "resource_initialization": {
-    "definition": "53974aff8eb79a045fdec030d2817d9df3c98c2fa755f437d503bb73edc5446b",
+    "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
     "interpretation": {
       "object": {
         "scope": {
@@ -541,7 +541,7 @@
   },
   "transaction": {
     "begin": {
-      "definition": "53974aff8eb79a045fdec030d2817d9df3c98c2fa755f437d503bb73edc5446b",
+      "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
       "identity": {
         "begin": {
           "scope": {
@@ -610,7 +610,7 @@
     },
     "cut": {
       "begin": {
-        "definition": "53974aff8eb79a045fdec030d2817d9df3c98c2fa755f437d503bb73edc5446b",
+        "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
         "identity": {
           "begin": {
             "scope": {
@@ -834,7 +834,7 @@
     },
     "prepared": {
       "attempt": {
-        "definition": "53974aff8eb79a045fdec030d2817d9df3c98c2fa755f437d503bb73edc5446b",
+        "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
         "transaction": {
           "begin": {
             "scope": {
@@ -1082,7 +1082,7 @@
     "observation": {
       "decided": {
         "attempt": {
-          "definition": "53974aff8eb79a045fdec030d2817d9df3c98c2fa755f437d503bb73edc5446b",
+          "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
           "transaction": {
             "begin": {
               "scope": {

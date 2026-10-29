@@ -78,6 +78,22 @@ retained-view queries use the same native query envelope. Leased snapshot reads
 follow [snapshot reads](INTERACTIVE_QUERY_V1.md). There is no raw storage or provider
 administration endpoint.
 
+`kind: { storage: {} }` reads node storage observations under current realm-wide
+`inspect` permission. PID-scoped inspection rejects. The response identifies the
+backend, resolved local root (up to 4096 UTF-8 bytes), physical admission bytes
+and limits, direct request allocation use/peaks and separate recovery reserve,
+and the maintenance executor's settings and last bounded failure category.
+Unavailable observations are null, never inferred zeroes. Paths and aggregate
+statistics share this operator permission; Table metadata still requires its
+own signed direct Table inspection rights. The ordinary final authority-tail
+check covers this read, including repeated observations and disabled maintenance.
+Counters are independent live samples, not an atomic data snapshot, a physical
+free-space measurement or a whole-process RSS bound. Maintenance observations
+are volatile since owner startup; durable Table targets/coverage remain in the
+direct Table `storage` response. Inspection advances no work and changes no
+retention or maintenance policy. Hosts without a storage observer return the
+explicit `unavailable` backend.
+
 `kind: { delivery: {} }` requires current `delivery` permission (bit 128) and
 returns `{ next: OUTPUT_ID_OR_NULL }` for the first pending output in the caller's
 destination scope. It reveals no payload or source catalog. Submit the selected

@@ -40,6 +40,11 @@ authority: std.Io.RwLock = .init,
 accepted_native: ?core.growing.Head = null,
 limits: core.protocol.Storage.Limits,
 allocated: u64,
+/// Resolved once at open; never reconstructed from an application path.
+resolved_root: ?core.protocol.Storage.Path = null,
+/// Volatile executor observations, protected by mutex and reset on reopen.
+maintenance_activity: core.protocol.Storage.Activity = .{ .enabled = false, .state = .disabled, .completed_steps = 0, .failed_steps = 0, .last_failure = null, .interval_ms = 0, .operation_timeout_ms = 0 },
+maintenance_settings: ?core.protocol.Storage.Maintenance = null,
 
 pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: []const u8, limits: core.protocol.Storage.Limits) !Self {
     try limits.validate();
@@ -66,7 +71,9 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: 
         defer child.close(io);
         allocated = try std.math.add(u64, allocated, try countFiles(io, child));
     }
-    return .{ .allocator = allocator, .io = io, .directory = directory, .lock = lock, .wal = wal, .objects = objects, .allocations = allocations, .data_allocations = data_allocations, .limits = limits, .allocated = allocated };
+    const resolved = try directory.realPathFileAlloc(io, ".", allocator);
+    defer allocator.free(resolved);
+    return .{ .allocator = allocator, .io = io, .directory = directory, .lock = lock, .wal = wal, .objects = objects, .allocations = allocations, .data_allocations = data_allocations, .limits = limits, .allocated = allocated, .resolved_root = core.protocol.Storage.Path.init(resolved) catch null };
 }
 
 fn bindNativeOwner(io: std.Io, directory: std.Io.Dir, lock: std.Io.File) !void {

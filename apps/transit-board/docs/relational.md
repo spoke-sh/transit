@@ -17,7 +17,7 @@ Enable the route with a separate query identity and explicit catalog connections
     "seed_file": "/run/board/relational-seed",
     "recovery_directory": "/var/lib/transit-board/query-recovery",
     "query": {
-      "definition": "53974aff8eb79a045fdec030d2817d9df3c98c2fa755f437d503bb73edc5446b",
+      "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
       "service_url": "http://127.0.0.1:9400",
       "catalogs": [
         {
@@ -137,3 +137,16 @@ viewer can inspect and close it. Stopping Board destroys its local session and p
 The persisted original pin requests remain for explicit recovery by its next
 owner. Retention has no implicit expiry; losing or deleting this journal can
 leave pins that require separate operator reconciliation.
+
+
+The configured relational workspace also accepts the read-only `storage`
+request with a configured catalog route and exact prepared Table binding. It
+uses the signed direct Table storage operation, checks the current name and
+definition, and applies the workspace identity's current object permissions.
+This identity is separate from Board's node inspection identity. The response
+contains exact decimal strings for positions, row/byte counts, history floors
+and maintenance targets. The backlog is bounded to 1024 inspected current rows;
+`pending_complete` distinguishes a full count from a prefix. These are current
+independent facts, not the proposed query's snapshot. The read neither opens a
+query nor writes its pin journal. The proposed-plan view exposes this read per
+source and clears the displayed facts on read failure or lost visibility.

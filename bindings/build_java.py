@@ -17,6 +17,7 @@ def build(output, names, native_prefix):
     gson = Path(os.environ['TRANSIT_GSON_JAR'])
     (output / 'gson-2.12.1.jar').unlink(missing_ok=True)
     shutil.copy2(gson, output / 'gson-2.12.1.jar')
+    shutil.copy2(os.environ['TRANSIT_GSON_LICENSE'], output / 'gson-2.12.1-LICENSE')
     for name in names:
         source = ROOT / name if '/' in name else ROOT / 'sdks/java' / name
         tree = ET.parse(source / 'pom.xml')

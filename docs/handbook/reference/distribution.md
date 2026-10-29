@@ -8,8 +8,8 @@ existing installation.
 
 ## Artifacts and platforms
 
-The [release workflow](../../../.github/workflows/release.yml) builds a static
-Linux x86_64 bundle using the pinned Zig compiler, musl and OpenSSL 3.6.4. Its
+The [release workflow](../../../.github/workflows/release.yml) builds static
+Linux x86_64 and ARM64 bundles using the pinned Zig compiler, musl and OpenSSL 3.6.4. Its
 executables do not require Nix or host shared libraries. The archive includes
 `transit` with embedded Board assets, `transit-admin`, `transit-node`,
 `transit-query-host`, `transit-board`, `transit-delivery` and
@@ -17,7 +17,7 @@ executables do not require Nix or host shared libraries. The archive includes
 
 | Distribution | Location for a published version |
 | --- | --- |
-| Executables | GitHub Release asset `transit-<version>-linux-x86_64.tar.gz` |
+| Executables | GitHub Release asset `transit-<version>-linux-x86_64.tar.gz` and `transit-<version>-linux-aarch64.tar.gz` |
 | Integrity and identity | `SHA256SUMS` and `release-manifest.json` on the same GitHub Release |
 | Local server container | `ghcr.io/spoke-sh/transit:<version>` |
 | Standalone component containers | `ghcr.io/spoke-sh/transit-node:<version>`, with the same naming rule for the other bundled executables |
@@ -25,11 +25,37 @@ executables do not require Nix or host shared libraries. The archive includes
 
 macOS and Windows executables are not produced. The local supervisor requires
 Linux process groups and parent-death signals; console editing requires Linux
-terminal/inotify APIs, and the authority clock uses Linux `adjtimex`. Other Linux
-architectures require separate build and installed-runtime qualification.
+terminal/inotify APIs, and the authority clock uses Linux `adjtimex`. Container images and native SDK packages target x86_64. Both executable
+architectures have native build and installed-runtime jobs; additional Linux
+architectures require separate qualification.
 The Substrate runtime-controller image needs its pinned provider CLI and remains
-outside this artifact set. SDK registry publication is separate from the runtime
-bundle; the matching SDK manifests remain available in source.
+outside this artifact set.
+
+## SDK packages
+
+GitHub Releases contain `transit-sdk-<language>-<version>-linux-x86_64.tar.gz`
+for `python`, `node`, `rust`, `ruby`, `c`, `java`, `dotnet`, `beam` and `go`.
+Each archive groups the language's native client, ordinary client, available
+Station adapter and examples. C includes C++ headers; BEAM includes Erlang and
+Elixir packages. Go provides the ordinary client only. Install the ordinary
+client and its native dependency independently of the optional Station packages.
+Follow the language's [installation guide](sdks.md) using the extracted package
+files as a local package source. Public npm, PyPI, crates.io and other registry
+publication is not enabled.
+
+Native SDK libraries and helper processes target Linux 5.10 or newer on x86_64,
+with glibc 2.28 or newer. They use the system loader and archive-relative library paths, without
+Nix dependencies. Language runtimes and their documented dependencies remain
+separate requirements. `sdk-manifest.json` identifies the compiler, native target,
+contract definition and SHA-256 digest of every language package; the main
+release manifest and `SHA256SUMS` cover the enclosing archives.
+
+`transit-sdk-zig-<version>-source.tar.gz` preserves the public SDK's relative
+shared-package dependencies and the work-items application. Build it with the
+compiler recorded in the manifest and the [Zig SDK instructions](../../../sdks/zig/README.md).
+The release workflow builds that application outside the checkout and exercises
+installation, interrupted provisioning, current grants, retained data and
+compatible worker replacement against the installed runtime.
 
 ## Install a published release
 
@@ -52,8 +78,17 @@ curl --proto '=https' --tlsv1.2 -fsSL \
 
 Assets become available only after that tag's publication succeeds. A source
 checkout or workflow dry run does not create a public release. The installer
-requires Linux x86_64, `curl`, `tar`, `sha256sum` and ordinary POSIX utilities.
+requires Linux x86_64 or ARM64, `curl`, `tar`, `sha256sum` and ordinary POSIX utilities.
 Checksums detect corrupted downloads; they share the release host's trust.
+
+For an offline installation, download the archive, `SHA256SUMS` and `install.sh`
+from the same release into one directory, then run:
+
+```sh
+sh install.sh --version 0.0.1 --from "$PWD" --prefix "$HOME/.local"
+```
+
+The offline path uses the same archive checks and installation rules.
 
 Each version is installed beneath `<prefix>/lib/transit/<version>`, with command
 symlinks in `<prefix>/bin`. Put that bin directory on `PATH` and run
@@ -62,6 +97,38 @@ directory, unrelated binary or unrelated symlink. Previous version directories
 remain available; no server starts and no installation data changes. Switching a
 symlink back does not make an incompatible retained installation readable.
 Use the [local guide](../guides/quickstart.md) after installation.
+
+### Homebrew on Linux
+
+Each release includes `transit.rb`, generated from that release's executable
+archive hashes. Download the formula and `SHA256SUMS`, verify its digest, and
+place it in a local tap:
+
+```sh
+brew tap-new --no-git transit/releases
+cp transit.rb "$(brew --repository transit/releases)/Formula/transit.rb"
+brew install transit/releases/transit
+brew test transit/releases/transit
+```
+
+The formula selects x86_64 or ARM64 and installs into Homebrew's Cellar. It does
+not start a server or change retained data. Homebrew on macOS is not supported.
+The release workflow installs the exact formula using its checksummed candidate
+archive in Homebrew's download cache, then exercises Board, SQL and restart.
+
+## Versioned handbook and specifications
+
+`transit-handbook-<version>.tar.gz` contains a static handbook, local search and
+generated specification downloads matching the release's source and definition.
+After extracting it, serve its `site` directory locally:
+
+```sh
+python3 -m http.server --bind 127.0.0.1 --directory site 8000
+```
+
+Open `http://127.0.0.1:8000/`. Source-code links point to the exact Git commit;
+the archive's `build-info.json` records that identity. Serving the documentation
+does not start Transit or require an installation.
 
 ## Containers and Helm
 
@@ -97,6 +164,8 @@ not supply these, install Substrate, or authorize bootstrap or replacement.
 
 Tag pushes run full ordinary CI plus the distribution build, installed startup,
 SQL/restart, container and Helm checks. Only successful tag builds can publish.
+Downloaded artifacts also pass the real installer and embedded Board/SQL/restart
+checks on a fresh runner before publication, without a Nix installation.
 Pull requests and manual dispatch build artifacts without publishing. Tag names
 must match `VERSION` at a clean commit. Builds retain artifacts in GitHub Actions;
 publication uses those artifacts without rebuilding them.
@@ -106,7 +175,10 @@ before reusing them; different bytes under an existing version are refused.
 Registry uploads can precede completion of the GitHub Release. A failed run leaves
 those versioned objects visible; rerunning the same source/artifacts reuses
 identical objects and fills missing ones. The GitHub Release remains a draft until
-all uploads succeed. Published versions and their tags must not be replaced.
+all uploads succeed. Published versions and their tags must not be replaced. A final job installs
+from the public GitHub Release and checks anonymous container/chart downloads.
+A failed public-download check leaves the release visible and requires fixing
+its access or distribution failure; it never replaces versioned artifacts.
 
 GitHub's repository token needs `packages: write` for GHCR and `contents: write`
 for Release assets. Package visibility is configured in GitHub Packages; confirm

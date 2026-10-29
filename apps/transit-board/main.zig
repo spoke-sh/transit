@@ -210,12 +210,13 @@ const Server = struct {
     }
     fn growingRequest(self: *Server, req: *std.http.Server.Request, target: []const u8) !void {
         const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
+        const storage = std.mem.eql(u8, target, "/api/v1/storage");
         const participation = parseParticipation(target) catch return self.failure(req, .bad_request, .InvalidQuery);
         const records = parseRecords(target) catch return self.failure(req, .bad_request, .InvalidQuery);
         const http_metadata = parseMetadata(target, "http") catch return self.failure(req, .bad_request, .InvalidQuery);
         const grpc_metadata = parseMetadata(target, "grpc") catch return self.failure(req, .bad_request, .InvalidQuery);
         const document_metadata = parseDocument(target) catch return self.failure(req, .bad_request, .InvalidQuery);
-        const special = capabilities or participation != null or records != null or http_metadata != null or grpc_metadata != null or document_metadata != null;
+        const special = capabilities or storage or participation != null or records != null or http_metadata != null or grpc_metadata != null or document_metadata != null;
         const atlas = std.mem.eql(u8, target, "/api/v1/atlas") or std.mem.startsWith(u8, target, "/api/v1/atlas?");
         const state_query = if (special or atlas) null else parseStateQuery(target, self.config.realm, self.config.principal) catch return self.failure(req, .bad_request, .InvalidQuery);
         const inspection_query = if (special or atlas or state_query != null) null else parseQuery(target, self.config.realm, self.config.principal) catch return self.failure(req, .bad_request, .InvalidQuery);
@@ -228,6 +229,12 @@ const Server = struct {
         upstream.parent_context = self.observation.span.context;
         var key = client.readKey(self.allocator, self.io, self.config.seed_file) catch return self.failure(req, .service_unavailable, .Unavailable);
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+        if (storage) {
+            var arena = std.heap.ArenaAllocator.init(self.allocator);
+            defer arena.deinit();
+            const result = growing.storage(&upstream, self.config.realm, self.config.principal, key, arena.allocator()) catch |err| return self.queryFailure(req, &upstream, err);
+            return self.json(req, .ok, result);
+        }
         if (capabilities) {
             const reader = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailure(req, &upstream, err);
             return self.json(req, .ok, api.Capabilities{ .profile = .native_v1, .query_enabled = self.config.query != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = query_api.Workspace.max_request_bytes, .http_connector = true, .grpc_connector = true, .documents = true, .reactive_table = self.config.reactive != null });
@@ -323,6 +330,7 @@ fn logRoute(target: []const u8) []const u8 {
     if (std.mem.eql(u8, target, "/api/v1/application")) return "/api/v1/application";
     if (std.mem.eql(u8, target, "/api/v1/query")) return "/api/v1/query";
     if (std.mem.eql(u8, target, "/api/v1/relational")) return "/api/v1/relational";
+    if (std.mem.eql(u8, target, "/api/v1/storage")) return "/api/v1/storage";
     if (std.mem.startsWith(u8, target, "/api/v1/atlas")) return "/api/v1/atlas";
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
     inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes", "/atlas", "/activity", "/definition", "/operations", "/recovery/definition" }) |known| if (std.mem.eql(u8, path, known)) return known;
