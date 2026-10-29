@@ -6,6 +6,16 @@ the configured [local](../../packages/zig/transit-backend-local/README.md) or
 HTTP ingress and a trusted clock. It validates and commits protocol operations;
 application handlers run in callers.
 
+The installed `transit server` also co-hosts the
+[SQL host](../../packages/zig/transit-sql-host/README.md) inside its local node.
+SQL sessions and PostgreSQL/MySQL listeners use typed local calls into the same
+Catalog, Table and native owners. Those calls share the HTTP admission lanes,
+signature and current-policy checks, and final disclosure fences. The installation
+supervisor controls SQL activation and joined replacement through a private
+same-user lifecycle socket; stopping SQL leaves the database owner running.
+The configuration service retains its separate installation owner. Explicit
+standalone SQL gateway placement continues to use the public HTTP data APIs.
+
 ## Build and run
 
 From the repository root in `nix develop`:
@@ -83,7 +93,8 @@ composition with real signed native changes and local disk storage.
 
 `LocalTableService` dispatches the [signed direct Table contract](../../contracts/DIRECT_TABLE_V1.md)
 inside that owner. The composition test drives declaration admission/execution,
-binary row writes, retained reads and release through its serialized envelopes.
+binary row writes, retained reads and release through both serialized envelopes
+and typed local dispatch, including caller-owned results after request scratch ends.
 The dispatcher checks current rights after buffering the response; a concurrent
 revocation suppresses disclosure. The local `table` setting exposes this dispatcher
 at `/table/v1`. The local launcher configures this owner for its default Tables;
