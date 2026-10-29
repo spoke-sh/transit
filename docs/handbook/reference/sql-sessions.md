@@ -94,6 +94,16 @@ cannot tell a caller whether admission succeeded. Resending SQL with a new token
 can create another operation. Session closure, cancelling a wait, or resetting
 prepared handles does not roll back an accepted mutation.
 
+The service attempts foreground completion and pending-accounting settlement for
+ordinary Table writes. If a bind, commit or settlement reply is lost, recovery
+continues the original accepted operation under current rights. Startup discovers
+pending work in bounded pages; settled recovery workers park until notified.
+Temporary unavailability or denial preserves the recovery obligation. A terminal
+result can be known while failed bookkeeping or transaction cleanup remains
+pending. Native session expiry follows its lease deadline and does not cancel
+accepted work or decide an open transaction.
+
+
 Captured queries require a service-owned source binding and publish their exact
 compiled intent through the durable query owner. After reconnection or restart,
 an authorized caller can inspect the original operation and use `result` to open

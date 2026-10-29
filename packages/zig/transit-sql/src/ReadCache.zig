@@ -44,6 +44,7 @@ mutex: std.Io.Mutex = .init,
 entries: [capacity]?Entry = @splat(null),
 cleanup_slot: usize = 0,
 dirty: std.atomic.Value(bool) = .init(true),
+wake: ?*g.RecoveryWork = null,
 pub const capacity = 64;
 const format: u32 = 0x53515231;
 const Slot = struct { generation: u64, record: ?Record };
@@ -55,6 +56,10 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, gatewa
 }
 pub fn deinit(self: *Self) void {
     self.* = undefined;
+}
+fn requireCleanup(self: *Self) void {
+    self.dirty.store(true, .release);
+    if (self.wake) |work| work.notify(self.io);
 }
 fn key(self: *Self, client: c.DirectTableClient, index: usize) !c.DirectClientToken.Key {
     var token: [16]u8 = @splat(0);
@@ -130,7 +135,7 @@ pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectT
     } else for (self.entries, 0..) |slot, i| {
         if (slot.?.users == 0 and std.meta.eql(slot.?.record.table.connection, client.connection)) break i;
     } else return error.SqlReadLeaseCapacity;
-    errdefer self.dirty.store(true, .release);
+    errdefer self.requireCleanup();
     var state = (try self.open(client, index, true)) orelse return error.InvalidSqlReadRecovery;
     const previous = try self.read(client, state);
     // Eviction has selected an unborrowed entry. Stop advertising it before
@@ -192,7 +197,7 @@ pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectT
 pub fn close(self: *Self, client: c.DirectTableClient, record: Record) !void {
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
-    errdefer self.dirty.store(true, .release);
+    errdefer self.requireCleanup();
     if (!std.meta.eql(client.connection, record.table.connection)) return error.CatalogIdentityConflict;
     for (&self.entries) |*slot| if (slot.*) |*entry| {
         if (entry.record.operation != record.operation) continue;

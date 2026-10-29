@@ -1,6 +1,6 @@
 # 8. Gateway architecture, sans-I/O wire protocols and direct-plane ingress
 
-[Roadmap](README.md) · [Write lifecycle and I/O #211](https://github.com/spoke-sh/transit/issues/211) · [Cutover #110](https://github.com/spoke-sh/transit/issues/110) · [Maintenance & Packaging #122](https://github.com/spoke-sh/transit/issues/122) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Allocation Guidance #194](https://github.com/spoke-sh/transit/issues/194) · **Status:** Planned ([implementation plan](#implementation-plan--2026-10-28))
+[Roadmap](README.md) · [Write lifecycle and I/O #211](https://github.com/spoke-sh/transit/issues/211) · [Cutover #110](https://github.com/spoke-sh/transit/issues/110) · [Maintenance & Packaging #122](https://github.com/spoke-sh/transit/issues/122) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Allocation Guidance #194](https://github.com/spoke-sh/transit/issues/194) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-28))
 
 Let callers query declared data, submit mutations and compose supported
 transactions through one bounded execution service. They must be able to inspect
@@ -126,8 +126,11 @@ gates pass; a Table-only qualification must be named as such.
 
 **Plan basis:** the audited committed HEAD above and the current #211 issue,
 read on 2026-10-28. Historical evidence dates/revisions are preserved as recorded.
-This change is planning only. Keep the milestone and [index](README.md) `Planned`
-until implementation begins; source review establishes no new runtime result.
+Implementation has started with foreground settlement and event-driven recovery.
+The baseline inventory above records the pre-implementation state; the current
+[runtime owner](../../packages/zig/transit-sql/docs/runtime.md) describes delivered
+behavior. The milestone remains `In Progress` while the placement, protocol and
+qualification gates below remain open.
 
 ### Performance objectives and experiment design
 

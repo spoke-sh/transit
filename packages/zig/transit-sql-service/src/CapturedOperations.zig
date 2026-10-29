@@ -75,6 +75,8 @@ pub fn admit(host: *g.Session, prepared: *g.SourceSession.Prepared, values: []co
     const compiled = try bound.bundle.encode(&buffer);
     var reader = try host.observer.source();
     const body = try g.catalog.DirectRecord.stage(host.table, host.account.execution.account, q.Bundle.format, compiled);
+    // A lost bind response can leave work accepted without an observed ID.
+    defer host.runtime.notifyExternal();
     const reference = try ops.begin(&reader, .{ .nonce = token, .fingerprint = fingerprint, .kind = .captured, .binding = try host.account.database(host.database), .original = original, .source = source.fingerprint, .expected_generation = host.account.generation, .reservation = 1024 * 1024 }, body);
     const item = try host.fresh(load, .{ host, reference.id });
     return status(host, item.id);
@@ -126,6 +128,7 @@ fn settle(host: *g.Session, id: u64, local: recovery.State) !void {
 /// A pass performs at most one native step. No result wait occupies the shared
 /// account lane, and bounded indexed recovery proceeds without an HTTP client.
 pub fn resumeOperation(host: *g.Session, id: u64) !api.Operation {
+    defer if (!host.recovering) host.runtime.notifyExternal();
     try host.runtime.capture_mutex.lock(host.io);
     defer host.runtime.capture_mutex.unlock(host.io);
     const item = try host.fresh(load, .{ host, id });

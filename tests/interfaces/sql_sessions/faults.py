@@ -1,6 +1,7 @@
 """Owned authority hop for deterministic metadata and pin acquisition failures."""
 import http.client
 import http.server
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import threading
@@ -198,17 +199,20 @@ class Faults:
         assert self.failures == before + 1 and result['rows'], (before, self.failures, result)
         client.call(dict(close_result=result['cursor']))
 
-        # A real failed database activation fence withdraws readiness. Login waits for
-        # its recovery inside the configured request window, not 64 short polls.
+        # Settled recovery does not poll the authority. A foreground activation
+        # check must withdraw readiness and wake recovery; the original login
+        # waits inside its unchanged request budget for authority restoration.
         configuration = json.loads((client.root / 'sql-gateway.json').read_text())
         self.fail_coordinator = configuration['accounts'][0]['execution']['table_principal']
         release = None
+        pool = ThreadPoolExecutor(max_workers=1)
         try:
+            started = time.monotonic()
+            opening = pool.submit(lambda: type(client)(client.root, client.port).open())
             self.wait_unready(client)
             release = threading.Timer(3, lambda: setattr(self, 'fail_coordinator', None))
             release.start()
-            started = time.monotonic()
-            recovered = type(client)(client.root, client.port).open()
+            recovered = opening.result(timeout=40)
             recovered.close()
             elapsed = time.monotonic() - started
             assert elapsed >= 2, elapsed
@@ -219,6 +223,7 @@ class Faults:
             if release is not None:
                 release.cancel()
                 release.join()
+            pool.shutdown(wait=True)
         # Change the logical frontier so this open needs a new cache pin.
         # A warm SELECT intentionally performs no acquisition.
         client.terminal(client.execute('INSERT INTO native_sessions VALUES (998, 1)', list(os.urandom(16)))['operation'])

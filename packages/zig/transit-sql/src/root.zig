@@ -21,6 +21,7 @@ pub const DatabaseAccount = @import("DatabaseAccount.zig");
 pub const OperationRecords = @import("OperationRecords.zig");
 pub const IntentReference = @import("IntentReference.zig");
 pub const ReadCache = @import("ReadCache.zig");
+pub const RecoveryWork = @import("RecoveryWork.zig");
 pub const Type = @import("Type.zig");
 pub const Bytes = @import("Bytes.zig");
 pub const AccountIdentity = @import("AccountIdentity.zig");

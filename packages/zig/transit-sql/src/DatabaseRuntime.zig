@@ -16,17 +16,22 @@ table_key: p.Ed25519.KeyPair,
 generation: u64,
 settings_mutex: std.Io.Mutex = .init,
 capture_mutex: std.Io.Mutex = .init,
-admission_mutex: std.Io.Mutex = .init,
+// Stripes bound active scheduling memory, not the durable operation population.
+// A collision only serializes callers; the Catalog token remains the authority.
+claims: [64]std.Io.Mutex = @splat(.init),
+work: g.RecoveryWork = .{},
+external_work: ?*g.RecoveryWork = null,
 wake_mutex: std.Io.Mutex = .init,
-wake_cond: std.Io.Condition = .init,
 progress_cond: std.Io.Condition = .init,
-wake_pending: bool = false,
 ready: std.atomic.Value(bool) = .init(false),
 read_pins: ?g.ReadCache = null,
 read_sources: ReadSources = .{},
 read_cleanup_failure: std.atomic.Value(u16) = .init(0),
 direct_work_failure: std.atomic.Value(u16) = .init(0),
 after: u64 = 0,
+sweep: ?u64 = null,
+scan_complete: bool = false,
+retry_pending: bool = false,
 cleanup_route: usize = 0,
 cleanup_swept_routes: usize = 0,
 activation: ?c.DirectClientToken.Progress = null,
@@ -35,10 +40,13 @@ pub const Keys = struct { table: p.Ed25519.KeyPair };
 const Activation = struct { generation: u64, instance: [16]u8 };
 const activation_format: u32 = 0x53514131;
 pub fn notify(self: *Self) void {
-    self.wake_mutex.lockUncancelable(self.io);
-    defer self.wake_mutex.unlock(self.io);
-    self.wake_pending = true;
-    self.wake_cond.broadcast(self.io);
+    self.work.notify(self.io);
+}
+pub fn notifyExternal(self: *Self) void {
+    if (self.external_work) |work| work.notify(self.io);
+}
+fn claim(self: *Self, token: [16]u8) *std.Io.Mutex {
+    return &self.claims[std.hash.Wyhash.hash(0, &token) % self.claims.len];
 }
 
 pub fn notifyProgress(self: *Self) void {
@@ -48,17 +56,7 @@ pub fn notifyProgress(self: *Self) void {
 }
 
 pub fn waitIdle(self: *Self, milliseconds: u32) !void {
-    try self.wake_mutex.lock(self.io);
-    defer self.wake_mutex.unlock(self.io);
-    if (self.wake_pending) {
-        self.wake_pending = false;
-        return;
-    }
-    self.wake_cond.waitTimeout(self.io, &self.wake_mutex, .{ .duration = .{ .raw = .fromMilliseconds(milliseconds), .clock = .awake } }) catch |err| switch (err) {
-        error.Timeout => {},
-        else => return err,
-    };
-    self.wake_pending = false;
+    try self.work.wait(self.io, milliseconds);
 }
 
 pub fn waitProgress(self: *Self, milliseconds: u32) !void {
@@ -127,6 +125,16 @@ pub fn lease(self: *Self) c.DirectClientToken.Lease {
     return .{ .key = self.activation.?.receipt.binding.key, .revision = self.activation.?.revision };
 }
 pub fn fence(self: *Self, observer: *g.Client) !void {
+    return self.checkFence(observer) catch |err| {
+        // With no idle polling, the foreground observation transfers the
+        // readiness obligation. A worker's own failed check retains retry debt
+        // without generating another notification on every retry.
+        self.ready.store(false, .release);
+        self.notify();
+        return err;
+    };
+}
+fn checkFence(self: *Self, observer: *g.Client) !void {
     var caller = observer.table(self.execution.configuration.bindings[0]);
     caller.lease = null;
     const state = (try c.DirectClientToken.inspect(caller, self.activation.?.receipt.binding.key)) orelse return error.StaleGatewayCoordinator;
@@ -149,34 +157,58 @@ pub fn attachReadCache(self: *Self, directory: std.Io.Dir, sources: ReadSources)
     if (self.read_pins != null) return error.InvalidSqlReadRecovery;
     const config = self.execution.configuration;
     self.read_pins = try g.ReadCache.init(self.allocator, self.io, directory, .{ .realm = config.realm, .account = config.account }, self.generation);
+    self.read_pins.?.wake = &self.work;
     self.read_sources = sources;
+    self.notify();
 }
 pub fn tick(self: *Self) !bool {
-    errdefer self.ready.store(false, .release);
-    try self.fence(&self.private);
-    var source = try self.private.source();
-    const page = g.SessionOperations.list(self.execution, &source, self.after, true) catch |err| {
-        if (err != error.AccessDenied and !wire.Client.unavailable(err) and !self.background.contended(err)) return err;
-        self.direct_work_failure.store(@intFromError(err), .release);
-        const was_ready = self.ready.swap(true, .release);
-        if (!was_ready) self.notifyProgress();
-        return false;
-    };
+    if (self.sweep == null) {
+        self.sweep = self.work.begin(self.io) orelse return false;
+        self.after = 0;
+        self.scan_complete = false;
+        self.retry_pending = false;
+    }
+    errdefer {
+        self.ready.store(false, .release);
+        self.finishSweep(true);
+    }
+    try self.checkFence(&self.private);
     var progressed = false;
-    for (page.entries) |slot| if (slot) |reference| {
-        self.after = reference.id;
-        if (reference.kind != .table and reference.kind != .transaction) continue;
-        self.advance(&source, try source.operation(reference.id)) catch |err| {
+    if (!self.scan_complete) {
+        var source = try self.private.source();
+        const page = g.SessionOperations.list(self.execution, &source, self.after, true) catch |err| {
+            if (err != error.AccessDenied and !wire.Client.unavailable(err) and !self.background.contended(err)) return err;
             self.direct_work_failure.store(@intFromError(err), .release);
-            if (wire.Client.unavailable(err) or err == error.ClientOperationConflict or self.background.contended(err) or err == error.AccessDenied) break;
-            return err;
+            self.finishSweep(true);
+            const was_ready = self.ready.swap(true, .release);
+            if (!was_ready) self.notifyProgress();
+            return false;
         };
-        self.direct_work_failure.store(0, .release);
-        progressed = true;
-        break;
-    };
-    if (page.next == null) self.after = 0;
-    if (!progressed) if (self.read_pins) |*pins| {
+        // Consume the entire bounded page before advancing its cursor. Stopping
+        // at its first entry and resetting on next=null starves the final page.
+        for (page.entries) |slot| if (slot) |reference| {
+            if (reference.kind != .table and reference.kind != .transaction) continue;
+            const selected = self.claim(reference.nonce);
+            if (!selected.tryLock()) {
+                self.retry_pending = true;
+                continue;
+            }
+            defer selected.unlock(self.io);
+            const pending = self.recoverOne(&source, reference.id) catch |err| {
+                self.direct_work_failure.store(@intFromError(err), .release);
+                if (!wire.Client.unavailable(err) and err != error.ClientOperationConflict and !self.background.contended(err) and err != error.AccessDenied) return err;
+                self.retry_pending = true;
+                continue;
+            };
+            self.direct_work_failure.store(0, .release);
+            self.retry_pending = self.retry_pending or pending;
+            progressed = true;
+        };
+        self.after = page.next orelse 0;
+        self.scan_complete = page.next == null;
+    }
+    var cleanup_pending = false;
+    if (self.read_pins) |*pins| {
         const route_count = self.execution.configuration.bindings.len + self.read_sources.len;
         if (pins.dirty.swap(false, .acq_rel)) self.cleanup_swept_routes = 0;
         // A dirty signal can arrive halfway through a route. Include one extra
@@ -206,16 +238,30 @@ pub fn tick(self: *Self) !bool {
             }
             if (!route_clean) {
                 self.cleanup_swept_routes = 0;
+                self.retry_pending = true;
             } else if (route_complete) {
                 self.cleanup_swept_routes += 1;
                 if (self.cleanup_swept_routes > route_count) self.read_cleanup_failure.store(0, .release);
             }
             if (route_complete) self.cleanup_route = (self.cleanup_route + 1) % route_count;
+            // A foreground borrower can own the cache lock. Back off without
+            // declaring this unswept slot clean or spinning on a busy mutex.
+            if (route_clean and !route_complete and previous_slot == pins.cleanup_slot) self.retry_pending = true;
+            cleanup_pending = route_clean and (route_complete or previous_slot != pins.cleanup_slot) and self.cleanup_swept_routes <= route_count;
         }
-    };
+    }
     const was_ready = self.ready.swap(true, .release);
     if (!was_ready or progressed) self.notifyProgress();
-    return progressed;
+    if (!self.scan_complete or cleanup_pending) return true;
+    self.finishSweep(self.retry_pending);
+    return false;
+}
+fn finishSweep(self: *Self, retry: bool) void {
+    self.work.finish(self.io, self.sweep.?, retry);
+    self.sweep = null;
+}
+fn recoverOne(self: *Self, source: *g.Client.Source, id: u64) !bool {
+    return self.advance(source, try source.operation(id));
 }
 fn cleanupClient(self: *Self) !?c.DirectTableClient {
     const bindings = self.execution.configuration.bindings;
@@ -224,15 +270,14 @@ fn cleanupClient(self: *Self) !?c.DirectTableClient {
     return resolve(self.read_sources.context.?, self.cleanup_route - bindings.len, self.allocator, self.io, &self.background);
 }
 
-fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Progress) !void {
-    try self.fence(source.client);
-    if (!state.pending) return;
+fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Progress) !bool {
+    try self.checkFence(source.client);
+    if (!state.pending) return false;
     const reference = state.receipt.binding.intent;
-    if (reference == .external) return;
+    if (reference == .external) return false;
     const caller = source.direct(state);
     if (reference == .transaction_call) {
-        _ = try g.TransactionWork.advance(caller, state, state.cancel);
-        return;
+        return transactionPending(try g.TransactionWork.advance(caller, state, state.cancel));
     }
     // commit_saved resolves an existing receipt before execution. Repeating it
     // with the original frozen reference needs no preceding inspection RPC.
@@ -240,14 +285,15 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
     if (reference == .table and (reference.table.binding.action == .insert or reference.table.binding.action == .update or reference.table.binding.action == .delete) and !state.cancel) {
         const response = try caller.call(.{ .commit_saved = reference.table });
         defer response.deinit();
-        if (try g.Terminal.fromReference(reference, response.value.result) != null) _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = false, .record = state.record });
-        return;
+        if (try g.Terminal.fromReference(reference, response.value.result) == null) return true;
+        _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = false, .record = state.record });
+        return false;
     }
     const observed = try reference.operation(caller, .inspect, 1);
     defer observed.deinit();
     if (try g.Terminal.fromReference(reference, observed.value.result) != null) {
         _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record });
-        return;
+        return false;
     }
     const absent = switch (observed.value.result) {
         inline .ddl, .rows, .name_assertion, .namespace_operation => |value| value == .not_observed,
@@ -255,24 +301,33 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
     };
     const response = try if (absent and !(reference == .name_assertion and state.cancel)) reference.admit(caller) else reference.operation(caller, if (state.cancel) .cancel else .execute, 8);
     defer response.deinit();
-    if (try g.Terminal.fromReference(reference, response.value.result) != null) _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record });
+    if (try g.Terminal.fromReference(reference, response.value.result) == null) return true;
+    _ = try c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record });
+    return false;
+}
+fn transactionPending(result: ?c.DirectTransactionCall.Result) bool {
+    const value = result orelse return true;
+    return value == .settled and !value.settled.cleanup_complete;
 }
 pub fn cancel(self: *Self, observer: *g.Client, id: u64) !void {
     try self.fence(observer);
     var source = try observer.source();
     const state = try source.operation(id);
+    defer if (state.receipt.binding.intent == .external) self.notifyExternal() else self.notify();
     if (state.receipt.binding.intent == .transaction_call) {
         _ = try g.TransactionWork.advance(source.direct(state), state, true);
-        self.notify();
         return;
     }
     _ = try c.DirectClientToken.update(source.direct(state), .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = state.pending, .cancel = true, .record = state.record });
-    self.notify();
 }
 pub fn resumeOperation(self: *Self, observer: *g.Client, id: u64) !void {
     var source = try observer.source();
-    try self.advance(&source, try source.operation(id));
-    self.notify();
+    const token = (try source.operation(id)).receipt.binding.key.token;
+    const selected = self.claim(token);
+    try selected.lock(self.io);
+    defer selected.unlock(self.io);
+    errdefer self.notify();
+    if (try self.recoverOne(&source, id)) self.notify();
 }
 pub fn lookup(self: *Self, observer: *g.Client, nonce: [16]u8, fingerprint: ?[32]u8) !?g.OperationRecords.Operation {
     var source = try observer.source();
@@ -295,6 +350,10 @@ fn available(self: *Self, observer: *g.Client, deadline: Deadline, comptime func
     }
 }
 pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.OperationRecords.Operation {
+    const selected = self.claim(nonce);
+    try selected.lock(self.io);
+    defer selected.unlock(self.io);
+    defer self.notify();
     return self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, true);
 }
 fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, wake: bool) !g.OperationRecords.Operation {
@@ -317,6 +376,8 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
     if (try intent.workBytes() > self.execution.configuration.intent_bytes) return error.GatewayRecordTooLarge;
     const reference = try self.available(observer, deadline, g.Statement.Write.stage, .{ &intent, table.*, statement.namespace });
     const binding: c.DirectClientToken.Binding = .{ .key = .{ .definition = p.Growth.current_definition, .connection = table.connection, .account = self.execution.configuration.account, .token = nonce }, .fingerprint = if (std.mem.allEqual(u8, &fingerprint, 0)) try reference.digest() else fingerprint, .intent = reference, .budget = self.execution.configuration.budget(self.execution.configuration.reservation()) };
+    // A lost bind response can leave work accepted even without an observed ID.
+    errdefer self.notify();
     const receipt = self.available(observer, deadline, c.DirectClientToken.bind, .{ table.*, binding }) catch |err| {
         // A concurrent first submission may have won after the initial lookup.
         // Reconcile only the same token; never invent a new operation.
@@ -334,15 +395,19 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
 }
 /// Submit through the same durable token owner and attempt bounded foreground
 /// DML completion. Interrupted work remains pending under its original identity;
-/// background recovery is always notified, including after a lost bind reply.
+/// recovery is notified if foreground execution cannot settle the original work.
 pub fn submit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.session_protocol.Operation {
-    defer self.notify();
+    const selected = self.claim(nonce);
+    try selected.lock(self.io);
+    defer selected.unlock(self.io);
+    errdefer self.notify();
     const item = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, false);
     var source = try observer.source();
     const state = try self.available(observer, deadline, g.Client.Source.operation, .{ &source, item.id });
     try requireRoute(state, table, statement.namespace);
     if (try self.foreground(observer, table, state, deadline)) |terminal|
         return self.project(state, terminal, null);
+    if (state.pending) self.notify();
     return self.status(allocator, observer, table, statement.namespace, item.id);
 }
 fn requireRoute(state: c.DirectClientToken.Progress, table: *c.DirectTableClient, namespace: u64) !void {
@@ -356,30 +421,54 @@ fn foreground(self: *Self, observer: *g.Client, table: *c.DirectTableClient, sta
         .insert, .update, .delete => {},
         else => return null,
     }
-    // Every call carries the activation lease fixed by admission. Concurrent
-    // background execution can only resolve/apply this exact frozen reference.
+    // Every call carries the activation lease fixed by admission. The claim
+    // prevents background scheduling while this caller owns foreground work.
     // Only the owner's freshly authorized terminal response supplies the counts.
     const response = try self.available(observer, deadline, c.DirectTableClient.call, .{ table.*, c.DirectTableProtocol.Action{ .commit_saved = intent.table } });
     defer response.deinit();
-    return g.Terminal.fromReference(intent, response.value.result);
+    const terminal = (try g.Terminal.fromReference(intent, response.value.result)) orelse return null;
+    // Settlement releases the account reservation and pending index entry. Its
+    // failure cannot erase an already observed terminal result or replay SQL.
+    // Recovery reuses the frozen reference and preserves a concurrent cancel.
+    deadline.check(self.io) catch {
+        self.notify();
+        return terminal;
+    };
+    _ = c.DirectClientToken.update(table.*, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = false, .cancel = state.cancel, .record = state.record }) catch {
+        self.notify();
+        // Bookkeeping may have failed because authority changed while the
+        // terminal was buffered. Re-observe the original receipt before
+        // disclosing it; a denied/unavailable recheck cannot release old counts.
+        const observed = try self.available(observer, deadline, c.DirectIntent.Reference.operation, .{ intent, table.*, .inspect, 1 });
+        defer observed.deinit();
+        const current = (try g.Terminal.fromReference(intent, observed.value.result)) orelse return error.MissingGatewayTerminal;
+        if (!std.meta.eql(current, terminal)) return error.GatewayIdentityConflict;
+        return current;
+    };
+    return terminal;
 }
 pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !struct { terminal: g.Terminal, completion: g.results.CommandCompletion } {
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
-    defer self.notify();
+    const selected = self.claim(nonce);
+    try selected.lock(self.io);
+    var claimed = true;
+    defer if (claimed) selected.unlock(self.io);
+    errdefer self.notify();
     const item = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, false);
     var source = try observer.source();
     const state = try self.available(observer, deadline, g.Client.Source.operation, .{ &source, item.id });
     const intent = state.receipt.binding.intent;
     try requireRoute(state, table, statement.namespace);
     if (try self.foreground(observer, table, state, deadline)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = item.id }) };
+    claimed = false;
+    selected.unlock(self.io);
     self.notify();
     while (true) {
         try deadline.check(self.io);
         const response = try self.available(observer, deadline, c.DirectIntent.Reference.operation, .{ intent, table.*, .inspect, 1 });
         defer response.deinit();
         if (try g.Terminal.fromReference(intent, response.value.result)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = item.id }) };
-        self.notify();
         try self.waitProgress(2);
     }
 }
@@ -407,7 +496,10 @@ fn project(self: *Self, state: c.DirectClientToken.Progress, outcome: ?g.Termina
 /// The exact reference is retained before its native owner admits or executes it.
 pub const TransactionSubmission = struct { token: [16]u8, fingerprint: [32]u8, call: c.DirectTransactionCall };
 pub fn submitTransaction(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, namespace: u64, request: g.TransactionWork.Request, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, submission: *?TransactionSubmission) !g.session_protocol.Operation {
-    defer self.notify();
+    const selected = self.claim(nonce);
+    try selected.lock(self.io);
+    defer selected.unlock(self.io);
+    errdefer self.notify();
     try deadline.check(self.io);
     try self.available(observer, deadline, Self.fence, .{ self, observer });
     table.lease = self.lease();
@@ -415,17 +507,25 @@ pub fn submitTransaction(self: *Self, allocator: std.mem.Allocator, observer: *g
     if (try self.available(observer, deadline, g.Client.Source.lookup, .{ &source, nonce, @as(?[32]u8, fingerprint) })) |state| {
         operation.* = state.id();
         try requireRoute(state, table, namespace);
-        return g.TransactionWork.project(table.*, state, try self.available(observer, deadline, g.TransactionWork.advance, .{ table.*, state, false }));
+        const result = try self.available(observer, deadline, g.TransactionWork.advance, .{ table.*, state, false });
+        if (transactionPending(result)) self.notify();
+        return g.TransactionWork.project(table.*, state, result);
     }
     var caller = table.*;
     caller.transaction = null;
     const call = try g.TransactionWork.build(allocator, self.io, self.execution.configuration, caller, namespace, nonce, fingerprint, request);
     // Preserve complete original recovery material before a bind can be sent.
     submission.* = .{ .token = nonce, .fingerprint = fingerprint, .call = call };
-    return self.resumeTransactionSubmission(observer, caller, submission.*.?, deadline, operation);
+    return self.resumeTransactionClaimed(observer, caller, submission.*.?, deadline, operation);
 }
 pub fn resumeTransactionSubmission(self: *Self, observer: *g.Client, caller: c.DirectTableClient, submission: TransactionSubmission, deadline: Deadline, operation: *?u64) !g.session_protocol.Operation {
-    defer self.notify();
+    const selected = self.claim(submission.token);
+    try selected.lock(self.io);
+    defer selected.unlock(self.io);
+    return self.resumeTransactionClaimed(observer, caller, submission, deadline, operation);
+}
+fn resumeTransactionClaimed(self: *Self, observer: *g.Client, caller: c.DirectTableClient, submission: TransactionSubmission, deadline: Deadline, operation: *?u64) !g.session_protocol.Operation {
+    errdefer self.notify();
     try self.available(observer, deadline, Self.fence, .{ self, observer });
     if (!std.meta.eql(caller.connection, submission.call.connection)) return error.CatalogIdentityConflict;
     var control = caller;
@@ -442,6 +542,7 @@ pub fn resumeTransactionSubmission(self: *Self, observer: *g.Client, caller: c.D
             if (try self.available(observer, deadline, g.Client.Source.lookup, .{ &source, submission.token, @as(?[32]u8, submission.fingerprint) })) |original| {
                 operation.* = original.id();
                 try requireRoute(original, &control, submission.call.namespace);
+                if (original.pending) self.notify();
                 return g.TransactionWork.status(control, original);
             }
         }
@@ -451,5 +552,6 @@ pub fn resumeTransactionSubmission(self: *Self, observer: *g.Client, caller: c.D
     var source = try observer.source();
     const state = try self.available(observer, deadline, g.Client.Source.operation, .{ &source, operation.*.? });
     const result = try self.available(observer, deadline, g.TransactionWork.advance, .{ control, state, false });
+    if (transactionPending(result)) self.notify();
     return g.TransactionWork.project(control, state, result);
 }

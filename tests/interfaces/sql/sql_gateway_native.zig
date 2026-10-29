@@ -86,6 +86,11 @@ fn runtimeWorker(runtime: *gateway.DatabaseRuntime) !void {
         if (!progressed) try runtime.waitIdle(2);
     }
 }
+fn externalWorker(sessions: *gateway.Registry, io: std.Io) !void {
+    while (true) {
+        if (!try sessions.recover()) try sessions.recovery.work.wait(io, 2);
+    }
+}
 fn sessionFraming(init: std.process.Init, runtime: *gateway.DatabaseRuntime, directory: []const u8) !void {
     const api = gateway.session_protocol;
     var configuration = try support.load(gateway.Configuration, init, directory, "sql-gateway.json");
@@ -322,10 +327,10 @@ pub fn main(init: std.process.Init) !void {
         if (runtime.ready.load(.acquire) or runtime.read_cleanup_failure.load(.acquire) != 0) return error.CleanupCancellationMisclassified;
         return support.print(init, .{ .cleanup_cancelled = true, .joined = true });
     }
-    if (std.mem.eql(u8, mode, "runtime") or std.mem.eql(u8, mode, "session-framing")) {
+    if (std.mem.startsWith(u8, mode, "runtime") or std.mem.eql(u8, mode, "session-framing") or std.mem.eql(u8, mode, "idle")) {
         const runtime = try startRuntime(init, args[1], directory, &config, registry);
         defer runtime.deinit();
-        if (std.mem.eql(u8, mode, "session-framing")) {
+        if (!std.mem.startsWith(u8, mode, "runtime")) {
             const parent = try std.Io.Dir.cwd().openDir(init.io, directory, .{});
             defer parent.close(init.io);
             try runtime.attachReadCache(parent, .{});
@@ -340,13 +345,55 @@ pub fn main(init: std.process.Init) !void {
             try init.io.sleep(.fromMilliseconds(2), .awake);
         }
         if (std.mem.eql(u8, mode, "session-framing")) return sessionFraming(init, runtime, directory);
+        if (std.mem.eql(u8, mode, "idle")) {
+            const configuration = try support.load(gateway.Configuration, init, directory, "sql-gateway.json");
+            var sessions = try gateway.Registry.init(init.gpa, init.io, &configuration, &.{runtime}, @splat(71));
+            defer sessions.deinit();
+            var external = try init.io.concurrent(externalWorker, .{ &sessions, init.io });
+            defer external.cancel(init.io) catch |err| if (err != error.Cancelled and err != error.Canceled) {
+                std.debug.print("External recovery failed: {s}\n", .{@errorName(err)});
+            };
+            while (runtime.work.begin(init.io) != null or sessions.recovery.work.begin(init.io) != null) {
+                try deadline.check(init.io);
+                try init.io.sleep(.fromMilliseconds(2), .awake);
+            }
+            try support.saveBytes(init, directory, "idle-ready", "ready");
+            try init.io.sleep(.fromSeconds(2), .awake);
+            if (runtime.work.begin(init.io) != null or sessions.recovery.work.begin(init.io) != null) return error.IdleRecoveryWoke;
+            return support.print(init, .{ .parked = true });
+        }
         var observer = try client(&wire, registry, config);
         var table: c.DirectTableClient = .{ .allocator = init.gpa, .authority = &wire, .service = &wire, .connection = .{ .scope = .{ .realm = 46, .resource = config.binding.resource, .catalog = config.binding.catalog }, .branch = 1, .audience = config.binding.owner, .principal = config.table_principal, .role = config.binding.role }, .key = try tableKey(config) };
         var statement = try gateway.Statement.prepare(init.gpa, &table, config.binding.namespace, args[4], .transit, .wire, read_options);
         defer statement.deinit();
         var operation: ?u64 = null;
+        if (std.mem.eql(u8, mode, "runtime-uncertain")) {
+            const token: [16]u8 = @splat(91);
+            if (runtime.submit(init.gpa, &observer, &table, &statement, &.{}, token, @splat(0), deadline, &operation)) |_| return error.MissingBindFault else |_| {}
+            // No explicit resume/notify: the failed foreground bind must wake
+            // its owner, even when the caller never observed an operation ID.
+            var source = try observer.source();
+            while (true) {
+                try deadline.check(init.io);
+                if (try source.lookup(token, null)) |state| {
+                    if (!state.pending) {
+                        const status = try runtime.status(init.gpa, &observer, &table, config.binding.namespace, state.id());
+                        if (status.phase != .terminal or status.outcome != .applied or status.matched != 1 or status.changed != 0) return error.OriginalOutcomeMissing;
+                        return support.print(init, .{ .uncertain_bind_recovered = true, .pending = false });
+                    }
+                }
+                try init.io.sleep(.fromMilliseconds(2), .awake);
+            }
+        }
         const result = try runtime.execute(init.gpa, &observer, &table, &statement, &.{}, deadline, &operation);
-        return support.print(init, .{ .operation = operation, .outcome = result.terminal, .completion = result.completion });
+        var source = try observer.source();
+        if (std.mem.eql(u8, mode, "runtime-settlement")) while ((try source.operation(operation.?)).pending) {
+            try deadline.check(init.io);
+            try init.io.sleep(.fromMilliseconds(2), .awake);
+        };
+        const state = try source.operation(operation.?);
+        if (state.pending) return error.ForegroundSettlementMissing;
+        return support.print(init, .{ .operation = operation, .outcome = result.terminal, .completion = result.completion, .pending = state.pending });
     }
 
     if (std.mem.eql(u8, mode, "read")) {
@@ -459,8 +506,11 @@ pub fn main(init: std.process.Init) !void {
         defer runtime.deinit();
         for (0..27) |index| {
             _ = try enqueue(init, &caller, config, 1000 + index, "UPDATE wire_data SET value = 10 WHERE id = 1");
-            try drain(runtime, &caller);
         }
+        // One wake covers a backlog spanning four pages, including a final
+        // partial page. No per-operation foreground wake hides cursor starvation.
+        runtime.notify();
+        try drain(runtime, &caller);
         var source = try caller.source();
         var after: u64 = 0;
         var count: usize = 0;

@@ -22,9 +22,8 @@ Readiness and activation fencing still gate execution.
 
 Native SQL and the database wire adapters attempt accepted INSERT, UPDATE and
 DELETE in the submitting request. Successful responses carry the owner's verified
-terminal outcome and matched/changed counts. Background recovery retains the
-original token and frozen intent after interruption and settles pending accounting
-separately. Status remains observation-only; ordinary retries never recompile
+terminal outcome and matched/changed counts. The foreground also settles pending accounting; a failed settlement or interrupted
+command wakes recovery with the original token and frozen intent. Status remains observation-only; ordinary retries never recompile
 accepted SQL against later data.
 
 `SessionTransaction` attaches temporary sessions to Catalog-owned Table
@@ -43,6 +42,13 @@ a Catalog CAS lane. It records the original receipt and processed-input evidence
 before allowing a successor. Status reads never initialize a lane. Source actors
 remain the owners of explicit captured Query execution, independently of SQL
 account recovery and direct database DDL/DML.
+`SessionRecovery` discovers these operations on startup and wakes on admission,
+explicit resume/cancellation or uncertainty. It rotates accounts, advances every
+page and owns persistent per-account transports. Incomplete work retains bounded
+retry debt; settled workers make no upstream requests. Native-session and SCRAM
+challenge expiry waits for actual lease deadlines and wakes when leases change.
+Expiry releases temporary session state without deciding durable transactions.
+
 
 `SHOW STORAGE FOR name` prepares an exact direct Table definition and reads its
 signed `storage` observation at execution. `SessionStorage` projects those facts
