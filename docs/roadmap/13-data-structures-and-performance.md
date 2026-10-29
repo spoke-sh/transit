@@ -239,7 +239,7 @@ scores.
 and [language composition](32-programming-model.md) extend this scorecard for their
 new semantics and placements. Include index build/rebuild, historical-read and
 recovery interference rather than measuring only a steady-state hot lookup.
-The [combined qualification](33-qualification-and-benchmarks.md) owner repeats
+The [combined qualification](34-qualification-and-benchmarks.md) owner repeats
 database and runtime comparisons with the complete supported system and full
 benchmark drivers. It does not defer earlier measurement or regression gates.
 Publish supported limits and reproduced findings in the existing performance,
@@ -598,7 +598,7 @@ Block-Max WAND or any later positional/substring/structural index profile.
 Hybrid composition waits for the qualified ANN/index owner and one supported
 snapshot model, while speculative research into declarative sequence, context
 and synthesis primitives belongs to
-[milestone 32](35-declarative-language-context-and-synthesis.md). Every new
+[milestone 32](36-declarative-language-context-and-synthesis.md). Every new
 operator starts with allocation gates; future syntax and algorithms do not
 become current supported capabilities.
 

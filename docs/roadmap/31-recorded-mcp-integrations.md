@@ -78,7 +78,7 @@ Where a workflow promises consequence tracking, qualify a later external
 observation against the original action and the declared business question.
 Distinguish tool completion from the observed business consequence, and retain
 missing or conflicting observations. Apply the shared
-[observation measures](33-qualification-and-benchmarks.md#observation-and-consequence-evidence);
+[observation measures](34-qualification-and-benchmarks.md#observation-and-consequence-evidence);
 record correlation without treating it as proof of causal impact.
 
 See the [Skills extension](https://modelcontextprotocol.io/extensions/skills/overview)
