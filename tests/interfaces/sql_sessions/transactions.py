@@ -103,6 +103,7 @@ def run(root, port, postgres, mysql_options, restart, faults, authority):
     command(first, 'COMMIT')
     command(first, 'BEGIN')
     command(first, 'UPDATE tx_left SET amount=9 WHERE id=1', 'provisional')
+    first.call(dict(execute=dict(sql='CREATE TABLE excluded (id INT64)', token=list(os.urandom(16)))), error='UnsupportedTransactionStatement')
     command(first, 'ROLLBACK')
     assert rows(second, 'SELECT amount FROM tx_left')[0] == [[0]]
 

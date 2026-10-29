@@ -164,7 +164,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
                 const one: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
                 const stmt_binding: d.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 500 }, .target = initial_retained_root.interpretation.object, .action = .insert, .expected_definition = initial_retained_root.interpretation, .expected_data = null, .intent = @splat(3) };
                 const dml_req: s.TableDmlIntent.Request = .{ .binding = stmt_binding, .interpretation = initial_retained_root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(stmt_binding.identity, 0), .cells = &.{one} }, .expect = .absent } }}, .ingestion = .bulk };
-                const ws_req: c.DirectTransactionWorkspace.Request = .{ .statement = .{ .transaction = tx_id, .sequence = 1, .intent = stmt_binding.intent }, .binding = stmt_binding, .intent = try s.TableDmlIntent.stage(allocator, catalog.data_objects, dml_req) };
+                const ws_req: c.DirectTransactionWorkspace.Request = .{ .basis = (try catalog.inspectTransaction(tx_binding.key, access.policy())).revision, .statement = .{ .transaction = tx_id, .sequence = 1, .intent = stmt_binding.intent }, .binding = stmt_binding, .intent = try s.TableDmlIntent.stage(allocator, catalog.data_objects, dml_req) };
                 _ = try catalog.admitTransactionStatement(tx_binding.key, ws_req, access.policy());
                 _ = try catalog.executeTransactionStatement(tx_binding.key, ws_req, access.policy());
                 const tx_state = try catalog.transactionTableState(tx_binding.key, stmt_binding.target, access.policy());

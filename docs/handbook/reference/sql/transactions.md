@@ -100,6 +100,12 @@ reservations. Capacity refusal is not expiry or abort. Private data and roots ar
 durable; retained collection size is independent of resident pages. Released
 roots become eligible for physical collection separately from logical rollback.
 
+The SQL caller checks fixed statement/control and savepoint ceilings before
+admitting the next command. Accepted work that cannot advance because of storage
+or workspace capacity keeps its original recovery identity. A replacement native
+attachment can explicitly roll back a stalled lifetime; losing or cancelling a
+wait never performs that rollback automatically.
+
 The [direct transaction contract](../../../../contracts/DIRECT_TABLE_V1.md#signed-transaction-action)
 defines owner operations and quotas. [Statement results](../../../../contracts/SQL_RESULTS_V1.md)
 define provisional attribution, and [SQL sessions](../../../../contracts/SQL_SESSION_V1.md)

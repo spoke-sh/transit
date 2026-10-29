@@ -158,7 +158,7 @@ fn makeTxBinding(allocator: std.mem.Allocator, catalog: *D, access: *Access, ope
     };
 }
 
-fn makeStmtRequest(allocator: std.mem.Allocator, catalog: *D, access: *Access, tx_identity: p.Transaction.Identity, sequence: u64, operation: u64) !c.DirectTransactionWorkspace.Request {
+fn makeStmtRequest(allocator: std.mem.Allocator, catalog: *D, access: *Access, key: c.DirectClientToken.Key, sequence: u64, operation: u64) !c.DirectTransactionWorkspace.Request {
     var view = (try catalog.resolve(allocator, 1, try a.Name.init("selected_0"), access.policy())).?;
     defer view.deinit();
     const object = view.table.root.interpretation.object;
@@ -178,8 +178,10 @@ fn makeStmtRequest(allocator: std.mem.Allocator, catalog: *D, access: *Access, t
         .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(binding.identity, 0), .cells = &cells }, .expect = .absent } }},
         .ingestion = .bulk,
     };
+    const state = try catalog.inspectTransaction(key, access.policy());
     return .{
-        .statement = .{ .transaction = tx_identity, .sequence = sequence, .intent = binding.intent },
+        .basis = state.revision,
+        .statement = .{ .transaction = state.begin.identity, .sequence = sequence, .intent = binding.intent },
         .binding = binding,
         .intent = try s.TableDmlIntent.stage(allocator, catalog.data_objects, request),
     };
@@ -264,7 +266,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
             .AdmitStmt1 => {
                 const saved = access.allowed;
                 access.allowed = true;
-                const req = try makeStmtRequest(allocator, &catalog, &access, binding1.?.intent.transaction.begin.identity, 1, 500);
+                const req = try makeStmtRequest(allocator, &catalog, &access, binding1.?.key, 1, 500);
                 access.allowed = saved;
                 if (catalog.admitTransactionStatement(binding1.?.key, req, access.policy())) |_| {
                     current_pending = req;
@@ -275,7 +277,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
             .AdmitStmt2 => {
                 const saved = access.allowed;
                 access.allowed = true;
-                const req = try makeStmtRequest(allocator, &catalog, &access, binding1.?.intent.transaction.begin.identity, 2, 501);
+                const req = try makeStmtRequest(allocator, &catalog, &access, binding1.?.key, 2, 501);
                 access.allowed = saved;
                 if (catalog.admitTransactionStatement(binding1.?.key, req, access.policy())) |_| {
                     current_pending = req;

@@ -42,6 +42,13 @@ cut until completion, Close, error or Sync. Closing a statement closes dependent
 portals. Failed extended cycles drain through a valid Sync; transport failures
 close the connection without retrying a partial reply.
 
+Shared Table transaction controls drive ReadyForQuery `I`, `T` and `E` states.
+Private DML reports its provisional matched/changed count; COMMIT reports the
+common decision. Failed transaction work requires explicit ROLLBACK or supported
+savepoint rollback. Connection loss does not synthesize an abort. The
+[transaction reference](../../../docs/handbook/reference/sql/transactions.md)
+defines the supported scope and original-operation recovery boundary.
+
 Read execution requests at most eight rows at a time. Each batch checks current
 rights after materialization and before transmission. An Execute row limit also
 bounds the batch request; suspension retains no already authorized output batch.
