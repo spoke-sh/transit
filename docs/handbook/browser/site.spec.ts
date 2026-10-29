@@ -45,7 +45,11 @@ test("static publication exposes canonical routes, search and crawl metadata", a
     "internals",
   ])
     expect(index.some((entry) => entry.route === route)).toBe(true);
-  expect(readFileSync(path.resolve(__dirname, "../dist/404.html"), "utf8")).toContain(
+  const site =
+    process.env.TRANSIT_DOCS_TEST_ARCHIVE === "1"
+      ? "../../../.cache/release-handbook/site"
+      : "../dist";
+  expect(readFileSync(path.resolve(__dirname, site, "404.html"), "utf8")).toContain(
     "Page Not Found",
   );
 });
@@ -202,10 +206,16 @@ test("production navigation, search, generated references and exact downloads", 
   await page.goto(new URL("internals", baseURL).href);
   await expect(
     page.locator("main").getByRole("link", { name: "Roadmap", exact: true }),
-  ).toHaveAttribute("href", "https://github.com/spoke-sh/transit/blob/main/docs/roadmap/README.md");
+  ).toHaveAttribute(
+    "href",
+    `https://github.com/spoke-sh/transit/blob/${process.env.TRANSIT_DOCS_REVISION ?? "main"}/docs/roadmap/README.md`,
+  );
   await expect(
     page.locator("main").getByRole("link", { name: "Design", exact: true }),
-  ).toHaveAttribute("href", "https://github.com/spoke-sh/transit/blob/main/docs/design/README.md");
+  ).toHaveAttribute(
+    "href",
+    `https://github.com/spoke-sh/transit/blob/${process.env.TRANSIT_DOCS_REVISION ?? "main"}/docs/design/README.md`,
+  );
   await page.getByRole("link", { name: "Search", exact: true }).click();
   await page.getByLabel("Words or an interface name").fill("System model and authority boundaries");
   await expect(
@@ -241,7 +251,7 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
   page,
   baseURL,
 }, testInfo) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 320, height: 844 });
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto(baseURL!);
   await expect(

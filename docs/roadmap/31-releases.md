@@ -25,9 +25,43 @@ recovery, compatibility and conversion semantics remain with that owner.
   The repository installer checks downloads before selecting a versioned prefix.
   See the [distribution reference](../handbook/reference/distribution.md).
 
-First hosted publication, macOS/Windows portability, additional architectures,
-SDK registries, broader installers and the complete installed onboarding matrix
-remain outstanding. Static/component checks do not complete this milestone.
+- Distribution automation also builds Linux ARM64 executables on a native runner,
+  installs downloaded archives without Nix, and checks embedded Board assets,
+  inspection, SQL and retained restart. The curl installer supports a verified
+  offline download directory. Post-publication checks exercise anonymous Release,
+  image and chart downloads.
+- GitHub Release SDK archives cover the nine language packaging families and a
+  Zig source dependency closure. ReleaseSafe native bindings target Linux x86_64
+  with glibc 2.28; their loader/dependency checks reject Nix linkage. The workflow
+  runs existing installed raw/Station consumers, plus the archived Zig
+  application's installation, interruption and compatible replacement schedule.
+  Public language registries are deferred by the repository owner.
+- The artifact assembly includes a source-pinned handbook/specification archive
+  and a generated Linux Homebrew formula with exact executable archive hashes.
+  The Homebrew gate installs the actual candidate and exercises its runtime.
+
+These are executable publication gates, not a record that every new job has
+passed or that a public release exists. First publication and the new platform,
+SDK and installer matrix must complete before closing their acceptance items.
+
+## Remaining dependencies
+
+- Qualify and publish the first tagged release, including anonymous registry
+  visibility. Preserve any failed or incomplete hosted result in the PR handoff.
+- macOS requires replacements for Linux terminal/inotify handling, parent-death
+  supervision and the synchronized authority clock. Windows additionally needs
+  its process, terminal and native I/O integration. Packaging cannot remove those
+  runtime safety requirements. Native SDKs and container images remain x86_64;
+  ARM64 coverage currently targets the standalone executable bundle.
+- Board catalog discovery, dataset previews, saved workbooks and governed review
+  depend on [the planned workbench](25-board-reimplementation.md). This release
+  work tests the implemented inspection UI and embedded assets only.
+- Installed MCP business-resource/App checks depend on
+  [the planned MCP service](26-mcp-service-and-apps.md). There is no endpoint
+  or App package to distribute yet.
+
+Static/component checks and a running server do not complete the milestone's
+remaining capability-dependent onboarding matrix.
 
 ## Delivery sequence
 

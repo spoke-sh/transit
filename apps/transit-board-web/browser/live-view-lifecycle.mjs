@@ -145,7 +145,12 @@ try {
       counter.getByRole("button", { name: "Follow counter", exact: true }),
     ).toBeDisabled();
   } else {
-    await expect(counter.locator("#status")).toContainText("serving.access_denied");
+    // Retirement invalidates both native authority and the direct catalog guard.
+    // Either read can observe it first; both are typed denial, with no rows or
+    // watch coverage. Neither settles the accepted-control case above.
+    await expect(counter.locator("#status")).toContainText(
+      /serving\.access_denied|reactive\.catalog_denied/,
+    );
   }
   await expect(counter.locator("#rows tr")).toHaveCount(0);
   await expect(counter.locator("#basis")).toHaveText("No authorized snapshot.");

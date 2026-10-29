@@ -588,7 +588,7 @@ a separate network package installation or an implicit input revision update.
 
 ## Distribution builds
 
-`nix build .#transit-release` builds the Linux x86_64 static runtime set with
+`nix build .#transit-release` builds the native Linux x86_64 or ARM64 static runtime set with
 musl and the pinned static OpenSSL. It embeds the flake commit and copies notices
 from the exact dependency sources. This output is separate from the ordinary
 Nix-linked runtime; it requires no host shared libraries. The

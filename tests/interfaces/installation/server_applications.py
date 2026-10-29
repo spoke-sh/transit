@@ -156,10 +156,13 @@ def provision_authority(fixture, operator, connections):
     return profile
 
 
-def run(cli, node, host, worker, operator):
+def run(cli, node, host, worker, operator, *, embedded=False):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     fixture = Applications(cli, node, host)
-    freeze_executables(fixture)
+    if embedded:
+        fixture.config['executables'] = {}
+    else:
+        freeze_executables(fixture)
     fixture.path.write_text(json.dumps(fixture.config))
     started = time.monotonic()
     success = False
@@ -308,7 +311,7 @@ def run(cli, node, host, worker, operator):
         recovered = domain(connections['writer'], 'put', 'invalid-state', 99, 99, expect='InvalidWorkItemState')
         assert json.loads(recovered.stdout) == rejected, 'original input rejection changed after activation'
         domain(connections['writer'], 'put', 'released-put', 1, 10)
-        for physical in ('/transit-node ', '"unified_requester":'):
+        for physical in ('__transit_role_v1 node ' if embedded else '/transit-node ', '"unified_requester":'):
             prior = fixture.status()['roles'][0]['generation']
             fixture.kill_role(physical)
             fixture.ready()
