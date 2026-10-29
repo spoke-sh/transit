@@ -213,7 +213,17 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                     configure()
                     if transaction_limits is not None:
                         configuration = json.loads((root/'sql-gateway.json').read_text())
-                        configuration['accounts'][0]['execution']['transaction_limits'] = transaction_limits
+                        account = configuration['accounts'][0]
+                        # Execution limits are immutable for an accepted account.
+                        # This final schedule provisions a distinct logical account
+                        # using the fixture's already-authorized native identity.
+                        account['name'] = 'limited'
+                        account['execution']['account'] = [78]*32
+                        account['execution']['transaction_limits'] = transaction_limits
+                        credential_path = Path(account['verifier_file'])
+                        credential = json.loads(credential_path.read_text())
+                        credential['account'] = [78]*32
+                        credential_path.write_text(json.dumps(credential))
                         (root/'sql-gateway.json').write_text(json.dumps(configuration))
                     if session_lease_ms is not None:
                         configuration = json.loads((root/'sql-gateway.json').read_text())

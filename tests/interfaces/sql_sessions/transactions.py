@@ -361,7 +361,7 @@ def lifetimes(root, port, restart):
     # retained accepted work can still be explicitly rolled back.
     restart(transaction_limits=dict(resident_bytes=16*1024*1024, workspace_bytes=256*1024*1024,
                                     participants=100, statements=1, savepoints=1))
-    limited = Client(root, port).open()
+    limited = Client(root, port).open(account='limited')
     command(limited, 'BEGIN')
     command(limited, 'UPDATE tx_left SET amount=73 WHERE id=1', 'provisional')
     limited.call(dict(execute=dict(sql='UPDATE tx_left SET amount=74 WHERE id=1', token=list(os.urandom(16)))), error='SqlTransactionLimit')

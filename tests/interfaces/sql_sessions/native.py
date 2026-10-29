@@ -94,15 +94,15 @@ class Client:
             assert result['operation']['command'] is not None, result
         return result
 
-    def open(self, source=None, *, password='proof-password', error=None):
+    def open(self, source=None, *, password='proof-password', error=None, account='proof'):
         assert self.call('hello')['hello']['encoding'] == ENCODING
         nonce = base64.b64encode(os.urandom(18)).decode()
         bare = f'n=,r={nonce}'
-        challenge = self.call(dict(open=dict(account='proof', database='data', source=source, authentication='scram', first='n,,' + bare)))['challenge']
+        challenge = self.call(dict(open=dict(account=account, database='data', source=source, authentication='scram', first='n,,' + bare)))['challenge']
         server = challenge['message']
         values = dict(field.split('=', 1) for field in server.split(','))
         assert values['r'].startswith(nonce) and len(values['r']) > len(nonce)
-        binding = json.dumps([self.definition, self.instance, 'proof', 'data', source], separators=(',', ':')).encode()
+        binding = json.dumps([self.definition, self.instance, account, 'data', source], separators=(',', ':')).encode()
         assert values['b'] == hashlib.sha256(binding).hexdigest()
         salted = hashlib.pbkdf2_hmac('sha256', password.encode(), base64.b64decode(values['s']), int(values['i']))
         client_key = mac(salted, 'Client Key')
