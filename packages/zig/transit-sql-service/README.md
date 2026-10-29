@@ -48,3 +48,14 @@ See [source bindings](docs/sources.md), the [SQL session contract](../../../cont
 and [gateway configuration](../../../apps/transit-sql-gateway/docs/configuration.md).
 Run `zig build test` or `zig build check` here. The real service proofs use the
 [registered SQL checks](../../../tasks/test.just).
+
+`just test::sql-gateway` exercises exact token admission, DDL/INSERT commit
+recovery, fencing, counts and result framing through the native HTTP boundary.
+Its commit-loss schedule observes the owner's committed outcome, withholds the
+reply until the original client's deadline expires, and blocks later requests.
+It kills the helper and authority and joins the old proxy connections before
+restarting recovery. The original saved binding/result, authoritative rows and
+counts are the recovery oracle; a helper's nonzero exit alone is not evidence
+that a commit reply was lost. Failed private installations are retained for
+original-outcome investigation. This process-death schedule does not establish
+host power-loss durability.
