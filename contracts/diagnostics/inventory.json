@@ -9634,6 +9634,28 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/NeutralEncoding.zig": {
+      "errors": {
+        "DocumentEncodingCapacity": 1,
+        "InvalidDocumentInteger": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "decimal()": "<inferred>",
+        "hex()": "<inferred>",
+        "unhex()": "<inferred>",
+        "unsigned()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 1
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/PhysicalCodecs.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -9876,6 +9898,65 @@
         "TableSchema.zig",
         "Types.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/QueryValues.zig": {
+      "errors": {
+        "InvalidColumnCount": 1,
+        "InvalidOutputNames": 1,
+        "InvalidPredicateProgram": 1,
+        "InvalidProjection": 1,
+        "InvalidQuerySchema": 1,
+        "PredicateTooLarge": 1,
+        "UnknownColumn": 2,
+        "UnsupportedPlan": 1
+      },
+      "outcomes": {
+        "Predicate": [
+          "all",
+          "state",
+          "compare",
+          "null_compare",
+          "program"
+        ],
+        "PredicateAtom": [
+          "all",
+          "state",
+          "compare",
+          "null_compare"
+        ],
+        "PredicateInstruction": [
+          "atom",
+          "negate",
+          "conjunction",
+          "disjunction"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Column.fromNative()": "<inferred>",
+        "Column.native()": "<inferred>",
+        "Plan.fromNative()": "<inferred>",
+        "Plan.native()": "<inferred>",
+        "Predicate.fromNative()": "<inferred>",
+        "Predicate.native()": "<inferred>",
+        "PredicateAtom.fromNative()": "<inferred>",
+        "PredicateAtom.native()": "<inferred>",
+        "columns()": "<inferred>",
+        "foreignColumns()": "<inferred>",
+        "parse()": "<inferred>",
+        "preflight()": "<inferred>",
+        "rows()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 41,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-fuze/src/Relational.zig": {
@@ -12941,9 +13022,11 @@
         "LogicalQuery.zig",
         "LogicalSchema.zig",
         "LogicalStream.zig",
+        "NeutralEncoding.zig",
         "PhysicalCodecs.zig",
         "Prepared.zig",
         "QueryCollations.zig",
+        "QueryValues.zig",
         "Relational.zig",
         "RelationalCheckpoint.zig",
         "RelationalCodec.zig",
@@ -15730,6 +15813,66 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/RelationalBridge.zig": {
+      "errors": {
+        "IncompatibleDefinition": 2,
+        "InvalidQueryCursor": 6,
+        "InvalidQueryRequest": 6,
+        "InvalidQuerySchema": 1,
+        "InvalidRelationalBudgets": 1,
+        "InvalidRelationalSources": 3,
+        "QueryIdentityMismatch": 8,
+        "RelationalCallerChanged": 2,
+        "RelationalResidentBudget": 1,
+        "UnsupportedRelationalConsistency": 1
+      },
+      "outcomes": {
+        "Action": [
+          "capabilities",
+          "explain",
+          "open",
+          "page",
+          "close"
+        ],
+        "GroupScalar": [
+          "signed",
+          "utf8"
+        ],
+        "Identity": [
+          "pair",
+          "group"
+        ],
+        "Result": [
+          "capabilities",
+          "explained",
+          "opened",
+          "page",
+          "closed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Options.native()": "<inferred>",
+        "Session.apply()": "<inferred>",
+        "Session.check()": "<inferred>",
+        "Session.current()": "<inferred>",
+        "Session.opened()": "<inferred>",
+        "Session.reference()": "<inferred>",
+        "Session.selected()": "<inferred>",
+        "describe()": "<inferred>",
+        "id()": "<inferred>",
+        "row()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 59,
+        "catch": 22
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query-direct/src/RelationalSpill.zig": {
       "errors": {
         "Cancelled": 2,
@@ -15774,6 +15917,55 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/TableChangeReader.zig": {
+      "errors": {
+        "Cancelled": 2,
+        "IncompatibleDefinition": 1,
+        "IncompleteSource": 2,
+        "IncompleteTableChanges": 2,
+        "InvalidQueryBudget": 1,
+        "InvalidTableBasis": 1,
+        "InvalidTableReadBudget": 1,
+        "InvalidTableResponse": 3,
+        "QueryClosed": 1,
+        "QueryPageBudget": 1,
+        "RelationalCallerChanged": 1
+      },
+      "outcomes": {
+        "Event": [
+          "progress",
+          "change",
+          "transaction",
+          "caught_up"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Options.validate()": "<inferred>",
+        "Position.validate()": "<inferred>",
+        "charge()": "<inferred>",
+        "check()": "<inferred>",
+        "checkCancellation()": "<inferred>",
+        "checkpoint()": "<inferred>",
+        "complete()": "<inferred>",
+        "init()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "openTail()": "<inferred>",
+        "rowAfter()": "<inferred>",
+        "sameRow()": "<inferred>",
+        "snapshotNext()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 43,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query-direct/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -15791,7 +15983,9 @@
         "DirectRelationalTables.zig",
         "DirectTablePrepared.zig",
         "DirectTableQuery.zig",
+        "RelationalBridge.zig",
         "RelationalSpill.zig",
+        "TableChangeReader.zig",
         "transit_catalog",
         "transit_fuze",
         "transit_protocol"
@@ -16676,66 +16870,6 @@
       "propagation": {
         "try": 24,
         "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-query/src/RelationalBridge.zig": {
-      "errors": {
-        "IncompatibleDefinition": 2,
-        "InvalidQueryCursor": 6,
-        "InvalidQueryRequest": 6,
-        "InvalidQuerySchema": 1,
-        "InvalidRelationalBudgets": 1,
-        "InvalidRelationalSources": 3,
-        "QueryIdentityMismatch": 8,
-        "RelationalCallerChanged": 2,
-        "RelationalResidentBudget": 1,
-        "UnsupportedRelationalConsistency": 1
-      },
-      "outcomes": {
-        "Action": [
-          "capabilities",
-          "explain",
-          "open",
-          "page",
-          "close"
-        ],
-        "GroupScalar": [
-          "signed",
-          "utf8"
-        ],
-        "Identity": [
-          "pair",
-          "group"
-        ],
-        "Result": [
-          "capabilities",
-          "explained",
-          "opened",
-          "page",
-          "closed"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Options.native()": "<inferred>",
-        "Session.apply()": "<inferred>",
-        "Session.check()": "<inferred>",
-        "Session.current()": "<inferred>",
-        "Session.opened()": "<inferred>",
-        "Session.reference()": "<inferred>",
-        "Session.selected()": "<inferred>",
-        "describe()": "<inferred>",
-        "id()": "<inferred>",
-        "row()": "<inferred>"
-      },
-      "open_error_set_uses": 2,
-      "propagation": {
-        "try": 59,
-        "catch": 22
       },
       "imports": [
         "root.zig",
@@ -18044,55 +18178,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-query/src/TableChangeReader.zig": {
-      "errors": {
-        "Cancelled": 2,
-        "IncompatibleDefinition": 1,
-        "IncompleteSource": 2,
-        "IncompleteTableChanges": 2,
-        "InvalidQueryBudget": 1,
-        "InvalidTableBasis": 1,
-        "InvalidTableReadBudget": 1,
-        "InvalidTableResponse": 3,
-        "QueryClosed": 1,
-        "QueryPageBudget": 1,
-        "RelationalCallerChanged": 1
-      },
-      "outcomes": {
-        "Event": [
-          "progress",
-          "change",
-          "transaction",
-          "caught_up"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Options.validate()": "<inferred>",
-        "Position.validate()": "<inferred>",
-        "charge()": "<inferred>",
-        "check()": "<inferred>",
-        "checkCancellation()": "<inferred>",
-        "checkpoint()": "<inferred>",
-        "complete()": "<inferred>",
-        "init()": "<inferred>",
-        "next()": "<inferred>",
-        "open()": "<inferred>",
-        "openTail()": "<inferred>",
-        "rowAfter()": "<inferred>",
-        "sameRow()": "<inferred>",
-        "snapshotNext()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 43,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
     "packages/zig/transit-query/src/TableCompletionGrammar.zig": {
       "errors": {
         "OutOfMemory": 1
@@ -18691,16 +18776,9 @@
     },
     "packages/zig/transit-query/src/Values.zig": {
       "errors": {
-        "InvalidColumnCount": 1,
-        "InvalidOutputNames": 1,
-        "InvalidPredicateProgram": 1,
-        "InvalidProjection": 2,
+        "InvalidProjection": 1,
         "InvalidQueryAuthorization": 1,
-        "InvalidQueryPath": 1,
-        "InvalidQuerySchema": 1,
-        "PredicateTooLarge": 1,
-        "UnknownColumn": 2,
-        "UnsupportedPlan": 1
+        "InvalidQueryPath": 1
       },
       "outcomes": {
         "Action": [
@@ -18708,25 +18786,6 @@
           "decode",
           "source",
           "inspect_arrow"
-        ],
-        "Predicate": [
-          "all",
-          "state",
-          "compare",
-          "null_compare",
-          "program"
-        ],
-        "PredicateAtom": [
-          "all",
-          "state",
-          "compare",
-          "null_compare"
-        ],
-        "PredicateInstruction": [
-          "atom",
-          "negate",
-          "conjunction",
-          "disjunction"
         ],
         "Result": [
           "prepared",
@@ -18745,34 +18804,21 @@
         "Bundle.fromNative()": "<inferred>",
         "Bundle.native()": "<inferred>",
         "Capture.native()": "<inferred>",
-        "Column.fromNative()": "<inferred>",
-        "Column.native()": "<inferred>",
         "DecoderColumn.fromNative()": "<inferred>",
         "DecoderColumn.native()": "<inferred>",
         "DirectConnection.foreign()": "<inferred>",
         "DirectConnection.native()": "<inferred>",
         "Limits.fromNative()": "<inferred>",
         "Limits.native()": "<inferred>",
-        "Plan.fromNative()": "<inferred>",
-        "Plan.native()": "<inferred>",
-        "Predicate.fromNative()": "<inferred>",
-        "Predicate.native()": "<inferred>",
-        "PredicateAtom.fromNative()": "<inferred>",
-        "PredicateAtom.native()": "<inferred>",
         "Source.fromNative()": "<inferred>",
         "Source.native()": "<inferred>",
         "apply()": "<inferred>",
-        "columns()": "<inferred>",
-        "foreignColumns()": "<inferred>",
         "foreignPath()": "<inferred>",
-        "parse()": "<inferred>",
-        "path()": "<inferred>",
-        "preflight()": "<inferred>",
-        "rows()": "<inferred>"
+        "path()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 122,
+        "try": 81,
         "catch": 0
       },
       "imports": [
@@ -18893,7 +18939,6 @@
         "Interactive.zig",
         "QueryAuthorization.zig",
         "QueryFailure.zig",
-        "RelationalBridge.zig",
         "RelationalBundle.zig",
         "RelationalCaller.zig",
         "RelationalCapture.zig",
@@ -18925,7 +18970,6 @@
         "SqlCompilation.zig",
         "SqlInspection.zig",
         "SqlTemplate.zig",
-        "TableChangeReader.zig",
         "TableCompletionGrammar.zig",
         "TablePosition.zig",
         "TableSource.zig",
@@ -24321,7 +24365,7 @@
       "imports": [
         "Abi.zig",
         "std",
-        "transit_query"
+        "transit_fuze"
       ]
     },
     "packages/zig/transit-station-bindings/src/QueryAbi.zig": {
@@ -24596,24 +24640,17 @@
       ]
     },
     "packages/zig/transit-station-document/src/JsonValues.zig": {
-      "errors": {
-        "DocumentEncodingCapacity": 1,
-        "InvalidDocumentInteger": 3
-      },
+      "errors": {},
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Reference.fromNative()": "<inferred>",
-        "Reference.native()": "<inferred>",
-        "decimal()": "<inferred>",
-        "hex()": "<inferred>",
-        "unhex()": "<inferred>",
-        "unsigned()": "<inferred>"
+        "Reference.native()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
-        "catch": 1
+        "try": 7,
+        "catch": 0
       },
       "imports": [
         "root.zig",

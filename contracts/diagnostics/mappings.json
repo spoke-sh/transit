@@ -882,6 +882,7 @@
         "packages/zig/transit-query/src/Interactive.zig",
         "packages/zig/transit-query/src/Editor.zig",
         "packages/zig/transit-query/src/Values.zig",
+        "packages/zig/transit-fuze/src/QueryValues.zig",
         "packages/zig/transit-query/src/Draft.zig",
         "packages/zig/transit-query/src/UnifiedRequest.zig",
         "packages/zig/transit-query/src/Bundle.zig",
@@ -890,7 +891,7 @@
         "packages/zig/transit-query/src/SqlTemplate.zig",
         "packages/zig/transit-query-direct/src/DirectTableQuery.zig",
         "packages/zig/transit-query-direct/src/DirectTableScan.zig",
-        "packages/zig/transit-query/src/RelationalBridge.zig",
+        "packages/zig/transit-query-direct/src/RelationalBridge.zig",
         "packages/zig/transit-query/src/RelationalCaller.zig",
         "packages/zig/transit-query-direct/src/ComputePool.zig",
         "packages/zig/transit-query/src/RelationalWorkspace.zig"
@@ -1669,7 +1670,7 @@
           ]
         },
         {
-          "source": "packages/zig/transit-query/src/RelationalBridge.zig",
+          "source": "packages/zig/transit-query-direct/src/RelationalBridge.zig",
           "cause": "InvalidRelationalSources",
           "disposition": "mapped_boundary",
           "reason": "Explicit relational route and budget admission failures use the shared SQL binding classification when projected with the caller statement. Configuration creation rejects locally before transport.",
@@ -1677,13 +1678,13 @@
           "code": "sql.invalid_relational_sources",
           "tests": [
             {
-              "source": "packages/zig/transit-query/src/RelationalBridge.zig",
+              "source": "packages/zig/transit-query-direct/src/RelationalBridge.zig",
               "name": "relational neutral options and references reject lossy and foreign input before I/O"
             }
           ]
         },
         {
-          "source": "packages/zig/transit-query/src/RelationalBridge.zig",
+          "source": "packages/zig/transit-query-direct/src/RelationalBridge.zig",
           "cause": "InvalidRelationalBudgets",
           "disposition": "mapped_boundary",
           "reason": "Explicit relational route and budget admission failures use the shared SQL binding classification when projected with the caller statement. Configuration creation rejects locally before transport.",
@@ -1691,7 +1692,7 @@
           "code": "sql.invalid_relational_budgets",
           "tests": [
             {
-              "source": "packages/zig/transit-query/src/RelationalBridge.zig",
+              "source": "packages/zig/transit-query-direct/src/RelationalBridge.zig",
               "name": "relational neutral options and references reject lossy and foreign input before I/O"
             }
           ]

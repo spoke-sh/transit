@@ -6,6 +6,12 @@ Finite direct Table execution lives in
 in this package and use that database execution owner. Direct SQL consumers can
 import `transit_query_direct` without importing Station.
 
+The `RelationalBridge` and `TableChangeReader` exports are the exact modules from
+that direct package. `Values` composes Fuze's neutral `QueryValues` with captured
+source/bundle declarations and their native publication and authorization rules.
+Pure column, scalar/cell, predicate and plan conversion lives in Fuze; captured
+source acquisition and lifecycle orchestration remain here.
+
 Shared Zig finite-query clients and application-side Station behaviors. Board
 and `transit` share source declarations, the Fuze compiler and Arrow codecs.
 The console uses fresh interactive snapshots by default; explicitly durable

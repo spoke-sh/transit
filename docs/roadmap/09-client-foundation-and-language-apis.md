@@ -272,18 +272,20 @@ and distinguish provisional statement results from the final transaction decisio
 | Go | Context-aware operations on bounded native workers and explicit result close | Context cancellation preserves uncertainty; original handles/store survive goroutine lifetime |
 | BEAM | Supervised port ownership, immutable records/structs and bounded requests | Monitor/timeout is host evidence; recover the recorded operation without rerunning a callback |
 
-P0 still needs the complete affected-language review, context/store/ABI contract
-and matched performance baseline. P1 still needs the query/value extraction and
-full consumer inventory. This slice does not wait for M8's pending P2 transport
+The following slice extends P0 with the affected-language ownership review and
+context/store decisions, and P1 with the remaining query/value inventory and
+selected extraction. It does not wait for M8's pending P2 transport
 interfaces because it preserves the existing direct caller operations. It does
 not qualify new coarse submission, automatic settlement, SQL/transaction
 conveniences or the KV/Document/Stream/Queue facets.
 
-### Next implementation slice — values, direct readers and context contract
+### Value and direct-reader extraction
 
 **Audit basis:** `cf6f5ab533b01b15b141f74f20ffe42c1168d95d`, including the
-merged Catalog extraction. This slice completes the following source inventory
-and selects the neutral ownership contract below before adding a context ABI.
+merged Catalog extraction. This slice implements the moves in the following
+source inventory and selects the neutral ownership contract below before adding
+a context ABI. Fuze owns `QueryValues` and the shared `NeutralEncoding` helpers;
+`transit-query-direct` owns the relational bridge and Table history reader.
 The contract is proposed; it does not describe an implemented context, recovery
 store, ordinary foreign-language SQL API or new server capability.
 
@@ -309,6 +311,13 @@ ABI/port operations and generated resources; Go remains a raw-client consumer.
 No language receives an additional operation merely because its generated
 schema mentions a shared type. Contract drift and independent ABI/port fixtures
 must remain unchanged for this package-only extraction.
+
+P0/P1 remain **In Progress**. The context/store decisions below still need
+executable neutral types, failure schedules and reflected ABI resources before
+P2/P3 adapters land. The installed SQL baseline covers the current console and
+owned service processes; per-language native/port startup, allocation reserves,
+cancellation and joined-close measurements remain part of P0/P8. The future data
+bridge and shared catalog/SQL context are not supplied by these package moves.
 
 ### Proposed neutral client-context contract
 

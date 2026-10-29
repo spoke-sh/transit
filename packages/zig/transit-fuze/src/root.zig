@@ -27,6 +27,8 @@ pub const LogicalPredicate = @import("LogicalPredicate.zig");
 pub const FileSource = @import("FileSource.zig");
 pub const SourceCodec = @import("SourceCodec.zig");
 pub const LogicalDisplay = @import("LogicalDisplay.zig");
+pub const NeutralEncoding = @import("NeutralEncoding.zig");
+pub const QueryValues = @import("QueryValues.zig");
 pub const LogicalJson = @import("LogicalJson.zig");
 pub const LogicalArrow = @import("LogicalArrow.zig");
 pub const LogicalCodec = @import("LogicalCodec.zig");
@@ -105,6 +107,8 @@ test {
     _ = FileQuery;
     _ = FileSource;
     _ = LogicalJson;
+    _ = QueryValues;
+    _ = NeutralEncoding;
     _ = LogicalArrow;
     _ = LogicalCodec;
     _ = Types;

@@ -12,6 +12,8 @@ pub const DirectRelationalTables = @import("DirectRelationalTables.zig");
 pub const DirectRelationalQuery = @import("DirectRelationalQuery.zig");
 pub const RelationalSpill = @import("RelationalSpill.zig");
 pub const ComputePool = @import("ComputePool.zig");
+pub const RelationalBridge = @import("RelationalBridge.zig");
+pub const TableChangeReader = @import("TableChangeReader.zig");
 test {
     _ = @import("direct_table_count_range_test.zig");
     @import("std").testing.refAllDecls(@This());

@@ -10,6 +10,7 @@
         .transit_station_document = .{ .path = "../../packages/zig/transit-station-document" },
         .transit_station_http = .{ .path = "../../packages/zig/transit-station-http" },
         .transit_station_grpc = .{ .path = "../../packages/zig/transit-station-grpc" },
+        .transit_query_direct = .{ .path = "../../packages/zig/transit-query-direct" },
         .transit_query = .{ .path = "../../packages/zig/transit-query" },
         .transit_data_client = .{ .path = "../../packages/zig/transit-data-client" },
         .transit_catalog = .{ .path = "../../packages/zig/transit-catalog" },
