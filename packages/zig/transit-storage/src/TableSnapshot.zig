@@ -19,6 +19,15 @@ pub const Owned = struct {
     retention: Retention,
     root: r.Root,
     schema: f.TableSchema.Owned,
+    /// Present only on a validated in-process private workspace reader. It is
+    /// never encoded in a public pin object or restored from one.
+    transaction: ?p.Transaction.ReadView = null,
+    pub fn position(self: Owned) d.Position {
+        return if (self.transaction) |view| view.source.source.accepted else .{ .partition = self.root.partition, .next_lsn = self.root.next_lsn };
+    }
+    pub fn changedLsn(self: Owned) u64 {
+        return if (self.transaction) |view| view.source.changed_lsn else self.root.changed_lsn;
+    }
     pub fn deinit(self: *Owned) void {
         self.schema.deinit();
         self.* = undefined;

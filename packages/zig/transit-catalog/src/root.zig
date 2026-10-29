@@ -83,3 +83,5 @@ pub const DirectTransactionRequest = @import("DirectTransactionRequest.zig");
 pub const DirectTransaction = @import("DirectTransaction.zig");
 
 pub const DirectTransactionClient = @import("DirectTransactionClient.zig");
+
+pub const DirectTransactionRead = @import("DirectTransactionRead.zig");

@@ -33,8 +33,9 @@ fn encodeDefinition(allocator: std.mem.Allocator, scratch_allocator: std.mem.All
         .namespace = view.properties.namespace,
         .authorization = view.properties.authorization,
         .name = view.properties.name,
-        .position = .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn },
-        .changed_lsn = view.table.root.changed_lsn,
+        .position = if (view.table.workspace_read) |read| read.source.source.accepted else .{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn },
+        .changed_lsn = if (view.table.workspace_read) |read| read.source.changed_lsn else view.table.root.changed_lsn,
+        .workspace = view.table.workspace_read,
         .row_count = view.table.root.live_rows,
         .schema = try schema(allocator, scratch_allocator, view.table.declaration.schema.schema),
     };
@@ -74,7 +75,7 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             .begin => |value| .{ .begun = try catalog.beginTransaction(value, policy) },
             .acquire => |key| .{ .acquired = try catalog.acquireTransaction(key, policy) },
             .inspect => |key| .{ .status = try catalog.inspectTransaction(key, policy) },
-            .stage => |value| .{ .staged = try catalog.stageTransactionStatement(value.key, value.sequence, value.work, policy) },
+            .stage => |value| .{ .staged = try catalog.stageTransactionStatement(value.key, value.basis, value.sequence, value.work, policy) },
             .statement => |value| .{ .statement = if (value.execute) try catalog.executeTransactionStatement(value.key, value.request, policy) else try catalog.admitTransactionStatement(value.key, value.request, policy) },
             .advance => |value| .{ .status = try catalog.resumeTransaction(value.key, value.steps, policy) },
             .settle => |value| .{ .status = try catalog.settleTransaction(value.key, value.operation, value.command, value.steps, policy) },
@@ -291,8 +292,9 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             return .{ .snapshot = .{
                 .snapshot = value,
                 .interpretation = found.root.declared(),
-                .accepted = .{ .partition = found.root.partition, .next_lsn = found.root.next_lsn },
-                .changed_lsn = found.root.changed_lsn,
+                .accepted = found.position(),
+                .changed_lsn = found.changedLsn(),
+                .workspace = found.transaction,
                 .row_count = found.root.live_rows,
                 .schema = try schema(allocator, catalog.allocator, found.schema.schema),
                 .authority = read.authority,
@@ -311,7 +313,7 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
                 defer catalog.allocator.free(scratch);
                 break :encoded try w.Binary.encode(allocator, try row.row().encode(definition.schema.schema, scratch));
             } else null;
-            return .{ .point = .{ .snapshot = value.snapshot, .interpretation = definition.root.declared(), .accepted = .{ .partition = definition.root.partition, .next_lsn = definition.root.next_lsn }, .changed_lsn = definition.root.changed_lsn, .total_rows = definition.root.live_rows, .row = encoded } };
+            return .{ .point = .{ .snapshot = value.snapshot, .interpretation = definition.root.declared(), .accepted = definition.position(), .changed_lsn = definition.changedLsn(), .total_rows = definition.root.live_rows, .row = encoded } };
         },
         inline .scan, .column_scan => |value, tag| {
             var definition = try catalog.snapshotDefinition(catalog.allocator, value.snapshot.object, value.snapshot.handle, policy);
@@ -336,10 +338,11 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             const basis: c.DirectTableReader.Basis = .{
                 .snapshot = value.snapshot,
                 .interpretation = definition.root.declared(),
-                .accepted = .{ .partition = definition.root.partition, .next_lsn = definition.root.next_lsn },
-                .changed_lsn = definition.root.changed_lsn,
+                .accepted = definition.position(),
+                .changed_lsn = definition.changedLsn(),
                 .row_count = definition.root.live_rows,
                 .authority = read.authority,
+                .workspace = definition.transaction,
             };
             const plan = try value.decodePlan(allocator, definition.schema.schema, try basis.fingerprint());
             const selected = try c.fuze.TableProjection.fromPlan(definition.schema.schema, plan);

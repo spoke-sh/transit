@@ -39,7 +39,7 @@ pub const Request = union(enum) {
     begin: Begin,
     acquire: c.DirectClientToken.Key,
     inspect: c.DirectClientToken.Key,
-    stage: struct { key: c.DirectClientToken.Key, sequence: u64, work: c.DirectTableIntent.Work },
+    stage: struct { key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: c.DirectTableIntent.Work },
     statement: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionWorkspace.Request, execute: bool },
     advance: struct { key: c.DirectClientToken.Key, steps: u16 },
     settle: struct { key: c.DirectClientToken.Key, operation: d.Operation, command: c.DirectTransactionControl.Command, steps: u16 },
@@ -56,6 +56,8 @@ pub const Request = union(enum) {
             .begin => |value| try value.validate(),
             .acquire, .inspect => {},
             .stage => |value| {
+                try value.basis.validate();
+                if (value.basis.next_lsn == 0) return error.InvalidTransactionWork;
                 if (value.sequence == 0 or value.work == .ddl) return error.InvalidTransactionWork;
                 try value.key.connection.binding(value.work.binding());
             },
@@ -108,6 +110,7 @@ pub fn validateResult(request: Request, result: Result) !void {
         .staged => |value| {
             try value.validate();
             try request.stage.work.binding().requireSame(value.binding);
+            if (!std.meta.eql(value.basis, request.stage.basis)) return error.InvalidTableResponse;
             if (value.statement.sequence != request.stage.sequence) return error.InvalidTableResponse;
             try request.key().connection.owner(value.statement.transaction.begin);
         },

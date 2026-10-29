@@ -375,8 +375,9 @@ pub const Request = struct {
     closure: ?c.DirectReadDelegation.Closure = null,
     borrow: ?c.DirectReadDelegation.Borrow = null,
     lease: ?c.DirectClientToken.Lease = null,
+    transaction: ?c.DirectTransactionRead.Context = null,
     proof: p.Authorization.Proof,
-    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation, closure: ?c.DirectReadDelegation.Closure = null, borrow: ?c.DirectReadDelegation.Borrow = null, lease: ?c.DirectClientToken.Lease = null };
+    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation, closure: ?c.DirectReadDelegation.Closure = null, borrow: ?c.DirectReadDelegation.Borrow = null, lease: ?c.DirectClientToken.Lease = null, transaction: ?c.DirectTransactionRead.Context = null };
     pub fn context(value: Input, allocator: std.mem.Allocator) ![32]u8 {
         const bytes = try p.Json.valueAlloc(allocator, value);
         defer allocator.free(bytes);
@@ -387,7 +388,7 @@ pub const Request = struct {
         return hash.finalResult();
     }
     pub fn input(self: Request) Input {
-        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease };
+        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction };
     }
     /// Transport hints classify a request attempt; the server validates its
     /// parsed action and current rights before using reserved admission.
@@ -406,11 +407,16 @@ pub const Request = struct {
             else => false,
         };
         const control = (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
-        return .{ .operation = @tagName(self.action), .mutation = mutation, .control = if (control) "table" else null };
+        return .{ .operation = @tagName(self.action), .mutation = mutation and self.transaction == null, .control = if (control) "table" else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.connection.validate();
+        if (self.transaction) |context_value| {
+            try context_value.allow(self.action);
+            if (!std.meta.eql(context_value.key.connection, self.connection)) return error.CatalogIdentityConflict;
+            if (self.delegation != null or self.borrow != null or self.closure != null) return error.InvalidTableDelegation;
+        }
         if (self.lease) |lease| try lease.validate(self.connection);
         try self.proof.claim.validate();
         const claim = self.proof.claim;
@@ -671,8 +677,9 @@ pub const Definition = struct {
     changed_lsn: u64,
     row_count: u64,
     schema: Binary,
+    workspace: ?p.Transaction.ReadView = null,
 };
-pub const Source = struct { snapshot: Snapshot, interpretation: c.storage.TableDeclaration.Stored, accepted: d.Position, changed_lsn: u64, row_count: u64, schema: Binary, authority: c.DirectReadAuthority };
+pub const Source = struct { snapshot: Snapshot, interpretation: c.storage.TableDeclaration.Stored, accepted: d.Position, changed_lsn: u64, row_count: u64, schema: Binary, authority: c.DirectReadAuthority, workspace: ?p.Transaction.ReadView = null };
 pub const CurrentPage = struct {
     pub const json_schema_sequence_bounds = .{ .rows = 8 };
     rows: []const Binary,

@@ -711,7 +711,8 @@ selection. Persist its account/token and request fingerprint before sending it;
 a retry returns the original accepted begin even when the proposed operation or
 current catalog has changed. `acquire` records the original common cut.
 
-`stage` validates and stores bulk INSERT/UPDATE/DELETE work for the next sequence;
+`stage` takes the exact `inspect.revision`, validates and stores bulk
+INSERT/UPDATE/DELETE work for the next sequence;
 its returned `DirectTransactionWorkspace.Request` must be retained before
 `admit` or `execute`. Staging is not statement acceptance. `execute` recovers an
 admitted request or its original provisional outcome. Repeating a completed
@@ -731,3 +732,17 @@ checks retain a common writer/policy epoch instead of growing a native Guard
 array; the response is withheld if that epoch changes after buffering. These
 calls use current original-caller authorization. They grant neither delegated
 read authority nor permission to execute external effects.
+
+
+Set `DirectTableClient.transaction` to the original token key and current inspected
+revision to read private writes. The client uses the existing lookup and retained
+read operations. Metadata carries `workspace`; build the private snapshot handle
+from its begin owner and `private` commitment, then use `DirectTableReader` normally
+with that same client context. The reader's basis includes both the original
+committed cut and private revision. Closing it does not release the begin's pins.
+Names and schemas stay on the original catalog cut while every disclosure checks
+current rights. A later statement or settlement invalidates the old revision;
+refresh the context explicitly before preparing another statement. The stage and
+admission checks prevent stale private plans from reaching a different workspace.
+See the [private read contract](../../../../contracts/DIRECT_TABLE_V1.md#transaction-scoped-private-reads)
+for supported actions and source attribution.

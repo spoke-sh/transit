@@ -180,9 +180,11 @@ nullable `pending` request and `charged_bytes`. Its revision equals the current
 token progress; acquired evidence still binds the original receipt and cut.
 No missing persisted field receives a current-state default.
 
-A request binds `statement`, exact Table `binding` and immutable DML `intent`
+A request binds `statement`, required workspace `basis` revision, exact Table `binding` and immutable DML `intent`
 content. Only bulk INSERT/UPDATE/DELETE without prerequisite authority participates.
-Statement sequences start at one, increase by one across Tables and are consumed
+New admission requires the exact active workspace revision; stale work returns
+`TransactionReadChanged` without consuming a sequence. Original pending/completed
+requests retain their accepted basis and remain retryable. Statement sequences start at one, increase by one across Tables and are consumed
 on admission. One pending request excludes a different statement until its
 original evaluation is resolved. A completed record pairs the request with its
 transaction-attributed provisional outcome or rejection. Private Table records
@@ -1225,7 +1227,7 @@ checks from installed service qualification.
 account/token binding wins a race; matching fingerprints recover that accepted
 begin without reselecting the catalog. A different fingerprint conflicts.
 
-`acquire` and `inspect` carry the original key. `stage` carries `key`, `sequence`
+`acquire` and `inspect` carry the original key. `stage` carries `key`, required `basis` catalog revision, `sequence`
 and native `work` (bulk rows or statement, never DDL), and returns a frozen private
 statement request. `statement` carries `key`, that exact `request` and `execute`;
 false admits, true evaluates or recovers the original result. A nullable outcome
@@ -1242,3 +1244,38 @@ separately establishes publication/barrier and original-pin release. Inspection
 and settlement use reserved control capacity; other calls use data capacity.
 All transaction actions exclude database publication. Current scoped checks share
 one writer/policy epoch, checked again before disclosing a buffered response.
+
+
+### Transaction-scoped private reads
+
+The signed request envelope carries nullable `transaction`, containing the original
+client-token `key` and exact active workspace `revision`. The connection must match;
+read delegation, borrowed grants and closure grants cannot accompany it. Supported
+actions are `lookup`, `check`, `check_set`, `read_authority`, `pin`, `pin_status`,
+`snapshot`, `read_key`, `scan`, `column_scan`, `filter_scan`, `key_range` and `release`.
+Other actions return `UnsupportedTransactionRead`. Pending statements or a changed
+revision refuse access before disclosure.
+
+Names and definitions resolve through the accepted begin catalog root. Each Table
+must belong to the acquired source directory, retain its original live pin and
+pass current SELECT authorization. The private Table root includes accepted
+provisional writes. `Definition.workspace` and `Source.workspace` contain a required
+`Transaction.ReadView` for this request context and are null for ordinary reads.
+The descriptor contains the common `cut`, workspace `revision`, `last_statement`,
+original Table `source` guard and a `private` content commitment. Positions and
+`changed_lsn` retain the original committed source frontier; private evaluator
+positions never become public Table acceptance LSNs. Source fingerprints include
+the complete workspace descriptor.
+
+The private snapshot handle uses the original begin owner and the private content
+commitment. It is valid only with the matching transaction context, grants no pin
+of its own and cannot be replayed as an ordinary retained snapshot. `pin` and
+`pin_status` expose that same handle; `release` closes no transaction-owned pin.
+A private `DirectTableReader` closes locally; transaction cleanup releases the
+original source pins. Later workspace publication, settlement or rollback
+invalidates prior private cursors. Every request rechecks current authority, and a
+policy-epoch change after response buffering withholds that response.
+
+The foreign metadata profile has no private-context representation and refuses
+private metadata with `UnsupportedTransactionRead`; it cannot silently present a
+private root as committed data.

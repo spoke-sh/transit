@@ -19,11 +19,14 @@ pub fn reserved(format: u32) bool {
 
 pub const Request = struct {
     statement: x.Statement,
+    basis: d.Position,
     binding: d.Binding,
     intent: d.Content,
 
     pub fn validate(self: Request) !void {
         try self.statement.validate();
+        try self.basis.validate();
+        if (self.basis.next_lsn == 0) return error.InvalidTransactionWorkspace;
         try self.binding.validate();
         try self.intent.validate();
         const identity = self.statement.transaction;

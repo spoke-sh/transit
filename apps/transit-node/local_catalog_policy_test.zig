@@ -107,15 +107,18 @@ fn dispatchBorrowed(service: anytype, action: c.DirectTableProtocol.Action, dele
     return dispatchWithSeed(service, action, delegation, borrow, 29);
 }
 fn dispatchWithSeed(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow, seed: u8) !Response {
+    return dispatchContext(service, action, delegation, borrow, seed, null);
+}
+fn dispatchContext(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow, seed: u8, transaction: ?c.DirectTransactionRead.Context) !Response {
     const w = c.DirectTableProtocol;
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const input: w.Request.Input = .{ .definition = g.current_definition, .connection = .{ .scope = service.configuration.scope, .branch = service.configuration.branch, .audience = service.configuration.audience, .principal = 101, .role = null }, .delegation = delegation, .borrow = borrow, .nonce = @splat(7), .action = action };
+    const input: w.Request.Input = .{ .definition = g.current_definition, .connection = .{ .scope = service.configuration.scope, .branch = service.configuration.branch, .audience = service.configuration.audience, .principal = 101, .role = null }, .delegation = delegation, .borrow = borrow, .nonce = @splat(7), .action = action, .transaction = transaction };
     const context = try w.Request.context(input, alloc);
     const executor = if (borrow) |value| value.binding.executor else if (delegation) |value| value.binding.executor else 101;
     const signed = if (delegation != null) try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = executor, .credential_epoch = (try service.engine.principal(executor)).credential_epoch, .role = null, .audience = service.configuration.audience, .context = context }, try key(if (borrow != null) 33 else 31)) else try proofWithSeed(service.engine, context, seed);
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .borrow = input.borrow, .proof = signed };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .borrow = input.borrow, .transaction = input.transaction, .proof = signed };
     const bytes = try p.Json.valueAlloc(alloc, request);
     const parsed = try w.Request.parse(alloc, bytes);
     const encoded = work: {
@@ -1703,7 +1706,9 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
         defer plan.deinit();
         var intent = try c.DirectTableIntent.fromDml(allocator, connection, definition, 120000 + i, plan.plan, .bulk);
         defer intent.deinit();
-        const staged = try dispatch(service, .{ .transaction = .{ .stage = .{ .key = token, .sequence = i + 1, .work = intent.parsed.value.work } } });
+        const before_stage = try dispatch(service, .{ .transaction = .{ .inspect = token } });
+        defer before_stage.deinit();
+        const staged = try dispatch(service, .{ .transaction = .{ .stage = .{ .key = token, .basis = before_stage.value.result.transaction.status.revision, .sequence = i + 1, .work = intent.parsed.value.work } } });
         defer staged.deinit();
         const original = staged.value.result.transaction.staged;
         const executed = try dispatch(service, .{ .transaction = .{ .statement = .{ .key = token, .request = original, .execute = true } } });
@@ -1716,10 +1721,32 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
         defer public.deinit();
         try t.expectEqual(@as(u64, 0), public.value.result.lookup.?.row_count);
     }
+    const status = try dispatch(service, .{ .transaction = .{ .inspect = token } });
+    defer status.deinit();
+    const context: c.DirectTransactionRead.Context = .{ .key = token, .revision = status.value.result.transaction.status.revision };
+    const private_metadata = try dispatchContext(service, .{ .lookup = .{ .namespace = 1, .name = "tx_selected_0" } }, null, null, 29, context);
+    defer private_metadata.deinit();
+    const private = private_metadata.value.result.lookup.?;
+    try t.expectEqual(@as(u64, 1), private.row_count);
+    const view = private.workspace.?;
+    const snapshot: w.Snapshot = .{ .object = private.interpretation.interpretation.object, .handle = .{ .owner = view.cut.begin.identity.begin, .content = view.private } };
+    const source = try dispatchContext(service, .{ .snapshot = snapshot }, null, null, 29, context);
+    defer source.deinit();
+    try t.expectEqualDeep(view, source.value.result.snapshot.workspace.?);
+    revoked = (try authorization.bound(service.configuration.authority.table_domain, try c.TableAuthority.binding(scope, .table, 100000))).?.reference.id;
+    service.before_reply = .{ .context = &revoked, .run = Revoke.run };
+    try t.expectError(error.AuthorizationChanged, dispatchContext(service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } }, null, null, 29, context));
+    service.before_reply = null;
+    _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(revoked), .owner = owner_role } });
+    const page = try dispatchContext(service, .{ .scan = .{ .snapshot = snapshot, .after = null, .limits = .{} } }, null, null, 29, context);
+    defer page.deinit();
+    try t.expectEqual(@as(usize, 1), page.value.result.page.rows.len);
+    try t.expectEqualDeep(view.source.source.accepted, page.value.result.page.accepted);
     const settled = try dispatch(service, .{ .transaction = .{ .settle = .{ .key = token, .operation = .{ .scope = scope, .principal = 101, .operation = 110001 }, .command = .commit, .steps = 256 } } });
     defer settled.deinit();
     try t.expect(settled.value.result.transaction.status.cleanup_complete);
     try t.expect(settled.value.result.transaction.status.observation.decided.outcome == .committed);
+    try t.expectError(error.TransactionReadChanged, dispatchContext(service, .{ .snapshot = snapshot }, null, null, 29, context));
 }
 
 test "signed transaction controls preserve paged policy and private atomic work" {

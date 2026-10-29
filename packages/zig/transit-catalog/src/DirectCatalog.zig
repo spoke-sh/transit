@@ -153,6 +153,8 @@ store: Store,
 data_log: s.TransitLog.Log,
 data_objects: s.TransitObjectStore.ObjectStore,
 options: Options,
+/// Borrowed only during one signed read dispatch; never retained between calls.
+transaction_read: ?c.DirectTransactionRead.Context = null,
 /// Failure injection after the Table acceptance and before its caller reply.
 lose_table_reply: bool = false,
 /// Failure injection after the original coordination acceptance.
@@ -674,6 +676,10 @@ pub fn checkAccess(self: *Self, request: AccessRequest, policy: Policy) !void {
         if (view.?.table.root.next_lsn == 0 or view.?.table.root.retired or view.?.properties.namespace != request.namespace.?) return error.CatalogDenied;
         const required = try self.guard(arena.allocator(), policy, namespace_value, view.?.properties.target(expected.object.object), request.access);
         try check(required);
+        if (self.transaction_read) |context| {
+            const read = try self.guard(arena.allocator(), policy, namespace_value, view.?.properties.target(expected.object.object), .read);
+            try self.overlayTransactionRead(&view.?, context, read, policy);
+        }
         if (!std.meta.eql(expected, view.?.table.root.interpretation)) return error.TableDefinitionChanged;
         try check(required);
     } else try check(try self.guard(arena.allocator(), policy, namespace_value, null, request.access));
@@ -1204,7 +1210,7 @@ const TransactionWorkspace = c.DirectTransactionWorkspace;
 
 /// Stage exact native DML for a private statement. Staging creates no admission,
 /// consumes no sequence and grants no permission to publish Table data.
-pub fn stageTransactionStatement(self: *Self, key: c.DirectClientToken.Key, sequence: u64, work: c.DirectTableIntent.Work, policy: Policy) !c.DirectTransactionWorkspace.Request {
+pub fn stageTransactionStatement(self: *Self, key: c.DirectClientToken.Key, basis: p.DataLifecycle.Position, sequence: u64, work: c.DirectTableIntent.Work, policy: Policy) !c.DirectTransactionWorkspace.Request {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
     const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
@@ -1212,6 +1218,7 @@ pub fn stageTransactionStatement(self: *Self, key: c.DirectClientToken.Key, sequ
     if (work == .ddl or sequence == 0 or sequence > head.acquired.cut.begin.limits.statements) return error.InvalidTransactionWork;
     if (head.pending != null) return error.TransactionStatementPending;
     if (sequence != head.last_statement + 1) return error.TransactionStatementConflict;
+    if (!std.meta.eql(basis, head.revision)) return error.TransactionReadChanged;
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(head.acquired.cut.begin.limits.resident_bytes) };
     const parent = self.allocator;
     const retained = self.options.table_owner;
@@ -1242,7 +1249,7 @@ fn stageTransactionStatementBounded(self: *Self, progress: c.DirectClientToken.P
     const current = try self.operationGuard(scratch.allocator(), native.binding, properties.namespace, policy);
     try check(current);
     var staging: TransactionWorkspace.Staging = .{ .underlying = self.data_objects, .used = head.charged_bytes, .limit = head.acquired.cut.begin.limits.workspace_bytes };
-    const result: TransactionWorkspace.Request = .{ .statement = .{ .transaction = head.acquired.cut.begin.identity, .sequence = sequence, .intent = native.binding.intent }, .binding = native.binding, .intent = try s.TableDmlIntent.stage(scratch.allocator(), staging.objects(), native) };
+    const result: TransactionWorkspace.Request = .{ .basis = head.revision, .statement = .{ .transaction = head.acquired.cut.begin.identity, .sequence = sequence, .intent = native.binding.intent }, .binding = native.binding, .intent = try s.TableDmlIntent.stage(scratch.allocator(), staging.objects(), native) };
     try result.validate();
     try check(current);
     return result;
@@ -1321,6 +1328,7 @@ fn transactionStatementBounded(self: *Self, progress: c.DirectClientToken.Progre
         if (!evaluate) return null;
     } else {
         if (evaluate or request.statement.sequence != head.last_statement + 1) return error.TransactionStatementConflict;
+        if (!std.meta.eql(request.basis, head.revision)) return error.TransactionReadChanged;
     }
     var intent = try s.TableDmlIntent.load(self.allocator, self.data_objects, request.intent);
     defer intent.deinit();
@@ -1418,6 +1426,76 @@ fn transactionTableStateBounded(self: *Self, progress: c.DirectClientToken.Progr
     defer evaluator.deinit();
     try check(access.current);
     return evaluator.state();
+}
+
+/// Validate the active revision before opening any private cursor or metadata.
+pub fn transactionReadHead(self: *Self, context: c.DirectTransactionRead.Context, policy: Policy) anyerror!TransactionWorkspace.Head {
+    try context.validate();
+    const progress = (try self.clientProgress(.{ .inspect = context.key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    if (!std.meta.eql(progress.revision, context.revision)) return error.TransactionReadChanged;
+    const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    if (head.pending != null) return error.TransactionStatementPending;
+    return head;
+}
+
+fn overlayTransactionRead(self: *Self, view: *View, context: c.DirectTransactionRead.Context, current: P.Guard, policy: Policy) !void {
+    const head = try self.transactionReadHead(context, policy);
+    const begin = head.acquired.cut.begin;
+    const object = view.table.root.interpretation.object;
+    try begin.identity.requireObject(object);
+    var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer sources.deinit();
+    try sources.restore(head.acquired.cut.sources);
+    const source = (try sources.get(object.object) orelse return error.TransactionObjectNotSelected).source;
+    var frozen = try view.table.inspectSnapshot(self.allocator, source.pin, current);
+    defer frozen.deinit();
+    if (!std.meta.eql(transactionTableGuard(frozen.root), source.guard)) return error.InvalidTransactionCut;
+    var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
+    defer index.deinit();
+    const prior = try TransactionWorkspace.get(s.TableWorkspace.State, self.allocator, &index, head.tables, object.object, context.key.scope(), TransactionWorkspace.table_format);
+    var evaluator = try s.TableWorkspace.init(self.allocator, &view.table, begin, source.pin, prior, current);
+    defer evaluator.deinit();
+    const state = evaluator.state();
+    const observation = try c.DirectTransactionRead.view(context, head, source.guard, state);
+    var declaration = try s.TableDeclaration.load(self.allocator, self.data_objects, state.root.declared());
+    defer declaration.deinit();
+    var options = self.options.table;
+    options.control = null;
+    var table = try P.init(self.allocator, state.root.partition, declaration.definition, self.data_log, self.data_objects, options);
+    errdefer table.deinit();
+    table.workspace = true;
+    table.workspace_read = observation;
+    table.root = state.root;
+    table.recovery_required = false;
+    const properties = try Properties.decode(self.allocator, declaration.definition.properties);
+    try check(current);
+    // Private roots and their temporary allocator must never enter an ordinary
+    // Table owner cache or a public recovery hint.
+    view.table.deinit();
+    view.* = .{ .table = table, .properties = properties };
+}
+
+fn resolveTransactionRead(self: *Self, allocator: std.mem.Allocator, context: c.DirectTransactionRead.Context, namespace_id: u64, name: a.Name, policy: Policy) !?View {
+    _ = allocator;
+    const head = try self.transactionReadHead(context, policy);
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const initial = try self.guard(scratch.allocator(), policy, try self.schema(namespace_id), null, .schema);
+    try check(initial);
+    const position = head.acquired.cut.begin.catalog;
+    var frames = try self.store.log.read(self.allocator, position.partition, position.next_lsn - 1, 1);
+    defer frames.deinit();
+    if (frames.frames.len != 1) return error.CatalogHistoryMissing;
+    const frozen = try Store.decodeFrame(self.allocator, frames.frames[0], position.partition, position.next_lsn - 1);
+    const value = try self.store.tree().get(frozen.root.names, try r.nameKey(namespace_id, name)) orelse return null;
+    const proposed = try r.fromValue(r.Name, self.allocator, value);
+    if (proposed.namespace != namespace_id or !std.meta.eql(proposed.name, name)) return error.CatalogNameHashCollision;
+    var access = try self.readAccess(scratch.allocator(), .{ .scope = self.config().scope, .branch = self.config().branch, .object = proposed.object }, policy, false);
+    errdefer access.view.deinit();
+    if (access.view.properties.namespace != namespace_id or !std.meta.eql(access.view.properties.name, name)) return error.InvalidTransactionRead;
+    try check(access.current);
+    return access.view;
 }
 
 const TransactionControl = c.DirectTransactionControl;
@@ -1765,7 +1843,7 @@ fn open(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: boo
 
 fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: bool, transaction_control: bool) !View {
     if (target.resource != null) return error.CatalogKindMismatch;
-    const resident = if (control or transaction_control) null else self.options.table_owner;
+    const resident = if (control or transaction_control or self.transaction_read != null) null else self.options.table_owner;
     const original_seed = target.seed orelse return error.CatalogRegistrationRequired;
     if (resident) |slot| if (slot.*) |cached| {
         slot.* = null;
@@ -1810,6 +1888,7 @@ fn candidate(self: *Self, namespace: u64, name: a.Name) !?r.Name {
 /// A name candidate alone is not a published object. The returned owner has an
 /// exact observed Table root; it is not a catalog-wide consistent snapshot.
 pub fn resolve(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, name: a.Name, policy: Policy) !?View {
+    if (self.transaction_read) |context| return self.resolveTransactionRead(allocator, context, namespace_id, name, policy);
     try self.requireInitialized();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
@@ -2916,6 +2995,7 @@ fn readAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, polic
     errdefer view.deinit();
     const current = try self.guard(allocator, policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), .read);
     try check(current);
+    if (self.transaction_read) |context| try self.overlayTransactionRead(&view, context, current, policy);
     return .{ .view = view, .current = current };
 }
 
@@ -2970,6 +3050,13 @@ fn pinRowsChecked(self: *Self, object: d.Object, owner: d.Operation, expected: d
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, false);
     defer access.view.deinit();
+    if (access.view.table.workspace_read) |read| {
+        if (retention != .snapshot or !std.meta.eql(owner, read.cut.begin.identity.begin) or
+            !std.meta.eql(expected, read.source.source.accepted)) return error.InvalidTransactionRead;
+        if (interpretation) |required| if (!std.meta.eql(required, read.source.source.interpretation)) return error.TableDefinitionChanged;
+        try check(access.current);
+        return .{ .owner = owner, .content = read.private };
+    }
     if (interpretation) |required| {
         const state = try access.view.table.pinState(owner, access.current);
         if (state.handle) |handle| {
@@ -3028,6 +3115,10 @@ pub fn pinState(self: *Self, object: d.Object, owner: d.Operation, policy: Polic
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, true);
     defer access.view.deinit();
+    if (access.view.table.workspace_read) |read| {
+        if (!std.meta.eql(owner, read.cut.begin.identity.begin)) return error.InvalidTransactionRead;
+        return .{ .interpretation = read.source.source.interpretation, .position = read.source.source.accepted, .retired = false, .handle = .{ .owner = owner, .content = read.private }, .released = false };
+    }
     return access.view.table.pinState(owner, access.current);
 }
 
@@ -3116,6 +3207,10 @@ pub fn releaseRows(self: *Self, object: d.Object, handle: P.SnapshotHandle, poli
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, true);
     defer access.view.deinit();
+    if (access.view.table.workspace_read) |read| {
+        if (!std.meta.eql(handle.owner, read.cut.begin.identity.begin) or !std.meta.eql(handle.content, read.private)) return error.InvalidTransactionRead;
+        return check(access.current);
+    }
     return access.view.table.releaseSnapshot(handle, access.current);
 }
 

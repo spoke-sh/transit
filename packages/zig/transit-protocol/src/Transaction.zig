@@ -94,6 +94,30 @@ pub const Cut = struct {
     }
 };
 
+/// An exact private read over the original common cut. Base Table positions
+/// remain public acceptance positions; private bytes never acquire a commit LSN.
+/// The owner validates membership, live original pins and the current revision.
+pub const ReadView = struct {
+    cut: Cut,
+    revision: d.Position,
+    last_statement: u64,
+    source: TableGuard,
+    private: d.Content,
+
+    pub fn validate(self: ReadView) !void {
+        try self.cut.validate();
+        try self.revision.validate();
+        try self.source.validate();
+        try self.private.validate();
+        try self.cut.begin.identity.requireObject(self.source.source.interpretation.object);
+        if (self.cut.acquired.partition != self.cut.begin.catalog.partition or self.cut.acquired.next_lsn <= self.cut.begin.catalog.next_lsn or
+            self.revision.partition != self.cut.acquired.partition or
+            self.revision.next_lsn < self.cut.acquired.next_lsn or
+            self.last_statement > self.cut.begin.limits.statements)
+            return error.InvalidTransactionRead;
+    }
+};
+
 /// One selected Table's immutable basis and logical conflict frontier. The pin
 /// receipt and physical accepted frontier may advance without a logical change.
 pub const TableGuard = struct {

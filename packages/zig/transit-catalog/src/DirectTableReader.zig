@@ -15,22 +15,21 @@ pub const Basis = struct {
     changed_lsn: u64,
     row_count: u64,
     authority: c.DirectReadAuthority,
+    workspace: ?c.protocol.Transaction.ReadView = null,
     fn from(source: w.Source) Basis {
-        return .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.row_count, .authority = source.authority };
+        return .{ .snapshot = source.snapshot, .interpretation = source.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.row_count, .authority = source.authority, .workspace = source.workspace };
     }
     /// Complete source evidence, independent of a native KV revision. The
     /// immutable declaration and pin content bind interpretation and WAL/root
     /// coverage; logical-change progress remains explicit for freshness checks.
     pub fn fingerprint(self: Basis) ![32]u8 {
-        var bytes: [4096]u8 = undefined;
-        var writer: std.Io.Writer = .fixed(&bytes);
-        var encoder: std.json.Stringify = .{ .writer = &writer };
+        var hash: std.Io.Writer.Hashing(std.crypto.hash.sha2.Sha256) = .init(&.{});
+        hash.hasher.update("transit.table.direct.query.source.v1\x00");
+        hash.hasher.update(&c.protocol.Growth.definition_bytes);
+        var encoder: std.json.Stringify = .{ .writer = &hash.writer };
         try c.protocol.Json.write(self, &encoder);
-        var digest = std.crypto.hash.sha2.Sha256.init(.{});
-        digest.update("transit.table.direct.query.source.v1\x00");
-        digest.update(&c.protocol.Growth.definition_bytes);
-        digest.update(writer.buffered());
-        return digest.finalResult();
+        try hash.writer.flush();
+        return hash.hasher.finalResult();
     }
 };
 
@@ -171,6 +170,11 @@ pub fn deinit(self: *Self) void {
 fn requireClient(self: *const Self, client: c.DirectTableClient) !void {
     if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
     if (self.released) return error.TableSnapshotReleased;
+    if (self.basis.workspace) |view| {
+        const context = client.transaction orelse return error.InvalidTransactionRead;
+        try context.validate();
+        if (!std.meta.eql(context.revision, view.revision)) return error.TransactionReadChanged;
+    } else if (client.transaction != null) return error.InvalidTransactionRead;
 }
 /// Recheck current rights and exact source attribution before disclosing a
 /// result computed from cached rows. Cached data carries no authorization.
@@ -419,6 +423,10 @@ fn consumeFiltered(self: *Self, value: w.FilteredPage, limits: P.ReadLimits) !Ba
 /// snapshot handle and retry release; destruction alone performs no remote work.
 pub fn release(self: *Self, client: c.DirectTableClient) !void {
     if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+    if (self.basis.workspace != null) {
+        self.released = true;
+        return;
+    }
     const response = try client.call(.{ .release = self.basis.snapshot });
     defer response.deinit();
     self.released = true;

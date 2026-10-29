@@ -321,6 +321,9 @@ lose_reply: bool = false,
 /// Private evaluation reuses the Table mutation engine but never appends to
 /// the accepted Table log. Only TableWorkspace constructs this mode.
 workspace: bool = false,
+/// The catalog validates this exact view and its original pin before opening
+/// each private read. Public/recovered Table owners never set this field.
+workspace_read: ?p.Transaction.ReadView = null,
 
 pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaration.Definition, log: Log.Log, objects: Objects.ObjectStore, options: Options) !Self {
     try definition.validate();
@@ -2731,8 +2734,10 @@ pub fn readSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     try self.ready();
     _ = try guard.acquire(guard.context);
     defer guard.release(guard.context);
-    if ((try self.requirePin(handle)).released) return error.TableSnapshotReleased;
-    var frozen = try Snapshot.load(self.allocator, self.objects, handle);
+    var frozen = if (self.workspace_read) |view| try self.privateSnapshot(self.allocator, handle, view) else blk: {
+        if ((try self.requirePin(handle)).released) return error.TableSnapshotReleased;
+        break :blk try Snapshot.load(self.allocator, self.objects, handle);
+    };
     defer frozen.deinit();
     try self.requireBasis(frozen.root);
     const index_key = try r.rowKey(key);
@@ -2744,10 +2749,24 @@ pub fn readSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     return row;
 }
 
+fn privateSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle, view: p.Transaction.ReadView) !SnapshotDefinition {
+    try view.validate();
+    if (!self.workspace or !std.meta.eql(handle.owner, view.cut.begin.identity.begin) or
+        !std.meta.eql(handle.content, view.private) or
+        !std.meta.eql(self.root.interpretation, view.source.source.interpretation))
+        return error.InvalidTransactionRead;
+    return .{ .owner = handle.owner, .retention = .snapshot, .root = self.root, .schema = try self.declaration.schema.schema.clone(allocator), .transaction = view };
+}
+
 /// Returns the original schema and source basis. Inspection never acquires or
 /// renews a pin; the existing owner must remain live and currently authorized.
 pub fn inspectSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotHandle, guard: Guard) !SnapshotDefinition {
     try self.ready();
+    if (self.workspace_read) |view| {
+        _ = try guard.acquire(guard.context);
+        defer guard.release(guard.context);
+        return self.privateSnapshot(allocator, handle, view);
+    }
     {
         _ = try guard.acquire(guard.context);
         defer guard.release(guard.context);
@@ -2769,7 +2788,10 @@ pub fn scanSnapshot(self: *Self, allocator: std.mem.Allocator, handle: SnapshotH
     try limits.validate();
     var frozen = try self.inspectSnapshot(allocator, handle, guard);
     defer frozen.deinit();
-    return self.scanRetainedRoot(allocator, frozen.root, frozen.schema.schema, handle, handle.content, after, limits, guard);
+    var page = try self.scanRetainedRoot(allocator, frozen.root, frozen.schema.schema, handle, handle.content, after, limits, guard);
+    page.accepted = frozen.position();
+    page.changed_lsn = frozen.changedLsn();
+    return page;
 }
 
 /// Read a canonical physical column subset while preserving identity traversal,
@@ -2791,8 +2813,8 @@ pub fn scanSnapshotColumns(self: *Self, allocator: std.mem.Allocator, handle: Sn
     return .{
         .source = handle,
         .interpretation = frozen.root.declared(),
-        .accepted = .{ .partition = frozen.root.partition, .next_lsn = frozen.root.next_lsn },
-        .changed_lsn = frozen.root.changed_lsn,
+        .accepted = frozen.position(),
+        .changed_lsn = frozen.changedLsn(),
         .total_rows = frozen.root.live_rows,
         .rows = page.rows,
         .count = page.count,
@@ -2847,8 +2869,8 @@ pub fn scanSnapshotFiltered(self: *Self, allocator: std.mem.Allocator, handle: S
     var result: FilteredPage = .{ .page = .{
         .source = handle,
         .interpretation = frozen.root.declared(),
-        .accepted = .{ .partition = frozen.root.partition, .next_lsn = frozen.root.next_lsn },
-        .changed_lsn = frozen.root.changed_lsn,
+        .accepted = frozen.position(),
+        .changed_lsn = frozen.changedLsn(),
         .total_rows = frozen.root.live_rows,
     } };
     errdefer result.deinit();
@@ -2971,8 +2993,8 @@ pub fn rangeSnapshot(self: *Self, allocator: std.mem.Allocator, handle: Snapshot
     var result: KeyRangePage = .{
         .source = handle,
         .interpretation = frozen.root.declared(),
-        .accepted = .{ .partition = frozen.root.partition, .next_lsn = frozen.root.next_lsn },
-        .changed_lsn = frozen.root.changed_lsn,
+        .accepted = frozen.position(),
+        .changed_lsn = frozen.changedLsn(),
         .total_rows = frozen.root.live_rows,
     };
     errdefer result.deinit();

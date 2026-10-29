@@ -16,8 +16,8 @@ pub fn acquire(self: Self, key: c.DirectClientToken.Key) !c.DirectTransaction.Ac
 pub fn inspect(self: Self, key: c.DirectClientToken.Key) !c.DirectTransactionControl.Status {
     return (try self.call(.{ .inspect = key })).status;
 }
-pub fn stage(self: Self, key: c.DirectClientToken.Key, sequence: u64, work: c.DirectTableIntent.Work) !c.DirectTransactionWorkspace.Request {
-    return (try self.call(.{ .stage = .{ .key = key, .sequence = sequence, .work = work } })).staged;
+pub fn stage(self: Self, key: c.DirectClientToken.Key, basis: c.protocol.DataLifecycle.Position, sequence: u64, work: c.DirectTableIntent.Work) !c.DirectTransactionWorkspace.Request {
+    return (try self.call(.{ .stage = .{ .key = key, .basis = basis, .sequence = sequence, .work = work } })).staged;
 }
 pub fn admit(self: Self, key: c.DirectClientToken.Key, request: c.DirectTransactionWorkspace.Request) !?c.storage.TableWorkspace.Outcome {
     return (try self.call(.{ .statement = .{ .key = key, .request = request, .execute = false } })).statement;

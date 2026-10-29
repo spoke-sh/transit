@@ -71,7 +71,7 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, output_allocator: s
     else if (request.borrow) |borrow| try borrow.proof(request.delegation.?, allocator) else if (request.delegation) |delegation| delegation.proof else request.proof;
     const original_context = if (request.closure != null or request.borrow != null) original.claim.context else if (request.delegation) |delegation| try delegation.binding.context(allocator) else context;
     var policy = try Policy.init(self.engine, self.configuration, original, original_context, if (request.delegation != null) request.proof else null);
-    policy.paged = request.action == .transaction;
+    policy.paged = request.action == .transaction or request.transaction != null;
     const owner = self.engine.journal.backend;
     var observation = self.engine.journal.observe;
     observation.metrics = .{};
@@ -108,7 +108,11 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, output_allocator: s
         if (catalog.recoveryState()) |known| prior.* = known else |_| {}
     };
     if (request.lease) |lease| try catalog.requireClientLease(lease, policy.policy());
-    const result = try c.DirectTableDispatch.apply(allocator, catalog, policy.policy(), request.action, request.delegation, .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource });
+    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource };
+    const result = if (request.transaction) |selected|
+        try c.DirectTransactionRead.apply(allocator, catalog, policy.policy(), selected, request.action, execution)
+    else
+        try c.DirectTableDispatch.apply(allocator, catalog, policy.policy(), request.action, request.delegation, execution);
     const observed = try policy.observation();
     const output = try c.protocol.Json.valueAllocBounded(output_allocator, w.Response{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = observed.revision, .subject = observed.subject, .result = result }, w.max_response_bytes);
     errdefer output_allocator.free(output);

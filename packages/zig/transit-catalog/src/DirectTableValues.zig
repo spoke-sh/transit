@@ -222,6 +222,9 @@ pub const Metadata = struct {
     row_count: []const u8,
     schema: c.fuze.TableSchemaJson.Schema,
     pub fn foreign(allocator: Allocator, connection: w.Connection, value: w.Definition) !Metadata {
+        // This foreign metadata profile has no transaction context. Never erase
+        // the private-view evidence and present it as committed Table data.
+        if (value.workspace != null) return error.UnsupportedTransactionRead;
         var temporary = std.heap.ArenaAllocator.init(allocator);
         defer temporary.deinit();
         var schema = try c.fuze.TableSchema.decode(allocator, try value.schema.decode(temporary.allocator(), c.fuze.TableSchema.max_bytes));
