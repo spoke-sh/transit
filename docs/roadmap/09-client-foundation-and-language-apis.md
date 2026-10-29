@@ -279,6 +279,166 @@ interfaces because it preserves the existing direct caller operations. It does
 not qualify new coarse submission, automatic settlement, SQL/transaction
 conveniences or the KV/Document/Stream/Queue facets.
 
+### Next implementation slice — values, direct readers and context contract
+
+**Audit basis:** `cf6f5ab533b01b15b141f74f20ffe42c1168d95d`, including the
+merged Catalog extraction. This slice completes the following source inventory
+and selects the neutral ownership contract below before adding a context ABI.
+The contract is proposed; it does not describe an implemented context, recovery
+store, ordinary foreign-language SQL API or new server capability.
+
+| Audited boundary | Decision and consumer migration |
+| --- | --- |
+| Fuze `LogicalCodec`, `LogicalJson`, `Types` | Already pure canonical owners. Make the Station logical ABI wrapper import Fuze directly; preserve its buffer/status boundary and every existing language codec. |
+| Query `Values` columns, scalar/cell projections, predicates and plans | Move deterministic conversion to Fuze `QueryValues`, preserving exact types, errors, collations, integers and allocator ownership. Query continues to compose those types with source/bundle declarations. |
+| Station Document `JsonValues` integer/hex helpers | Move the shared conversion implementation with those values; retain the Document reference adapter with its current accepted-revision owner. Preserve existing error names and bytes. |
+| Query `Values.Source`, `Capture`, `Bundle`, `Limits` and `Action` | Retain with captured/native query composition: they bind `SourceDefinition`, publication identity, requester authorization and legacy KV/Document decoders. They are not the ordinary SQL result model. |
+| Query `RelationalBridge` | Move its direct retained-Table session, pages, budgets and disclosure rules into `transit-query-direct`; migrate the composed Query export to that exact module. |
+| Query `TableChangeReader` | Move the existing direct history reader into `transit-query-direct`; preserve original history acquisition, checkpoint and explicit release rules. |
+| `QueryAbi`, `QueryBridge`, Query `Bridge`, `Workspace`, `RelationalCaller`, `ApiDiagnostic` | Retain mixed captured/interactive hosting and diagnostic composition. Do not rename this closure into the independent data client. A later data boundary binds SQL's existing `Executor` and `ResultSet`. |
+| Station `TableData`, `TableCandidate`, `TablePages`, `TableHead`, `TableHistory`, `TableChanges`, `TableReader` | Retain native-turn resource readers, candidate state and history adapters. Direct storage/query owners already exist separately; moving these aliases would not replace their accepted-turn semantics. |
+| Station `TableCreation`, `TableWrite`, `TableStatement`, `TableCleanup`, `TableAlter` | Retain native Table lifecycle/turn controls until their owning atomic migration. They are not a second direct Table commit owner. |
+| Station `Publication`, `PublicationReference`, `PublicationParts`, `PublicationUpload`, `ImmutableIndex` | Retain accepted native-resource publication and immutable index composition used by behaviors, captured jobs and Station Document. Pure hashing alone does not make the lifecycle a database primitive. |
+
+Affected native consumers are the Station ABI/exporters and port, Query's bundle,
+relational and captured adapters, Board, CLI, query host, SQL captured integration
+and Flight. They consume the same exported types after extraction. The Zig SDK
+adds the independent direct Query module and verifies shared type identity.
+Python, Node, Rust, Ruby, C/C++, Java, .NET and Erlang/Elixir retain their current
+ABI/port operations and generated resources; Go remains a raw-client consumer.
+No language receives an additional operation merely because its generated
+schema mentions a shared type. Contract drift and independent ABI/port fixtures
+must remain unchanged for this package-only extraction.
+
+### Proposed neutral client-context contract
+
+This is the P0 decision record for P2–P6. Implementing it requires neutral Zig
+types, reflected boundary resources and failure fixtures; the names below are
+semantic vocabulary, not a frozen ABI or runnable language API. Domain identities
+and outcomes continue to come from `DATA_LIFECYCLE_V1`, `DIRECT_TABLE_V1`,
+`SQL_RESULTS_V1` and `SQL_SESSION_V1`.
+
+#### Identity, configuration and operation classes
+
+A context has one local generation, explicit transport/trust configuration and
+credential providers. A facet binds a complete authority instance/realm and its
+own account or principal/role scope. Configuring two facets does not equate their
+identities or grant permissions. Context creation validates local configuration
+and reserves capacity; network negotiation is explicit and reports the selected
+server definition/capabilities. Pure values require neither a context nor I/O.
+
+| Operation | Identity and authority | Observable outcome and recovery owner |
+| --- | --- | --- |
+| Pure codec/type/plan conversion | Current format definition and supplied logical type; no permission claim | Owned output or local refusal; no durable recovery record |
+| Metadata-dependent preparation | Complete facet scope, current rights and exact observed definition | Immutable prepared work, observation and definition; preparation is an authorized read |
+| Independent Catalog change | Original operation binding, content and current permission | Domain acceptance/progress/terminal evidence; frozen intent/reference survives uncertainty |
+| SQL statement | Account, service instance, original client token and session | Existing command/result/unresolved outcome; no SQL-text classification or new-token retry |
+| Transaction statement/control | Original transaction handle and serialized command tokens | Provisional statement counts, final decision and cleanup separately; attach is explicit |
+| Captured/native turn proposal | Existing requester/turn owner and recorded destinations | Existing commit/replay semantics; not admitted as an independent database commit |
+| Recorded external effect | Owning connector intent and authorization | Connector outcome/uncertainty; no effect dispatch or callback replay from generic recovery |
+
+Native principal sequencing is keyed by realm/principal and coordinated across
+all native handles in the context. Domain operation IDs and SQL client tokens
+remain distinct namespaces. Cross-process sharing requires an explicit durable
+allocator/lease or exclusive ownership; a local mutex establishes neither.
+Uncertainty quarantines only a scope whose owner forbids sequence advancement.
+Credential refresh never substitutes a different principal or accepted identity.
+
+#### Admission, memory and lifetime
+
+The configuration supplies finite counts/bytes for active data operations,
+pending admission, transports, outstanding responses, result leases and control
+work. A zero control reserve is invalid. Reuse `transit-io` and existing SQL
+reserves; charge stacks, task records, transport storage, retained values and
+spill separately. Do not infer process-wide bounds from one allocator counter.
+A slow result holds only its charged leases. Cancellation, close, renewal and
+original-operation observation retain admission capacity independent of data
+work; none may wait for an unbounded data queue to drain.
+
+Admission returns a generation-bound permit, an explicitly deadline-bounded
+wait, or a typed capacity refusal before dispatch. FIFO within a lane and
+round-robin eligible facets provide deterministic scheduling; control has its
+own finite lane, so neither control nor data can consume the other's reserve.
+Only one request borrows a mutable transport, SQL attachment or result handle.
+A retained SQL result does not imply that its control connection is available
+for simultaneous callers without a separate permit.
+
+Owned values survive the next call and context closure. A batch borrow ends on
+advance/close; retaining it requires a bounded copy or a charged lease. Stale
+handle generations fail before dereference. Collection limits stop collection,
+not the logical result, and never establish terminal coverage. Existing source
+and post-buffer authorization checks run before every disclosure.
+
+The close transition is `open -> closing -> joined`. Closing refuses new data
+admission, signals cancellation to active host work and joins it before freeing
+buffers, I/O or mapped libraries. Control cleanup has a bounded budget and reports
+unresolved cleanup separately. Close does not silently roll back a transaction,
+release an explicit durable pin, forget an uncertain operation or assert that a
+remote effect was cancelled. Cancelling the host task awaiting close leaves a
+retained native close owner responsible for the join.
+
+#### Recovery-store hook and failure ordering
+
+The store is an explicit capability, not an implicit file or process-local map.
+Its operations are atomic `insert_if_absent`, compare-and-swap `update`, fenced
+`claim/release`, bounded `list_page` and policy-authorized `remove`. Records bind
+format/definition, immutable original scope and operation key, exact prepared
+bytes, subsequent owner references and observed receipt/transaction evidence.
+They never include signing keys/passwords. Payload-bearing stores require private
+permissions. Keys reused with different scope/content reject before dispatch.
+
+Persist prepared bytes before staging or the first potentially accepting send.
+Persist each returned staging/reference handle before the next dependent send.
+A failed pre-dispatch insert sends nothing. A failed update after possible
+acceptance returns the original record and uncertainty; it cannot authorize a
+replacement operation. Receipt persistence failure reports the known outcome
+and store failure separately. It must not demote a verified commitment to a
+rejection or tell the caller to rerun its transaction callback.
+
+A claim prevents simultaneous recovery owners; claim expiry changes local store
+ownership only. Recovery uses current credentials to observe or repeat only
+owner-permitted actions against the original binding. It never rebuilds SQL,
+re-resolves a renamed object, acquires a replacement snapshot or dispatches an
+external effect. Missing/corrupt/incompatible records fail closed. Uncertain
+records remain enumerable after cancellation or process loss; storage quota
+pressure cannot delete them. Receipt retention follows the domain owner and an
+explicit store policy, independently of local handle/session expiry.
+
+Without a store the API returns owned recovery material and preserves identity
+while that material survives. It promises no recovery after all such material
+is lost. The reference durable implementation must prove atomic replacement,
+file and directory synchronization, lock fencing, disk-full handling and bounded
+paging before it can claim process-loss recovery. Browser credentials/storage
+require a separate profile; they cannot reuse a Node filesystem assumption.
+
+#### Language contract review
+
+The same four journeys apply in each language: prepare an independent Table
+write, consume a bounded read, run a two-Table transaction with an outbox row, and
+resolve the original lost commit reply. Names remain proposals. No helper may
+implicitly retry a transaction callback or conflate an abandoned await with
+rollback.
+
+| Language | Proposed application shape and ownership decision |
+| --- | --- |
+| Zig | `Context.init(allocator, io, config)`; explicit `deinit`/joined close; `Outcome` owns metadata and `nextBatch` borrows. Explicit begin/commit handles and store callbacks; errors retain original work. |
+| Python | `with Client(...)` / `async with AsyncClient(...)`; context-managed result iterator; exact `int` and decimal coefficient/scale. `prepare`, `dispatch` and `recover` share native owners. Cancellation shields native join; commit uncertainty carries the original transaction handle. |
+| TypeScript/Node | `await Client.open(...)`, `try/finally` close, async result iteration; validated cells and `bigint`. `AbortSignal` requests cancellation without inferring rollback. Explicit commit yields a typed decision/unresolved union and original store key. |
+| Rust | Owned client/context and recovery values; exclusive mutable transport/transaction borrows, scoped batch views. Dropping a future retains a native join owner. Commit returns a decision or original unresolved handle; no automatic `Drop` commit. |
+| Go | `Client` plus `context.Context` per operation; bounded native workers, `Rows.Close` and terminal `Err`. Cancelled contexts preserve original operation material; transaction decisions remain explicit. No Go data implementation is claimed by this sketch. |
+| Erlang/Elixir | Supervised bounded port owner; immutable records/structs and monitored request IDs; demand-driven result pages. Caller death/timeout never supplies durable cancellation. Recovery uses the saved operation; supervision does not replay a transaction function. |
+| Ruby | Block-scoped client/result ownership with explicit close; exact Integer and decimal values. Exceptions retain original operation and cleanup evidence; block exit does not invent a commit. |
+| C/C++ | Opaque generation-checked handles and explicit buffer/lease release; C++ move-only owners over the same ABI. Status and owned recovery/diagnostic output are separate; destructors cannot hide unresolved transaction decisions. |
+| Java | `AutoCloseable` context/result owners and bounded executors; exact `BigInteger`/decimal projections. Interrupted waits leave native ownership joined; explicit commit results preserve original handles. |
+| .NET | `IDisposable`/`IAsyncDisposable`, bounded native scheduling and async iteration; lossless wide values. `CancellationToken` affects waiting/control, while disposal joins active native work and reports unresolved cleanup. |
+
+Before P2/P3 land, deterministic tests must cover saturation with reserved
+control progress, per-scope sequence quarantine, stale generations, cancelled
+close, every store failure boundary, a known commit racing cancellation and an
+incomplete result prefix. Then installed Zig/Python/Node journeys exercise the
+same state machine. Generated JSON/ABI declarations remain separate from these
+language-owned interfaces.
+
 #### P0 — Freeze contracts and user journeys
 
 Use one small application dataset for direct declaration/write/read, a two-Table
