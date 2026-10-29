@@ -136,7 +136,7 @@ pub const Runtime = struct {
     suppressed: Atomic = .init(0),
     sink_errors: Atomic = .init(0),
     writer: ?std.Io.Future(void) = null,
-    sink: std.Io.File = .stderr(),
+    sink: std.Io.File,
     sink_failed: std.atomic.Value(bool) = .init(false),
     busy: std.atomic.Value(bool) = .init(false),
     mutex: std.Io.Mutex = .init,
@@ -154,7 +154,7 @@ pub const Runtime = struct {
     pub fn init(io: std.Io, comptime service: []const u8, config: Config) Runtime {
         var instance: [16]u8 = undefined;
         io.random(&instance);
-        return .{ .io = io, .service = service, .config = config, .instance = instance };
+        return .{ .io = io, .service = service, .config = config, .instance = instance, .sink = .stderr() };
     }
 
     /// Runtime must remain at the same address until stop; failure to obtain a
