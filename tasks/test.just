@@ -366,6 +366,7 @@ packages:
     cd packages/zig/transit-http-server && zig build test
     cd packages/zig/transit-station-app && zig build test
     cd packages/zig/transit-serving && zig build test
+    cd packages/zig/transit-document && zig build test
     cd packages/zig/transit-station-document && zig build test
     cd packages/zig/transit-station-grpc && zig build test
     cd packages/zig/transit-grpc && zig build test
