@@ -2,15 +2,19 @@
   "version": 1,
   "lanes": {
     "formal": [
-      "test::model",
-      "test::wal-model",
-      "test::transaction-decision-model",
-      "test::table-transaction-model",
-      "test::write-lifecycle-model",
+      "test::sql-rewrites",
       "test::model-delivery",
+      "test::queue-lease-transaction-model",
+      "test::wal-model",
+      "test::resident-owner-cache-model",
+      "test::transaction-decision-model",
+      "test::storage-lifecycle-model",
+      "test::transaction-workspace-model",
+      "test::model",
       "test::console-model",
       "test::statement-result-model",
-      "test::sql-rewrites"
+      "test::table-transaction-model",
+      "test::write-lifecycle-model"
     ],
     "core": [
       "check::core",
@@ -661,13 +665,81 @@
         "paths": [
           "tests/verification/models/TransactionDecision.tla",
           "tests/verification/models/TransactionDecision.cfg",
-          "tests/verification/models/transaction_decision_model.py"
+          "tests/verification/models/transaction_decision_model.py",
+          "tests/verification/models/transaction_decision_state.zig"
         ],
         "depends_on": [
           "tlc-support"
         ],
         "tasks": [
           "test::transaction-decision-model"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "transaction-workspace-proof": {
+        "paths": [
+          "tests/verification/models/TransactionWorkspace.tla",
+          "tests/verification/models/TransactionWorkspace.cfg",
+          "tests/verification/models/transaction_workspace_model.py",
+          "tests/verification/models/transaction_workspace_state.zig"
+        ],
+        "depends_on": [
+          "tlc-support"
+        ],
+        "tasks": [
+          "test::transaction-workspace-model"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "storage-lifecycle-proof": {
+        "paths": [
+          "tests/verification/models/StorageLifecycle.tla",
+          "tests/verification/models/StorageLifecycle.cfg",
+          "tests/verification/models/storage_lifecycle_model.py",
+          "tests/verification/models/storage_lifecycle_state.zig"
+        ],
+        "depends_on": [
+          "tlc-support"
+        ],
+        "tasks": [
+          "test::storage-lifecycle-model"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "resident-owner-cache-proof": {
+        "paths": [
+          "tests/verification/models/ResidentOwnerCache.tla",
+          "tests/verification/models/ResidentOwnerCache.cfg",
+          "tests/verification/models/resident_owner_cache_model.py",
+          "tests/verification/models/resident_owner_cache_state.zig"
+        ],
+        "depends_on": [
+          "tlc-support"
+        ],
+        "tasks": [
+          "test::resident-owner-cache-model"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "queue-lease-transaction-proof": {
+        "paths": [
+          "tests/verification/models/QueueLeaseTransaction.tla",
+          "tests/verification/models/QueueLeaseTransaction.cfg",
+          "tests/verification/models/queue_lease_transaction_model.py"
+        ],
+        "depends_on": [
+          "tlc-support"
+        ],
+        "tasks": [
+          "test::queue-lease-transaction-model"
         ],
         "resources": [
           "formal-cpu"
@@ -703,6 +775,22 @@
         ],
         "tasks": [
           "test::table-transaction-model"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "sql-rewrites-proof": {
+        "paths": [
+          "contracts/sql/FuzeRewrite.lean",
+          "contracts/sql/FuzeCell.lean",
+          "contracts/sql/SchemaProjection.lean",
+          "contracts/sql/CollationOrder.lean",
+          "tests/query/sql/rewrites.py"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "test::sql-rewrites"
         ],
         "resources": [
           "formal-cpu"

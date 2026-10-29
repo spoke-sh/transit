@@ -9,6 +9,31 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Expanded formal models, Zig trace replay and Lean 4 specifications — 2026-10-28
+
+On development source based on `e124b972c4b8`, the `formal` lane expands to
+thirteen tasks, adding four finite TLA+ specifications (`TransactionWorkspace.tla`,
+`StorageLifecycle.tla`, `ResidentOwnerCache.tla`, `QueueLeaseTransaction.tla`),
+automated Zig negative-control counterexample replay bridges for
+`TransactionDecision.tla`, `WriteTokens.tla`, `TransactionWorkspace.tla`,
+`StorageLifecycle.tla` and `ResidentOwnerCache.tla`, and three Lean 4 algebraic
+specifications (`FuzeCell.lean`, `SchemaProjection.lean`, `CollationOrder.lean`):
+
+| Task | Executed result |
+| --- | --- |
+| `just test::transaction-decision-model` | 3,227 distinct states exhausted; 6 negative controls detected and replayed against Zig `TransactionDecisionLog` |
+| `just test::transaction-workspace-model` | 304 distinct states exhausted; 8 negative controls detected and replayed against Zig `DirectCatalog` and `TablePartition` |
+| `just test::write-lifecycle-model` | 25 finite profiles exhausted; 15 negative controls detected and replayed against Zig `TablePartition` (10 lifecycle controls) and `DirectCatalog.admitClientToken` (5 token controls) |
+| `just test::storage-lifecycle-model` | 1,200 distinct states exhausted; 6 negative controls detected and replayed against Zig `TablePartition`, `TableMaintenanceState`, `TableStorageRoots` and `TableGarbageCollection` |
+| `just test::resident-owner-cache-model` | 149 distinct states exhausted; 5 negative controls detected and replayed against Zig `TablePartition.recoverSince`, `DirectCatalog` workspace isolation and `ReadCache` pin lifecycles |
+| `just test::queue-lease-transaction-model` | 21 distinct states exhausted; 5 negative controls detected (Milestone 6 `QueuePartition` forward-design proposal) |
+| `just test::sql-rewrites` | 19 named Lean 4 theorems across 4 specifications (`FuzeRewrite.lean`, `FuzeCell.lean`, `SchemaProjection.lean`, `CollationOrder.lean`) checked with zero `sorryAx` or warnings |
+
+These checks establish bounded safety of the finite specifications, algebraic
+theorems under their stated premises, and concrete negative-control trace rejection
+against the Zig owners. They do not establish unbounded implementation refinement,
+concurrent OS scheduling or physical power-loss durability.
+
 ## Durable private statements and account reservations — 2026-10-28
 
 The question is whether an admitted private Table statement can recover its

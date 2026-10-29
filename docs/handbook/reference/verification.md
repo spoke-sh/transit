@@ -41,8 +41,11 @@ wire bytes, signatures, full-width values and cross-language ownership.
 Generated schedules and saved counterexamples explore races across ownership,
 revocation, retry and time. Finite models establish only their stated bounded
 invariants and assumptions; they are not a proof of every Zig execution or cluster
-size. The selected SQL rewrite theorems are specification results with explicit
-correspondence assumptions; no optimizer rewrite is enabled by those proofs.
+size. The Lean 4 SQL specifications check rewrite factorization, 5-state cell
+lattice and Kleene/SQL truth semantics, multi-version schema evolution and
+projection commutation, and collation sort-key preorders with Umbra 4-byte prefix
+reflection and zone-map pruning under explicit correspondence assumptions; no
+optimizer rewrite is enabled by those proofs.
 
 The local WAL model separates visible writes from durable file contents, directory
 entries and metadata. Its finite checks cover acknowledgement, fencing, recovery
@@ -52,6 +55,16 @@ disk suites exercise process death and injected I/O errors. A model check does
 not establish host power-loss behavior or a refinement proof of the Zig owner.
 The [storage account](../internals/storage-runtime.md#local-wal-publication-and-recovery-model)
 defines the correspondence and exclusions.
+
+The storage lifecycle, transaction workspace, transaction decision, write
+lifecycle/token, and resident owner/cache models check finite transition invariants
+and replay their negative-control counterexample traces against the real Zig
+`TablePartition`, `TableMaintenanceState`, `TableStorageRoots`,
+`TableGarbageCollection`, `TransactionDecisionLog`, and `DirectCatalog` owners.
+The forward-design `QueueLeaseTransaction` model checks Milestone 6
+`QueuePartition` `.tack` Roaring states, `key_fifo` affinity, `_lease_epoch`
+fencing, and 3-primitive turn commits. See [the model reference](../../../tests/verification/models/README.md)
+for scope and limits.
 
 The console interaction model checks bounded editor/request transitions and
 replays every exported edge against its Zig owner. Its conditional progress

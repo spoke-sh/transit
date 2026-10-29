@@ -958,7 +958,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .root_source_file = b.path("tests/verification/models/write_lifecycle_state.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_storage", .module = storage.module("transit_storage") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_protocol", .module = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize }).module("transit_protocol") } },
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_storage", .module = storage.module("transit_storage") }, .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_protocol", .module = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize }).module("transit_protocol") } },
     }) });
     const write_lifecycle_model = b.addSystemCommand(&.{ "python3", "-B" });
     write_lifecycle_model.addFileArg(b.path("tests/runner/launch.py"));
@@ -968,6 +968,62 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     write_lifecycle_model.stdio = .inherit;
     write_lifecycle_model.addPassthruArgs();
     b.step("test-write-lifecycle-model", "Check SQL write models and replay selected Table counterexamples").dependOn(&write_lifecycle_model.step);
+    const transaction_decision_trace = b.addExecutable(.{ .name = "transaction-decision-state-trace", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/verification/models/transaction_decision_state.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_storage", .module = storage.module("transit_storage") }, .{ .name = "transit_protocol", .module = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize }).module("transit_protocol") } },
+    }) });
+    const transaction_decision_model = b.addSystemCommand(&.{ "python3", "-B" });
+    transaction_decision_model.addFileArg(b.path("tests/runner/launch.py"));
+    transaction_decision_model.addFileArg(b.path("tests/verification/models/transaction_decision_model.py"));
+    transaction_decision_model.addArtifactArg(transaction_decision_trace);
+    transaction_decision_model.has_side_effects = true;
+    transaction_decision_model.stdio = .inherit;
+    transaction_decision_model.addPassthruArgs();
+    b.step("test-transaction-decision-model", "Check transaction decision model and replay counterexamples against Zig").dependOn(&transaction_decision_model.step);
+    const transaction_workspace_trace = b.addExecutable(.{ .name = "transaction-workspace-state-trace", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/verification/models/transaction_workspace_state.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }},
+    }) });
+    const transaction_workspace_model = b.addSystemCommand(&.{ "python3", "-B" });
+    transaction_workspace_model.addFileArg(b.path("tests/runner/launch.py"));
+    transaction_workspace_model.addFileArg(b.path("tests/verification/models/transaction_workspace_model.py"));
+    transaction_workspace_model.addArtifactArg(transaction_workspace_trace);
+    transaction_workspace_model.has_side_effects = true;
+    transaction_workspace_model.stdio = .inherit;
+    transaction_workspace_model.addPassthruArgs();
+    b.step("test-transaction-workspace-model", "Check catalog transaction workspace model and replay counterexamples against Zig").dependOn(&transaction_workspace_model.step);
+    const storage_lifecycle_trace = b.addExecutable(.{ .name = "storage-lifecycle-state-trace", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/verification/models/storage_lifecycle_state.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }},
+    }) });
+    const storage_lifecycle_model = b.addSystemCommand(&.{ "python3", "-B" });
+    storage_lifecycle_model.addFileArg(b.path("tests/runner/launch.py"));
+    storage_lifecycle_model.addFileArg(b.path("tests/verification/models/storage_lifecycle_model.py"));
+    storage_lifecycle_model.addArtifactArg(storage_lifecycle_trace);
+    storage_lifecycle_model.has_side_effects = true;
+    storage_lifecycle_model.stdio = .inherit;
+    storage_lifecycle_model.addPassthruArgs();
+    b.step("test-storage-lifecycle-model", "Check storage lifecycle model and replay counterexamples against Zig").dependOn(&storage_lifecycle_model.step);
+    const resident_owner_cache_trace = b.addExecutable(.{ .name = "resident-owner-cache-state-trace", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/verification/models/resident_owner_cache_state.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }},
+    }) });
+    const resident_owner_cache_model = b.addSystemCommand(&.{ "python3", "-B" });
+    resident_owner_cache_model.addFileArg(b.path("tests/runner/launch.py"));
+    resident_owner_cache_model.addFileArg(b.path("tests/verification/models/resident_owner_cache_model.py"));
+    resident_owner_cache_model.addArtifactArg(resident_owner_cache_trace);
+    resident_owner_cache_model.has_side_effects = true;
+    resident_owner_cache_model.stdio = .inherit;
+    resident_owner_cache_model.addPassthruArgs();
+    b.step("test-resident-owner-cache-model", "Check resident owner and ReadCache model and replay counterexamples against Zig").dependOn(&resident_owner_cache_model.step);
     const statement_result_trace = b.addExecutable(.{ .name = "statement-result-state-trace", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/verification/models/statement_result_state.zig"),
         .target = target,
