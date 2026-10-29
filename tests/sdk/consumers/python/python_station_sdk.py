@@ -1,6 +1,5 @@
 """Clean installed public Station SDK: real authority, callbacks and host loss."""
 
-from sdk.artifact_versions import package_text
 import asyncio
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -921,6 +920,7 @@ def document_consumer(mode, cfg):
 
 
 def run(node, cli, raw_library, wheels, http_worker=None, *, execute=None):
+    from sdk.artifact_versions import package_text
     if execute is None and http_worker is None:
         raise ValueError("The full Station SDK schedule requires the HTTP worker binary")
     from sdk.sdk_station_runner import Consumer, run as schedule

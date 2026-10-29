@@ -1,6 +1,5 @@
 """Install public raw-client wheels outside the checkout and exercise real I/O."""
 
-from sdk.artifact_versions import package_text
 import asyncio
 import hashlib
 import json
@@ -150,6 +149,7 @@ def consumer(mode, config_file):
 
 
 def run(node, cli, raw_library, wheels, evidence=None):
+    from sdk.artifact_versions import package_text
     from sdk.sdk_raw_client import run as schedule
     wheels = Path(wheels).resolve()
     def install(target):
