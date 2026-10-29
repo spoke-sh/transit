@@ -1956,7 +1956,10 @@
         "packages/zig/transit-sql-service/src/CapturedOperations.zig",
         "packages/zig/transit-sql-service/src/ConfigurationOperations.zig",
         "packages/zig/transit-sql-client/src/Client.zig",
-        "apps/transit-sql-gateway/src/Native.zig",
+        "packages/zig/transit-sql-host/src/Native.zig",
+        "packages/zig/transit-sql-host/src/Deployment.zig",
+        "apps/transit-node/NativeServer.zig",
+        "apps/transit-node/LocalTableService.zig",
         "tests/interfaces/sql_sessions/native.py",
         "tests/interfaces/installation/server_write_observation.py"
       ],

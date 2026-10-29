@@ -49,8 +49,10 @@ with fixed integers and deterministic variable-width text. It checks narrow,
 wide, relational and metadata results, records first-output/terminal time and
 sampled console RSS, then measures native batch counts, canonical/HTTP bytes and
 an ordered cell digest independently. A 50-ms consumer delay exercises bounded
-pull pacing. `--instrument` adds a native/Table proxy, operation counts and the
-node's owner-work counters. Local storage has no separate provider HTTP endpoint;
+pull pacing. `--instrument` records bounded typed native/Table attempt counters for the
+co-hosted installed SQL path. `--remote-sql --instrument` selects the historical
+standalone gateway proxy with per-operation HTTP and node-work diagnostics.
+Aggregate local counters do not classify statements or prove durable outcomes. Local storage has no separate provider HTTP endpoint;
 reported provider counters describe the node's instrumented owner operations.
 Compare those runs separately from unproxied latency. Every selected executable
 is copied before startup so concurrent workspace rebuilds cannot replace it.

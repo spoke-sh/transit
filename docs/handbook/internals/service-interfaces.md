@@ -216,13 +216,35 @@ inferred from this architecture.
 
 ### Placement, sessions and adapters
 
-`transit-sql-gateway` composes one
+The [SQL host](../../../packages/zig/transit-sql-host/README.md) composes one
 [Registry](../../../packages/zig/transit-sql-service/src/Registry.zig) with bounded
 [Session](../../../packages/zig/transit-sql-service/src/Session.zig) objects. PostgreSQL and
 MySQL adapters obtain sessions from that registry and retain their own dialect,
 codec and execution-cycle restrictions. Native HTTP/TLS and Unix HTTP call the
 same owner. One account's [DatabaseRuntime](../../../packages/zig/transit-sql/src/DatabaseRuntime.zig)
 coordinates accepted writes independently of connected sockets.
+
+The installed server embeds that host in the node after account enrollment.
+`LocalEndpoint` dispatches signed Table and native requests into the same node
+context as HTTP: four data lanes, two reserved control lanes and four wait lanes.
+A request borrows one lane; Table stripes and Catalog access remain owned by
+`LocalTableHost`. No native or Catalog lock spans a whole query or socket write.
+Typed Table results copy variable data into bounded caller-owned output before
+passing the common final policy fence. Request scratch is released separately.
+Cancellation joins the dispatched call before either allocation owner is freed.
+
+A private same-user Unix channel lets the installation supervisor start, inspect
+and replace the SQL host after enrollment. The full configuration fingerprint
+makes an identical start idempotent across a lost reply. Replacement checks the
+current fingerprint and joins the old host before starting another account
+generation. Node shutdown joins SQL before releasing storage. Readiness still
+requires the account's recovery gates; a running task alone is insufficient.
+The lifecycle status counts typed transport attempts without recording payloads
+or treating attempts as durable outcomes.
+
+Standalone `transit-sql-gateway` hosts the same sessions with remote clients.
+Configuration settings/reload keep their separate installation publication owner;
+co-hosting does not create a configuration cache or another settings authority.
 
 ```mermaid
 flowchart LR
@@ -334,7 +356,7 @@ handle retention.
 
 The [TLS transport](../../../packages/zig/transit-tls-server/src/root.zig) arms a
 frame deadline on the first network bytes, before TLS decoding can complete;
-the [connection adapter](../../../apps/transit-sql-gateway/src/Connection.zig)
+the [connection adapter](../../../packages/zig/transit-sql-host/src/Connection.zig)
 handles already buffered TLS bytes too. Thus disabling idle expiry does not
 permit an indefinitely incomplete frame or TLS record. Connection and memory
 quotas still bound resident state. The [lifetime proof](../../../tests/interfaces/installation/server_sql_lifetimes.py)

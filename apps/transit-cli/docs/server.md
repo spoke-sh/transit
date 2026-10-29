@@ -194,6 +194,11 @@ Configuration rejects unknown fields and incompatible versions; ports must be di
 listeners bind `127.0.0.1`. The parent of `installation` must exist. Connectors,
 remote listeners and alternate source definitions remain unsupported.
 
+Installed SQL listeners and execution belong to the selected node artifact.
+`executables.sql_gateway` remains part of the installation artifact identity for
+standalone SQL placement and separately invoked operator controls; the server
+uses the shared host inside the node for its SQL listeners.
+
 Board uses the built-in role unless `executables.board` selects a standalone
 binary. Optional `board` settings default to
 `{"port":19107,"public_origin":"http://127.0.0.1:19107"}`. Override the port for

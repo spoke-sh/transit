@@ -1633,7 +1633,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 91,
+        "try": 92,
         "catch": 9
       },
       "imports": [
@@ -1654,7 +1654,8 @@
         "Sql.zig",
         "Tables.zig",
         "std",
-        "transit_query"
+        "transit_query",
+        "transit_sql_host"
       ]
     },
     "apps/transit-cli/server/SettingsSchema.zig": {
@@ -1677,11 +1678,20 @@
       "errors": {
         "AccessDenied": 1,
         "AuthorityRollback": 1,
+        "AuthorityUnavailable": 1,
+        "BrokenPipe": 1,
+        "ConnectionRefused": 1,
+        "ConnectionResetByPeer": 1,
+        "ConnectionTimedOut": 1,
+        "EndOfStream": 1,
+        "FileNotFound": 1,
         "GatewayConfigurationChanged": 1,
         "GatewayConnectionCapacity": 1,
-        "GatewayOwnerUnavailable": 2,
+        "GatewayOwnerUnavailable": 4,
         "IncompatibleDefinition": 1,
-        "InvalidGatewayConfiguration": 1
+        "InvalidGatewayConfiguration": 1,
+        "SocketNotConnected": 1,
+        "Timeout": 1
       },
       "outcomes": {
         "status": [
@@ -1701,6 +1711,7 @@
         "beginInitialization()": "<inferred>",
         "configuration()": "<inferred>",
         "create()": "<inferred>",
+        "hostCall()": "<inferred>",
         "prepare()": "<inferred>",
         "recover()": "<inferred>",
         "report()": "<inferred>",
@@ -1713,14 +1724,13 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 82,
-        "catch": 5
+        "try": 85,
+        "catch": 7
       },
       "imports": [
         "../Diagnostic.zig",
         "Files.zig",
         "Installation.zig",
-        "Process.zig",
         "Provider.zig",
         "SqlEnrollment.zig",
         "SqlJournal.zig",
@@ -1729,6 +1739,7 @@
         "std",
         "transit_query",
         "transit_sql_client",
+        "transit_sql_host",
         "transit_sql_service"
       ]
     },
@@ -1928,27 +1939,6 @@
         "std"
       ]
     },
-    "apps/transit-sql-gateway/src/Connection.zig": {
-      "errors": {
-        "EndOfStream": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "finish()": "<inferred>",
-        "readExact()": "<inferred>",
-        "upgrade()": "<inferred>",
-        "writeAll()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 4,
-        "catch": 0
-      },
-      "imports": [
-        "transit_tls_server"
-      ]
-    },
     "apps/transit-sql-gateway/src/Control.zig": {
       "errors": {
         "ExpectedControlArguments": 4,
@@ -1974,43 +1964,6 @@
         "transit_sql_service"
       ]
     },
-    "apps/transit-sql-gateway/src/Native.zig": {
-      "errors": {
-        "EndOfStream": 1,
-        "GatewayConnectionCapacity": 1,
-        "InvalidSqlLane": 1,
-        "InvalidSqlPeer": 1,
-        "ReadFailed": 1,
-        "UnsupportedSqlPeerPlatform": 1,
-        "WriteFailed": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "Connection.init()": "<inferred>",
-        "Connection.read()": "std . Io . Reader . StreamError",
-        "Connection.send()": "std . Io . Writer . Error",
-        "Connection.write()": "std . Io . Writer . Error",
-        "RequestStorage.acquire()": "<inferred>",
-        "RequestStorage.init()": "<inferred>",
-        "handleConnection()": "<inferred>",
-        "respond()": "<inferred>",
-        "serve()": "<inferred>"
-      },
-      "open_error_set_uses": 1,
-      "propagation": {
-        "try": 22,
-        "catch": 6
-      },
-      "imports": [
-        "builtin",
-        "std",
-        "transit_http_server",
-        "transit_memory",
-        "transit_sql_service",
-        "transit_tls_server"
-      ]
-    },
     "apps/transit-sql-gateway/src/Stop.zig": {
       "errors": {
         "SignalSetupFailed": 2
@@ -2032,93 +1985,26 @@
     },
     "apps/transit-sql-gateway/src/main.zig": {
       "errors": {
-        "AccessDenied": 1,
-        "Canceled": 2,
-        "Cancelled": 2,
-        "ExpectedPrivateConfiguration": 1,
-        "FreshOwnershipRequired": 1,
-        "GatewayActivationSyncFailed": 1,
-        "GatewayConnectionCapacity": 3,
-        "GatewayCredentialChanged": 2,
-        "GatewayDatabaseDenied": 1,
-        "GatewayDeadline": 4,
-        "GatewayDraining": 3,
-        "GatewayOwnerUnavailable": 1,
-        "InvalidAuthentication": 8,
-        "InvalidCancelRequest": 1,
-        "PathAlreadyExists": 1,
-        "Timeout": 2,
-        "TlsRequired": 6,
-        "UnsupportedStartupSetting": 1,
-        "WireSessionExhausted": 1
+        "ExpectedPrivateConfiguration": 1
       },
-      "outcomes": {
-        "Protocol": [
-          "postgres",
-          "mysql"
-        ],
-        "Server.connectionDeadline().Result": [
-          "connection",
-          "authentication"
-        ],
-        "boundedHandle().Result": [
-          "command",
-          "timeout"
-        ],
-        "serve().Result": [
-          "postgres",
-          "mysql",
-          "native",
-          "local",
-          "expiry",
-          "recovery",
-          "stop"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "Output.writeAll()": "<inferred>",
-        "Server.acquire()": "<inferred>",
-        "Server.authenticationDeadline()": "anyerror",
-        "Server.cancel()": "<inferred>",
-        "Server.connectionDeadline()": "<inferred>",
-        "Server.handle()": "<inferred>",
-        "Server.mysqlConnection()": "<inferred>",
-        "Server.postgres()": "<inferred>",
-        "Server.protocolTask()": "anyerror",
-        "Server.serve()": "<inferred>",
-        "Server.serveHealth()": "anyerror",
-        "Worker.create()": "<inferred>",
-        "boundedHandle()": "<inferred>",
-        "boundedHandle().Task.command()": "anyerror",
-        "boundedHandle().Task.timeout()": "anyerror",
-        "expireSessions()": "<inferred>",
         "main()": "<inferred>",
-        "recoverSessions()": "<inferred>",
         "run()": "<inferred>",
-        "serve()": "<inferred>",
-        "workerReserveFailures()": "<inferred>"
+        "signal()": "<inferred>"
       },
-      "open_error_set_uses": 21,
+      "open_error_set_uses": 0,
       "propagation": {
-        "try": 164,
-        "catch": 20
+        "try": 8,
+        "catch": 1
       },
       "imports": [
-        "Connection.zig",
         "Control.zig",
-        "Native.zig",
         "Stop.zig",
-        "builtin",
         "std",
-        "transit_http_server",
-        "transit_io",
-        "transit_memory",
-        "transit_mysql",
-        "transit_postgres",
-        "transit_sql_client",
-        "transit_sql_service",
-        "transit_tls_server"
+        "transit_sql_host",
+        "transit_sql_service"
       ]
     },
     "apps/transit-station-grpc-worker/main.zig": {
@@ -6786,6 +6672,30 @@
         "std"
       ]
     },
+    "packages/zig/transit-client/src/LocalEndpoint.zig": {
+      "errors": {
+        "InvalidLocalRequestType": 1,
+        "InvalidLocalResponseType": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Invocation.request()": "<inferred>",
+        "Invocation.respond()": "<inferred>",
+        "call()": "<inferred>",
+        "clone()": "<inferred>",
+        "invoke()": "anyerror"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-client/src/ResourceReader.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -7090,12 +7000,12 @@
     },
     "packages/zig/transit-client/src/root.zig": {
       "errors": {
-        "AccessDenied": 3,
+        "AccessDenied": 4,
         "AuthorityTimeout": 4,
         "AuthorityTransportDenied": 2,
-        "AuthorityUnavailable": 3,
+        "AuthorityUnavailable": 4,
         "ConcurrencyUnavailable": 1,
-        "Conflict": 3,
+        "Conflict": 4,
         "ConnectionRefused": 1,
         "ConnectionResetByPeer": 1,
         "ConnectionTimedOut": 1,
@@ -7109,10 +7019,10 @@
         "InvalidWaitHint": 1,
         "NameServerFailure": 1,
         "NetworkUnreachable": 1,
-        "OutOfMemory": 3,
+        "OutOfMemory": 4,
         "ReadFailed": 1,
-        "Rejected": 2,
-        "WriteFailed": 3
+        "Rejected": 3,
+        "WriteFailed": 4
       },
       "outcomes": {
         "Client.boundedCall().Result": [
@@ -7133,16 +7043,18 @@
         "Client.perform()": "anyerror",
         "Client.query()": "<inferred>",
         "Client.queryBlocks()": "<inferred>",
+        "Client.reject()": "anyerror",
         "Client.submit()": "<inferred>",
         "Client.submitWithBlocks()": "<inferred>",
         "Client.timeout()": "anyerror",
+        "Client.validateValue()": "<inferred>",
         "Client.waitForChange()": "<inferred>",
         "readKey()": "<inferred>"
       },
-      "open_error_set_uses": 7,
+      "open_error_set_uses": 8,
       "propagation": {
-        "try": 28,
-        "catch": 11
+        "try": 33,
+        "catch": 12
       },
       "imports": [
         "Application.zig",
@@ -7153,6 +7065,7 @@
         "BlockBatch.zig",
         "BoundedBody.zig",
         "HttpPost.zig",
+        "LocalEndpoint.zig",
         "ResourceReader.zig",
         "Session.zig",
         "SnapshotReader.zig",
@@ -7161,6 +7074,7 @@
         "bootstrap.zig",
         "delivery.zig",
         "std",
+        "transit_memory",
         "transit_observability",
         "transit_protocol"
       ]
@@ -20804,6 +20718,234 @@
         "transit_sql_results"
       ]
     },
+    "packages/zig/transit-sql-host/src/Connection.zig": {
+      "errors": {
+        "EndOfStream": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "finish()": "<inferred>",
+        "readExact()": "<inferred>",
+        "upgrade()": "<inferred>",
+        "writeAll()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "transit_tls_server"
+      ]
+    },
+    "packages/zig/transit-sql-host/src/Deployment.zig": {
+      "errors": {
+        "Canceled": 4,
+        "IncompatibleDefinition": 1,
+        "InvalidSqlDeploymentFrame": 1,
+        "InvalidSqlPeer": 1,
+        "SqlDeploymentChanged": 3,
+        "TlsMemoryCapacity": 1,
+        "UnsafeSqlRuntimeDirectory": 1
+      },
+      "outcomes": {
+        "Action": [
+          "start",
+          "stop",
+          "status"
+        ],
+        "Status.state": [
+          "stopped",
+          "running",
+          "failed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "apply()": "<inferred>",
+        "call()": "<inferred>",
+        "fingerprint()": "<inferred>",
+        "peer()": "<inferred>",
+        "receive()": "<inferred>",
+        "send()": "<inferred>",
+        "serve()": "<inferred>",
+        "socketPath()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 30,
+        "catch": 10
+      },
+      "imports": [
+        "Placement.zig",
+        "root.zig",
+        "std",
+        "transit_sql_client",
+        "transit_sql_service",
+        "transit_tls_server"
+      ]
+    },
+    "packages/zig/transit-sql-host/src/Native.zig": {
+      "errors": {
+        "EndOfStream": 1,
+        "GatewayConnectionCapacity": 1,
+        "InvalidSqlLane": 1,
+        "InvalidSqlPeer": 1,
+        "ReadFailed": 1,
+        "UnsupportedSqlPeerPlatform": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Connection.init()": "<inferred>",
+        "Connection.read()": "std . Io . Reader . StreamError",
+        "Connection.send()": "std . Io . Writer . Error",
+        "Connection.write()": "std . Io . Writer . Error",
+        "RequestStorage.acquire()": "<inferred>",
+        "RequestStorage.init()": "<inferred>",
+        "handleConnection()": "<inferred>",
+        "respond()": "<inferred>",
+        "serve()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 22,
+        "catch": 6
+      },
+      "imports": [
+        "builtin",
+        "std",
+        "transit_http_server",
+        "transit_memory",
+        "transit_sql_service",
+        "transit_tls_server"
+      ]
+    },
+    "packages/zig/transit-sql-host/src/Placement.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "invoke()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-host/src/Shutdown.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "wait()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-sql-host/src/root.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "Canceled": 2,
+        "Cancelled": 2,
+        "FreshOwnershipRequired": 1,
+        "GatewayActivationSyncFailed": 1,
+        "GatewayConnectionCapacity": 3,
+        "GatewayCredentialChanged": 2,
+        "GatewayDatabaseDenied": 1,
+        "GatewayDeadline": 4,
+        "GatewayDraining": 3,
+        "GatewayOwnerUnavailable": 1,
+        "InvalidAuthentication": 8,
+        "InvalidCancelRequest": 1,
+        "PathAlreadyExists": 1,
+        "Timeout": 2,
+        "TlsMemoryCapacity": 1,
+        "TlsRequired": 6,
+        "UnsupportedStartupSetting": 1,
+        "WireSessionExhausted": 1
+      },
+      "outcomes": {
+        "Protocol": [
+          "postgres",
+          "mysql"
+        ],
+        "Server.connectionDeadline().Result": [
+          "connection",
+          "authentication"
+        ],
+        "boundedHandle().Result": [
+          "command",
+          "timeout"
+        ],
+        "serve().Result": [
+          "postgres",
+          "mysql",
+          "native",
+          "local",
+          "expiry",
+          "recovery",
+          "stop"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Output.writeAll()": "<inferred>",
+        "Server.acquire()": "<inferred>",
+        "Server.authenticationDeadline()": "anyerror",
+        "Server.cancel()": "<inferred>",
+        "Server.connectionDeadline()": "<inferred>",
+        "Server.handle()": "<inferred>",
+        "Server.mysqlConnection()": "<inferred>",
+        "Server.postgres()": "<inferred>",
+        "Server.protocolTask()": "anyerror",
+        "Server.serve()": "<inferred>",
+        "Server.serveHealth()": "anyerror",
+        "Worker.create()": "<inferred>",
+        "boundedHandle()": "<inferred>",
+        "boundedHandle().Task.command()": "anyerror",
+        "boundedHandle().Task.timeout()": "anyerror",
+        "expireSessions()": "<inferred>",
+        "recoverSessions()": "<inferred>",
+        "run()": "<inferred>",
+        "serve()": "<inferred>",
+        "workerReserveFailures()": "<inferred>"
+      },
+      "open_error_set_uses": 21,
+      "propagation": {
+        "try": 159,
+        "catch": 20
+      },
+      "imports": [
+        "Connection.zig",
+        "Deployment.zig",
+        "Native.zig",
+        "Shutdown.zig",
+        "builtin",
+        "std",
+        "transit_http_server",
+        "transit_io",
+        "transit_memory",
+        "transit_mysql",
+        "transit_postgres",
+        "transit_sql_client",
+        "transit_sql_service",
+        "transit_tls_server"
+      ]
+    },
     "packages/zig/transit-sql-protocol/src/Authentication.zig": {
       "errors": {
         "AuthenticationFailed": 7,
@@ -22182,6 +22324,7 @@
         "fence()": "<inferred>",
         "foreground()": "<inferred>",
         "init()": "<inferred>",
+        "initEndpoint()": "<inferred>",
         "lookup()": "<inferred>",
         "project()": "<inferred>",
         "recoverOne()": "<inferred>",

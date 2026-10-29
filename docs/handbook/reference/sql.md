@@ -16,6 +16,15 @@ authenticated account/database to an explicit native catalog and retains admitte
 writes outside socket lifetimes. Its transaction, wire-type and settings limits
 are distinct from the console's full Table lifecycle surface.
 
+In an installed `transit server`, the SQL runtime and its listeners run inside
+`transit-node`, alongside the Catalog and Table owners. Signed database and native
+authority calls use typed local dispatch through the same admission, locking,
+recovery and policy checks as HTTP callers. Configuration settings and reload
+retain their separate installation owner. The standalone `transit-sql-gateway`
+uses the same [hosting library](../../../packages/zig/transit-sql-host/README.md)
+with remote clients. Placement does not change accepted operation identities,
+account generation fencing or completion evidence.
+
 Transit does not claim SQL Core, full PostgreSQL, SQL/PGQ or GQL conformance.
 The [checked compatibility corpus](../../../contracts/sql/README.md#compatibility-corpus)
 establishes syntax and AST agreement for its declared PostgreSQL subset; execution

@@ -26,7 +26,7 @@ PACKAGES = (
     'transit-station-http', 'transit-station-grpc', 'transit-station-flight',
     'transit-exchange', 'transit-client', 'transit-protocol', 'transit-storage',
     'transit-grpc', 'transit-tls', 'transit-http-server', 'transit-backend-local',
-    'transit-tls-server', 'transit-sql-protocol', 'transit-sql-results', 'transit-sql-client', 'transit-sql', 'transit-sql-service', 'transit-postgres', 'transit-mysql',
+    'transit-tls-server', 'transit-sql-protocol', 'transit-sql-results', 'transit-sql-client', 'transit-sql', 'transit-sql-service', 'transit-sql-host', 'transit-postgres', 'transit-mysql',
 )
 APPS = ('transit-cli', 'transit-board', 'transit-flight-gateway', 'transit-station-host',
         'transit-station-http-worker', 'transit-station-grpc-worker', 'transit-sql-gateway')

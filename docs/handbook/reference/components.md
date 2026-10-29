@@ -43,6 +43,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-sql-client](../../../packages/zig/transit-sql-client/README.md) / `transit_sql_client` | Native HTTP/TLS and Unix session transport, authentication, local discovery and owned responses | transit-sql-protocol |
 | [transit-sql](../../../packages/zig/transit-sql/README.md) / `transit_sql` | Catalog-bound statements, fenced database execution and paged account recovery | transit-query-direct, transit-client, transit-catalog |
 | [transit-sql-service](../../../packages/zig/transit-sql-service/README.md) / `transit_sql_service` | Shared SQL sessions, settings and explicit captured-source composition | transit-sql, transit-query |
+| [transit-sql-host](../../../packages/zig/transit-sql-host/README.md) / `transit_sql_host` | Shared SQL listeners, joined lifecycle and local/remote placement | transit-sql-service, transit-sql-client, transit-postgres, transit-mysql |
 | [transit-postgres](../../../packages/zig/transit-postgres/README.md) / `transit_postgres` | PostgreSQL frames and deferred-write extended-cycle gate | transit-sql-service |
 | [transit-mysql](../../../packages/zig/transit-mysql/README.md) / `transit_mysql` | Bounded MySQL classic packet framing and sequence checks | transit-sql-service |
 | [transit-station-grpc](../../../packages/zig/transit-station-grpc/README.md) / `transit_station_grpc` | durable finite RPC adapter | transit-exchange, transit-grpc |
@@ -74,7 +75,7 @@ the implementations listed below remain shared runtime libraries.
 
 | Entry point | Role |
 | --- | --- |
-| [transit-sql-gateway](../../../apps/transit-sql-gateway/README.md) | Shared SQL runtime, native HTTP/TLS and Unix peer sessions, PostgreSQL/MySQL listeners and account recovery |
+| [transit-sql-gateway](../../../apps/transit-sql-gateway/README.md) | Standalone SQL placement and operator controls over the shared SQL host |
 | [transit-flight-gateway](../../../apps/transit-flight-gateway/README.md) | Finite Table Flight SQL over a private HTTP/2 listener behind an explicit TLS edge |
 | [transit-station-document-worker](../../../apps/transit-station-document-worker/README.md) | authenticated Document writer and bounded maintenance |
 | [transit-station-grpc-worker](../../../apps/transit-station-grpc-worker/README.md) | finite RPC preparation/dispatch/capture worker |

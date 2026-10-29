@@ -2,14 +2,17 @@
 
 A shared SQL service with native HTTP/TLS, private Unix peer, PostgreSQL and
 MySQL adapters over explicit Transit catalogs and source bindings.
-The gateway composes the shared SQL service and public Catalog and Query clients;
+The standalone executable composes the [shared SQL host](../../packages/zig/transit-sql-host/README.md) and public Catalog and Query clients;
 it has no storage-provider access. Each SQL account has Catalog-owned operation
 recovery and one database principal independently of its network connections. Direct Table reads
 and operation evidence use that caller's current native
 database/schema/Table grants and retain their selected role through recovery.
 
 For a local installation, follow the [psql/mysql walkthrough](../transit-cli/docs/sql.md).
-The local server manages explicit enrollment and separate fenced activations.
+The local server manages explicit enrollment and fenced activations, embedding
+the shared host in its node process. It does not launch this standalone gateway
+for installed SQL. Operator controls and explicit remote placement still use this
+executable.
 
 Build from the repository with `nix develop --command zig build
 transit-sql-gateway`. Run `transit-sql-gateway /private/sql-gateway.json` with an

@@ -65,7 +65,7 @@ control with the same data, authorization and durability before publishing such
 ratios. Keep device synchronization, application sync calls, logical WAL appends
 and gateway RPC counts distinct.
 
-### Current implementation and recent work
+### Pre-implementation source audit and recent work
 
 Source audit at `b8aab78fbdd8595429e9e9d68ea63cee1792715e`, including
 [PR #232](https://github.com/spoke-sh/transit/pull/232) Table transactions,
@@ -82,7 +82,7 @@ Source audit at `b8aab78fbdd8595429e9e9d68ea63cee1792715e`, including
 | External SQL operations | [`Registry.recover`](../../packages/zig/transit-sql-service/src/Registry.zig) scans Catalog and creates a fresh `wire.Client`; captured/configuration operations retain separate owners | Persistent bounded recovery clients, complete paged discovery and explicit notifications; preserve original signed requests. |
 | Local owner | [`LocalTableHost`](../../apps/transit-node/LocalTableHost.zig) retains resident owners, locks and recovery state; [`LocalTableService`](../../apps/transit-node/LocalTableService.zig) validates policy and returns serialized responses | Extract typed authorized dispatch. Calling this JSON-producing method in-process alone leaves unnecessary serialization and ownership coupling. |
 | Direct caller seam | [`DirectTableClient`](../../packages/zig/transit-catalog/src/DirectTableClient.zig) holds wire clients and returns parsed responses; `Session` owns concrete wire clients | Introduce typed request/response dispatch below SQL and a coarse SQL service boundary above it. Moving a listener alone is insufficient. |
-| Protocols | `transit-sql-protocol` is pure; PG/MySQL have frame decoders and host-supplied session engines | Complete incremental transport/event separation. Application [`Connection.zig`](../../apps/transit-sql-gateway/src/Connection.zig) is a TLS/socket wrapper, not a pure state machine. |
+| Protocols | `transit-sql-protocol` is pure; PG/MySQL have frame decoders and host-supplied session engines | Complete incremental transport/event separation. Application [`Connection.zig`](../../packages/zig/transit-sql-host/src/Connection.zig) is a TLS/socket wrapper, not a pure state machine. |
 | Memory/I/O | Admitted worker/result/frame/TLS reserves and cleanup barriers exist; `boundedHandle` and HTTP `deadline` still race work against timers | Reuse reserves and joined ownership. Core-bounded workers require runnable I/O scheduling, not a smaller constant. |
 | Flight/Serving | Flight uses durable Query/Station requesters; `transit-serving-http` owns effectful signed HTTP/SSE/WebSocket hosting | Split codecs from hosting and qualify shared ingress. Co-location does not make their durable owners direct database owners. |
 
@@ -139,6 +139,17 @@ UPDATE and DELETE latency from foreground settlement. Fresh reads improve and
 warm reads are approximately unchanged. This evidence does not close P2–P6 or
 the #211 latency targets; preserve the regressions when evaluating subsequent
 co-hosting and commit-envelope work.
+
+The next delivery embeds shared SQL listener/session hosting in the installed
+node and adds typed signed Table/native dispatch through its existing owners.
+The standalone gateway retains HTTP-backed fine-grained clients until P2c.
+Configuration settings/reload retain the installation gateway owner: native
+policy reads are local, but the configuration handoff in P2a remains open. This
+slice therefore closes the selected database loopback path, not every P2 gate.
+Protocol purity, worker sizing/deadlines, coarse remote placement and full
+milestone qualification remain separate work. See the current
+[SQL placement](../handbook/reference/sql.md) and
+[host ownership account](../handbook/internals/service-interfaces.md#placement-sessions-and-adapters).
 
 ### Performance objectives and experiment design
 

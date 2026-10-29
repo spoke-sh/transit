@@ -322,6 +322,12 @@ def main():
             probes['native'] = http_probe.Probe(f'http://127.0.0.1:{real_port}', fixture.config['ports']['node'], native=True)
             Path(str(gate) + '.ready').touch()
         fixture.ready()
+        node_configuration = json.loads((fixture.installation / 'node.json').read_text())
+        report['sql_placement'] = 'cohosted' if node_configuration.get('sql_control') else 'standalone'
+        if args.instrument and report['sql_placement'] == 'cohosted':
+            from harness.sql_placement import Probe as LocalProbe
+            probes['local'] = LocalProbe(fixture)
+        report['probe_scope'] = 'public node HTTP plus co-hosted typed counters when present' if args.instrument else None
         config = fixture.root / 'reader.json'
         config.write_text(json.dumps(fixture.console_config()))
         verifier = Console(fixture, config)
