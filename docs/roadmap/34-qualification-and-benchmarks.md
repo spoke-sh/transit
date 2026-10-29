@@ -1,4 +1,4 @@
-# 33. Qualification and complete benchmarks
+# 34. Qualification and complete benchmarks
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,6 +10,13 @@ remains a gate for every preceding milestone.
 
 ## Remaining work
 
+- Execute the [SQL grammar, standards comparison and dialect ergonomics corpus](33-sql-grammar-and-dialect-ergonomics.md)
+  at the common committed revision: verify zero ANTLR/production grammar
+  conflicts, byte-identical `FQP1`/`FDM1`/`FTS1` plan lowering for ergonomic
+  desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`,
+  `ORDER BY ALL`, trailing commas and numeric underscores), stateful dataflow
+  lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and
+  reviewed foreign-dialect diagnostic hints.
 - Execute the [formal semantics and correspondence suite](20-formal-semantics-and-correspondence.md)
   with its selected provider, replication, recovery, placement, policy and review
   extensions at the common committed revision. Retain finite bounds, theorem
@@ -197,4 +204,4 @@ is qualification of that existing service, not implementing publication again:
    inferring a general GitHub CDN guarantee.
 
 These checks do not claim runtime qualification. Release-versioned documentation
-and immutable release links remain part of [release distribution](34-releases.md).
+and immutable release links remain part of [release distribution](35-releases.md).

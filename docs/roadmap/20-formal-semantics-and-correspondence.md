@@ -423,7 +423,7 @@ inherit a proof whose assumptions the new profile violates.
 | [Reviewed publication](27-reviewed-data-collaboration.md) | T6/A4/A6: exact candidate/target approval, current reviewer authority and protected-destination enforcement |
 | [Reactive activation](30-reactive-context-and-agent-activation.md) | T5: durable interests, meaningful change conditions, checkpoint recovery and explicit coverage |
 | [Recorded integrations](31-recorded-mcp-integrations.md) | T4's effect boundary: authorized attempts, uncertain remote outcomes, capture and network-free replay |
-| [Complete qualification](33-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
+| [Complete qualification](34-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
 
 ## Completion evidence
 
@@ -439,7 +439,7 @@ Document the concrete development benefit: an ambiguity resolved, ownership or
 recovery logic simplified, duplicated reasoning removed, or an optimization
 justified under exact semantics. A theorem over an unrelated abstraction or a
 passing model without implementation correspondence is insufficient. The
-[common-revision qualification](33-qualification-and-benchmarks.md) repeats this
+[common-revision qualification](34-qualification-and-benchmarks.md) repeats this
 evidence with later extensions; it does not replace this milestone's execution.
 No new runtime guarantee, model pass, SQL interface or algorithm selection is
 established by this planning change.

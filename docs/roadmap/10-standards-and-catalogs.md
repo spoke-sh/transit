@@ -80,7 +80,12 @@ proved against every admitted comparison profile; its existence does not imply
 universal UCA, type, direction or five-state support.
 
 Target selected SQL:2023, SQL/JSON, SQL/PGQ and SQL/MED features explicitly.
-GQL, Cypher and PGQL need separate frontend/compatibility evidence. Reserve
+GQL, Cypher and PGQL need separate frontend/compatibility evidence; the later
+[SQL grammar, standards comparison and dialect ergonomics milestone](33-sql-grammar-and-dialect-ergonomics.md)
+audits the complete pre-release SQL grammar against industry dialects (PostgreSQL,
+DuckDB, Snowflake, ClickHouse, GoogleSQL and Materialize/Flink) and qualifies
+compile-time ergonomic desugarings (`FROM`-first queries, `GROUP BY ALL`,
+`ORDER BY ALL`, `SELECT * EXCLUDE/REPLACE`). Reserve
 system-time syntax for temporal semantics; resource revisions, application
 revisions, `TransitLog` LSNs and snapshot manifest versions remain distinct types.
 

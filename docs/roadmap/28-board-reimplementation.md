@@ -567,7 +567,7 @@ Record executed component/service/browser evidence in [the proof ledger](../hist
 with independently reproducible fixtures and actual source revisions. Updated
 screenshots must come from the installed implementation and match its qualified
 states. Focused Board proofs close here; later
-[combined qualification](33-qualification-and-benchmarks.md) repeats the cross-caller
+[combined qualification](34-qualification-and-benchmarks.md) repeats the cross-caller
 journeys at one release revision and does not postpone these acceptance gates.
 
 ## Ownership boundaries

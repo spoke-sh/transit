@@ -25,7 +25,7 @@ gives this work a product target: improve what humans and agents can observe
 before acting and what they can learn from the consequences afterward. Track
 observation coverage, latency and cost while preserving meaning, source versions,
 current authorization and uncertainty. The
-[qualification plan](33-qualification-and-benchmarks.md#observation-and-consequence-evidence)
+[qualification plan](34-qualification-and-benchmarks.md#observation-and-consequence-evidence)
 defines the proposed measures and comparison method; individual milestones
 qualify their contribution as they land. These are evaluation goals, not current
 measurements, and they do not assume that modeling or reasoning is solved.
@@ -45,7 +45,7 @@ access paths. The [data structures and performance milestone](13-data-structures
 delivers the local workload scorecard, selected optimizations and regression
 budgets. Earlier owners establish baselines and meet their existing gates; later
 providers, distributed execution and language surfaces extend the same measures.
-[Final qualification](33-qualification-and-benchmarks.md) combines the evidence
+[Final qualification](34-qualification-and-benchmarks.md) combines the evidence
 at one revision. Publish wins, regressions and unresolved competitive gaps with
 reproducible results; correctness, current authorization and accepted-work
 recovery remain part of every performance profile.
@@ -64,7 +64,7 @@ Read the [delivery checkpoints](#delivery-checkpoints) for the execution plan.
 | [III: Distributed durability and operations](#phase-iii-distributed-durability-and-operations) | 21–24 | Operators use qualified providers, replicate and recover complete history, perform verified backup/restore/upgrades and move execution safely |
 | [IV: Governed collaboration and Board](#phase-iv-governed-collaboration-and-board) | 25–28 | People and applications inspect published resources, propose and review changes under shared policy and use the installed Board workbench |
 | [V: Agents and mixed application composition](#phase-v-agents-and-mixed-application-composition) | 29–32 | Agents and applications use governed MCP access, reactive activation and recorded effects through complete direct, Station and mixed language experiences |
-| [VI: Qualification and release](#phase-vi-qualification-and-release) | 33–35 | One committed revision has combined workload/fault evidence, verified distribution artifacts and runnable installed onboarding, followed by speculative research into declarative language, structural context and corpus-native synthesis |
+| [VI: Qualification and release](#phase-vi-qualification-and-release) | 33–36 | One committed revision has a harmonized SQL grammar audited against formal standards and industry dialects, combined workload/fault evidence, verified distribution artifacts and runnable installed onboarding, followed by speculative research into declarative language, structural context and corpus-native synthesis |
 
 Phases are delivery groupings, not additional runtime dependencies or release
 dates. Contract work and implementation may overlap when the owning prerequisites
@@ -136,9 +136,10 @@ combines that evidence at one revision.
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 33 | [Qualification and complete benchmarks](33-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
-| 34 | [Release distribution](34-releases.md) | In Progress | Versioned verified artifacts, matching documentation and runnable installed onboarding |
-| 35 | [Declarative language, structural context and corpus-native synthesis research](35-declarative-language-context-and-synthesis.md) | Planned | Speculative research defining declarative span segmentation, multi-scale structural/graph proximity (`NEAR`), context-conditioned continuation and branch-verified agency over swappable physical index and predictor implementations |
+| 33 | [SQL grammar, standards comparison and dialect ergonomics](33-sql-grammar-and-dialect-ergonomics.md) | Planned | Cross-dialect SQL grammar comparison against ISO SQL:2023 and industry dialects (PostgreSQL, DuckDB, Snowflake, ClickHouse, GoogleSQL, Materialize/Flink), compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas), standardized 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and actionable dialect diagnostics |
+| 34 | [Qualification and complete benchmarks](34-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
+| 35 | [Release distribution](35-releases.md) | In Progress | Versioned verified artifacts, matching documentation and runnable installed onboarding |
+| 36 | [Declarative language, structural context and corpus-native synthesis research](36-declarative-language-context-and-synthesis.md) | Planned | Speculative research defining declarative span segmentation, multi-scale structural/graph proximity (`NEAR`), context-conditioned continuation and branch-verified agency over swappable physical index and predictor implementations |
 
 Performance measurement and amplification work remains tracked in
 [issue #76](https://github.com/spoke-sh/transit/issues/76), alongside the reopened
@@ -182,14 +183,52 @@ evidence rather than assuming every preceding number is a technical dependency.
 | IV | Reimplement the Board workbench | 28 | Deliver the installed data-first interface, bounded profiles/workbooks/lineage and separately authorized change review; preserve operational inspection and prove real browser/recovery journeys |
 | V | Extend agent-host interfaces and activation | 29–31 | MCP/Apps, reactive context and recorded outbound MCP over shared owners; no dependency on Board's frontend or configured credential |
 | V | Prove complete application composition | 32 | Installed direct, Station and all mixed capabilities in every claimed language; transaction/turn/checkpoint/effect boundaries and recovery remain explicit |
-| VI | Qualify and distribute one revision | 33–34 | Compose workload/fault/performance evidence at one committed revision, then immutable artifacts, matching docs and installed onboarding. Focused correctness gates remain mandatory earlier |
-| VI | Explore declarative language, structural context and synthesis | 35 | Speculative post-release research: define declarative span segmentation, multi-scale `NEAR` proximity maps, context-conditioned continuation and branch-verified agency against scalar reference oracles before selecting physical structures |
+| VI | Harmonize SQL grammar, standards and dialect ergonomics | 33 | Audit the complete SQL grammar against ISO SQL:2023 and industry dialects (PostgreSQL, DuckDB, Snowflake, ClickHouse, GoogleSQL, Materialize/Flink), qualify compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas, numeric underscores) to canonical `FQP1`/`FDM1` plan bytes, standardize 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and verify actionable foreign-dialect diagnostics before freezing 1.0 qualification |
+| VI | Qualify and distribute one revision | 34–35 | Compose workload/fault/performance evidence at one committed revision, then immutable artifacts, matching docs and installed onboarding. Focused correctness gates remain mandatory earlier |
+| VI | Explore declarative language, structural context and synthesis | 36 | Speculative post-release research: define declarative span segmentation, multi-scale `NEAR` proximity maps, context-conditioned continuation and branch-verified agency against scalar reference oracles before selecting physical structures |
 
 Track first-three-milestone acceptance and explicitly transferred scope through
 #108/#109/#110 and the component issues. Update tracker ownership and links with
 this sequence; retain original diagnoses, delivered evidence and incomplete
 checks. #123 corrects current documentation as implementation changes, and #124
 owns traceable installed acceptance. No planning edit changes their runtime status.
+
+## SQL grammar, standards comparison, dialect ergonomics and dataflow lifecycle review — 2026-10-29
+
+A pre-release review of Transit's SQL grammar surface
+([`grammar-surface.md`](../handbook/reference/sql/grammar-surface.md),
+[`contracts/sql/README.md`](../../contracts/sql/README.md)) and managed
+computation lifecycle ([Milestone 12](12-sql-and-dataflows.md)) identified two
+gaps between the semantic roadmap and the concrete SQL experience:
+
+1. **Explicit five-state dataflow lifecycle and DDL (`Published`, `Authorized`, `Active`, `Suspended`, `Retired`):**
+   While ISO SQL:2023 defines no standard lifecycle grammar for continuous
+   queries or materialized views—and vendor engines split between boolean trigger
+   toggles (`ENABLE` / `DISABLE` in PostgreSQL/Oracle) and stateful compute
+   controls (`SUSPEND` / `RESUME` / `REFRESH` in Snowflake Dynamic Tables and
+   Tasks)—collapsing a stateful dataflow into a boolean `ENABLE` / `DISABLE` flag
+   leaves authorization, checkpointed `TransitLog` (`TWAL1`) watermarks,
+   snapshot-to-live handoffs and read behavior while paused ambiguous.
+   [Milestone 12](12-sql-and-dataflows.md) now explicitly specifies the
+   five-state computation lifecycle (`Published`, `Authorized`, `Active`,
+   `Suspended`, `Retired`) and its DDL verbs (`ACTIVATE`, `SUSPEND`,
+   `RESUME WITH (on_resume = 'replay_history' | 'recompute_snapshot')`,
+   `REFRESH`, `RETIRE`), preserving checkpointed watermarks and serving the last
+   completed revision with its frozen source basis while `Suspended`.
+2. **Pre-release cross-dialect grammar comparison and DuckDB-style ergonomic desugaring ([Milestone 33](33-sql-grammar-and-dialect-ergonomics.md)):**
+   Inserting [Milestone 33](33-sql-grammar-and-dialect-ergonomics.md) at the
+   start of Phase VI (after [Milestone 32](32-programming-model.md) and before
+   [Milestone 34](34-qualification-and-benchmarks.md) and
+   [Milestone 35](35-releases.md)) shifts the sequence to `1–36`. It audits the
+   complete SQL grammar across Tables, KV, Documents, Streams, Queues, Dataflows,
+   Property Graphs, Foreign Tables and Branches against **ISO/IEC 9075
+   SQL:2023**, **PostgreSQL 17**, **DuckDB**, **Snowflake**, **ClickHouse**,
+   **GoogleSQL** and **Materialize / Flink SQL**; qualifies DuckDB-style
+   `FROM`-first query syntax (`FROM people SELECT id, name;` and bare
+   `FROM people;`), `SELECT * EXCLUDE (...) REPLACE (...)`, `GROUP BY ALL`,
+   `ORDER BY ALL`, trailing commas and numeric underscores as deterministic
+   compile-time desugarings to byte-identical `FQP1` plans; and requires
+   actionable compiler diagnostics when callers submit foreign dialect spellings.
 
 ## Gateway architecture, sans-I/O wire protocols and direct-plane ingress review — 2026-10-28
 
@@ -446,7 +485,7 @@ subsequent milestones to `13–30`:
      late materialization, while handing off speculative research into
      declarative spans, multi-scale `NEAR` maps, context-conditioned continuation
      and branch-verified agency to
-     [Milestone 35](35-declarative-language-context-and-synthesis.md).
+     [Milestone 36](36-declarative-language-context-and-synthesis.md).
 3. **Data-centric pipeline fusion, CedarDB join structures, Flying-Start Adaptive Morsel Tier-Up and AOT query compilation ([Milestone 12](12-sql-and-dataflows.md), [Milestone 13](13-data-structures-and-performance.md), [Milestone 15](15-data-centric-compilation-and-specialization.md)):**
    Taking inspiration from [HyPer](https://hyper-db.de/) (Neumann, VLDB 2011),
    [Umbra](https://umbra-db.com/) (Neumann & Freitag, CIDR 2020),
@@ -945,7 +984,7 @@ requirements; no original tracker closes merely because its work was split.
    `Fuze` workers over shared object storage with fenced lease handoff.
 
 Handbook publication is implemented. Remaining live-site navigation and recovery
-qualification belongs to [qualification](33-qualification-and-benchmarks.md#documentation-publication),
+qualification belongs to [qualification](34-qualification-and-benchmarks.md#documentation-publication),
 with completed observations in the proof ledger.
 
 ## Shared implementation gates
@@ -975,7 +1014,7 @@ computation; one universal readiness flag is insufficient.
 
 ## Maintaining the sequence
 
-Keep one numbered, descriptively named file per milestone (`01-` through `35-`).
+Keep one numbered, descriptively named file per milestone (`01-` through `36-`).
 Insert or reorder work by updating this index, filenames and links together.
 Split work only when it has independently reviewable outcomes and prerequisites.
 Keep phase membership contiguous and exhaustive: each milestone appears exactly
