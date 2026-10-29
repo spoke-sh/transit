@@ -11,6 +11,21 @@ The default local server serves Board at both `http://127.0.0.1:19107` and
 Use one address consistently: requests with an `Origin` header must match their
 own scheme, hostname and port. Other hostnames and forwarded headers reject.
 
+## Explore data
+
+The built-in home opens Catalog. With a configured data connection, select a
+namespace and Table, inspect its schema, then choose **Preview rows**. Catalog
+filtering covers the current page. Dataset previews and column profiles are
+bounded windows with explicit coverage and source evidence.
+
+Use **Workbook** for temporary notes and SQL cells. **Run** explicitly submits a
+read; editing only changes its draft. SHOW, DESCRIBE, EXPLAIN and SELECT share the
+same typed result surface. Each result has its own observation basis and terminal
+count. Leaving the workbook discards its cells. The
+[workbench guide](../../../apps/transit-board/docs/workbench.md) explains connection
+setup and limits. Operations retains the process/resource atlas and existing
+diagnostic and recovery views.
+
 ## Start from an identity and an observed cut
 
 Use **Process directory** or **Resource directory** to return to the atlas from

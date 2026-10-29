@@ -13,9 +13,12 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as AtlasRouteImport } from './routes/atlas'
+import { Route as CatalogRouteImport } from './routes/catalog'
 import { Route as DefinitionRouteImport } from './routes/definition'
 import { Route as OperationsRouteImport } from './routes/operations'
 import { Route as ResourcesRouteImport } from './routes/resources'
+import { Route as WorkbookRouteImport } from './routes/workbook'
+import { Route as DatasetsObjectRouteImport } from './routes/datasets.$object'
 import { Route as ProcessesPidRouteImport } from './routes/processes.$pid'
 import { Route as RecoveryDefinitionRouteImport } from './routes/recovery.definition'
 import { Route as ProcessesPidJourneyRouteImport } from './routes/processes.$pid.journey'
@@ -40,6 +43,11 @@ const AtlasRoute = AtlasRouteImport.update({
   path: '/atlas',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CatalogRoute = CatalogRouteImport.update({
+  id: '/catalog',
+  path: '/catalog',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DefinitionRoute = DefinitionRouteImport.update({
   id: '/definition',
   path: '/definition',
@@ -53,6 +61,16 @@ const OperationsRoute = OperationsRouteImport.update({
 const ResourcesRoute = ResourcesRouteImport.update({
   id: '/resources',
   path: '/resources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WorkbookRoute = WorkbookRouteImport.update({
+  id: '/workbook',
+  path: '/workbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DatasetsObjectRoute = DatasetsObjectRouteImport.update({
+  id: '/datasets/$object',
+  path: '/datasets/$object',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProcessesPidRoute = ProcessesPidRouteImport.update({
@@ -76,9 +94,12 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/activity': typeof ActivityRoute
   '/atlas': typeof AtlasRoute
+  '/catalog': typeof CatalogRoute
   '/definition': typeof DefinitionRoute
   '/operations': typeof OperationsRoute
   '/resources': typeof ResourcesRoute
+  '/workbook': typeof WorkbookRoute
+  '/datasets/$object': typeof DatasetsObjectRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/recovery/definition': typeof RecoveryDefinitionRoute
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
@@ -88,9 +109,12 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/activity': typeof ActivityRoute
   '/atlas': typeof AtlasRoute
+  '/catalog': typeof CatalogRoute
   '/definition': typeof DefinitionRoute
   '/operations': typeof OperationsRoute
   '/resources': typeof ResourcesRoute
+  '/workbook': typeof WorkbookRoute
+  '/datasets/$object': typeof DatasetsObjectRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/recovery/definition': typeof RecoveryDefinitionRoute
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
@@ -101,9 +125,12 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/activity': typeof ActivityRoute
   '/atlas': typeof AtlasRoute
+  '/catalog': typeof CatalogRoute
   '/definition': typeof DefinitionRoute
   '/operations': typeof OperationsRoute
   '/resources': typeof ResourcesRoute
+  '/workbook': typeof WorkbookRoute
+  '/datasets/$object': typeof DatasetsObjectRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/recovery/definition': typeof RecoveryDefinitionRoute
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
@@ -115,9 +142,12 @@ export interface FileRouteTypes {
     | '/$'
     | '/activity'
     | '/atlas'
+    | '/catalog'
     | '/definition'
     | '/operations'
     | '/resources'
+    | '/workbook'
+    | '/datasets/$object'
     | '/processes/$pid'
     | '/recovery/definition'
     | '/processes/$pid/journey'
@@ -127,9 +157,12 @@ export interface FileRouteTypes {
     | '/$'
     | '/activity'
     | '/atlas'
+    | '/catalog'
     | '/definition'
     | '/operations'
     | '/resources'
+    | '/workbook'
+    | '/datasets/$object'
     | '/processes/$pid'
     | '/recovery/definition'
     | '/processes/$pid/journey'
@@ -139,9 +172,12 @@ export interface FileRouteTypes {
     | '/$'
     | '/activity'
     | '/atlas'
+    | '/catalog'
     | '/definition'
     | '/operations'
     | '/resources'
+    | '/workbook'
+    | '/datasets/$object'
     | '/processes/$pid'
     | '/recovery/definition'
     | '/processes/$pid/journey'
@@ -152,9 +188,12 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   ActivityRoute: typeof ActivityRoute
   AtlasRoute: typeof AtlasRoute
+  CatalogRoute: typeof CatalogRoute
   DefinitionRoute: typeof DefinitionRoute
   OperationsRoute: typeof OperationsRoute
   ResourcesRoute: typeof ResourcesRoute
+  WorkbookRoute: typeof WorkbookRoute
+  DatasetsObjectRoute: typeof DatasetsObjectRoute
   ProcessesPidRoute: typeof ProcessesPidRouteWithChildren
   RecoveryDefinitionRoute: typeof RecoveryDefinitionRoute
 }
@@ -189,6 +228,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AtlasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/catalog': {
+      id: '/catalog'
+      path: '/catalog'
+      fullPath: '/catalog'
+      preLoaderRoute: typeof CatalogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/definition': {
       id: '/definition'
       path: '/definition'
@@ -208,6 +254,20 @@ declare module '@tanstack/react-router' {
       path: '/resources'
       fullPath: '/resources'
       preLoaderRoute: typeof ResourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workbook': {
+      id: '/workbook'
+      path: '/workbook'
+      fullPath: '/workbook'
+      preLoaderRoute: typeof WorkbookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/datasets/$object': {
+      id: '/datasets/$object'
+      path: '/datasets/$object'
+      fullPath: '/datasets/$object'
+      preLoaderRoute: typeof DatasetsObjectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/processes/$pid': {
@@ -251,9 +311,12 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   ActivityRoute: ActivityRoute,
   AtlasRoute: AtlasRoute,
+  CatalogRoute: CatalogRoute,
   DefinitionRoute: DefinitionRoute,
   OperationsRoute: OperationsRoute,
   ResourcesRoute: ResourcesRoute,
+  WorkbookRoute: WorkbookRoute,
+  DatasetsObjectRoute: DatasetsObjectRoute,
   ProcessesPidRoute: ProcessesPidRouteWithChildren,
   RecoveryDefinitionRoute: RecoveryDefinitionRoute,
 }
