@@ -1,6 +1,7 @@
 """Verify published registry objects using empty registry credential stores."""
 import json
 import os
+import platform
 from pathlib import Path
 import subprocess
 import tempfile
@@ -26,7 +27,11 @@ with tempfile.TemporaryDirectory(prefix='transit-registry-proof-') as temporary:
         subprocess.run(['docker', 'pull', reference], env=environment, check=True)
         identity = subprocess.check_output(['docker', 'image', 'inspect', '--format', '{{.Id}}', reference],
                                            env=environment, text=True).strip()
-        assert identity == manifest['images'][name], name
+        architecture = {'x86_64': 'amd64', 'aarch64': 'arm64'}[platform.machine()]
+        assert identity == manifest['images'][name]['platforms']['linux/' + architecture]['config'], name
+        raw = subprocess.check_output(['skopeo', 'inspect', '--raw', 'docker://' + reference], env=environment)
+        import hashlib
+        assert 'sha256:' + hashlib.sha256(raw).hexdigest() == manifest['images'][name]['digest'], name
     identity = subprocess.check_output(['docker', 'run', '--rm', '--network=none', '--read-only',
                                        f'ghcr.io/spoke-sh/transit:{version}', '--version'],
                                       env=environment, text=True).strip()

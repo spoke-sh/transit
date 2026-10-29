@@ -14,7 +14,7 @@ if the handler catches their tagged errors. Every mutation is gated before nativ
 dispatch; recovery preserves exact bytes and retained confirmations. BEAM fields,
 processes and suspended calls are not durable state or Transit ownership.
 
-Build artifacts target Linux x86_64/OTP 28 with the pinned bindings shell. They
+Build artifacts target Linux x86_64 and ARM64/OTP 28 with the pinned bindings shell. They
 require the Nix native closure; registry publication and foreign Substrate images
 are outside qualification. The M9 `transit_station` adapter remains separate.
 

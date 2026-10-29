@@ -19,7 +19,7 @@ internal sealed class NativePackage : IDisposable
     internal IntPtr Library { get; private set; }
     internal NativePackage(string family, string? overrideDirectory)
     {
-        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != Architecture.X64) throw Value.Incompatible("native-platform");
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture is not (Architecture.X64 or Architecture.Arm64)) throw Value.Incompatible("native-platform");
         try {
             if (overrideDirectory is not null) {
                 string path = Path.GetFullPath(Path.Combine(overrideDirectory, $"libtransit_{family}.so"));

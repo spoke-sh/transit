@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Publish a qualified release without replacing existing versioned bytes."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -10,13 +11,14 @@ import tempfile
 from package_release import BINARIES, ROOT, sha256
 from version import check
 from release_identity import current
+from release_oci import blob
 
 
 def run(args, **kwargs):
     return subprocess.check_output(args, text=True, **kwargs).strip()
 
 
-def registry_config(reference):
+def registry_raw(reference):
     result = subprocess.run(['skopeo', 'inspect', '--raw', f'docker://{reference}'], capture_output=True, text=True)
     if result.returncode:
         # Only a registry's explicit missing-manifest response permits a new tag.
@@ -24,7 +26,12 @@ def registry_config(reference):
         if 'manifest unknown' in result.stderr.lower() or 'manifest_unknown' in result.stderr.lower():
             return None
         raise RuntimeError(result.stderr)
-    return json.loads(result.stdout)
+    return result.stdout.encode()
+
+
+def registry_config(reference):
+    raw = registry_raw(reference)
+    return json.loads(raw) if raw is not None else None
 
 
 def publish(directory, repository):
@@ -47,7 +54,7 @@ def publish(directory, repository):
         run(['sha256sum', '--check', 'SHA256SUMS'], cwd=directory / 'images')
         if set(manifest['images']) != set(BINARIES):
             raise ValueError('incomplete image set')
-        if {path.stem for path in (directory / 'images').glob('*.tar')} != set(BINARIES):
+        if {path.name for path in (directory / 'images').iterdir() if path.is_dir()} != set(BINARIES):
             raise ValueError('incomplete image archives')
         if identity['channel'] == 'nightly':
             refs = json.loads(run(['gh', 'api', f'repos/{repository}/git/matching-refs/tags/{tag}']))
@@ -58,21 +65,24 @@ def publish(directory, repository):
             else:
                 run(['gh', 'api', f'repos/{repository}/git/refs', '--method', 'POST',
                      '-f', 'ref=refs/tags/' + tag, '-f', 'sha=' + revision])
-        for path in sorted((directory / 'images').glob('*.tar')):
-            name = path.stem
+        for name in sorted(manifest['images']):
             reference = registry if name == 'transit' else f'{registry}-{name.removeprefix("transit-")}'
             reference += f':{version}'
-            run(['docker', 'load', '--input', str(path)])
-            local = f'transit-release/{name}:{version}'
-            identity = run(['docker', 'image', 'inspect', '--format', '{{.Id}}', local])
-            if identity != manifest['images'][name]:
-                raise ValueError(f'image identity mismatch: {name}')
-            remote = registry_config(reference)
+            layout = directory / 'images' / name
+            local = run(['skopeo', 'inspect', '--raw', f'oci:{layout}:{version}'])
+            # Read the indexed blob itself; CLI output trimming must not change
+            # the exact bytes used for the immutable digest.
+            index = json.loads((layout / 'index.json').read_text())
+            data = blob(layout, index['manifests'][0])
+            expected = manifest['images'][name]['digest']
+            if 'sha256:' + hashlib.sha256(data).hexdigest() != expected or json.loads(local) != json.loads(data):
+                raise ValueError(f'image index identity mismatch: {name}')
+            remote = registry_raw(reference)
             if remote is not None:
-                if remote.get('config', {}).get('digest') != identity:
+                if 'sha256:' + hashlib.sha256(remote).hexdigest() != expected:
                     raise ValueError(f'refusing to replace published image {reference}')
             else:
-                run(['skopeo', 'copy', f'docker-daemon:{local}', f'docker://{reference}'])
+                run(['skopeo', 'copy', '--all', '--preserve-digests', f'oci:{layout}:{version}', f'docker://{reference}'])
         chart_ref = f'{registry}/charts/transit:{version}'
         chart = directory / f'transit-{version}.tgz'
         if registry_config(chart_ref) is None:

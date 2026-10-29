@@ -13,7 +13,7 @@ can import the same public modules; the package check enforces that constraint.
 Build tarballs with `nix develop --command just bindings::node-build`. Install
 version 0.0.1 with its matching native packages; local tarball overrides follow
 the [client guide](../transit-client/README.md). Registry publication is outside
-this qualification. Artifacts currently target Linux x86_64 in the pinned Nix
+this qualification. Artifacts currently target Linux x86_64 and ARM64 in the pinned Nix
 environment and require its native closure; they are not portable static binaries.
 
 ```typescript

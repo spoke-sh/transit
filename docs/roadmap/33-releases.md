@@ -57,8 +57,8 @@ SDK and installer matrix must complete before closing their acceptance items.
 - macOS requires replacements for Linux terminal/inotify handling, parent-death
   supervision and the synchronized authority clock. Windows additionally needs
   its process, terminal and native I/O integration. Packaging cannot remove those
-  runtime safety requirements. Native SDKs and container images remain x86_64;
-  ARM64 coverage currently targets the standalone executable bundle.
+  runtime safety requirements. Linux ARM64 SDK and container jobs are part of the distribution matrix;
+  successful native hosted execution remains required before advertising that release set.
 - Board catalog discovery, dataset previews, saved workbooks and governed review
   depend on [the planned workbench](27-board-reimplementation.md). This release
   work tests the implemented inspection UI and embedded assets only.

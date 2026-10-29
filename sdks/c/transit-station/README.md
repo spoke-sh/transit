@@ -4,7 +4,7 @@ The public [transit/station.h](include/transit/station.h)
 defines codec callbacks, a sequential handler runner, mutation recovery hooks,
 scoped KV/Table helpers, retained read versions and original query IPC. The
 runner and typed operations delegate protocol/framework behavior to Zig's
-Station ABI. The installed native artifacts target Linux x86_64; the
+Station ABI. The installed native artifacts target Linux x86_64 and ARM64; the
 [proof ledger](../../../docs/history/qualification/README.md) records the executed runner and caller
 schedules.
 

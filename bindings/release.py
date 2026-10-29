@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import shutil
@@ -13,11 +14,13 @@ import tempfile
 from package_metadata import IDENTITY
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET = 'x86_64-linux-gnu.2.28'
+ARCHITECTURE = platform.machine()
+TARGET = ARCHITECTURE + '-linux-gnu.2.28'
+INTERPRETERS = {'x86_64': '/lib64/ld-linux-x86-64.so.2', 'aarch64': '/lib/ld-linux-aarch64.so.1'}
 BUILDERS = {'python': 'wheels', 'node': 'node', 'rust': 'rust', 'ruby': 'ruby',
             'c': 'c', 'java': 'java', 'dotnet': 'dotnet', 'beam': 'beam', 'go': 'go'}
 SYSTEM_LIBRARIES = {'libc.so.6', 'libpthread.so.0', 'libdl.so.2', 'libm.so.6',
-                    'librt.so.1', 'ld-linux-x86-64.so.2'}
+                    'librt.so.1', 'ld-linux-x86-64.so.2', 'ld-linux-aarch64.so.1'}
 
 
 def command(args, **kwargs):
@@ -59,12 +62,14 @@ def relocate(source, destination):
             raise ValueError(f'nonportable loader or library search path: {path}')
         if any(int(minor) > 28 for minor in re.findall(r'GLIBC_2\.(\d+)', headers)):
             raise ValueError(f'native artifact requires glibc newer than 2.28: {path}')
-        if 'INTERP' in headers and '/lib64/ld-linux-x86-64.so.2' not in headers:
+        if 'INTERP' in headers and INTERPRETERS[ARCHITECTURE] not in headers:
             raise ValueError(f'unexpected native interpreter: {path}')
     return metadata
 
 
 def build(output, jobs):
+    if platform.system() != 'Linux' or ARCHITECTURE not in INTERPRETERS:
+        raise ValueError('release SDK builds require a native Linux x86_64 or ARM64 runner')
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     if any(output.iterdir()):

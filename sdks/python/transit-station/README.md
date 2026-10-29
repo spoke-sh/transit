@@ -19,7 +19,7 @@ independent native dependency. Discovery uses installed packages, with an explic
 `ServiceConfig.native_directory` override. Import starts no work or credential
 access. Missing native artifacts/exports raise `IncompatibleNative`.
 
-The qualified target is Nix-pinned CPython 3.13 on Linux x86_64. Native wheels
+The qualified target is Nix-pinned CPython 3.13 on Linux x86_64 and ARM64. Native wheels
 carry the local build's Nix runtime linkage; they are not portable manylinux
 artifacts. Registry publishing and other platforms remain unqualified.
 

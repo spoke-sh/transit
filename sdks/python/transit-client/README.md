@@ -4,7 +4,7 @@ M11's typed raw client over the shared Zig implementation. It has no Station
 import, dependency or native artifact. `transit-native-client` supplies the
 version-matched library and standalone port; an explicit `native_directory`
 override can replace installed library discovery. No credentials or connections
-are discovered during import. Linux x86_64 / CPython 3.13 is the initial target.
+are discovered during import. Linux x86_64 and ARM64 / CPython 3.13 is the initial target.
 Public Station runners are a separate package.
 
 ```python

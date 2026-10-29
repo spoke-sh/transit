@@ -36,7 +36,8 @@ def package(packages, output, notices):
                 shutil.copy2(source, stage / source.name)
             shutil.copytree(notices, stage / 'notices')
             shutil.copy2(packages / 'sdk-manifest.json', stage / 'sdk-manifest.json')
-            name = f'transit-sdk-{language}-{version}-linux-x86_64'
+            architecture = manifest['target'].split('-')[0]
+            name = f'transit-sdk-{language}-{version}-linux-{architecture}'
             archive(stage, output / f'{name}.tar.gz', name, epoch)
         # The public Zig manifest has relative shared-package dependencies.
         # Ship their tracked closure, preserving paths, and the real consumer.

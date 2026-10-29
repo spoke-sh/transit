@@ -1,6 +1,6 @@
 # transit-native-station for Python
 
-The Linux x86_64 native dependency for the public Station SDK. Its built wheel
+The Linux x86_64 and ARM64 native dependency for the public Station SDK. Its built wheel
 contains `libtransit_station.so` and `transit-station-host`. Raw-client consumers
 install the independent `transit-native-client` artifact. Import opens no library
 or process; package-owned `library_path()` and `host_path()` resolve the artifacts.

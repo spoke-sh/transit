@@ -72,7 +72,7 @@ def build(output, native_prefix, sdk_prefix):
         packages[name][f'lib/pkgconfig/{name}.pc'] = (
             f'Name: {name}\nDescription: Transit native ABI dependency\nVersion: {VERSION}\n').encode()
     for name, files in packages.items():
-        platform = '' if name in ('transit-client-cpp', 'transit-station-cpp') else '-linux-x86_64'
+        platform = '' if name in ('transit-client-cpp', 'transit-station-cpp') else '-linux-' + native_build['target'].split('-')[0]
         artifact = output / f'{name}-{VERSION}{platform}.tar.gz'
         with tarfile.open(artifact, 'w:gz') as archive:
             for relative, data in sorted(files.items()):

@@ -70,5 +70,5 @@ saved bytes if needed. Native creation, calls and destruction stay on the owned
 `just bindings::rust-sdk-test` checks clean locked builds, moved/exclusive handle
 ownership, safe bounds, copied bytes, lost receipts, exact seedless retry,
 responsive controller join and revoked historical recovery. Qualification is
-Linux x86_64, Rust 1.95 and Nix-linked native artifacts. Station handlers and
+Linux x86_64 and ARM64, Rust 1.95 and Nix-linked native artifacts. Station handlers and
 public language-pair qualification remain separate M11 work.

@@ -25,7 +25,7 @@ executables do not require Nix or host shared libraries. The archive includes
 
 macOS and Windows executables are not produced. The local supervisor requires
 Linux process groups and parent-death signals; console editing requires Linux
-terminal/inotify APIs, and the authority clock uses Linux `adjtimex`. Container images and native SDK packages target x86_64. Both executable
+terminal/inotify APIs, and the authority clock uses Linux `adjtimex`. Container images and native SDK packages target x86_64 and ARM64. Both executable
 architectures have native build and installed-runtime jobs; additional Linux
 architectures require separate qualification.
 The Substrate runtime-controller image needs its pinned provider CLI and remains
@@ -33,7 +33,7 @@ outside this artifact set.
 
 ## SDK packages
 
-GitHub Releases contain `transit-sdk-<language>-<version>-linux-x86_64.tar.gz`
+GitHub Releases contain `transit-sdk-<language>-<version>-linux-<architecture>.tar.gz` (`x86_64` or `aarch64`)
 for `python`, `node`, `rust`, `ruby`, `c`, `java`, `dotnet`, `beam` and `go`.
 Each archive groups the language's native client, ordinary client, available
 Station adapter and examples. C includes C++ headers; BEAM includes Erlang and
@@ -43,7 +43,7 @@ Follow the language's [installation guide](sdks.md) using the extracted package
 files as a local package source. Public npm, PyPI, crates.io and other registry
 publication is not enabled.
 
-Native SDK libraries and helper processes target Linux 5.10 or newer on x86_64,
+Native SDK libraries and helper processes target Linux 5.10 or newer on x86_64 and ARM64,
 with glibc 2.28 or newer. They use the system loader and archive-relative library paths, without
 Nix dependencies. Language runtimes and their documented dependencies remain
 separate requirements. `sdk-manifest.json` identifies the compiler, native target,
@@ -173,6 +173,11 @@ the archive's `build-info.json` records that identity. Serving the documentation
 does not start Transit or require an installation.
 
 ## Containers and Helm
+
+Each image version identifies an OCI index containing native `linux/amd64` and
+`linux/arm64` images. The manifest records the index digest, each platform
+manifest digest and its image configuration digest. Both native builds and
+container checks must pass before the combined version can publish.
 
 The local server container runs as UID/GID 65532. Its services retain their
 loopback/private admission boundaries; publishing container ports does not expose

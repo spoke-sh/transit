@@ -31,6 +31,9 @@ def build(output: Path, packages: list[str], native_prefix: Path) -> None:
                 if path.is_dir(): shutil.copytree(path, staging / name_or_directory, dirs_exist_ok=True)
                 elif path.is_file(): shutil.copy2(path, staging / name_or_directory)
             if name.startswith('transit-native-'):
+                native = json.loads((native_prefix / 'build.json').read_text())
+                manifest['cpu'] = [{'x86_64': 'x64', 'aarch64': 'arm64'}[native['target'].split('-')[0]]
+                (staging / 'package.json').write_text(json.dumps(manifest, indent=2) + '\n')
                 family = name.removeprefix('transit-native-')
                 executable = native_prefix / 'bin' / f'transit-{family}-host'
                 if not executable.is_file(): raise SystemExit(f'Missing native artifact: {executable}')

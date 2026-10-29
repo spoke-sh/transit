@@ -1,5 +1,6 @@
 """Build the archived public Zig SDK and qualify an installed application's lifecycle."""
 import argparse
+import platform
 from pathlib import Path
 import shutil
 import subprocess
@@ -17,7 +18,7 @@ def qualify(archive, runtime):
             bundle.extractall(root, filter='data')
         source, = root.iterdir()
         application = source / 'examples/work-items'
-        subprocess.run(['zig', 'build', '-Dtarget=x86_64-linux-musl',
+        subprocess.run(['zig', 'build', '-Dtarget=' + platform.machine() + '-linux-musl',
                         '-Dcpu=baseline', '-Doptimize=ReleaseSafe', '-j2'], cwd=application, check=True)
         installed = root / 'installed'
         shutil.copytree(application / 'zig-out/bin', installed)

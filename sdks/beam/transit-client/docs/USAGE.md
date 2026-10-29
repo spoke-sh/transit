@@ -17,7 +17,7 @@ modules, public headers and generated schemas. Direct dependency versions are
 recorded in `rebar.config`; native discovery checks the exact 0.0.1 application
 version. No manual executable/library paths are needed. This installation proof
 uses standard OTP application resolution, not Rebar/Hex registry resolution.
-Artifacts target OTP 28/Linux x86_64 and require the pinned Nix runtime closure.
+Artifacts target OTP 28/Linux x86_64 and ARM64 and require the pinned Nix runtime closure.
 
 ## Operations and uncertainty
 
