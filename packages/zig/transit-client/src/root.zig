@@ -387,6 +387,13 @@ pub fn readKey(allocator: std.mem.Allocator, io: std.Io, path: []const u8) !tran
 }
 
 fn largestFields(comptime T: type) T {
+    if (T == protocol.Storage.Path) {
+        // Exercise the longest valid owned path, including maximum JSON escaping.
+        // A saturated u16 length does not describe a valid 4096-byte Path.
+        var bytes: [4096]u8 = @splat(1);
+        bytes[0] = '/';
+        return protocol.Storage.Path.init(&bytes) catch unreachable;
+    }
     if (T == protocol.Value) return protocol.Value.init(&(@as([protocol.Value.max_bytes]u8, @splat(255)))) catch unreachable;
     return switch (@typeInfo(T)) {
         .int => |info| if (info.signedness == .signed) std.math.minInt(T) else std.math.maxInt(T),
