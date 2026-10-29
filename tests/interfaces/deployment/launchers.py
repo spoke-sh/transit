@@ -86,6 +86,10 @@ def proof(profile):
 
     completed = False
     try:
+        # Prepare identified binaries under the launcher's build budgets before
+        # the startup/fault deadlines. A cold ReleaseSafe build can outlast an
+        # invocation's runtime budget; it is not evidence of failed readiness.
+        installation.artifacts.initialize()
         with socket.socket() as occupied:
             occupied.bind(("127.0.0.1", installation.base_port))
             occupied.listen()
@@ -336,6 +340,7 @@ def foreground_proof(profile):
         raise AssertionError(output.read_text()[-5000:])
 
     try:
+        installation.artifacts.initialize()
         with output.open("w") as log:
             child = subprocess.Popen([*command, "up", *selection], env=env,
                                      stdout=log, stderr=log, start_new_session=True)
