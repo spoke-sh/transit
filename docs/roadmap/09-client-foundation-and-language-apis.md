@@ -136,7 +136,7 @@ whether they are in the representative new-feature set.
 | [M19](19-service-and-sdk-coverage.md), In Progress | Existing Go raw and SDK/console coverage | Preserve existing installed consumers during migration. New parity follows this foundation instead of extending the Station-shaped data bridge. |
 | [M20](20-formal-semantics-and-correspondence.md#t2-statement-results-disclosure-and-uncertain-settlement), In Progress | Result/settlement models and implementation correspondence | Supply deterministic context/recovery transitions and replay fixtures; do not wait for all formal work or claim full refinement from bounded checks. |
 | [M28](28-board-reimplementation.md), In Progress | Public catalog/SQL/browser consumers | Migrate shared boundary changes with their consumers, preserving read-only inspection and browser-specific credentials. Board runtime code never imports consumer SDKs. |
-| [M34](34-releases.md), In Progress | Installed native/client packaging and release checks | Add matching generated resources and independent artifacts to current installation checks. New platforms and registry publication remain release/coverage work. |
+| [M35](35-releases.md), In Progress | Installed native/client packaging and release checks | Add matching generated resources and independent artifacts to current installation checks. New platforms and registry publication remain release/coverage work. |
 
 Agree the M8 handoff before changing common code:
 
@@ -554,8 +554,8 @@ does not silently waive P7. Update this milestone and the roadmap index together
   [M32](32-programming-model.md) add durable subscriptions, standalone recorded
   effects, typed Station calls and full mixed/behavior journeys. Context
   composition and shared values land here; those later capabilities do not.
-- [M33](33-qualification-and-benchmarks.md) and
-  [M34](34-releases.md) combine evidence and distribution at a release revision.
+- [M34](34-qualification-and-benchmarks.md) and
+  [M35](35-releases.md) combine evidence and distribution at a release revision.
   M9 still requires its own installed acceptance before that later qualification.
 
 ## Completion evidence

@@ -61,15 +61,37 @@ half-committed transaction as a completed result.
    compare progress with authorized observed input positions (`manifest/v{N}`,
    `lsn`) and define freshness at that observation. A completed result remains
    complete for its own basis while later changes are pending.
-4. **Define refresh, pause/resume, cancellation, alteration, retirement and cleanup:**
-   preserve the last complete result while a successor is incomplete. Define
-   dependency/schema changes, revocation, unavailable history, the selected
-   retained-history/snapshot-to-live handoff and policy expiry without inventing
-   cross-owner atomicity.
+4. **Define the five-state computation lifecycle (`Published`, `Authorized`, `Active`, `Suspended`, `Retired`) and explicit DDL controls (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`):**
+   rather than collapsing dataflow state into an ambiguous boolean `ENABLE` / `DISABLE`
+   toggle, keep definition publication, authorization (`policy_epoch` binding),
+   active background scheduling, operational suspension and permanent retirement
+   distinct:
+   - **`ACTIVATE`:** transitions an authorized definition revision into active
+     `TransitLog` delta scheduling under a fenced owner lease.
+   - **`SUSPEND`:** pauses background delta consumption and external effect
+     dispatch while preserving the computation's checkpointed source watermarks
+     (`manifest/v{N}`, `lsn`) and continuing to serve reads from the last
+     completed result revision (with its exact frozen source basis visible).
+   - **`RESUME` (`WITH (on_resume = 'replay_history' | 'recompute_snapshot')`):**
+     resumes scheduling according to the consumer's declared recovery profile—either
+     replaying every intermediate `+row`/`-row` delta from the checkpointed
+     `TransitLog` position (failing explicitly if required history was compacted
+     during the suspension) or establishing a fresh snapshot-to-live handoff at
+     the current manifest cut.
+   - **`REFRESH` and `RETIRE`:** trigger an explicit bounded recomputation, or
+     permanently close a definition revision to new activation and scheduling while
+     retaining historical provenance and receipts. Preserve the last complete
+     result while any successor is incomplete, and define dependency/schema
+     changes, revocation, unavailable history and policy expiry without inventing
+     cross-owner atomicity.
 5. **Adapt the qualified lifecycle to SQL views/subscriptions and typed SDK operations:**
-   inspection and `EXPLAIN` do no work. Board consumes the same definitions and
-   evidence through its explicit capabilities; it adds no hidden scheduler or
-   administrative authority.
+   expose the same typed lifecycle state machine and DDL verbs across SQL
+   (`CREATE` / `ALTER MATERIALIZED VIEW` / `DATAFLOW` / `SUBSCRIPTION`), SDKs and
+   Board; [SQL grammar and dialect ergonomics](33-sql-grammar-and-dialect-ergonomics.md)
+   audits these forms against PostgreSQL (`ENABLE`/`DISABLE`) and Snowflake
+   (`SUSPEND`/`RESUME`/`REFRESH`) dialects. Inspection and `EXPLAIN` do no work.
+   Board consumes the same definitions and evidence through its explicit
+   capabilities; it adds no hidden scheduler or administrative authority.
 
 ## Remaining work
 

@@ -78,7 +78,7 @@ retrieval, streaming CDC ingestion and import/export costs.
      query plan, handing off reactive context subscriptions to
      [Milestone 30](30-reactive-context-and-agent-activation.md) and
      declarative sequence/context synthesis research to
-     [Milestone 35](35-declarative-language-context-and-synthesis.md).
+     [Milestone 36](36-declarative-language-context-and-synthesis.md).
 4. **Implement multi-format `FOREIGN TABLE` and `COPY` readers over POSIX and `TransitObjectStore` (S3/GCS/R2):**
    - **Analytical columnar formats (`PARQUET`, `ARROW_IPC`):** use qualified
      borrowed layouts or bounded decoding for column chunks/dictionaries, with

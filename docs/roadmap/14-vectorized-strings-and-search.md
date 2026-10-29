@@ -146,7 +146,7 @@ current-authority disclosure checks.
    [Milestone 30](30-reactive-context-and-agent-activation.md), and speculative
    research into declarative span/proximity maps (`NEAR`), context-conditioned
    sequence continuation and branch-verified agency to
-   [Milestone 35](35-declarative-language-context-and-synthesis.md).
+   [Milestone 36](36-declarative-language-context-and-synthesis.md).
 
 ## Candidate structures and selection evidence
 
@@ -179,4 +179,4 @@ separate from evidence for Transit's Zig implementations.
   strings, `IN (...)`) and standard information-retrieval workloads (lexical
   top-$k$, substring/proximity filtering and hybrid search) meet predeclared
   latency, throughput and allocation budgets in the
-  [qualification scorecard](33-qualification-and-benchmarks.md).
+  [qualification scorecard](34-qualification-and-benchmarks.md).
