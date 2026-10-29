@@ -382,7 +382,8 @@ fn logRoute(target: []const u8) []const u8 {
     if (std.mem.eql(u8, target, "/api/v1/storage")) return "/api/v1/storage";
     if (std.mem.startsWith(u8, target, "/api/v1/atlas")) return "/api/v1/atlas";
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
-    inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes", "/atlas", "/activity", "/definition", "/operations", "/recovery/definition" }) |known| if (std.mem.eql(u8, path, known)) return known;
+    inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes", "/atlas", "/activity", "/definition", "/operations", "/recovery/definition", "/catalog", "/workbook" }) |known| if (std.mem.eql(u8, path, known)) return known;
+    if (std.mem.startsWith(u8, path, "/datasets/") and browserRoute(path)) return "/datasets/{object}";
     if (assets.get(path) != null) return "/assets/{asset}";
     if ((parseParticipation(path) catch null) != null) return "/api/v1/resources/{resource}/participation";
     if ((parseRecords(path) catch null) != null) return "/api/v1/resources/{resource}/records";
@@ -651,6 +652,17 @@ fn reservedBrowserPath(path: []const u8) bool {
     return false;
 }
 fn browserRoute(path: []const u8) bool {
+    if (std.mem.eql(u8, path, "/catalog") or std.mem.eql(u8, path, "/workbook")) return true;
+    if (std.mem.startsWith(u8, path, "/datasets/")) {
+        var parts = std.mem.splitScalar(u8, path[10..], '.');
+        for (0..5) |_| {
+            const part = parts.next() orelse return false;
+            if (part.len == 0 or part[0] == '0') return false;
+            for (part) |byte| if (!std.ascii.isDigit(byte)) return false;
+            _ = std.fmt.parseInt(u64, part, 10) catch return false;
+        }
+        return parts.next() == null;
+    }
     if (std.mem.eql(u8, path, "/recovery/definition")) return true;
     if (std.mem.eql(u8, path, "/definition") or std.mem.eql(u8, path, "/operations") or std.mem.eql(u8, path, "/activity") or std.mem.eql(u8, path, "/atlas") or std.mem.eql(u8, path, "/") or std.mem.eql(u8, path, "/resources")) return true;
     if (!std.mem.startsWith(u8, path, "/processes/")) return false;
@@ -659,6 +671,12 @@ fn browserRoute(path: []const u8) bool {
     if (pid == 0) return false;
     if (parts.next()) |part| if (!std.mem.eql(u8, part, "journey")) return false;
     return parts.next() == null;
+}
+
+test "data workbench deep links serve the embedded shell with bounded object identities" {
+    const t = std.testing;
+    inline for (.{ "/catalog", "/workbook", "/datasets/73.3.1.1.18446744073709551615" }) |path| try t.expect(browserRoute(path));
+    inline for (.{ "/datasets/", "/datasets/73.3.1.1", "/datasets/73.3.1.1.01", "/datasets/73.3.1.1.2/extra", "/datasets/73.3.1.1.18446744073709551616" }) |path| try t.expect(!browserRoute(path));
 }
 const Shared = struct {
     config: Config,

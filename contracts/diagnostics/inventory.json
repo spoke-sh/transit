@@ -180,7 +180,7 @@
       "open_error_set_uses": 6,
       "propagation": {
         "try": 59,
-        "catch": 53
+        "catch": 54
       },
       "imports": [
         "Growing.zig",
