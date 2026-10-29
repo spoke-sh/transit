@@ -11,6 +11,57 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## Persistent console statement latency — 2026-10-28
 
+### Merged-path recovery checks — 2026-10-29
+
+The follow-up to [PR #222](https://github.com/spoke-sh/transit/pull/222)
+separates a faulty lost-reply schedule from unresolved publication latency.
+Source `22316f4738bc` runs on main `3cb07950e`, including PR #225's valid
+maximum-path metadata fixture. Linux x86_64, pinned Zig
+`0.17.0-dev.2267+48abf1a34`, ReleaseSafe binaries and local disk remain the
+execution profile. The host is shared; no isolated-load or speedup claim follows.
+
+The [SQL service recovery method](../../../packages/zig/transit-sql-service/README.md)
+now withholds a confirmed committed reply until the client's existing deadline
+expires. A gate prevents subsequent recovery requests from reaching authority
+until the helper and node are killed and all old proxy connections are joined.
+Restart must recover the same saved binding/result, rows and counts. This avoids
+treating a helper's exit status as evidence that a particular reply fault fired.
+Normal foreground/background traffic remains concurrent. Failed installations
+are retained privately outside the temporary Nix shell.
+
+The first revised native schedule reached both DDL and INSERT crash/recovery
+checks but serialized ordinary traffic as well, then timed out in the later
+capacity-retry case. Restricting the gate to the crash schedules removed that
+fixture interference. The next run at `7767d856a` passed those earlier assertions
+and capacity retry, then failed on the 67-row INSERT: repeated `commit_saved`
+attempts reached the unchanged ten-second node deadline during
+`data.object_put`. The complete schedule did not pass. Its private installation
+is `/var/tmp/transit-sql-database-xuk7djsw`; the raw log
+`.cache/sql-qualification/gateway-final.log` has SHA-256
+`d571deadda1beed278e88fb47327c27cceab559c8ca84820487570527210177d`.
+
+The default installed console attempt used frozen binaries from `7767d856a`,
+the unchanged statement driver at `92c91cec1`, `--statements --repeat 5`, no
+proxy and no cache/deadline overrides. Installation failed before any timed SQL:
+native `associate` requests repeatedly exceeded two seconds and the manager
+exhausted its node restart budget. There is no latency distribution from this
+attempt. The original installation remains private at
+`/var/tmp/transit-server-proof-xq2x465q`. Source/tool/binary identity is in
+`.cache/sql-qualification/console-unproxied.jsonl` (SHA-256
+`8dfe09e58306df5bd57dd86d4768b41482cf1c6fe86dd40f767c8c0deaf03ccf`);
+the failure log is `console-unproxied.stderr` (SHA-256
+`339c2d568a7f37fcab49b551b36ba2ef812ea5c3c7148c4885e573d32cf58bfb`).
+
+At `22316f4738bc`, `zig build test-local-owner-recovery -Doptimize=ReleaseSafe`
+passes unchanged, including the original receipts, bounded owner reopen,
+atomic input/KV/block/output/effect publication, retained blocks and process
+restart. This does not establish the cause of the earlier association timeout
+or qualify installed bootstrap. The log
+`.cache/sql-qualification/local-owner.log` has SHA-256
+`889706ba0ae61943f5121e898ad6c2a9f42800c1d7391733f9d3305b7d9ca241`.
+All 47 clean fast checks also pass at that source; they do not establish native
+runtime or latency qualification.
+
 ### Resident owners, foreground completion and snapshot acquisition
 
 This follow-up to [#211](https://github.com/spoke-sh/transit/issues/211) measures
