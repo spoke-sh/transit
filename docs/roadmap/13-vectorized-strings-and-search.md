@@ -1,4 +1,4 @@
-# 12. First-class strings, perfect hashing and vectorized search execution
+# 13. First-class strings, perfect hashing and vectorized search execution
 
 [Roadmap](README.md) · [Performance #76](https://github.com/spoke-sh/transit/issues/76) · [Standards & Multi-Model #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -15,7 +15,7 @@ boxing text or code workloads into a bag-of-words model.
 
 ## Prerequisites and scope
 
-The proposed [issue #194 implementation plan](11-data-structures-and-performance.md#implementation-plan-for-issue-194)
+The proposed [issue #194 implementation plan](12-data-structures-and-performance.md#implementation-plan-for-issue-194)
 defines the shared allocation contract and sequences this milestone's string,
 lookup and search gates in phase H. This milestone retains ownership of those
 capabilities and their prerequisites; the plan does not establish support.
@@ -24,10 +24,10 @@ Consume the qualified [local engine](02-storage-and-query-performance.md),
 [installed cutover](03-live-storage-and-sql-cutover.md),
 [results](04-statement-results-and-consumption.md),
 [transactions](05-transactions-and-atomic-composition.md),
-[collations and historical catalogs](08-standards-and-catalogs.md),
-[indexing](09-indexing-and-access-paths.md),
-[analytical SQL](10-sql-and-dataflows.md) and
-[data structures and resource metering](11-data-structures-and-performance.md).
+[collations and historical catalogs](09-standards-and-catalogs.md),
+[indexing](10-indexing-and-access-paths.md),
+[analytical SQL](11-sql-and-dataflows.md) and
+[data structures and resource metering](12-data-structures-and-performance.md).
 Start from [queries](../handbook/reference/queries.md),
 [tables](../handbook/reference/tables.md),
 [storage mechanisms](../handbook/internals/storage-runtime.md),
@@ -136,14 +136,17 @@ current-authority disclosure checks.
    Support reciprocal rank fusion (`RRF`) and calibrated linear score combination
    in `Fuze` without multiple round-trips or external search engines, preserving
    per-morsel CPU/memory/IOPS metering from
-   [Milestone 11](11-data-structures-and-performance.md).
-   Hand off multi-model Document/Graph structural search and foreign-format
-   projections to [Milestone 14](14-multi-model-and-foreign-relations.md),
+   [Milestone 12](12-data-structures-and-performance.md).
+   Hand off the multi-format Document Type Library (`JSON`, `XML`, `HTTP`, `FTP`,
+   `EDI`) and unified gateway/connector exchange lifecycle to
+   [Milestone 15](15-document-profiles-and-gateway-exchange-lifecycle.md),
+   multi-model Document/Graph structural search and foreign-format
+   projections to [Milestone 16](16-multi-model-and-foreign-relations.md),
    governed reactive context assembly to
-   [Milestone 27](27-reactive-context-and-agent-activation.md), and speculative
+   [Milestone 29](29-reactive-context-and-agent-activation.md), and speculative
    research into declarative span/proximity maps (`NEAR`), context-conditioned
    sequence continuation and branch-verified agency to
-   [Milestone 32](32-declarative-language-context-and-synthesis.md).
+   [Milestone 34](34-declarative-language-context-and-synthesis.md).
 
 ## Candidate structures and selection evidence
 
@@ -171,9 +174,9 @@ separate from evidence for Transit's Zig implementations.
   lanes, snapshots and `.tdel` deletions.
 - Hot-path string comparisons, dictionary probes and search block evaluations run
   with zero steady-state heap allocations after warmup and enforce per-morsel
-  CPU, memory and IOPS budgets from [Milestone 11](11-data-structures-and-performance.md).
+  CPU, memory and IOPS budgets from [Milestone 12](12-data-structures-and-performance.md).
 - Benchmarks on ClickBench string-heavy queries (`LIKE`, `REGEXP`, `GROUP BY`
   strings, `IN (...)`) and standard information-retrieval workloads (lexical
   top-$k$, substring/proximity filtering and hybrid search) meet predeclared
   latency, throughput and allocation budgets in the
-  [qualification scorecard](30-qualification-and-benchmarks.md).
+  [qualification scorecard](32-qualification-and-benchmarks.md).

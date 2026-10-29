@@ -24,7 +24,7 @@ rather than layering over `Station` [`AccountRuntime.zig`](https://github.com/sp
 or [`Ledger.zig`](https://github.com/spoke-sh/transit/blob/fbbaeae12/packages/zig/transit-sql/src/Ledger.zig). Coordinate
 stream/queue outbox, consumer-checkpoint and durable-runtime turn composition
 with [Milestone 6](06-streams-queues-and-durable-runtime.md) and client contracts
-with the [early programming foundation](07-client-foundation-and-language-apis.md).
+with the [early programming foundation](08-client-foundation-and-language-apis.md).
 
 At the implementation-plan base `87a10e4f2` (fetched `origin/main` on
 2026-10-28), the [SQL reference](../handbook/reference/sql.md) and
@@ -155,9 +155,9 @@ and public callers must land before an installed transaction profile is claimed.
 | [M3](03-live-storage-and-sql-cutover.md#implementation-plan--2026-10-27), In Progress | Installed direct Tables, lazy schema projection, WAL reads, automatic maintenance, database-owned SQL and single-executable packaging | Implementation can start from these merged owners. Preserve P1 native-resource/caller boundaries and P4 maintenance/retention checks. Coordinate P5 read/wait costs and P6 inspection; require affected installed recovery and resource gates at M5 P9. M3 P4–P6 and P8 remain independently open. |
 | [M4](04-statement-results-and-consumption.md#delivered-integration-boundary), Completed | `transit-sql-results`, `Executor`, bounded `ResultSet`, typed counts and immutable observation evidence | Extend the shared model with provisional transaction attribution and decision evidence in P0/P5. Keep completion, delivery and closure separate. Do not rebuild submission/fetch/recovery in each adapter. |
 | [M6 Step 1](06-streams-queues-and-durable-runtime.md#sql-database-runtime-cutover--2026-10-28), In Progress | `DirectClientToken`, `DatabaseRuntime`, activation fencing, `ReadCache`, `commit_saved`, and build checks excluding Station from database packages | The architectural prerequisite is delivered. Preserve the one-data-append fast path and measure complete control-path cost; its remaining performance/installation gates are not prerequisites for drafting P0, nor are they automatically passed by this plan. |
-| [M11 / #194](11-data-structures-and-performance.md#implementation-plan-for-issue-194), In Progress | Admitted result/client/service reserves and `transit-memory` / `transit-io` owners | Budget transaction work separately from result and recovery capacity; coordinate source/storage allocation work with F–J. Rebase its older `AccountRuntime` references onto `DatabaseRuntime`; they are not an instruction to restore actors. |
-| [M16](16-service-and-sdk-coverage.md), In Progress; [M7](07-client-foundation-and-language-apis.md), Planned | Existing console, wire adapters and SDKs; agreed future shared-client direction | M5 delivers typed Zig and native SQL transaction callers plus the existing PostgreSQL/MySQL mappings. Review language ownership now; broad new language/Flight transaction coverage remains with M7/M16. |
-| [M17 T4](17-formal-semantics-and-correspondence.md#t4-transaction-decisions-isolation-and-atomic-outbox-publication), In Progress | Model/checker infrastructure and an explicit transaction candidate | Select the local OCC/decision model and production correspondence during P0, replay its counterexamples in P3/P4, and retain its bounded assumptions. Later SSI and distributed proofs do not substitute for the local gate. |
+| [M12 / #194](12-data-structures-and-performance.md#implementation-plan-for-issue-194), In Progress | Admitted result/client/service reserves and `transit-memory` / `transit-io` owners | Budget transaction work separately from result and recovery capacity; coordinate source/storage allocation work with F–J. Rebase its older `AccountRuntime` references onto `DatabaseRuntime`; they are not an instruction to restore actors. |
+| [M18](18-service-and-sdk-coverage.md), In Progress; [M8](08-client-foundation-and-language-apis.md), Planned | Existing console, wire adapters and SDKs; agreed future shared-client direction | M5 delivers typed Zig and native SQL transaction callers plus the existing PostgreSQL/MySQL mappings. Review language ownership now; broad new language/Flight transaction coverage remains with M7/M16. |
+| [M19 T4](19-formal-semantics-and-correspondence.md#t4-transaction-decisions-isolation-and-atomic-outbox-publication), In Progress | Model/checker infrastructure and an explicit transaction candidate | Select the local OCC/decision model and production correspondence during P0, replay its counterexamples in P3/P4, and retain its bounded assumptions. Later SSI and distributed proofs do not substitute for the local gate. |
 
 The storage follow-up at this base deliberately **does not adopt** the reusable
 128 MiB private maintenance reserve: installed RSS increased without a clear
@@ -261,8 +261,8 @@ executable syntax or implemented transaction support.
    The foundation selects whole-object optimistic validation under ordered
    participant guards for the first local Table profile. Because whole-Table
    read conflict detection aborts concurrent read-write transactions touching
-   disjoint keys on the same Table, [indexing and access paths](09-indexing-and-access-paths.md)
-   and [concurrent-writer qualification](18-storage-providers-and-concurrency.md)
+   disjoint keys on the same Table, [indexing and access paths](10-indexing-and-access-paths.md)
+   and [concurrent-writer qualification](20-storage-providers-and-concurrency.md)
    explicitly own the progression to fine-grained key-range and predicate-level
    Serializable Snapshot Isolation (SSI / index-range conflict tracking) over the
    same transaction session and recovery contract; neither can weaken the
@@ -347,8 +347,8 @@ executable syntax or implemented transaction support.
 ## Later owners and execution gates
 
 Define index-maintenance, constraint and DDL interactions with the
-[historical catalog](08-standards-and-catalogs.md) and
-[indexing owner](09-indexing-and-access-paths.md) before dependent formats.
+[historical catalog](09-standards-and-catalogs.md) and
+[indexing owner](10-indexing-and-access-paths.md) before dependent formats.
 Every constraint advertised here must already be enforceable in the supported
 domain, expanding from primary-key and `NOT NULL` checks to declarative row-level
 `CHECK` constraints and cross-table `FOREIGN KEY` referential integrity as those
@@ -364,24 +364,24 @@ or referentially invalid commits. Choose isolation mechanisms on their own evide
 not because a tree offers optimistic traversal. Include indexed/unindexed and
 parent/child foreign-key histories in later qualification.
 
-[Historical catalogs](08-standards-and-catalogs.md) retain exact interpretation;
-[dataflows](10-sql-and-dataflows.md) consume complete transaction changes without
+[Historical catalogs](09-standards-and-catalogs.md) retain exact interpretation;
+[dataflows](11-sql-and-dataflows.md) consume complete transaction changes without
 publishing half a multi-object update. General `MERGE`/upsert and prepared-plan
 features stay with SQL composition; this milestone owns their transaction
-interactions. [Foreign relations](14-multi-model-and-foreign-relations.md) owns
+interactions. [Foreign relations](16-multi-model-and-foreign-relations.md) owns
 typed `COPY`/import/export and its adapters. Foreign observations are not
 automatically transactional participants, and exporting bytes cannot be undone
 by local rollback.
 
-[Branches](15-branches-merges-and-restore.md) own multi-commit histories, merge
-validation and forward restore. [Investigations](23-published-resources-and-investigations.md)
+[Branches](17-branches-merges-and-restore.md) own multi-commit histories, merge
+validation and forward restore. [Investigations](25-published-resources-and-investigations.md)
 own retained multi-call bases, including honestly independent source vectors.
 Neither requires keeping an interactive transaction open for hours or days.
 
 The first qualified deployment is an explicitly bounded atomic domain over the
-local foundations. [Provider/concurrent-writer qualification](18-storage-providers-and-concurrency.md),
-[replication](19-replication-and-failover.md), [operations](20-operations-and-recovery.md)
-and [clustered execution](21-clustered-execution.md) extend and requalify decision
+local foundations. [Provider/concurrent-writer qualification](20-storage-providers-and-concurrency.md),
+[replication](21-replication-and-failover.md), [operations](22-operations-and-recovery.md)
+and [clustered execution](23-clustered-execution.md) extend and requalify decision
 durability, fencing and placement. Design all experiences together without
 claiming arbitrary distributed atomicity before those profiles execute.
 

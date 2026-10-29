@@ -1,4 +1,4 @@
-# 31. Release distribution
+# 33. Release distribution
 
 [Roadmap](README.md) · **Status:** In Progress
 
@@ -6,7 +6,7 @@ Publish a qualified tagged revision with one artifact/compatibility manifest.
 Existing [Nix packages](../../nix/README.md) and
 [source onboarding](../handbook/guides/quickstart.md) are the baseline, not a release pipeline.
 
-Consume the qualified [operations and upgrade procedures](20-operations-and-recovery.md).
+Consume the qualified [operations and upgrade procedures](22-operations-and-recovery.md).
 This milestone packages and verifies their installation experience; operational
 recovery, compatibility and conversion semantics remain with that owner.
 
@@ -54,10 +54,10 @@ SDK and installer matrix must complete before closing their acceptance items.
   runtime safety requirements. Native SDKs and container images remain x86_64;
   ARM64 coverage currently targets the standalone executable bundle.
 - Board catalog discovery, dataset previews, saved workbooks and governed review
-  depend on [the planned workbench](25-board-reimplementation.md). This release
+  depend on [the planned workbench](27-board-reimplementation.md). This release
   work tests the implemented inspection UI and embedded assets only.
 - Installed MCP business-resource/App checks depend on
-  [the planned MCP service](26-mcp-service-and-apps.md). There is no endpoint
+  [the planned MCP service](28-mcp-service-and-apps.md). There is no endpoint
   or App package to distribute yet.
 
 Static/component checks and a running server do not complete the milestone's
@@ -75,7 +75,7 @@ remaining capability-dependent onboarding matrix.
    ownership and failure/rollback policy.
 4. Package SDKs/libraries with generated resources and native dependency closure.
    Test consumers outside the checkout, including the qualified
-   [direct-client, Station and mixed programming models](29-programming-model.md).
+   [direct-client, Station and mixed programming models](31-programming-model.md).
    An ordinary data-client installation must not require the optional Station
    runner artifact; each release advertises its actual operation/language matrix.
 5. Publish matching handbook/specifications and test installed startup, SQL access,
@@ -83,7 +83,7 @@ remaining capability-dependent onboarding matrix.
    application installation and compatible worker replacement. State the released
    object kinds and lifecycle capabilities explicitly; an installed server alone
    does not complete onboarding.
-   Include the qualified [Board workbench](25-board-reimplementation.md) and
+   Include the qualified [Board workbench](27-board-reimplementation.md) and
    its embedded assets: exercise catalog discovery, bounded preview, a saved
    workbook and configured review capabilities from the installed package
    without checkout assets, a frontend development server or CDN dependencies.
@@ -100,7 +100,7 @@ retryable without replacing immutable artifacts. Installed commands work at the
 documented prefixes without development-shell state.
 
 Require matching artifacts, platform smoke tests, notices and the selected
-[qualification evidence](30-qualification-and-benchmarks.md). Explain fresh
+[qualification evidence](32-qualification-and-benchmarks.md). Explain fresh
 installation versus incompatible upgrade, preserve revocations and reject
 mismatches before execution. Application revisions remain separate from runtime
 upgrades.

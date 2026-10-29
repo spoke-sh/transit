@@ -1,4 +1,4 @@
-# 16. Service and SDK coverage
+# 18. Service and SDK coverage
 
 [Roadmap](README.md) · **Status:** In Progress
 
@@ -16,7 +16,7 @@ authorization and loss/error representation; transport convenience cannot
 silently downgrade complete changes to refresh notifications or five-state
 values to ordinary NULLs.
 
-Expand APIs over the earlier [shared client foundation](07-client-foundation-and-language-apis.md)
+Expand APIs over the earlier [shared client foundation](08-client-foundation-and-language-apis.md)
 and [transaction contract](05-transactions-and-atomic-composition.md). Preserve
 delivered raw-client and console evidence; new data/SQL coverage uses the agreed
 package direction and language-native ownership before extending the matrix.
@@ -79,23 +79,23 @@ The raw slice does not complete this milestone or establish those profiles.
   remain separate responsibilities.
 
 Enterprise identity/delegation is owned by the
-[Control & Policy Plane milestone](22-control-and-policy-plane.md).
-The complete [Board reimplementation](25-board-reimplementation.md) owns the
+[Control & Policy Plane milestone](24-control-and-policy-plane.md).
+The complete [Board reimplementation](27-board-reimplementation.md) owns the
 data-first interface and installed browser journeys. Existing Board adapter
 coverage and consumer migrations required by this milestone stay here; a later
 interface cutover does not defer parity or recovery obligations.
 The earlier [statement-result milestone](04-statement-results-and-consumption.md)
 owns shared command completion, bounded result readers and terminal evidence;
 this milestone extends qualified service/language coverage over that contract.
-The [published-resource milestone](23-published-resources-and-investigations.md)
-owns publication/disclosure and retained investigations; [MCP and Apps](26-mcp-service-and-apps.md)
+The [published-resource milestone](25-published-resources-and-investigations.md)
+owns publication/disclosure and retained investigations; [MCP and Apps](28-mcp-service-and-apps.md)
 adapt them to selected hosts. This milestone's existing native adapter work may
 proceed independently; it must not imply those new access or collaboration
 profiles are already supported. Extend parity only after each owner qualifies it.
 
-[Client foundation](07-client-foundation-and-language-apis.md) owns reusable
+[Client foundation](08-client-foundation-and-language-apis.md) owns reusable
 packages, shared runtime infrastructure and the initial idiomatic data APIs.
-[Programming model and mixed composition](29-programming-model.md) owns the
+[Programming model and mixed composition](31-programming-model.md) owns the
 complete direct/Station/mixed application experience after the capability owners
 land. This milestone's operation/platform promises and delivered slices remain
 here; their package/API foundation is a prerequisite, not deferred cleanup. A larger adapter matrix alone does not establish that ordinary data
@@ -103,9 +103,9 @@ applications and Station behaviors compose naturally.
 
 ## Completion evidence
 
-Carry [index lifecycle](09-indexing-and-access-paths.md) operations and inspection
+Carry [index lifecycle](10-indexing-and-access-paths.md) operations and inspection
 through every claimed adapter using shared outcomes and recovery. Repeat the
-[database/runtime scorecard](11-data-structures-and-performance.md) for actual
+[database/runtime scorecard](12-data-structures-and-performance.md) for actual
 installed language and transport paths, reporting allocation/copy overhead,
 batching, tail latency and verified completion separately from native-library
 measurements. Adapter convenience cannot change index coverage, transaction
