@@ -149,7 +149,7 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
      While `PRODUCE INTO` and `CONSUME ... FROM` own operational stream append
      and stateful cursor/watermark progression, analytical `SELECT` queries that
      join or aggregate historical `.tseg` stream data with relational Tables
-     (such as bitemporal `AS OF JOIN` backtesting in [Milestone 11](11-sql-and-dataflows.md))
+     (such as bitemporal `AS OF JOIN` backtesting in [Milestone 12](12-sql-and-dataflows.md))
      use an explicit, side-effect-free table-valued function bridge
      (`SELECT * FROM STREAM_SLICE(events, OFFSET ? TO ?)` or
      `STREAM_SLICE(events, TIMESTAMP ? TO ?)`), keeping stateful stream
@@ -277,7 +277,7 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
      letter queues, active leases, replay journals and actor state are catalog-
      declared Queues, Streams and Tables, operators and agents inspect queue
      depth, stuck leases, retry history and state through standard SQL and
-     [Board](27-board-reimplementation.md) under current `policy_epoch` grants.
+     [Board](28-board-reimplementation.md) under current `policy_epoch` grants.
 
 ## Database dependency separation — 2026-10-27
 
@@ -415,22 +415,22 @@ runtime is implemented.
   severs the remaining `STATION_DOCUMENT_V1`/`SIX1` actor-turn dependency so
   `DOCUMENT` joins `TABLE`, `STREAM` and `QUEUE` in `transit-storage`
   (`DocumentPartition`) before client foundation extraction.
-- [Shared client foundation](08-client-foundation-and-language-apis.md) and
-  [SDK coverage](18-service-and-sdk-coverage.md) expose idiomatic `PRODUCE`,
+- [Shared client foundation](09-client-foundation-and-language-apis.md) and
+  [SDK coverage](19-service-and-sdk-coverage.md) expose idiomatic `PRODUCE`,
   `CONSUME`, `ENQUEUE`, `CLAIM`/`ACK`/`NACK`, `Document` and re-architected
   `Station` worker APIs across target languages without re-introducing a
   `Station` dependency into ordinary data clients.
-- [Managed computations and WAL-activated dataflows](11-sql-and-dataflows.md)
+- [Managed computations and WAL-activated dataflows](12-sql-and-dataflows.md)
   connect declarative `STREAM`s and Table `CHANGES(...)` CDC feeds directly to
   continuous `Fuze` pipelines and materialized views, advancing consumer-group
   watermarks atomically with materialized output commits.
-- [Data structures and runtime performance](12-data-structures-and-performance.md)
+- [Data structures and runtime performance](13-data-structures-and-performance.md)
   enforces zero steady-state heap allocations after warmup, LeanStore/Umbra
   buffer residency and per-morsel resource metering across Stream/Queue tail
   readers, Roaring-bitmap ack vectors and `Station` turn commits.
-- [Storage providers](20-storage-providers-and-concurrency.md),
-  [replication](21-replication-and-failover.md) and
-  [clustered execution](23-clustered-execution.md) extend partitioned Stream/Queue
+- [Storage providers](21-storage-providers-and-concurrency.md),
+  [replication](22-replication-and-failover.md) and
+  [clustered execution](24-clustered-execution.md) extend partitioned Stream/Queue
   leases, timer wheels and fenced `Station` worker placement across distributed
   nodes.
 

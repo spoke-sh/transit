@@ -1,4 +1,4 @@
-# 31. Language-native programming model and mixed application composition
+# 32. Language-native programming model and mixed application composition
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -10,9 +10,9 @@ not require running a Station handler in the caller.
 
 ## Prerequisites and scope
 
-Follow [recorded outbound MCP and application guidance](30-recorded-mcp-integrations.md)
+Follow [recorded outbound MCP and application guidance](31-recorded-mcp-integrations.md)
 in the delivery sequence. The earlier
-[shared client foundation](08-client-foundation-and-language-apis.md) owns package
+[shared client foundation](09-client-foundation-and-language-apis.md) owns package
 extraction, shared client/host infrastructure, direct operation/recovery helpers
 and representative language APIs before SDK expansion. Consume that delivered
 foundation here and extend it to every claimed mixed/Station language profile;
@@ -23,9 +23,9 @@ Build on the qualified
 [statement/result contract](04-statement-results-and-consumption.md),
 [transactions and outbox](05-transactions-and-atomic-composition.md),
 [declarative streams, queues and durable runtime](06-streams-queues-and-durable-runtime.md),
-[service/SDK coverage](18-service-and-sdk-coverage.md) and the relevant
-[access](24-control-and-policy-plane.md),
-[published-resource](25-published-resources-and-investigations.md) and connector
+[service/SDK coverage](19-service-and-sdk-coverage.md) and the relevant
+[access](25-control-and-policy-plane.md),
+[published-resource](26-published-resources-and-investigations.md) and connector
 owners. API/contract review can start alongside those foundations. Earlier
 milestones retain their implementation and parity promises; this milestone owns
 coherent application composition and per-language usability, not deferred coverage.
@@ -88,12 +88,12 @@ an activation or a transaction.
 
 | Capability | Foundation milestones | Completion required here |
 | --- | --- | --- |
-| Direct Table, KV, Document, Stream, Queue and Catalog operations | [Installed lifecycle](03-live-storage-and-sql-cutover.md), [streams and queues](06-streams-queues-and-durable-runtime.md), [client foundation](08-client-foundation-and-language-apis.md), [SDK coverage](18-service-and-sdk-coverage.md) | Preserve the delivered direct-client packages, bounded operation/recovery helpers and low-level control while composing all application modes |
-| Transactions and transactional outbox | [Transactions](05-transactions-and-atomic-composition.md), [streams and queues](06-streams-queues-and-durable-runtime.md), [client foundation](08-client-foundation-and-language-apis.md) | Qualify idiomatic transaction scopes, provisional results, savepoints, uncertain commit recovery and staged messages/effects across direct and mixed programs |
-| SQL execution, `StatementResult` and streaming `ResultSet` | [Milestone 4](04-statement-results-and-consumption.md), [Milestone 18](18-service-and-sdk-coverage.md) | Expose unified `client.sql` / `client.query` streaming iterators and command outcomes directly on `transit-client` in every target language |
-| Data-activated stream consumers (`client.subscribe`) | [Milestone 2](02-storage-and-query-performance.md), [Milestone 6](06-streams-queues-and-durable-runtime.md), [Milestone 11](11-sql-and-dataflows.md), [Milestone 18](18-service-and-sdk-coverage.md), [Milestone 29](29-reactive-context-and-agent-activation.md) | Bind language-native iterators/callbacks to fenced durable consumer positions, explicit delivery profiles and snapshot-to-tail handoffs without requiring `GenServer` |
-| Standalone recorded effects (`client.effects`) | [Milestone 18](18-service-and-sdk-coverage.md), [Milestone 24](24-control-and-policy-plane.md), [Milestone 30](30-recorded-mcp-integrations.md) | Add caller admission and observation over durable HTTP/gRPC/MCP intent and capture owners, preserving unknown outcomes and connector-specific retry policy |
-| Typed caller-to-actor RPC (`client.service`) | [Milestone 1](01-declarative-data-lifecycle.md), [Milestone 6](06-streams-queues-and-durable-runtime.md), [Milestone 18](18-service-and-sdk-coverage.md), [Milestone 25](25-published-resources-and-investigations.md) | Provide shared service definitions, durable request correlation and outcome settlement from `transit-client` without manual `256B` frame packing or caller-hosted actors |
+| Direct Table, KV, Document, Stream, Queue and Catalog operations | [Installed lifecycle](03-live-storage-and-sql-cutover.md), [streams and queues](06-streams-queues-and-durable-runtime.md), [client foundation](09-client-foundation-and-language-apis.md), [SDK coverage](19-service-and-sdk-coverage.md) | Preserve the delivered direct-client packages, bounded operation/recovery helpers and low-level control while composing all application modes |
+| Transactions and transactional outbox | [Transactions](05-transactions-and-atomic-composition.md), [streams and queues](06-streams-queues-and-durable-runtime.md), [client foundation](09-client-foundation-and-language-apis.md) | Qualify idiomatic transaction scopes, provisional results, savepoints, uncertain commit recovery and staged messages/effects across direct and mixed programs |
+| SQL execution, `StatementResult` and streaming `ResultSet` | [Milestone 4](04-statement-results-and-consumption.md), [Milestone 19](19-service-and-sdk-coverage.md) | Expose unified `client.sql` / `client.query` streaming iterators and command outcomes directly on `transit-client` in every target language |
+| Data-activated stream consumers (`client.subscribe`) | [Milestone 2](02-storage-and-query-performance.md), [Milestone 6](06-streams-queues-and-durable-runtime.md), [Milestone 12](12-sql-and-dataflows.md), [Milestone 19](19-service-and-sdk-coverage.md), [Milestone 30](30-reactive-context-and-agent-activation.md) | Bind language-native iterators/callbacks to fenced durable consumer positions, explicit delivery profiles and snapshot-to-tail handoffs without requiring `GenServer` |
+| Standalone recorded effects (`client.effects`) | [Milestone 19](19-service-and-sdk-coverage.md), [Milestone 25](25-control-and-policy-plane.md), [Milestone 31](31-recorded-mcp-integrations.md) | Add caller admission and observation over durable HTTP/gRPC/MCP intent and capture owners, preserving unknown outcomes and connector-specific retry policy |
+| Typed caller-to-actor RPC (`client.service`) | [Milestone 1](01-declarative-data-lifecycle.md), [Milestone 6](06-streams-queues-and-durable-runtime.md), [Milestone 19](19-service-and-sdk-coverage.md), [Milestone 26](26-published-resources-and-investigations.md) | Provide shared service definitions, durable request correlation and outcome settlement from `transit-client` without manual `256B` frame packing or caller-hosted actors |
 | Turn-scoped actor composition (`transit-station`) | [Milestone 1](01-declarative-data-lifecycle.md), [Milestone 3](03-live-storage-and-sql-cutover.md), [Milestone 5](05-transactions-and-atomic-composition.md), [Milestone 6](06-streams-queues-and-durable-runtime.md) | Align `Turn` views and proposals (`turn.kv`, `turn.tables`, `turn.documents`, `turn.streams`, `turn.queues`, `turn.effects`, `turn.call`) with `transit-client` domain types while enforcing the atomic commit boundary |
 
 ## Delivery sequence
@@ -254,13 +254,13 @@ an activation or a transaction.
 
 ## Completion evidence
 
-Extend the [performance scorecard](12-data-structures-and-performance.md) across
+Extend the [performance scorecard](13-data-structures-and-performance.md) across
 direct, Station and mixed applications using the same logical data and outcomes.
 Report host scheduling, allocation/copy, batching and recovery overhead through
 real installed packages. Compare equivalent transaction/turn/effect boundaries;
 an in-process callback or transport acknowledgement is not durable completion.
 Index declarations and inspection reuse the
-[shared indexing lifecycle](10-indexing-and-access-paths.md) without language-local
+[shared indexing lifecycle](11-indexing-and-access-paths.md) without language-local
 maintenance, coverage or recovery state machines.
 
 Require three runnable installed examples for each claimed language/profile:
@@ -313,6 +313,6 @@ an independently committed transaction. Keep external outcome uncertainty visibl
 
 Measure application code needed for the normal and recovery paths, and review
 whether examples read naturally in each language. Syntax polish and copied API
-names are insufficient evidence. [SDK coverage](18-service-and-sdk-coverage.md)
+names are insufficient evidence. [SDK coverage](19-service-and-sdk-coverage.md)
 retains its operation/platform matrix; record actual mixed-mode evidence in the
 [proof ledger](../history/qualification/README.md) before claiming this programming model.

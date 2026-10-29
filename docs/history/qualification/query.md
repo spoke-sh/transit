@@ -3791,7 +3791,7 @@ Full `just check` passes for the interactive-console proof and qualification
 evidence changes, exit 0; log `/var/tmp/transit-count-console-qualification-check.log`.
 
 Remaining CLI qualification, compiler timing failures and clean lanes stay in the
-[SQL and dataflows](../../roadmap/11-sql-and-dataflows.md).
+[SQL and dataflows](../../roadmap/12-sql-and-dataflows.md).
 
 ### Native COUNT costs
 

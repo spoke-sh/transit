@@ -291,7 +291,7 @@ claim that `CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `CREATE QUEUE`,
     `key_fifo` entity-key affinity table, and a Hashed Hierarchical Timing Wheel
     for `visible_at` delays and retry backoff without B-tree page rewrite
     amplification.
-  - **Logical Documents (`DocumentPartition` in [Milestone 7](docs/roadmap/07-document-storage-and-station-decoupling.md)) and the Document Type Library + Gateway Exchange Lifecycle ([Milestone 15](docs/roadmap/15-document-profiles-and-gateway-exchange-lifecycle.md)):**
+  - **Logical Documents (`DocumentPartition` in [Milestone 7](docs/roadmap/07-document-storage-and-station-decoupling.md)) and the Document Type Library + Gateway Exchange Lifecycle ([Milestone 16](docs/roadmap/16-document-profiles-and-gateway-exchange-lifecycle.md)):**
     Decouple `DOCUMENT` from `Station` actor turns (`STATION_DOCUMENT_V1`/`SIX1`
     and the 96-byte scalar string ceiling) into `DocumentPartition` over
     `TransitLog` (`TWAL1`) and `.tseg` segments. Represent documents logically
@@ -312,6 +312,23 @@ claim that `CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `CREATE QUEUE`,
     gateway admissions over to linked `DOCUMENT` revisions in `DocumentPartition`
     while keeping transport/effect authority (`Gateway / Connector`) and
     document storage strictly decoupled.
+- **Formalize the gateway as a sans-I/O protocol boundary co-hosted over the Direct Data Plane ([Milestone 8](docs/roadmap/08-gateway-architecture-and-protocol-ingress.md)):**
+  Keep wire-protocol codecs (`transit-postgres`, `transit-mysql`,
+  `transit-sql-protocol` `TSR1`, `transit-flight`, `transit-serving-http`, and
+  [Milestone 16's](docs/roadmap/16-document-profiles-and-gateway-exchange-lifecycle.md)
+  protocol Document Profiles) strictly as pure sans-I/O byte/frame state machines
+  (`InputSlice -> ProtocolEvent / OutputSlice`) with zero socket, TLS, timer or
+  thread imports. Co-host `DatabaseRuntime` and SQL/Flight/Serving ingress with
+  `DirectCatalog` and `TablePartition` inside `transit-node` / `transit server`
+  by default (or use a single coarse-grained server-side statement RPC when
+  disaggregated) instead of orchestrating 7–10 `/table/v1` HTTP/1.1 JSON
+  round-trips per SQL statement from the gateway. Make operation and session
+  recovery strictly event-driven (sweeping once on startup/activation and waking
+  only when a foreground statement leaves a bound `DirectClientToken`
+  uncertain, rather than polling `/table/v1` every `2–100 ms`), use socket
+  `io.operateTimeout` deadlines instead of spawning two-task `std.Io.Select`
+  timer futures per header/command, and size `transit-io` worker pools to
+  `O(CPU cores)`.
 - **Unify the transaction commit envelope so a `Station` turn is simply a database transaction:**
   Include three native participant primitives in [Milestone 5's](docs/roadmap/05-transactions-and-atomic-composition.md)
   transaction commit envelope from the start: `(1) TABLE/KV/DOCUMENT state

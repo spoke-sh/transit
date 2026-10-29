@@ -1,4 +1,4 @@
-# 20. Storage providers and concurrent-writer qualification
+# 21. Storage providers and concurrent-writer qualification
 
 [Roadmap](README.md) · [Storage tracker #109](https://github.com/spoke-sh/transit/issues/109) · **Status:** Planned
 
@@ -45,7 +45,7 @@ milestone 2 obligations; this split cannot excuse an unsafe local implementation
    objects and local NVMe cache/spill files, binding Data Encryption Keys (DEKs)
    to realm, tenant or subject-group Key Encryption Keys (KEKs) so key rotation
    and cryptographic erasure (crypto-shredding in
-   [Control & Policy Plane](24-control-and-policy-plane.md)) operate cleanly
+   [Control & Policy Plane](25-control-and-policy-plane.md)) operate cleanly
    over immutable object storage. Replace in-memory signing loopbacks and
    heap-only caches with content-verified disposable NVMe range caching and
    bounded disk spill. Exercise interrupted transfers, missing/corrupt bytes,
@@ -64,7 +64,7 @@ milestone 2 obligations; this split cannot excuse an unsafe local implementation
    enforce epoch-fenced writer leases at actual storage publication, and integrate
    OCC with the selected transaction isolation contract. Extend the fine-grained
    key-range and predicate-level Serializable Snapshot Isolation (SSI / index-range
-   conflict detection) from [Milestone 10](10-indexing-and-access-paths.md) across
+   conflict detection) from [Milestone 11](11-indexing-and-access-paths.md) across
    concurrent partition writers and multi-partition transactions so concurrent
    read-write transactions touching disjoint keys or ranges on shared Tables do
    not suffer whole-Table aborts. Reuse staged immutable segments for admissible
@@ -83,7 +83,7 @@ milestone 2 obligations; this split cannot excuse an unsafe local implementation
 
 ## Formal model follow-through
 
-Extend the [formalization milestone's T1/T7 candidates](19-formal-semantics-and-correspondence.md#later-ownership-and-extensions)
+Extend the [formalization milestone's T1/T7 candidates](20-formal-semantics-and-correspondence.md#later-ownership-and-extensions)
 after selecting each provider's durability and fencing contract. Model actual
 log/object publication and current-policy enforcement, delayed stale-writer
 requests and recovery with missing objects. Establish the provider assumptions
@@ -93,12 +93,12 @@ finite model success does not qualify a provider's physical durability.
 
 ## Completion evidence and later owners
 
-Qualify [index maintenance and coverage](10-indexing-and-access-paths.md) through
+Qualify [index maintenance and coverage](11-indexing-and-access-paths.md) through
 the same provider acceptance boundary: concurrent builds, same/different primary
 keys colliding on a secondary unique key, stale build owners and partial index
 object publication. Define uniqueness scope across partitions explicitly; local
 indexes alone cannot enforce global uniqueness. Repeat the
-[performance scorecard](12-data-structures-and-performance.md) with real provider
+[performance scorecard](13-data-structures-and-performance.md) with real provider
 range-read latency, cold caches, write amplification, contention and rebuild
 interference under matched durability/isolation settings.
 
@@ -111,10 +111,10 @@ branch/snapshot reachability and native input/state/output/effect evidence.
 Retained datasets, manifests, caches and consumer history must exceed resident
 budgets; report memory, I/O, amplification, rebase work and latency separately.
 
-[Replication](21-replication-and-failover.md) follows this owner and qualifies
+[Replication](22-replication-and-failover.md) follows this owner and qualifies
 complete Transit history/object coverage and safe promotion.
-[Operations](22-operations-and-recovery.md) qualifies backups and upgrades;
-[clustered execution](23-clustered-execution.md) qualifies automatic placement
+[Operations](23-operations-and-recovery.md) qualifies backups and upgrades;
+[clustered execution](24-clustered-execution.md) qualifies automatic placement
 and distributed queries. None substitutes for provider correctness here.
 Record exact provider revisions, topology, supported combinations and executed
 faults in the [proof ledger](../history/qualification/README.md) and public storage/deployment

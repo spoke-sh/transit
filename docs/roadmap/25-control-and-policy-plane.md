@@ -1,4 +1,4 @@
-# 24. Enterprise identity and the Control & Policy Plane
+# 25. Enterprise identity and the Control & Policy Plane
 
 [Roadmap](README.md) · **Status:** Planned
 
@@ -11,8 +11,8 @@ MCP and application interfaces use the same owners; ingress adds no grant store.
 ## Prerequisites and scope
 
 Build on the [data lifecycle](01-declarative-data-lifecycle.md),
-[historical identities](09-standards-and-catalogs.md),
-[branch scope](17-branches-merges-and-restore.md) and current
+[historical identities](10-standards-and-catalogs.md),
+[branch scope](18-branches-merges-and-restore.md) and current
 [authorization contract](../../contracts/AUTHORIZATION_V1.md).
 Contract design can begin against current native principals and roles. Qualify
 branch-dependent enforcement after the corresponding branch operations exist.
@@ -74,7 +74,7 @@ the shared plane validates the resulting authorization delegation.
    Reconcile legal data erasure and tenant/subject offboarding with Transit's
    immutable `.tseg` storage and unlimited-by-default retention. Combine
    per-tenant/per-subject envelope encryption key destruction (crypto-shredding
-   over KMS/BYOK keys from [storage providers](20-storage-providers-and-concurrency.md))
+   over KMS/BYOK keys from [storage providers](21-storage-providers-and-concurrency.md))
    with an explicitly authorized, auditable cross-branch and cross-snapshot purge
    compaction workflow that tombstones and rewrites affected segments while
    recording tamper-evident erasure receipts in the Control & Policy Plane without
@@ -87,7 +87,7 @@ the shared plane validates the resulting authorization delegation.
    concurrency slots, admission priorities and `TransitObjectStore`/NVMe I/O
    bandwidth budgets. Drive enforcement from the fine-grained per-query and
    per-tenant metering substrate established in
-   [Milestone 12](12-data-structures-and-performance.md)—hierarchical
+   [Milestone 13](13-data-structures-and-performance.md)—hierarchical
    `MeteredAllocator` byte tracking, per-`Batch` morsel CPU cycle/tick charging
    and storage range-read/write IOPS counters—so operators can throttle, preempt
    at batch boundaries, spill to Tier 2 NVMe or deterministically refuse runaway
@@ -101,7 +101,7 @@ the shared plane validates the resulting authorization delegation.
 
 ## Formal model follow-through
 
-Own the [A6 authorization/delegation candidate](19-formal-semantics-and-correspondence.md#a6-authorization-delegation-and-protected-publication)
+Own the [A6 authorization/delegation candidate](20-formal-semantics-and-correspondence.md#a6-authorization-delegation-and-protected-publication)
 after actor/subject, membership freshness and restriction composition settle.
 Establish attenuation and human-only approval boundaries under the actual policy
 rules; use temporal checks for revocation and stale membership. Connect selected

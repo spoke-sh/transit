@@ -56,14 +56,14 @@ implementation and Transit's storage and query architecture:
    segments, Document paths and text could not use physical column codecs
    (`.dictionary`, `.fsst`, `COMP-3`, `ZONED`, `EBCDIC`), declared collations
    (`utf8_binary`, `ascii_ci`, `ebcdic_cp037`, `icu:<locale>`), 16-byte
-   collation-prefixed Umbra/German strings ([Milestone 13](13-vectorized-strings-and-search.md)),
+   collation-prefixed Umbra/German strings ([Milestone 14](14-vectorized-strings-and-search.md)),
    collation-aware zone-map pruning, vectorized `Fuze` scans or single-round-trip
    [Milestone 5](05-transactions-and-atomic-composition.md) database commits.
 
 This milestone brings `DOCUMENT` into the Direct Data Plane alongside `TABLE`,
-`KV`, `STREAM` and `QUEUE` before [Milestone 8](08-client-foundation-and-language-apis.md)
+`KV`, `STREAM` and `QUEUE` before [Milestone 9](09-client-foundation-and-language-apis.md)
 extracts the shared Station-free client foundation and before
-[Milestone 15](15-document-profiles-and-gateway-exchange-lifecycle.md) builds
+[Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md) builds
 the multi-format Document Type Library (`JSON`, `XML`, `HTTP`, `FTP`, `EDI`) and
 gateway exchange capture over it.
 
@@ -233,14 +233,16 @@ Require executable proof through real SQL and typed callers in the
 
 ## Later owners and execution gates
 
-- [Shared client foundation](08-client-foundation-and-language-apis.md) and
-  [SDK coverage](18-service-and-sdk-coverage.md) expose idiomatic Station-free
-  `Document` APIs across target languages over this package boundary.
-- [Standards and historical catalogs](09-standards-and-catalogs.md) and
-  [indexing](10-indexing-and-access-paths.md) extend `AS OF` snapshot binding
+- [Gateway architecture, sans-I/O wire protocols and direct-plane ingress](08-gateway-architecture-and-protocol-ingress.md),
+  [shared client foundation](09-client-foundation-and-language-apis.md) and
+  [SDK coverage](19-service-and-sdk-coverage.md) expose idiomatic Station-free
+  `Document` APIs and direct-plane ingress across target languages over this
+  package boundary.
+- [Standards and historical catalogs](10-standards-and-catalogs.md) and
+  [indexing](11-indexing-and-access-paths.md) extend `AS OF` snapshot binding
   and secondary path/structural indexes over `DocumentPartition`.
-- [First-class strings and vectorized search](13-vectorized-strings-and-search.md)
-  and [Document type library and gateway exchange lifecycle](15-document-profiles-and-gateway-exchange-lifecycle.md)
+- [First-class strings and vectorized search](14-vectorized-strings-and-search.md)
+  and [Document type library and gateway exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md)
   build 16-byte Umbra/German strings, `comptime` perfect hashing, vectorized
   Block-Max BM25 / structural `NEAR` search, the multi-format Document Type
   Library (`JSON`, `XML`, `HTTP`, `FTP`, `EDI`) and unified gateway/connector
