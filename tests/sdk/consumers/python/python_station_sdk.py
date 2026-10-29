@@ -1,4 +1,6 @@
 """Clean installed public Station SDK: real authority, callbacks and host loss."""
+
+from sdk.artifact_versions import package_text
 import asyncio
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -927,7 +929,7 @@ def run(node, cli, raw_library, wheels, http_worker=None, *, execute=None):
         venv = target / 'venv'
         subprocess.run([sys.executable, '-m', 'venv', '--without-pip', venv], check=True, env=env)
         python = venv / 'bin/python'
-        subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', str(Path(wheels).resolve()), 'transit-sdk-examples==0.0.1'], check=True, env=env, stdout=subprocess.DEVNULL)
+        subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', str(Path(wheels).resolve()), package_text('transit-sdk-examples==0.0.1', 'python')], check=True, env=env, stdout=subprocess.DEVNULL)
         values = target / 'handler_tables.py'
         shutil.copyfile(Path(__file__).with_name('python_handler_tables.py'), values)
         subprocess.run([python, '-B', values], check=True, env=env, cwd=target)

@@ -7,10 +7,11 @@ from pathlib import Path
 
 def formula(manifest):
     version = manifest['release']
+    tag = manifest['identity']['tag']
     urls = {}
     for arch in ('x86_64', 'aarch64'):
         name = f'transit-{version}-linux-{arch}.tar.gz'
-        urls[arch] = (f'https://github.com/spoke-sh/transit/releases/download/v{version}/{name}',
+        urls[arch] = (f'https://github.com/spoke-sh/transit/releases/download/{tag}/{name}',
                       manifest['assets'][name])
     return f'''class Transit < Formula
   desc "Programmable data infrastructure for applications"

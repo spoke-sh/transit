@@ -1,4 +1,6 @@
 """Qualify C11/C++17 logical models from independently installed artifacts."""
+
+from sdk.artifact_versions import package_text
 from runner.paths import ROOT
 import hashlib
 import json
@@ -79,7 +81,7 @@ def run(artifacts):
         prefix = target / 'installed'
         identities = {}
         for package in ('transit-native-client-c', 'transit-client-c', 'transit-client-cpp', 'transit-native-station-c', 'transit-station-c', 'transit-station-cpp'):
-            name = package + '-0.0.1' + ('' if package.endswith('-cpp') else '-linux-x86_64') + '.tar.gz'
+            name = package + package_text('-0.0.1', 'c') + ('' if package.endswith('-cpp') else package_text('-linux-x86_64', 'c')) + '.tar.gz'
             source = Path(artifacts).resolve() / name
             identities[name] = hashlib.sha256(source.read_bytes()).hexdigest()
             with tarfile.open(source) as archive:

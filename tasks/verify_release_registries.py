@@ -6,8 +6,10 @@ import subprocess
 import tempfile
 
 from package_release import BINARIES, ROOT, sha256
+from release_identity import current
 
-version = (ROOT / 'VERSION').read_text().strip()
+release_identity = current(clean=True)
+version, tag = release_identity['release'], release_identity['tag']
 revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
 with tempfile.TemporaryDirectory(prefix='transit-registry-proof-') as temporary:
     root = Path(temporary)
@@ -16,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='transit-registry-proof-') as temporary:
     manifest_path = root / 'release-manifest.json'
     subprocess.run(['curl', '--fail', '--silent', '--show-error', '--location', '--proto', '=https',
                     '--proto-redir', '=https', '--output', str(manifest_path),
-                    f'https://github.com/spoke-sh/transit/releases/download/v{version}/release-manifest.json'], check=True)
+                    f'https://github.com/spoke-sh/transit/releases/download/{tag}/release-manifest.json'], check=True)
     manifest = json.loads(manifest_path.read_text())
     assert manifest['release'] == version and manifest['source_revision'] == revision
     for name in BINARIES:

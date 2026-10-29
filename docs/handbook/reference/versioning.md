@@ -47,8 +47,15 @@ Explicit metadata is a builder assertion, not independent verification.
 
 Release tags have the exact form `vMAJOR.MINOR.PATCH`, matching `VERSION` at that
 commit. CI rejects mismatched tags, package version drift and dirty tag builds.
-The current packaging profile uses stable three-part versions; prerelease naming
-across language registries requires a separate coordinated extension. Use patch
+Stable releases use three-part versions. Nightly distribution derives
+`<VERSION>-nightly.YYYYMMDD.g<12-character-sha>` from a clean source revision.
+Its immutable tag is `nightly-YYYYMMDD-g<12-character-sha>`; the full SHA and
+contract definition remain in every artifact manifest. The release identity also
+records package-native versions: Python uses `<VERSION>.devYYYYMMDD+g<sha>`,
+Ruby uses `<VERSION>.nightly.YYYYMMDD.g<sha>`, and the other SDK packages use
+the SemVer prerelease. Exact internal pins and embedded loader expectations
+follow that mapping in isolated packaging inputs. The source manifests retain
+`VERSION`; nightly packaging does not commit daily version changes. Use patch
 increments for compatible corrections and minor increments for additions or
 incompatible pre-1.0 changes. A release increment never replaces a required
 contract-definition cutover. Contributor steps live in the

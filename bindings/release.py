@@ -10,6 +10,8 @@ import subprocess
 import sys
 import tempfile
 
+from package_metadata import IDENTITY
+
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = 'x86_64-linux-gnu.2.28'
 BUILDERS = {'python': 'wheels', 'node': 'node', 'rust': 'rust', 'ruby': 'ruby',
@@ -67,7 +69,8 @@ def build(output, jobs):
     output.mkdir(parents=True, exist_ok=True)
     if any(output.iterdir()):
         raise ValueError('SDK release output must be empty')
-    version = (ROOT / 'VERSION').read_text().strip()
+    identity = IDENTITY or json.loads(command([sys.executable, '-B', str(ROOT / 'tasks/release_identity.py'), 'show']))
+    version = identity['release']
     revision = command(['git', 'rev-parse', 'HEAD'], cwd=ROOT)
     if command(['git', 'status', '--porcelain'], cwd=ROOT):
         revision += '-dirty'
@@ -93,7 +96,7 @@ def build(output, jobs):
                 args += ['--sdk-prefix', str(c_sdk)]
             subprocess.run(args, cwd=ROOT, env=environment, check=True)
         definition = json.loads((portable / 'contracts/client.json').read_text())['definition']
-        manifest = dict(version=1, release=version, source_revision=revision,
+        manifest = dict(version=1, release=version, source_revision=revision, identity=identity,
                         definition=definition, target=TARGET, optimize='ReleaseSafe',
                         compiler=metadata['compiler'], glibc_minimum='2.28',
                         native_build=metadata, packages={})

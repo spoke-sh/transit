@@ -1,4 +1,6 @@
 """Install Java SDK/example JARs and run the shared Station authority schedule."""
+
+from sdk.artifact_versions import package_text
 from runner.paths import ROOT
 import json
 import os
@@ -19,8 +21,8 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
         environment = {k: v for k, v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST')}
         lib = target / 'lib'
         lib.mkdir()
-        for name in ('transit-client-0.0.1.jar', 'transit-native-client-0.0.1.jar', 'transit-station-sdk-0.0.1.jar',
-                     'transit-native-station-0.0.1.jar', 'transit-sdk-examples-0.0.1.jar', 'gson-2.12.1.jar'):
+        for name in (package_text('transit-client-0.0.1.jar', 'java'), package_text('transit-native-client-0.0.1.jar', 'java'), package_text('transit-station-sdk-0.0.1.jar', 'java'),
+                     package_text('transit-native-station-0.0.1.jar', 'java'), package_text('transit-sdk-examples-0.0.1.jar', 'java'), 'gson-2.12.1.jar'):
             shutil.copy2(Path(artifacts).resolve() / name, lib / name)
         source = target / 'JavaStationSdk.java'
         shutil.copy2(root / 'tests/sdk/consumers/java/JavaStationSdk.java', source)
@@ -52,12 +54,12 @@ public final class StationArtifactCheck {
         subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(lib / '*'), '-d', str(classes), str(smoke)], env=environment, cwd=target, check=True)
         smoke.unlink()
         mismatched = target / 'mismatched-client.jar'
-        with zipfile.ZipFile(lib / 'transit-client-0.0.1.jar') as original, zipfile.ZipFile(mismatched, 'w') as altered:
+        with zipfile.ZipFile(lib / package_text('transit-client-0.0.1.jar', 'java')) as original, zipfile.ZipFile(mismatched, 'w') as altered:
             for entry in original.infolist():
                 data = original.read(entry)
-                if entry.filename == 'META-INF/MANIFEST.MF': data = data.replace(b'Implementation-Version: 0.0.1', b'Implementation-Version: 99.0.0')
+                if entry.filename == 'META-INF/MANIFEST.MF': data = data.replace(package_text(b'Implementation-Version: 0.0.1', 'java'), b'Implementation-Version: 99.0.0')
                 altered.writestr(entry, data)
-        dependencies = sorted(path for path in lib.glob('*.jar') if path.name != 'transit-client-0.0.1.jar')
+        dependencies = sorted(path for path in lib.glob('*.jar') if path.name != package_text('transit-client-0.0.1.jar', 'java'))
         subprocess.run(['java', f'-Djava.io.tmpdir={target}', '-cp', os.pathsep.join(map(str, [classes, mismatched, *dependencies])), 'StationArtifactCheck'], env=environment, cwd=target, check=True, timeout=20)
         mismatched.unlink()
         # Generic state and Table APIs reject values of the wrong public type.

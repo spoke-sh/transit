@@ -47,7 +47,7 @@ public final class JavaCatalogSdk {
         Path configPath = Path.of(args[0]); JsonObject config = new Gson().fromJson(Files.readString(configPath), JsonObject.class);
         Path directory = configPath.getParent().resolve("java"); Files.createDirectories(directory);
         String name = "java_items"; BigInteger object = BigInteger.ONE.shiftLeft(64).subtract(n(2));
-        check(Catalog.class.getProtectionDomain().getCodeSource().getLocation().toString().contains("transit-station-sdk-0.0.1.jar"));
+        check(Catalog.class.getProtectionDomain().getCodeSource().getLocation().toString().contains("transit-station-sdk-" + Catalog.class.getPackage().getImplementationVersion() + ".jar"));
         try (Catalog.Client client = connect(config); Scanner input = new Scanner(System.in, StandardCharsets.UTF_8)) {
             System.out.println(obj("ready", true));
             while (input.hasNextLine()) {

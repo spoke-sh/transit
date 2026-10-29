@@ -6,8 +6,10 @@ from pathlib import Path
 import re
 import tarfile
 
+from package_metadata import BASE_VERSION, rewrite, rewrite_tree, version
+
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = (ROOT / 'VERSION').read_text().strip()
+VERSION = version('c')
 
 
 def build(output, native_prefix, sdk_prefix):
@@ -54,7 +56,7 @@ def build(output, native_prefix, sdk_prefix):
     for name, source, library, dependencies in specifications:
         package = ROOT / source
         version = re.search(r'\.version = "([^"]+)"', (package / 'build.zig.zon').read_text())
-        if not version or version[1] != VERSION: raise SystemExit(f'Artifact version drift: {source}')
+        if not version or version[1] != BASE_VERSION: raise SystemExit(f'Artifact version drift: {source}')
         for path in sorted((package / 'include').rglob('*')):
             if path.is_file(): packages[name][str(path.relative_to(package))] = path.read_bytes()
         for path in [package / 'README.md', *sorted((package / 'docs').glob('*.md'))]:

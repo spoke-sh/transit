@@ -1,4 +1,6 @@
 """Install built Node raw artifacts outside the checkout, with no Station package."""
+
+from sdk.artifact_versions import package_text
 from runner.paths import ROOT
 import json
 import os
@@ -14,8 +16,8 @@ def run(node, cli, library, artifacts, evidence=None):
     packages = Path(artifacts).resolve()
     def install(target):
         manifest = {'private': True, 'type': 'module', 'packageManager': json.loads((root / 'package.json').read_bytes())['packageManager'],
-            'dependencies': {'@transit/client': 'file:' + str(packages / 'transit-client-0.0.1.tgz'),
-                             '@transit/native-client': 'file:' + str(packages / 'transit-native-client-0.0.1.tgz')}}
+            'dependencies': {'@transit/client': 'file:' + str(packages / package_text('transit-client-0.0.1.tgz', 'node')),
+                             '@transit/native-client': 'file:' + str(packages / package_text('transit-native-client-0.0.1.tgz', 'node'))}}
         manifest['pnpm'] = {'overrides': dict(manifest['dependencies'])}
         (target / 'package.json').write_text(json.dumps(manifest))
         environment = {key: value for key, value in os.environ.items() if key not in ('NODE_PATH', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}

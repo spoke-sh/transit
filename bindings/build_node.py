@@ -6,6 +6,8 @@ import shutil
 import subprocess
 import tempfile
 
+from package_metadata import rewrite_tree, version
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -34,6 +36,7 @@ def build(output: Path, packages: list[str], native_prefix: Path) -> None:
                 if not executable.is_file(): raise SystemExit(f'Missing native artifact: {executable}')
                 (staging / 'bin').mkdir(exist_ok=True)
                 shutil.copy2(executable, staging / 'bin' / executable.name)
+            rewrite_tree(staging, 'node')
             subprocess.run(['vp', 'env', 'exec', '--package-manager', manifest['packageManager'],
                 'pnpm', 'pack', '--pack-destination', str(output)], cwd=staging, check=True)
 

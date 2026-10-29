@@ -8,8 +8,10 @@ import subprocess
 import tarfile
 import tempfile
 
+from package_metadata import BASE_VERSION, rewrite, rewrite_tree, version
+
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = (ROOT / 'VERSION').read_text().strip()
+VERSION = version('beam')
 MIX_MANIFEST = '''Mix.start()
 Code.require_file(hd(System.argv()))
 project = Mix.Project.config()
@@ -31,6 +33,10 @@ def build(output, names, native_prefix):
         environment['ERL_LIBS'] = str(base)
         for name in names:
             source = ROOT / name if '/' in name else ROOT / 'sdks/beam' / name
+            staged_source = base / ('source-' + source.name)
+            shutil.copytree(source, staged_source)
+            rewrite_tree(staged_source, 'beam')
+            source = staged_source
             erlang = sorted((source / 'src').glob('*.erl'))
             elixir = sorted((source / 'lib').glob('*.ex'))
             if elixir:

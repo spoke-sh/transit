@@ -5,6 +5,8 @@ import shutil
 import subprocess
 import tempfile
 
+from package_metadata import rewrite_tree, version
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -16,6 +18,7 @@ def build(output, names, native_prefix):
             target = Path(temporary)
             source = ROOT / name if '/' in name else ROOT / 'sdks/ruby' / name
             shutil.copytree(source, target, dirs_exist_ok=True)
+            rewrite_tree(target, 'ruby')
             if name.startswith('transit-native-'):
                 family = name.removeprefix('transit-native-')
                 (target / 'native').mkdir()

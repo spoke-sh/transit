@@ -7,6 +7,8 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 
+from package_metadata import rewrite_tree, version
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -18,9 +20,10 @@ def build(output, names, native_prefix):
         with tempfile.TemporaryDirectory(prefix='transit-dotnet-build-') as temporary:
             target = Path(temporary)
             shutil.copytree(source, target, dirs_exist_ok=True)
+            rewrite_tree(target, 'dotnet')
             manifest, = target.glob('*.csproj')
             project = ET.parse(manifest)
-            assert project.findtext('PropertyGroup/Version') == (ROOT / 'VERSION').read_text().strip()
+            assert project.findtext('PropertyGroup/Version') == version('dotnet')
             if name.startswith('transit-native-'):
                 family = name.removeprefix('transit-native-')
                 (target / 'native').mkdir()

@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 
 from package_release import ROOT, archive, sha256
+from release_identity import current
 
 
 def package(packages, output, notices):
@@ -15,7 +16,8 @@ def package(packages, output, notices):
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     if subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT):
         revision += '-dirty'
-    version = (ROOT / 'VERSION').read_text().strip()
+    identity = current()
+    version = identity['release']
     if manifest['source_revision'] != revision or manifest['release'] != version:
         raise ValueError('SDK packages do not match this source revision/version')
     epoch = int(subprocess.check_output(['git', 'show', '-s', '--format=%ct', 'HEAD'], cwd=ROOT))

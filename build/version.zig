@@ -4,11 +4,12 @@ const std = @import("std");
 pub const release = std.mem.trim(u8, @embedFile("../VERSION"), "\r\n");
 
 pub fn options(b: *std.Build) *std.Build.Step.Options {
-    _ = std.SemanticVersion.parse(release) catch @panic("invalid Transit VERSION");
+    const artifact_release = b.option([]const u8, "release-version", "Distribution version (defaults to VERSION)") orelse release;
+    _ = std.SemanticVersion.parse(artifact_release) catch @panic("invalid Transit VERSION");
     const revision = b.option([]const u8, "source-revision", "Source commit (40 lowercase hex digits, optionally -dirty), or unknown") orelse detectRevision(b);
     if (!validRevision(revision)) @panic("invalid -Dsource-revision: expected a full Git SHA, SHA-dirty, or unknown");
     const result = b.addOptions();
-    result.addOption([]const u8, "release", release);
+    result.addOption([]const u8, "release", artifact_release);
     result.addOption([]const u8, "revision", revision);
     return result;
 }
