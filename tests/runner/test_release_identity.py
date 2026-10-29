@@ -23,11 +23,17 @@ class ReleaseIdentity(unittest.TestCase):
         self.assertEqual(self.identity['tag'], 'nightly-20261029-gaaaaaaaaaaaa')
         self.assertEqual(self.identity['package_versions']['python'], '0.0.1.dev20261029+gaaaaaaaaaaaa')
         self.assertEqual(self.identity['package_versions']['ruby'], '0.0.1.nightly.20261029.gaaaaaaaaaaaa')
+        self.assertEqual(self.identity['package_versions']['zig'], '0.0.1-dev.gaaaaaaaaaaaa')
+        self.assertLessEqual(len(self.identity['package_versions']['zig']), 32)
         self.assertEqual(tag_for(self.identity['release']), self.identity['tag'])
         self.assertEqual(tag_for('0.0.1'), 'v0.0.1')
         for version in ('0.0.1-nightly', '0.0.1-nightly.20260230.gaaaaaaaaaaaa', '../main', '01.0.1'):
             with self.subTest(version=version), self.assertRaises(ValueError):
                 tag_for(version)
+
+    def test_zig_version_bound_is_checked_before_building(self):
+        with self.assertRaisesRegex(ValueError, 'Zig package version exceeds 32 bytes'):
+            describe('123456789012345.0.0', 'a' * 40, 123, 'nightly', '20261029')
 
     def test_manifest_cannot_relabel_foreign_source_or_language_version(self):
         for field, value in (('release', '0.0.2'), ('tag', 'nightly'), ('source_revision', 'b' * 40)):
