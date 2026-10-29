@@ -12,7 +12,10 @@ export type CatalogTables = Extract<Catalog, { tables: unknown }>["tables"];
 export type CatalogNamespaces = Extract<Catalog, { namespaces: unknown }>["namespaces"];
 export type CatalogTable = Extract<CatalogResponse, { table: unknown }>["table"];
 export type CatalogEntry = NonNullable<CatalogTables["entries"][number]>;
-export type CatalogDependencies = Extract<CatalogResponse, { dependencies: unknown }>["dependencies"];
+export type CatalogDependencies = Extract<
+  CatalogResponse,
+  { dependencies: unknown }
+>["dependencies"];
 
 /** Authorized, bounded metadata. None of these operations starts a data query. */
 export class DataCatalog {
