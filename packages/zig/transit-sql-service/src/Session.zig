@@ -74,10 +74,26 @@ pub const Prepared = union(enum) {
             .settings => |value| value.plan.statement == .set or value.plan.statement == .reset,
         };
     }
+    /// Command dispatch and effect-free admission are distinct: a configuration
+    /// reload returns rows, but must never enter a read-only presentation host.
+    pub fn readOnly(self: *const Prepared) bool {
+        return !self.mutation() and !(self.* == .settings and self.settings.plan.statement == .reload);
+    }
     pub fn empty(self: *const Prepared) bool {
         return self.* == .probe and self.probe.kind == .empty;
     }
 };
+
+test "read-only admission excludes row-returning configuration effects" {
+    const t = std.testing;
+    var reload: Prepared = .{ .settings = .{ .plan = (try q.SettingsSql.parse(t.allocator, "SELECT transit_reload_conf()", .transit)).?, .output = null } };
+    defer reload.settings.deinit();
+    try t.expect(!reload.mutation()); // Ordinary reload still uses row dispatch.
+    try t.expect(!reload.readOnly());
+    var catalog: Prepared = .{ .settings = .{ .plan = (try q.SettingsSql.parse(t.allocator, "SHOW TABLES", .transit)).?, .output = null } };
+    defer catalog.settings.deinit();
+    try t.expect(catalog.readOnly());
+}
 pub const Read = struct {
     host: *Self,
     value: union(enum) { single: g.direct.DirectTableQuery, relational: *g.direct.DirectRelationalQuery, probe: g.Probe, settings: Settings.Read, inspection: Inspection.Read, source: g.SourceSession.Read, captured: g.CapturedOperations.Read },

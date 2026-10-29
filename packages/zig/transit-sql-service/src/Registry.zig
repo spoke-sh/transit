@@ -355,7 +355,7 @@ fn describe(allocator: std.mem.Allocator, host: *g.Session, statement: Statement
     const parameters = try allocator.alloc([]const u8, statement.prepared.parameters().len);
     for (statement.prepared.parameters(), parameters) |kind, *encoded| encoded.* = try api.Codec.descriptor(allocator, kind);
     const fields = statement.prepared.fields();
-    return .{ .statement = statement.id, .schema = if (fields.len == 0) null else try api.Codec.schema(allocator, fields), .parameters = parameters, .mutation = statement.prepared.mutation() };
+    return .{ .statement = statement.id, .schema = if (fields.len == 0) null else try api.Codec.schema(allocator, fields), .parameters = parameters, .mutation = !statement.prepared.readOnly() };
 }
 fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Action) !@FieldType(api.Response, "result") {
     const host = slot.host.?;
