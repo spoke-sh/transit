@@ -3040,6 +3040,43 @@ fn workspaceRequest(catalog: *D, access: *Access, key: c.DirectClientToken.Key, 
     return .{ .statement = .{ .transaction = state.begin.identity, .sequence = sequence, .intent = binding.intent }, .binding = binding, .intent = try s.TableDmlIntent.stage(t.allocator, catalog.data_objects, request) };
 }
 
+test "transaction temporary budgets do not borrow or retain ordinary Table owners" {
+    for ([_]bool{ false, true }) |warm| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        const binding = try selectedTransaction(&catalog, &access, 1);
+        var retained: ?D.CachedTable = null;
+        defer if (retained) |*cached| cached.table.deinit();
+        catalog.options.table_owner = &retained;
+        if (warm) {
+            var view = (try resolve(&catalog, &access, "selected_0")).?;
+            view.deinit();
+        }
+        const before = if (retained) |cached| cached.table.root else null;
+        _ = try catalog.acquireTransaction(binding.key, access.policy());
+        const request = try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500);
+        try t.expect(try catalog.admitTransactionStatement(binding.key, request, access.policy()) == null);
+        const outcome = try catalog.executeTransactionStatement(binding.key, request, access.policy());
+        try t.expectEqual(@as(u64, 1), outcome.provisional.affected);
+        try t.expectEqualDeep(outcome, try catalog.executeTransactionStatement(binding.key, request, access.policy()));
+        const state = try catalog.transactionTableState(binding.key, request.binding.target, access.policy());
+        try t.expectEqual(@as(u64, 1), state.root.live_rows);
+        // The cold slot stays empty; a warm slot keeps its independently owned
+        // allocator/root. Transaction opens are charged to their own budget.
+        try t.expectEqualDeep(before, if (retained) |cached| cached.table.root else null);
+        try t.expect(catalog.options.table_owner.? == &retained);
+        var public = (try resolve(&catalog, &access, "selected_0")).?;
+        defer public.deinit();
+        try t.expectEqual(@as(u64, 0), public.table.root.live_rows);
+    }
+}
+
 test "transaction durable workspace recovers lost admission and outcome replies without public writes" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

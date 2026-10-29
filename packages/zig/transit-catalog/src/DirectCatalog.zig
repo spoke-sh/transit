@@ -1008,9 +1008,14 @@ pub fn acquireTransaction(self: *Self, key: c.DirectClientToken.Key, policy: Pol
     if (state.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(state.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
+    const retained = self.options.table_owner;
+    // Transaction Table owners belong to this temporary budget. Borrowing a
+    // resident owner would bypass it; retaining a new one would outlive it.
+    self.options.table_owner = null;
     self.allocator = memory.allocator();
     defer {
         self.allocator = parent;
+        self.options.table_owner = retained;
         std.debug.assert(memory.used == 0);
     }
     return self.acquireTransactionBounded(state, policy) catch |err| {
@@ -1117,9 +1122,14 @@ fn transactionStatementWork(self: *Self, key: c.DirectClientToken.Key, request: 
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
+    const retained = self.options.table_owner;
+    // Transaction Table owners belong to this temporary budget. Borrowing a
+    // resident owner would bypass it; retaining a new one would outlive it.
+    self.options.table_owner = null;
     self.allocator = memory.allocator();
     defer {
         self.allocator = parent;
+        self.options.table_owner = retained;
         std.debug.assert(memory.used == 0);
     }
     return self.transactionStatementBounded(progress, request, policy, evaluate) catch |err|
@@ -1230,9 +1240,14 @@ pub fn transactionTableState(self: *Self, key: c.DirectClientToken.Key, object: 
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
     var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
     const parent = self.allocator;
+    const retained = self.options.table_owner;
+    // Transaction Table owners belong to this temporary budget. Borrowing a
+    // resident owner would bypass it; retaining a new one would outlive it.
+    self.options.table_owner = null;
     self.allocator = memory.allocator();
     defer {
         self.allocator = parent;
+        self.options.table_owner = retained;
         std.debug.assert(memory.used == 0);
     }
     return self.transactionTableStateBounded(progress, object, policy) catch |err|

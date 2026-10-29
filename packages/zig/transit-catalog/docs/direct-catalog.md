@@ -493,7 +493,9 @@ The acquired record retains its paged source directory through the catalog graph
 the Table pin owners retain the data itself. Each source guard records logical
 conflict frontiers; it does not promise contiguous historical WAL coverage.
 Temporary directories, one Table
-owner and decoding work share the admitted resident-byte limit. Catalog caches,
+owner and decoding work share the admitted resident-byte limit. Transaction
+operations neither borrow nor retain the ordinary Table-owner cache: their
+Table allocations are released before the temporary budget ends. Catalog caches,
 provider buffers and fixed stack buffers have separate owners. Deployment-wide
 capacity and cleanup still require transaction-host integration. This component
 operation has no signed request or SQL adapter and does not decide a commit.
