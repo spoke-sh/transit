@@ -64,7 +64,7 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
   await page.setViewportSize({ width: 1280, height: 800 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("link", { name: "Open workbook", exact: true }).click();
-  const sql = page.getByLabel("SQL", { exact: true });
+  const sql = page.getByRole("textbox", { name: "SQL", exact: true });
   await sql.fill("SELECT * FROM empty_metrics");
   expect(runs).toBe(1);
   await sql.press("Control+Enter");
@@ -114,7 +114,7 @@ test("lost reply keeps one statement and failed observation clears its presentat
     await route.continue();
   });
   await page.goto("/workbook");
-  await page.getByLabel("SQL", { exact: true }).fill("SELECT * FROM metrics");
+  await page.getByRole("textbox", { name: "SQL", exact: true }).fill("SELECT * FROM metrics");
   await page.getByRole("button", { name: "Run cell 1", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Unavailable");
   await page.getByRole("button", { name: "Check original result", exact: true }).click();
@@ -125,6 +125,6 @@ test("lost reply keeps one statement and failed observation clears its presentat
   deny = true;
   await expect(page.getByRole("alert")).toContainText("Forbidden", { timeout: 12000 });
   await expect(page.getByRole("table")).toHaveCount(0);
-  await expect(page.getByLabel("SQL", { exact: true })).toHaveValue("");
+  await expect(page.getByRole("textbox", { name: "SQL", exact: true })).toHaveValue("");
   expect(runs).toBe(1);
 });
