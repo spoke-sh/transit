@@ -48,7 +48,7 @@ wake: ?*g.RecoveryWork = null,
 pub const capacity = 64;
 const format: u32 = 0x53515231;
 const Slot = struct { generation: u64, record: ?Record };
-const Entry = struct { record: Record, users: u32 };
+const Entry = struct { record: Record, state: c.DirectClientToken.Progress, users: u32 };
 pub fn init(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, gateway: Gateway, generation: u64) !Self {
     _ = parent;
     if (gateway.realm == 0 or generation == 0 or std.mem.allEqual(u8, &gateway.account, 0)) return error.InvalidSqlReadRecovery;
@@ -77,7 +77,7 @@ fn open(self: *Self, client: c.DirectTableClient, index: usize, create: bool) !?
     try self.io.randomSecure(&random);
     const operation = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
     const receipt = try c.DirectClientToken.bind(client, .{ .key = selected, .fingerprint = record.content.sha256, .intent = .{ .external = .{ .connection = client.connection, .namespace = 1, .operation = operation, .record = record } } });
-    return c.DirectClientToken.inspect(client, receipt.binding.key);
+    return c.DirectClientToken.Progress.initial(receipt);
 }
 fn read(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Progress) !Slot {
     const reference = state.record orelse return .{ .generation = 0, .record = null };
@@ -98,7 +98,12 @@ fn write(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Pr
     const bytes = try p.Json.valueAlloc(self.allocator, Slot{ .generation = self.generation, .record = value });
     defer self.allocator.free(bytes);
     const reference = try c.DirectRecord.stage(client, state.receipt.binding.key.account, format, bytes);
-    return c.DirectClientToken.update(client, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = true, .cancel = false, .record = reference });
+    return c.DirectClientToken.update(client, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = true, .cancel = false, .record = reference }) catch |err| {
+        if (err == error.Conflict) {
+            if (try c.DirectClientToken.inspect(client, state.receipt.binding.key)) |current| _ = try self.read(client, current);
+        }
+        return err;
+    };
 }
 fn release(client: c.DirectTableClient, record: Record) !void {
     try client.closeOriginalPin(record.table.interpretation.interpretation.object, record.owner(), record.expected, record.handle);
@@ -136,22 +141,26 @@ pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectT
         if (slot.?.users == 0 and std.meta.eql(slot.?.record.table.connection, client.connection)) break i;
     } else return error.SqlReadLeaseCapacity;
     errdefer self.requireCleanup();
-    var state = (try self.open(client, index, true)) orelse return error.InvalidSqlReadRecovery;
-    const previous = try self.read(client, state);
     // Eviction has selected an unborrowed entry. Stop advertising it before
     // releasing the durable pin: a lost release reply must not leave a warm hit
     // pointing at a pin that the owner may already have closed.
     const cached = self.entries[index];
     self.entries[index] = null;
+    var state: c.DirectClientToken.Progress = undefined;
+    var previous_record: ?Record = null;
+    if (cached) |entry| {
+        state = entry.state;
+        previous_record = entry.record;
+    } else {
+        state = (try self.open(client, index, true)) orelse return error.InvalidSqlReadRecovery;
+        previous_record = (try self.read(client, state)).record;
+    }
     var selected = metadata;
-    if (previous.record) |prior| {
+    if (previous_record) |prior| {
         var to_release = prior;
-        to_release.state = .closing;
-        state = try self.write(client, state, to_release);
-        if (cached) |entry| {
-            if (entry.record.operation == prior.operation and std.meta.eql(entry.record.table, prior.table)) {
-                to_release.handle = entry.record.handle;
-            }
+        if (cached == null and to_release.state != .closing) {
+            to_release.state = .closing;
+            state = try self.write(client, state, to_release);
         }
         try release(client, to_release);
         const refreshed = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
@@ -187,7 +196,7 @@ pub fn acquireCurrent(self: *Self, client: c.DirectTableClient, table: c.DirectT
         };
         defer pinned.deinit();
         record.handle = pinned.value.result.pin;
-        self.entries[index] = .{ .record = record, .users = 1 };
+        self.entries[index] = .{ .record = record, .state = state, .users = 1 };
         return record;
     }
     unreachable;
@@ -214,18 +223,14 @@ pub fn tick(self: *Self, client: c.DirectTableClient) !bool {
     defer self.mutex.unlock(self.io);
     const index = self.cleanup_slot;
     self.cleanup_slot = (index + 1) % capacity;
+    if (self.entries[index] != null) return false;
     var state = (try self.open(client, index, false)) orelse return false;
     const slot = try self.read(client, state);
     var record = slot.record orelse return false;
-    if (self.entries[index]) |entry| {
-        if (entry.record.operation == record.operation and
-            entry.record.generation == record.generation and
-            std.meta.eql(entry.record.gateway, record.gateway) and
-            std.meta.eql(entry.record.table, record.table) and
-            std.meta.eql(entry.record.expected, record.expected)) return false;
+    if (record.state != .closing) {
+        record.state = .closing;
+        state = try self.write(client, state, record);
     }
-    record.state = .closing;
-    state = try self.write(client, state, record);
     try release(client, record);
     _ = try self.write(client, state, null);
     return true;
