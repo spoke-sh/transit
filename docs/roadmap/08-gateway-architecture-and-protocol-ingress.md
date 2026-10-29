@@ -140,7 +140,7 @@ warm reads are approximately unchanged. This evidence does not close P2–P6 or
 the #211 latency targets; preserve the regressions when evaluating subsequent
 co-hosting and commit-envelope work.
 
-The next delivery embeds shared SQL listener/session hosting in the installed
+The selected SQL placement now embeds shared listener/session hosting in the installed
 node and adds typed signed Table/native dispatch through its existing owners.
 The standalone gateway retains HTTP-backed fine-grained clients until P2c.
 Configuration settings/reload retain the installation gateway owner: native

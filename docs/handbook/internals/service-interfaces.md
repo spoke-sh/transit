@@ -47,8 +47,10 @@ after source `24a91402` and the native v1 definition named by the
 [SQL gateway contract](../../../contracts/SQL_GATEWAY_V1.md). It assumes one current
 native authority, its qualified durable storage, honest gateway/Catalog code and
 an explicitly provisioned account. Protocol validation does not prove honest
-computation. Interactive transactions and automatic cross-build history migration
-are excluded.
+computation. This section describes autocommit; supported
+[interactive transactions](../reference/sql/transactions.md) have their own
+accepted-work and recovery boundaries. Automatic cross-build history migration
+is excluded.
 
 The participants are a transient session, a database account recovery worker,
 `DirectCatalog` and the Table partition owner. The session freezes a complete
