@@ -105,7 +105,7 @@ fn activate(self: *Self) !void {
     if (state == null) {
         const body = try c.DirectRecord.stage(caller, key.account, activation_format, &configuration);
         const receipt = try c.DirectClientToken.bind(caller, .{ .key = key, .fingerprint = configuration, .intent = .{ .external = .{ .connection = caller.connection, .namespace = self.execution.configuration.bindings[0].namespace, .operation = (std.mem.readInt(u64, configuration[0..8], .little) % p.max_counter) + 1, .record = body } } });
-        state = try c.DirectClientToken.inspect(caller, receipt.binding.key);
+        state = c.DirectClientToken.Progress.initial(receipt);
     }
     var current = state orelse return error.MissingGatewayOperation;
     if (!std.mem.eql(u8, &configuration, &current.receipt.binding.fingerprint)) return error.GatewayConfigurationChanged;
@@ -215,7 +215,7 @@ pub fn tick(self: *Self) !bool {
     var cleanup_pending = false;
     if (self.read_pins) |*pins| {
         const route_count = self.execution.configuration.bindings.len + self.read_sources.len;
-        if (pins.dirty.swap(false, .acq_rel)) self.cleanup_swept_routes = 0;
+        if (pins.dirty.swap(false, .acq_rel)) self.cleanup_swept_routes = if (pins.cleanup_slot == 0) 1 else 0;
         // A dirty signal can arrive halfway through a route. Include one extra
         // wrap so a successful sweep covers the prefix already passed too.
         if (self.cleanup_swept_routes <= route_count or self.read_cleanup_failure.load(.acquire) != 0) {
@@ -228,14 +228,18 @@ pub fn tick(self: *Self) !bool {
                 route_clean = false;
                 break :blk null;
             }) |caller| {
-                const cleaned = pins.tick(caller) catch |err| blk: {
-                    if (err == error.StaleGatewayCoordinator or err == error.Canceled or err == error.Cancelled) return err;
-                    self.read_cleanup_failure.store(@intFromError(err), .release);
-                    route_clean = false;
-                    break :blk false;
-                };
-                progressed = progressed or cleaned;
-                route_complete = previous_slot != pins.cleanup_slot and pins.cleanup_slot == 0;
+                while (true) {
+                    const slot_before = pins.cleanup_slot;
+                    const cleaned = pins.tick(caller) catch |err| blk: {
+                        if (err == error.StaleGatewayCoordinator or err == error.Canceled or err == error.Cancelled) return err;
+                        self.read_cleanup_failure.store(@intFromError(err), .release);
+                        route_clean = false;
+                        break :blk false;
+                    };
+                    progressed = progressed or cleaned;
+                    route_complete = slot_before != pins.cleanup_slot and pins.cleanup_slot == 0;
+                    if (!route_clean or cleaned or route_complete or pins.cleanup_slot == slot_before) break;
+                }
             } else if (route_clean) {
                 // A disabled optional source has no cleanup connection.
                 pins.cleanup_slot = 0;

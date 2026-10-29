@@ -42,6 +42,7 @@ gateway: Gateway,
 generation: u64,
 mutex: std.Io.Mutex = .init,
 entries: [capacity]?Entry = @splat(null),
+known_slots: ?struct { connection: w.Connection, mask: u64 } = null,
 cleanup_slot: usize = 0,
 dirty: std.atomic.Value(bool) = .init(true),
 wake: ?*g.RecoveryWork = null,
@@ -77,6 +78,9 @@ fn open(self: *Self, client: c.DirectTableClient, index: usize, create: bool) !?
     try self.io.randomSecure(&random);
     const operation = (std.mem.readInt(u64, &random, .little) % p.max_counter) + 1;
     const receipt = try c.DirectClientToken.bind(client, .{ .key = selected, .fingerprint = record.content.sha256, .intent = .{ .external = .{ .connection = client.connection, .namespace = 1, .operation = operation, .record = record } } });
+    if (self.known_slots) |*known| if (std.meta.eql(known.connection, client.connection)) {
+        known.mask |= @as(u64, 1) << @intCast(index);
+    };
     return c.DirectClientToken.Progress.initial(receipt);
 }
 fn read(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Progress) !Slot {
@@ -223,7 +227,27 @@ pub fn tick(self: *Self, client: c.DirectTableClient) !bool {
     defer self.mutex.unlock(self.io);
     const index = self.cleanup_slot;
     self.cleanup_slot = (index + 1) % capacity;
+    if (index == 0) self.known_slots = null;
+    errdefer self.known_slots = null;
     if (self.entries[index] != null) return false;
+    if (self.known_slots == null or !std.meta.eql(self.known_slots.?.connection, client.connection)) {
+        const account = (try self.key(client, 0)).account;
+        var mask: u64 = 0;
+        var after: ?u64 = null;
+        while (true) {
+            const page = try c.DirectClientToken.list(client, account, after, false);
+            for (page.entries) |entry| if (entry) |progress| {
+                const token = progress.receipt.binding.key.token;
+                const slot_index = std.mem.readInt(u64, token[0..8], .little);
+                if (slot_index < capacity and std.mem.allEqual(u8, token[8..16], 0)) {
+                    mask |= @as(u64, 1) << @intCast(slot_index);
+                }
+            };
+            after = page.next orelse break;
+        }
+        self.known_slots = .{ .connection = client.connection, .mask = mask };
+    }
+    if ((self.known_slots.?.mask & (@as(u64, 1) << @intCast(index))) == 0) return false;
     var state = (try self.open(client, index, false)) orelse return false;
     const slot = try self.read(client, state);
     var record = slot.record orelse return false;
