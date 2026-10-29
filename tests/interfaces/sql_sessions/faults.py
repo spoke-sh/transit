@@ -2,6 +2,7 @@
 import http.client
 import http.server
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 import json
 import os
 import threading
@@ -191,6 +192,31 @@ class Faults:
                 health.close()
             assert time.monotonic() < deadline, 'database account did not withdraw readiness'
             time.sleep(.05)
+
+    @contextmanager
+    def readiness_outage(self, client):
+        # A settled account has no polling activation check. Trigger a real
+        # foreground fence failure before changing disclosure rights, then keep
+        # recovery unavailable while the buffered-result assertion runs.
+        configuration = json.loads((client.root / 'sql-gateway.json').read_text())
+        self.fail_coordinator = configuration['accounts'][0]['execution']['table_principal']
+        probe = type(client)(client.root, client.port)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            opening = pool.submit(probe.open)
+            try:
+                self.wait_unready(client)
+                yield
+            finally:
+                self.fail_coordinator = None
+                try:
+                    opening.result(timeout=40)
+                except AssertionError as failure:
+                    # The independent login can observe the temporary grant
+                    # revocation too. No other login failure is acceptable.
+                    assert (len(failure.args) == 1 and isinstance(failure.args[0], dict)
+                            and failure.args[0].get('err', {}).get('code') == 'AccessDenied'), failure
+                finally:
+                    probe.close()
 
     def check(self, client):
         before = self.failures

@@ -1,4 +1,5 @@
 """Storage facts through native SQL and real PostgreSQL/MySQL consumers."""
+from contextlib import nullcontext
 import json
 
 
@@ -110,15 +111,14 @@ def buffered_disclosure(client, authorize, faults):
     for sql in ('SHOW STORAGE', 'SHOW STORAGE FOR native_sessions'):
         protected = client.execute(sql)['batch']
         assert protected['complete'] and protected['completion']['rows'] == 1
-        authorize(False)
-        try:
-            if faults is not None:
-                faults.wait_unready(client)
-            denied = client.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])),
-                                 error='AccessDenied')['err']
-            assert denied['sqlstate'] == list(b'42501')
-        finally:
-            authorize(True)
+        with faults.readiness_outage(client) if faults is not None else nullcontext():
+            authorize(False)
+            try:
+                denied = client.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])),
+                                     error='AccessDenied')['err']
+                assert denied['sqlstate'] == list(b'42501')
+            finally:
+                authorize(True)
         client.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])),
                     error='SqlResultIncomplete')
     print(json.dumps(dict(profile='native_sql_storage_disclosure', node=True, table=True,
