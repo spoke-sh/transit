@@ -205,6 +205,10 @@ jobs:
             .cache/verification/wal-model/
             .cache/verification/transaction-decision-model/
             .cache/verification/table-transaction-model/
+            .cache/verification/transaction-workspace-model/
+            .cache/verification/storage-lifecycle-model/
+            .cache/verification/resident-owner-cache-model/
+            .cache/verification/queue-lease-transaction-model/
             .cache/verification/console-model/
             .cache/verification/statement-result-model/
             .cache/verification/mutations/*.json

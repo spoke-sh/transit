@@ -286,11 +286,27 @@ wal-model *args:
 
 # One original transaction decision, bounded safety and six negative controls.
 transaction-decision-model *args:
-    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/transaction_decision_model.py {{args}}
+    nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-transaction-decision-model -- {{args}}
 
 # Common cuts, whole-Table OCC, private rollback and common-decision visibility.
 table-transaction-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/table_transaction_model.py {{args}}
+
+# Catalog transaction workspace admission, common-cut epoch fence and two-phase private statements.
+transaction-workspace-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-transaction-workspace-model -- {{args}}
+
+# Storage archive, compaction, checkpoint, snapshot pins, workspace roots and two-phase GC.
+storage-lifecycle-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-storage-lifecycle-model -- {{args}}
+
+# Resident table owner, incremental recoverSince, transaction owner isolation and ReadCache pins.
+resident-owner-cache-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-resident-owner-cache-model -- {{args}}
+
+# Forward-design QueuePartition .tack Roaring states, key_fifo, lease fencing and 3-primitive turn commit.
+queue-lease-transaction-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/queue_lease_transaction_model.py {{args}}
 
 # Durable write lifecycle/token models and selected production Table trace replay.
 write-lifecycle-model *args:

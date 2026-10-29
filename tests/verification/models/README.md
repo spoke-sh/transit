@@ -193,16 +193,19 @@ decision stability and disclosure checks. Each must produce its named invariant
 violation. No fairness or liveness assumption is made. Repeated failures,
 revocation and unavailable participants may prevent progress indefinitely.
 
-The journal's operation boundaries provide a reviewed correspondence:
+The journal's operation boundaries provide a reviewed correspondence and
+automated negative-control replay through
+[transaction_decision_state.zig](transaction_decision_state.zig):
 `TransactionDecisionLog.freeze` checks the frozen binding and participant
 directory; `commit` verifies complete membership and calls current owner checks
 under the supplied guard; `append` uses the conditional, epoch-fenced log;
 terminal `commit`/`abort` retries return the original decision; `observe` checks
-current authority; `recover` reconstructs history without dispatch. The
-[component tests](../../../packages/zig/transit-storage/src/transaction_decision_test.zig)
-exercise these operations with disk reopen, lost replies, pre/post-append failure,
-stale epochs, missing preparations and denied callbacks. They do not automatically
-replay model counterexamples or establish complete edge correspondence.
+current authority; `recover` reconstructs history without dispatch. All six
+negative-control counterexample traces are replayed against the real Zig
+`TransactionDecisionLog` and must be rejected or preserve the safe projection.
+The [component tests](../../../packages/zig/transit-storage/src/transaction_decision_test.zig)
+further exercise these operations with disk reopen, lost replies, pre/post-append failure,
+stale epochs, missing preparations and denied callbacks.
 
 Atomic conditional append and truthful verification while all participant/name/
 policy guards remain held are model assumptions. The model abstracts identities,
@@ -442,8 +445,9 @@ service are outside these conditional results. There is no wall-clock bound.
 
 [The private Zig adapter](write_lifecycle_state.zig) replays all ten lifecycle
 negative-control schedules against a two-row UPDATE in `TablePartition` using real intents, WAL,
-indexes and retained snapshot APIs. Independent fixed fixture oracles check rows,
-counts, terminal identity and expected refusals. The first commit reply is lost;
+indexes and retained snapshot APIs, and replays all five [WriteTokens.tla](WriteTokens.tla)
+negative-control schedules against `DirectCatalog.admitClientToken`. Independent fixed fixture oracles check rows,
+counts, terminal identity, token bindings and expected refusals. The first commit reply is lost;
 uncertain append errors require reconstruction before oracle inspection.
 `Cleanup` checkpoints without granting history expiry. The adapter uses the
 memory providers and a separate authorized inspector for its oracle: that
@@ -451,8 +455,84 @@ inspector is not caller disclosure. Disk reopen and post-commit later INSERTs
 are independently exercised in `table_statement_test.zig`.
 
 This is selected counterexample replay, not every-edge correspondence, production
-guard mutation or a refinement proof. The token model has no automated Catalog
-replay. Physical bytes, quota reservation, schema changes, key swaps, arbitrary
+guard mutation or a refinement proof. Physical bytes, quota reservation, schema changes, key swaps, arbitrary
 predicates/cardinality, network/session recovery and combined acceptance remain
 outside this abstraction. The owner mapping and durability obligations are
 explained in [storage runtime](../../../docs/handbook/internals/storage-runtime.md#write-lifecycle-model-boundary).
+
+## Finite transaction workspace model
+
+Run `nix develop --command just test::transaction-workspace-model`. The ordinary
+formal lane owns this check. [TransactionWorkspace.tla](TransactionWorkspace.tla)
+and [TransactionWorkspace.cfg](TransactionWorkspace.cfg) compose the catalog-side
+transaction lifecycle across `TRANSACTION-02` (transaction registration and login
+role attribution), `TRANSACTION-03` (epoch-fenced coordinator leases and renewal),
+`TRANSACTION-05` (consistent-cut pin acquisition, crash resume revalidation and
+cut publication), and `TRANSACTION-06` (private statement admission, autocommit
+namespace isolation, aggregate 6-dimension account quota reservation and public
+Table isolation).
+
+The safe configuration exhausts 304 distinct states. Eight independent negative
+controls remove registration token conflict detection, stale lease renewal,
+partial pin resume revalidation, mixed-cut publication refusal, autocommit
+statement token isolation, private-write public isolation, aggregate quota ceiling
+admission, and current disclosure authorization. Each negative control trace is
+replayed against `DirectCatalog` and `TablePartition` through
+[transaction_workspace_state.zig](transaction_workspace_state.zig) and
+[transaction_workspace_model.py](transaction_workspace_model.py).
+
+## Finite storage lifecycle and retention closure model
+
+Run `nix develop --command just test::storage-lifecycle-model`. The ordinary
+formal lane owns this check. [StorageLifecycle.tla](StorageLifecycle.tla) and
+[StorageLifecycle.cfg](StorageLifecycle.cfg) model the composition of
+`TableMaintenanceState` (`STORAGE-04`), `TableRetention` (`STORAGE-05`),
+`TableStorageRoots` and `TableGarbageCollection` (`STORAGE-06`), and
+`TransactionSuccessorState` (`TRANSACTION-04`).
+
+The safe configuration exhausts 1,200 distinct states. Six independent negative
+controls remove maintenance phase gating, pinned segment retention, active
+snapshot WAL trim floor protection, uncheckpointed WAL retention, transaction
+successor staging protection, and expired checkpoint descriptor preservation.
+Each negative control trace is replayed against `TablePartition`,
+`TableMaintenanceState`, `TableStorageRoots`, and `TableGarbageCollection`
+through [storage_lifecycle_state.zig](storage_lifecycle_state.zig) and
+[storage_lifecycle_model.py](storage_lifecycle_model.py).
+
+## Finite resident Table owner and ReadCache model
+
+Run `nix develop --command just test::resident-owner-cache-model`. The ordinary
+formal lane owns this check. [ResidentOwnerCache.tla](ResidentOwnerCache.tla)
+and [ResidentOwnerCache.cfg](ResidentOwnerCache.cfg) model resident `CachedTable`
+owners in `LocalTableService`, incremental `TablePartition.recoverSince` WAL
+catch-up, `recovery_required` poisoning after uncertain WAL appends, temporary
+transaction statement owner isolation, and `ReadCache` snapshot pin lifecycles
+(`SQL-READ-01`).
+
+The safe configuration exhausts 149 distinct states. Five independent negative
+controls remove `recoverSince` chain-hint validation, `recovery_required` warm
+owner eviction after uncertain appends, temporary transaction owner isolation,
+`ReadCache` closing-pin unadvertised eviction ordering, and ambiguous `Conflict`
+pin preservation. Each negative control trace is replayed against
+`TablePartition` and `DirectCatalog` through
+[resident_owner_cache_state.zig](resident_owner_cache_state.zig) and
+[resident_owner_cache_model.py](resident_owner_cache_model.py).
+
+## Finite QueuePartition lease and turn-commit model
+
+Run `nix develop --command just test::queue-lease-transaction-model`. The
+ordinary formal lane owns this forward-design check for Milestone 6
+(`QUEUE-01`). [QueueLeaseTransaction.tla](QueueLeaseTransaction.tla) and
+[QueueLeaseTransaction.cfg](QueueLeaseTransaction.cfg) model `QueuePartition`
+`.tack` Roaring-bitmap state transitions (`available`, `acquired`, `acked`,
+`dlq`), `key_fifo` entity-key affinity locking, hierarchical timing-wheel lease
+expiry with monotonic `_lease_epoch` fencing, atomic 3-primitive turn commits
+(`CLAIM -> TABLE UPDATE -> outbox publish -> ACK`), and terminal segment
+reclamation.
+
+The safe configuration exhausts 21 distinct states, and
+[queue_lease_transaction_model.py](queue_lease_transaction_model.py) verifies
+five independent negative controls: partition-set overlap, `key_fifo` lock
+bypass, stale `_lease_epoch` ACK acceptance, partial turn commit visibility, and
+premature segment reclamation. `QueuePartition` is a Milestone 6 proposal without
+a runtime Zig implementation yet.

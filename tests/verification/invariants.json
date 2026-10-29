@@ -2017,12 +2017,15 @@
         "packages/zig/transit-storage/src/TablePartition.zig",
         "packages/zig/transit-storage/src/TableMaintenanceState.zig",
         "packages/zig/transit-storage/src/TablePartitionRecord.zig",
-        "packages/zig/transit-backend-local/src/DataStore.zig"
+        "packages/zig/transit-backend-local/src/DataStore.zig",
+        "tests/verification/models/storage_lifecycle_state.zig",
+        "tests/verification/models/storage_lifecycle_model.py"
       ],
       "profile": "Current native v1; serialized local Table owner with unlimited logical history",
       "tasks": [
         "check::native",
-        "test::table-archives"
+        "test::table-archives",
+        "test::storage-lifecycle-model"
       ],
       "scenarios": [
         "Bounded archive publication, exact lost-reply recovery and two-pass archival across disk restart with a one-page cache",
@@ -2033,7 +2036,7 @@
         "SIGKILL during automatic archive target creation and completion preserves the fixed cut, covering recovery checkpoint and eventual idle state without granting physical trim"
       ],
       "limits": "Complete logical history and immutable objects remain retained. Full replay still scales with history. Process death preserves the OS/page cache; no power-loss, logical expiry, immutable Table-object collection or automatic installed maintenance claim.",
-      "model": null,
+      "model": "tests/verification/models/StorageLifecycle.tla",
       "qualification": "Executed component and process-death results are recorded in tests/README.md; full clean qualification is separate."
     },
     {
@@ -2043,13 +2046,16 @@
       "implementation": [
         "packages/zig/transit-storage/src/TablePartition.zig",
         "packages/zig/transit-storage/src/TableMaintenanceState.zig",
-        "packages/zig/transit-memory/src/Budget.zig"
+        "packages/zig/transit-memory/src/Budget.zig",
+        "tests/verification/models/storage_lifecycle_state.zig",
+        "tests/verification/models/storage_lifecycle_model.py"
       ],
       "profile": "Current native v1; serialized local Table owner, immutable retained history",
       "tasks": [
         "check::native",
         "test::table-compaction",
-        "test::direct-table-maintenance"
+        "test::direct-table-maintenance",
+        "test::storage-lifecycle-model"
       ],
       "scenarios": [
         "Consolidate live rows from multiple partially deleted segments; retained snapshots still include old rows and unflushed current rows remain in WAL",
@@ -2063,7 +2069,7 @@
         "SIGKILL before acceptance, during WAL write, after each sync/publication and before reply preserves target creation, each skipped segment and completion"
       ],
       "limits": "Old segment/index bytes remain retained; compaction grants no immutable-object collection or logical expiry. Automatic selection can retain dense or oversized inputs, and budget changes alone do not trigger a new pass. Resident candidate budget is separate from bounded reader caches, index work, acceptance-frame and provider buffers. Process death is not host power loss.",
-      "model": null,
+      "model": "tests/verification/models/StorageLifecycle.tla",
       "qualification": "Executed focused checks are recorded in tests/README.md; matched performance controls and complete clean qualification remain separate."
     },
     {
@@ -2073,7 +2079,9 @@
       "implementation": [
         "packages/zig/transit-storage/src/TableRecovery.zig",
         "packages/zig/transit-storage/src/TablePartition.zig",
-        "packages/zig/transit-storage/src/TablePartitionRecord.zig"
+        "packages/zig/transit-storage/src/TablePartitionRecord.zig",
+        "tests/verification/models/storage_lifecycle_state.zig",
+        "tests/verification/models/storage_lifecycle_model.py"
       ],
       "profile": "Current native v1; serialized local Table owner with explicit recovery checkpoints and unlimited logical history",
       "scenarios": [
@@ -2085,11 +2093,12 @@
         "Older archived evidence is checked on access; missing receipts reject original retries without a fresh operation or silent history advance"
       ],
       "limits": "Table replay counters exclude LocalWal startup and separate historical/index I/O. Checkpointing is not a full historical integrity scrub, logical expiry, object collection, automatic scheduling, power-loss proof or matched latency/RSS claim.",
-      "model": null,
+      "model": "tests/verification/models/StorageLifecycle.tla",
       "qualification": "Executed focused checks are recorded in tests/README.md; complete committed-HEAD clean qualification is separate.",
       "tasks": [
         "check::native",
-        "test::table-checkpoints"
+        "test::table-checkpoints",
+        "test::storage-lifecycle-model"
       ]
     },
     {
@@ -2210,7 +2219,9 @@
       "implementation": [
         "packages/zig/transit-storage/src/TransactionDecisionLog.zig",
         "packages/zig/transit-storage/src/TransactionDirectory.zig",
-        "packages/zig/transit-storage/src/transaction_decision_test.zig"
+        "packages/zig/transit-storage/src/transaction_decision_test.zig",
+        "tests/verification/models/transaction_decision_state.zig",
+        "tests/verification/models/transaction_decision_model.py"
       ],
       "profile": "Storage component journal and finite one-attempt model; two abstract written participants and two coordinator epochs",
       "tasks": [
@@ -2218,11 +2229,11 @@
         "check::native"
       ],
       "scenarios": [
-        "Exhaustive decision-state exploration and six independent missing-obligation counterexamples",
+        "Exhaustive decision-state exploration and six independent missing-obligation counterexamples replayed against TransactionDecisionLog",
         "Exact lost-reply recovery, commit/abort races and stale coordinator refusal",
         "Preparation membership, availability/current-authority callback refusal and bounded allocation"
       ],
-      "limits": "The model assumes atomic conditional log append and truthful participant verification under a common guard. Component tests supply verification callbacks, not actual Table owners. No installed transactions, consistent-cut acquisition, Table preparation/visibility, serializability, SQL, retention integration, liveness, power-loss experiment or implementation refinement is established. Model counterexamples are not automatically replayed against Zig.",
+      "limits": "The model assumes atomic conditional log append and truthful participant verification under a common guard. Component tests supply verification callbacks, not actual Table owners. No installed transactions, consistent-cut acquisition, Table preparation/visibility, serializability, SQL, retention integration, liveness, power-loss experiment or implementation refinement is established. Counterexample traces are replayed against the Zig journal owner.",
       "model": "tests/verification/models/TransactionDecision.tla",
       "qualification": "Execution evidence is retained under .cache/verification/transaction-decision-model/ and CI artifacts. The component integration contract records the remaining host obligations."
     },
@@ -2235,12 +2246,15 @@
         "packages/zig/transit-catalog/src/DirectCatalog.zig",
         "packages/zig/transit-catalog/src/DirectCatalogStore.zig",
         "packages/zig/transit-catalog/src/DirectStorageGraph.zig",
-        "packages/zig/transit-catalog/src/direct_catalog_test.zig"
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig",
+        "tests/verification/models/transaction_workspace_state.zig",
+        "tests/verification/models/transaction_workspace_model.py"
       ],
       "profile": "Local Catalog original-token admission; disk reopen plus bounded-page graph and signed fixture checks",
       "tasks": [
         "check::native",
-        "check::contracts"
+        "check::contracts",
+        "test::transaction-workspace-model"
       ],
       "scenarios": [
         "Lost accepted reply and disk reopen recover the original coordination partition; racing proposals return the winner",
@@ -2249,7 +2263,7 @@
         "Mandatory coordination fields reject omission; 73 selected Table descriptors retain every reachable directory page beyond the resident cache"
       ],
       "limits": "Admission establishes no acquired cut, retained data pin, private workspace, decision, serializability or interactive SQL transaction. CONNECT authorizes saving caller-supplied selection descriptors; execution requires independent current Table authorization. Graph traversal checks retained pages, not an installed physical deletion schedule.",
-      "model": null,
+      "model": "tests/verification/models/TransactionWorkspace.tla",
       "qualification": "Component checks and clean-source gates must be recorded with their exact source; registration does not establish executed proof."
     },
     {
@@ -2259,11 +2273,14 @@
       "implementation": [
         "packages/zig/transit-storage/src/TableWorkspace.zig",
         "packages/zig/transit-storage/src/TablePartition.zig",
-        "packages/zig/transit-storage/src/table_partition_test.zig"
+        "packages/zig/transit-storage/src/table_partition_test.zig",
+        "tests/verification/models/transaction_workspace_state.zig",
+        "tests/verification/models/transaction_workspace_model.py"
       ],
       "profile": "Single retained Table, private row and predicate evaluation, disk-backed object reopen and evaluator-lifetime resident accounting",
       "tasks": [
-        "check::native"
+        "check::native",
+        "test::transaction-workspace-model"
       ],
       "scenarios": [
         "Private inserts and predicate updates read their own writes while public Table roots and WAL frontiers remain unchanged",
@@ -2272,7 +2289,7 @@
         "A shared evaluator budget meters initialization, retained caches and builders; acquisition, statement and independent build-cap refusals leave no public prefix and parent OOM remains distinct"
       ],
       "limits": "No installed workspace owner, durable statement/result settlement, common-cut acquisition, aggregate transaction quota, retained workspace graph, segment identity reservation, Table preparation, SQL or savepoint/cursor interface is established. The embedding host must retain the borrowed owner and persist state/counters/results before exposing completion.",
-      "model": null,
+      "model": "tests/verification/models/TransactionWorkspace.tla",
       "qualification": "Component executions must be recorded with their source and resource bounds; registration alone does not qualify installed transactions."
     },
     {
@@ -2282,7 +2299,9 @@
       "implementation": [
         "packages/zig/transit-sql/src/DatabaseRuntime.zig",
         "packages/zig/transit-catalog/src/DirectCatalogStore.zig",
-        "packages/zig/transit-storage/src/TablePartition.zig"
+        "packages/zig/transit-storage/src/TablePartition.zig",
+        "tests/verification/models/write_lifecycle_state.zig",
+        "tests/verification/models/write_lifecycle_model.py"
       ],
       "profile": "Three row slots and one independent INSERT; separate two-submission token profiles; current split acceptance and proposed combined acceptance/TRUNCATE",
       "tasks": [
@@ -2291,9 +2310,9 @@
       "scenarios": [
         "INSERT/UPDATE/DELETE/TRUNCATE, empty/no-op/invalid work, frozen basis conflicts, original retry after later insertion",
         "Separate account/token/Table/fingerprint races and name replacement",
-        "Removed guards for identity, binding, atomic visibility, counts, durability, authority, retention and terminal stability; selected lifecycle counterexamples replayed against TablePartition"
+        "Removed guards for identity, binding, atomic visibility, counts, durability, authority, retention and terminal stability; lifecycle and token counterexamples replayed against TablePartition and DirectCatalog"
       ],
-      "limits": "Finite safety exploration and selected Table memory-owner replay, not a refinement theorem or every-edge correspondence. Catalog token model has no automatic implementation replay. TRUNCATE and combined Catalog/Table acceptance are proposals. Atomic durable publication and truthful guards are assumptions; physical WAL/object, real process death, installed SQL and quotas have separate owners. Conditional progress assumes eventually continuous availability/current authority and weakly fair commit/observation.",
+      "limits": "Finite safety exploration and selected Table/Catalog memory-owner replay, not a refinement theorem or every-edge correspondence. TRUNCATE and combined Catalog/Table acceptance are proposals. Atomic durable publication and truthful guards are assumptions; physical WAL/object, real process death, installed SQL and quotas have separate owners. Conditional progress assumes eventually continuous availability/current authority and weakly fair commit/observation.",
       "model": "tests/verification/models/WriteLifecycle.tla",
       "qualification": "Source/configuration/tool/binary hashes, exhausted state counts, complete counterexamples and replay results are retained under .cache/verification/write-lifecycle-model/ and CI artifacts."
     },
@@ -2331,12 +2350,15 @@
         "packages/zig/transit-catalog/src/direct_catalog_test.zig",
         "packages/zig/transit-storage/src/TransactionDirectory.zig",
         "apps/transit-node/NativeServer.zig",
-        "tests/interfaces/native/direct_table_client.zig"
+        "tests/interfaces/native/direct_table_client.zig",
+        "tests/verification/models/transaction_workspace_state.zig",
+        "tests/verification/models/transaction_workspace_model.py"
       ],
       "profile": "Catalog component with serialized Table publication, paged selected/source directories, disk reopen and metered temporary heap",
       "tasks": [
         "check::native",
-        "test::direct-table-service"
+        "test::direct-table-service",
+        "test::transaction-workspace-model"
       ],
       "scenarios": [
         "Lost pin and final publication replies recover original pins and the original catalog cut across disk reopen",
@@ -2348,7 +2370,7 @@
         "Admission rejects caller-supplied catalog-wide selection claims; logical guards remain distinct from retained history coverage"
       ],
       "limits": "The embedding caller supplies the catalog/Table publication fence. No installed transaction host or signed acquisition API, private statement settlement, aggregate workspace quota, Table prepare/visibility, serializability, cleanup, process-death or power-loss guarantee is established. These component histories do not constitute automated model refinement.",
-      "model": null,
+      "model": "tests/verification/models/TransactionWorkspace.tla",
       "qualification": "Focused package tests and clean-source checks must be attributed to their actual source revision; registration is not an executed proof."
     },
     {
@@ -2364,12 +2386,15 @@
         "packages/zig/transit-catalog/src/direct_catalog_test.zig",
         "apps/transit-node/NativeServer.zig",
         "tests/interfaces/native/direct_table_client.zig",
-        "tests/storage/tables/direct_table_service.py"
+        "tests/storage/tables/direct_table_service.py",
+        "tests/verification/models/transaction_workspace_state.zig",
+        "tests/verification/models/transaction_workspace_model.py"
       ],
       "profile": "Serialized catalog component with paged private roots and statement records, one-page caches, disk reopen and current read/write authorization",
       "tasks": [
         "check::native",
-        "test::direct-table-service"
+        "test::direct-table-service",
+        "test::transaction-workspace-model"
       ],
       "scenarios": [
         "Lost admission and provisional-outcome replies recover the original request across disk reopen while public Table WAL remains unchanged",
@@ -2380,7 +2405,7 @@
         "Installed signed callers cannot stage any server-owned cut or workspace format; aggregate reservation refusal returns HTTP 503 StorageQuota without accepting the token"
       ],
       "limits": "The embedding host excludes database publication. Private statement operations have no signed caller or SQL adapter; the installed checks cover only existing record and begin-admission refusals. No commit, abort, preparation barrier, common-decision visibility, savepoint controls, automatic cleanup, process-death or power-loss claim follows. Staging charges exclude unreachable failed staging and separately owned catalog/provider capacity.",
-      "model": null,
+      "model": "tests/verification/models/TransactionWorkspace.tla",
       "qualification": "Focused catalog and clean-source checks must identify their actual source; registration alone is not execution."
     },
     {
@@ -2407,6 +2432,124 @@
       "limits": "Session-local four-reader host; no durable workbook, transaction snapshot or whole-source statistics.",
       "model": null,
       "qualification": "Executable scenarios; executed evidence is recorded in the qualification owner."
+    },
+    {
+      "id": "SQL-READ-01",
+      "claim": "Resident Table owners, incremental recoverSince replay, transaction temporary owner isolation and ReadCache snapshot pins preserve cold-replay equivalence and never advertise a closing pin",
+      "owner": "docs/handbook/internals/storage-runtime.md",
+      "implementation": [
+        "apps/transit-node/LocalTableService.zig",
+        "packages/zig/transit-catalog/src/DirectCatalog.zig",
+        "packages/zig/transit-sql/src/ReadCache.zig",
+        "tests/verification/models/resident_owner_cache_state.zig",
+        "tests/verification/models/resident_owner_cache_model.py"
+      ],
+      "profile": "Finite resident-owner and ReadCache model with five negative controls replayed against DirectCatalog and TablePartition",
+      "tasks": [
+        "test::resident-owner-cache-model",
+        "check::native"
+      ],
+      "scenarios": [
+        "Incremental recoverSince rejects corrupted chain hints and matches cold replay",
+        "Uncertain WAL appends poison the warm owner and require full recovery before reuse",
+        "Transaction statement execution uses its own temporary budget without overwriting the resident CachedTable slot",
+        "ReadCache evicts unborrowed entries before releasing pins and preserves accepted pins across ambiguous Conflict"
+      ],
+      "limits": "Finite safety model and selected Zig counterexample replay; not a refinement proof or concurrent OS thread schedule.",
+      "model": "tests/verification/models/ResidentOwnerCache.tla",
+      "qualification": "Execution evidence is retained under .cache/verification/resident-owner-cache-model/ and CI artifacts."
+    },
+    {
+      "id": "FUZE-CELL-01",
+      "claim": "Fuze 5-state Cell lattice and 3-valued Kleene/SQL predicates preserve error dominance, IS NOT DISTINCT FROM reflexivity and WHERE filter equivalence",
+      "owner": "docs/handbook/reference/queries.md",
+      "implementation": [
+        "packages/zig/transit-fuze/src/Types.zig",
+        "packages/zig/transit-fuze/src/PredicateTruth.zig",
+        "packages/zig/transit-fuze/src/LogicalPredicate.zig",
+        "contracts/sql/FuzeCell.lean",
+        "tests/query/sql/rewrites.py"
+      ],
+      "profile": "Lean 4 algebraic specification checked without sorryAx or warnings",
+      "tasks": [
+        "test::sql-rewrites"
+      ],
+      "scenarios": [
+        "Kleene AND/OR commutativity and De Morgan duality across value, null and missing cells",
+        "typeError and conflict cells never coerce to a valid WHERE boolean selection",
+        "IS NOT DISTINCT FROM reflexivity across value, null and missing",
+        "WHERE conjunction coalescing equivalence with sequential filtering"
+      ],
+      "limits": "Algebraic specification of the 5-state cell lattice and 3-valued truth; does not mechanize Zig memory or SIMD decoding.",
+      "model": "contracts/sql/FuzeCell.lean",
+      "qualification": "Checked by just test::sql-rewrites in the formal lane."
+    },
+    {
+      "id": "SCHEMA-PROJ-01",
+      "claim": "Multi-version Table schema evolution and physical-to-logical projection preserve historical values across ADD COLUMN, DROP COLUMN and compaction segment rewrite",
+      "owner": "docs/handbook/reference/tables.md",
+      "implementation": [
+        "packages/zig/transit-fuze/src/TableSchemaProjection.zig",
+        "contracts/sql/SchemaProjection.lean",
+        "tests/query/sql/rewrites.py"
+      ],
+      "profile": "Lean 4 algebraic specification checked without sorryAx or warnings",
+      "tasks": [
+        "test::sql-rewrites"
+      ],
+      "scenarios": [
+        "ADD COLUMN appends absentDefault without mutating existing projected columns",
+        "DROP COLUMN commutes with physical-to-logical projection",
+        "Compaction rewrite under a current schema preserves subsequent sub-schema projections"
+      ],
+      "limits": "Algebraic specification of column-ID projection; physical page encoding and allocation bounds are tested in check::native.",
+      "model": "contracts/sql/SchemaProjection.lean",
+      "qualification": "Checked by just test::sql-rewrites in the formal lane."
+    },
+    {
+      "id": "COLLATION-01",
+      "claim": "Collation sort keys form a total preorder, 4-byte Umbra prefixes reflect strict inequality and segment zone-map min/max pruning is sound",
+      "owner": "docs/handbook/reference/queries.md",
+      "implementation": [
+        "packages/zig/transit-fuze/src/Collation.zig",
+        "packages/zig/transit-storage/src/OrderedKeyIndex.zig",
+        "contracts/sql/CollationOrder.lean",
+        "tests/query/sql/rewrites.py"
+      ],
+      "profile": "Lean 4 algebraic specification checked without sorryAx or warnings",
+      "tasks": [
+        "test::sql-rewrites"
+      ],
+      "scenarios": [
+        "Collation sort-key reflexivity, transitivity and totality",
+        "Monotone 4-byte Umbra prefix strict inequality reflection",
+        "Zone-map lower-bound and upper-bound pruning soundness with zero false negatives"
+      ],
+      "limits": "Algebraic specification of sort-key preorders and zone-map bounds; ICU/EBCDIC byte tables are tested in check::native.",
+      "model": "contracts/sql/CollationOrder.lean",
+      "qualification": "Checked by just test::sql-rewrites in the formal lane."
+    },
+    {
+      "id": "QUEUE-01",
+      "claim": "Forward-design QueuePartition .tack Roaring states, key_fifo entity-key affinity, _lease_epoch fencing and 3-primitive turn commits preserve mutual exclusion and atomic visibility",
+      "owner": "docs/handbook/reference/streams.md",
+      "implementation": [
+        "tests/verification/models/QueueLeaseTransaction.tla",
+        "tests/verification/models/queue_lease_transaction_model.py"
+      ],
+      "profile": "Milestone 6 forward-design TLA+ specification with five negative controls",
+      "tasks": [
+        "test::queue-lease-transaction-model"
+      ],
+      "scenarios": [
+        "Disjoint .tack Roaring bitmap states (available, acquired, acked, dlq)",
+        "key_fifo mutual exclusion and ordered offset acquisition per entity key",
+        "Timing-wheel lease expiry and _lease_epoch fencing against stale worker ACK/commit",
+        "Atomic 3-primitive turn commit (CLAIM -> TABLE UPDATE -> outbox publish -> ACK) and terminal segment reclamation"
+      ],
+      "limits": "Forward-design specification for Milestone 6 QueuePartition; runtime QueuePartition implementation is planned.",
+      "model": "tests/verification/models/QueueLeaseTransaction.tla",
+      "qualification": "Execution evidence is retained under .cache/verification/queue-lease-transaction-model/ and CI artifacts."
     }
   ]
 }

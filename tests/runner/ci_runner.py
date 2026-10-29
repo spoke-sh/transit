@@ -188,12 +188,19 @@ def main():
     for row in workers:
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
     assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": []}
-    assert LANES["formal"] == ["test::model", "test::wal-model", "test::transaction-decision-model", "test::table-transaction-model", "test::write-lifecycle-model", "test::model-delivery",
-                               "test::console-model", "test::statement-result-model", "test::sql-rewrites"]
+    assert LANES["formal"] == ["test::sql-rewrites", "test::model-delivery", "test::queue-lease-transaction-model",
+                               "test::wal-model", "test::resident-owner-cache-model", "test::transaction-decision-model",
+                               "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::model",
+                               "test::console-model", "test::statement-result-model", "test::table-transaction-model",
+                               "test::write-lifecycle-model"]
     assert ".cache/verification/write-lifecycle-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/wal-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/transaction-decision-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/table-transaction-model/" in artifacts["with"]["path"].splitlines()
+    assert ".cache/verification/transaction-workspace-model/" in artifacts["with"]["path"].splitlines()
+    assert ".cache/verification/storage-lifecycle-model/" in artifacts["with"]["path"].splitlines()
+    assert ".cache/verification/resident-owner-cache-model/" in artifacts["with"]["path"].splitlines()
+    assert ".cache/verification/queue-lease-transaction-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/console-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/statement-result-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/allocations/runs/" in artifacts["with"]["path"].splitlines()
@@ -346,9 +353,14 @@ def main():
     assert select(["tests/verification/models/Wal.tla"])["lanes"] == {"formal": ["test::wal-model"]}
     assert select(["tests/verification/models/TransactionDecision.tla"])["lanes"] == {"formal": ["test::transaction-decision-model", "test::table-transaction-model"]}
     assert select(["tests/verification/models/TableTransaction.tla"])["lanes"] == {"formal": ["test::table-transaction-model"]}
+    assert select(["tests/verification/models/TransactionWorkspace.tla"])["lanes"] == {"formal": ["test::transaction-workspace-model"]}
+    assert select(["tests/verification/models/StorageLifecycle.tla"])["lanes"] == {"formal": ["test::storage-lifecycle-model"]}
+    assert select(["tests/verification/models/ResidentOwnerCache.tla"])["lanes"] == {"formal": ["test::resident-owner-cache-model"]}
+    assert select(["tests/verification/models/QueueLeaseTransaction.tla"])["lanes"] == {"formal": ["test::queue-lease-transaction-model"]}
     assert select(["tests/verification/models/WriteLifecycle.tla"])["lanes"] == {"formal": ["test::write-lifecycle-model"]}
     assert select(["tests/verification/models/StatementResult.tla"])["lanes"] == {"formal": ["test::statement-result-model"]}
-    assert select(["tests/verification/models/tlc_support.py"])["lanes"] == {"formal": ["test::transaction-decision-model", "test::table-transaction-model", "test::write-lifecycle-model", "test::console-model", "test::statement-result-model"]}
+    assert select(["contracts/sql/FuzeCell.lean"])["lanes"] == {"formal": ["test::sql-rewrites"]}
+    assert select(["tests/verification/models/tlc_support.py"])["lanes"] == {"formal": ["test::queue-lease-transaction-model", "test::resident-owner-cache-model", "test::transaction-decision-model", "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::console-model", "test::statement-result-model", "test::table-transaction-model", "test::write-lifecycle-model"]}
     assert select(["sdks/go/client/types.go"])["lanes"] == {"bindings-2": ["bindings::go-sdk-test"]}
     for event in ("push", "merge_group", "workflow_dispatch", "unknown"):
         assert select(["README.md"], event)["full"]
