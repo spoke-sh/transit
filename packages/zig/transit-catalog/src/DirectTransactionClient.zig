@@ -30,6 +30,9 @@ pub fn execute(self: Self, key: c.DirectClientToken.Key, request: c.DirectTransa
 pub fn advance(self: Self, key: c.DirectClientToken.Key, steps: u16) !c.DirectTransactionControl.Status {
     return (try self.call(.{ .advance = .{ .key = key, .steps = steps } })).status;
 }
+pub fn savepoint(self: Self, key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request, steps: u16) !c.DirectTransactionSavepoint.Result {
+    return (try self.call(.{ .savepoint = .{ .key = key, .request = request, .steps = steps } })).savepoint;
+}
 pub fn settle(self: Self, key: c.DirectClientToken.Key, operation: c.protocol.DataLifecycle.Operation, command: c.DirectTransactionControl.Command, steps: u16) !c.DirectTransactionControl.Status {
     return (try self.call(.{ .settle = .{ .key = key, .operation = operation, .command = command, .steps = steps } })).status;
 }

@@ -1233,12 +1233,12 @@ statement request. `statement` carries `key`, that exact `request` and `execute`
 false admits, true evaluates or recovers the original result. A nullable outcome
 means admitted/pending, never rejected. `settle` carries `key`, original commit
 `operation`, `command` (`commit`/`abort`) and `steps` in 1–256. `advance` carries `key` and `steps`; it advances only an
-accepted pending statement or existing attempt, leaving idle active work unchanged.
+accepted pending statement, savepoint rollback or existing attempt, leaving idle active work unchanged.
 The first accepted attempt remains binding; an abort cannot replace an already committed decision.
 
 Results are `begun`, `acquired`, `staged`, `statement` or `status`, matching the
 request. Status requires catalog `revision`, `begin`, `acquired`, `last_statement`,
-`pending_statement`, nullable `attempt`, `observation` and `cleanup_complete`.
+`pending_statement`, `last_control`, `pending_control`, `savepoints`, nullable `attempt`, `observation` and `cleanup_complete`.
 Only actual journal evidence establishes a final decision. Cleanup completion
 separately establishes publication/barrier and original-pin release. Inspection
 and settlement use reserved control capacity; other calls use data capacity.
@@ -1279,3 +1279,45 @@ policy-epoch change after response buffering withholds that response.
 The foreign metadata profile has no private-context representation and refuses
 private metadata with `UnsupportedTransactionRead`; it cannot silently present a
 private root as committed data.
+
+
+### Durable savepoint controls
+
+`transaction.savepoint` carries the original `key`, exact `request` and `steps`
+(1–256). The request fixes `transaction`, original `operation`, positive control
+`sequence`, workspace `basis` revision and `action`: `create`, `rollback` or
+`release`, each with a bounded name. Controls consume their own consecutive
+sequence, independently of DML statement numbers. The admitted statement limit
+also bounds total control sequences; active savepoint depth has its separate
+savepoint limit. Names are case-sensitive native names. The most recent matching
+name shadows earlier names. Releasing a name removes that savepoint and all newer
+ones; rolling back removes newer savepoints and keeps the named one available.
+
+The response preserves the original request and Catalog `accepted` position;
+nullable `completed` reports restoration/control completion. Creation and release
+publish their completed receipt with the stack update. Rollback first durably
+accepts the exact request, then subsequent calls restore at most `steps` Table
+roots. `advance` also resumes that accepted rollback. Old completed controls return
+the original receipt; changed content under the same sequence or operation
+conflicts. A stale new request fails before consuming a sequence.
+
+While rollback is pending, new reads, statements, controls and commit refuse with
+`TransactionControlPending`. The previous active roots stay intact until one
+Catalog update publishes the complete restored directory. Full transaction abort
+can close a pending rollback. Rollback preserves the original common cut, selected
+read dependencies, consumed statement/control identities, outcomes, operation
+claims and monotonic private segment frontiers. Previously returned counts remain
+provisional observations of their original statement. They do not describe the
+restored workspace or authorize retry as new work.
+
+The workspace head requires `savepoints`, `savepoint_count`, `controls`,
+`last_control` and `pending_control`. Savepoint stack records use reserved canonical
+format `0x54585331`; completed control receipts use `0x54584331`. Both use the
+existing 32 KiB direct-record bound. The stack is an immutable chain, and controls
+use the paged sequence directory. Name lookup visits at most the admitted active
+depth without retaining the chain in memory. Rollback candidates remain reachable
+through the pending head; active savepoint roots remain reachable through the
+stack. Release drops those dependencies, permitting later collection; neither
+release nor rollback promises immediate physical deletion. Resident and cumulative
+workspace limits apply, and a resource refusal leaves accepted rollback work
+pending until recovery or explicit full abort.

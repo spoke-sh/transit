@@ -746,3 +746,25 @@ refresh the context explicitly before preparing another statement. The stage and
 admission checks prevent stale private plans from reaching a different workspace.
 See the [private read contract](../../../../contracts/DIRECT_TABLE_V1.md#transaction-scoped-private-reads)
 for supported actions and source attribution.
+
+
+`DirectTransactionClient.savepoint` creates, releases or rolls back named private
+root checkpoints. Persist the exact request with its original operation, control
+sequence and inspected workspace revision before submission. A result with no
+`completed` position remains accepted and pending. Resume that request or use
+`advance`; do not choose another operation after a timeout. Rollback restores at
+most `steps` Table roots per call and publishes the restored directory only when
+all roots are ready. Current rights gate restoration; full abort remains available
+when a rollback cannot progress. New private reads and commit refuse pending
+rollback. Every completed control changes the private revision, invalidating
+prior cursors and plans for new statements.
+
+The newest matching savepoint name wins. Release removes it and newer checkpoints;
+rollback removes newer checkpoints and keeps its target. Prior statement numbers,
+operation claims and outcomes remain consumed, and original conflict dependencies
+remain in the common cut. Controls have their own consecutive sequence, bounded
+by the admitted statement limit; active stack depth is bounded by the savepoint
+limit. Stack lookup and rollback use bounded resident state over durable records.
+Saved and partially restored roots participate in storage reachability. See the
+[savepoint contract](../../../../contracts/DIRECT_TABLE_V1.md#durable-savepoint-controls)
+for retry, quota and storage semantics.

@@ -122,7 +122,7 @@ this header and the roadmap index together.
 | P4 | Restart/failure settlement, retained roots, cleanup and maintenance | In progress: original-attempt commit/abort recovery, paged cleanup, pin/reservation release and decision/preparation graph retention; automatic host scheduling and installed failure qualification remain open |
 | P5 | Provisional statement results, SQL session controls and shared client | Planned |
 | P6 | Typed Zig, console and PostgreSQL/MySQL adapters and inspection | Planned |
-| P7 | Savepoints, cursor invalidation and resource/failure schedules | Planned |
+| P7 | Savepoints, cursor invalidation and resource/failure schedules | In progress: durable named controls, paged rollback, exact retry, preserved sequence/dependency frontiers, cursor invalidation and retained-root graph; SQL controls and installed resource/failure schedules remain open |
 | P8 | Table outbox/checkpoints and explicit participant extension handoff | Planned |
 | P9 | Installed caller, anomaly, recovery and resource qualification | Planned |
 

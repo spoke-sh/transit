@@ -41,13 +41,14 @@ pub const Request = union(enum) {
     inspect: c.DirectClientToken.Key,
     stage: struct { key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: c.DirectTableIntent.Work },
     statement: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionWorkspace.Request, execute: bool },
+    savepoint: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request, steps: u16 },
     advance: struct { key: c.DirectClientToken.Key, steps: u16 },
     settle: struct { key: c.DirectClientToken.Key, operation: d.Operation, command: c.DirectTransactionControl.Command, steps: u16 },
     pub fn key(self: Request) c.DirectClientToken.Key {
         return switch (self) {
             .begin => |value| value.key,
             inline .acquire, .inspect => |value| value,
-            inline .stage, .statement, .settle, .advance => |value| value.key,
+            inline .stage, .statement, .settle, .advance, .savepoint => |value| value.key,
         };
     }
     pub fn validate(self: Request) !void {
@@ -64,6 +65,11 @@ pub const Request = union(enum) {
             .statement => |value| {
                 try value.request.validate();
                 try value.key.connection.owner(value.request.statement.transaction.begin);
+            },
+            .savepoint => |value| {
+                try value.request.validate();
+                try value.key.connection.owner(value.request.operation);
+                if (value.steps == 0 or value.steps > 256) return error.InvalidTransactionWork;
             },
             .advance => |value| if (value.steps == 0 or value.steps > 256) return error.InvalidTransactionWork,
             .settle => |value| {
@@ -85,6 +91,7 @@ pub const Result = union(enum) {
     staged: c.DirectTransactionWorkspace.Request,
     statement: ?c.storage.TableWorkspace.Outcome,
     status: c.DirectTransactionControl.Status,
+    savepoint: c.DirectTransactionSavepoint.Result,
 };
 
 pub fn validateResult(request: Request, result: Result) !void {
@@ -94,6 +101,7 @@ pub fn validateResult(request: Request, result: Result) !void {
         .inspect, .settle, .advance => .status,
         .stage => .staged,
         .statement => .statement,
+        .savepoint => .savepoint,
     };
     if (std.meta.activeTag(result) != expected) return error.InvalidTableResponse;
     switch (result) {
@@ -119,12 +127,17 @@ pub fn validateResult(request: Request, result: Result) !void {
                 inline else => |found| if (!std.meta.eql(found.statement, request.statement.request.statement)) return error.InvalidTableResponse,
             } else if (request.statement.execute) return error.InvalidTableResponse;
         },
+        .savepoint => |value| {
+            try value.validate();
+            if (!std.meta.eql(value.request, request.savepoint.request)) return error.InvalidTableResponse;
+        },
         .status => |status| {
             try status.begin.validate();
             try status.revision.validate();
             try request.key().connection.owner(status.begin.identity.begin);
             try status.observation.validate();
-            if (status.last_statement > status.begin.limits.statements or status.revision.partition != status.begin.catalog.partition or status.revision.next_lsn <= status.begin.catalog.next_lsn or
+            if (status.last_control > status.begin.limits.statements or status.savepoints > status.begin.limits.savepoints or
+                (status.pending_control and (status.pending_statement or status.attempt != null)) or status.last_statement > status.begin.limits.statements or status.revision.partition != status.begin.catalog.partition or status.revision.next_lsn <= status.begin.catalog.next_lsn or
                 (status.cleanup_complete and status.observation != .decided) or (status.attempt != null and status.pending_statement)) return error.InvalidTableResponse;
             if (status.attempt) |attempt| {
                 try attempt.validate();

@@ -169,23 +169,31 @@ fn executeBounded(self: *Self, statement: x.Statement, request: Dml.Request, gua
 /// Restore only private data and evaluation roots. The host preserves its
 /// monotonic statement counter, read dependencies, savepoint directory and
 /// cursor invalidation evidence; this operation cannot decide a transaction.
-pub fn rollback(self: *Self, saved: State) !void {
+/// Restore data while preserving every consumed operation, statement and segment
+/// frontier. This pure transition also serves paged catalog-owned rollback.
+pub fn restore(current: State, saved: State) !State {
+    try current.validate();
     try saved.validate();
-    if (!std.meta.eql(saved.begin, self.begin) or !std.meta.eql(saved.source, self.source) or
-        !std.meta.eql(saved.root.declared(), self.table.root.declared()) or saved.root.partition != self.table.root.partition or
-        saved.root.next_lsn > self.table.root.next_lsn or saved.last_statement > self.last_statement)
+    if (!std.meta.eql(saved.begin, current.begin) or !std.meta.eql(saved.source, current.source) or
+        !std.meta.eql(saved.root.declared(), current.root.declared()) or saved.root.partition != current.root.partition or
+        saved.root.next_lsn > current.root.next_lsn or saved.last_statement > current.last_statement)
         return error.TransactionIdentityConflict;
-    const current = self.table.root;
-    var restored = saved.root;
-    restored.next_lsn = try std.math.add(u64, current.next_lsn, 1);
-    restored.changed_lsn = restored.next_lsn;
-    restored.next_segment = current.next_segment;
-    restored.receipts = current.receipts;
-    restored.operations = current.operations;
-    restored.pending = current.pending;
-    self.table.root = restored;
-    self.changed = saved.changed;
-    self.matched = saved.matched;
-    self.affected = saved.affected;
+    var restored = saved;
+    restored.last_statement = current.last_statement;
+    restored.root.next_lsn = try std.math.add(u64, current.root.next_lsn, 1);
+    restored.root.changed_lsn = restored.root.next_lsn;
+    restored.root.next_segment = current.root.next_segment;
+    restored.root.receipts = current.root.receipts;
+    restored.root.operations = current.root.operations;
+    restored.root.pending = current.root.pending;
+    try restored.validate();
+    return restored;
+}
+pub fn rollback(self: *Self, saved: State) !void {
+    const restored = try restore(self.state(), saved);
+    self.table.root = restored.root;
+    self.changed = restored.changed;
+    self.matched = restored.matched;
+    self.affected = restored.affected;
     self.table.index.clearCache();
 }

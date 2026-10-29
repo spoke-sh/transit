@@ -1742,6 +1742,22 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
     defer page.deinit();
     try t.expectEqual(@as(usize, 1), page.value.result.page.rows.len);
     try t.expectEqualDeep(view.source.source.accepted, page.value.result.page.accepted);
+    const save: c.DirectTransactionSavepoint.Request = .{ .transaction = view.cut.begin.identity, .operation = .{ .scope = scope, .principal = 101, .operation = 130000 }, .sequence = 1, .basis = context.revision, .action = .{ .create = try c.TableAuthority.Name.init("private_rows") } };
+    const saved = try dispatch(service, .{ .transaction = .{ .savepoint = .{ .key = token, .request = save, .steps = 1 } } });
+    defer saved.deinit();
+    const rollback: c.DirectTransactionSavepoint.Request = .{ .transaction = view.cut.begin.identity, .operation = .{ .scope = scope, .principal = 101, .operation = 130001 }, .sequence = 2, .basis = saved.value.result.transaction.savepoint.completed.?, .action = .{ .rollback = try c.TableAuthority.Name.init("private_rows") } };
+    const rolling = try dispatch(service, .{ .transaction = .{ .savepoint = .{ .key = token, .request = rollback, .steps = 1 } } });
+    defer rolling.deinit();
+    try t.expect(rolling.value.result.transaction.savepoint.completed == null);
+    for (0..2) |i| {
+        const advanced = try dispatch(service, .{ .transaction = .{ .advance = .{ .key = token, .steps = 1 } } });
+        defer advanced.deinit();
+        try t.expectEqual(i == 0, advanced.value.result.transaction.status.pending_control);
+    }
+    const restored = try dispatch(service, .{ .transaction = .{ .savepoint = .{ .key = token, .request = rollback, .steps = 1 } } });
+    defer restored.deinit();
+    try t.expect(restored.value.result.transaction.savepoint.completed != null);
+    try t.expectError(error.TransactionReadChanged, dispatchContext(service, .{ .snapshot = snapshot }, null, null, 29, context));
     const settled = try dispatch(service, .{ .transaction = .{ .settle = .{ .key = token, .operation = .{ .scope = scope, .principal = 101, .operation = 110001 }, .command = .commit, .steps = 256 } } });
     defer settled.deinit();
     try t.expect(settled.value.result.transaction.status.cleanup_complete);

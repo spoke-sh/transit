@@ -77,6 +77,7 @@ pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action
             .inspect => |key| .{ .status = try catalog.inspectTransaction(key, policy) },
             .stage => |value| .{ .staged = try catalog.stageTransactionStatement(value.key, value.basis, value.sequence, value.work, policy) },
             .statement => |value| .{ .statement = if (value.execute) try catalog.executeTransactionStatement(value.key, value.request, policy) else try catalog.admitTransactionStatement(value.key, value.request, policy) },
+            .savepoint => |value| .{ .savepoint = try catalog.transactionSavepoint(value.key, value.request, value.steps, policy) },
             .advance => |value| .{ .status = try catalog.resumeTransaction(value.key, value.steps, policy) },
             .settle => |value| .{ .status = try catalog.settleTransaction(value.key, value.operation, value.command, value.steps, policy) },
         } },

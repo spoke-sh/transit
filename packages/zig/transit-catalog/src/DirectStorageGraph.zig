@@ -17,6 +17,8 @@ pub const Work = union(enum) {
     transaction: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
     transaction_walk: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope, tables: bool },
     transaction_intent: W.Request,
+    transaction_controls: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope },
+    transaction_savepoints: struct { root: r.Root, head: W.Head, scope: c.DirectRecord.Scope, next: ?c.DirectRecord.Reference, depth: u64 },
     table_preparation: struct { reference: s.TableTransaction.Reference, archive: ?s.TableArchive.Coverage = null },
     transaction_journal: u64,
     transaction_directory: struct { catalog: r.Root, identity: c.protocol.Transaction.Identity, directory: c.protocol.Transaction.Directory, kind: s.TransactionDirectory.Kind, after: ?u64 = null, started: bool = false },
@@ -113,7 +115,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             } else {
                 if (progress.record == null) return true;
                 const control = if (progress.record.?.format == c.DirectTransactionControl.format) try c.DirectTransactionControl.load(allocator, index.store, progress) else null;
-                if (value.slot == 5) {
+                if (value.slot == 8) {
                     if (control) |state| {
                         try workspace.enqueue(.{ .transaction_directory = .{ .catalog = value.root, .identity = begin.identity, .directory = state.binding.attempt.participants, .kind = .participants } });
                         if (state.preparations) |directory| try workspace.enqueue(.{ .transaction_directory = .{ .catalog = value.root, .identity = begin.identity, .directory = directory, .kind = .preparations } });
@@ -141,6 +143,17 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                     },
                     4 => if (retained.pending) |request| {
                         try workspace.enqueue(.{ .transaction_intent = request });
+                    },
+                    5 => if (retained.controls) |reference| {
+                        try workspace.enqueue(.{ .transaction_controls = .{ .walk = try .init(value.root, .{ .reference = reference, .kind = .values }), .head = retained, .scope = progress.receipt.binding.key.scope() } });
+                    },
+                    6 => if (control == null or !control.?.cleanup_complete) {
+                        if (retained.savepoints) |reference| try workspace.enqueue(.{ .transaction_savepoints = .{ .root = value.root, .head = retained, .scope = progress.receipt.binding.key.scope(), .next = reference, .depth = retained.savepoint_count } });
+                    },
+                    7 => if (control == null or !control.?.cleanup_complete) {
+                        if (retained.pending_control) |pending| if (pending.tables) |reference| {
+                            try workspace.enqueue(.{ .transaction_walk = .{ .walk = try .init(value.root, .{ .reference = reference, .kind = .values }), .head = retained, .scope = progress.receipt.binding.key.scope(), .tables = true } });
+                        };
                     },
                     else => return error.InvalidTableStorageGraph,
                 }
@@ -178,6 +191,30 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                             completed.request.statement.sequence > value.head.last_statement or !std.meta.eql(entry.key, try W.idKey(completed.request.statement.sequence))) return error.InvalidTableStorageGraph;
                         try workspace.enqueue(.{ .transaction_intent = completed.request });
                     }
+                },
+            }
+            return false;
+        },
+        .transaction_savepoints => |*value| {
+            const reference = value.next orelse return true;
+            const saved = try c.DirectTransactionSavepoint.load(allocator, index.store, value.scope, reference, value.head);
+            if (saved.depth != value.depth) return error.InvalidTableStorageGraph;
+            if (saved.tables) |tables| try workspace.enqueue(.{ .transaction_walk = .{ .walk = try .init(value.root, .{ .reference = tables, .kind = .values }), .head = value.head, .scope = value.scope, .tables = true } });
+            value.next = saved.previous;
+            value.depth -= 1;
+            return value.next == null;
+        },
+        .transaction_controls => |*value| {
+            const edge = try value.walk.next(allocator, index) orelse return true;
+            switch (edge) {
+                .page => |page| try markPage(index, workspace, page.reference),
+                .declaration => return error.InvalidTableStorageGraph,
+                .value => |entry| {
+                    const format = c.DirectTransactionSavepoint.result_format;
+                    const result = try W.load(c.DirectTransactionSavepoint.Result, allocator, index.store, try W.referenceOf(entry.value, value.scope, format), value.scope, format);
+                    try result.validate();
+                    if (!std.meta.eql(result.request.transaction, value.head.acquired.cut.begin.identity) or result.request.sequence > value.head.last_control or
+                        !std.meta.eql(entry.key, try W.idKey(result.request.sequence)) or result.completed == null) return error.InvalidTableStorageGraph;
                 },
             }
             return false;
