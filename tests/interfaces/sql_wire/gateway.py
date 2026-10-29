@@ -46,8 +46,11 @@ def directory(binaries):
         shutil.rmtree(root)
 
 
-def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all", repeat="5"):
+def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all", repeat="5", instrumentation=""):
     assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-kv","sessions-table","console-statements")
+    assert instrumentation in ('', '--instrument')
+    instrumented = instrumentation == '--instrument'
+    assert not instrumented or slice == 'console-statements'
     repeat = int(repeat)
     assert 1 <= repeat <= 100
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
@@ -60,7 +63,8 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                               binaries={role: identity(Path(path)) for role, path in binaries.items()},
                               driver_sha256=hashlib.sha256((ROOT / 'tests/performance/console/statements.py').read_bytes()).hexdigest(),
                               platform=platform.platform(), load=os.getloadavg(), repeat=repeat,
-                              native_request_timeout_ms=30000, instrumented=False,
+                              native_request_timeout_ms=30000, instrumented=instrumented,
+                              probe_scope='SQL gateway upstream only' if instrumented else None,
                               limits='TLS component control; not the default installed server. Small sequential samples; no isolated load or tail SLO.')), flush=True)
     with directory(binaries) as root:
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -123,6 +127,8 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv', 'sessions-table') else []
                 if session_faults is not None:
                     configuration['native_url'] = session_faults.url
+                if instrumented:
+                    configuration['native_url'] = probe.url
             configuration['health_port'] = health_port
             configuration['drain_ms'] = 1000
             configuration['request_timeout_ms'] = 30000
@@ -161,6 +167,9 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 session_faults = Faults(url)
             if slice in ('sessions', 'sessions-kv', 'sessions-table'):
                 call(ledger, 'session-sources', *([slice.removeprefix('sessions-')] if slice in ('sessions-kv', 'sessions-table') else []))
+            if instrumented:
+                from harness.http_probe import Probe
+                probe = Probe(url, native=True)
             configure()
             certificate()
             server = start(gateway, root/'sql-gateway.json')
@@ -176,7 +185,8 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             from interfaces.sql_wire.clients import run as clients, run_cli, connection_options as client_options
             if slice == 'console-statements':
                 from performance.console.statements import tls
-                tls(root, session_port, str(Path(console).resolve()), repeat)
+                tls(root, session_port, str(Path(console).resolve()), repeat,
+                    probes={'native': probe} if instrumented else {})
                 return
             if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
                 from interfaces.sql_sessions.native import run as sessions

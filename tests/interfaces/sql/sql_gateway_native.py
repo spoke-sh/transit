@@ -3,6 +3,7 @@ from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import shutil
 import socket
 import subprocess
 import sys
@@ -15,7 +16,7 @@ from harness.services import free_port, wait_ready
 
 def run(node, catalog, gateway):
     node, catalog, gateway = [str(Path(p).resolve()) for p in (node, catalog, gateway)]
-    with tempfile.TemporaryDirectory(prefix='transit-sql-database-') as directory:
+    with tempfile.TemporaryDirectory(prefix='transit-sql-database-', dir='/var/tmp', delete=False) as directory:
         root = Path(directory)
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         port = free_port()
@@ -39,6 +40,12 @@ def run(node, catalog, gateway):
         sends = turns = table_calls = 0
         failures = []
         upstream = threading.local()
+        # Serialize the fault boundary with subsequent requests: a caller whose
+        # transport deadline expires before commit must not recover/settle that
+        # commit before the supervisor has killed both processes.
+        requests = threading.Lock()
+        commit_cut = threading.Event()
+        commit_fault_active = False
 
         class Proxy(BaseHTTPRequestHandler):
             protocol_version = 'HTTP/1.1'
@@ -47,6 +54,15 @@ def run(node, catalog, gateway):
                 self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             def log_message(self, *_): pass
             def do_POST(self):
+                if commit_fault_active:
+                    with requests:
+                        if commit_cut.is_set():
+                            self.close_connection = True
+                            return
+                        self.forward()
+                else:
+                    self.forward()
+            def forward(self):
                 nonlocal armed, accepted, committed, recovered, repeated, sends, turns, table_calls
                 nonlocal saved_recoveries, committed_saved
                 nonlocal capacity_binding, capacity_receipt, capacity_repeats, capacity_armed
@@ -107,9 +123,19 @@ def run(node, catalog, gateway):
                             if 'committed' in outcome:
                                 committed = (operation or saved)['binding'], result['result']
                                 committed_saved = saved
+                                # Exercise the original race deliberately: the
+                                # five-second client deadline expires before it
+                                # learns the commit. Later recovery requests are
+                                # held by requests until the crash cut is armed.
+                                self.connection.settimeout(10)
+                                try:
+                                    assert self.connection.recv(1, socket.MSG_PEEK) == b'', 'caller did not abandon lost reply'
+                                except ConnectionResetError:
+                                    pass
                                 armed = None
-                                result['context'][0] ^= 1
-                                data = json.dumps(result).encode()
+                                self.close_connection = True
+                                commit_cut.set()
+                                return
                     self.send_response(status)
                     self.send_header('Content-Length', str(len(data)))
                     self.send_header('Content-Type', 'application/json')
@@ -122,10 +148,15 @@ def run(node, catalog, gateway):
                     connection.close()
                     upstream.conn = None
                     failures.append(repr(error))
-        proxy = ThreadingHTTPServer(('127.0.0.1', 0), Proxy)
-        thread = threading.Thread(target=proxy.serve_forever, daemon=True)
-        thread.start()
-        url = f'http://127.0.0.1:{proxy.server_port}'
+        def start_proxy():
+            server = ThreadingHTTPServer(('127.0.0.1', 0), Proxy)
+            # server_close joins every handler after the helper closes its
+            # sockets, including attempts queued behind the commit boundary.
+            server.daemon_threads = False
+            serving = threading.Thread(target=server.serve_forever, daemon=True)
+            serving.start()
+            return server, serving, f'http://127.0.0.1:{server.server_port}'
+        proxy, thread, url = start_proxy()
         log = (root/'node.log').open('w+')
         authority = None
         started = time.monotonic()
@@ -143,6 +174,31 @@ def run(node, catalog, gateway):
                     return
                 assert result.returncode == 0, f'{mode}: {result.stderr[-12000:]}'
                 return json.loads(result.stdout)
+            def crash_after_commit(label):
+                nonlocal armed, proxy, thread, url, commit_fault_active
+                assert not commit_cut.is_set()
+                commit_fault_active = True
+                armed = 'commit'
+                with (root/f'{label}-fault.log').open('w+') as output:
+                    worker = subprocess.Popen([gateway, url, 'run', str(root)],
+                                              stdout=output, stderr=subprocess.STDOUT)
+                    try:
+                        deadline = time.monotonic() + 300
+                        while not commit_cut.wait(.05):
+                            assert worker.poll() is None, f'{label}: helper exited before commit fault'
+                            assert time.monotonic() < deadline, f'{label}: commit fault did not fire'
+                        assert armed is None and committed
+                        assert not recovered and not repeated, 'commit recovered before process death'
+                    finally:
+                        worker.kill(); worker.wait(timeout=10)
+                authority.kill(); authority.wait(timeout=10)
+                # Join all old connections before reopening admission; no
+                # delayed pre-crash request may reach the replacement authority.
+                proxy.shutdown(); proxy.server_close(); thread.join(timeout=5)
+                assert not thread.is_alive()
+                commit_cut.clear()
+                commit_fault_active = False
+                proxy, thread, url = start_proxy()
             authority = start()
             call(catalog, 'provision')
             authority.terminate(); authority.wait(timeout=10)
@@ -164,21 +220,15 @@ def run(node, catalog, gateway):
             call(gateway, 'enqueue', 2, sql+' ', fail=True)
             assert call(gateway, 'status', created['operation'])['summary'] == 'none'
             assert call(gateway, 'replace')['stale_rejected']
-            armed = 'commit'
-            call(gateway, 'run', fail=True)
-            assert armed is None and committed
-            authority.kill(); authority.wait(timeout=10)
+            crash_after_commit('ddl')
             authority = start()
             call(gateway, 'run')
             assert recovered and not repeated
             assert call(gateway, 'status', created['operation'])['summary'] == 'applied'
             assert call(catalog, 'inspect', 'wire_data')['count'] == 0
             inserted = call(gateway, 'enqueue', 3, 'INSERT INTO wire_data (id, value) VALUES (1, 10), (2, 20), (3, 30)')
-            armed = 'commit'
             recovered = repeated = False
-            call(gateway, 'run', fail=True)
-            assert armed is None and committed
-            authority.kill(); authority.wait(timeout=10)
+            crash_after_commit('insert')
             authority = start()
             call(gateway, 'replace')
             call(gateway, 'run')
@@ -213,6 +263,7 @@ def run(node, catalog, gateway):
             assert capacity_repeats == 1, capacity_repeats
             assert not failures, failures
             print(json.dumps(dict(profile='native_sql_database', exact_token_recovery=True,
+                                  committed_reply_timeout_crashes=2,
                                   fenced_replacements=2, direct_outcome_recovered=recovered,
                                   explicit_execute_repeated=repeated, saved_receipt_recoveries=saved_recoveries,
                                   exact_counts=True, history=history,
@@ -226,6 +277,9 @@ def run(node, catalog, gateway):
             if sys.exc_info()[0]:
                 log.flush(); log.seek(0); sys.stderr.write(log.read()[-6000:])
                 if failures: print(failures, file=sys.stderr)
+                print(f'Failed SQL recovery fixture retained privately at {root}', file=sys.stderr)
             log.close()
+            if not sys.exc_info()[0]:
+                shutil.rmtree(root)
 
 if __name__ == '__main__': run(*sys.argv[1:])

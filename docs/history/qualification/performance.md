@@ -11,6 +11,127 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## Persistent console statement latency — 2026-10-28
 
+### Merged runtime recovery checks — 2026-10-29
+
+The follow-up to [PR #222](https://github.com/spoke-sh/transit/pull/222)
+corrects the lost-reply schedule and records unresolved publication latency.
+Source `22316f4738bc` runs on main `3cb07950e`, including PR #225's valid
+maximum-path metadata fixture. Linux x86_64, pinned Zig
+`0.17.0-dev.2267+48abf1a34`, ReleaseSafe binaries and local disk remain the
+execution profile. The host is shared; no isolated-load or speedup claim follows.
+
+The [SQL service recovery method](../../../packages/zig/transit-sql-service/README.md)
+now withholds a confirmed committed reply until the client's existing deadline
+expires. A gate prevents subsequent recovery requests from reaching authority
+until the helper and node are killed and all old proxy connections are joined.
+Restart must recover the same saved binding/result, rows and counts. This avoids
+treating a helper's exit status as evidence that a particular reply fault fired.
+Normal foreground/background traffic remains concurrent. Failed installations
+are retained privately outside the temporary Nix shell.
+
+The first revised native schedule reached both DDL and INSERT crash/recovery
+checks but serialized ordinary traffic as well, then timed out in the later
+capacity-retry case. Restricting the gate to the crash schedules removed that
+fixture interference. The next run at `7767d856a` passed those earlier assertions
+and capacity retry, then failed on the 67-row INSERT: repeated `commit_saved`
+attempts reached the unchanged ten-second node deadline during
+`data.object_put`. The complete schedule did not pass, and those timeouts do not
+establish rejection or a terminal outcome for the original operation. Its private installation
+is `/var/tmp/transit-sql-database-xuk7djsw`; the raw log
+`.cache/sql-qualification/gateway-final.log` has SHA-256
+`d571deadda1beed278e88fb47327c27cceab559c8ca84820487570527210177d`.
+
+The default installed console attempt used frozen binaries from `7767d856a`,
+the unchanged statement driver at `92c91cec1`, `--statements --repeat 5`, no
+proxy and no cache/deadline overrides. Installation failed before any timed SQL:
+native `associate` requests repeatedly exceeded two seconds and the manager
+exhausted its node restart budget. There is no latency distribution from this
+attempt. The original installation remains private at
+`/var/tmp/transit-server-proof-xq2x465q`. Source/tool/binary identity is in
+`.cache/sql-qualification/console-unproxied.jsonl` (SHA-256
+`8dfe09e58306df5bd57dd86d4768b41482cf1c6fe86dd40f767c8c0deaf03ccf`);
+the failure log is `console-unproxied.stderr` (SHA-256
+`339c2d568a7f37fcab49b551b36ba2ef812ea5c3c7148c4885e573d32cf58bfb`).
+
+At `22316f4738bc`, `zig build test-local-owner-recovery -Doptimize=ReleaseSafe`
+passes unchanged, including the original receipts, bounded owner reopen,
+atomic input/KV/block/output/effect publication, retained blocks and process
+restart. This does not establish the cause of the earlier association timeout
+or qualify installed bootstrap. The log
+`.cache/sql-qualification/local-owner.log` has SHA-256
+`889706ba0ae61943f5121e898ad6c2a9f42800c1d7391733f9d3305b7d9ca241`.
+All 47 clean fast checks also pass at that source; they do not establish native
+runtime or latency qualification.
+
+The separate unproxied TLS console control completes all 47 statements with
+verified values, counts and final typed readback. Runtime binaries were built
+at `22316f4738bc`; the driver records `065ba33ba`, whose additional change is
+the preceding evidence account. The existing component fixture uses eight
+native resident pages and a 30-second native request budget. It is not the
+default installed-server profile. Six warm reads and five samples of each
+mutation/refreshed-read case yield these empirical p50s; the small samples do
+not establish p95/p99 or a speedup against another build.
+
+| Actual console timer | Unproxied TLS p50 |
+| --- | ---: |
+| Warm SELECT | 81 ms |
+| INSERT | 1,676 ms |
+| SELECT after INSERT | 1,882 ms |
+| Changed UPDATE | 3,165 ms |
+| Unchanged UPDATE | 1,494 ms |
+| SELECT after UPDATE | 2,899 ms |
+| DELETE | 2,026 ms |
+| SELECT after DELETE | 2,885 ms |
+
+The five INSERTs report zero milliseconds for wait and rendering, with their
+entire measured duration in submit. Submit includes server preparation and
+execution; it is not an exclusive storage timer. The unproxied log
+`.cache/sql-qualification/console-tls.log` has SHA-256
+`3e3f22ad473f5e9a7925497740cfef4e0030590aca1e77d19361d7580bba3eba`.
+
+Driver `b83d4bc6f` adds `just test::console-latency-tls 5 --instrument` through
+the existing bounded native probe. The executed diagnostic run supplies the
+same seven frozen executable hashes as the unproxied run to the shared SQL-wire
+driver through `tests/runner/launch.py`, with `console-statements 5 --instrument`.
+All 47 statements and their traces complete, with no omitted trace events,
+Station sends/turns or new pins during warm-read windows. The first INSERT takes
+1,573 ms and observes 58 upstream POSTs. Its intent staging takes 105 ms, token
+binding 551 ms and direct commit 833 ms. The corresponding provider elapsed
+counters are 99, 543 and 814 ms. Background pending-list/inspection requests
+overlap these operations; neither their durations nor nested provider/owner
+counters are additive exclusive phases.
+
+That commit's measured owner counters report 69 allocation attempts, 39 growing
+resizes and a 5,030,723-byte peak. These scoped counters do not support a zero
+allocation claim or measure process-wide memory. The diagnostic log
+`.cache/sql-qualification/console-tls-instrumented.log` has SHA-256
+`b8381980bac2f38c5731252fb3cde689b5bca61ecb0df5509ff839ca2778029b`.
+Durable publication, token/accounting coordination and refreshed read cuts
+remain optimization work; the 10–100× targets are not achieved by these runs.
+
+Clean-source qualification at `75e8ec6056fc` passes all 47 fast checks, the
+documentation type checks, nine documentation tests and the complete site
+build. The clean interfaces lane passes TLS in 21.40 seconds and shared-client
+allocation checks in 183.85 seconds, including the deliberate allocation-failure
+control. Native SQL recovery then fails after 626.06 seconds including its build:
+the 67-row INSERT repeatedly reaches the ten-second node deadline and the
+helper exceeds its unchanged 300-second budget. Later interface tasks do not
+run. The private fixture is `/var/tmp/transit-sql-database-o9dto4yj`; the clean
+source and runner records remain at `/var/tmp/transit-ci-hohkp2sd`. The log
+`.cache/sql-qualification/clean-interfaces.log` has SHA-256
+`a2b7658fec1f82dd7ae6d5be63f9e50e2a26c37e2f5b4dcafd5633932eb65464`.
+
+A final standalone default-installation attempt after these checks uses the
+same frozen binaries and unchanged settings. It also fails during native
+association bootstrap, exhausts the restart budget and produces no timed SQL
+samples. Its driver source is `75e8ec6056fc`, initial one-minute load is 5.92,
+and private installation is `/var/tmp/transit-server-proof-a9qerxx1`. These
+observations do not establish the cause of the storage delays. Raw identity is
+in `.cache/sql-qualification/console-unproxied-repeat.jsonl` (SHA-256
+`db60cd022090a5479b165dee796c92b42f2e1fa609d0dd15ff0a8fa5c719f247`),
+with failure evidence in `console-unproxied-repeat.stderr` (SHA-256
+`989567b3d3c790f3cad212f199d48077e3a4cd1dd57e842a555aba959a85d014`).
+
 ### Resident owners, foreground completion and snapshot acquisition
 
 This follow-up to [#211](https://github.com/spoke-sh/transit/issues/211) measures

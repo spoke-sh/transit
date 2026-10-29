@@ -110,8 +110,8 @@ def run(fixture, repeat, probes, *, config=None):
         shell.close()
 
 
-def tls(root, port, console, repeat):
-    """Same workload over the existing SQL wire fixture, with no proxy."""
+def tls(root, port, console, repeat, *, probes=None):
+    """Same workload over the SQL wire fixture; optional upstream diagnostics."""
     from types import SimpleNamespace
     config = root / 'latency.yaml'
     password = root / 'latency.password'
@@ -126,4 +126,4 @@ def tls(root, port, console, repeat):
         print(json.dumps(dict(phase='setup', timing=timing)), flush=True)
     finally:
         shell.close()
-    run(fixture, repeat, {}, config=config)
+    run(fixture, repeat, probes or {}, config=config)
