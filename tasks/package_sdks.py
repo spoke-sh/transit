@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 
 from package_release import ROOT, archive, sha256
+from release_identity import current
 
 
 def package(packages, output, notices):
@@ -15,7 +16,8 @@ def package(packages, output, notices):
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     if subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT):
         revision += '-dirty'
-    version = (ROOT / 'VERSION').read_text().strip()
+    identity = current()
+    version = identity['release']
     if manifest['source_revision'] != revision or manifest['release'] != version:
         raise ValueError('SDK packages do not match this source revision/version')
     epoch = int(subprocess.check_output(['git', 'show', '-s', '--format=%ct', 'HEAD'], cwd=ROOT))
@@ -34,7 +36,8 @@ def package(packages, output, notices):
                 shutil.copy2(source, stage / source.name)
             shutil.copytree(notices, stage / 'notices')
             shutil.copy2(packages / 'sdk-manifest.json', stage / 'sdk-manifest.json')
-            name = f'transit-sdk-{language}-{version}-linux-x86_64'
+            architecture = manifest['target'].split('-')[0]
+            name = f'transit-sdk-{language}-{version}-linux-{architecture}'
             archive(stage, output / f'{name}.tar.gz', name, epoch)
         # The public Zig manifest has relative shared-package dependencies.
         # Ship their tracked closure, preserving paths, and the real consumer.
@@ -46,8 +49,19 @@ def package(packages, output, notices):
             destination = stage / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, destination)
+            if name == 'VERSION':
+                destination.write_text(version + '\n')
+            elif destination.name == 'build.zig.zon' and not name.startswith('third_party/'):
+                text = destination.read_text()
+                text = text.replace('.version = "' + identity['base_version'] + '"', '.version = "' + version + '"')
+                destination.write_text(text)
         shutil.copytree(notices, stage / 'notices')
-        shutil.copy2(packages / 'sdk-manifest.json', stage / 'sdk-manifest.json')
+        # The Zig source closure is identical on every native packaging runner.
+        # Its provenance must not include another language's native build paths,
+        # target or binary hashes.
+        source_manifest = {key: manifest[key] for key in (
+            'version', 'release', 'source_revision', 'identity', 'definition', 'compiler')}
+        (stage / 'sdk-manifest.json').write_text(json.dumps(source_manifest, indent=2) + '\n')
         name = f'transit-sdk-zig-{version}-source'
         archive(stage, output / f'{name}.tar.gz', name, epoch)
     manifest['assets'] = {path.name: sha256(path) for path in sorted(output.iterdir())}

@@ -40,7 +40,9 @@ def package(prefix, output):
     architecture = platform.machine()
     if platform.system() != 'Linux' or architecture not in ('x86_64', 'aarch64'):
         raise ValueError('release packaging requires its native Linux x86_64/ARM64 runner')
-    version = (ROOT / 'VERSION').read_text().strip()
+    from release_identity import current
+    identity_record = current()
+    version = identity_record['release']
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     if subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT):
         revision += '-dirty'
@@ -54,7 +56,7 @@ def package(prefix, output):
     epoch = int(subprocess.check_output(['git', 'show', '-s', '--format=%ct', 'HEAD'], cwd=ROOT))
     definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
     manifest = dict(version=1, release=version, source_revision=revision, definition=definition,
-                    target=f'{architecture}-linux-musl', optimize='ReleaseSafe', source_date_epoch=epoch,
+                    identity=identity_record, target=f'{architecture}-linux-musl', optimize='ReleaseSafe', source_date_epoch=epoch,
                     flake_lock_sha256=sha256(ROOT / 'flake.lock'), binaries={})
     with tempfile.TemporaryDirectory(prefix='transit-package-') as temporary:
         stage = Path(temporary) / 'bundle'
@@ -74,7 +76,7 @@ def package(prefix, output):
         archive(stage, output / f'{name}.tar.gz', name, epoch)
         # Helm's ordinary archive carries checkout mtimes. Normalize its tar/gzip
         # metadata so retries can compare bytes before touching registry tags.
-        subprocess.run(['helm', 'package', str(ROOT / 'charts/transit'), '--destination', temporary], check=True)
+        subprocess.run(['helm', 'package', str(ROOT / 'charts/transit'), '--version', version, '--app-version', version, '--destination', temporary], check=True)
         chart = Path(temporary) / f'transit-{version}.tgz'
         with tarfile.open(chart) as source:
             source.extractall(Path(temporary) / 'chart', filter='data')

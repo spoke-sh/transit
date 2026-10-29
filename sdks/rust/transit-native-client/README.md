@@ -1,6 +1,6 @@
 # transit-native-client
 
-The Rust public client's version-matched Linux x86_64 native artifact. Built
+The Rust public client's version-matched Linux x86_64 and ARM64 native artifact. Built
 packages contain `lib/libtransit_client.so`; Rust embeds these bytes into the
 consumer so its installed executable does not depend on a Cargo cache path.
 The first open loads a private temporary copy and removes the file. Later opens

@@ -1,4 +1,5 @@
 """Install public raw-client wheels outside the checkout and exercise real I/O."""
+
 import asyncio
 import hashlib
 import json
@@ -148,6 +149,7 @@ def consumer(mode, config_file):
 
 
 def run(node, cli, raw_library, wheels, evidence=None):
+    from sdk.artifact_versions import package_text
     from sdk.sdk_raw_client import run as schedule
     wheels = Path(wheels).resolve()
     def install(target):
@@ -155,7 +157,7 @@ def run(node, cli, raw_library, wheels, evidence=None):
         venv = target / 'venv'
         subprocess.run([sys.executable, '-m', 'venv', '--without-pip', str(venv)], check=True, env=environment)
         python = venv / 'bin/python'
-        subprocess.run([sys.executable, '-m', 'pip', '--python', str(python), 'install', '--no-index', '--find-links', str(wheels), 'transit-client==0.0.1'], check=True, env=environment, stdout=subprocess.DEVNULL)
+        subprocess.run([sys.executable, '-m', 'pip', '--python', str(python), 'install', '--no-index', '--find-links', str(wheels), package_text('transit-client==0.0.1', 'python')], check=True, env=environment, stdout=subprocess.DEVNULL)
         installed = subprocess.check_output([python, '-c', 'import importlib.metadata as m; print(sorted(d.metadata["Name"] for d in m.distributions()))'], env=environment, text=True)
         assert 'transit-station' not in installed and 'transit-native-station' not in installed
         script = target / 'consumer.py'

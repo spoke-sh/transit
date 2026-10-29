@@ -16,12 +16,16 @@ public final class NativeArtifact implements AutoCloseable {
             if (!Files.isRegularFile(override) || !Files.isExecutable(override)) throw Values.incompatible("native-path");
             return new NativeArtifact(null, override);
         }
-        if (!"Linux".equals(System.getProperty("os.name")) || !"amd64".equals(System.getProperty("os.arch"))) throw Values.incompatible("native-platform");
+        String architecture = System.getProperty("os.arch");
+        if (!"Linux".equals(System.getProperty("os.name")) ||
+            !("amd64".equals(architecture) || "aarch64".equals(architecture))) throw Values.incompatible("native-platform");
         String root = "/io/transit/native" + family + "/";
         Path directory = null;
         try (InputStream version = NativeArtifact.class.getResourceAsStream(root + "version");
              InputStream binary = NativeArtifact.class.getResourceAsStream(root + "transit-" + family + "-host")) {
-            if (version == null || binary == null || !new String(version.readNBytes(32), StandardCharsets.US_ASCII).equals("0.0.1\n")) throw Values.incompatible("native-artifact-version");
+            String expectedVersion = "0.0.1\n";
+            if (version == null || binary == null ||
+                !new String(version.readNBytes(expectedVersion.length() + 1), StandardCharsets.US_ASCII).equals(expectedVersion)) throw Values.incompatible("native-artifact-version");
             directory = Files.createTempDirectory("transit-java-native-", PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
             Path executable = directory.resolve("transit-" + family + "-host");
             Files.copy(binary, executable);

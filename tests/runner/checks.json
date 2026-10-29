@@ -21,6 +21,15 @@
         ]
       },
       {
+        "id": "release-identity-controls",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/test_release_identity.py"
+        ]
+      },
+      {
         "id": "release-installer-controls",
         "phase": "tooling",
         "command": [

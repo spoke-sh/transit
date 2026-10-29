@@ -31,7 +31,7 @@ recovery, compatibility and conversion semantics remain with that owner.
   offline download directory. Post-publication checks exercise anonymous Release,
   image and chart downloads.
 - GitHub Release SDK archives cover the nine language packaging families and a
-  Zig source dependency closure. ReleaseSafe native bindings target Linux x86_64
+  Zig source dependency closure. ReleaseSafe native bindings target Linux x86_64 and ARM64
   with glibc 2.28; their loader/dependency checks reject Nix linkage. The workflow
   runs existing installed raw/Station consumers, plus the archived Zig
   application's installation, interruption and compatible replacement schedule.
@@ -44,6 +44,15 @@ These are executable publication gates, not a record that every new job has
 passed or that a public release exists. First publication and the new platform,
 SDK and installer matrix must complete before closing their acceptance items.
 
+- Nightly distribution uses a source-bound prerelease identity, per-language
+  package version mappings, the shared publication matrix, and an explicit
+  installer channel. The channel advances only after anonymous checks pass;
+  immutable tags and assets are retained. Executed hosted publication remains
+  a separate acceptance requirement.
+- Native Linux x86_64 and ARM64 jobs build and exercise every SDK family and
+  container image. Assembly verifies both image closures and publishes one OCI
+  index per executable; installed and anonymous checks run on both architectures.
+
 ## Remaining dependencies
 
 - Qualify and publish the first tagged release, including anonymous registry
@@ -51,8 +60,8 @@ SDK and installer matrix must complete before closing their acceptance items.
 - macOS requires replacements for Linux terminal/inotify handling, parent-death
   supervision and the synchronized authority clock. Windows additionally needs
   its process, terminal and native I/O integration. Packaging cannot remove those
-  runtime safety requirements. Native SDKs and container images remain x86_64;
-  ARM64 coverage currently targets the standalone executable bundle.
+  runtime safety requirements. Linux ARM64 SDK and container jobs are part of the distribution matrix;
+  successful native hosted execution remains required before advertising that release set.
 - Board catalog discovery, dataset previews, saved workbooks and governed review
   depend on [the planned workbench](27-board-reimplementation.md). This release
   work tests the implemented inspection UI and embedded assets only.
@@ -62,6 +71,29 @@ SDK and installer matrix must complete before closing their acceptance items.
 
 Static/component checks and a running server do not complete the milestone's
 remaining capability-dependent onboarding matrix.
+
+## Desktop implementation follow-ups
+
+Nightly publication and Linux ARM64 distribution land first. Desktop ports are
+separate changes, in this order:
+
+1. Define and test platform owners for parent/child lifetime, trusted clock
+   sampling, terminal input, editor save detection, private files and durable
+   replacement. Preserve uncertainty bounds and failure/recovery gates; a precise
+   wall-clock timestamp alone does not establish a bounded time sample.
+2. Port macOS ARM64, then Intel. Qualify native startup, SQL, retained restart,
+   abrupt supervisor loss, interactive console/editor behavior and installed SDK
+   consumers before adding archives and Homebrew selection to publication.
+3. Port Windows x64, then ARM64. Supply target OpenSSL dependencies, process job
+   containment, console/signal handling and private/durable filesystem operations;
+   qualify the same runtime and SDK schedules before adding archives and a
+   checksummed PowerShell installer.
+
+Initial cross-compilation found a Windows stderr-handle initializer that is now
+resolved at runtime. Further Windows work includes private spill-file creation
+and target TLS libraries. macOS ARM64 SDK fixtures cross-compile with the pinned
+compiler; this does not qualify execution, native packaging or the local server.
+These probes do not add desktop targets to the supported distribution matrix.
 
 ## Delivery sequence
 

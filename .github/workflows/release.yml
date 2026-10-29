@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/release.yml'
+      - '.github/workflows/nightly.yml'
       - '.github/workflows/ci.yml'
       - 'VERSION'
       - 'install.sh'
@@ -21,25 +22,80 @@ on:
       - 'docs/handbook/**'
       - 'tasks/version.py'
       - 'tests/runner/test_release.py'
+      - 'tests/runner/test_release_identity.py'
       - 'tests/runner/test_publication.py'
       - 'tests/runner/test_version_build.py'
       - 'tests/interfaces/installation/release.py'
       - 'tests/interfaces/installation/published.py'
       - 'tests/interfaces/installation/server_applications.py'
-      - 'tests/sdk/release*.py'
-      - 'tests/sdk/consumer_registry.py'
+      - 'tests/sdk/**'
   workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Build candidate artifacts without publishing'
+        type: choice
+        options: [stable, nightly]
+        default: stable
+  workflow_call:
+    inputs:
+      channel:
+        type: string
+        default: stable
+      publish:
+        type: boolean
+        default: false
 permissions:
   contents: read
+env:
+  TRANSIT_RELEASE_IDENTITY: ${{ github.workspace }}/.cache/release-identity.json
 concurrency:
   group: release-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    timeout-minutes: 5
+    env:
+      TRANSIT_RELEASE_IDENTITY: ''
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      tag: ${{ steps.identity.outputs.tag }}
+      revision: ${{ steps.identity.outputs.revision }}
+      channel: ${{ steps.identity.outputs.channel }}
+      publish: ${{ steps.identity.outputs.publish }}
+      skip: ${{ steps.identity.outputs.skip }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Freeze the source and distribution identity
+        id: identity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ inputs.channel || 'stable' }}
+          PUBLISH: ${{ ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (inputs.publish == true && github.ref == 'refs/heads/main')) && 'true' || 'false' }}
+        run: python3 -B tasks/release_channel.py prepare --channel "$CHANNEL" --publish "$PUBLISH" --output .cache/release-identity.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-identity
+          path: .cache/release-identity.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
   qualification:
-    # The full ordinary CI matrix must pass on this exact tag before publishing.
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    # Every publishing channel qualifies this exact captured source revision.
+    needs: prepare
+    if: needs.prepare.outputs.publish == 'true' && needs.prepare.outputs.skip != 'true'
     uses: ./.github/workflows/ci.yml
+    with:
+      release_qualification: true
   build:
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -57,6 +113,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Restore the source-bound release identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       - name: Check release identity
         env:
@@ -71,7 +132,7 @@ jobs:
       - name: Check installer and packaging controls
         run: nix develop .#release --command python3 -B tests/runner/test_release.py
       - name: Build native static Linux release
-        run: nix build .#transit-release --out-link .cache/release-runtime --cores 2 -L
+        run: python3 -B tasks/build_release.py --out-link .cache/release-runtime --cores 2
       - name: Qualify installed startup, SQL and retained restart
         run: nix develop .#ci-experience --command just test::release .cache/release-runtime
       - name: Validate Helm deployment boundaries
@@ -79,8 +140,7 @@ jobs:
         run: nix develop --command just test::deployments
       - name: Package deterministic archives and checksums
         run: nix develop .#release --command python3 -B tasks/package_release.py --prefix .cache/release-runtime --output dist/release
-      - name: Build and smoke test container images
-        if: matrix.architecture == 'x86_64'
+      - name: Build and smoke test native container images
         run: nix develop .#release --command python3 -B tasks/release_images.py dist/release
       - name: Retain qualified artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -91,20 +151,35 @@ jobs:
           compression-level: 0
           retention-days: 14
   sdk-build:
-    needs: build
-    runs-on: ubuntu-24.04
+    needs: [prepare, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x86_64
+            runner: ubuntu-24.04
+            artifact: release-artifacts
+          - architecture: aarch64
+            runner: ubuntu-24.04-arm
+            artifact: release-arm64-artifacts
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Restore the source-bound release identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: release-artifacts
+          name: ${{ matrix.artifact }}
           path: dist/release
       - name: Unpack matching runtime
-        run: mkdir -p .cache/runtime && tar -xf "dist/release/transit-$(cat VERSION)-linux-x86_64.tar.gz" --strip-components=1 -C .cache/runtime
+        run: mkdir -p .cache/runtime && tar -xf "dist/release/transit-${{ needs.prepare.outputs.version }}-linux-${{ matrix.architecture }}.tar.gz" --strip-components=1 -C .cache/runtime
       - name: Install locked language dependencies
         run: nix develop .#bindings --command vp install --frozen-lockfile
       - name: Build portable SDK packages
@@ -113,85 +188,129 @@ jobs:
         run: python3 -B tasks/package_sdks.py .cache/sdk-release dist/sdks --notices .cache/runtime/notices
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: sdk-consumer-inputs
+          name: sdk-consumer-inputs-${{ matrix.architecture }}
           path: .cache/sdk-release/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: sdk-release-artifacts
+          name: sdk-release-artifacts-${{ matrix.architecture }}
           path: dist/sdks/
           compression-level: 0
           if-no-files-found: error
           retention-days: 14
   sdk-loaders:
-    needs: sdk-build
-    runs-on: ubuntu-24.04
+    needs: [prepare, sdk-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x86_64
+            runner: ubuntu-24.04
+            artifact: release-artifacts
+          - architecture: aarch64
+            runner: ubuntu-24.04-arm
+            artifact: release-arm64-artifacts
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Restore the source-bound release identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: sdk-consumer-inputs
+          name: sdk-consumer-inputs-${{ matrix.architecture }}
           path: .cache/sdk-release
       - name: Load shipped SDK libraries and hosts without Nix
         run: python3 -B tests/runner/launch.py tests/sdk/release_loader.py .cache/sdk-release
   sdk-consumers:
-    needs: sdk-build
-    runs-on: ubuntu-24.04
+    needs: [prepare, sdk-build]
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
+        architecture: [x86_64, aarch64]
+        include:
+          - architecture: x86_64
+            runner: ubuntu-24.04
+            artifact: release-artifacts
+          - architecture: aarch64
+            runner: ubuntu-24.04-arm
+            artifact: release-arm64-artifacts
         language: [python, node, rust, ruby, c, java, dotnet, beam, go]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Restore the source-bound release identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: release-artifacts
+          name: ${{ matrix.artifact }}
           path: dist/release
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: sdk-consumer-inputs
+          name: sdk-consumer-inputs-${{ matrix.architecture }}
           path: .cache/sdk-release
       - name: Restore executable modes and unpack runtime
         run: |
           chmod +x .cache/sdk-release/native/bin/* .cache/sdk-release/c-sdk/bin/*
           mkdir -p .cache/runtime
-          tar -xf "dist/release/transit-$(cat VERSION)-linux-x86_64.tar.gz" --strip-components=1 -C .cache/runtime
+          tar -xf "dist/release/transit-${{ needs.prepare.outputs.version }}-linux-${{ matrix.architecture }}.tar.gz" --strip-components=1 -C .cache/runtime
       - name: Qualify installed raw client and available Station adapter
         env:
           LANGUAGE: ${{ matrix.language }}
         run: nix develop .#bindings --command just bindings::release-test .cache/sdk-release .cache/runtime --language "$LANGUAGE"
   sdk-zig:
-    needs: sdk-build
-    runs-on: ubuntu-24.04
+    needs: [prepare, sdk-build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x86_64
+            runner: ubuntu-24.04
+            artifact: release-artifacts
+          - architecture: aarch64
+            runner: ubuntu-24.04-arm
+            artifact: release-arm64-artifacts
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Restore the source-bound release identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: release-artifacts
+          name: ${{ matrix.artifact }}
           path: dist/release
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: sdk-release-artifacts
+          name: sdk-release-artifacts-${{ matrix.architecture }}
           path: dist/sdks
       - name: Build the public application and qualify installation and replacement
         run: |
           mkdir -p .cache/runtime
-          tar -xf "dist/release/transit-$(cat VERSION)-linux-x86_64.tar.gz" --strip-components=1 -C .cache/runtime
-          nix develop .#bindings --command just bindings::release-zig "dist/sdks/transit-sdk-zig-$(cat VERSION)-source.tar.gz" .cache/runtime
+          tar -xf "dist/release/transit-${{ needs.prepare.outputs.version }}-linux-${{ matrix.architecture }}.tar.gz" --strip-components=1 -C .cache/runtime
+          nix develop .#bindings --command just bindings::release-zig "dist/sdks/transit-sdk-zig-${{ needs.prepare.outputs.version }}-source.tar.gz" .cache/runtime
   installed:
-    needs: [build, sdk-build]
+    needs: [prepare, build, sdk-build]
     strategy:
       fail-fast: false
       matrix:
@@ -206,6 +325,11 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Restore the source-bound release identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ${{ matrix.artifact }}
@@ -213,14 +337,21 @@ jobs:
       - name: Install and qualify downloaded artifacts without Nix
         env:
           EXPECTED_REVISION: ${{ github.sha }}
-        run: python3 -B tests/runner/launch.py tests/interfaces/installation/published.py --artifacts dist/release --version "$(cat VERSION)" --revision "$EXPECTED_REVISION"
+        run: python3 -B tests/runner/launch.py tests/interfaces/installation/published.py --artifacts dist/release --version "${{ needs.prepare.outputs.version }}" --revision "$EXPECTED_REVISION"
   handbook:
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Restore the source-bound release identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       - run: nix develop .#docs --command just transit-docs::install
       - name: Check and build the versioned handbook
@@ -234,7 +365,7 @@ jobs:
         run: |
           python3 -B tasks/package_handbook.py docs/handbook/dist dist/handbook
           mkdir -p .cache/release-handbook
-          tar -xf "dist/handbook/transit-handbook-$(cat VERSION).tar.gz" --strip-components=1 -C .cache/release-handbook
+          tar -xf "dist/handbook/transit-handbook-${{ needs.prepare.outputs.version }}.tar.gz" --strip-components=1 -C .cache/release-handbook
       - name: Qualify the archived handbook's routes, search and exact downloads
         env:
           TRANSIT_DOCS_BASE_URL: /
@@ -257,20 +388,25 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   assemble:
-    needs: [build, sdk-build, handbook]
+    needs: [prepare, build, sdk-build, handbook]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Restore the source-bound release identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-artifacts
           path: dist/release
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: sdk-release-artifacts
+          name: sdk-release-artifacts-x86_64
           path: dist/sdks
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -280,8 +416,12 @@ jobs:
         with:
           name: handbook-release-artifacts
           path: dist/handbook
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: sdk-release-artifacts-aarch64
+          path: dist/arm64-sdks
       - name: Assemble matching qualified artifacts
-        run: python3 -B tasks/assemble_release.py dist/release dist/sdks --arm64 dist/arm64 --handbook dist/handbook
+        run: python3 -B tasks/assemble_release.py dist/release dist/sdks --arm64 dist/arm64 --handbook dist/handbook --arm64-sdks dist/arm64-sdks
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: assembled-release-artifacts
@@ -290,13 +430,28 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   homebrew:
-    needs: assemble
-    runs-on: ubuntu-24.04
+    needs: [prepare, assemble]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x86_64
+            runner: ubuntu-24.04
+            artifact: release-artifacts
+          - architecture: aarch64
+            runner: ubuntu-24.04-arm
+            artifact: release-arm64-artifacts
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Restore the source-bound release identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: assembled-release-artifacts
@@ -308,8 +463,8 @@ jobs:
           HOMEBREW_NO_INSTALL_CLEANUP: '1'
         run: python3 -B tasks/verify_release_brew.py dist/release
   publish:
-    needs: [qualification, build, installed, sdk-consumers, sdk-zig, sdk-loaders, assemble, homebrew]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [prepare, qualification, build, installed, sdk-consumers, sdk-zig, sdk-loaders, assemble, homebrew]
+    if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -320,6 +475,11 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Restore the source-bound release identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
       - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -329,31 +489,64 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REGISTRY_USER: ${{ github.actor }}
-          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          python3 -B tasks/version.py --tag "$RELEASE_TAG"
           printf '%s' "$GH_TOKEN" | nix develop .#release --command skopeo login ghcr.io --username "$REGISTRY_USER" --password-stdin
           printf '%s' "$GH_TOKEN" | nix develop .#release --command helm registry login ghcr.io --username "$REGISTRY_USER" --password-stdin
           nix develop .#release --command python3 -B tasks/publish_release.py dist/release
   published:
-    needs: publish
+    needs: [prepare, publish]
     strategy:
       fail-fast: false
       matrix:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    if: needs.prepare.outputs.publish == 'true'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      - name: Restore the source-bound release identity
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
       - name: Install the public release without authentication or Nix
         env:
           EXPECTED_REVISION: ${{ github.sha }}
-        run: python3 -B tests/runner/launch.py tests/interfaces/installation/published.py --version "$(cat VERSION)" --revision "$EXPECTED_REVISION"
-      - if: matrix.runner == 'ubuntu-24.04'
-        uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+        run: python3 -B tests/runner/launch.py tests/interfaces/installation/published.py --version "${{ needs.prepare.outputs.version }}" --revision "$EXPECTED_REVISION"
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
       - name: Verify anonymous container and chart downloads
-        if: matrix.runner == 'ubuntu-24.04'
         run: nix develop .#release --command python3 -B tasks/verify_release_registries.py
+  promote-nightly:
+    needs: [prepare, published]
+    if: needs.prepare.outputs.channel == 'nightly' && needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: transit-nightly-promotion
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-identity
+          path: .cache
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: assembled-release-artifacts
+          path: dist/release
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+      - name: Advance the verified nightly channel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          printf '%s' "$GH_TOKEN" | nix develop .#release --command skopeo login ghcr.io --username "$REGISTRY_USER" --password-stdin
+          nix develop .#release --command python3 -B tasks/release_channel.py promote dist/release

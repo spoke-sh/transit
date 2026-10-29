@@ -1,9 +1,12 @@
 """Build independent Ruby gems with version-matched native port dependencies."""
 from pathlib import Path
 import argparse
+import json
 import shutil
 import subprocess
 import tempfile
+
+from package_metadata import rewrite_tree, version
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -16,11 +19,14 @@ def build(output, names, native_prefix):
             target = Path(temporary)
             source = ROOT / name if '/' in name else ROOT / 'sdks/ruby' / name
             shutil.copytree(source, target, dirs_exist_ok=True)
+            rewrite_tree(target, 'ruby')
             if name.startswith('transit-native-'):
                 family = name.removeprefix('transit-native-')
                 (target / 'native').mkdir()
                 shutil.copy2(native_prefix / 'bin' / f'transit-{family}-host', target / 'native' / f'transit-{family}-host')
             manifest, = target.glob('*.gemspec')
+            architecture = json.loads((native_prefix / 'build.json').read_text())['target'].split('-')[0]
+            manifest.write_text(manifest.read_text().replace("Gem::Platform.new('x86_64-linux')", f"Gem::Platform.new('{architecture}-linux')"))
             subprocess.run(['gem', 'build', manifest.name, '--quiet'], cwd=target, check=True)
             artifact, = target.glob('*.gem')
             shutil.copy2(artifact, output / artifact.name)

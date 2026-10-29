@@ -9,7 +9,7 @@ Install the C, native and C++ archives from `just bindings::c-build` into one
 prefix. Compile with `zig c++ -std=c++17 app.cpp $(pkg-config --cflags --libs
 transit-client-cpp)`. The package manifest pins its direct C SDK dependency;
 pkg-config enforces the installed version. No sibling-source imports or manual
-native loader paths are needed. The pinned Zig C++ ABI and Nix Linux x86_64
+native loader paths are needed. The pinned Zig C++ ABI and Nix Linux x86_64 and ARM64
 closure are the qualified combination.
 
 ```cpp

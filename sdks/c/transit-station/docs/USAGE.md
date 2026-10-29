@@ -12,7 +12,7 @@ The installed rpath finds the SDK; it finds native libraries beside the C client
 SDK. `config.client.native_directory` overrides both native libraries explicitly.
 ABI versions, required growing capabilities and missing symbols fail before
 handler dispatch. Importing the library does not start threads, discover a seed
-or contact authority. The qualified build target is pinned Zig on Linux x86_64,
+or contact authority. The qualified build target is pinned Zig on Linux x86_64 and ARM64,
 with the build's Nix runtime closure. The raw client remains independent of Station.
 
 Provide `transit_station_config`, handler callbacks, a codec and explicit runner

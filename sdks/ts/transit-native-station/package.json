@@ -6,7 +6,8 @@
     "linux"
   ],
   "cpu": [
-    "x64"
+    "x64",
+    "arm64"
   ],
   "exports": {
     "types": "./index.d.ts",

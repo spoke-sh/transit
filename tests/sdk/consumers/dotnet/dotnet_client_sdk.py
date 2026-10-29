@@ -1,4 +1,6 @@
 """Restore public raw NuGet artifacts outside the checkout and run shared authority proofs."""
+
+from sdk.artifact_versions import package_text
 from runner.paths import ROOT
 import json
 import os
@@ -17,14 +19,14 @@ def run(node, cli, library, artifacts):
         source.mkdir()
         feed = target / 'feed'
         feed.mkdir()
-        for name in ('Transit.Client.0.0.1.nupkg', 'Transit.Native.Client.0.0.1.nupkg'):
+        for name in (package_text('Transit.Client.0.0.1.nupkg', 'dotnet'), package_text('Transit.Native.Client.0.0.1.nupkg', 'dotnet')):
             shutil.copy2(Path(artifacts).resolve() / name, feed / name)
         environment = dict(os.environ, NUGET_PACKAGES=str(target / 'packages'), DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1')
         project = source / 'Consumer.csproj'
-        project.write_text('''<Project Sdk="Microsoft.NET.Sdk">
+        project.write_text(package_text('''<Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
 <ItemGroup><PackageReference Include="Transit.Client" Version="[0.0.1]" /></ItemGroup>
-</Project>\n''')
+</Project>\n''', 'dotnet'))
         config = ET.Element('configuration')
         sources = ET.SubElement(config, 'packageSources')
         ET.SubElement(sources, 'clear')

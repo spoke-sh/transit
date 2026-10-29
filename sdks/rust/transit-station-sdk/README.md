@@ -13,7 +13,7 @@ correlated outcomes and replay readers that borrow their runner exclusively.
 
 Build version-matched `.crate` artifacts with
 `nix develop .#bindings --command just bindings::rust-build`. The native dependency
-embeds Linux x86_64 libraries; their Nix runtime closure must be available. Registry
+embeds Linux x86_64 and ARM64 libraries; their Nix runtime closure must be available. Registry
 publication and other platforms remain unqualified. See the
 [native package](../transit-native-station/README.md) for artifact overrides.
 

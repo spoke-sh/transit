@@ -6,6 +6,8 @@ import shutil
 import subprocess
 import tempfile
 
+from package_metadata import rewrite_tree, version
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -29,11 +31,15 @@ def build(output: Path, packages: list[str], native_prefix: Path) -> None:
                 if path.is_dir(): shutil.copytree(path, staging / name_or_directory, dirs_exist_ok=True)
                 elif path.is_file(): shutil.copy2(path, staging / name_or_directory)
             if name.startswith('transit-native-'):
+                native = json.loads((native_prefix / 'build.json').read_text())
+                manifest['cpu'] = [{'x86_64': 'x64', 'aarch64': 'arm64'}[native['target'].split('-')[0]]
+                (staging / 'package.json').write_text(json.dumps(manifest, indent=2) + '\n')
                 family = name.removeprefix('transit-native-')
                 executable = native_prefix / 'bin' / f'transit-{family}-host'
                 if not executable.is_file(): raise SystemExit(f'Missing native artifact: {executable}')
                 (staging / 'bin').mkdir(exist_ok=True)
                 shutil.copy2(executable, staging / 'bin' / executable.name)
+            rewrite_tree(staging, 'node')
             subprocess.run(['vp', 'env', 'exec', '--package-manager', manifest['packageManager'],
                 'pnpm', 'pack', '--pack-destination', str(output)], cwd=staging, check=True)
 

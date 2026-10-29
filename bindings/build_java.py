@@ -7,8 +7,10 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 
+from package_metadata import BASE_VERSION, rewrite, rewrite_tree, version
+
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = (ROOT / 'VERSION').read_text().strip()
+VERSION = version('java')
 
 
 def build(output, names, native_prefix):
@@ -20,7 +22,7 @@ def build(output, names, native_prefix):
     shutil.copy2(os.environ['TRANSIT_GSON_LICENSE'], output / 'gson-2.12.1-LICENSE')
     for name in names:
         source = ROOT / name if '/' in name else ROOT / 'sdks/java' / name
-        tree = ET.parse(source / 'pom.xml')
+        tree = ET.ElementTree(ET.fromstring(rewrite((source / 'pom.xml').read_bytes(), 'java', 'pom.xml')))
         ns = {'m': 'http://maven.apache.org/POM/4.0.0'}
         artifact_name = tree.findtext('m:artifactId', namespaces=ns)
         assert artifact_name == ('transit-sdk-examples' if '/' in name else name)
@@ -41,19 +43,23 @@ def build(output, names, native_prefix):
             if name.startswith('transit-native-'):
                 family = name.removeprefix('transit-native-')
                 target = classes / 'io/transit' / f'native{family}'
-                assert (target / 'version').read_text() == VERSION + '\n'
+                (target / 'version').write_text(VERSION + '\n')
                 shutil.copy2(native_prefix / 'bin' / f'transit-{family}-host', target)
-            sources = sorted((source / 'src').rglob('*.java'))
+            sources_root = Path(temporary) / 'src'
+            if (source / 'src').is_dir():
+                shutil.copytree(source / 'src', sources_root)
+                rewrite_tree(sources_root, 'java')
+            sources = sorted(sources_root.rglob('*.java'))
             if sources:
                 subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', os.pathsep.join(classpath), '-d', str(classes), *map(str, sources)], check=True)
             metadata = classes / 'META-INF/maven/io.transit' / artifact_name
             metadata.mkdir(parents=True)
-            shutil.copy2(source / 'pom.xml', metadata / 'pom.xml')
+            (metadata / 'pom.xml').write_bytes(rewrite((source / 'pom.xml').read_bytes(), 'java', 'pom.xml'))
             manifest = Path(temporary) / 'MANIFEST.MF'
             manifest.write_text(f'Manifest-Version: 1.0\nImplementation-Version: {VERSION}\nAutomatic-Module-Name: io.transit.{artifact_name.removeprefix("transit-").replace("-", ".")}\n\n')
             artifact = output / f'{artifact_name}-{VERSION}.jar'
             subprocess.run(['jar', '--create', '--file', str(artifact), '--manifest', str(manifest), '-C', str(classes), '.'], check=True)
-            shutil.copy2(source / 'pom.xml', output / f'{artifact_name}-{VERSION}.pom')
+            shutil.copy2(metadata / 'pom.xml', output / f'{artifact_name}-{VERSION}.pom')
             print(f'Built {artifact.name}')
 
 

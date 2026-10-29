@@ -75,3 +75,14 @@ Commit and qualify the release set before tagging that exact clean commit
 `v<version>`. `python3 -B tasks/version.py --tag v<version>` checks tag identity as
 well as package consistency. CI applies this gate to tag pushes. Never move a
 published tag or replace an artifact with different bytes under the same version.
+
+
+Nightly builds create a source-bound identity with
+`python3 -B tasks/release_identity.py create --channel nightly --date YYYYMMDD --output PATH`.
+Set `TRANSIT_RELEASE_IDENTITY` to that absolute path for packaging. The record
+contains the base version, effective version, immutable tag, full source SHA,
+source epoch and per-language package versions. Consumers reject a record from
+another checkout. Pass its effective version through `-Drelease-version` for Zig
+or `releaseVersion` for the Nix runtime derivation. Package builders transform
+owned pins and loader version literals in temporary staging trees; source
+manifests and third-party dependency versions remain unchanged.

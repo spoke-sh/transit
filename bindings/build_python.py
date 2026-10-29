@@ -6,6 +6,8 @@ import subprocess
 import sys
 import tempfile
 
+from package_metadata import rewrite_tree, version
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -17,6 +19,7 @@ def build(output: Path, packages: list[str], native_prefix: Path) -> None:
         with tempfile.TemporaryDirectory(prefix='transit-wheel-') as temporary:
             staging = Path(temporary) / name
             shutil.copytree(source, staging, ignore=shutil.ignore_patterns('__pycache__', '*.egg-info', 'build', 'dist'))
+            rewrite_tree(staging, 'python')
             if name.startswith('transit-native-'):
                 family = name.removeprefix('transit-native-')
                 module = staging / ('transit_native_' + family)

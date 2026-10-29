@@ -1,4 +1,6 @@
 """Install Rust Station artifacts outside the checkout and share the live schedule."""
+
+from sdk.artifact_versions import package_text
 from runner.paths import ROOT
 import json
 import os
@@ -18,13 +20,13 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
     def install(target):
         names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station', 'transit-sdk-examples-rust')
         for name in names:
-            with tarfile.open(Path(artifacts).resolve() / f'{name}-0.0.1.crate') as archive:
+            with tarfile.open(Path(artifacts).resolve() / package_text(f'{name}-0.0.1.crate', 'rust')) as archive:
                 archive.extractall(target / 'vendor', filter='data')
         (target / 'src/bin').mkdir(parents=True)
         shutil.copyfile(root / 'tests/sdk/consumers/rust/rust_station_sdk.rs', target / 'src/main.rs')
         shutil.copyfile(root / 'tests/sdk/consumers/rust/rust_native_lifetime.rs', target / 'src/native_lifetime.rs')
-        shutil.copyfile(target / 'vendor/transit-sdk-examples-rust-0.0.1/src/main.rs', target / 'src/bin/transit-rust-counter.rs')
-        manifest = '''[package]
+        shutil.copyfile(target / package_text('vendor/transit-sdk-examples-rust-0.0.1/src/main.rs', 'rust'), target / 'src/bin/transit-rust-counter.rs')
+        manifest = package_text('''[package]
 name = "transit-rust-station-proof"
 version = "0.1.0"
 edition = "2024"
@@ -37,10 +39,10 @@ transit-sdk-examples-rust = "=0.0.1"
 serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
 arrow-array = { version = "=59.1.0", optional = true, default-features = false }
 [patch.crates-io]
-'''
-        manifest += ''.join(f'{name} = {{ path = "vendor/{name}-0.0.1" }}\n' for name in names)
+''', 'rust')
+        manifest += ''.join(package_text(f'{name} = {{ path = "vendor/{name}-0.0.1" }}\n', 'rust') for name in names)
         (target / 'Cargo.toml').write_text(manifest)
-        lock = target / 'vendor/transit-station-sdk-0.0.1/Cargo.lock'
+        lock = target / package_text('vendor/transit-station-sdk-0.0.1/Cargo.lock', 'rust')
         shutil.copyfile(lock, target / 'Cargo.lock')
         environment = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
         # Add the installed example and consumer to the SDK lock without changing

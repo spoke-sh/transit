@@ -1,0 +1,19 @@
+name: Nightly release
+on:
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  packages: write
+  actions: read
+concurrency:
+  group: transit-nightly-release
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release.yml
+    with:
+      channel: nightly
+      publish: true

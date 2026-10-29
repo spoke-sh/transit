@@ -4,14 +4,16 @@ import io
 from pathlib import Path
 import tarfile
 
+from package_metadata import BASE_VERSION, rewrite, rewrite_tree, version
+
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = (ROOT / 'VERSION').read_text().strip()
+VERSION = version('go')
 
 
 def archive(path, files):
     with tarfile.open(path, 'w:gz') as output:
         for relative, source in sorted(files.items()):
-            data = source.read_bytes()
+            data = rewrite(source.read_bytes(), 'go', source.name) if source.suffix != '.so' else source.read_bytes()
             info = tarfile.TarInfo(relative)
             info.size, info.mode = len(data), 0o644
             output.addfile(info, io.BytesIO(data))

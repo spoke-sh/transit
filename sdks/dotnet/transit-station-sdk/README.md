@@ -9,7 +9,7 @@ ABI delegates and contract resources remain separate from public types.
 The public runner is qualified under [Language SDKs](../../../docs/handbook/reference/sdks.md) through
 `just bindings::dotnet-sdk-test`: clean NuGet consumers, all mutation gates, exact
 host-loss recovery, cancellation/join, retained Tables and original query IPC.
-Build from `nix develop .#bindings` with `just bindings::dotnet-build`. The package targets .NET 8/Linux x86_64 and
+Build from `nix develop .#bindings` with `just bindings::dotnet-build`. The package targets .NET 8/Linux x86_64 and ARM64 and
 uses exact `Transit.Client` and `Transit.Native.Station` 0.0.1 dependencies.
 Native artifacts require the pinned Nix closure. Registry publication and foreign
 Substrate worker images remain outside qualification.

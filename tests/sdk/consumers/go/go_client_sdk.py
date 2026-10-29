@@ -1,4 +1,6 @@
 """Exercise installed Go artifacts through the shared real-authority schedule."""
+
+from sdk.artifact_versions import package_text
 from runner.paths import ROOT
 import os
 import json
@@ -15,7 +17,7 @@ from sdk.sdk_raw_client import run as schedule
 def run(node, cli, library, artifacts):
     def install(target):
         for name, folder in (('transit-go', 'sdk'), ('transit-go-native', 'native')):
-            with tarfile.open(Path(artifacts).resolve() / f'{name}-0.0.1.tar.gz') as archive:
+            with tarfile.open(Path(artifacts).resolve() / package_text(f'{name}-0.0.1.tar.gz', 'go')) as archive:
                 archive.extractall(target / folder, filter='data')
         source = target / 'consumer-source'
         source.mkdir()

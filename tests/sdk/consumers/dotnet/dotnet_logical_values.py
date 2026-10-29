@@ -1,4 +1,6 @@
 """Qualify owned logical models from isolated installed .NET artifacts."""
+
+from sdk.artifact_versions import package_text
 from runner.paths import ROOT
 import hashlib
 import json
@@ -19,15 +21,15 @@ def run(artifacts):
         feed.mkdir()
         identities = {}
         for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
-            name = f'{package}.0.0.1.nupkg'
+            name = package_text(f'{package}.0.0.1.nupkg', 'dotnet')
             shutil.copy2(Path(artifacts).resolve() / name, feed / name)
             identities[name] = hashlib.sha256((feed / name).read_bytes()).hexdigest()
         (target / 'artifacts.json').write_text(json.dumps(identities))
         source = target / 'source'
         source.mkdir()
-        (source / 'Proof.csproj').write_text('''<Project Sdk="Microsoft.NET.Sdk">
+        (source / 'Proof.csproj').write_text(package_text('''<Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
-<ItemGroup><PackageReference Include="Transit.Station.Sdk" Version="[0.0.1]" /></ItemGroup></Project>''')
+<ItemGroup><PackageReference Include="Transit.Station.Sdk" Version="[0.0.1]" /></ItemGroup></Project>''', 'dotnet'))
         config = ET.Element('configuration')
         sources = ET.SubElement(config, 'packageSources')
         ET.SubElement(sources, 'clear')

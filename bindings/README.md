@@ -41,7 +41,7 @@ shared modules directly. No runtime package imports the SDK tree.
 ## Build and verification
 
 Enter `nix develop .#bindings` for the locked language tools. These packages target
-Linux x86_64 and are built from this checkout. Ordinary development builders
+Linux x86_64 and ARM64 and are built from this checkout. Ordinary development builders
 retain their selected native prefix's linkage. `just bindings::release-build DIR`
 builds a separate ReleaseSafe, baseline-CPU native prefix for glibc 2.28 and newer,
 verifies its loader and dependency closure, and packages each language through

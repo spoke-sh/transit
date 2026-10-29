@@ -5,7 +5,7 @@ generated shared Zig C ABI. Public records, owned retry bytes, task scheduling a
 NuGet packaging belong to this SDK. Signing, metadata and protocol semantics stay
 in Zig. Loading the assembly starts no work and discovers no credentials.
 
-The baseline is .NET 8 on Linux x86_64 with the optional pinned bindings shell.
+The baseline is .NET 8 on Linux x86_64 and ARM64 with the optional pinned bindings shell.
 `just bindings::dotnet-sdk-test` builds packages and runs the clean consumer proof.
 The [usage guide](docs/USAGE.md) describes installation, explicit recovery and
 cancellation. The clean consumer qualifies exact recovery, revoked access,

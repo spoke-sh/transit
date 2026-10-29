@@ -25,7 +25,7 @@ executables do not require Nix or host shared libraries. The archive includes
 
 macOS and Windows executables are not produced. The local supervisor requires
 Linux process groups and parent-death signals; console editing requires Linux
-terminal/inotify APIs, and the authority clock uses Linux `adjtimex`. Container images and native SDK packages target x86_64. Both executable
+terminal/inotify APIs, and the authority clock uses Linux `adjtimex`. Container images and native SDK packages target x86_64 and ARM64. Both executable
 architectures have native build and installed-runtime jobs; additional Linux
 architectures require separate qualification.
 The Substrate runtime-controller image needs its pinned provider CLI and remains
@@ -33,7 +33,7 @@ outside this artifact set.
 
 ## SDK packages
 
-GitHub Releases contain `transit-sdk-<language>-<version>-linux-x86_64.tar.gz`
+GitHub Releases contain `transit-sdk-<language>-<version>-linux-<architecture>.tar.gz` (`x86_64` or `aarch64`)
 for `python`, `node`, `rust`, `ruby`, `c`, `java`, `dotnet`, `beam` and `go`.
 Each archive groups the language's native client, ordinary client, available
 Station adapter and examples. C includes C++ headers; BEAM includes Erlang and
@@ -43,7 +43,7 @@ Follow the language's [installation guide](sdks.md) using the extracted package
 files as a local package source. Public npm, PyPI, crates.io and other registry
 publication is not enabled.
 
-Native SDK libraries and helper processes target Linux 5.10 or newer on x86_64,
+Native SDK libraries and helper processes target Linux 5.10 or newer on x86_64 and ARM64,
 with glibc 2.28 or newer. They use the system loader and archive-relative library paths, without
 Nix dependencies. Language runtimes and their documented dependencies remain
 separate requirements. `sdk-manifest.json` identifies the compiler, native target,
@@ -98,6 +98,48 @@ remain available; no server starts and no installation data changes. Switching a
 symlink back does not make an incompatible retained installation readable.
 Use the [local guide](../guides/quickstart.md) after installation.
 
+### Nightly channel
+
+Nightlies package one captured `main` revision and use the same CI, installed
+runtime, SDK, handbook and Homebrew gates as tagged releases. The daily workflow
+runs at 07:17 UTC; GitHub may delay scheduled execution. An unchanged revision
+already selected by the channel is skipped. Manual candidate builds do not
+publish.
+
+Select the last verified nightly explicitly:
+
+```sh
+curl --proto '=https' --tlsv1.2 -fsSL \
+  https://raw.githubusercontent.com/spoke-sh/transit/main/install.sh \
+  | sh -s -- --channel nightly --prefix "$HOME/.local"
+```
+
+`--channel stable` is the default when no version is supplied. `--version` pins
+an exact stable or nightly software version and is mutually exclusive with
+`--channel`. Offline installation requires that exact version. Nightly version
+names and package-native mappings follow the [release policy](versioning.md#software-releases).
+
+A nightly has an immutable Git tag, GitHub prerelease, versioned images and a
+prerelease Helm chart. It does not become the latest stable GitHub Release.
+The `nightly.json` record on the repository's `release-channels` branch selects
+an immutable version and the checksum-list digest. The installer reads that
+record once, verifies the digest and installs the corresponding versioned archive.
+Use the record's exact version with Helm. OCI `:nightly` aliases point to verified
+nightly images; pin the immutable version or digest for repeatable deployments.
+
+Publication and channel selection are separate. Anonymous archive/image/chart
+checks complete before promotion; failures keep the previous channel record.
+Promotion checks source ancestry and updates the branch without forcing it, so
+an older job cannot replace a newer source. OCI aliases update before the channel
+record; updates across independent registries and Git are not atomic. An
+interrupted promotion may leave aliases on different verified versions. Retrying
+promotion completes selection without replacing immutable artifacts.
+
+Published artifacts and tags are retained. Intermediate Actions artifacts are
+retained for 14 days. Retry failed jobs using those original artifacts: rebuilding
+an existing version with different bytes is refused. Installation selects binary
+files only; it neither starts a server nor migrates retained data.
+
 ### Homebrew on Linux
 
 Each release includes `transit.rb`, generated from that release's executable
@@ -132,6 +174,11 @@ does not start Transit or require an installation.
 
 ## Containers and Helm
 
+Each image version identifies an OCI index containing native `linux/amd64` and
+`linux/arm64` images. The manifest records the index digest, each platform
+manifest digest and its image configuration digest. Both native builds and
+container checks must pass before the combined version can publish.
+
 The local server container runs as UID/GID 65532. Its services retain their
 loopback/private admission boundaries; publishing container ports does not expose
 them on every interface. Use the in-container console or an explicit tunnel.
@@ -163,10 +210,11 @@ not supply these, install Substrate, or authorize bootstrap or replacement.
 ## Publication and retries
 
 Tag pushes run full ordinary CI plus the distribution build, installed startup,
-SQL/restart, container and Helm checks. Only successful tag builds can publish.
+SQL/restart, container and Helm checks. Only successful stable-tag or scheduled/manual nightly publication runs can publish.
 Downloaded artifacts also pass the real installer and embedded Board/SQL/restart
 checks on a fresh runner before publication, without a Nix installation.
-Pull requests and manual dispatch build artifacts without publishing. Tag names
+Pull requests and manual release-candidate dispatches build artifacts without publishing.
+The separate nightly workflow can publish from `main`. Stable tag names
 must match `VERSION` at a clean commit. Builds retain artifacts in GitHub Actions;
 publication uses those artifacts without rebuilding them.
 

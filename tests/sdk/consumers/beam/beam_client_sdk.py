@@ -1,4 +1,6 @@
 """Install independent OTP artifacts and run both public language schedules."""
+
+from sdk.artifact_versions import package_text
 from runner.paths import ROOT
 import os
 from pathlib import Path
@@ -18,7 +20,7 @@ def run(node, cli, library, artifacts):
             names = ['transit_native_client', 'transit_client']
             if language == 'elixir': names.append('transit_client_elixir')
             for name in names:
-                with tarfile.open(Path(artifacts).resolve() / f'{name}-0.0.1.tar.gz') as archive:
+                with tarfile.open(Path(artifacts).resolve() / package_text(f'{name}-0.0.1.tar.gz', 'beam')) as archive:
                     archive.extractall(lib, filter='data')
             environment = dict(os.environ, ERL_LIBS=str(lib), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
             for name, output in {
@@ -45,14 +47,14 @@ def run(node, cli, library, artifacts):
                 subprocess.run(['erlc', '-Werror', '-o', str(classes), str(schema)], env=environment, cwd=target, check=True)
                 schema.unlink()
                 check_command = ['erl', '-noshell', '-pa', str(classes), '-s', 'beam_client_boundary', 'main', '-extra', str(target)]
-                native = lib / 'transit_native_client-0.0.1'
+                native = lib / package_text('transit_native_client-0.0.1', 'beam')
                 hidden = target / 'native.saved'
                 native.rename(hidden)
                 try: subprocess.run([*check_command, 'missing'], env=environment, cwd=target, check=True, timeout=20)
                 finally: hidden.rename(native)
                 manifest = native / 'ebin/transit_native_client.app'
                 original = manifest.read_text()
-                manifest.write_text(original.replace('0.0.1', '99.0.0'))
+                manifest.write_text(original.replace(package_text('0.0.1', 'beam'), '99.0.0'))
                 try: subprocess.run([*check_command, 'missing'], env=environment, cwd=target, check=True, timeout=20)
                 finally: manifest.write_text(original)
                 subprocess.run([*check_command, 'normal'], env=environment, cwd=target, check=True, timeout=30)
@@ -60,9 +62,9 @@ def run(node, cli, library, artifacts):
                 source.unlink()
                 command = ['erl', '-noshell', '-pa', str(classes), '-s', 'beam_client_sdk', 'main', '-extra']
             else:
-                manifest = lib / 'transit_client-0.0.1/ebin/transit_client.app'
+                manifest = lib / package_text('transit_client-0.0.1/ebin/transit_client.app', 'beam')
                 original = manifest.read_text()
-                manifest.write_text(original.replace('0.0.1', '99.0.0'))
+                manifest.write_text(original.replace(package_text('0.0.1', 'beam'), '99.0.0'))
                 try:
                     subprocess.run(['elixir', '-e', '{:ok, c} = Transit.Client.config("http://127.0.0.1:1", :native_v1); '
                                     '{:error, %Transit.Client.Error{kind: :incompatible_native}} = Transit.Client.open(c)'],

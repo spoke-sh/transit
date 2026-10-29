@@ -6,7 +6,7 @@ OTP tarballs into an ordinary library directory and set `ERL_LIBS` to it. Run an
 Elixir consumer with `elixir app.exs`; standard OTP resolution discovers the
 matching native port. The exact core dependency is also declared by `mix.exs`.
 The clean-consumer proof installs compiled OTP artifacts; Mix/Hex registry
-resolution and publication are outside qualification. Linux x86_64, OTP 28,
+resolution and publication are outside qualification. Linux x86_64 and ARM64, OTP 28,
 Elixir 1.18 and the pinned Nix native closure form the baseline.
 
 ```elixir

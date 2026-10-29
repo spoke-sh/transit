@@ -7,12 +7,13 @@ import shutil
 
 from package_release import sha256
 from release_brew import formula
+from release_oci import combine, checksums
 
 
-def assemble(runtime, sdks, arm64=None, handbook=None):
+def assemble(runtime, sdks, arm64=None, handbook=None, arm64_sdks=None):
     manifest = json.loads((runtime / 'release-manifest.json').read_text())
     sdk = json.loads((sdks / 'sdk-manifest.json').read_text())
-    for field in ('release', 'source_revision', 'definition'):
+    for field in ('release', 'source_revision', 'definition', 'identity'):
         if sdk[field] != manifest[field]:
             raise ValueError(f'SDK/runtime {field} mismatch')
     if set(sdk['packages']) != {'python', 'node', 'rust', 'ruby', 'c', 'java', 'dotnet', 'beam', 'go'}:
@@ -26,10 +27,34 @@ def assemble(runtime, sdks, arm64=None, handbook=None):
     for name in sorted(expected):
         if (runtime / name).exists():
             raise ValueError(f'duplicate release asset: {name}')
+    additional_sdk = None
+    additional_sdk_files = {}
+    if arm64_sdks is not None:
+        additional_sdk = json.loads((arm64_sdks / 'sdk-manifest.json').read_text())
+        for field in ('release', 'source_revision', 'definition', 'identity'):
+            if additional_sdk[field] != manifest[field]:
+                raise ValueError(f'ARM64 SDK/runtime {field} mismatch')
+        if additional_sdk['target'] != 'aarch64-linux-gnu.2.28' or sdk['target'] != 'x86_64-linux-gnu.2.28':
+            raise ValueError('incorrect SDK architecture')
+        if set(additional_sdk['packages']) != set(sdk['packages']):
+            raise ValueError('incomplete ARM64 SDK language set')
+        if {path.name for path in arm64_sdks.iterdir()} != set(additional_sdk['assets']) | {'sdk-manifest.json'}:
+            raise ValueError('incomplete ARM64 SDK archive set')
+        for name, digest in additional_sdk['assets'].items():
+            if Path(name).name != name or sha256(arm64_sdks / name) != digest:
+                raise ValueError(f'ARM64 SDK checksum/path mismatch: {name}')
+            if name.startswith('transit-sdk-zig-'):
+                if sdk['assets'].get(name) != digest:
+                    raise ValueError('Zig source closure differs between native runners')
+                continue  # One architecture-independent source closure is shipped.
+            if name in expected or (runtime / name).exists():
+                raise ValueError(f'duplicate release asset: {name}')
+            additional_sdk_files[name] = arm64_sdks / name
+        additional_sdk_files['sdk-manifest-linux-aarch64.json'] = arm64_sdks / 'sdk-manifest.json'
     arm_asset = None
     if arm64 is not None:
         arm = json.loads((arm64 / 'release-manifest.json').read_text())
-        for field in ('release', 'source_revision', 'definition', 'flake_lock_sha256'):
+        for field in ('release', 'source_revision', 'definition', 'identity', 'flake_lock_sha256'):
             if arm[field] != manifest[field]:
                 raise ValueError(f'ARM64/runtime {field} mismatch')
         if arm['target'] != 'aarch64-linux-musl' or manifest['target'] != 'x86_64-linux-musl':
@@ -45,7 +70,7 @@ def assemble(runtime, sdks, arm64=None, handbook=None):
     handbook_files = set()
     if handbook is not None:
         docs = json.loads((handbook / 'handbook-manifest.json').read_text())
-        for field in ('release', 'source_revision', 'definition'):
+        for field in ('release', 'source_revision', 'definition', 'identity'):
             if docs[field] != manifest[field]:
                 raise ValueError(f'handbook/runtime {field} mismatch')
         handbook_files = set(docs['assets']) | {'handbook-manifest.json'}
@@ -57,7 +82,13 @@ def assemble(runtime, sdks, arm64=None, handbook=None):
     for name in sorted(expected):
         shutil.copy2(sdks / name, runtime / name)
         manifest['assets'][name] = sha256(runtime / name)
+    for name, source in additional_sdk_files.items():
+        shutil.copy2(source, runtime / name)
+        manifest['assets'][name] = sha256(runtime / name)
     if arm_asset:
+        manifest['images'] = combine(runtime / 'images', arm64 / 'images',
+                                     manifest['images'], arm['images'], manifest['release'])
+        checksums(runtime / 'images')
         shutil.copy2(arm64 / arm_asset, runtime / arm_asset)
         manifest['assets'][arm_asset] = sha256(runtime / arm_asset)
         (runtime / 'transit.rb').write_text(formula(manifest))
@@ -65,7 +96,8 @@ def assemble(runtime, sdks, arm64=None, handbook=None):
     for name in sorted(handbook_files):
         shutil.copy2(handbook / name, runtime / name)
         manifest['assets'][name] = sha256(runtime / name)
-    manifest['sdks'] = {key: sdk[key] for key in ('target', 'compiler', 'glibc_minimum', 'packages')}
+    manifest['sdks'] = {item['target']: {key: item[key] for key in ('compiler', 'glibc_minimum', 'packages')}
+                        for item in (sdk, additional_sdk) if item is not None}
     (runtime / 'release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     (runtime / 'SHA256SUMS').write_text(''.join(
         f'{sha256(path)}  {path.name}\n' for path in sorted(runtime.iterdir())
@@ -78,5 +110,6 @@ if __name__ == '__main__':
     parser.add_argument('sdks', type=Path)
     parser.add_argument('--arm64', required=True, type=Path)
     parser.add_argument('--handbook', required=True, type=Path)
+    parser.add_argument('--arm64-sdks', required=True, type=Path)
     args = parser.parse_args()
-    assemble(args.runtime, args.sdks, args.arm64, args.handbook)
+    assemble(args.runtime, args.sdks, args.arm64, args.handbook, args.arm64_sdks)

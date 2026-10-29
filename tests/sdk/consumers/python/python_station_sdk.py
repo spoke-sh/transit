@@ -1,4 +1,5 @@
 """Clean installed public Station SDK: real authority, callbacks and host loss."""
+
 import asyncio
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -919,6 +920,7 @@ def document_consumer(mode, cfg):
 
 
 def run(node, cli, raw_library, wheels, http_worker=None, *, execute=None):
+    from sdk.artifact_versions import package_text
     if execute is None and http_worker is None:
         raise ValueError("The full Station SDK schedule requires the HTTP worker binary")
     from sdk.sdk_station_runner import Consumer, run as schedule
@@ -927,7 +929,7 @@ def run(node, cli, raw_library, wheels, http_worker=None, *, execute=None):
         venv = target / 'venv'
         subprocess.run([sys.executable, '-m', 'venv', '--without-pip', venv], check=True, env=env)
         python = venv / 'bin/python'
-        subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', str(Path(wheels).resolve()), 'transit-sdk-examples==0.0.1'], check=True, env=env, stdout=subprocess.DEVNULL)
+        subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index', '--find-links', str(Path(wheels).resolve()), package_text('transit-sdk-examples==0.0.1', 'python')], check=True, env=env, stdout=subprocess.DEVNULL)
         values = target / 'handler_tables.py'
         shutil.copyfile(Path(__file__).with_name('python_handler_tables.py'), values)
         subprocess.run([python, '-B', values], check=True, env=env, cwd=target)

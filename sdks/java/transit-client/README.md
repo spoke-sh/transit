@@ -12,5 +12,5 @@ The generated resources under `resources/` come from `just bindings::generate`;
 `io.transit.client.internal` is an exact-version implementation interface shared
 with the Station SDK, not the application API.
 
-The baseline is OpenJDK 21, Gson 2.12.1 and Linux x86_64 native artifacts from the
+The baseline is OpenJDK 21, Gson 2.12.1 and Linux x86_64 and ARM64 native artifacts from the
 pinned Nix shell. Maven publication and other platforms are not qualified.

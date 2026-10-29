@@ -8,7 +8,7 @@ wire schemas remain in `priv/contract.json`.
 
 The external-consumer proof passes under [Language SDKs](../../../docs/handbook/reference/sdks.md)
 through `just bindings::beam-sdk-test`. The [usage guide](docs/USAGE.md) describes
-installation, recovery, scheduling and supervision. The target is Linux x86_64 with OTP 28 from
+installation, recovery, scheduling and supervision. The target is Linux x86_64 and ARM64 with OTP 28 from
 the optional pinned bindings shell. Runtime loading starts no native work.
 The bridge supports ordinary ownership or an OTP supervisor via `child_spec/1`;
 local bridge PIDs are distinct from durable `#transit_process{}` references.

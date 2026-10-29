@@ -8,10 +8,12 @@ import subprocess
 import tempfile
 
 from package_release import ROOT, archive, sha256
+from release_identity import current
 
 
 def package(site, output):
-    version = (ROOT / 'VERSION').read_text().strip()
+    identity = current()
+    version = identity['release']
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     if subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT):
         raise ValueError('the release handbook requires a clean source revision')
@@ -26,7 +28,7 @@ def package(site, output):
     if any(output.iterdir()):
         raise ValueError('handbook archive output must be empty')
     definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
-    manifest = dict(version=1, release=version, source_revision=revision, definition=definition)
+    manifest = dict(version=1, release=version, source_revision=revision, definition=definition, identity=identity)
     with tempfile.TemporaryDirectory(prefix='transit-handbook-') as temporary:
         stage = Path(temporary)
         shutil.copytree(site, stage / 'site')

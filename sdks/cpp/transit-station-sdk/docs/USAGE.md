@@ -12,7 +12,7 @@ zig c++ -std=c++17 app.cpp $(pkg-config --cflags --libs transit-station-cpp) -o 
 executable and public application header, depending on the shared C application
 codec library. The [examples](../../../../examples/station-sdk/cpp/README.md)
 implement both counter and Table/query roles without native actions or raw polling.
-The supported combination is the pinned Zig C++17 toolchain, Linux x86_64 and
+The supported combination is the pinned Zig C++17 toolchain, Linux x86_64 and ARM64 and
 the build's Nix runtime closure. No compiler-independent C++ binary ABI or generic
 Linux distribution is claimed. pkg-config pins direct package versions and
 supplies the installed rpath. Native libraries resolve beside the C client SDK;

@@ -9,16 +9,18 @@ import tempfile
 import time
 
 from package_release import BINARIES, sha256
+from release_oci import exported, checksums, copy_image
 
 directory = Path(sys.argv[1]).resolve()
 manifest = json.loads((directory / 'release-manifest.json').read_text())
 version = manifest['release']
+architecture = manifest['target'].split('-')[0]
 (directory / 'images').mkdir()
 with tempfile.TemporaryDirectory(prefix='transit-images-') as temporary:
     root = Path(temporary)
-    with tarfile.open(directory / f'transit-{version}-linux-x86_64.tar.gz') as bundle:
+    with tarfile.open(directory / f'transit-{version}-linux-{architecture}.tar.gz') as bundle:
         bundle.extractall(root, filter='data')
-    source = root / f'transit-{version}-linux-x86_64'
+    source = root / f'transit-{version}-linux-{architecture}'
     context = root / 'context'
     context.mkdir()
     (context / 'data').mkdir()
@@ -63,12 +65,12 @@ with tempfile.TemporaryDirectory(prefix='transit-images-') as temporary:
             finally:
                 subprocess.run(['docker', 'stop', '--timeout', '30', container], check=True)
                 subprocess.run(['docker', 'rm', container], check=True)
-        subprocess.run(['docker', 'save', '--output', str(directory / 'images' / f'{name}.tar'), image], check=True)
-        manifest.setdefault('images', {})[name] = json.loads(subprocess.check_output(
-            ['docker', 'image', 'inspect', image]))[0]['Id']
+        layout = directory / 'images' / name
+        copy_image('docker-daemon:' + image, f'oci:{layout}:{version}', '--format', 'oci')
+        original = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image]))[0]
+        manifest.setdefault('images', {})[name] = exported(layout, architecture, original)
 (directory / 'release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 (directory / 'SHA256SUMS').write_text(''.join(f'{sha256(path)}  {path.name}\n'
                                            for path in sorted(directory.iterdir())
                                            if path.is_file() and path.name != 'SHA256SUMS'))
-(directory / 'images/SHA256SUMS').write_text(''.join(f'{sha256(path)}  {path.name}\n'
-                                                  for path in sorted((directory / 'images').glob('*.tar'))))
+checksums(directory / 'images')

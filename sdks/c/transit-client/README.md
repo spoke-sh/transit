@@ -24,7 +24,7 @@ headers preserve readable source names while binding linkage to that definition;
 mismatched SDK headers and libraries fail to link/load before exchanging public
 structs. Rebuild C and C++ consumers together with a contract cutover.
 
-The qualified platform is Linux x86_64 with the pinned Zig 0.17 compiler and the
+The qualified platform is Linux x86_64 and ARM64 with the pinned Zig 0.17 compiler and the
 build's Nix runtime closure. These are local installation artifacts, not portable
 Linux distributions or registry publications. See [usage and ownership](docs/USAGE.md)
 and the [C++ wrappers](../../cpp/transit-client/README.md).

@@ -6,6 +6,8 @@ import re
 import tarfile
 import tomllib
 
+from package_metadata import rewrite
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -15,7 +17,7 @@ def build(output, names, native_prefix):
     output.mkdir(parents=True, exist_ok=True)
     for name in names:
         source = ROOT / name if '/' in name else ROOT / 'sdks/rust' / name
-        manifest = tomllib.loads((source / 'Cargo.toml').read_text())
+        manifest = tomllib.loads(rewrite((source / 'Cargo.toml').read_bytes(), 'rust', 'Cargo.toml').decode())
         stem = f"{manifest['package']['name']}-{manifest['package']['version']}"
         files = {Path('Cargo.toml'): re.sub(r', path = "[^"]+"', '', (source / 'Cargo.toml').read_text()).encode()}
         for member in manifest['package']['include'] + ['Cargo.lock']:
@@ -31,6 +33,7 @@ def build(output, names, native_prefix):
             files[Path('lib') / library.name] = library.read_bytes()
         with tarfile.open(output / f'{stem}.crate', 'w:gz') as archive:
             for relative, data in sorted(files.items()):
+                data = rewrite(data, 'rust', relative.name) if relative.parts[0] != 'lib' else data
                 entry = tarfile.TarInfo(str(Path(stem) / relative))
                 entry.size, entry.mode = len(data), 0o644
                 archive.addfile(entry, io.BytesIO(data))

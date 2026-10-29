@@ -1,4 +1,6 @@
 """Restore public Station NuGet packages and run the shared authority schedule."""
+
+from sdk.artifact_versions import package_text
 from runner.paths import ROOT
 import json
 import os
@@ -21,14 +23,14 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
         feed = target / 'feed'
         feed.mkdir()
         for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station', 'Transit.Sdk.Examples'):
-            name = f'{package}.0.0.1.nupkg'
+            name = package_text(f'{package}.0.0.1.nupkg', 'dotnet')
             shutil.copy2(Path(artifacts).resolve() / name, feed / name)
         environment = dict(os.environ, NUGET_PACKAGES=str(target / 'packages'), DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1')
         project = source / 'Consumer.csproj'
-        project.write_text('''<Project Sdk="Microsoft.NET.Sdk">
+        project.write_text(package_text('''<Project Sdk="Microsoft.NET.Sdk">
 <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
 <ItemGroup><PackageReference Include="Transit.Client" Version="[0.0.1]" /><PackageReference Include="Transit.Station.Sdk" Version="[0.0.1]" /><PackageReference Include="Transit.Sdk.Examples" Version="[0.0.1]" /></ItemGroup>
-</Project>\n''')
+</Project>\n''', 'dotnet'))
         config = ET.Element('configuration')
         sources = ET.SubElement(config, 'packageSources')
         ET.SubElement(sources, 'clear')

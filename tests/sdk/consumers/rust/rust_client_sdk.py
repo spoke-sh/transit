@@ -1,4 +1,6 @@
 """Compile and run public Rust client artifacts from a clean external consumer."""
+
+from sdk.artifact_versions import package_text
 from runner.paths import ROOT
 import os
 from pathlib import Path
@@ -13,12 +15,12 @@ def run(node, cli, library, artifacts):
     root = ROOT
     def install(target):
         for name in ('transit-client', 'transit-native-client'):
-            with tarfile.open(Path(artifacts).resolve() / f'{name}-0.0.1.crate') as archive:
+            with tarfile.open(Path(artifacts).resolve() / package_text(f'{name}-0.0.1.crate', 'rust')) as archive:
                 archive.extractall(target / 'vendor', filter='data')
         (target / 'src').mkdir()
         shutil.copyfile(root / 'tests/sdk/consumers/rust/rust_client_sdk.rs', target / 'src/main.rs')
         shutil.copyfile(root / 'tests/sdk/consumers/rust/rust_native_lifetime.rs', target / 'src/native_lifetime.rs')
-        (target / 'Cargo.toml').write_text('''[package]
+        (target / 'Cargo.toml').write_text(package_text('''[package]
 name = "transit-rust-client-proof"
 version = "0.1.0"
 edition = "2024"
@@ -28,8 +30,8 @@ serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
 [patch.crates-io]
 transit-client = { path = "vendor/transit-client-0.0.1" }
 transit-native-client = { path = "vendor/transit-native-client-0.0.1" }
-''')
-        lock = (target / 'vendor/transit-client-0.0.1/Cargo.lock').read_text()
+''', 'rust'))
+        lock = (target / package_text('vendor/transit-client-0.0.1/Cargo.lock', 'rust')).read_text()
         lock += '''\n[[package]]
 name = "transit-rust-client-proof"
 version = "0.1.0"
@@ -53,7 +55,7 @@ dependencies = ["serde_json", "transit-client"]
         # Installation must survive removal of build outputs and extracted crates.
         override = target / 'native-override'
         override.mkdir()
-        shutil.copy2(target / 'vendor/transit-native-client-0.0.1/lib/libtransit_client.so', override)
+        shutil.copy2(target / package_text('vendor/transit-native-client-0.0.1/lib/libtransit_client.so', 'rust'), override)
         env['TRANSIT_RUST_TEST_NATIVE_DIRECTORY'] = str(override)
         shutil.rmtree(target / 'vendor'); shutil.rmtree(target / 'target'); shutil.rmtree(target / 'src')
         def invoke(mode, config):

@@ -1,7 +1,7 @@
 # Transit native .NET Station package
 
 `Transit.Native.Station` 0.0.1 embeds the shared Zig `libtransit_station.so` for the
-[public .NET Station SDK](../transit-station-sdk/README.md), on Linux x86_64.
+[public .NET Station SDK](../transit-station-sdk/README.md), on Linux x86_64 and ARM64.
 The SDK privately extracts the library, checks versions, removes the extraction
 file and retains its bounded shared code image until process exit. Explicit close
 still joins owned work and destroys native handles. The

@@ -1,6 +1,7 @@
 """Qualify release SDK artifacts through the existing isolated consumer owners."""
 import argparse
 import json
+import os
 from pathlib import Path
 
 from sdk.consumer_registry import RAW_RUNNERS, RUNNERS
@@ -9,7 +10,8 @@ from sdk.consumer_registry import RAW_RUNNERS, RUNNERS
 def run(packages, runtime, languages):
     packages, runtime = packages.resolve(), runtime.resolve()
     manifest = json.loads((packages / 'sdk-manifest.json').read_text())
-    assert manifest['target'] == 'x86_64-linux-gnu.2.28'
+    assert manifest['target'] in ('x86_64-linux-gnu.2.28', 'aarch64-linux-gnu.2.28')
+    os.environ['TRANSIT_SDK_TEST_MANIFEST'] = str(packages / 'sdk-manifest.json')
     native = packages / 'native'
     node, admin = runtime / 'bin/transit-node', native / 'bin/transit-admin'
     for language in languages:

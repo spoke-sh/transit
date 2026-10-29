@@ -6,7 +6,7 @@ these packages own language types, codecs, scheduling and packaging.
 
 ## Installation
 
-Use OTP 28 and Elixir 1.18 on Linux x86_64. Build all artifacts from the same checkout using
+Use OTP 28 and Elixir 1.18 on Linux x86_64 and ARM64. Build all artifacts from the same checkout using
 the [source build instructions](../../bindings/README.md#build-and-verification).
 Native artifacts require that build's Nix runtime closure. Other platforms and
 portable native distributions are not supplied.
