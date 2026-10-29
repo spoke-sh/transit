@@ -32,8 +32,11 @@ values(A,Root)->
     lists:foreach(fun(V)->invalid(A:restore(reference,iolist_to_binary(json:encode(#{table=>V})))) end,[maps:remove(definition,maps:get(table,reference())),(maps:get(table,reference()))#{definition=>binary:copy(<<"0">>,64)},(maps:get(table,reference()))#{binding=>(binding())#{identity=>#{scope=>scope(),principal=>18,operation=><<"10">>}}}]),
     Ref=restore(A,reference,reference()),
     response(A,Root,#{observation=>observed()},fun(C)->{ok,#transit_catalog_observation{state=committed,commit=#transit_catalog_commit{affected=9,position=#transit_catalog_position{next_lsn=N}}}}=A:inspect(C,Ref),true=N=:=max() end),
-    Bad=#{rows=>#{committed=>#{binding=>(binding())#{identity=>#{scope=>scope(),principal=>17,operation=><<"11">>}},resulting=>stored(),outcome=>#{position=>position(),matched=><<"9">>,affected=><<"9">>,live_rows=><<"9">>}}}},
-    response(A,Root,#{observation=>Bad},fun(C)->invalid(A:inspect(C,Ref)),{uncertain,Ref,#transit_error{kind=unknown_outcome}}=A:admit(C,Ref) end),
+    Bad=#{rows=>#{committed=>#{binding=>(binding())#{identity=>#{scope=>scope(),principal=>17,operation=><<"11">>}},resulting=>stored(),transaction=>null,outcome=>#{position=>position(),matched=><<"9">>,affected=><<"9">>,live_rows=><<"9">>}}}},
+    %% Failed native validation may close the host connection. Exercise read
+    %% rejection and uncertain admission independently on fresh joined workers.
+    response(A,Root,#{observation=>Bad},fun(C)->invalid(A:inspect(C,Ref)) end),
+    response(A,Root,#{observation=>Bad},fun(C)->{uncertain,Ref,#transit_error{kind=unknown_outcome}}=A:admit(C,Ref) end),
     response(A,Root,#{catalog=>#{tables=>page()}},fun(C)->{ok,#transit_catalog_page{entries=[#transit_catalog_entry{interpretation=#transit_catalog_interpretation{object=#transit_catalog_object{object=O}}}],next=Cursor,consistency=independent}}=A:tables(C),true=O=:=max(),invalid(A:tables(C,1,Cursor)) end),
     Page=page(),Entries=maps:get(entries,Page),Next=maps:get(next,Page),
     lists:foreach(fun(P)->response(A,Root,#{catalog=>#{tables=>P}},fun(C)->invalid(A:tables(C)) end) end,
