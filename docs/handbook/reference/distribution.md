@@ -143,12 +143,13 @@ files only; it neither starts a server nor migrates retained data.
 ### Homebrew on Linux
 
 Each release includes `transit.rb`, generated from that release's executable
-archive hashes. Download the formula and `SHA256SUMS`, verify its digest, and
-place it in a local tap:
+archive hashes. With Homebrew 7, download the formula and `SHA256SUMS`, verify its
+digest, then place it in a local tap and trust that formula:
 
 ```sh
 brew tap-new --no-git transit/releases
 cp transit.rb "$(brew --repository transit/releases)/Formula/transit.rb"
+brew trust --formula transit/releases/transit
 brew install transit/releases/transit
 brew test transit/releases/transit
 ```
