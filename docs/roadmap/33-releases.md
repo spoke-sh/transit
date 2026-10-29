@@ -31,7 +31,7 @@ recovery, compatibility and conversion semantics remain with that owner.
   offline download directory. Post-publication checks exercise anonymous Release,
   image and chart downloads.
 - GitHub Release SDK archives cover the nine language packaging families and a
-  Zig source dependency closure. ReleaseSafe native bindings target Linux x86_64
+  Zig source dependency closure. ReleaseSafe native bindings target Linux x86_64 and ARM64
   with glibc 2.28; their loader/dependency checks reject Nix linkage. The workflow
   runs existing installed raw/Station consumers, plus the archived Zig
   application's installation, interruption and compatible replacement schedule.
@@ -49,6 +49,9 @@ SDK and installer matrix must complete before closing their acceptance items.
   installer channel. The channel advances only after anonymous checks pass;
   immutable tags and assets are retained. Executed hosted publication remains
   a separate acceptance requirement.
+- Native Linux x86_64 and ARM64 jobs build and exercise every SDK family and
+  container image. Assembly verifies both image closures and publishes one OCI
+  index per executable; installed and anonymous checks run on both architectures.
 
 ## Remaining dependencies
 
@@ -68,6 +71,29 @@ SDK and installer matrix must complete before closing their acceptance items.
 
 Static/component checks and a running server do not complete the milestone's
 remaining capability-dependent onboarding matrix.
+
+## Desktop implementation follow-ups
+
+Nightly publication and Linux ARM64 distribution land first. Desktop ports are
+separate changes, in this order:
+
+1. Define and test platform owners for parent/child lifetime, trusted clock
+   sampling, terminal input, editor save detection, private files and durable
+   replacement. Preserve uncertainty bounds and failure/recovery gates; a precise
+   wall-clock timestamp alone does not establish a bounded time sample.
+2. Port macOS ARM64, then Intel. Qualify native startup, SQL, retained restart,
+   abrupt supervisor loss, interactive console/editor behavior and installed SDK
+   consumers before adding archives and Homebrew selection to publication.
+3. Port Windows x64, then ARM64. Supply target OpenSSL dependencies, process job
+   containment, console/signal handling and private/durable filesystem operations;
+   qualify the same runtime and SDK schedules before adding archives and a
+   checksummed PowerShell installer.
+
+Initial cross-compilation found a Windows stderr-handle initializer that is now
+resolved at runtime. Further Windows work includes private spill-file creation
+and target TLS libraries. macOS ARM64 SDK fixtures cross-compile with the pinned
+compiler; this does not qualify execution, native packaging or the local server.
+These probes do not add desktop targets to the supported distribution matrix.
 
 ## Delivery sequence
 
