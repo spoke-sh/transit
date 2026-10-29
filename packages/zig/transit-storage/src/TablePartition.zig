@@ -880,7 +880,7 @@ pub fn commit(self: *Self, request: Dml.Request, guard: Guard) !OperationState {
         };
         return self.writeOperation(operation, guard);
     };
-    return self.performPrepared(operation, guard);
+    return self.performPrepared(operation, request, guard);
 }
 
 /// Explicit execution uses only the retained intent; it never resolves a name
@@ -888,13 +888,13 @@ pub fn commit(self: *Self, request: Dml.Request, guard: Guard) !OperationState {
 pub fn perform(self: *Self, binding: d.Binding, guard: Guard) !OperationState {
     const state = try self.operationState(binding, guard);
     if (state != .admitted) return state;
-    return self.performPrepared(state.admitted, guard);
+    return self.performPrepared(state.admitted, null, guard);
 }
-fn performPrepared(self: *Self, operation: Operation, guard: Guard) !OperationState {
+fn performPrepared(self: *Self, operation: Operation, known_request: ?Dml.Request, guard: Guard) !OperationState {
     const binding = operation.binding;
     var memory: f.MemoryBudget = .{ .parent = self.allocator, .limit = self.options.build_resident_bytes };
     defer self.build_resident_peak = memory.peak;
-    const outcome = self.performWithinBudget(memory.allocator(), operation, guard) catch |cause| {
+    const outcome = self.performWithinBudget(memory.allocator(), operation, known_request, guard) catch |cause| {
         const err = buildFailure(&memory, cause);
         var rejected = operation;
         rejected.phase = .rejected;
@@ -912,14 +912,15 @@ fn performPrepared(self: *Self, operation: Operation, guard: Guard) !OperationSt
     return .{ .committed = .{ .binding = binding, .resulting = self.root.declared(), .outcome = outcome, .transaction = null } };
 }
 
-fn performWithinBudget(self: *Self, allocator: std.mem.Allocator, operation: Operation, guard: Guard) !Outcome {
-    var intent = try Dml.load(allocator, self.objects, operation.intent);
-    defer intent.deinit();
-    try intent.request.binding.requireSame(operation.binding);
-    return if (intent.request.statement) |plan|
+fn performWithinBudget(self: *Self, allocator: std.mem.Allocator, operation: Operation, known_request: ?Dml.Request, guard: Guard) !Outcome {
+    var loaded = if (known_request == null) try Dml.load(allocator, self.objects, operation.intent) else null;
+    defer if (loaded) |*value| value.deinit();
+    const request = known_request orelse loaded.?.request;
+    try request.binding.requireSame(operation.binding);
+    return if (request.statement) |plan|
         self.applyStatement(allocator, operation, plan, guard)
     else
-        self.applyWithinBudget(allocator, operation.binding, intent.request.changes, intent.request.ingestion, guard);
+        self.applyWithinBudget(allocator, operation.binding, request.changes, request.ingestion, guard);
 }
 
 pub fn cancel(self: *Self, binding: d.Binding, guard: Guard) !OperationState {
