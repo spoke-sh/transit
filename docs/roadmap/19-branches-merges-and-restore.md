@@ -1,4 +1,4 @@
-# 18. Branches, merges and restore
+# 19. Branches, merges and restore
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
@@ -10,7 +10,7 @@ model. Branching is the underlying versioning primitive within a realm. Branches
 never copy live process identities, grants or effect rights.
 
 Restore here means publishing earlier application data as a new forward successor
-under current authority. [Operations](23-operations-and-recovery.md) separately
+under current authority. [Operations](24-operations-and-recovery.md) separately
 owns backup capture, installation disaster recovery and runtime upgrades; a
 branch snapshot alone is not sufficient recovery material for an installation.
 
@@ -62,7 +62,7 @@ authority/process evidence separate from branchable application state.
    given a two-way pair (**`from` Manifest**, **`to` Manifest**) or a three-way
    common ancestor (**`base` Manifest**, **`source` Manifest** and **`target`
    Manifest**), skip all `.tseg` segments and `.tdel` bitmaps shared identically
-   in $O(1)$ ([A4: `BranchMergeAlgebra.lean`](20-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping))
+   in $O(1)$ ([A4: `BranchMergeAlgebra.lean`](21-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping))
    and compute key-aligned diffs using logical change lineage, retained tail
    state, added segments and divergent deletion vectors:
    - **First-class relational and document `DIFF(object, ...)`:** align rows by
@@ -88,9 +88,12 @@ authority/process evidence separate from branchable application state.
      row/cell conflicts explicitly, and commit the merged Manifest via
      conditional CAS (`Multi-Writer OCC`), rejecting stale target heads.
      Schema-only promotion preserves target rows unless explicitly migrated.
-4. **Extend diff and merge to compatible Documents ([Milestone 7](07-document-storage-and-station-decoupling.md) and [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)) and qualified graph mappings:**
+4. **Extend diff and merge to compatible Documents ([Milestone 7](07-document-storage-and-station-decoupling.md) and [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)), geospatial coverages ([Milestone 17](17-geospatial-and-spatio-temporal-computing.md)) and qualified graph mappings:**
    support both `versioned` structural three-way diff/merge and `causal_crdt`
-   replica state-vector convergence, preserving causal/tombstone semantics,
+   replica state-vector convergence, use `.tseg` 2D bounding-box and `S2`/Hilbert
+   zone maps for $O(1)$ spatial segment skipping during viewport-scoped diffs
+   and surface conflicting edits to shared `.topo_arc` boundary chains as
+   five-state `IS CONFLICT` cells, preserving causal/tombstone semantics,
    fresh replica identities and valid graph endpoints; incompatible histories
    refuse and derived views rebuild or verify against the merged manifest.
 5. **Restore as a new forward Manifest successor:** publish a restored snapshot
@@ -119,7 +122,7 @@ authority/process evidence separate from branchable application state.
    - **Upstream proposal push:** instead of executing imperative migration scripts
      blindly on production, push only the local branch's delta `.tseg`/`.tdel`
      segments, schema migration plan and candidate manifest to the remote as a
-     [Milestone 27 versioned proposal](27-reviewed-data-collaboration.md) for
+     [Milestone 28 versioned proposal](28-reviewed-data-collaboration.md) for
      three-way `DIFF` / `DIFF_SCHEMA` review, constraint validation and atomic
      `manifest/v{N+1}` publication.
 
@@ -148,9 +151,9 @@ make all branching work constant-time.
 Branch creation, read, edit and merge have independent permissions under current
 realm policy. Support installations with all merging disabled, and protect
 destination heads against equivalent direct writes. This milestone establishes
-the native data/policy primitives; [enterprise identity](25-control-and-policy-plane.md)
+the native data/policy primitives; [enterprise identity](26-control-and-policy-plane.md)
 binds external subjects and delegated actors, and
-[reviewed collaboration](27-reviewed-data-collaboration.md) adds published
+[reviewed collaboration](28-reviewed-data-collaboration.md) adds published
 proposals, intent-bound approval and shared human/agent review. Reading or
 copying historical application data cannot restore historical grants.
 

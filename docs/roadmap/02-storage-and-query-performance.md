@@ -6,7 +6,7 @@ Replace the current B-tree-over-HTTP-stream-pages storage bottleneck with a
 four-tier storage hierarchy over two pluggable primitives (**`TransitLog`** and
 **`TransitObjectStore`**), a pure-Zig hybrid OLTP/OLAP segment format (**`.tseg`**)
 with composable physical codecs and collations, bounded native persistence and
-correct local conditional publication. [Provider/concurrent-writer qualification](21-storage-providers-and-concurrency.md)
+correct local conditional publication. [Provider/concurrent-writer qualification](22-storage-providers-and-concurrency.md)
 receives distributed-provider and partitioned-writer integration explicitly;
 its contracts are still designed with this foundation before dependent formats.
 The [performance reference](../handbook/reference/performance.md) records current
@@ -118,7 +118,7 @@ open.
 Resolve commit authority before wiring storage, establish the correct bounded
 local slice, then complete the [installed cutover](03-live-storage-and-sql-cutover.md).
 The sequencing review transfers #117/#121 implementation and distributed runtime
-qualification to [milestone 18](21-storage-providers-and-concurrency.md).
+qualification to [milestone 18](22-storage-providers-and-concurrency.md).
 #109 remains the umbrella for its original outstanding local and provider scope;
 this milestone remained In Progress at that assessment. Local cross-process CAS, fencing at its
 supported authority boundary and all local recovery obligations remain here.
@@ -708,7 +708,7 @@ Vortex and Apache Arrow), paired with multi-format foreign/exchange support:
 Design control/policy, independent data/process partitions, writer epochs and
 conditional publication with #117/#125/#111 before freezing local log formats.
 Do not require every unrelated write to advance one global catalog CAS.
-[Milestone 21](21-storage-providers-and-concurrency.md) delivers enforceable
+[Milestone 22](22-storage-providers-and-concurrency.md) delivers enforceable
 provider leases, scoped credentials and integrated multi-writer OCC, including
 read/predicate validation required by the selected isolation contract. Local
 atomic publication must already be safe across independent processes; it cannot
@@ -726,7 +726,7 @@ authorized public reads; Board receives no raw provider access.
 
 Provider acknowledgement, durable-copy locations, disk/host loss and network
 partition profiles remain in [#121](https://github.com/spoke-sh/transit/issues/121)
-and [milestone 18](21-storage-providers-and-concurrency.md). This owner proves
+and [milestone 18](22-storage-providers-and-concurrency.md). This owner proves
 the declared local sync/restart profile and explicitly excludes losing the only
 durable disk. Distributed providers, cache qualification and concurrent writer
 integration have moved; local safety, native recovery, codecs and bounded

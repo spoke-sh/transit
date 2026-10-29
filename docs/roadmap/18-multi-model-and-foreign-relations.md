@@ -1,13 +1,14 @@
-# 17. Multi-model and multi-format foreign relations
+# 18. Multi-model and multi-format foreign relations
 
 [Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** Planned
 
-Compose KV, Table, Document, Graph and external dataset formats using the
+Compose KV, Table, Document, Graph, Geospatial and external dataset formats using the
 [`.tseg` codec and collation architecture](02-storage-and-query-performance.md),
 [logical Document storage](07-document-storage-and-station-decoupling.md),
 [standards/semantic contracts](10-standards-and-catalogs.md),
-[declaration/dataflow lifecycle](12-sql-and-dataflows.md) and
-[Document Type & Protocol Library (`JSON`, `XML`, `HTTP`, `FTP`, `EDI`, `SMTP`/`IMAP`/`POP3`, `LDAP`, `SIP`, `AMQP`, `MQTT`, `NTP`, `PDF`, `DOCX`, `XLSX`, `ODF`)](16-document-profiles-and-gateway-exchange-lifecycle.md).
+[declaration/dataflow lifecycle](12-sql-and-dataflows.md),
+[Document Type & Protocol Library (`JSON`, `XML`, `HTTP`, `FTP`, `EDI`, `SMTP`/`IMAP`/`POP3`, `LDAP`, `SIP`, `AMQP`, `MQTT`, `NTP`, `PDF`, `DOCX`, `XLSX`, `ODF`)](16-document-profiles-and-gateway-exchange-lifecycle.md) and
+[geospatial types, topological compression and spatial indexing](17-geospatial-and-spatio-temporal-computing.md).
 
 Use the shared object/definition identities, policy references and inspection
 model from the [data lifecycle](01-declarative-data-lifecycle.md). Every
@@ -50,17 +51,23 @@ retrieval, streaming CDC ingestion and import/export costs.
    structured, protocol and compound document profiles (including `XLSX`/`ODS`
    worksheet projections and `PDF` layout spans) with no implicit conflict
    winner or silent default value.
-2. **Map finite property graphs over existing resources:** lower fixed-pattern
+2. **Map finite property graphs and spatial networks over existing resources:** lower fixed-pattern
    SQL/PGQ through graph-aware `Fuze` operators and
    [Milestone 13's](13-data-structures-and-performance.md) Diamond-Hardened /
-   Worst-Case Optimal Joins (WCOJ) over `.tseg` adjacency/edge indexes so
+   Worst-Case Optimal Joins (WCOJ) over `.tseg` adjacency/edge indexes—and compose
+   property graphs with [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md)
+   topological networks (`A*` / shortest-path routing with geodesic distance
+   heuristics and multi-way spatial intersection graphs)—so
    triangle and cyclic graph patterns avoid quadratic intermediate blowups while
    preserving parallel edges, self-loops, endpoint validity and multiplicity.
-3. **Compose segment-backed lexical/structural search and Vector / Hybrid Retrieval across Tables, Documents and Graph projections:**
+3. **Compose segment-backed lexical/structural search, geospatial coverings and Vector / Hybrid Retrieval across Tables, Documents and Graph projections:**
    build on [Milestone 14's](14-vectorized-strings-and-search.md) declarative
    search boundary, 256-document Block-Max posting blocks, vectorized
-   `MAXSCORE` / Block-Max WAND operators and ANN vector indexes to keep
-   multi-model search and AI/agent retrieval inside Transit's data gravity,
+   `MAXSCORE` / Block-Max WAND operators,
+   [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) `.s2_roaring`
+   / `.h3_roaring` spatial cell coverings and ANN vector indexes (over
+   [Milestone 10's](10-standards-and-catalogs.md) unboxed `VECTOR(dim, T)` slabs)
+   to keep multi-model search and AI/agent retrieval inside Transit's data gravity,
    `SnapshotId` cuts, branches and `policy_epoch` governance without locking
    queries into a flat bag-of-words model:
    - **Document and Multi-Model Lexical, Positional and Structural Indexes:**
@@ -68,23 +75,28 @@ retrieval, streaming CDC ingestion and import/export costs.
      `NEAR` streams, and substring/trigram or structural span profiles) over
      Document blocks and projected JSON/structured paths, respecting declared
      collations/segmenters, `.tdel` deletion vectors, online snapshot-to-tail
-     maintenance, SIMD bitmask intersection with relational/graph predicates
+     maintenance, SIMD bitmask intersection with relational/graph/spatial predicates
      and late materialization.
-   - **Multi-Model Vector Similarity and Hybrid Search:** compose fixed-dimension
-     vector/embedding columns and disk-backed quantized/graph ANN index segments
+   - **Multi-Model Vector Similarity and Geo-Filtered Hybrid Search:** compose fixed-dimension
+     `VECTOR(dim, T)` embedding columns and disk-backed quantized/graph ANN index segments
      (such as DiskANN/HNSW with explicit exact-oracle recall reporting) across
-     Table, Document and Graph queries with temporal `AS OF` cuts,
+     Table, Document, Spatial (`ST_Intersects` / `S2` Roaring bitmask intersection)
+     and Graph queries with temporal `AS OF` cuts,
      security-barrier RLS and lexical/structural scores in a single hybrid
      query plan, handing off reactive context subscriptions to
-     [Milestone 30](30-reactive-context-and-agent-activation.md) and
+     [Milestone 31](31-reactive-context-and-agent-activation.md) and
      declarative sequence/context synthesis research to
-     [Milestone 36](36-declarative-language-context-and-synthesis.md).
+     [Milestone 37](37-declarative-language-context-and-synthesis.md).
 4. **Implement multi-format `FOREIGN TABLE` and `COPY` readers over POSIX and `TransitObjectStore` (S3/GCS/R2):**
-   - **Analytical columnar formats (`PARQUET`, `ARROW_IPC`):** use qualified
-     borrowed layouts or bounded decoding for column chunks/dictionaries, with
-     row-group statistics (`min`/`max`/null count) driving sound pruning. Capture immutable
+   - **Analytical and spatial columnar formats (`PARQUET`, `GEOPARQUET`, `ARROW_IPC`, `GEOARROW`, `FLATGEOBUF`, `PMTILES` / `MVT`):** use qualified
+     borrowed layouts or bounded decoding for column chunks/dictionaries and
+     [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) `.geoarrow`
+     coordinate vectors, with row-group statistics (`min`/`max`/null count and
+     `GeoParquet` v1.1 `bbox` covering metadata or `FlatGeobuf` packed Hilbert
+     R-tree headers) driving sound 1D and 2D pruning. Capture immutable
      file manifests (`ETag`/`SHA-256`, byte length, row count) for repeatable
-     snapshot reads.
+     snapshot reads, and support `PMTiles` / `MVT` vector tile and `Shapefile` /
+     `GeoPackage` import/export.
    - **Text and semi-structured formats (`CSV`, `JSONL`):** bounded streaming
      parsers that record malformed fields as `type_error` or `missing` cells
      rather than aborting scans.

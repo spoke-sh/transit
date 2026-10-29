@@ -1134,7 +1134,7 @@ This milestone does not itself deliver the installed lifecycle, transaction
 sessions, automatic scheduling, historical SQL, branches or a universal health
 boolean. [Local storage and `.tseg` segments](02-storage-and-query-performance.md)
 replace the underlying B-tree page store;
-[provider/writer qualification](21-storage-providers-and-concurrency.md) delivers
+[provider/writer qualification](22-storage-providers-and-concurrency.md) delivers
 partitioned concurrency;
 [managed computations](12-sql-and-dataflows.md) add WAL-driven activation and
 service-owned maintenance; [historical catalogs](10-standards-and-catalogs.md)

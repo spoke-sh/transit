@@ -27,8 +27,8 @@ cross-layer optimization and an integrated local performance checkpoint.
 Qualify database and existing native runtime paths together: Table/KV/Document
 operations, queries, committed change consumption, native message delivery,
 Station turns and accepted-work recovery. Use already qualified installed
-callers; broader [SDK coverage](19-service-and-sdk-coverage.md) and
-[mixed composition](32-programming-model.md) repeat the measures as they land.
+callers; broader [SDK coverage](20-service-and-sdk-coverage.md) and
+[mixed composition](33-programming-model.md) repeat the measures as they land.
 Do not make their future APIs prerequisites of this local milestone. Full
 distributed and complete TPC qualification stay with their later owners.
 
@@ -81,8 +81,9 @@ prerequisites and later phases remain outstanding.
    whole partitions in $O(1)$ manifest metadata work rather than row-by-row `.tdel`
    bitmaps) and **Multi-Dimensional Clustering Keys** (`CLUSTER BY` linear sort
    keys and space-filling Z-order / Hilbert curves over columns such as
-   `(event_time, symbol, venue)` decoupled from the primary-key uniqueness
-   constraint) so analytical and time-series scans prune `.tseg` segments across
+   `(event_time, symbol, venue)` or [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md)
+   2D/3D spatial `HILBERT(geom)` / `S2_CELL(geom)` keys decoupled from the primary-key uniqueness
+   constraint) so analytical, time-series and spatial scans prune `.tseg` segments across
    multiple predicate dimensions. Cost scans versus index probes, segment/partition
    pruning, join order/strategy—including `DPhyp` / adaptive join-graph ordering,
    universal `D-Join` subquery unnesting, `FOREIGN KEY` join elimination,
@@ -108,7 +109,7 @@ prerequisites and later phases remain outstanding.
    preventing point and range lookups from degrading to
    $O(K \log N)$ across fragmented segments or accumulating unbounded tombstone
    overhead under update-heavy workloads. Coordinate with
-   [branches](18-branches-merges-and-restore.md) so compaction accounts for
+   [branches](19-branches-merges-and-restore.md) so compaction accounts for
    branch-shared segments and pinned snapshots. Upgrade [`NvmeCache`](../../packages/zig/transit-storage/src/NvmeCache.zig)
    and the in-memory page/chunk buffer pool using **LeanStore and Umbra buffer-management
    principles**: verify SHA-256 cryptographic integrity **once on chunk admission/load**
@@ -127,7 +128,7 @@ prerequisites and later phases remain outstanding.
    counters—so queries exceeding their memory budget deterministically spill to
    Tier 2 NVMe or fail with a typed budget error rather than OOM-crashing the
    process, providing the local enforcement substrate for
-   [Hierarchical Workload Management (WLM)](25-control-and-policy-plane.md).
+   [Hierarchical Workload Management (WLM)](26-control-and-policy-plane.md).
 5. **Optimize the durable runtime and shared client path.** Measure admission,
    WAL append/sync, mailbox selection, dispatch/wakeup, turn commit, checkpoint,
    recovery and result delivery separately. Evaluate batching/group commit,
@@ -190,7 +191,7 @@ publication, snapshot or ordered-iteration contract.
 [Egres's resource-control architecture](https://manishrjain.com/egres/) informs
 per-query and per-tenant CPU tick, disk IOPS and Zig allocator byte metering;
 Transit binds those meters to `Fuze` batch morsels, Tier 2 NVMe spill thresholds
-and [Milestone 25's](25-control-and-policy-plane.md) Hierarchical Workload
+and [Milestone 26's](26-control-and-policy-plane.md) Hierarchical Workload
 Management (WLM) without replacing durable acceptance or authority boundaries.
 Keep upstream algorithms and license attribution separate from evidence for the
 selected Zig implementation.
@@ -233,13 +234,13 @@ scores.
 
 [First-class strings and search](14-vectorized-strings-and-search.md),
 [data-centric compilation and specialization](15-data-centric-compilation-and-specialization.md),
-[foreign models](17-multi-model-and-foreign-relations.md),
-[branches](18-branches-merges-and-restore.md),
-[providers through clustered execution](21-storage-providers-and-concurrency.md),
-and [language composition](32-programming-model.md) extend this scorecard for their
+[foreign models](18-multi-model-and-foreign-relations.md),
+[branches](19-branches-merges-and-restore.md),
+[providers through clustered execution](22-storage-providers-and-concurrency.md),
+and [language composition](33-programming-model.md) extend this scorecard for their
 new semantics and placements. Include index build/rebuild, historical-read and
 recovery interference rather than measuring only a steady-state hot lookup.
-The [combined qualification](34-qualification-and-benchmarks.md) owner repeats
+The [combined qualification](35-qualification-and-benchmarks.md) owner repeats
 database and runtime comparisons with the complete supported system and full
 benchmark drivers. It does not defer earlier measurement or regression gates.
 Publish supported limits and reproduced findings in the existing performance,
@@ -598,7 +599,7 @@ Block-Max WAND or any later positional/substring/structural index profile.
 Hybrid composition waits for the qualified ANN/index owner and one supported
 snapshot model, while speculative research into declarative sequence, context
 and synthesis primitives belongs to
-[milestone 32](36-declarative-language-context-and-synthesis.md). Every new
+[milestone 32](37-declarative-language-context-and-synthesis.md). Every new
 operator starts with allocation gates; future syntax and algorithms do not
 become current supported capabilities.
 

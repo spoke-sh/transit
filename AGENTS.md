@@ -65,11 +65,20 @@ established behavior, limits and reasoning into the public owner with the change
   or permission authority. Separate validation, publication, activation, progress
   and completion. A common catalog and service-managed reconciliation are planned
   extensions, not assumptions about current behavior.
-- Keep logical types ($\tau$), physical codecs ($\epsilon$: bitpacking, RLE,
-  dictionary, FSST, mainframe `COMP-3`, `ZONED`, `COMP`/`COMP-4`, `IBM_HFP`,
-  `EBCDIC`), and collations ($\kappa$: `UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`,
-  `ICU:<locale>`) orthogonal in query and storage design. Zone maps and B-tree
-  sort keys must respect the declared column collation so range pruning is sound.
+- Keep logical types ($\tau$: scalars, `RANGE<T>`/`MULTIRANGE<T>`, unboxed
+  `VECTOR(dim, T)`, `GEOMETRY`/`GEOGRAPHY`/`BBOX`/`S2_CELL`/`H3_CELL`/`TRAJECTORY`),
+  physical codecs ($\epsilon$: bitpacking, RLE, dictionary, FSST, mainframe
+  `COMP-3`, `ZONED`, `COMP`/`COMP-4`, `IBM_HFP`, `EBCDIC`, and spatial `.geoarrow`,
+  `.twkb_delta`, `.topo_arc`, `.s2_roaring`), and semantic/ordering rules
+  ($\kappa$: text collations `UTF8_BINARY`, `ASCII_CI`, `EBCDIC_CP037`,
+  `ICU:<locale>`; spatial reference/manifold/precision descriptors
+  $\kappa_{\text{spatial}}$ with SRID, `PLANAR`/`GEODESIC`, snap-rounding grid
+  $\delta_{\text{grid}}$, Shewchuk exact predicates and `S2_HILBERT`/`H3` order;
+  vector metrics $\kappa_{\text{metric}}$; deterministic decimal rounding
+  $\kappa_{\text{numeric}}$; and manifest-pinned IANA `tzdb` versions
+  $\kappa_{\text{tz}}$) orthogonal in query and storage design. Zone maps
+  (including 2D/3D bounding-box and `S2`/`H3` cell summaries) and B-tree/R-tree
+  sort keys must respect the declared $\kappa$ descriptor so pruning is sound.
 - Keep Transit-owned package versions and exact internal dependency pins aligned
   with the root `VERSION`; follow the [release workflow](build/README.md#changing-the-release-version).
   Run `python3 -B tasks/version.py` after changing manifests. Keep release SemVer,
@@ -381,7 +390,13 @@ operator, or AOT query compiler already exists in current builds.
   bitpacked posting blocks with block-max BM25 impact weights (`MAXSCORE` /
   Block-Max WAND pruning, SIMD relational/`.tdel` bitmask intersection and late
   materialization) first without locking text or code search into a
-  bag-of-words model.
+  bag-of-words model. Mirror the 16-byte string header for geospatial vectors in
+  [Milestone 17](docs/roadmap/17-geospatial-and-spatio-temporal-computing.md)
+  with a 16-byte inline spatial header (`[subtype_and_flags: u16][srid_id: u16][s2_hilbert_prefix: u32][quantized_mbr_or_inline_xy: 8B]`),
+  and pair `.tseg` topological shared-arc (`.topo_arc`), `INTERIOR`/`BOUNDARY`
+  `S2`/`H3` Roaring cell-covering and 4D kinematic trajectory compression with
+  DBSP Z-set incremental `ST_Union` (oriented half-edge cancellation
+  $(+\vec{e}) + (-\vec{e}) = 0$) and `INTERIOR`-short-circuited spatial joins.
 - **Compile-time (`comptime`) and immutable-artifact perfect hashing with wide SIMD comparisons:**
   Use pure-Zig `comptime` perfect hash maps (`slot = (len + asso[key[i]] + asso[key[j]]) & mask`)
   for closed compile-time keyword, header and directive sets instead of linear

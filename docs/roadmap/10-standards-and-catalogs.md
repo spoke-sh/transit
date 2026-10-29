@@ -62,7 +62,40 @@ over those contracts, rather than introducing a second snapshot representation.
    physical type or collation rewrites, which must execute through the recoverable
    online phased rewrite lifecycle in [Milestone 11](11-indexing-and-access-paths.md)
    rather than blocking large tables with synchronous full-table rewrites.
-6. **Expose historical inspection and explicit projections through shared operations:**
+6. **Formalize companion orthogonal type families ($\tau \perp \kappa \perp \epsilon$) across Ranges, Dense Vectors, Decimal Arithmetic, Pinned-TZ Timestamps and Spatial Descriptors:**
+   extend [`FUZE_TYPES_V1.md`](../../contracts/FUZE_TYPES_V1.md) and
+   [`TABLE_SCHEMA_V1.md`](../../contracts/TABLE_SCHEMA_V1.md) in a single
+   current-v1 cutover so downstream indexing, incremental dataflow, search and
+   geospatial milestones share one rigorous type foundation:
+   - **Canonical Ranges & Multi-Ranges (`RANGE<T>`, `MULTIRANGE<T>`):** support
+     discrete and continuous intervals over `INT64`, `DECIMAL`, `DATE`,
+     `TIMESTAMP` and `TIMESTAMPTZ` inheriting the element type's $\kappa_T$ order
+     with `[lower, upper)` canonicalization, Allen's interval predicates (`&&`
+     overlaps, `@>` contains, `-|-` adjacent), and sorted non-overlapping
+     `MULTIRANGE` interval runs (serving as the 1D base case of
+     [Milestone 12's](12-sql-and-dataflows.md) `PERIOD FOR valid_time` and
+     [Milestone 17's](17-geospatial-and-spatio-temporal-computing.md) `BBOX` /
+     `S2` cell coverings).
+   - **Unboxed Dense Numeric Vectors (`VECTOR(dim, elem_type)`):** distinguish
+     fixed-dimension `FLOAT32`, `FLOAT16`, `BFLOAT16`, `INT8` and `BINARY`
+     embedding/coordinate vectors (stored as 64B-aligned unboxed SIMD slabs with
+     zero per-element 5-state tag overhead and bound to a distance metric
+     descriptor $\kappa_{\text{metric}} \in \{\text{L2\_SQUARED}, \text{COSINE},
+     \text{DOT\_PRODUCT}, \text{HAMMING}\}$) from recursive 5-state `ARRAY` cells.
+   - **Deterministic Decimal Arithmetic & Pinned-Timezone Timestamps (`DECIMAL`, `TIMESTAMPTZ`):**
+     specify exact scale-promotion and rounding rules ($\kappa_{\text{numeric}}
+     \in \{\text{REJECT}, \text{HALF\_EVEN}, \text{TOWARD\_ZERO}\}$) for
+     `DECIMAL(p, s)` arithmetic and aggregates, and bind `TIMESTAMPTZ` operations
+     (`AT TIME ZONE`, calendar bucketing) to an immutable IANA `tzdb` version
+     digest ($\kappa_{\text{tz}}$, e.g. `tzdb_2026a`) recorded in `manifest/v{N}`
+     so `FOR SYSTEM_TIME AS OF` queries remain bit-for-bit reproducible across
+     future timezone database updates.
+   - **Spatial Reference & Precision Descriptors ($\kappa_{\text{spatial}}$):**
+     reserve the catalog descriptor bindings (`SRID`, `PLANAR` vs. `GEODESIC`
+     manifold, snap-rounding grid scale $\delta_{\text{grid}}$, and space-filling
+     curve order) consumed by
+     [Milestone 17](17-geospatial-and-spatio-temporal-computing.md).
+7. **Expose historical inspection and explicit projections through shared operations:**
    distinguish metadata permission from row/segment access and report exact
    manifest provenance, constraint dependencies and per-segment schema projection
    coverage.
@@ -81,7 +114,7 @@ universal UCA, type, direction or five-state support.
 
 Target selected SQL:2023, SQL/JSON, SQL/PGQ and SQL/MED features explicitly.
 GQL, Cypher and PGQL need separate frontend/compatibility evidence; the later
-[SQL grammar, standards comparison and dialect ergonomics milestone](33-sql-grammar-and-dialect-ergonomics.md)
+[SQL grammar, standards comparison and dialect ergonomics milestone](34-sql-grammar-and-dialect-ergonomics.md)
 audits the complete pre-release SQL grammar against industry dialects (PostgreSQL,
 DuckDB, Snowflake, ClickHouse, GoogleSQL and Materialize/Flink) and qualifies
 compile-time ergonomic desugarings (`FROM`-first queries, `GROUP BY ALL`,
