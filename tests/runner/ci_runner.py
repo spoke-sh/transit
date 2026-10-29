@@ -130,6 +130,10 @@ def release_workflow():
         assert not jobs[job].get('continue-on-error', False)
         assert not any(step.get('continue-on-error', False) for step in jobs[job].get('steps', []))
     assert "needs.prepare.outputs.publish == 'true'" in jobs['publish']['if']
+    prepare = next(step for step in jobs['prepare']['steps'] if step.get('id') == 'identity')
+    assert "github.event_name == 'pull_request' && 'nightly'" in prepare['env']['CHANNEL']
+    assert "github.ref == 'refs/heads/main'" in prepare['env']['PUBLISH']
+    assert "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')" in prepare['env']['PUBLISH']
     for job in ('build', 'images', 'sdk-build', 'sdk-zig'):
         platforms = jobs[job]['strategy']['matrix']['include']
         assert {(row['architecture'], row['runner']) for row in platforms} == {

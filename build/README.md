@@ -94,3 +94,7 @@ container, SDK, documentation and Homebrew gate plus ordinary CI. Container
 conversion failures retain public image configuration diagnostics separately
 from installation state. Retrying an image job reuses the original runtime
 archive and source identity rather than rebuilding the runtime.
+Pull requests build nightly candidates without publishing, so installed SDK
+checks exercise prerelease dependency pins and native-loader version markers.
+Manual candidates can select stable or nightly versions; tag publication uses
+the exact stable version in `VERSION`.
