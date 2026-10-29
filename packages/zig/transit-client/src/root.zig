@@ -25,6 +25,7 @@ pub const Receipt = protocol.Receipt;
 
 pub const WaitHint = @import("WaitHint.zig");
 
+pub const LocalEndpoint = @import("LocalEndpoint.zig");
 pub const Client = struct {
     /// A moving authority cut or publication CAS can be observed again. This
     /// classifies only; mutations must retain their exact pending identity/body.
@@ -65,6 +66,22 @@ pub const Client = struct {
     last_status: ?std.http.Status = null,
     /// Last validated wire rejection; reset on every call. One caller per Client.
     last_rejection: ?protocol.ErrorCode = null,
+    /// Explicit placement selected by the embedding host. Calls never fall
+    /// back to HTTP after a local refusal or uncertain mutation.
+    local: ?LocalEndpoint = null,
+
+    /// A local owner reports the same public refusal as its HTTP adapter. This
+    /// records no acceptance decision and never authorizes a mutation retry.
+    pub fn reject(self: *Client, status: std.http.Status, code: protocol.ErrorCode) anyerror {
+        self.last_status = status;
+        self.last_rejection = code;
+        return switch (status) {
+            .forbidden => error.AccessDenied,
+            .conflict => error.Conflict,
+            .bad_request, .unprocessable_entity => error.Rejected,
+            else => error.AuthorityUnavailable,
+        };
+    }
 
     pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8) Client {
         return .{ .http = .{ .allocator = allocator, .io = io, .connection_pool = .{ .free_size = 1 } }, .url = std.mem.trimEnd(u8, url, "/") };
@@ -218,6 +235,20 @@ pub const Client = struct {
     }
 
     fn perform(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits) anyerror!ResponseType(T, owned) {
+        if (self.local) |endpoint| if (endpoint.handles(path)) {
+            if (owned) {
+                const arena = try self.http.allocator.create(std.heap.ArenaAllocator);
+                errdefer self.http.allocator.destroy(arena);
+                arena.* = .init(self.http.allocator);
+                errdefer arena.deinit();
+                const value = try endpoint.call(self, arena.allocator(), T, path, signed);
+                try validateValue(T, value, signed);
+                return .{ .arena = arena, .value = value };
+            }
+            const value = try endpoint.call(self, self.http.allocator, T, path, signed);
+            try validateValue(T, value, signed);
+            return value;
+        };
         self.beginExchange();
         const allocator = self.http.allocator;
         const url = try allocator.print("{s}{s}", .{ self.url, path });
@@ -307,14 +338,15 @@ pub const Client = struct {
             else => return error.InvalidAuthorityResponse,
         };
         errdefer parsed.deinit();
-        if (T == Receipt) {
-            if (parsed.value.position == 0 or parsed.value.position > protocol.max_counter) return error.InvalidAuthorityResponse;
-        }
-        if (T == protocol.Growth.Response) protocol.Growth.validateResponse(parsed.value, signed.query) catch return error.InvalidAuthorityResponse;
-        if (T == protocol.Growth.BlockRead.Response) protocol.Growth.BlockRead.verify(&parsed.value, signed.query) catch return error.InvalidAuthorityResponse;
+        try validateValue(T, parsed.value, signed);
         if (owned) return parsed;
         defer parsed.deinit();
         return parsed.value;
+    }
+    fn validateValue(comptime T: type, value: T, signed: anytype) !void {
+        if (T == Receipt) if (value.position == 0 or value.position > protocol.max_counter) return error.InvalidAuthorityResponse;
+        if (T == protocol.Growth.Response) protocol.Growth.validateResponse(value, signed.query) catch return error.InvalidAuthorityResponse;
+        if (T == protocol.Growth.BlockRead.Response) protocol.Growth.BlockRead.verify(&value, signed.query) catch return error.InvalidAuthorityResponse;
     }
 
     /// Conservatively age a pooled connection from exchange start. Response

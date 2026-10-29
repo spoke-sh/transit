@@ -57,6 +57,13 @@ pub const Resident = struct {
 /// allocated response and may destroy the arena before sending it. The final
 /// fence can still discard that response after a revocation race.
 pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request) ![]const u8 {
+    return self.executeResult(.json, arena, output_allocator, request);
+}
+pub const Output = enum { json, typed };
+pub fn Result(comptime output: Output) type {
+    return if (output == .json) []const u8 else w.Response;
+}
+pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request) !Result(format) {
     // An uncertain append, failed recovery or failed disclosure cannot leave a
     // warm Table hint behind. Full replay remains the next request's fallback.
     errdefer if (self.options.table_recovery) |slot| {
@@ -114,8 +121,15 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, output_allocator: s
     else
         try c.DirectTableDispatch.apply(allocator, catalog, policy.policy(), request.action, request.delegation, execution);
     const observed = try policy.observation();
-    const output = try c.protocol.Json.valueAllocBounded(output_allocator, w.Response{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = observed.revision, .subject = observed.subject, .result = result }, w.max_response_bytes);
-    errdefer output_allocator.free(output);
+    const response: w.Response = .{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = observed.revision, .subject = observed.subject, .result = result };
+    // Both placements finish materialization before the same current-policy
+    // fence. Typed outputs own their slices; they borrow neither request nor
+    // resident workspace. The typed caller supplies a response arena.
+    const output = if (format == .json)
+        try c.protocol.Json.valueAllocBounded(output_allocator, response, w.max_response_bytes)
+    else
+        try c.client.LocalEndpoint.clone(output_allocator, response);
+    errdefer if (format == .json) output_allocator.free(output);
     if (self.before_reply) |inject| try inject.run(inject.context, self.engine);
     if (!std.meta.eql(try policy.observation(), observed)) return error.AuthorizationChanged;
     return output;

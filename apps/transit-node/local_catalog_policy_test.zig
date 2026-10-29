@@ -8,6 +8,8 @@ const g = p.Growth;
 const a = p.Authorization;
 const Engine = backend.DataAuthority.Engine;
 const D = c.DirectCatalog;
+// Each disk schedule runs independently through both placements.
+var typed_dispatch = false;
 
 fn key(seed: u8) !p.Ed25519.KeyPair {
     return p.Ed25519.KeyPair.generateDeterministic(@splat(seed));
@@ -121,17 +123,32 @@ fn dispatchContext(service: anytype, action: c.DirectTableProtocol.Action, deleg
     const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .borrow = input.borrow, .transaction = input.transaction, .proof = signed };
     const bytes = try p.Json.valueAlloc(alloc, request);
     const parsed = try w.Request.parse(alloc, bytes);
-    const encoded = work: {
-        var temporary = std.heap.ArenaAllocator.init(t.allocator);
-        defer temporary.deinit();
-        break :work try service.execute(&temporary, t.allocator, parsed.value);
-    };
-    defer t.allocator.free(encoded);
-    // Decode only after all catalog/read scratch is gone. Revocation cases also
-    // verify that a separately allocated but denied response does not leak.
     const response = try t.allocator.create(std.json.Parsed(w.Response));
     errdefer t.allocator.destroy(response);
-    response.* = try p.Json.parseFromSliceOwned(w.Response, t.allocator, encoded);
+    response.* = response: {
+        if (comptime @hasDecl(@TypeOf(service.*), "executeResult")) {
+            if (typed_dispatch) {
+                const output = try t.allocator.create(std.heap.ArenaAllocator);
+                errdefer t.allocator.destroy(output);
+                output.* = .init(t.allocator);
+                errdefer output.deinit();
+                const result = work: {
+                    var temporary: std.heap.ArenaAllocator = .init(t.allocator);
+                    defer temporary.deinit();
+                    break :work try service.executeResult(.typed, &temporary, output.allocator(), parsed.value);
+                };
+                break :response .{ .arena = output, .value = result };
+            }
+        }
+        const encoded = work: {
+            var temporary = std.heap.ArenaAllocator.init(t.allocator);
+            defer temporary.deinit();
+            break :work try service.execute(&temporary, t.allocator, parsed.value);
+        };
+        defer t.allocator.free(encoded);
+        break :response try p.Json.parseFromSliceOwned(w.Response, t.allocator, encoded);
+    };
+    // Validate after all request/owner scratch has been released in both modes.
     errdefer response.deinit();
     try c.DirectTableClient.validateResponse(alloc, parsed.value, response.value);
     if (response.value.result == .lookup and response.value.result.lookup != null) {
@@ -1332,6 +1349,15 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
 }
 
 test "local catalog checks real native registrations, current ownership and exact request proof" {
+    typed_dispatch = false;
+    try catalogSchedule();
+}
+test "typed local dispatch preserves signed lifecycle, disclosure and retained responses" {
+    typed_dispatch = true;
+    defer typed_dispatch = false;
+    try catalogSchedule();
+}
+fn catalogSchedule() !void {
     PhysicalPause.real = t.io.vtable;
     var vtable = t.io.vtable.*;
     vtable.fileSync = PhysicalPause.sync;
@@ -1766,6 +1792,15 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
 }
 
 test "signed transaction controls preserve paged policy and private atomic work" {
+    typed_dispatch = false;
+    try transactionSchedule();
+}
+test "typed transaction controls preserve paged policy and private atomic work" {
+    typed_dispatch = true;
+    defer typed_dispatch = false;
+    try transactionSchedule();
+}
+fn transactionSchedule() !void {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
     var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
