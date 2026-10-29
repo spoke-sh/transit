@@ -101,9 +101,9 @@ combines that evidence at one revision.
 | 15 | [Data-centric pipeline fusion, AOT query compilation and adaptive specialization](15-data-centric-compilation-and-specialization.md) | Planned | HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up, `transit-app` AOT Zig query/view compilation and HyPer/Umbra/CedarDB benchmark baselines |
 | 16 | [Document type library, protocol grammars and gateway exchange lifecycle](16-document-profiles-and-gateway-exchange-lifecycle.md) | Planned | Declarative Document Profiles (`JSON`, `XML`, `HTTP`/`MIME`, `FTP`, `EDI_X12`/`EDIFACT`/`HL7`, `SMTP`/`IMAP`/`POP3`, `LDAP`, `SIP`/`SDP`, `AMQP`, `MQTT`, `NTP`) and compound container/layout formats (`PDF`, `DOCX`, `XLSX`, `ODF`) over shared SIMD structural scanners, perfect hash vocabularies, container part graphs and `.tseg` subcolumns, plus transport-decoupled gateway/connector exchange capture (`STATION_EXCHANGE_V1` $\to$ `DocumentPartition`) and causal lineage |
 | 17 | [Multi-model and multi-format foreign relations](17-multi-model-and-foreign-relations.md) | Planned | Document/graph projections (with WCOJ cyclic pattern matching), multi-model lexical/structural/vector search composition, foreign formats, streaming CDC ingress and typed COPY/import/export |
-| 18 | [Branches, merges and restore](18-branches-merges-and-restore.md) | Planned | Durable multi-commit branches, logical three-way merge with `FOREIGN KEY`/`CHECK` verification, branch-aware compaction/GC and forward restore under current authority |
+| 18 | [Branches, merges and restore](18-branches-merges-and-restore.md) | Planned | Durable multi-commit branches, 2-way/3-way `DIFF` & `DIFF_SCHEMA` over `.tseg` segment skipping and 5-state `IS CONFLICT` cells, Git-like remote $\leftrightarrow$ local incremental mirroring (`REMOTE`/`FETCH`/`MIRROR`), logical three-way merge with `FOREIGN KEY`/`CHECK` verification, branch-aware compaction/GC and forward restore under current authority |
 | 19 | [Service and SDK coverage](19-service-and-sdk-coverage.md) | In Progress | Preserved Go raw/console slices and broader service, language, type and platform coverage over the shared API foundation |
-| 20 | [Formal semantics and implementation correspondence](20-formal-semantics-and-correspondence.md) | In Progress | Selected temporal models and algebraic proofs over delivered local contracts, connected to production behavior before distributed extensions |
+| 20 | [Formal semantics and implementation correspondence](20-formal-semantics-and-correspondence.md) | In Progress | Selected temporal models (including `T8` DDL evolution and 5-state dataflow lifecycle) and algebraic proofs over delivered local contracts, connected to production behavior before distributed extensions |
 
 ### Phase III: Distributed durability and operations
 
@@ -136,7 +136,7 @@ combines that evidence at one revision.
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 33 | [SQL grammar, standards comparison and dialect ergonomics](33-sql-grammar-and-dialect-ergonomics.md) | Planned | Cross-dialect SQL grammar comparison against ISO SQL:2023 and industry dialects (PostgreSQL, DuckDB, Snowflake, ClickHouse, GoogleSQL, Materialize/Flink), compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas), standardized 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and actionable dialect diagnostics |
+| 33 | [SQL grammar, standards comparison and dialect ergonomics](33-sql-grammar-and-dialect-ergonomics.md) | Planned | Cross-dialect SQL grammar comparison against ISO SQL:2023 and industry dialects (PostgreSQL, DuckDB, Snowflake/Delta, Dolt, ClickHouse, GoogleSQL, Materialize/Flink), compile-time ergonomic desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas), 2-way/3-way `DIFF` & `DIFF_SCHEMA`, standardized 5-state dataflow lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and actionable dialect diagnostics |
 | 34 | [Qualification and complete benchmarks](34-qualification-and-benchmarks.md) | Planned | Combined common-revision workload/fault evidence, full benchmarks and measured CI costs |
 | 35 | [Release distribution](35-releases.md) | In Progress | Versioned verified artifacts, matching documentation and runnable installed onboarding |
 | 36 | [Declarative language, structural context and corpus-native synthesis research](36-declarative-language-context-and-synthesis.md) | Planned | Speculative research defining declarative span segmentation, multi-scale structural/graph proximity (`NEAR`), context-conditioned continuation and branch-verified agency over swappable physical index and predictor implementations |
@@ -197,11 +197,13 @@ owns traceable installed acceptance. No planning edit changes their runtime stat
 
 A pre-release review of Transit's SQL grammar surface
 ([`grammar-surface.md`](../handbook/reference/sql/grammar-surface.md),
-[`contracts/sql/README.md`](../../contracts/sql/README.md)) and managed
-computation lifecycle ([Milestone 12](12-sql-and-dataflows.md)) identified two
-gaps between the semantic roadmap and the concrete SQL experience:
+[`contracts/sql/README.md`](../../contracts/sql/README.md)), managed
+computation lifecycle ([Milestone 12](12-sql-and-dataflows.md)), branching/diff
+semantics ([Milestone 18](18-branches-merges-and-restore.md)) and formal
+verification scope ([Milestone 20](20-formal-semantics-and-correspondence.md))
+establishes four architectural refinements:
 
-1. **Explicit five-state dataflow lifecycle and DDL (`Published`, `Authorized`, `Active`, `Suspended`, `Retired`):**
+1. **Explicit five-state dataflow lifecycle (`Published`, `Authorized`, `Active`, `Suspended`, `Retired`), DDL and `T8` TLA+ formalization:**
    While ISO SQL:2023 defines no standard lifecycle grammar for continuous
    queries or materialized views—and vendor engines split between boolean trigger
    toggles (`ENABLE` / `DISABLE` in PostgreSQL/Oracle) and stateful compute
@@ -215,17 +217,46 @@ gaps between the semantic roadmap and the concrete SQL experience:
    `RESUME WITH (on_resume = 'replay_history' | 'recompute_snapshot')`,
    `REFRESH`, `RETIRE`), preserving checkpointed watermarks and serving the last
    completed revision with its frozen source basis while `Suspended`.
-2. **Pre-release cross-dialect grammar comparison and DuckDB-style ergonomic desugaring ([Milestone 33](33-sql-grammar-and-dialect-ergonomics.md)):**
+   [Milestone 20](20-formal-semantics-and-correspondence.md#t8-catalog-ddl-evolution-and-dataflow-lifecycle-state-machines)
+   adds **`T8. Catalog DDL evolution and dataflow lifecycle state machines`
+   (`DdlAndDataflowLifecycle.tla`)** to model and replay the interleaving of lazy
+   and phased online DDL (`DefinitionId` transitions) with `Suspended`/`Active`
+   dataflows, `_lease_epoch` worker fencing, `TWAL1` compaction and
+   `policy_epoch` revocations.
+2. **First-class relational and schema `DIFF` (`DIFF(...)` and `DIFF_SCHEMA(...)`) over `.tseg` segment skipping and 5-state `IS CONFLICT` cells:**
+   Unlike ISO SQL `EXCEPT [ALL]` (one-way, primary-key blind and schema-rigid) or
+   table-doubling diff functions (`from_<col>` / `to_<col>`),
+   [Milestone 18](18-branches-merges-and-restore.md) and
+   [Milestone 33](33-sql-grammar-and-dialect-ergonomics.md) define key-aligned
+   two-way and three-way `DIFF(object, ...)` and `DIFF_SCHEMA(...)` table-valued
+   functions that skip shared `.tseg` segments and `.tdel` bitmaps in $O(1)$
+   ([`A4: BranchMergeAlgebra.lean`](20-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping)),
+   project across column renames via stable `ColumnId` lineage, and surface
+   three-way cell-level merge conflicts natively through Transit's five-state
+   `conflict` tag (`WHERE col IS CONFLICT`).
+3. **Git-like remote $\leftrightarrow$ local incremental mirroring, lazy `.tseg` hydration and branch proposal push ("Git remotes for data"):**
+   Because committed state forms a content-addressed Merkle DAG (`manifest/v{N}`
+   commits $\to$ `DefinitionId` catalog trees $\to$ immutable SHA-256 `.tseg`
+   blobs and `.tdel`/`.tack` bitmaps plus `TWAL1` delta tails),
+   [Milestone 18](18-branches-merges-and-restore.md),
+   [Milestone 22](22-replication-and-failover.md) and
+   [Milestone 27](27-reviewed-data-collaboration.md) support attaching a local or
+   staging Transit instance to an upstream remote (`CREATE REMOTE`, `FETCH`,
+   continuous `MIRROR`) under current `policy_epoch` RLS/masking filters,
+   transferring only missing `.tseg`/`.tdel` deltas, testing schema migrations
+   and fenced dataflows on a local branch, and pushing the delta segments and
+   candidate manifest back to the remote as a reviewed proposal.
+4. **Pre-release cross-dialect grammar comparison and DuckDB-style ergonomic desugaring ([Milestone 33](33-sql-grammar-and-dialect-ergonomics.md)):**
    Inserting [Milestone 33](33-sql-grammar-and-dialect-ergonomics.md) at the
    start of Phase VI (after [Milestone 32](32-programming-model.md) and before
    [Milestone 34](34-qualification-and-benchmarks.md) and
    [Milestone 35](35-releases.md)) shifts the sequence to `1–36`. It audits the
    complete SQL grammar across Tables, KV, Documents, Streams, Queues, Dataflows,
    Property Graphs, Foreign Tables and Branches against **ISO/IEC 9075
-   SQL:2023**, **PostgreSQL 17**, **DuckDB**, **Snowflake**, **ClickHouse**,
-   **GoogleSQL** and **Materialize / Flink SQL**; qualifies DuckDB-style
-   `FROM`-first query syntax (`FROM people SELECT id, name;` and bare
-   `FROM people;`), `SELECT * EXCLUDE (...) REPLACE (...)`, `GROUP BY ALL`,
+   SQL:2023**, **PostgreSQL 17**, **DuckDB**, **Snowflake / Delta Lake**,
+   **Dolt**, **ClickHouse**, **GoogleSQL** and **Materialize / Flink SQL**;
+   qualifies DuckDB-style `FROM`-first query syntax (`FROM people SELECT id, name;`
+   and bare `FROM people;`), `SELECT * EXCLUDE (...) REPLACE (...)`, `GROUP BY ALL`,
    `ORDER BY ALL`, trailing commas and numeric underscores as deterministic
    compile-time desugarings to byte-identical `FQP1` plans; and requires
    actionable compiler diagnostics when callers submit foreign dialect spellings.

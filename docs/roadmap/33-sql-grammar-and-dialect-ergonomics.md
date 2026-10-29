@@ -85,7 +85,8 @@ computation primitive is defined:
 | **ISO/IEC 9075 SQL:2023** (`Foundation`, `SQL/JSON`, `SQL/PGQ`, `SQL/MED`) & **ISO/IEC 39075 GQL** | Core relational algebra, window frames, `MATCH_RECOGNIZE` / `GRAPH_TABLE`, temporal periods (`FOR SYSTEM_TIME AS OF`), foreign tables (`CREATE FOREIGN TABLE`), collations and 3-valued $\to$ 5-state truth tables | Primary normative baseline for standard relational, graph, temporal and foreign-table clauses; document exact feature IDs and Transit's intentional 5-state (`missing`, `type_error`, `conflict`) and checked-arithmetic deviations |
 | **PostgreSQL 17** (`libpg_query` baseline) | Lexical rules, `standard_conforming_strings`, `::type` casts, `RETURNING`, `ON CONFLICT`, `LATERAL`, CTEs, `GRANT`/`REVOKE`, `ALTER SUBSCRIPTION ... ENABLE \| DISABLE` and wire-protocol (`transit-postgres`) metadata queries | Preserve AST agreement on the shared compatibility subset; map PostgreSQL-specific administrative and replication idioms (`ENABLE`/`DISABLE`, `pg_catalog` introspection) to Transit's catalog and dataflow operations |
 | **DuckDB ("Friendly SQL")** | `FROM`-first queries (`FROM tbl SELECT ...`, bare `FROM tbl;`), `SELECT * EXCLUDE (...) REPLACE (...)`, `GROUP BY ALL`, `ORDER BY ALL`, `QUALIFY`, `AS OF JOIN`, trailing commas and numeric underscores (`1_000_000`) | Adopt `FROM`-first syntax, `EXCLUDE`/`REPLACE`, `GROUP BY ALL`, `ORDER BY ALL`, trailing commas and numeric underscores as first-class compile-time desugarings to canonical `FQP1` plans |
-| **Snowflake** | Dynamic Tables and Tasks (`CREATE \| ALTER DYNAMIC TABLE ... SUSPEND \| RESUME \| REFRESH`), `QUALIFY`, `CHANGES AT/BEFORE`, semi-structured path navigation and time-travel selectors | Align stateful computation lifecycle verbs (`SUSPEND`, `RESUME`, `REFRESH`) with Transit's 5-state dataflow lifecycle while keeping publication, authorization, activation and retirement explicit |
+| **Snowflake & Databricks / Delta Lake** | Dynamic Tables and Tasks (`CREATE \| ALTER DYNAMIC TABLE ... SUSPEND \| RESUME \| REFRESH`), `QUALIFY`, `CHANGES AT/BEFORE`, `table_changes(...)` CDC feeds, semi-structured path navigation and time-travel selectors | Align stateful computation lifecycle verbs (`SUSPEND`, `RESUME`, `REFRESH`) with Transit's 5-state dataflow lifecycle and linear `CHANGES(table, ...)` TVF while keeping publication, authorization, activation and retirement explicit |
+| **Dolt ("Git for Data") & Relational Diff Prior Art** | `DOLT_DIFF`, `DOLT_DIFF_SUMMARY`, `DOLT_SCHEMA_DIFF`, `DOLT_MERGE` and ISO SQL `EXCEPT [ALL]` / `FOR SYSTEM_TIME FROM a TO b` | Provide first-class key-aligned 2-way and 3-way `DIFF(...)` and `DIFF_SCHEMA(...)` table-valued functions plus declarative `REMOTE` / `FETCH` / `MIRROR` / `PROPOSE` syntax over `.tseg` segment skipping, `ColumnId` lineage and 5-state `IS CONFLICT` cells without doubling column count into `from_*`/`to_*` |
 | **ClickHouse** | Vectorized string/search functions, `LIMIT n BY ...`, codec/compression clauses, parameterized views and array/tuple higher-order idioms | Compare physical codec (`ENCODING`) and search/BM25 query ergonomics; keep logical types ($\tau$), collations ($\kappa$) and physical codecs ($\epsilon$) strictly orthogonal |
 | **Materialize / RisingWave / Flink SQL** | `CREATE SOURCE`, `CREATE SINK`, `CREATE MATERIALIZED VIEW`, `SUBSCRIBE`, watermark/lateness declarations and savepoint/checkpoint job controls | Compare streaming DDL and watermark/retraction contracts against Transit's `STREAM`, `QUEUE` and WAL-activated dataflows ([Milestone 6](06-streams-queues-and-durable-runtime.md), [Milestone 12](12-sql-and-dataflows.md)) |
 
@@ -198,7 +199,39 @@ computation primitive is defined:
      `ENABLE` / `DISABLE` on a stateful dataflow or materialized view so the
      caller chooses the intended lifecycle transition explicitly.
 
-4. **Qualify grammar unambiguity, canonical plan equivalence, formatter round-trips and editor autocomplete.**
+4. **Standardize declarative `DIFF`, `DIFF_SCHEMA` and Git-like remote/branch sync SQL grammar.**
+   Audit relational and schema diff syntax across ISO SQL (`EXCEPT [ALL]`,
+   `FOR SYSTEM_TIME FROM a TO b`), Dolt (`DOLT_DIFF`, `DOLT_SCHEMA_DIFF`), and
+   Snowflake/Delta (`CHANGES` / `table_changes`), and expose [Milestone 18's](18-branches-merges-and-restore.md)
+   segment-skipping diff, five-state conflict algebra and remote mirroring
+   through composable SQL:
+   - **Two-way and three-way relational/document `DIFF(...)` and `DIFF_SCHEMA(...)`:**
+     ```sql
+     -- Key-aligned 2-way data diff between branches or snapshots (skipping shared .tseg segments in O(1))
+     FROM DIFF(people, FROM => BRANCH 'main', TO => BRANCH 'feature')
+     SELECT _diff_op, id, name, email;
+
+     -- 3-way branch diff surfacing cell-level merge conflicts via 5-state IS CONFLICT
+     FROM DIFF(people, BASE => BRANCH 'main', SOURCE => BRANCH 'feature', TARGET => BRANCH 'prod')
+     WHERE email IS CONFLICT OR balance IS CONFLICT
+     SELECT id, _diff_op, email, balance;
+
+     -- Catalog, schema and dataflow definition diff across branches or remotes (tracking ColumnId renames)
+     FROM DIFF_SCHEMA(FROM => REMOTE 'prod/main', TO => BRANCH 'local_migration')
+     SELECT object_name, object_kind, change_kind, column_id, before_type, after_type;
+     ```
+   - **Declarative remote mirroring and branch proposal verbs (`CREATE REMOTE`, `FETCH`, `MIRROR`, `PROPOSE`):**
+     ```sql
+     CREATE REMOTE prod FROM 'https://transit.example.com' WITH (credential = SECRET('prod_reader'));
+     FETCH FROM REMOTE prod BRANCH 'main';
+     CREATE BRANCH local_migration FROM REMOTE 'prod/main';
+     ```
+     Ensure remote sync and diff statements bind to immutable `manifest/v{N}`
+     cuts, enforce current `policy_epoch` security-barrier RLS and dynamic
+     masking, and fence external connector effects during local branch
+     execution.
+
+5. **Qualify grammar unambiguity, canonical plan equivalence, formatter round-trips and editor autocomplete.**
    - **Zero parser ambiguity:** Regenerate [`TransitExtensions.g4`](../../contracts/sql/TransitExtensions.g4)
      with `-Werror` and verify zero ANTLR ambiguity or conflict reports across the
      expanded multi-dialect positive and negative corpus (`just test::sql-grammar`).

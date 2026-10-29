@@ -15,8 +15,10 @@ remains a gate for every preceding milestone.
   conflicts, byte-identical `FQP1`/`FDM1`/`FTS1` plan lowering for ergonomic
   desugarings (`FROM`-first queries, `SELECT * EXCLUDE/REPLACE`, `GROUP BY ALL`,
   `ORDER BY ALL`, trailing commas and numeric underscores), stateful dataflow
-  lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) and
-  reviewed foreign-dialect diagnostic hints.
+  lifecycle DDL (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`),
+  2-way/3-way `DIFF(...)` and `DIFF_SCHEMA(...)` over `.tseg` segment skipping
+  and 5-state `IS CONFLICT` cells, `REMOTE`/`FETCH`/`MIRROR` incremental sync
+  and reviewed foreign-dialect diagnostic hints.
 - Execute the [formal semantics and correspondence suite](20-formal-semantics-and-correspondence.md)
   with its selected provider, replication, recovery, placement, policy and review
   extensions at the common committed revision. Retain finite bounds, theorem

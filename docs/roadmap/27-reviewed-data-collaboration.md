@@ -49,9 +49,15 @@ separate contracts and are excluded from this milestone.
    require independent authorization and recorded intent. Branches default to
    external effects disabled; captures are evidence, not permission to resend.
    Selecting historical application state never restores old security authority.
-6. **Provide shared comparison and review operations.** Build bounded diff,
-   evidence and impact operations usable without a browser. Qualify the proposal,
-   approval and publication journeys through public callers here.
+6. **Provide shared comparison, `DIFF` / `DIFF_SCHEMA` and remote-proposal review operations.**
+   Build bounded two-way and three-way data/schema diff ([`DIFF(...)` and `DIFF_SCHEMA(...)`](18-branches-merges-and-restore.md#delivery-sequence)),
+   conflict (`IS CONFLICT`), evidence and impact operations usable without a
+   browser, including proposals pushed from a local or staging Transit instance
+   that mirrored an upstream remote (`FETCH` / `MIRROR`), tested schema
+   migrations (`ALTER TABLE`) and dataflows on a local branch, and submitted its
+   delta `.tseg`/`.tdel` segments and candidate manifest back to the remote.
+   Qualify the proposal, approval and publication journeys through public
+   callers here.
    [Board reimplementation](28-board-reimplementation.md) owns the complete
    browser comparison and review experience over these same operations. UI
    reviews belong in the registered Design sequence; Board inspection stays
