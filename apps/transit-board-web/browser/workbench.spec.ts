@@ -28,9 +28,16 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
     ),
     page.getByRole("button", { name: "Next page", exact: true }).click(),
   ]);
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(4);
   await expect(page.getByRole("button", { name: "First page", exact: true })).toBeEnabled();
   expect(runs).toBe(0);
   await page.getByRole("button", { name: "First page", exact: true }).click();
+  await expect(page.getByRole("table").getByRole("row")).toHaveCount(9);
+  // Catalog pages follow object identity; a named Table can be on either page.
+  if (!(await page.getByRole("link", { name: "metrics", exact: true }).count())) {
+    await page.getByRole("button", { name: "Next page", exact: true }).click();
+    await expect(page.getByRole("table").getByRole("row")).toHaveCount(4);
+  }
   await page.getByRole("link", { name: "metrics", exact: true }).click();
   await expect(page.getByRole("heading", { name: "metrics", exact: true })).toBeVisible();
   await page.reload();
