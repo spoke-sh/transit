@@ -6,6 +6,7 @@ on:
 permissions:
   contents: write
   packages: write
+  actions: read
 concurrency:
   group: transit-nightly-release
   cancel-in-progress: false

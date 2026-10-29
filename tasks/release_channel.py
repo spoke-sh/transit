@@ -89,7 +89,7 @@ def promote(directory, repository):
     # immutable manifests remain authoritative while rolling OCI aliases update.
     for name in manifest['images']:
         reference = f'ghcr.io/{repository.lower()}' + ('' if name == 'transit' else '-' + name.removeprefix('transit-'))
-        subprocess.run(['skopeo', 'copy', '--all', f'docker://{reference}:{identity["release"]}',
+        subprocess.run(['skopeo', 'copy', '--all', '--preserve-digests', f'docker://{reference}:{identity["release"]}',
                         f'docker://{reference}:nightly'], check=True)
     import hashlib
     descriptor = dict(version=1, identity=identity,

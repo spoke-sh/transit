@@ -53,6 +53,9 @@ concurrency:
 jobs:
   prepare:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
     timeout-minutes: 5
     env:
       TRANSIT_RELEASE_IDENTITY: ''

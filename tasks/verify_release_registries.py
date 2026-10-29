@@ -14,7 +14,10 @@ version, tag = release_identity['release'], release_identity['tag']
 revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
 with tempfile.TemporaryDirectory(prefix='transit-registry-proof-') as temporary:
     root = Path(temporary)
+    auth = root / 'containers-auth.json'
+    auth.write_text('{"auths": {}}\n')
     environment = os.environ | {'DOCKER_CONFIG': str(root / 'docker'),
+                                'REGISTRY_AUTH_FILE': str(auth),
                                 'HELM_REGISTRY_CONFIG': str(root / 'helm.json')}
     manifest_path = root / 'release-manifest.json'
     subprocess.run(['curl', '--fail', '--silent', '--show-error', '--location', '--proto', '=https',
