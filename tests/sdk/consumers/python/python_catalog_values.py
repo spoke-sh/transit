@@ -191,15 +191,17 @@ try:
     bad = copy.deepcopy(compiled_wire); bad['summary']['binding']['table']['identity']['operation'] = '11'
     owner._api.response = {'compiled': bad}
     rejects(IncompatibleNative, lambda: owner.compile_sql('INSERT INTO items VALUES (1)', m.Identity(10)))
-    committed = dict(binding=bound, resulting=stored, outcome=dict(position=dict(partition='10', next_lsn='8'), matched='1', affected='0', live_rows='1'))
+    committed = dict(binding=bound, resulting=stored, transaction=None, outcome=dict(position=dict(partition='10', next_lsn='8'), matched='1', affected='0', live_rows='1'))
     owner._api.response = {'observation': {'rows': {'committed': copy.deepcopy(committed)}}}
     assert owner.inspect(ref).commit.affected == 0
     assert owner.inspect(ref).commit.matched == 1
-    for mutation in ('binding', 'counts', 'kind', 'unknown'):
+    for mutation in ('binding', 'counts', 'kind', 'unknown', 'missing_transaction', 'transaction'):
         bad = copy.deepcopy(committed)
         if mutation == 'binding': bad['binding']['identity']['operation'] = '11'
         elif mutation == 'counts': bad['outcome']['affected'] = '2'
         elif mutation == 'unknown': bad['extra'] = True
+        elif mutation == 'missing_transaction': del bad['transaction']
+        elif mutation == 'transaction': bad['transaction'] = {}
         owner._api.response = {'observation': {'ddl' if mutation == 'kind' else 'rows': {'committed': bad}}}
         rejects(IncompatibleNative, lambda: owner.inspect(ref))
         rejects(m.Uncertain, lambda: owner.execute(ref, 1))

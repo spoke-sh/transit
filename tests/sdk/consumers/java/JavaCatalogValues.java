@@ -42,7 +42,7 @@ public final class JavaCatalogValues {
     private static JsonObject saved() { return obj("table", obj("definition", DEFINITION, "namespace", 1, "bytes", "aabb")); }
     private static JsonObject reference() { return obj("table", obj("definition", DEFINITION, "connection", CONNECTION.wire(17), "namespace", 1, "binding", binding(), "content", obj("bytes", "200", "sha256", "22".repeat(32)))); }
     private static JsonObject summary() { return obj("id", obj("definition", DEFINITION, "digest", "11".repeat(32)), "namespace", 1, "binding", obj("table", binding())); }
-    private static JsonObject observation() { return obj("rows", obj("committed", obj("binding", binding(), "resulting", stored(), "outcome", obj("position", position(), "matched", "9", "affected", "9", "live_rows", "9")))); }
+    private static JsonObject observation() { return obj("rows", obj("committed", obj("binding", binding(), "resulting", stored(), "transaction", JsonNull.INSTANCE, "outcome", obj("position", position(), "matched", "9", "affected", "9", "live_rows", "9")))); }
     private static Schema schema() { return new Schema(MAX, n(1), n(2), List.of(new Column(n(1), "id", Logical.Scalar.INT128))); }
     private static JsonObject page() {
         JsonArray entries = new JsonArray(); entries.add(obj("interpretation", interpretation(), "namespace", 1, "name", "items", "position", position(), "changed_lsn", "3")); while (entries.size() < 8) entries.add(JsonNull.INSTANCE);
