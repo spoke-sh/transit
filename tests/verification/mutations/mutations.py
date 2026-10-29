@@ -61,7 +61,7 @@ SCHEDULER_MUTANTS = {
 }
 MODES = {
     "domain": ("test-domain-simulation", ["--seeds", "1"], "domain-simulation-mutations", {
-        "document_conflicts": ("transit-station-document/src/Document.zig", "if (!observed.contains(dot))", "if (!observed.contains(dot) and false)"),
+        "document_conflicts": ("transit-document/src/Document.zig", "if (!observed.contains(dot))", "if (!observed.contains(dot) and false)"),
         "checkpoint_floor": ("transit-station-document/src/Checkpoint.zig", "h.floor = progress.floor;", "h.floor = 0; // Mutation: forget accepted read floor."),
         "exchange_hold": ("transit-exchange/src/Exchange.zig", "if (c.caller == .held or c.dependents != 0) return error.ExchangeHasDependents;", "// Mutation: allow retirement with replay holds."),
         "refresh_generation": ("transit-serving/src/Refresh.zig", "if (generation != selection.generation) {", "if (false) { // Mutation: accept stale selected generation."),

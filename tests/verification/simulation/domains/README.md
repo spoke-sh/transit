@@ -5,6 +5,9 @@ query/refresh, core runtime and catalog implementations. `--seed N --seeds N` se
 bounded range (at most 64 seeds). Each package runs twice; structured event
 records must agree and all six domains must appear. Each run has a 120-second
 deadline. The ordinary suite owns two seeds; scheduled discovery owns sixteen.
+Document merge schedules run directly in `transit-document`; checkpoint
+publication schedules run separately in `transit-station-document`. Both packages
+are explicit root test artifacts, so a dependency import cannot hide a domain.
 
 Artifacts in `.cache/verification/domain-simulation/` retain actual choices and
 test logs; the adjacent JSON report records source/dirty status, compiler, binary

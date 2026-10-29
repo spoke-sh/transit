@@ -1,11 +1,11 @@
 const std = @import("std");
-const Index = @import("transit_station").ImmutableIndex;
+const BoundedBytes = @import("Bytes.zig").Bytes;
 pub const format: u32 = 1;
 pub const max_operations = 8;
 pub const max_conflicts = 8;
 pub const max_change_bytes = 4096;
-pub const Name = Index.Bytes(64);
-pub const Bytes = Index.Bytes(96);
+pub const Name = BoundedBytes(64);
+pub const Bytes = BoundedBytes(96);
 pub const Kind = enum(u8) { map = 1, list = 2, text = 3 };
 pub const Dot = struct {
     counter: u64 = 0,

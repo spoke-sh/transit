@@ -1,0 +1,8 @@
+.{
+    .name = .transit_document,
+    .fingerprint = 0x3bbe62a4a0558923,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{},
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

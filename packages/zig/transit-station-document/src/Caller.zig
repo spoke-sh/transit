@@ -3,8 +3,8 @@
 const std = @import("std");
 const s = @import("transit_station");
 const p = s.protocol;
-const c = @import("codec.zig");
-const m = @import("Model.zig");
+const c = @import("transit_document").codec;
+const m = @import("transit_document").Model;
 const Request = @import("Request.zig");
 const Remote = @import("Remote.zig");
 pub const Target = struct { pid: u64, resource: u64 };

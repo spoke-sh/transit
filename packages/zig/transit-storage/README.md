@@ -17,6 +17,10 @@ and the catalog's retained dependency graph.
 
 ## Modules
 
+- `DocumentIndex.zig`: Private Document candidates backed by bounded `.tseg`
+  record batches and paged data indexes, independent of Station. Its
+  [storage and integration guide](docs/document-index.md) specifies workspace
+  lifetimes, budgets and the transaction/retention obligations before service use.
 - `TransitLog.zig`: Pluggable write-ahead log interface and 64-byte-aligned `"TWAL"` v1
   binary frame format with a mandatory definition in its 128-byte header,
   CRC32C + SHA-256 verification and `(writer_epoch, policy_epoch)`

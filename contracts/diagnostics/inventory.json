@@ -7165,6 +7165,211 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-document/src/Bytes.zig": {
+      "errors": {
+        "IndexValueTooLarge": 1,
+        "InvalidIndexValue": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Bytes().<return>.init()": "<inferred>",
+        "Bytes().<return>.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-document/src/Document.zig": {
+      "errors": {
+        "DocumentConflictCapacity": 1,
+        "DocumentDependencyMissing": 2,
+        "DocumentIdentityConflict": 2,
+        "DocumentIdentityMismatch": 1,
+        "DocumentPathCapacity": 1,
+        "DocumentResyncRequired": 1,
+        "DocumentRevisionCapacity": 1,
+        "DocumentTypeError": 8,
+        "DocumentWrongDependency": 4,
+        "InvalidDocumentCursor": 6,
+        "InvalidDocumentIdentity": 2,
+        "InvalidDocumentState": 11
+      },
+      "outcomes": {
+        "Document().<return>.Register.Status": [
+          "missing",
+          "null_value",
+          "scalar",
+          "object",
+          "conflict"
+        ],
+        "Document().<return>.SequenceCursor.phase": [
+          "children",
+          "siblings",
+          "done"
+        ],
+        "Document().<return>.SequenceStep": [
+          "item",
+          "more",
+          "end"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Document().<return>.apply()": "<inferred>",
+        "Document().<return>.applyOperation()": "<inferred>",
+        "Document().<return>.assignment()": "<inferred>",
+        "Document().<return>.clock()": "<inferred>",
+        "Document().<return>.counter()": "<inferred>",
+        "Document().<return>.dots()": "<inferred>",
+        "Document().<return>.edge()": "<inferred>",
+        "Document().<return>.edgeKey()": "<inferred>",
+        "Document().<return>.edgePrefix()": "<inferred>",
+        "Document().<return>.element()": "<inferred>",
+        "Document().<return>.field()": "<inferred>",
+        "Document().<return>.frontierKey()": "<inferred>",
+        "Document().<return>.keepForCheckpoint()": "<inferred>",
+        "Document().<return>.key()": "<inferred>",
+        "Document().<return>.listSlot()": "<inferred>",
+        "Document().<return>.mapSlot()": "<inferred>",
+        "Document().<return>.objectKind()": "<inferred>",
+        "Document().<return>.path()": "<inferred>",
+        "Document().<return>.put()": "<inferred>",
+        "Document().<return>.putElement()": "<inferred>",
+        "Document().<return>.readDots()": "<inferred>",
+        "Document().<return>.register()": "<inferred>",
+        "Document().<return>.registerMetadata()": "<inferred>",
+        "Document().<return>.replicaCounter()": "<inferred>",
+        "Document().<return>.require()": "<inferred>",
+        "Document().<return>.sequenceStep()": "<inferred>",
+        "Document().<return>.updateRegister()": "<inferred>",
+        "Document().<return>.validate()": "<inferred>",
+        "Document().<return>.validateRegisterKey()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 110,
+        "catch": 1
+      },
+      "imports": [
+        "Model.zig",
+        "codec.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-document/src/Model.zig": {
+      "errors": {
+        "DocumentConflictCapacity": 1,
+        "InvalidDocumentCausality": 2,
+        "InvalidDocumentChange": 1,
+        "InvalidDocumentIdentity": 1,
+        "InvalidDocumentObserved": 2,
+        "InvalidDocumentScalar": 1,
+        "InvalidDocumentUnicode": 3
+      },
+      "outcomes": {
+        "Kind": [
+          "map",
+          "list",
+          "text"
+        ],
+        "Operation": [
+          "assign",
+          "remove",
+          "insert",
+          "set_element",
+          "delete_element"
+        ],
+        "Scalar": [
+          "null_value",
+          "boolean",
+          "signed",
+          "unsigned",
+          "float",
+          "string",
+          "binary",
+          "map",
+          "list",
+          "text",
+          "character"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Change.validate()": "<inferred>",
+        "Dot.validate()": "<inferred>",
+        "Observed.init()": "<inferred>",
+        "Observed.validate()": "<inferred>",
+        "Operation.validate()": "<inferred>",
+        "Scalar.validate()": "<inferred>",
+        "dependency()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "Bytes.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-document/src/codec.zig": {
+      "errors": {
+        "DocumentEncodingCapacity": 1,
+        "InvalidDocumentEncoding": 9
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Reader.dot()": "<inferred>",
+        "Reader.finish()": "<inferred>",
+        "Reader.int()": "<inferred>",
+        "Reader.observed()": "<inferred>",
+        "Reader.read()": "<inferred>",
+        "Reader.scalar()": "<inferred>",
+        "Reader.string()": "<inferred>",
+        "Writer.dot()": "<inferred>",
+        "Writer.int()": "<inferred>",
+        "Writer.observed()": "<inferred>",
+        "Writer.scalar()": "<inferred>",
+        "Writer.string()": "<inferred>",
+        "Writer.write()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 73,
+        "catch": 0
+      },
+      "imports": [
+        "Model.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-document/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Bytes.zig",
+        "Document.zig",
+        "Model.zig",
+        "codec.zig"
+      ]
+    },
     "packages/zig/transit-exchange/src/AdmissionRejection.zig": {
       "errors": {
         "InvalidAdmissionRejection": 9
@@ -24204,11 +24409,10 @@
         "catch": 1
       },
       "imports": [
-        "Model.zig",
         "Remote.zig",
         "Request.zig",
-        "codec.zig",
         "std",
+        "transit_document",
         "transit_station"
       ]
     },
@@ -24257,11 +24461,10 @@
         "catch": 6
       },
       "imports": [
-        "Document.zig",
         "Service.zig",
-        "codec.zig",
         "records.zig",
         "std",
+        "transit_document",
         "transit_station"
       ]
     },
@@ -24292,89 +24495,9 @@
         "catch": 0
       },
       "imports": [
-        "Document.zig",
-        "Model.zig",
         "Service.zig",
-        "codec.zig",
         "std",
-        "transit_station"
-      ]
-    },
-    "packages/zig/transit-station-document/src/Document.zig": {
-      "errors": {
-        "DocumentConflictCapacity": 1,
-        "DocumentDependencyMissing": 2,
-        "DocumentIdentityConflict": 2,
-        "DocumentIdentityMismatch": 1,
-        "DocumentPathCapacity": 1,
-        "DocumentResyncRequired": 1,
-        "DocumentRevisionCapacity": 1,
-        "DocumentTypeError": 8,
-        "DocumentWrongDependency": 4,
-        "InvalidDocumentCursor": 6,
-        "InvalidDocumentIdentity": 2,
-        "InvalidDocumentState": 11
-      },
-      "outcomes": {
-        "Register.Status": [
-          "missing",
-          "null_value",
-          "scalar",
-          "object",
-          "conflict"
-        ],
-        "SequenceCursor.phase": [
-          "children",
-          "siblings",
-          "done"
-        ],
-        "SequenceStep": [
-          "item",
-          "more",
-          "end"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "apply()": "<inferred>",
-        "applyOperation()": "<inferred>",
-        "assignment()": "<inferred>",
-        "clock()": "<inferred>",
-        "counter()": "<inferred>",
-        "dots()": "<inferred>",
-        "edge()": "<inferred>",
-        "edgeKey()": "<inferred>",
-        "edgePrefix()": "<inferred>",
-        "element()": "<inferred>",
-        "field()": "<inferred>",
-        "frontierKey()": "<inferred>",
-        "keepForCheckpoint()": "<inferred>",
-        "key()": "<inferred>",
-        "listSlot()": "<inferred>",
-        "mapSlot()": "<inferred>",
-        "objectKind()": "<inferred>",
-        "path()": "<inferred>",
-        "put()": "<inferred>",
-        "putElement()": "<inferred>",
-        "readDots()": "<inferred>",
-        "register()": "<inferred>",
-        "registerMetadata()": "<inferred>",
-        "replicaCounter()": "<inferred>",
-        "require()": "<inferred>",
-        "sequenceStep()": "<inferred>",
-        "updateRegister()": "<inferred>",
-        "validate()": "<inferred>",
-        "validateRegisterKey()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 110,
-        "catch": 1
-      },
-      "imports": [
-        "Model.zig",
-        "codec.zig",
-        "std",
+        "transit_document",
         "transit_station"
       ]
     },
@@ -24401,63 +24524,6 @@
       "imports": [
         "root.zig",
         "std"
-      ]
-    },
-    "packages/zig/transit-station-document/src/Model.zig": {
-      "errors": {
-        "DocumentConflictCapacity": 1,
-        "InvalidDocumentCausality": 2,
-        "InvalidDocumentChange": 1,
-        "InvalidDocumentIdentity": 1,
-        "InvalidDocumentObserved": 2,
-        "InvalidDocumentScalar": 1,
-        "InvalidDocumentUnicode": 3
-      },
-      "outcomes": {
-        "Kind": [
-          "map",
-          "list",
-          "text"
-        ],
-        "Operation": [
-          "assign",
-          "remove",
-          "insert",
-          "set_element",
-          "delete_element"
-        ],
-        "Scalar": [
-          "null_value",
-          "boolean",
-          "signed",
-          "unsigned",
-          "float",
-          "string",
-          "binary",
-          "map",
-          "list",
-          "text",
-          "character"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Change.validate()": "<inferred>",
-        "Dot.validate()": "<inferred>",
-        "Observed.init()": "<inferred>",
-        "Observed.validate()": "<inferred>",
-        "Operation.validate()": "<inferred>",
-        "Scalar.validate()": "<inferred>",
-        "dependency()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 11,
-        "catch": 0
-      },
-      "imports": [
-        "std",
-        "transit_station"
       ]
     },
     "packages/zig/transit-station-document/src/Remote.zig": {
@@ -24543,8 +24609,8 @@
         "Client.zig",
         "Request.zig",
         "Service.zig",
-        "codec.zig",
         "std",
+        "transit_document",
         "transit_station"
       ]
     },
@@ -24570,11 +24636,10 @@
         "catch": 1
       },
       "imports": [
-        "Model.zig",
         "Service.zig",
-        "codec.zig",
         "records.zig",
         "std",
+        "transit_document",
         "transit_station"
       ]
     },
@@ -24643,46 +24708,10 @@
         "catch": 6
       },
       "imports": [
-        "Document.zig",
-        "Model.zig",
-        "codec.zig",
         "records.zig",
         "std",
+        "transit_document",
         "transit_station"
-      ]
-    },
-    "packages/zig/transit-station-document/src/codec.zig": {
-      "errors": {
-        "DocumentEncodingCapacity": 1,
-        "InvalidDocumentEncoding": 9
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "Reader.dot()": "<inferred>",
-        "Reader.finish()": "<inferred>",
-        "Reader.int()": "<inferred>",
-        "Reader.observed()": "<inferred>",
-        "Reader.read()": "<inferred>",
-        "Reader.scalar()": "<inferred>",
-        "Reader.string()": "<inferred>",
-        "Writer.dot()": "<inferred>",
-        "Writer.int()": "<inferred>",
-        "Writer.observed()": "<inferred>",
-        "Writer.scalar()": "<inferred>",
-        "Writer.string()": "<inferred>",
-        "Writer.write()": "<inferred>",
-        "decode()": "<inferred>",
-        "encode()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 73,
-        "catch": 0
-      },
-      "imports": [
-        "Model.zig",
-        "std"
       ]
     },
     "packages/zig/transit-station-document/src/records.zig": {
@@ -24720,9 +24749,8 @@
         "catch": 0
       },
       "imports": [
-        "Document.zig",
-        "codec.zig",
         "std",
+        "transit_document",
         "transit_station"
       ]
     },
@@ -24740,13 +24768,11 @@
         "Caller.zig",
         "Checkpoint.zig",
         "Client.zig",
-        "Document.zig",
         "JsonValues.zig",
-        "Model.zig",
         "Remote.zig",
         "Request.zig",
         "Service.zig",
-        "codec.zig",
+        "transit_document",
         "transit_station"
       ]
     },
@@ -27264,6 +27290,66 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-storage/src/DocumentIndex.zig": {
+      "errors": {
+        "ActiveStorageCandidate": 1,
+        "BufferTooSmall": 1,
+        "DocumentCandidateGenerationExhausted": 1,
+        "DocumentCandidateTooLarge": 1,
+        "DocumentIdentityMismatch": 1,
+        "DocumentKeyCollision": 2,
+        "DocumentScratchBudget": 2,
+        "DocumentSegmentBudget": 3,
+        "IncompatibleDefinition": 1,
+        "InvalidDocumentIdentity": 1,
+        "InvalidDocumentIndex": 2,
+        "InvalidDocumentLocator": 3,
+        "InvalidDocumentRoot": 2,
+        "InvalidDocumentSegment": 6,
+        "InvalidDocumentStorageBudget": 1,
+        "MissingDocumentSegment": 1,
+        "OutOfMemory": 2,
+        "StaleDocumentCandidate": 5,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Identity.validate()": "<inferred>",
+        "Locator.decode()": "<inferred>",
+        "Locator.encode()": "<inferred>",
+        "Root.validate()": "<inferred>",
+        "Store.begin()": "<inferred>",
+        "Store.buildSegment()": "<inferred>",
+        "Store.check()": "<inferred>",
+        "Store.decodeSegment()": "<inferred>",
+        "Store.init()": "<inferred>",
+        "Store.load()": "<inferred>",
+        "Store.loadSegment()": "<inferred>",
+        "Store.read()": "<inferred>",
+        "Store.seal()": "<inferred>",
+        "Store.sealInner()": "<inferred>",
+        "binaryBytes()": "<inferred>",
+        "get()": "<inferred>",
+        "next()": "<inferred>",
+        "put()": "<inferred>",
+        "segmentKey()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 49,
+        "catch": 3
+      },
+      "imports": [
+        "OrderedKeyIndex.zig",
+        "TransitObjectStore.zig",
+        "TreeStore.zig",
+        "std",
+        "transit_document",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/LocalSegmentStore.zig": {
       "errors": {
         "BufferTooSmall": 1,
@@ -28603,6 +28689,7 @@
         "catch": 0
       },
       "imports": [
+        "DocumentIndex.zig",
         "LocalSegmentStore.zig",
         "LocalWal.zig",
         "NvmeCache.zig",

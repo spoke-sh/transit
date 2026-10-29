@@ -13,7 +13,7 @@ import subprocess
 import time
 
 from runner.paths import ROOT
-DOMAINS = ({'document', 'checkpoint'}, {'exchange'}, {'refresh'}, {'runtime'}, {'catalog'})
+DOMAINS = ({'document'}, {'checkpoint'}, {'exchange'}, {'refresh'}, {'runtime'}, {'catalog'})
 
 
 def execute(binary, seed, expected, log):

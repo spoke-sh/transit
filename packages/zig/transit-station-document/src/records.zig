@@ -4,8 +4,8 @@ const station = @import("transit_station");
 const p = station.protocol;
 const Index = station.ImmutableIndex;
 const Pub = station.Publication;
-const Document = @import("Document.zig");
-const c = @import("codec.zig");
+const Document = @import("transit_document").Document(@import("transit_station").ImmutableIndex);
+const c = @import("transit_document").codec;
 pub fn writeSpec(w: *c.Writer, spec: Pub.Spec) !void {
     try spec.validate();
     try w.int(u32, spec.format);

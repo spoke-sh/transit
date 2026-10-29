@@ -6,9 +6,9 @@ const p = station.protocol;
 const Turn = station.Turn;
 const Index = station.ImmutableIndex;
 const Service = @import("Service.zig");
-const Document = @import("Document.zig");
+const Document = @import("transit_document").Document(@import("transit_station").ImmutableIndex);
 const records = @import("records.zig");
-const c = @import("codec.zig");
+const c = @import("transit_document").codec;
 pub const nodes_per_entry: u64 = 2 * (Index.max_level + 1) + 1;
 pub const Progress = struct {
     id: u64,

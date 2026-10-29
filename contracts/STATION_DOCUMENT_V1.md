@@ -5,6 +5,11 @@ reads above Station. [Documents](../docs/handbook/reference/documents.md) explai
 [the package](../packages/zig/transit-station-document/README.md) describes usage.
 External CRDT wire formats are unsupported.
 
+The deterministic change model, codec and merge evaluator are implemented by
+[`transit-document`](../packages/zig/transit-document/README.md). Station supplies
+its index, authenticated service and atomic publication adapter. This package
+separation preserves the encodings and acceptance rules below.
+
 ## Identity and changes
 
 A Document has a nonzero u64 identity scoped by its resource, nonzero u64 merge

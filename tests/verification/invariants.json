@@ -1385,7 +1385,7 @@
       "claim": "Component schedules preserve Document accepted sets/floors, Exchange uncertainty/holds, query source and refresh ownership, and provider activation gates; catalog creation retains atomic metadata, original receipts and current policy",
       "owner": "docs/handbook/reference/verification.md",
       "implementation": [
-        "packages/zig/transit-station-document/src/merge_test.zig",
+        "packages/zig/transit-document/src/merge_test.zig",
         "packages/zig/transit-station-document/src/service_test.zig",
         "packages/zig/transit-exchange/src/exchange_test.zig",
         "packages/zig/transit-serving/src/refresh_test.zig",
@@ -2164,7 +2164,7 @@
       "owner": "docs/handbook/reference/documents.md",
       "implementation": [
         "packages/zig/transit-station-document/src/Service.zig",
-        "packages/zig/transit-station-document/src/Document.zig",
+        "packages/zig/transit-document/src/Document.zig",
         "packages/zig/transit-backend-local/src/Backend.zig",
         "tests/runtime/document/document.zig",
         "tests/runtime/document/document.py"
@@ -2184,6 +2184,30 @@
       "limits": "Finite application workload and process-death schedules; no host power loss, provider failover, automatic lifecycle scheduling or whole-process growth bound. Local evidence inspects actual WAL/object files; Ursula separately replaces its disk provider.",
       "model": null,
       "qualification": "Executed sources and outcomes belong in docs/history/qualification/storage.md; registration alone does not establish a passing run."
+    },
+    {
+      "id": "STORAGE-11",
+      "claim": "Private Document candidates preserve immutable causal records independently of Station, with bounded staging and cache residency",
+      "owner": "packages/zig/transit-storage/docs/document-index.md",
+      "implementation": [
+        "packages/zig/transit-document/src/Document.zig",
+        "packages/zig/transit-storage/src/DocumentIndex.zig",
+        "packages/zig/transit-storage/src/document_index_test.zig"
+      ],
+      "profile": "Component only: direct immutable .tseg records and paged data indexes, with local disk reopen and separate memory fault fixtures",
+      "tasks": [
+        "check::native"
+      ],
+      "scenarios": [
+        "Conflict resolution, original duplicate revision, deleted text anchors and detached history over the shared evaluator",
+        "320 keys across eight-record buffers and one-page disk index cache; retained roots survive later candidates and reopen",
+        "Workspace generations and owner identity reject stale, forked and foreign handles",
+        "Candidate, scratch and segment limits preserve previous roots; provider allocation failure stays distinct",
+        "Missing segments, corrupt bytes and foreign definitions fail closed; warmed point reads perform no allocations or provider reads"
+      ],
+      "limits": "No accepted-head journal, direct catalog or installed caller route, transaction/retention integration, succinct tree topology, large scalar profile, process-death or power-loss claim.",
+      "model": null,
+      "qualification": "Executable component assertions; registration alone does not establish a pass. Accepted Document service recovery remains STORAGE-09."
     },
     {
       "id": "SQL-RESULT-01",
