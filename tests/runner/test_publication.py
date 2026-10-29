@@ -77,7 +77,7 @@ class Publication(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             (directory / 'release-manifest.json').write_text(json.dumps({
-                'identity': candidate, 'images': {'transit': 'sha256:expected'}}))
+                'identity': candidate, 'images': {'transit': {'digest': 'sha256:' + 'a' * 64}}}))
             with patch.dict(promote.__globals__, {
                     'current': lambda **_: candidate, 'channel': lambda _: (None, None),
                     'api': lambda *args, **kwargs: calls.append(args)}):

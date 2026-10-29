@@ -9,7 +9,7 @@ import tempfile
 import time
 
 from package_release import BINARIES, sha256
-from release_oci import native, checksums
+from release_oci import exported, checksums, copy_image
 
 directory = Path(sys.argv[1]).resolve()
 manifest = json.loads((directory / 'release-manifest.json').read_text())
@@ -66,11 +66,9 @@ with tempfile.TemporaryDirectory(prefix='transit-images-') as temporary:
                 subprocess.run(['docker', 'stop', '--timeout', '30', container], check=True)
                 subprocess.run(['docker', 'rm', container], check=True)
         layout = directory / 'images' / name
-        subprocess.run(['skopeo', 'copy', '--format', 'oci', 'docker-daemon:' + image,
-                        f'oci:{layout}:{version}'], check=True)
-        config = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image]))[0]['Id']
-        descriptor = native(layout, architecture, config)
-        manifest.setdefault('images', {})[name] = {'config': config, 'manifest': descriptor}
+        copy_image('docker-daemon:' + image, f'oci:{layout}:{version}', '--format', 'oci')
+        original = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image]))[0]
+        manifest.setdefault('images', {})[name] = exported(layout, architecture, original)
 (directory / 'release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 (directory / 'SHA256SUMS').write_text(''.join(f'{sha256(path)}  {path.name}\n'
                                            for path in sorted(directory.iterdir())

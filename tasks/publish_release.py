@@ -11,7 +11,7 @@ import tempfile
 from package_release import BINARIES, ROOT, sha256
 from version import check
 from release_identity import current
-from release_oci import blob
+from release_oci import blob, copy_image
 
 
 def run(args, **kwargs):
@@ -82,7 +82,7 @@ def publish(directory, repository):
                 if 'sha256:' + hashlib.sha256(remote).hexdigest() != expected:
                     raise ValueError(f'refusing to replace published image {reference}')
             else:
-                run(['skopeo', 'copy', '--all', '--preserve-digests', f'oci:{layout}:{version}', f'docker://{reference}'])
+                copy_image(f'oci:{layout}:{version}', f'docker://{reference}', '--all', '--preserve-digests')
         chart_ref = f'{registry}/charts/transit:{version}'
         chart = directory / f'transit-{version}.tgz'
         if registry_config(chart_ref) is None:

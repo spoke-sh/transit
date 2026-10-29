@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 
 from release_identity import ROOT, current, describe, validate
+from release_oci import copy_image
 
 BRANCH = 'release-channels'
 
@@ -89,8 +90,8 @@ def promote(directory, repository):
     # immutable manifests remain authoritative while rolling OCI aliases update.
     for name in manifest['images']:
         reference = f'ghcr.io/{repository.lower()}' + ('' if name == 'transit' else '-' + name.removeprefix('transit-'))
-        subprocess.run(['skopeo', 'copy', '--all', '--preserve-digests', f'docker://{reference}:{identity["release"]}',
-                        f'docker://{reference}:nightly'], check=True)
+        digest = manifest['images'][name]['digest']
+        copy_image(f'docker://{reference}@{digest}', f'docker://{reference}:nightly', '--all', '--preserve-digests')
     import hashlib
     descriptor = dict(version=1, identity=identity,
                       manifest_sha256=hashlib.sha256((directory / 'release-manifest.json').read_bytes()).hexdigest(),

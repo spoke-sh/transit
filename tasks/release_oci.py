@@ -3,10 +3,34 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import subprocess
+import tempfile
 
 INDEX = 'application/vnd.oci.image.index.v1+json'
 IMAGE = 'application/vnd.oci.image.manifest.v1+json'
 PLATFORMS = {'x86_64': 'amd64', 'aarch64': 'arm64'}
+
+
+def copy_image(source, destination, *options):
+    """Copy an explicitly selected image without relying on host trust policy.
+
+    Current releases verify provenance and content digests, not image signatures.
+    Permit this source only; TLS, authentication and digest checks stay enabled.
+    """
+    transport, reference = source.split(':', 1)
+    if transport == 'oci':
+        scope = str(Path(reference.rsplit(':', 1)[0]).resolve())
+    elif transport == 'docker-daemon' and reference.startswith('transit-release/'):
+        scope = 'docker.io/' + reference
+    elif transport == 'docker' and reference.startswith('//') and '@sha256:' in reference:
+        scope = reference[2:]
+    else:
+        raise ValueError('unexpected release image source')
+    with tempfile.TemporaryDirectory(prefix='transit-image-policy-') as temporary:
+        policy = Path(temporary) / 'policy.json'
+        policy.write_text(json.dumps({'default': [{'type': 'reject'}], 'transports': {
+            transport: {scope: [{'type': 'insecureAcceptAnything'}]}}}))
+        subprocess.run(['skopeo', '--policy', str(policy), 'copy', *options, source, destination], check=True)
 
 
 def blob(layout, descriptor):
@@ -37,6 +61,22 @@ def native(layout, architecture, config):
         blob(layout, layer)
     return {key: descriptor[key] for key in ('mediaType', 'digest', 'size')} | {
         'platform': {'os': 'linux', 'architecture': PLATFORMS[architecture]}}
+
+
+def exported(layout, architecture, original):
+    """Verify Docker-to-OCI conversion preserves execution settings and layers."""
+    descriptor, = json.loads((layout / 'index.json').read_text())['manifests']
+    manifest = json.loads(blob(layout, descriptor))
+    config = json.loads(blob(layout, manifest['config']))
+    # Conversion omits Docker's null configuration fields and changes its config
+    # digest. Compare the actual execution configuration and uncompressed layers
+    # to the image that was run, then record the exported OCI config identity.
+    normalize = lambda value: {key: item for key, item in value.items() if item is not None}
+    rootfs = {'type': original['RootFS']['Type'], 'diff_ids': original['RootFS']['Layers']}
+    if normalize(config['config']) != normalize(original['Config']) or config['rootfs'] != rootfs:
+        raise ValueError('OCI conversion changed image execution settings or layers')
+    digest = manifest['config']['digest']
+    return {'config': digest, 'manifest': native(layout, architecture, digest)}
 
 
 def combine(first, second, images, arm_images, version):
