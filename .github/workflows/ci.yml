@@ -203,6 +203,7 @@ jobs:
             .cache/verification/model/*.log
             .cache/verification/write-lifecycle-model/
             .cache/verification/wal-model/
+            .cache/verification/object-publication-model/
             .cache/verification/transaction-decision-model/
             .cache/verification/table-transaction-model/
             .cache/verification/transaction-workspace-model/

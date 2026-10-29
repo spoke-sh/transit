@@ -811,7 +811,8 @@
           "tests/verification/models/object_publication_model.py"
         ],
         "depends_on": [
-          "object-publication-specification"
+          "object-publication-specification",
+          "tlc-support"
         ],
         "tasks": [
           "test::object-publication-model"

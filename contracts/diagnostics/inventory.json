@@ -26639,6 +26639,7 @@
         "lockKey()": "<inferred>",
         "open()": "<inferred>",
         "publish()": "<inferred>",
+        "publishName()": "<inferred>",
         "putConditional()": "<inferred>",
         "putImmutable()": "<inferred>",
         "read()": "<inferred>",
@@ -26653,7 +26654,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 81,
+        "try": 82,
         "catch": 9
       },
       "imports": [

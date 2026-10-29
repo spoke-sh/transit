@@ -192,9 +192,10 @@ def main():
                                "test::wal-model", "test::resident-owner-cache-model", "test::transaction-decision-model",
                                "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::model",
                                "test::console-model", "test::statement-result-model", "test::table-transaction-model",
-                               "test::write-lifecycle-model"]
+                               "test::write-lifecycle-model", "test::object-publication-model"]
     assert ".cache/verification/write-lifecycle-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/wal-model/" in artifacts["with"]["path"].splitlines()
+    assert ".cache/verification/object-publication-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/transaction-decision-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/table-transaction-model/" in artifacts["with"]["path"].splitlines()
     assert ".cache/verification/transaction-workspace-model/" in artifacts["with"]["path"].splitlines()
@@ -351,6 +352,7 @@ def main():
                   ["tests/README.md", "packages/zig/transit-core/src/lib.zig"]):
         assert select(paths)["full"], paths
     assert select(["tests/verification/models/Wal.tla"])["lanes"] == {"formal": ["test::wal-model"]}
+    assert select(["tests/verification/models/ObjectPublication.tla"])["lanes"] == {"formal": ["test::object-publication-model"]}
     assert select(["tests/verification/models/TransactionDecision.tla"])["lanes"] == {"formal": ["test::transaction-decision-model", "test::table-transaction-model"]}
     assert select(["tests/verification/models/TableTransaction.tla"])["lanes"] == {"formal": ["test::table-transaction-model"]}
     assert select(["tests/verification/models/TransactionWorkspace.tla"])["lanes"] == {"formal": ["test::transaction-workspace-model"]}
@@ -360,7 +362,7 @@ def main():
     assert select(["tests/verification/models/WriteLifecycle.tla"])["lanes"] == {"formal": ["test::write-lifecycle-model"]}
     assert select(["tests/verification/models/StatementResult.tla"])["lanes"] == {"formal": ["test::statement-result-model"]}
     assert select(["contracts/sql/FuzeCell.lean"])["lanes"] == {"formal": ["test::sql-rewrites"]}
-    assert select(["tests/verification/models/tlc_support.py"])["lanes"] == {"formal": ["test::queue-lease-transaction-model", "test::resident-owner-cache-model", "test::transaction-decision-model", "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::console-model", "test::statement-result-model", "test::table-transaction-model", "test::write-lifecycle-model"]}
+    assert select(["tests/verification/models/tlc_support.py"])["lanes"] == {"formal": ["test::queue-lease-transaction-model", "test::resident-owner-cache-model", "test::transaction-decision-model", "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::console-model", "test::statement-result-model", "test::table-transaction-model", "test::write-lifecycle-model", "test::object-publication-model"]}
     assert select(["sdks/go/client/types.go"])["lanes"] == {"bindings-2": ["bindings::go-sdk-test"]}
     for event in ("push", "merge_group", "workflow_dispatch", "unknown"):
         assert select(["README.md"], event)["full"]
