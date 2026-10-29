@@ -44,6 +44,8 @@ def run(cli, node, host, board, gateway, browser=False):
             values = ','.join(f"({i},'row {i}')" for i in range(start, min(145, start + 16)))
             fixture.console(f'INSERT INTO metrics VALUES {values};\n')
         fixture.console('CREATE TABLE empty_metrics (id BIGINT);\n')
+        for index in range(8):
+            fixture.console(f'CREATE TABLE zz_catalog_{index} (id BIGINT);\n')
         fixture.stop()
         fixture.start()
         fixture.ready()
@@ -57,7 +59,13 @@ def run(cli, node, host, board, gateway, browser=False):
         def close(number):
             assert request('sql-read', dict(close=f'{number:032x}')) == {'closed': {}}
         tables = request('catalog', dict(tables=dict(namespace=1, cursor=None)))['catalog']['tables']
-        entry = next(item for item in tables['entries'] if item and item['name'] == 'metrics')
+        entries = [item for item in tables['entries'] if item]
+        assert len(entries) == 8 and tables['next'] is not None
+        rest = request('catalog', dict(tables=dict(namespace=1, cursor=tables['next'])))['catalog']['tables']
+        entries.extend(item for item in rest['entries'] if item)
+        assert rest['next'] is None and len(entries) == 10
+        assert {item['name'] for item in entries} == {'metrics', 'empty_metrics', *[f'zz_catalog_{i}' for i in range(8)]}
+        entry = next(item for item in entries if item['name'] == 'metrics')
         table = request('catalog', dict(table=dict(namespace=1, name='metrics', expected=entry['interpretation'])))['table']
         assert table['metadata']['row_count'] == '145'
         first = run_sql(1, table['preview_sql'], binding=table['expected_definition'])['result']['view']
@@ -107,6 +115,7 @@ def run(cli, node, host, board, gateway, browser=False):
         run_sql(20, 'SELECT * FROM empty_metrics')
         fixture.revoke({'revoke': account['principals']['table']})
         assert request('sql-read', dict(observe=f'{20:032x}'), 403)['err'] == 'Forbidden'
+        request('catalog', dict(tables=dict(namespace=1, cursor=None)), 403)
         close(20)
         fixture.stop()
         success = True
