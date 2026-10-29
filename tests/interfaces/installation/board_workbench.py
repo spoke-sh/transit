@@ -61,10 +61,17 @@ def run(cli, node, host, board, gateway, browser=False):
         tables = request('catalog', dict(tables=dict(namespace=1, cursor=None)))['catalog']['tables']
         entries = [item for item in tables['entries'] if item]
         assert len(entries) == 8 and tables['next'] is not None
-        rest = request('catalog', dict(tables=dict(namespace=1, cursor=tables['next'])))['catalog']['tables']
-        entries.extend(item for item in rest['entries'] if item)
-        assert rest['next'] is None and len(entries) == 10
-        assert {item['name'] for item in entries} == {'metrics', 'empty_metrics', *[f'zz_catalog_{i}' for i in range(8)]}
+        cursor = tables['next']
+        pages = 1
+        while cursor is not None:
+            assert pages < 4, 'Catalog continuation did not terminate'
+            rest = request('catalog', dict(tables=dict(namespace=1, cursor=cursor)))['catalog']['tables']
+            assert rest['next'] != cursor
+            entries.extend(item for item in rest['entries'] if item)
+            cursor = rest['next']
+            pages += 1
+        assert len(entries) == 11, [item['name'] for item in entries]
+        assert {item['name'] for item in entries} == {'items', 'metrics', 'empty_metrics', *[f'zz_catalog_{i}' for i in range(8)]}
         entry = next(item for item in entries if item['name'] == 'metrics')
         table = request('catalog', dict(table=dict(namespace=1, name='metrics', expected=entry['interpretation'])))['table']
         assert table['metadata']['row_count'] == '145'

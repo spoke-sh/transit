@@ -19,8 +19,16 @@ test("installed catalog, exact preview, profiles and session workbook", async ({
     (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze())
       .violations,
   ).toEqual([]);
-  await page.getByRole("button", { name: "Next page", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Next page", exact: true })).toBeDisabled();
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/catalog") &&
+        Boolean(response.request().postDataJSON()?.action.tables?.cursor) &&
+        response.status() === 200,
+    ),
+    page.getByRole("button", { name: "Next page", exact: true }).click(),
+  ]);
+  await expect(page.getByRole("button", { name: "First page", exact: true })).toBeEnabled();
   expect(runs).toBe(0);
   await page.getByRole("button", { name: "First page", exact: true }).click();
   await page.getByRole("link", { name: "metrics", exact: true }).click();
