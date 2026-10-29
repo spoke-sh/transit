@@ -7,6 +7,7 @@ const Work = @import("LocalCollection.zig");
 const Maintenance = @import("GrowingMaintenance.zig");
 const g = core.protocol.Growth;
 const Direct = backend.DataCollection.Collector(catalog.DirectStorageGraph);
+const Local = @import("Local.zig");
 
 const Fixture = struct {
     owner: backend.Backend = undefined,
@@ -47,6 +48,52 @@ const Fixture = struct {
         return Work.step(cursor, &self.engine, config, try key(23), &request);
     }
 };
+
+test "local storage observation retains bounded maintenance failures without changing durable state" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var f: Fixture = .{};
+    try f.open(tmp.dir, true);
+    defer f.close();
+    const position = f.engine.head.position;
+    const allocated = f.owner.allocated;
+    const disabled = try Local.storageObservation(&f.engine);
+    try disabled.validate();
+    try t.expectEqual(.local, disabled.backend);
+    try t.expect(disabled.root != null);
+    try t.expectEqual(.disabled, disabled.maintenance.?.state);
+    f.owner.maintenance_activity = .{ .enabled = true, .state = .waiting, .completed_steps = 0, .failed_steps = 0, .last_failure = null, .interval_ms = 50, .operation_timeout_ms = 2000 };
+    const failures = [_]anyerror{ error.StorageQuota, error.Forbidden, error.ClockUnavailable, error.MaintenanceTimeout, error.LocalWalReopenRequired, error.InputOutput, error.FixtureClockUnavailable };
+    const kinds = [_]core.protocol.Storage.Failure{ .capacity, .denied, .clock, .timeout, .recovery, .storage, .other };
+    for (failures, kinds, 1..) |failure, kind, count| {
+        Local.observeMaintenance(&f.engine, true, null);
+        const running = try Local.storageObservation(&f.engine);
+        try running.validate();
+        try t.expectEqual(.running, running.maintenance.?.state);
+        Local.observeMaintenance(&f.engine, false, failure);
+        const failed = try Local.storageObservation(&f.engine);
+        try failed.validate();
+        try t.expectEqual(.failed, failed.maintenance.?.state);
+        try t.expectEqual(kind, failed.maintenance.?.last_failure.?);
+        try t.expectEqual(count, failed.maintenance.?.failed_steps);
+        Local.observeMaintenance(&f.engine, false, null);
+        const recovered = try Local.storageObservation(&f.engine);
+        try recovered.validate();
+        try t.expectEqual(.waiting, recovered.maintenance.?.state);
+        try t.expectEqual(kind, recovered.maintenance.?.last_failure.?);
+        try t.expectEqual(count, recovered.maintenance.?.completed_steps);
+    }
+    f.owner.maintenance_activity.completed_steps = core.protocol.max_counter;
+    f.owner.maintenance_activity.failed_steps = core.protocol.max_counter;
+    Local.observeMaintenance(&f.engine, false, error.Forbidden);
+    Local.observeMaintenance(&f.engine, false, null);
+    const saturated = try Local.storageObservation(&f.engine);
+    try saturated.validate();
+    try t.expectEqual(core.protocol.max_counter, saturated.maintenance.?.completed_steps);
+    try t.expectEqual(core.protocol.max_counter, saturated.maintenance.?.failed_steps);
+    try t.expectEqual(position, f.engine.head.position);
+    try t.expectEqual(allocated, f.owner.allocated);
+}
 
 test "automatic local collection resumes both owners, rechecks privilege and clock, and reaches idle" {
     var tmp = t.tmpDir(.{});

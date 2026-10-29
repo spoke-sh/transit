@@ -1,6 +1,9 @@
-# Tables and finite Arrow results
+# Application-owned Tables and finite Arrow results
 
-General Tables use `fuze.TableSchema`, immutable `TableData` rows/indexes and a
+Station Table helpers store application-private state within native turns. They
+publish no catalog name and do not implement the direct SQL Table service.
+Catalog-declared Tables use the [direct data owner](../../../../docs/handbook/reference/tables.md).
+The application helpers use `fuze.TableSchema`, immutable `TableData` rows/indexes and a
 `TableHead` at an authorized captured resource cut. Schemas have stable object
 and column identities, nullable and typed defaults, declared single/composite
 primary keys, and all supported Fuze logical type families. Tables without a

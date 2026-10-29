@@ -115,7 +115,7 @@ pub const Read = struct {
             .inspection => |inspection| {
                 const prepared = inspection.prepared;
                 metadata.kind = prepared.kind;
-                metadata.consistency = if (prepared.storage) .independent_observations else .exact_definitions;
+                metadata.consistency = if (prepared.storage or prepared.node_storage) .independent_observations else .exact_definitions;
                 if (prepared.metadata) |binding| metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{binding.interpretation.interpretation});
                 if (prepared.statement) |statement| {
                     if (statement.plan == .select) metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, &.{statement.plan.select.binding.interpretation.interpretation}) else if (statement.plan == .relational) {

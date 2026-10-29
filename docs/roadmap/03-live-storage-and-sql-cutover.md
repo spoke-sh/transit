@@ -398,7 +398,7 @@ Owners: [Local](../../apps/transit-node/Local.zig),
   captured blocks and effect records in the installed local profile after owner
   replacement. Replay dispatches no external effect. Keep the existing native
   one-KV-resource turn boundary and direct Table acceptance separate.
-- [ ] P1.5 Audit and resolve the retained Station Table implementation and its
+- [x] P1.5 Audit and resolve the retained Station Table implementation and its
   public bindings. The general actor-backed catalog/service and query-host Table
   role are removed, but `TableCreation`, `TableWrite`, `TableStatement`,
   `TableReader`, `TableData` and `TablePages` still implement application-private
@@ -413,6 +413,28 @@ Owners: [Local](../../apps/transit-node/Local.zig),
   cannot silently replace one atomic turn. The milestone 6 replacement must move
   affected contracts, SDKs, examples, tests and documentation together under the
   current-v1 policy; this milestone preserves their current installed behavior.
+
+**Retained caller audit — 2026-10-28:** the source inventory at `05fda5b01`
+confirms that SQL's database runtime, SQL service and gateway do not invoke the
+private Station Table engine. `transit-sql` also rejects a Station dependency in
+its build graph. The following active consumers remain; removing them in this
+milestone would change existing native-turn atomicity or caller contracts.
+
+| Owner and consumers | Current boundary and migration obligation |
+| --- | --- |
+| Station `TableCreation`, `TableWrite`, `TableStatement`, `TableAlter`, `TableCleanup`, `TableReader`, `TableData`, `TablePages` and retained history/change helpers | Application-private native-resource state; final head, receipt, input progress and outputs share the native turn. Replace with declared data and a transaction envelope preserving those decisions. |
+| Station `Query`, its stored records and `Metadata` interpretation; `growing_query` and application-runtime fixtures | Captures read the private Table at a current or retained native cut. Move stored capture/progress records and inspection together; reading direct catalog Tables already uses separate direct readers. |
+| Station bindings `TableBridge`, `GrowingActions` and `GrowingAbi`; Python, TypeScript, Rust, C and C++ Table wrappers | Foreign handlers call the shared Zig turn implementation. Migrate actions, generated ABI declarations, language APIs and ownership/revocation checks as one definition cutover. |
+| Station SDK query example, `sdk_table_work`, Station unit/integration checks and the declarative benchmark | Exercise the application-state profile, not direct SQL acceptance. Preserve their exact result/commit assertions until replacement callers are executable. |
+
+The shared Fuze schemas/codecs and the catalog's `DirectTableBridge` are separate
+owners and are not removal targets. No remaining private query/caching adapter
+can be deleted merely because ordinary SQL no longer uses it: the consumers
+above still require its current profile. The
+[milestone 6 migration owner](06-streams-queues-and-durable-runtime.md#inherited-station-cutover-obligations)
+retains coordinated replacement of these storage, capture and SDK surfaces,
+including the native input/state/output boundary. P1.5 closes this audit and
+handoff only; it does not certify that replacement or the broader installed gates.
 
 **Gate:** deterministic recovery-required injection completes the original
 bootstrap request exactly once, the complete launcher schedule passes, payload
@@ -702,6 +724,17 @@ shared capacity until freed. The
 records exact source and evidence. Installed slow-write/cancellation exhaustion,
 combined foreground/maintenance pressure and whole-owner memory remain open;
 this partial result does not close P4.4 or the common-revision P8 gate.
+
+The next [installed pressure schedule](../history/qualification/storage.md#installed-slow-clients-and-reserved-recovery)
+passes incomplete-body and blocked-response exhaustion, disconnect and request
+deadline cleanup, and reserved inspection of the unchanged original operation.
+All 2,128 typed calls in its direct Table service schedule pass. Node observations
+and configured request budgets share the native contract; these observations
+distinguish unavailable data, independently sampled owner counters and durable
+Table progress. The rebased combined definition passes clean fast/contract
+checks. Whole-owner resources, combined maintenance pressure, matched latency
+and final dependent lanes remain required; the installed SQL SELECT conflicts
+remain integration blockers owned by the SQL continuation.
 
 **Gate:** the installed owner converges on eligible maintenance under a finite
 workload, resumes it after process death and preserves every retained obligation.

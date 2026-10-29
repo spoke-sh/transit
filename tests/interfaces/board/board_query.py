@@ -190,7 +190,7 @@ def check_capacity_disconnect():
 def run(node, host, proof, board, browser=False):
     check_capacity_disconnect()
     node, host, proof, board = (str(Path(path).resolve()) for path in (node, host, proof, board))
-    with Fixture() as fixture:
+    with Fixture(retain_on_failure=True) as fixture:
         processes, logs = [], []
         faults = capacity = None
         def start(name, command):

@@ -402,7 +402,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     first = Client(root, port).open()
     for sql in ('SELECT id FROM native_sessions',
                 'SELECT id FROM native_sessions WHERE id = -1',
-                'DESCRIBE native_sessions', 'SHOW TABLES', 'SHOW STORAGE FOR native_sessions',
+                'DESCRIBE native_sessions', 'SHOW TABLES', 'SHOW STORAGE', 'SHOW STORAGE FOR native_sessions',
                 'EXPLAIN SELECT id FROM native_sessions'):
         protected = first.execute(sql)['batch']
         authorize(False)

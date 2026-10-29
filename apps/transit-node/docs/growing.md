@@ -375,3 +375,14 @@ history still owns old placement. The [backend guide](../../../packages/zig/tran
 defines the epoch, trusted-time grace, late-create fencing and quota contracts.
 The local server exposes these same YAML settings and starts its existing
 maintenance process; no additional CLI command is required.
+
+
+Direct Table allocation limits can be lowered with restart settings
+`storage.requests.request_bytes` (1–128 MiB, default 128 MiB),
+`storage.requests.data_bytes` (1–256 MiB, default 256 MiB) and
+`storage.requests.control_bytes` (1–64 MiB, default 64 MiB).
+The per-request limit must fit the ordinary aggregate limit. Small budgets can
+refuse otherwise valid operations; they never authorize retry under a new
+identity. The signed native `storage` read and SQL `SHOW STORAGE` report the
+actual limits and current/peak charged bytes. Their counters include responses
+held by slow clients until the write is joined; they do not measure process RSS.

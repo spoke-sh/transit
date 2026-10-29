@@ -12,3 +12,4 @@ export function UnifiedQueryRequest(value: unknown): boolean;
 export function UnifiedQueryResponse(value: unknown): boolean;
 export function RelationalRequest(value: unknown): boolean;
 export function RelationalResponse(value: unknown): boolean;
+export function StorageResponse(value: unknown): boolean;

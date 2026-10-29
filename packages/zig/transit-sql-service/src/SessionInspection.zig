@@ -12,6 +12,7 @@ metadata: ?c.DirectTableBinding = null,
 statement: ?g.Statement = null,
 source: bool = false,
 storage: bool = false,
+node_storage: bool = false,
 kind: @FieldType(g.results.Observation.Metadata, "kind") = .catalog,
 rows: []const []const f.Types.Values.Cell,
 output: []const f.Types.Field,
@@ -39,9 +40,14 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     const a = arena.allocator();
     var parser = try f.SqlTyped.init(a, sql, null);
     if (try parser.takeWord("SHOW")) {
-        if (!(try parser.takeWord("STORAGE")) or !(try parser.takeWord("FOR"))) {
+        if (!(try parser.takeWord("STORAGE"))) {
             arena.deinit();
             return null;
+        }
+        if (!(try parser.takeWord("FOR"))) {
+            try parser.finish();
+            try validateNode(host);
+            return .{ .arena = arena, .node_storage = true, .rows = &.{}, .output = &Storage.node_fields };
         }
         const name = try c.TableMetadata.Name.init(try parser.name());
         try parser.finish();
@@ -116,6 +122,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     return null;
 }
 pub fn validate(self: *Self, host: *g.Session) !void {
+    if (self.node_storage) try validateNode(host);
     if (self.source) {
         const source = host.source orelse return error.UnknownSqlSource;
         try source.current();
@@ -126,6 +133,10 @@ pub fn validate(self: *Self, host: *g.Session) !void {
         _ = try binding.require(host.table, .inspect);
     }
     if (self.statement) |*statement| try statement.validate(&host.table);
+}
+fn validateNode(host: *g.Session) !void {
+    const response = try host.wire.query(.{ .realm = host.table.connection.scope.realm, .principal = host.table.connection.principal, .kind = .identity }, host.table.key);
+    if (response.body.identity.pid != null) return error.Forbidden;
 }
 fn prepareSource(host: *g.Session, source: *g.SourceSession, sql: []const u8) !?Self {
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
@@ -150,16 +161,25 @@ pub fn deinit(self: *Self) void {
     self.arena.deinit();
 }
 pub fn count(self: Self) usize {
-    return if (self.storage) 1 else self.rows.len;
+    return if (self.storage or self.node_storage) 1 else self.rows.len;
 }
 pub const Read = struct {
     host: *g.Session,
     prepared: *Self,
     index: usize = 0,
     storage_values: [Storage.fields.len]f.Types.Values.Cell = undefined,
+    node_observation: g.query.protocol.Storage.Observation = undefined,
+    node_values: [Storage.node_fields.len]f.Types.Values.Cell = undefined,
     pub fn next(self: *Read) !?[]const f.Types.Values.Cell {
         try self.prepared.validate(self.host);
         if (self.index == self.prepared.count()) return null;
+        if (self.prepared.node_storage) {
+            const response = try self.host.wire.query(.{ .realm = self.host.table.connection.scope.realm, .principal = self.host.table.connection.principal, .kind = .storage }, self.host.table.key);
+            self.node_observation = response.body.storage;
+            self.node_values = Storage.nodeRow(&self.node_observation);
+            self.index += 1;
+            return &self.node_values;
+        }
         if (self.prepared.storage) {
             const binding = self.prepared.metadata.?;
             const response = try self.host.table.call(.{ .storage = .{ .object = binding.interpretation.interpretation.object, .pending_limit = Storage.pending_limit } });

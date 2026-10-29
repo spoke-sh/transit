@@ -1,6 +1,6 @@
-# General Table candidates
+# Application Table candidates
 
-`TableData` builds immutable general Table candidates over `ImmutableIndex` and
+Station `TableData` builds immutable application Table candidates over `ImmutableIndex` and
 caller-owned blob storage. It consumes the Fuze
 [schema, row and key contracts](../../../../contracts/TABLE_SCHEMA_V1.md).
 The executable [Table API](tables.md), catalog and native transports retain their

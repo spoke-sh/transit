@@ -370,7 +370,8 @@ remain planned. Completing database independence does not close the full milesto
 ## Inherited Station cutover obligations
 
 The [milestone 3 boundary and caller inventory](03-live-storage-and-sql-cutover.md#p1--complete-live-ownership-reopen-and-payload-recovery)
-identifies the still-active private Station Table engine, `Query` capture,
+records the 2026-10-28 source audit at `05fda5b01` and identifies the still-active
+private Station Table engine, `Query` capture,
 `TableBridge`/foreign turn actions, SDK examples and consumers, and inspection
 metadata. Their removal belongs with this replacement, after the transaction
 foundation can preserve or explicitly replace native input/state/output

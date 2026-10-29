@@ -83,6 +83,16 @@ pub fn identity(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519
     if (response.body.identity.permissions != p.permission(.inspect)) return error.UnsafePrincipal;
     return response;
 }
+pub fn storage(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, allocator: std.mem.Allocator) !api.StorageResponse {
+    const reader = try identity(wire, realm, principal, key);
+    if (reader.body.identity.pid != null) return error.Forbidden;
+    const observed = try wire.query(.{ .realm = realm, .principal = principal, .kind = .storage }, key);
+    // Board must remain a read-only inspector even if its configured principal
+    // is changed while the storage read is in flight.
+    const current = try identity(wire, realm, principal, key);
+    if (current.body.identity.pid != null) return error.Forbidden;
+    return api.Storage.project(allocator, observed);
+}
 pub fn atlas(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: Cursor, query_resource: ?u64) !api.AtlasResponse {
     // Restart only a fresh acquisition. A caller's continuation remains tied to
     // its original position and cannot silently switch to a newer atlas cut.

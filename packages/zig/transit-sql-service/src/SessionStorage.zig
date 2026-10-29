@@ -35,6 +35,58 @@ fn unsigned(value: u64) Cell {
 fn optional(value: ?u64) Cell {
     return if (value) |number| unsigned(number) else .null;
 }
+pub const node_fields = [_]f.Types.Field{
+    .{ .name = "backend", .type = .utf8 },
+    .{ .name = "root", .type = .utf8, .nullable = true },
+    .{ .name = "allocated_bytes", .type = .uint64, .nullable = true },
+    .{ .name = "storage_limit_bytes", .type = .uint64, .nullable = true },
+    .{ .name = "storage_control_bytes", .type = .uint64, .nullable = true },
+    .{ .name = "request_limit_bytes", .type = .uint64, .nullable = true },
+    .{ .name = "data_limit_bytes", .type = .uint64, .nullable = true },
+    .{ .name = "data_used_bytes", .type = .uint64, .nullable = true },
+    .{ .name = "data_peak_bytes", .type = .uint64, .nullable = true },
+    .{ .name = "control_limit_bytes", .type = .uint64, .nullable = true },
+    .{ .name = "control_used_bytes", .type = .uint64, .nullable = true },
+    .{ .name = "control_peak_bytes", .type = .uint64, .nullable = true },
+    .{ .name = "maintenance_state", .type = .utf8, .nullable = true },
+    .{ .name = "maintenance_completed_steps", .type = .uint64, .nullable = true },
+    .{ .name = "maintenance_failed_steps", .type = .uint64, .nullable = true },
+    .{ .name = "maintenance_last_failure", .type = .utf8, .nullable = true },
+    .{ .name = "maintenance_interval_ms", .type = .uint64, .nullable = true },
+    .{ .name = "maintenance_timeout_ms", .type = .uint64, .nullable = true },
+    .{ .name = "maintenance_limit_bytes", .type = .uint64, .nullable = true },
+};
+fn text(value: []const u8) Cell {
+    return .{ .value = .{ .atom = .{ .bytes = value } } };
+}
+/// The returned root slice borrows the read owner's observation, not a temporary
+/// native client response or an arena reset by the next row.
+pub fn nodeRow(observed: *const g.query.protocol.Storage.Observation) [node_fields.len]Cell {
+    const data = observed.data_requests;
+    const control = observed.control_requests;
+    const work = observed.maintenance;
+    return .{
+        text(@tagName(observed.backend)),
+        if (observed.root) |*path| text(path.slice()) else .null,
+        optional(observed.allocated_bytes),
+        optional(if (observed.limits) |v| v.bytes else null),
+        optional(if (observed.limits) |v| v.control_bytes else null),
+        optional(observed.request_limit_bytes),
+        optional(if (data) |v| v.limit else null),
+        optional(if (data) |v| v.used else null),
+        optional(if (data) |v| v.peak else null),
+        optional(if (control) |v| v.limit else null),
+        optional(if (control) |v| v.used else null),
+        optional(if (control) |v| v.peak else null),
+        if (work) |v| text(@tagName(v.state)) else .null,
+        optional(if (work) |v| v.completed_steps else null),
+        optional(if (work) |v| v.failed_steps else null),
+        if (work) |v| if (v.last_failure) |failure| text(@tagName(failure)) else .null else .null,
+        optional(if (work) |v| v.interval_ms else null),
+        optional(if (work) |v| v.operation_timeout_ms else null),
+        optional(if (observed.settings) |v| v.resident_bytes else null),
+    };
+}
 pub fn row(observed: g.catalog.DirectCatalog.StorageObservation) [fields.len]Cell {
     const work = observed.maintenance;
     const archive = work.archive_target;
