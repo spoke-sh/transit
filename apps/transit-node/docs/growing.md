@@ -137,11 +137,11 @@ requires two encoding passes and still allocates request-owned output; it does
 not establish allocation-free reads. The current-authority fence runs after
 serialization, and the buffer lives through the joined response write.
 
-The local Table handler bounds request parsing, private work and successful
-response backing allocations: 128 MiB
-per ordinary request and 256 MiB shared across ordinary Table requests. Parsed
-input, catalog/row work, temporary arenas and the serialized response all consume
-that capacity. Reserved Table controls share a separate 64 MiB ceiling. Capacity
+The local Table handler bounds parsing, request scratch and successful response
+backing allocations: by default 128 MiB per ordinary request and 256 MiB shared
+across ordinary Table requests. Parsed input, request-owned temporary arenas and
+the serialized response consume that capacity. Reserved Table controls share a
+separate 64 MiB ceiling. Capacity
 is charged as allocated, with no idle slab reservation; scratch is released
 before transmission and response bytes remain charged until the write finishes
 or is cancelled. Exhaustion returns HTTP 503 with `StorageQuota` for ordinary
@@ -150,8 +150,15 @@ that refusal: inspect its original operation instead of submitting new work.
 The small error reply is allocated after scratch cleanup, outside the exhausted
 budget.
 
-These limits exclude independently owned engine/provider caches, native requests,
-connection buffers, worker stacks and the kernel page cache. Table maintenance
+Retained catalog/Table owners and their private work use separate fixed budgets:
+256 MiB across ordinary owners and 64 MiB across control owners, with 128 MiB and
+64 MiB per-owner limits respectively. These budgets survive request completion
+and are released on workspace eviction or joined owner shutdown. They exclude
+fixed owner metadata and provider I/O buffers.
+
+Request limits exclude those workspaces, independently owned engine/provider
+caches, native requests, connection buffers, worker stacks and the kernel page
+cache. Table maintenance
 has its separate `storage.maintenance.resident_bytes` budget and one executor;
 it does not consume the request control reserve. The limits bound this allocation
 boundary, not total node RSS or storage I/O latency.
@@ -305,15 +312,17 @@ on sampled logs and retain no payloads, credentials or principal labels. Encodin
 failure omits diagnostics without changing the authority response. Metrics
 headers are opt-in. With local storage, provider counters measure native log
 and immutable page/block operations, including conflicts and storage failures.
-The direct Table route also includes its request-owned catalog/Table WAL and
+The direct Table route also includes its borrowed catalog/Table owners' WAL and
 object attempts, merged into the lane's counters on both success and failure.
 `request_memory` records backing allocation, growing-resize and remap attempts,
 acquired bytes, peak bytes and bytes still live immediately before writing the
 response. The probe covers the handler allocator, including direct Table parsing,
-catalog work and serialized output. Direct Table requests release parsing and
-catalog scratch before response transmission, retaining only the independently
-owned response after the final authority fence. The probe excludes engine caches, provider-owned buffers,
-HTTP socket buffers, task stacks and maintenance. Live request bytes remain
+request scratch and serialized output. `owner_memory` separately reports backing
+allocations and live/peak bytes for the borrowed catalog/Table workspace, whose
+retained pages survive the request. Direct Table requests release request scratch
+before response transmission, retaining the independently owned response after
+the final authority fence. The probes exclude engine caches, provider-owned
+buffers, HTTP socket buffers, task stacks and maintenance. Live request bytes remain
 owned until the response finishes or its cancelled handler joins; the header
 is a pre-write snapshot, not a post-cleanup measurement. These counters are
 observations, not admission limits or aggregate node memory accounting.
@@ -384,5 +393,8 @@ Direct Table allocation limits can be lowered with restart settings
 The per-request limit must fit the ordinary aggregate limit. Small budgets can
 refuse otherwise valid operations; they never authorize retry under a new
 identity. The signed native `storage` read and SQL `SHOW STORAGE` report the
-actual limits and current/peak charged bytes. Their counters include responses
-held by slow clients until the write is joined; they do not measure process RSS.
+actual request limits and current/peak charged request bytes. Their counters
+include responses held by slow clients until the write is joined. They exclude
+retained-owner workspaces, whose fixed budgets are independent of these settings;
+optional `owner_memory` diagnostics observe that workspace allocation boundary.
+These counters do not measure process RSS.
