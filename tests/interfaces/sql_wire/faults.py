@@ -193,7 +193,13 @@ def run(root, postgres, mysql_options, controls, inventory, read_access, write_a
             return exact(raw,int.from_bytes(header[:3],'little'))
         assert command(b'\xff')[0] == 255
         assert command(b'\x0e')[0] == 0
-        assert command(b'\x03BEGIN')[0] == 255
+        # The current Table profile supports explicit serializable transactions.
+        # Verify command framing and IN_TRANS before testing unsupported modes.
+        begun = command(b'\x03BEGIN')
+        assert begun[:3] == b'\0\0\0' and int.from_bytes(begun[3:5], 'little') & 3 == 3, begun
+        rolled_back = command(b'\x03ROLLBACK')
+        assert rolled_back[:3] == b'\0\0\0' and int.from_bytes(rolled_back[3:5], 'little') & 3 == 2, rolled_back
+        assert command(b'\x03BEGIN ISOLATION LEVEL READ COMMITTED')[0] == 255
         assert command(b'\x03SET autocommit=0')[0] == 255
         assert command(b'\x03INSERT INTO wire_rows (id) VALUES (104); INSERT INTO wire_rows (id) VALUES (105)')[0] == 255
         assert command(b'\x0e')[0] == 0

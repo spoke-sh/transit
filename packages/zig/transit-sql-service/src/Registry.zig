@@ -12,12 +12,12 @@ configuration: *const g.Configuration,
 runtimes: []const *g.DatabaseRuntime,
 instance: api.Instance,
 mutex: std.Io.Mutex = .init,
+expiry_changed: std.Io.Condition = .init,
 slots: []Slot,
 recovery_reserve: mem.Slab,
 challenges: [16]?Challenge = @splat(null),
 authenticating: std.atomic.Value(u16) = .init(0),
-recovery_index: usize = 0,
-recovery_after: [g.Limits.max_accounts]u64 = @splat(0),
+recovery: *g.SessionRecovery,
 pub const Peer = struct { uid: ?u32 = null, loopback: bool = false, tls: bool = false };
 const Challenge = struct { id: api.Id, account: usize, database: []const u8, source: ?[]const u8, credential: g.Configuration.Credential, scram: g.Authentication.Scram, started: std.Io.Timestamp };
 const Statement = struct { id: api.Id, prepared: *g.Session.Prepared };
@@ -87,10 +87,13 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, configuration: *const g.Co
         slot.* = .{ .reserve = try .init(allocator, configuration.limits.session_bytes) };
         initialized += 1;
     }
-    return .{ .allocator = allocator, .io = io, .configuration = configuration, .runtimes = runtimes, .instance = instance, .slots = slots, .recovery_reserve = try .init(allocator, configuration.limits.session_bytes) };
+    var reserve: mem.Slab = try .init(allocator, configuration.limits.session_bytes);
+    errdefer reserve.deinit();
+    return .{ .allocator = allocator, .io = io, .configuration = configuration, .runtimes = runtimes, .instance = instance, .slots = slots, .recovery_reserve = reserve, .recovery = try g.SessionRecovery.init(allocator, io, configuration, runtimes) };
 }
 /// The supervisor joins every listener/borrower before releasing the registry.
 pub fn deinit(self: *Self) void {
+    self.recovery.deinit();
     for (self.slots) |*slot| {
         if (slot.present) slot.clear();
         slot.reserve.deinit();
@@ -102,7 +105,7 @@ pub fn deinit(self: *Self) void {
 /// Accounted backing remains resident-capacity admission even when no session
 /// is open. This excludes DatabaseRuntime/source/authority and listener reserves.
 pub fn reservedBytes(self: *const Self) usize {
-    var bytes = self.slots.len * @sizeOf(Slot) + self.recovery_reserve.buffer.len;
+    var bytes = self.slots.len * @sizeOf(Slot) + self.recovery_reserve.buffer.len + @sizeOf(g.SessionRecovery) + self.recovery.clients.len * @sizeOf(g.wire.Client);
     for (self.slots) |slot| bytes += slot.reserve.buffer.len;
     return bytes;
 }
@@ -156,6 +159,7 @@ pub fn create(self: *Self, account: usize, credential: g.Configuration.Credentia
     slot.last = std.Io.Clock.awake.now(self.io);
     self.mutex.lockUncancelable(self.io);
     slot.opening = false;
+    self.expiry_changed.broadcast(self.io);
     self.mutex.unlock(self.io);
     return slot;
 }
@@ -164,6 +168,7 @@ pub fn create(self: *Self, account: usize, credential: g.Configuration.Credentia
 pub fn remove(self: *Self, slot: *Slot) void {
     self.mutex.lockUncancelable(self.io);
     slot.present = false;
+    self.expiry_changed.broadcast(self.io);
     self.mutex.unlock(self.io);
     slot.clear();
 }
@@ -186,6 +191,39 @@ pub fn sweep(self: *Self) void {
         defer slot.mutex.unlock(self.io);
         slot.clear();
     }
+}
+/// Wait for the earliest real lease/challenge deadline. An empty registry has
+/// no timer. Busy expired sessions are reconsidered when their borrower joins.
+pub fn waitExpiry(self: *Self) !void {
+    try self.mutex.lock(self.io);
+    defer self.mutex.unlock(self.io);
+    var minimum: ?i64 = null;
+    const now = std.Io.Clock.awake.now(self.io);
+    for (self.challenges) |entry| if (entry) |value| {
+        const remaining = @as(i64, self.configuration.limits.handshake_ms) - value.started.durationTo(now).toMilliseconds();
+        minimum = @min(minimum orelse std.math.maxInt(i64), @max(0, remaining));
+    };
+    for (self.slots) |*slot| {
+        if (!slot.present or slot.opening or !slot.native or slot.controls != 0) continue;
+        const remaining = @as(i64, self.configuration.limits.session_lease_ms) - slot.last.durationTo(now).toMilliseconds();
+        if (remaining <= 0) {
+            if (!slot.mutex.tryLock()) continue;
+            slot.mutex.unlock(self.io);
+        }
+        minimum = @min(minimum orelse std.math.maxInt(i64), @max(0, remaining));
+    }
+    if (minimum) |milliseconds| {
+        self.expiry_changed.waitTimeout(self.io, &self.mutex, .{ .duration = .{ .raw = .fromMilliseconds(milliseconds), .clock = .awake } }) catch |err| switch (err) {
+            error.Timeout => {},
+            else => return err,
+        };
+    } else try self.expiry_changed.wait(self.io, &self.mutex);
+}
+fn borrowerJoined(self: *Self, slot: *Slot) void {
+    slot.mutex.unlock(self.io);
+    self.mutex.lockUncancelable(self.io);
+    defer self.mutex.unlock(self.io);
+    self.expiry_changed.broadcast(self.io);
 }
 fn response(self: *Self, allocator: std.mem.Allocator, result: @FieldType(api.Response, "result")) ![]align(api.ResultFrame.alignment) u8 {
     const bytes = try api.encodeResponse(allocator, api.Response{ .version = 1, .definition = api.native.current_definition, .instance = self.instance, .result = result });
@@ -231,7 +269,7 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Alloc
     }
     slot.last = std.Io.Clock.awake.now(self.io);
     self.mutex.unlock(self.io);
-    defer slot.mutex.unlock(self.io);
+    defer self.borrowerJoined(slot);
     defer {
         self.mutex.lockUncancelable(self.io);
         slot.last = std.Io.Clock.awake.now(self.io);
@@ -270,7 +308,7 @@ pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Alloc
 }
 fn opened(self: *Self, allocator: std.mem.Allocator, account: usize, credential: g.Configuration.Credential, database: []const u8, source: ?[]const u8, proof: []const u8) ![]align(api.ResultFrame.alignment) u8 {
     const slot = try self.create(account, credential, database, .transit, true);
-    defer slot.mutex.unlock(self.io);
+    defer self.borrowerJoined(slot);
     errdefer self.remove(slot);
     try slot.host.?.selectSource(source);
     return self.response(allocator, .{ .opened = .{ .session = slot.id, .account = self.configuration.accounts[account].execution.account, .database = slot.host.?.database, .proof = proof } });
@@ -314,6 +352,7 @@ fn open(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api.Action,
                 var id: api.Id = undefined;
                 try self.io.randomSecure(&id);
                 entry.* = .{ .id = id, .account = index, .database = try databaseName(account, input.database), .source = source, .credential = credential, .scram = scram, .started = now };
+                self.expiry_changed.broadcast(self.io);
                 retained = true;
                 return self.response(allocator, .{ .challenge = .{ .id = id, .message = entry.*.?.scram.challenge() } });
             }
@@ -330,6 +369,7 @@ fn authenticate(self: *Self, allocator: std.mem.Allocator, input: @FieldType(api
     const found = for (&self.challenges) |*entry| {
         if (entry.*) |value| if (std.crypto.timing_safe.eql(api.Id, value.id, input.challenge)) {
             entry.* = null;
+            self.expiry_changed.broadcast(self.io);
             break value;
         };
     } else {
@@ -615,6 +655,7 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
         self.mutex.lockUncancelable(self.io);
         slot.last = std.Io.Clock.awake.now(self.io);
         slot.controls -= 1;
+        self.expiry_changed.broadcast(self.io);
         self.mutex.unlock(self.io);
     }
     var cancelled: std.atomic.Value(bool) = .init(false);
@@ -718,49 +759,10 @@ fn operationStatus(host: *g.Session, ref: g.SessionOperations.Reference) !api.Op
         .captured => try g.CapturedOperations.status(host, ref.id),
     };
 }
-/// One indexed operation per pass, rotating accounts. Retained history is never
-/// loaded as a resident queue. This task owns its transport independently of
-/// sessions, Table coordination and expiry.
-pub fn recover(self: *Self) !void {
-    if (self.runtimes.len == 0) return;
-    const index = self.recovery_index;
-    self.recovery_index = (index + 1) % self.runtimes.len;
-    const runtime = self.runtimes[index];
-    if (!runtime.ready.load(.acquire)) return;
-    defer self.recovery_reserve.reset(true) catch unreachable;
-    var memory: g.query.QueryMemory = .{ .parent = self.recovery_reserve.allocator(), .limit = self.configuration.limits.session_bytes };
-    const a = memory.allocator();
-    const account = &self.configuration.accounts[index];
-    var wire = g.wire.Client.init(a, self.io, self.configuration.native_url);
-    defer wire.deinit();
-    wire.timeout_ms = self.configuration.request_timeout_ms;
-    var observer: g.Client = .{ .transport = &wire, .execution = runtime.execution, .principal = account.execution.table_principal, .key = runtime.ingress.key };
-    var source = try observer.source();
-    const page = try g.SessionOperations.list(runtime.execution, &source, self.recovery_after[index], true);
-    const reference = page.entries[0] orelse {
-        self.recovery_after[index] = 0;
-        return;
-    };
-    self.recovery_after[index] = reference.id;
-    if (reference.kind == .table or reference.kind == .transaction) return;
-    const item = try g.SessionOperations.external(runtime.execution, &source, reference.id);
-    const database = for (account.databases) |database| {
-        if (std.meta.eql(database.binding, item.binding())) break database.name;
-    } else return error.SqlOperationBindingChanged;
-    var cancelled: std.atomic.Value(bool) = .init(false);
-    var active: std.atomic.Value(bool) = .init(false);
-    const host = try g.Session.init(a, self.io, self.configuration, index, runtime, try g.Session.loadCredential(a, self.io, account), database, .transit, &cancelled, &active);
-    defer host.deinit();
-    try host.begin();
-    defer host.end();
-    switch (reference.kind) {
-        .configuration => _ = try g.ConfigurationOperations.resumeOperation(host, reference.id),
-        .captured => {
-            try g.CapturedOperations.select(host, reference.id);
-            _ = try g.CapturedOperations.resumeOperation(host, reference.id);
-        },
-        .table, .transaction => return error.InvalidSqlOperationReference,
-    }
+/// One bounded discovery/recovery turn; false means the worker can park or
+/// back off for unresolved work. No idle upstream request is made.
+pub fn recover(self: *Self) !bool {
+    return self.recovery.step(self);
 }
 
 const reserve_configuration: g.Configuration = .{

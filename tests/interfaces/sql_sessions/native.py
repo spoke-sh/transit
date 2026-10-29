@@ -1,6 +1,7 @@
 """Independent HTTPS client for the native session and durable admission contract."""
 import base64
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 import hashlib
 import hmac
 import http.client
@@ -430,16 +431,13 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
                 'DESCRIBE native_sessions', 'SHOW TABLES',
                 'EXPLAIN SELECT id FROM native_sessions'):
         protected = first.execute(sql)['batch']
-        authorize(False)
-        try:
-            # The same revocation also denies the account's activation check.
-            # Join that readiness loss so disclosure cannot race ahead of it.
-            if faults is not None:
-                faults.wait_unready(first)
-            denied = first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='AccessDenied')['err']
-            assert denied['sqlstate'] == list(b'42501')
-        finally:
-            authorize(True)
+        with faults.readiness_outage(first) if faults is not None else nullcontext():
+            authorize(False)
+            try:
+                denied = first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='AccessDenied')['err']
+                assert denied['sqlstate'] == list(b'42501')
+            finally:
+                authorize(True)
         first.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])), error='SqlResultIncomplete')
     print(json.dumps(dict(profile='native_sql_buffered_disclosure', data=True, empty_terminal=True,
                           describe=True, catalog=True, storage=True, explain=True,

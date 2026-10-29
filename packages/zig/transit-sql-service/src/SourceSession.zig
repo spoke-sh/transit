@@ -128,7 +128,6 @@ pub const Read = struct {
             source.host.runtime.read_pins.?.close(source.client.tables.?, record) catch |err| {
                 source.host.runtime.read_cleanup_failure.store(@intFromError(err), .release);
             };
-            source.host.runtime.notify();
         }
     }
     pub fn deinit(self: *Read) void {

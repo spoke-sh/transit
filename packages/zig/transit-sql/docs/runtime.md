@@ -54,13 +54,28 @@ same operation in the submitting request, within the existing statement and
 native request budgets. A successful foreground response projects the freshly
 authorized owner outcome directly, without waiting for background enumeration
 or another status RPC. The pending record supplies the original frozen reference
-and current cancellation state. Background recovery is notified after the
-foreground attempt, including failure or lost acknowledgement, and separately
-settles the Catalog pending index. It may race the foreground attempt; both use
-the identical frozen reference and resolve the same owner receipt. Terminal
-completion does not claim that pending-accounting cleanup has already finished. An uncertain reply still leaves accepted work with the
-recovery owner. Status and lookup remain observation-only, and disclosure
-retains current authorization.
+and current cancellation state. Foreground completion also attempts the Catalog
+pending-index settlement. A failed or lost settlement reply preserves the known
+terminal outcome and schedules recovery of the original token. Per-token
+scheduling claims prevent background execution from racing its foreground owner;
+these bounded in-memory stripes carry no durable authority. Concurrent identical
+tokens still converge through Catalog, and replacement needs no old claim.
+Terminal completion does not promise that failed pending-accounting cleanup has
+finished. Status and lookup remain observation-only, and disclosure retains
+current authorization.
+
+Recovery discovers pending work in complete bounded pages on startup, then parks
+when its obligations are settled. Notifications record a generation before a
+sweep; a notification arriving during discovery remains outstanding for another
+pass. Uncertain binding, cancellation, explicit resume, incomplete transaction
+publication/cleanup and failed pin acquisition/release schedule work. Only
+unresolved obligations use bounded retry delays. Denial or a failed scan cannot
+certify an empty backlog. A crash loses the volatile signals, so replacement
+always rediscovers the durable pending index and original read-pin slots.
+Successful foreground DML does not require another recovery execution.
+Foreground activation failures withdraw readiness and notify the same recovery
+owner. A settled account's health observation is not a cached permission grant;
+foreground execution and buffered disclosure still require current authority.
 
 There is no intermediate Table admission record on this path. Catalog token
 acceptance and pending-index settlement are separate durable decisions; this
@@ -110,8 +125,7 @@ identity with `pin_status`, including when the acquisition reply was lost. An
 unborrowed stale cut for the same Table is replaced before consuming another
 empty slot. Eviction still records closure before releasing a pin. Startup
 reconciliation scans each route's bounded slots; successful sweeps stop until
-an acquisition or cleanup failure requires another pass. Pending writes take
-priority over idle pin reconciliation.
+an acquisition or cleanup failure requires another pass. Each recovery turn bounds both operation work and pin reconciliation.
 
 Socket loss, timeout and stopping a wait are not rollback. The service continues
 accepted work under current rights. A new statement without the original token

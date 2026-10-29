@@ -42,6 +42,7 @@ def run(node, catalog, gateway):
         capacity_armed = False
         capacity_repeats = 0
         sends = turns = table_calls = 0
+        upstream_calls = 0
         failures = []
         upstream = threading.local()
         # Serialize the fault boundary with subsequent requests: a caller whose
@@ -69,8 +70,10 @@ def run(node, catalog, gateway):
             def forward(self):
                 nonlocal armed, accepted, committed, recovered, repeated, sends, turns, table_calls
                 nonlocal saved_recoveries, committed_saved
+                nonlocal upstream_calls
                 nonlocal capacity_binding, capacity_receipt, capacity_repeats, capacity_armed
                 body = self.rfile.read(int(self.headers['Content-Length']))
+                upstream_calls += 1
                 connection = getattr(upstream, 'conn', None)
                 if connection is None:
                     connection = upstream.conn = HTTPConnection('127.0.0.1', port, timeout=15)
@@ -89,6 +92,7 @@ def run(node, catalog, gateway):
                         operation = action.get('operation')
                         saved = action.get('commit_saved')
                         binding = action.get('client_token', {}).get('bind')
+                        settlement = action.get('client_progress', {}).get('update')
                         if status == 200 and binding and 'table' in binding['intent']:
                             if capacity_armed:
                                 # Acceptance happened, but its response looks
@@ -119,6 +123,11 @@ def run(node, catalog, gateway):
                             result = json.loads(data)
                             accepted = result['result']['client_token']
                             armed = None
+                            result['context'][0] ^= 1
+                            data = json.dumps(result).encode()
+                        if status == 200 and armed == 'settlement' and settlement and not settlement['pending']:
+                            armed = None
+                            result = json.loads(data)
                             result['context'][0] ^= 1
                             data = json.dumps(result).encode()
                         if status == 200 and armed == 'commit' and ((operation and operation['command'] == 'execute') or saved):
@@ -254,6 +263,14 @@ def run(node, catalog, gateway):
             capacity_armed = True
             result = call(gateway, 'runtime', 'UPDATE wire_data SET value = 21 WHERE id = 2')
             assert (result['outcome']['state'], result['outcome']['matched'], result['outcome']['changed']) == ('applied', 1, 1), result
+            assert result['pending'] is False, result
+            armed = 'admission'
+            uncertain = call(gateway, 'runtime-uncertain', 'UPDATE wire_data SET value = 21 WHERE id = 2')
+            assert armed is None and uncertain == dict(uncertain_bind_recovered=True, pending=False), uncertain
+            armed = 'settlement'
+            settled = call(gateway, 'runtime-settlement', 'UPDATE wire_data SET value = 21 WHERE id = 2')
+            assert armed is None and settled['pending'] is False, settled
+            assert (settled['outcome']['state'], settled['outcome']['matched'], settled['outcome']['changed']) == ('applied', 1, 0), settled
             values = ', '.join(f'({i}, {i * 10})' for i in range(4, 71))
             seeded = call(gateway, 'enqueue', 9001, f'INSERT INTO wire_data (id, value) VALUES {values}')
             call(gateway, 'run')
@@ -262,6 +279,19 @@ def run(node, catalog, gateway):
             call(gateway, 'app-config', 5432)
             framing = call(gateway, 'session-framing')
             assert framing == dict(framing_refusals=17, exact_repeats=15, advanced_recoveries=2, revoked_results=3), framing
+            with subprocess.Popen([gateway, url, 'idle', str(root)], stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, text=True) as idle:
+                deadline = time.monotonic() + 60
+                while not (root/'idle-ready').exists():
+                    assert idle.poll() is None, idle.stderr.read() if idle.poll() is not None else ''
+                    assert time.monotonic() < deadline, 'recovery did not park after startup discovery'
+                    time.sleep(.01)
+                before_idle = upstream_calls
+                output, errors = idle.communicate(timeout=10)
+                assert idle.returncode == 0, errors
+                assert json.loads(output) == dict(parked=True)
+                idle_requests = upstream_calls - before_idle
+                assert idle_requests == 0, (before_idle, upstream_calls)
             assert call(gateway, 'cancel-cleanup') == dict(cleanup_cancelled=True, joined=True)
             assert sends == turns == 0, 'SQL database work dispatched Station messages or turns'
             assert capacity_repeats == 1, capacity_repeats
@@ -272,6 +302,8 @@ def run(node, catalog, gateway):
                                   explicit_execute_repeated=repeated, saved_receipt_recoveries=saved_recoveries,
                                   exact_counts=True, history=history,
                                   framing=framing, exact_capacity_retries=capacity_repeats, cleanup_cancelled_and_joined=True,
+                                  settled_idle_upstream_requests=idle_requests,
+                                  lost_foreground_bind_recovered=True, lost_settlement_reply_recovered=True,
                                   station_sends=sends, station_turns=turns,
                                   table_requests=table_calls, seconds=round(time.monotonic()-started, 3))))
         finally:

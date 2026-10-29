@@ -228,13 +228,18 @@ def main():
             fields = Path(f'/proc/{authority[0]}/stat').read_text().split()
             return sum(map(int, fields[13:15])) / os.sysconf('SC_CLK_TCK')
 
-        before_cpu, before = cpu(), time.monotonic()
-        counters = {name: probe.snapshot() for name, probe in probes.items()}
-        time.sleep(3)
-        print(json.dumps({'phase': 'idle', 'seconds': time.monotonic() - before,
-                          'node_cpu_seconds': cpu() - before_cpu,
-                          'attempts': {name: dict(probe.snapshot() - counters[name])
-                                       for name, probe in probes.items()}}), flush=True)
+        def idle_sample(phase):
+            before_cpu, before = cpu(), time.monotonic()
+            counters = {name: probe.snapshot() for name, probe in probes.items()}
+            time.sleep(3)
+            print(json.dumps({'phase': phase, 'seconds': time.monotonic() - before,
+                              'node_cpu_seconds': cpu() - before_cpu,
+                              'attempts': {name: dict(probe.snapshot() - counters[name])
+                                           for name, probe in probes.items()}}), flush=True)
+
+        # Readiness permits requests while startup discovery may still run.
+        # Keep this window distinct from idle after verified statement work.
+        idle_sample('idle')
 
         script = fixture.root / 'measurement.sql'
         def execute(mode, sql):
@@ -245,6 +250,7 @@ def main():
         if args.statements:
             from performance.console.statements import run
             run(fixture, args.repeat, probes)
+            idle_sample('idle_after_statements')
             success = True
             return
 

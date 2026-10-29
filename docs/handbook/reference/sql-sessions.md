@@ -79,6 +79,9 @@ Protected session operations check current credentials and database access befor
 account readiness. Revocation returns an access denial even when it also stops
 the account's recovery work. An authorized caller still requires a ready account
 and its current activation fence before execution or result disclosure.
+An idle, settled account does not poll for policy changes. A failed foreground
+activation check withdraws readiness and wakes recovery; current authorization
+still applies to every protected request.
 
 ## Durable work and recovery
 
@@ -93,6 +96,15 @@ account's history and `resume` to continue its saved work. A transport failure
 cannot tell a caller whether admission succeeded. Resending SQL with a new token
 can create another operation. Session closure, cancelling a wait, or resetting
 prepared handles does not roll back an accepted mutation.
+
+The service attempts foreground completion and pending-accounting settlement for
+ordinary Table writes. If a bind, commit or settlement reply is lost, recovery
+continues the original accepted operation under current rights. Startup discovers
+pending work in bounded pages; settled recovery workers park until notified.
+Temporary unavailability or denial preserves the recovery obligation. A terminal
+result can be known while failed bookkeeping or transaction cleanup remains
+pending. Native session expiry follows its lease deadline and does not cancel
+accepted work or decide an open transaction.
 
 Captured queries require a service-owned source binding and publish their exact
 compiled intent through the durable query owner. After reconnection or restart,

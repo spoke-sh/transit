@@ -511,9 +511,8 @@ fn runAccount(runtime: *g.DatabaseRuntime, diagnostics: *telemetry.Runtime) void
             interval_ms = 2;
             continue;
         }
-        // Idle accounts share the same bounded native request admission with
-        // active work and caller validation. Wait on runtime wakeup or bounded
-        // backoff; a signal or completed step restores immediate execution.
+        // Settled accounts park without a timer or native request. Only an
+        // unresolved obligation uses bounded backoff; notifications wake now.
         runtime.waitIdle(interval_ms) catch return;
         interval_ms = @min(interval_ms * 2, 100);
     }
@@ -674,23 +673,27 @@ fn serve(init: std.process.Init, diagnostics: *telemetry.Runtime, config: *const
 }
 
 fn expireSessions(registry: *g.Registry, io: std.Io) !void {
+    _ = io;
     while (true) {
-        try io.sleep(.fromMilliseconds(100), .awake);
         registry.sweep();
+        try registry.waitExpiry();
     }
 }
 
 fn recoverSessions(registry: *g.Registry, io: std.Io, diagnostics: *telemetry.Runtime) !void {
     var previous: ?anyerror = null;
+    var interval_ms: u32 = 2;
     while (true) {
-        try io.sleep(.fromMilliseconds(100), .awake);
-        registry.recover() catch |err| {
+        const more = registry.recover() catch |err| {
             if (err == error.Canceled or err == error.Cancelled) return err;
             if (previous == null or previous.? != err) diagnostics.event(.{ .name = "sql.operation.recovery", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
             previous = err;
             continue;
         };
         previous = null;
+        if (more) continue;
+        try registry.recovery.work.wait(io, interval_ms);
+        interval_ms = @min(100, interval_ms * 2);
     }
 }
 

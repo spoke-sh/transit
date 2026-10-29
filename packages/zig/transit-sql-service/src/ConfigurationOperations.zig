@@ -34,6 +34,7 @@ pub fn admit(host: *g.Session, token: api.Token, fingerprint: [32]u8) !api.Opera
     defer current.deinit();
     var original: [16]u8 = undefined;
     try host.io.randomSecure(&original);
+    defer host.runtime.notifyExternal();
     var reader = try host.observer.source();
     _ = try ops.begin(&reader, .{ .nonce = token, .fingerprint = fingerprint, .kind = .configuration, .binding = try host.account.database(host.database), .original = original, .source = try source(host), .expected_generation = current.value.result.settings.generation, .reservation = 8192 }, null);
     const ref = (try host.fresh(find, .{ host, token, @as(?[32]u8, fingerprint) })) orelse return error.MissingGatewayOperation;
@@ -62,6 +63,7 @@ pub fn status(host: *g.Session, id: u64) !api.Operation {
 /// The caller serializes the account's administrative lane. The immutable
 /// Catalog reference can reconstruct a missing local journal, never new SQL.
 pub fn resumeOperation(host: *g.Session, id: u64) !api.Operation {
+    defer if (!host.recovering) host.runtime.notifyExternal();
     try host.runtime.settings_mutex.lock(host.io);
     defer host.runtime.settings_mutex.unlock(host.io);
     const item = try host.fresh(load, .{ host, id });

@@ -1,6 +1,8 @@
 """Owned authority hop for deterministic metadata and pin acquisition failures."""
 import http.client
 import http.server
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 import json
 import os
 import threading
@@ -191,6 +193,31 @@ class Faults:
             assert time.monotonic() < deadline, 'database account did not withdraw readiness'
             time.sleep(.05)
 
+    @contextmanager
+    def readiness_outage(self, client):
+        # A settled account has no polling activation check. Trigger a real
+        # foreground fence failure before changing disclosure rights, then keep
+        # recovery unavailable while the buffered-result assertion runs.
+        configuration = json.loads((client.root / 'sql-gateway.json').read_text())
+        self.fail_coordinator = configuration['accounts'][0]['execution']['table_principal']
+        probe = type(client)(client.root, client.port)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            opening = pool.submit(probe.open)
+            try:
+                self.wait_unready(client)
+                yield
+            finally:
+                self.fail_coordinator = None
+                try:
+                    opening.result(timeout=40)
+                except AssertionError as failure:
+                    # The independent login can observe the temporary grant
+                    # revocation too. No other login failure is acceptable.
+                    assert (len(failure.args) == 1 and isinstance(failure.args[0], dict)
+                            and failure.args[0].get('err', {}).get('code') == 'AccessDenied'), failure
+                finally:
+                    probe.close()
+
     def check(self, client):
         before = self.failures
         self.fail_once = True
@@ -198,17 +225,20 @@ class Faults:
         assert self.failures == before + 1 and result['rows'], (before, self.failures, result)
         client.call(dict(close_result=result['cursor']))
 
-        # A real failed database activation fence withdraws readiness. Login waits for
-        # its recovery inside the configured request window, not 64 short polls.
+        # Settled recovery does not poll the authority. A foreground activation
+        # check must withdraw readiness and wake recovery; the original login
+        # waits inside its unchanged request budget for authority restoration.
         configuration = json.loads((client.root / 'sql-gateway.json').read_text())
         self.fail_coordinator = configuration['accounts'][0]['execution']['table_principal']
         release = None
+        pool = ThreadPoolExecutor(max_workers=1)
         try:
+            started = time.monotonic()
+            opening = pool.submit(lambda: type(client)(client.root, client.port).open())
             self.wait_unready(client)
             release = threading.Timer(3, lambda: setattr(self, 'fail_coordinator', None))
             release.start()
-            started = time.monotonic()
-            recovered = type(client)(client.root, client.port).open()
+            recovered = opening.result(timeout=40)
             recovered.close()
             elapsed = time.monotonic() - started
             assert elapsed >= 2, elapsed
@@ -219,6 +249,7 @@ class Faults:
             if release is not None:
                 release.cancel()
                 release.join()
+            pool.shutdown(wait=True)
         # Change the logical frontier so this open needs a new cache pin.
         # A warm SELECT intentionally performs no acquisition.
         client.terminal(client.execute('INSERT INTO native_sessions VALUES (998, 1)', list(os.urandom(16)))['operation'])

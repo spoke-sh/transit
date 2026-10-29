@@ -1,0 +1,76 @@
+{
+  "purpose": "Retain matched M8 recovery measurements, including write regressions and startup versus post-statement idle traffic, as a reproducible baseline for issue #211. No timing budget or correctness input depends on these files.",
+  "runtime_revisions": {
+    "control": "3f14da60e4ec3dd3657a430f79bfc665a3bf7f6c",
+    "candidate": "bfe91aa56aaa4acb1960e84eace4958f29a90703"
+  },
+  "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
+  "conditions": {
+    "captured_at": "2026-10-29T09:34:41.042345+00:00",
+    "cpu_model": "AMD Ryzen Threadripper 3960X 24-Core Processor",
+    "available_cpus": 48,
+    "cpu_max": null,
+    "fixture_filesystem": {
+      "filesystems": [
+        {
+          "fstype": "ext4",
+          "source": "/dev/nvme0n1p2"
+        }
+      ]
+    },
+    "flake_lock_sha256": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264",
+    "optimize": "ReleaseSafe",
+    "zig": "0.17.0-dev.2267+48abf1a34",
+    "conditions": "Shared host, no CPU affinity or frequency control. Sequential uninstrumented frozen control/candidate runs after owned CI and builds finished; unrelated host services remain active."
+  },
+  "files": {
+    "round1-control.jsonl": {
+      "source_log": ".cache/m8-gateway/control-console-final.log",
+      "source_log_sha256": "32d79332e747d932332496bb8910278d3bab81abaf067f0a0bc3bb295d362730",
+      "sha256": "32d79332e747d932332496bb8910278d3bab81abaf067f0a0bc3bb295d362730",
+      "records": 50,
+      "transformation": "Keep all complete JSON output lines byte-for-byte; omit non-JSON shell/runtime output. No field redaction or reserialization.",
+      "observed_exit_code": 0
+    },
+    "round1-candidate.jsonl": {
+      "source_log": ".cache/m8-gateway/candidate-console-final.log",
+      "source_log_sha256": "5ebbfc3164ab9cc4187a382357506b9b920b53d3e7db23690702e4e1924becd9",
+      "sha256": "5ebbfc3164ab9cc4187a382357506b9b920b53d3e7db23690702e4e1924becd9",
+      "records": 50,
+      "transformation": "Keep all complete JSON output lines byte-for-byte; omit non-JSON shell/runtime output. No field redaction or reserialization.",
+      "observed_exit_code": 0
+    },
+    "round2-control.jsonl": {
+      "source_log": ".cache/m8-gateway/control-console-idle.log",
+      "source_log_sha256": "8b452a3c75e609a173bd15cb5c58535c83a3fc4dc8b1d2531dcc843f02f3843a",
+      "sha256": "8b452a3c75e609a173bd15cb5c58535c83a3fc4dc8b1d2531dcc843f02f3843a",
+      "records": 51,
+      "transformation": "Keep all complete JSON output lines byte-for-byte; omit non-JSON shell/runtime output. No field redaction or reserialization.",
+      "observed_exit_code": 0
+    },
+    "round2-candidate.jsonl": {
+      "source_log": ".cache/m8-gateway/candidate-console-idle.log",
+      "source_log_sha256": "527dcc503a3d3d84ce5db144100e791be17f7e72c67643e0f4fc3f868c750963",
+      "sha256": "527dcc503a3d3d84ce5db144100e791be17f7e72c67643e0f4fc3f868c750963",
+      "records": 51,
+      "transformation": "Keep all complete JSON output lines byte-for-byte; omit non-JSON shell/runtime output. No field redaction or reserialization.",
+      "observed_exit_code": 0
+    },
+    "instrumented-control.jsonl": {
+      "source_log": ".cache/m8-gateway/control-instrumented-idle.log",
+      "source_log_sha256": "d39a7d28562b8cfb67cef89b7e28227e1c8bca24b7572832d9eb3a4cc98cfb9a",
+      "sha256": "f5d7e9d295e8c094eacb303d9ced317c038f0f48997381ceec1b839df1e70f63",
+      "records": 6,
+      "transformation": "Keep metadata, both idle windows, INSERT trace/sample and statement summary byte-for-byte. Omit other statement/trace records and non-JSON output. No field redaction or reserialization.",
+      "observed_exit_code": 0
+    },
+    "instrumented-candidate.jsonl": {
+      "source_log": ".cache/m8-gateway/candidate-instrumented-idle.log",
+      "source_log_sha256": "aaf06bea171f415397382453c4d99cb3a5c742cd7bd2d03c1ba4d882bf38f7e8",
+      "sha256": "5fc43b0721760f863fdc961895860b514ee958ae8bdc97369c50e184ff7d3c0c",
+      "records": 6,
+      "transformation": "Keep metadata, both idle windows, INSERT trace/sample and statement summary byte-for-byte. Omit other statement/trace records and non-JSON output. No field redaction or reserialization.",
+      "observed_exit_code": 0
+    }
+  }
+}

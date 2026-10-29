@@ -86,6 +86,12 @@ console script path and table renderer, without terminal editor/PTY timing.
 The timer's submit phase includes server preparation and execution; a zero
 client compile phase does not mean the server did no planning. The wait phase
 includes observing durable completion, not just the client's polling sleep.
+The installed runner records separate three-second `idle` and
+`idle_after_statements` windows with node CPU and optional upstream counters.
+The first follows readiness and can include startup discovery; the second follows
+verified readback and console closure. Neither label alone proves an empty
+recovery backlog. Use the observed requests and owning recovery evidence to
+interpret quiescence.
 
 `just test::console-latency-tls 5` runs the same value/count workload through the
 existing matching TLS SQL fixture without a proxy. This separate component
