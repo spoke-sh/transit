@@ -2550,6 +2550,29 @@
       "limits": "Forward-design specification for Milestone 6 QueuePartition; runtime QueuePartition implementation is planned.",
       "model": "tests/verification/models/QueueLeaseTransaction.tla",
       "qualification": "Execution evidence is retained under .cache/verification/queue-lease-transaction-model/ and CI artifacts."
+    },
+    {
+      "id": "STORAGE-10",
+      "claim": "The finite single-candidate object model publishes a descriptor only over durable content and preserves acknowledged publication across modeled crashes",
+      "owner": "contracts/TRANSIT_STORAGE_V1.md",
+      "implementation": [
+        "packages/zig/transit-storage/src/DiskObjects.zig",
+        "packages/zig/transit-storage/src/disk_objects_test.zig"
+      ],
+      "profile": "One key, one candidate and exact retries; payload/checksum/descriptor bytes absent, partial or complete; independent visible and durable names",
+      "tasks": [
+        "test::object-publication-model",
+        "test::storage-io-faults",
+        "test::local-storage-faults"
+      ],
+      "scenarios": [
+        "Exhaustive safety exploration with independent writeback, process death, power loss, uncertain I/O and exact retry",
+        "Five removed synchronization obligations must violate the named content, descriptor or acknowledgement invariant",
+        "Real disk fault schedules and bounded sync-order probes independently check the implementation"
+      ],
+      "limits": "Assumes per-key exclusion, atomic descriptor replacement, truthful successful sync and no concurrent reclamation. Excludes inventory, accepted SQL/WAL composition, payload integrity, CAS competition, arbitrary batching and liveness. No implementation refinement, automatic counterexample replay or physical power-loss claim.",
+      "model": "tests/verification/models/ObjectPublication.tla",
+      "qualification": "Executed evidence belongs in docs/history/qualification/storage.md; model and disk evidence are distinct."
     }
   ]
 }

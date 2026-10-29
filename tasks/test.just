@@ -284,6 +284,10 @@ model *args:
 wal-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/wal_model.py {{args}}
 
+# Immutable content/checksum names, descriptor publication and five sync controls.
+object-publication-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/object_publication_model.py {{args}}
+
 # One original transaction decision, bounded safety and six negative controls.
 transaction-decision-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-transaction-decision-model -- {{args}}
