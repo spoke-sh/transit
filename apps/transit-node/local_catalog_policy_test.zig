@@ -1174,6 +1174,8 @@ fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAut
     {
         // Revisit this Table within the already captured pass boundary.
         work.cursors.flush.after = expected.binding.target.object - 1;
+        PhysicalPause.entered = .unset;
+        PhysicalPause.release = .unset;
         PhysicalPause.armed.store(true, .release);
         var flushing = try t.io.concurrent(Work.step, .{ @as(*anyopaque, &work), engine, settings, signed });
         defer _ = flushing.cancel(t.io) catch {};

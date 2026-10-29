@@ -21,7 +21,8 @@ The authority validates the protocol without executing application code.
 Its package dependencies are [transit-protocol](../transit-protocol/README.md),
 re-exported as `protocol`, and optional runtime instrumentation through
 [transit-observability](../transit-observability/README.md), re-exported as
-`observability`. It does not import the kernel, Ursula, or a provider.
+`observability`. It also uses [transit-memory](../transit-memory/README.md) for bounded local
+response materialization. It does not import the kernel, Ursula, or a provider.
 [Client](src/root.zig) owns bounded native v1 HTTP exchange;
 [Session](src/Session.zig) adds activation-aware receive/prepare/submit operations.
 The [native caller guide](docs/growing.md) describes bounded views and retained
@@ -271,3 +272,19 @@ window retire idle sockets before the next send. The gateway uses the same rule.
 This reduces stale reuse after slow responses without retrying an uncertain
 request. A peer can still close a connection or exceed its deadline; callers
 retain and reconcile the exact prepared identity after transport failure.
+
+## Typed local placement
+
+An embedding host may install `Client.local` with a `LocalEndpoint`. Checked type
+tokens protect the erased request/response pointers. The host still validates
+signed public requests and current rights; the callback confers no authority.
+Selected local routes never retry remotely after a refusal or timeout. Explicit
+route selection supports a client whose configuration operations have a separate
+owner.
+
+`callOwned` returns the same owned arena on either placement. Local materialized
+variable data is bounded by `response_bytes`; request domain limits are checked
+by the owning service, while encoded HTTP byte limits apply to remote transport.
+Scratch must not escape and a deadline joins dispatch before freeing output.
+An incomplete local response, including exhausted output capacity, retains the
+same uncertainty as incomplete remote I/O.

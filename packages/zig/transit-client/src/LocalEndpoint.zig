@@ -92,7 +92,7 @@ test "local deadline joins its producer and frees partial owned output" {
 /// temporary host workspace may escape through the response. No retry/fallback.
 pub fn call(self: Self, client: *@import("root.zig").Client, allocator: std.mem.Allocator, comptime T: type, path: []const u8, input: anytype) !T {
     var result: T = undefined;
-    var invocation: Invocation = .{ .client = client, .allocator = allocator, .path = path, .input = &input, .input_type = token(@TypeOf(input)), .output = &result, .output_type = token(T) };
+    var invocation: Invocation = .{ .client = client, .allocator = allocator, .path = path, .input = @ptrCast(&input), .input_type = token(@TypeOf(input)), .output = @ptrCast(&result), .output_type = token(T) };
     try self.invoke(self.context, &invocation);
     if (!invocation.completed) return error.InvalidLocalResponseType;
     return result;
@@ -153,4 +153,20 @@ test "local invocation refuses mismatched types and owns nested response slices"
     const response = try client.callOwned(Response, "/test", Request{ .id = 7 }, .{});
     defer response.deinit();
     try t.expectEqualStrings("retained", response.value.rows[0].text);
+}
+
+test "owned local output refuses oversized materialization and releases partial data" {
+    const t = std.testing;
+    const Host = struct {
+        fn run(_: *anyopaque, invocation: *Invocation) !void {
+            _ = try invocation.allocator.alloc(u8, 16);
+            _ = try invocation.allocator.alloc(u8, 17);
+            return error.UnexpectedUnboundedAllocation;
+        }
+    };
+    var context: u8 = 0;
+    var client = @import("root.zig").Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer client.deinit();
+    client.local = .{ .context = &context, .invoke = Host.run };
+    try t.expectError(error.WriteFailed, client.callOwned([]const u8, "/local", .{}, .{ .response_bytes = 32 }));
 }

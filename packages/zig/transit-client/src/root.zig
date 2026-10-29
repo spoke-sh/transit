@@ -241,7 +241,14 @@ pub const Client = struct {
                 errdefer self.http.allocator.destroy(arena);
                 arena.* = .init(self.http.allocator);
                 errdefer arena.deinit();
-                const value = try endpoint.call(self, arena.allocator(), T, path, signed);
+                // Bound materialized variable data without serializing it. The
+                // budget lives only during dispatch; the retained arena frees
+                // through its stable parent allocator after the call returns.
+                var output: @import("transit_memory").Budget = .{ .parent = arena.allocator(), .limit = limits.response_bytes };
+                const value = endpoint.call(self, output.allocator(), T, path, signed) catch |err| {
+                    if (err == error.OutOfMemory and output.exhausted) return error.WriteFailed;
+                    return err;
+                };
                 try validateValue(T, value, signed);
                 return .{ .arena = arena, .value = value };
             }
