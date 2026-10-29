@@ -4,8 +4,10 @@
 `TransactionDecisionLog` freezes one attempt and records its commit or abort
 decision. `TablePartition` accepts durable preparation barriers and resolves
 successors against that actual journal. The catalog component coordinates those
-owners under an embedding host's exclusive database publication fence. These
-component operations do not provide signed transaction requests or SQL sessions.
+owners under an embedding host's exclusive database publication fence. The
+[signed Catalog controls](../../transit-catalog/docs/direct-catalog.md) and
+[SQL service](../../../../docs/handbook/reference/sql/transactions.md) compose these
+operations into the public transaction lifecycle.
 
 ## Private directories
 
@@ -117,10 +119,12 @@ current receipt, pin, history, archive and maintenance control state. A committe
 aggregate Table receipt carries the common decision and original commit operation;
 private statement outcomes retain their separate statement attribution.
 
-A crash can leave one participant finalized and another blocked. A successful
-read cannot observe a new value from one participant and the old value from the
-other; the unresolved participant refuses it. The host must hold the database
-publication fence across consistent-cut acquisition and each coordinator call.
+A crash can leave one participant finalized and another blocked. While publication
+is incomplete, an unresolved participant refuses a current
+read instead of supplying its predecessor. Explicit transaction reads acquire
+one common cut; independent reads issued at different times outside a transaction
+do not acquire atomic multi-Table observation semantics. The host must hold the
+database publication fence across consistent-cut acquisition and each coordinator call.
 The decision is the logical commit point; materialization can defer availability.
 A physical flush between private evaluation and preparation does not conflict
 unless its logical interpretation or data frontier changed.

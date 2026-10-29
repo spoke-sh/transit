@@ -379,8 +379,10 @@ must reject before acceptance. A reserved variant is not an executable participa
 The [Table checkpoint/outbox example](../../examples/table-outbox/README.md)
 composes three ordinary Tables. It does not migrate native inbox progress,
 Station turns or connector dispatch. This milestone must provide each additional
-participant's retained basis, current-policy guard, preparation/durability proof,
+KV/Stream/Queue participant's retained basis, current-policy guard, preparation/durability proof,
 common-decision visibility, original outcome and bounded cleanup implementation.
+The [Document owner](07-document-storage-and-station-decoupling.md) supplies those
+same obligations for `DocumentPartition` before Document state can join a turn.
 QUEUE ACK must bind the original `_lease_epoch`; Stream/Queue appends must retain
 accepted payload availability before decision. Reuse the decision envelope and
 original-token owner instead of adding a Station-specific commit protocol.

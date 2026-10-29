@@ -61,7 +61,7 @@ lifecycle/token, and resident owner/cache models check finite transition invaria
 and replay their negative-control counterexample traces against the real Zig
 `TablePartition`, `TableMaintenanceState`, `TableStorageRoots`,
 `TableGarbageCollection`, `TransactionDecisionLog`, and `DirectCatalog` owners.
-The forward-design `QueueLeaseTransaction` model checks Milestone 6
+The forward-design `QueueLeaseTransaction` model checks proposed
 `QueuePartition` `.tack` Roaring states, `key_fifo` affinity, `_lease_epoch`
 fencing, and 3-primitive turn commits. See [the model reference](../../../tests/verification/models/README.md)
 for scope and limits.

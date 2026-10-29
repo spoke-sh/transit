@@ -63,7 +63,9 @@ selected Table. There is no automatic transaction lifetime timeout; recover and
 explicitly settle abandoned transactions. Session expiry does not release their
 durable pins or establish abort.
 
-The first accepted account reservation fixes its quotas. Later requests must use
+The accepted activation fixes the complete `execution` profile, including
+`transaction_limits`; a higher generation cannot change that fingerprint.
+The first accepted account reservation also fixes its quotas. Later requests must use
 the same limits; a smaller per-request budget cannot bypass account accounting.
 Pending settlement releases pending capacity, while operation and byte charges
 remain retained. Changing the execution identity or quota profile is not a way

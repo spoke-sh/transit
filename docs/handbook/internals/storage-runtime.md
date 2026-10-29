@@ -1805,8 +1805,10 @@ transactions retain their common cut without requiring current data versions.
 Table resolution reopens the actual journal and checks prepared-directory
 membership before accepting private data roots. Abort clears the barrier without
 publishing those roots. A crash between participant finalizations leaves a
-resolved Table readable and unresolved Tables blocked. Thus a successful read
-cannot pair one newly published participant with another participant's old data.
+resolved Table readable and unresolved Tables blocked. An unresolved participant
+refuses a current read instead of supplying its predecessor. Explicit transaction
+reads acquire a common cut; independent reads made at different times outside a
+transaction do not acquire atomic multi-Table observation semantics.
 This is an availability cost of the blocking design; successful ordinary reads
 do not resolve barriers implicitly. Whole-Table validation also admits false
 conflicts between disjoint logical writes. Physical flush, archive and pin
