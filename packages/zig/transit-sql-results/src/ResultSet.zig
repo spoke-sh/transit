@@ -10,6 +10,7 @@ pub const Source = struct {
     close: *const fn (*anyopaque) anyerror!void,
     deinit: *const fn (*anyopaque) void,
     failure: ?*const fn (*anyopaque) ?r.Failure = null,
+    validate_disclosure: ?*const fn (*anyopaque) anyerror!void = null,
 };
 schema: r.Types.Type,
 observation: r.Observation.Value,
@@ -19,6 +20,7 @@ chunk: r.Batch = .{},
 row_scratch: [(r.Types.Limits{}).nodes]r.Types.Values.Cell = undefined,
 index: usize = 0,
 closed: bool = false,
+held_disclosure: bool = false,
 
 /// Schema/observation and source context remain owned by source until deinit.
 pub fn init(schema: r.Types.Type, observation: r.Observation.Value, identity: r.Identity, source: Source) !Self {
@@ -45,6 +47,22 @@ pub fn completion(self: Self) ?r.Completion {
 pub fn failure(self: Self) ?r.Failure {
     return if (self.source.failure) |read| read(self.source.context) else null;
 }
+/// Revalidate the source's current disclosure scope without consuming rows.
+/// This covers the current chunk; metadata from earlier chunks may have
+/// different subjects. Unsupported or released sources fail closed.
+pub fn validateDisclosure(self: *Self) !void {
+    if (self.closed) return error.ResultClosed;
+    const validate = self.source.validate_disclosure orelse return error.ResultValidationUnavailable;
+    try validate(self.source.context);
+}
+/// A bounded interactive view may retain the last disclosure scope after
+/// exhaustion. It must explicitly close/deinit and remains subject to the
+/// source's lease. This never retains earlier metadata chunks or source data.
+pub fn holdDisclosure(self: *Self) !void {
+    if (self.closed) return error.ResultClosed;
+    if (self.source.validate_disclosure == null) return error.ResultValidationUnavailable;
+    self.held_disclosure = true;
+}
 /// Accept a source-owned initial or subsequent chunk atomically. Native adapters
 /// expose already received terminal evidence before the first delivery.
 pub fn receive(self: *Self, chunk: Chunk) !void {
@@ -69,7 +87,7 @@ fn ensureAvailable(self: *Self) !bool {
     }
     if (self.index < self.chunk.len) return true;
     if (self.progress.consumption == .exhausted) {
-        try self.close();
+        if (!self.held_disclosure) try self.close();
         return false;
     }
     const chunk = self.source.next(self.source.context) catch |err| {
@@ -78,7 +96,7 @@ fn ensureAvailable(self: *Self) !bool {
     };
     try self.receive(chunk);
     if (chunk.values.len == 0) {
-        try self.close();
+        if (!self.held_disclosure) try self.close();
         return false;
     }
     return true;

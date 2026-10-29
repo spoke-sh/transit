@@ -9,6 +9,89 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Board catalog and bounded read workbench — 2026-10-28
+
+The question is whether installed Board can discover Table definitions and
+consume one logical SQL result across bounded display windows without becoming
+an execution or permission owner. Current behavior and limits belong in the
+[workbench guide](../../../apps/transit-board/docs/workbench.md),
+[SQL client](../../../packages/zig/transit-sql-client/README.md) and
+[result library](../../../packages/zig/transit-sql-results/README.md).
+
+The successful functional control uses the source tree subsequently committed
+as `9003d14b3`, the pinned Nix toolchain and definition
+`fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6`.
+It runs the real installed CLI, node, SQL gateway, query hosts and embedded Board.
+Board is Debug; the other roles are ReleaseSafe. The CLI reports revision
+`91e35ce2c`; the SQL gateway includes the later prepared-slot fix. Exact binary
+hashes, the control script, logs and screenshot are retained locally in ignored
+`.cache/board-workbench/evidence-9003d14b3/manifest.json` and its sibling artifacts.
+The control overrides only `LocalInstallation`'s fixture parent to `/tmp`, which
+is tmpfs on this host. It is functional evidence, not disk durability or a
+uniform-source release qualification.
+
+The [installed fixture](../../../tests/interfaces/installation/board_workbench.py)
+passes catalog pagination over eleven Tables; exact definition metadata; all
+145 independent row identities across 100- and 45-row windows; repeated
+observation/advancement without a different result or observation; verified empty
+completion; SHOW, DESCRIBE and EXPLAIN; definition mismatch; four-reader capacity;
+expired references; and metadata/terminal-result denial after actual principal
+revocation. INSERT, DROP, session settings and effectful row-returning reload
+are refused even with a stronger configured SQL account. Independent console
+counts remain 145 after each refusal.
+
+Both [Chromium scenarios](../../../apps/transit-board-web/browser/workbench.spec.ts)
+pass in 21.1 seconds. They cover catalog continuation, dataset deep-link reload,
+metadata navigation without SQL execution, explicit preview, received-window
+profiles, keyboard Run, empty completion, earlier-draft attribution, and recovery
+of a deliberately lost successful reply with exactly one Run. A denied
+observation clears displayed rows and the SQL draft. Catalog, dataset and workbook
+accessibility scans report zero violations. There is no horizontal document
+overflow at 1280 pixels, no page error or browser storage, and at most five
+JavaScript assets, each below 900,000 bytes. The retained 1440-pixel screenshot
+shows the dataset and column inspector. These checks do not replace a manual
+screen-reader/zoom review or a browser/service memory and latency benchmark.
+
+Earlier attempts exposed and corrected a failed-prepare registry lifetime bug,
+missing dataset/workbook deep routes, action-link contrast, a test locator
+mismatch, and a test assumption that catalog order followed names. The SQL registry
+now publishes a prepared slot only after fallible preparation succeeds; the
+installed refusal/closure schedule passes after that correction. Row-returning
+reload is marked effectful in typed descriptions without changing its ordinary
+row dispatch. Public-client, result-library, SQL-service and Board route unit
+checks pass; query-client validation covers full-width values, original-result
+identity, lost advancement and late replies after closure. Profile checks cover
+five-state counts and integer values beyond JavaScript Number precision.
+
+Clean-source outcomes remain scoped and incomplete:
+
+- `core` at `91e35ce2c` passed the 46 fast checks and exposed an invalid maximum
+  storage-path fixture in the client tests. The fixture is corrected to a valid,
+  maximally escaped path and its owning package passes. The obsolete lane was
+  stopped after the correction; it is not a core-lane pass.
+- `experience` at `2d78020c2` passed Board/schema/type checks, the documentation
+  site and Node binding checks. That obsolete run was stopped when the SQL
+  preparation defect was found; it is not an experience-lane pass.
+- `browser` at `6ff62a3ed` passed the five inspection browser scenarios and the
+  direct relational API proof. The relational browser's lost-response test
+  instead received an upstream 503 before its intended injection; the lane
+  stopped there and later browser tasks did not run.
+- `interfaces` at `c619ae202` passed SQL wire TLS and result-allocation checks.
+  Unix/HTTP/HTTPS each recorded 1,453 requests, 305 queries and zero measured
+  memory events or steady-state libc allocation attempts. The TLS cancellation
+  fixture also logged a BrokenPipeError while its command returned zero.
+  The next SQL gateway proof timed out after 300 seconds amid repeated
+  `commit_saved` request timeouts and canceled storage operations. Remaining
+  interface tasks did not run.
+
+Ordinary disk-backed installed attempts also encountered startup or seed failures
+before the Board assertions, including authority timeouts and recovery-required
+outcomes. The tmpfs control separates the successful UI/API schedule from those
+failures; it does not establish their root cause or waive disk-backed gates.
+Raw clean-run logs are retained with the functional evidence; failed clean
+checkouts retain their own runner records. No complete repository, Compose,
+provider, physical recovery or full Board product qualification is claimed.
+
 ## Direct Board relational recovery — 2026-10-24
 
 `nix develop -c zig build test-direct-board -Doptimize=ReleaseSafe

@@ -126,6 +126,10 @@ flag remain explicit. Row-returning statements have a logical schema even when
 execution returns zero rows. No empty logical structure stands in for command
 completion.
 
+The description's mutation flag also covers row-returning effects such as
+`SELECT transit_reload_conf()`. Row shape alone never establishes read-only
+admission. Ordinary command-versus-row execution dispatch remains separate.
+
 The native profile accepts CREATE SCHEMA, ALTER SCHEMA ... RENAME and DROP SCHEMA
 RESTRICT through the direct catalog. Preparation freezes the expected schema and
 requested owner without allocating IDs or publishing work. Catalog accepts a SQL operation ID bound to the complete frozen intent.

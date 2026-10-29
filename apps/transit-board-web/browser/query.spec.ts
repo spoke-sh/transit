@@ -19,7 +19,7 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
       if ("page" in body) pageReads++;
     }
   });
-  await page.goto("/");
+  await page.goto("/atlas");
   await expect(page.getByRole("heading", { name: "Relief atlas", exact: true })).toBeVisible();
   await page
     .getByRole("button", {

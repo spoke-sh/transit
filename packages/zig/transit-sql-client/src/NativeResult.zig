@@ -52,7 +52,7 @@ fn openTransport(allocator: std.mem.Allocator, transport: Transport, first: sdk.
     self.observation = copied.value;
     self.observation_hash = try r.Observation.fingerprint(a, self.observation);
     try self.decode(frame);
-    var result = try r.ResultSet.init(self.schema, self.observation, .{ .result = frame.cursor, .schema = self.schema_hash, .observation = self.observation_hash }, .{ .context = self, .next = next, .close = close, .deinit = deinit, .failure = failure });
+    var result = try r.ResultSet.init(self.schema, self.observation, .{ .result = frame.cursor, .schema = self.schema_hash, .observation = self.observation_hash }, .{ .context = self, .next = next, .close = close, .deinit = deinit, .failure = failure, .validate_disclosure = validateDisclosure });
     try result.receive(self.chunk);
     self.response = first;
     return result;
@@ -136,6 +136,26 @@ fn failure(context: *anyopaque) ?r.Failure {
     return self.failure_value;
 }
 
+fn validateDisclosure(context: *anyopaque) !void {
+    const self: *Self = @ptrCast(@alignCast(context));
+    if (self.closed) return error.ResultClosed;
+    const response = try self.transport.fetch(self.transport.context, self.memory.allocator(), self.cursor, self.ordinal);
+    defer response.deinit();
+    if (response.value.result == .err) {
+        const value = response.value.result.err;
+        return if (std.mem.eql(u8, &value.sqlstate, "42501") or std.mem.eql(u8, &value.sqlstate, "28000")) error.SqlObservationDenied else error.SqlResultUnavailable;
+    }
+    if (response.value.result != .batch) return error.InvalidSqlResponse;
+    const frame = response.value.result.batch;
+    if (!std.mem.eql(u8, &frame.cursor, &self.cursor) or frame.ordinal != self.ordinal or
+        !std.mem.eql(u8, &frame.schema, &self.schema_hash) or
+        !std.mem.eql(u8, &frame.observation, &self.observation_hash) or
+        frame.rows != self.chunk.values.len or !std.meta.eql(frame.completion, self.chunk.completion)) return error.ResultIdentityChanged;
+    const original = self.response.?.value.result.batch;
+    if (frame.columns.len != original.columns.len) return error.ResultIdentityChanged;
+    for (frame.columns, original.columns) |received, held| if (!std.mem.eql(u8, received, held)) return error.ResultIdentityChanged;
+}
+
 fn close(context: *anyopaque) !void {
     const self: *Self = @ptrCast(@alignCast(context));
     if (self.closed) return;
@@ -165,14 +185,16 @@ fn deinit(context: *anyopaque) void {
 
 const t = std.testing;
 const TestScript = struct {
-    slot: sdk.Response.Slot = .{},
+    slots: [2]sdk.Response.Slot = .{ .{}, .{} },
     length: usize = 7,
     maximum: usize = 2,
     position: usize = 0,
     requests: usize = 0,
+    disclosures: usize = 0,
+    frame_start: usize = 0,
     closed: usize = 0,
     empty_terminal: bool = false,
-    fault: enum { none, identity, ordinal, schema, observation, count, incomplete, disconnect, cancelled, duplicate } = .none,
+    fault: enum { none, identity, ordinal, schema, observation, count, incomplete, disconnect, cancelled, duplicate, denied } = .none,
     fn frame(self: *TestScript, allocator: std.mem.Allocator, ordinal: u64) !api.Batch {
         const fields = [_]r.Types.Field{.{ .name = "n", .type = .uint128 }};
         const count = @min(self.maximum, self.length - self.position);
@@ -221,16 +243,27 @@ const TestScript = struct {
     fn fetch(context: *anyopaque, allocator: std.mem.Allocator, cursor: api.Id, ordinal: u64) !sdk.Response {
         const self: *TestScript = @ptrCast(@alignCast(context));
         try t.expectEqual(@as(api.Id, @splat(6)), cursor);
-        self.requests += 1;
-        try t.expectEqual(self.requests, ordinal);
+        const repeat = ordinal == self.requests;
+        if (repeat) {
+            self.disclosures += 1;
+            self.position = self.frame_start;
+        } else {
+            self.requests += 1;
+            try t.expectEqual(self.requests, ordinal);
+        }
+        if (self.fault == .denied) return error.SqlObservationDenied;
         if (self.fault == .disconnect) return error.ReadFailed;
         if (self.fault == .cancelled) return error.ResultCancelled;
         return self.response(allocator, ordinal);
     }
     fn response(self: *TestScript, allocator: std.mem.Allocator, ordinal: u64) !sdk.Response {
-        const lease = try self.slot.acquire(allocator);
+        const slot = for (&self.slots) |*slot| {
+            if (!slot.active) break slot;
+        } else return error.SqlResponseCapacity;
+        const lease = try slot.acquire(allocator);
         errdefer lease.release() catch unreachable;
         const a = try lease.allocator();
+        self.frame_start = self.position;
         const value = try self.frame(a, ordinal);
         // The incomplete-prefix case deliberately violates frame shape and
         // exercises reader admission, independently of the byte parser.
@@ -338,6 +371,51 @@ test "received completion survives early closure without claiming full delivery"
     try t.expectEqual(.stopped, result.progress.consumption);
     try t.expectEqual(3, result.completion().?.rows);
     try t.expectEqual(1, script.closed);
+}
+
+test "held presentation revalidates empty and completed data without reopening" {
+    for ([_]usize{ 0, 3, 7 }) |length| for ([_]bool{ false, true }) |empty_terminal| {
+        var script: TestScript = .{ .length = length, .maximum = 3, .empty_terminal = empty_terminal };
+        var result = try script.open(t.allocator);
+        defer result.deinit();
+        try result.holdDisclosure();
+        try requireStream(&result, length);
+        try t.expectEqual(0, script.closed);
+        const requests = script.requests;
+        try result.validateDisclosure();
+        try result.validateDisclosure();
+        try t.expectEqual(requests, script.requests);
+        try t.expectEqual(2, script.disclosures);
+        script.fault = .denied;
+        try t.expectError(error.SqlObservationDenied, result.validateDisclosure());
+        try result.close();
+        try t.expectError(error.ResultClosed, result.validateDisclosure());
+        try t.expectEqual(1, script.closed);
+    };
+}
+
+test "interactive windows own rows and reject substituted disclosure evidence" {
+    var script: TestScript = .{ .length = 7, .maximum = 3 };
+    const outcome = try t.allocator.create(sdk.Executor.Outcome);
+    outcome.* = .{ .parent = t.allocator, .memory = .{ .parent = t.allocator, .limit = 1024 * 1024 }, .arena = undefined, .value = undefined };
+    outcome.arena = .init(outcome.memory.allocator());
+    outcome.value = .{ .rows = try script.open(outcome.memory.allocator()) };
+    var view: sdk.ReadView = undefined;
+    try view.init(t.allocator, outcome);
+    defer view.deinit();
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    for (0..3) |window| {
+        try view.advance();
+        const observed = try view.inspect(arena.allocator());
+        try t.expectEqual(if (window == 2) @as(usize, 1) else 3, observed.rows.len);
+        try t.expectEqualStrings("0", observed.rows[0][0].value.atom.unsigned);
+        try t.expectEqual(@as(@TypeOf(observed.stopped), if (window == 2) .complete else .metadata_window), observed.stopped);
+        try t.expectEqual(window * 3, try std.fmt.parseInt(u64, observed.start, 10));
+        try t.expectEqual(window, script.requests);
+    }
+    script.fault = .schema;
+    try t.expectError(error.ResultIdentityChanged, view.inspect(arena.allocator()));
 }
 fn allocationSchedule(allocator: std.mem.Allocator) !void {
     var script: TestScript = .{};

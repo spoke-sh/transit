@@ -1,6 +1,16 @@
 import type { StateResponse, Capabilities, StorageResponse, Error as ErrorBody } from "./types";
 import { inspectionResponse, type Response } from "./effects";
 export { inspectionResponse, type Response } from "./effects";
+export { DataCatalog } from "./catalog";
+export type {
+  CatalogDescription,
+  CatalogTables,
+  CatalogNamespaces,
+  CatalogTable,
+  CatalogEntry,
+  CatalogDependencies,
+  CatalogRequest,
+} from "./catalog";
 export type { StateResponse, Capabilities, StorageResponse } from "./types";
 export { relationalQuery, validateRelational } from "./relational";
 export type {
@@ -117,7 +127,10 @@ export async function request<T>(
   validate: (value: unknown) => value is T,
   options?: {
     signal?: AbortSignal;
-    body?: UnifiedQueryRequest | import("./types").RelationalRequest;
+    body?:
+      | UnifiedQueryRequest
+      | import("./types").RelationalRequest
+      | import("./types").CatalogRequest;
   },
 ): Promise<T> {
   if (!path.startsWith("/api/v1/")) throw new BoardError(0, "InvalidPath");

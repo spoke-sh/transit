@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { attention, Evidence, present } from "../components";
 import { DeclaredView } from "../declared";
 import { useScope, useObservation } from "../state";
+import { useInterface } from "../interface";
+import { CatalogPage } from "../data-workbench";
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
     status:
@@ -10,8 +12,13 @@ export const Route = createFileRoute("/")({
         : "all",
     sort: search.sort === "backlog" ? "backlog" : "pid",
   }),
-  component: () => (useScope().scope?.profile === "native_v1" ? <DeclaredView /> : <Overview />),
+  component: Landing,
 });
+function Landing() {
+  const current = useInterface();
+  const native = useScope().scope?.profile === "native_v1";
+  return native ? current?.published ? <DeclaredView /> : <CatalogPage /> : <Overview />;
+}
 function Overview() {
   const view = useObservation("processes");
   const { status, sort } = Route.useSearch();

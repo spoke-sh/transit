@@ -2,6 +2,8 @@
 pub const protocol = @import("transit_sql_protocol");
 pub const results = @import("transit_sql_results");
 pub const Executor = @import("Executor.zig");
+pub const ReadView = @import("ReadView.zig");
+pub const ReadWorkspace = @import("ReadWorkspace.zig");
 pub const Client = @import("Client.zig");
 pub const Response = @import("Response.zig");
 pub const Pending = @import("Pending.zig");

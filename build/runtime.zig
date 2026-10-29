@@ -98,6 +98,8 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const transit_board_api = b.dependency("transit_board_api", .{ .target = target, .optimize = optimize });
     const client = b.dependency("transit_client", .{ .target = target, .optimize = optimize });
     const sql_protocol = b.dependency("transit_sql_protocol", .{ .target = target, .optimize = optimize });
+    const sql_read_schema = b.addExecutable(.{ .name = "transit-sql-read-api", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-sql-client/src/read_schema.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") }} }) });
+    b.step("sql-read-api", "Export the shared browser statement reader").dependOn(&b.addRunArtifact(sql_read_schema).step);
     const asset_source: std.Build.LazyPath = if (b.option([]const u8, "board-assets", "Prebuilt closed Board asset module")) |path| .{ .cwd_relative = path } else assets: {
         const embed = b.addSystemCommand(&.{ "python3", "-B" });
         embed.addFileArg(b.path("tasks/embed_web.py"));
@@ -116,6 +118,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .name = "transit_query", .module = query.module("transit_query") },
         .{ .name = "transit_client", .module = client.module("transit_client") },
         .{ .name = "transit_board_api", .module = transit_board_api.module("transit_board_api") },
+        .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") },
         .{ .name = "assets", .module = asset_module },
         .{ .name = "telemetry", .module = telemetry.module("telemetry") },
     } }) });

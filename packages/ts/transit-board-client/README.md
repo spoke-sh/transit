@@ -1,5 +1,10 @@
 # transit-board-client
 
+`DataCatalog` exposes bounded authorized catalog descriptions, namespace/Table
+pages, exact Table metadata and paged registered relationships. Its generated
+runtime validators precede presentation. It starts no data query; callers use
+the shared `@transit/query-client` statement reader for explicit previews and SQL.
+
 Typed resource client for Board's inspection and optional KV/Table/Document query APIs, exposed in the workspace as
 `@transit/board-client`. This is a shared browser TypeScript package, independent of React and Router; it is not a Transit
 execution/signing client. [Zig transit-board-api](../../zig/transit-board-api/README.md) owns the

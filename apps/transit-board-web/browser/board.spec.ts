@@ -12,7 +12,7 @@ test("real embedded UI explains kernel evidence and retains focus while polling"
     if (response.request().resourceType() === "script" && response.url().includes("/assets/"))
       scripts.set(response.url(), response);
   });
-  await page.goto("/");
+  await page.goto("/atlas");
   await expect(page.getByRole("heading", { name: "Relief atlas" })).toBeVisible();
   const selection = page.getByRole("button", { name: `Select process ${pid}`, exact: true });
   await expect(selection).toBeVisible();
@@ -152,7 +152,7 @@ test("an unavailable initial connection can be retried without signing in", asyn
   await page.route("**/api/v1/capabilities", (route) =>
     route.fulfill({ status: 503, contentType: "application/json", body: '{"err":"Unavailable"}' }),
   );
-  await page.goto("/");
+  await page.goto("/atlas");
   await expect(page.getByText("Observation unavailable (Unavailable).")).toBeVisible();
   await expect(page.getByLabel("Board access key")).toHaveCount(0);
   await page.unroute("**/api/v1/capabilities");

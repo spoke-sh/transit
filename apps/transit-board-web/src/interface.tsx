@@ -71,9 +71,16 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
   const definition = current?.compiled.definition;
   useEffect(() => {
     const screen = definition?.screens.find((candidate) => candidate.path === pathname);
-    if (screen) setArea(screen.area);
+    if (
+      pathname === "/catalog" ||
+      pathname === "/workbook" ||
+      pathname.startsWith("/datasets/") ||
+      (pathname === "/" && !current?.published)
+    )
+      setArea("workspace");
+    else if (screen) setArea(current?.published ? screen.area : "operations");
     setNavigation(false);
-  }, [pathname, definition]);
+  }, [pathname, definition, current?.published]);
   const tokens = density ?? (definition ? presentation(definition).density : "comfortable");
   return (
     <Interface.Provider value={current}>
@@ -116,8 +123,27 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
         >
           <p className="eyebrow">{area}</p>
           <nav>
+            {area === "workspace" && (
+              <>
+                <Link
+                  to="/catalog"
+                  aria-current={
+                    pathname === "/catalog" || (pathname === "/" && !current?.published)
+                      ? "page"
+                      : undefined
+                  }
+                >
+                  Catalog
+                </Link>
+                <Link to="/workbook" aria-current={pathname === "/workbook" ? "page" : undefined}>
+                  Workbook <small>Session</small>
+                </Link>
+              </>
+            )}
             {definition?.screens
-              .filter((screen) => screen.area === area)
+              .filter((screen) =>
+                current?.published ? screen.area === area : area === "operations",
+              )
               .map((screen) => (
                 <Link
                   key={screen.name}
@@ -157,9 +183,7 @@ export function InterfaceShell({ scope, children }: { scope: Capabilities; child
         </aside>
         <div className="shell-content">
           <aside className="scope">
-            Realm {scope.realm} ·{" "}
-            {scope.scope_pid === null ? "All authorized processes" : `PID ${scope.scope_pid}`} ·
-            shared read principal
+            Realm {scope.realm} · Private workspace · Current scoped access
           </aside>
           {current || pathname === "/recovery/definition" ? (
             children

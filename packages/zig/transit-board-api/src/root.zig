@@ -127,7 +127,12 @@ pub const Capabilities = struct {
     reactive_table: bool = false,
     push: bool = false,
 };
-pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired, QueryDisabled, QueryBusy, UnsupportedQuery, QueryRequestTooLarge, IncompleteResult, InvalidQueryOrdinal, QueryConflict }, diagnostic: ?protocol.Diagnostic = null };
+pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired, QueryDisabled, QueryBusy, UnsupportedQuery, QueryRequestTooLarge, IncompleteResult, InvalidQueryOrdinal, QueryConflict, ReadOnlyStatementRequired, ReadWorkspaceExpired, ReadWorkspaceCapacity }, diagnostic: ?protocol.Diagnostic = null };
+
+pub const CatalogRequest = @import("transit_query").catalog.DirectCatalogRead.Request;
+pub const CatalogResponse = @import("transit_query").catalog.DirectCatalogRead.Response;
+pub const SqlReadRequest = @import("transit_sql_client").ReadWorkspace.Request;
+pub const SqlReadResponse = @import("transit_sql_client").ReadWorkspace.Response;
 
 pub const UnifiedQueryRequest = @import("transit_query").Workspace.Request;
 pub const UnifiedQueryResponse = @import("transit_query").Workspace.Response;

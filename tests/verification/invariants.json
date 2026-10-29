@@ -2382,6 +2382,31 @@
       "limits": "The embedding host excludes database publication. Private statement operations have no signed caller or SQL adapter; the installed checks cover only existing record and begin-admission refusals. No commit, abort, preparation barrier, common-decision visibility, savepoint controls, automatic cleanup, process-death or power-loss claim follows. Staging charges exclude unreachable failed staging and separately owned catalog/provider capacity.",
       "model": null,
       "qualification": "Focused catalog and clean-source checks must identify their actual source; registration alone is not execution."
+    },
+    {
+      "id": "BOARD-DATA-01",
+      "claim": "Board explores authorized catalog definitions and read-only logical results without re-executing uncertain reads or claiming complete display coverage",
+      "owner": "docs/handbook/reference/board-api.md",
+      "implementation": [
+        "packages/zig/transit-sql-client/src/ReadWorkspace.zig",
+        "packages/zig/transit-sql-client/src/ReadView.zig",
+        "apps/transit-board/Workbench.zig"
+      ],
+      "profile": "Current-v1 private Board with explicit catalog and SQL connections",
+      "tasks": [
+        "transit-board::workbench-test",
+        "transit-board::workbench-browser",
+        "transit-board::check"
+      ],
+      "scenarios": [
+        "145 rows across native batches and two bounded windows, exact repeat and empty terminal",
+        "Strong configured account cannot mutate through read admission",
+        "Expected source definition mismatch, bounded reader capacity, terminal revocation",
+        "Keyboard Run, no edit execution, lost reply original observation, denial clearing and accessibility"
+      ],
+      "limits": "Session-local four-reader host; no durable workbook, transaction snapshot or whole-source statistics.",
+      "model": null,
+      "qualification": "Executable scenarios; executed evidence is recorded in the qualification owner."
     }
   ]
 }

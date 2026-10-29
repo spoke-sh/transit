@@ -25,6 +25,11 @@ def run(first, second, operation):
         assert reply.status == 400 and json.loads(reply.read())['err'] == 'InvalidSqlHeaders'
     first.http.close()
     first.last = 0
+    # Rejected preparation must leave no partially initialized statement slot.
+    # Reset destroys all occupied slots, then another preparation must succeed.
+    for _ in range(3):
+        first.call(dict(prepare=dict(sql='SET sql.idle_ms = 1')), error='SettingNotSessionMutable')
+        first.call('reset')
     # The independently encoded parameter includes its descriptor and nullable
     # flag. It cannot silently inherit a different prepared type after reset.
     prepared = first.call(dict(prepare=dict(sql='SELECT id FROM native_sessions WHERE id = $1')))['described']

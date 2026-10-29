@@ -13,7 +13,7 @@ semantics; these drivers add protocol, presentation and installation boundaries.
 | SQL sessions and PostgreSQL/MySQL protocols | [Session checks](sql_sessions/README.md), [wire checks](sql_wire/README.md) |
 | HTTP serving and reactive sessions | [http/](http/), [reactive/](reactive/) |
 | gRPC and Arrow Flight | [grpc/](grpc/), [Flight guide](flight/README.md) |
-| Installed server lifecycle and configuration | [installation/](installation/), [server schedule](installation/server.py), [shared process/setup mechanics](../harness/local_installation.py) |
+| Installed server lifecycle and configuration | [installation/](installation/), [server schedule](installation/server.py), [data workbench](installation/board_workbench.py), [shared process/setup mechanics](../harness/local_installation.py) |
 | Launchers and reference deployment | [deployment/](deployment/), [launcher tasks](../../tasks/launchers.just) |
 
 The [test task module](../../tasks/test.just) supplies required binaries and

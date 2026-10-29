@@ -17,7 +17,7 @@ test("accepted Document metadata clears on current read revocation", async ({ pa
       path,
       process.env.BOARD_DOCUMENT_AUTHORITY!,
     ]);
-  await page.goto("/");
+  await page.goto("/atlas");
   await page.getByRole("button", { name: `Select resource ${resource}`, exact: true }).click();
   await page.getByRole("button", { name: "Inspect records", exact: true }).click();
   const records = page.getByRole("region", { name: `Resource ${resource} records`, exact: true });

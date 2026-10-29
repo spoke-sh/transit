@@ -31,3 +31,17 @@ for name, content in outputs.items():
         assert target.read_text() == content, f'query workspace declaration drift: {target}'
     else:
         target.write_text(content)
+
+read_schema = json.loads((ROOT / 'packages/zig/transit-sql-client/api/read.schema.json').read_text())
+read_outputs = {
+    'read-types.ts': '// Generated from transit-sql-client ReadWorkspace; do not edit.\n'
+        + f'export const readDefinition = {json.dumps(read_schema["definition"])} as const;\n'
+        + declarations_at({f'#/$defs/{name}': (name, value) for name, value in read_schema['$defs'].items()}),
+    'read-schema.json': json.dumps(clean({key: value for key, value in read_schema.items() if key != 'definition'}), separators=(',', ':')) + '\n',
+}
+for name, content in read_outputs.items():
+    target = Path(__file__).parent / 'src' / name
+    if '--check' in sys.argv:
+        assert target.read_text() == content, f'SQL read declaration drift: {target}'
+    else:
+        target.write_text(content)

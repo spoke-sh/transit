@@ -22,7 +22,7 @@ query: Query = .{},
 sql: @import("SqlSettings.zig") = .{},
 pub const Query = struct { statement_timeout: u64 = 0, statement_timeout_ceiling: u64 = 0 };
 pub const Startup = struct { require_existing: bool = false };
-pub const Board = struct { port: u16 = 19107, public_origin: ?[]const u8 = null };
+pub const Board = struct { port: u16 = 19107, public_origin: ?[]const u8 = null, workbench_file: ?[]const u8 = null };
 pub const Applications = struct { port: u16, max_applications: u16 = 8, max_roles: u16 = 32 };
 pub const Ports = struct { node: u16, gateway: u16 };
 /// Null selects the role compiled into `transit`. Explicit paths select the
@@ -138,6 +138,7 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
         const origin = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}", .{board.port});
         if (board.public_origin) |configured| if (!std.mem.eql(u8, configured, origin)) return diagnostic.invalidFieldCause(error.InvalidBoardOrigin, "board.public_origin", "must match the Board loopback listener", "Omit public_origin to derive it from board.port, or use exactly http://127.0.0.1:PORT.");
         board.public_origin = origin;
+        if (board.workbench_file) |path| board.workbench_file = try std.fs.path.resolve(allocator, &.{ base, path });
         self.board = board;
     }
     if (self.applications) |apps| {

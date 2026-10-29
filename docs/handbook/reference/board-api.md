@@ -5,6 +5,29 @@ workspaces. Its [OpenAPI specification](../../../contracts/transit-board-v1.open
 is generated from the Board public types; the operation and schema reference
 below is rendered from those exact bytes.
 
+## Catalog and logical statement results
+
+`POST /api/v1/catalog` exposes read-only public catalog operations: description,
+bounded namespace/Table/resource discovery, an exact Table definition and
+registered dependency pages. `POST /api/v1/sql-read` adapts the shared SQL client's
+generated `ReadWorkspace` contract: describe, run, observe, next-window and close.
+Both require same-origin JSON requests and explicit service-side configuration.
+The browser receives no SQL account secrets or native signing key.
+
+Run uses typed prepared-statement admission and refuses mutations, commands and
+unbound parameters even if its configured account can write. Results preserve one
+logical schema, exact cells, observation and terminal count across physical
+batches. Up to four readers and 100 rows per display window are retained; metadata
+windows may be smaller to preserve their disclosure scope. Requests are limited
+to 64 KiB, value allocations to 2 MiB per window and SQL-read replies to 4 MiB.
+Current authority is rechecked before every disclosure, including repeated and
+empty terminal windows. Limits, failures or closed readers cannot establish
+complete coverage. Reader IDs do not create per-viewer sessions.
+
+See [data workbench configuration and lifecycle](../../../apps/transit-board/docs/workbench.md)
+for source-definition checks, expiry and cleanup. Existing query, Live and
+relational contracts below remain separately configured operations.
+
 ## Access boundary
 
 Every reachable viewer shares the configured upstream inspection identity.

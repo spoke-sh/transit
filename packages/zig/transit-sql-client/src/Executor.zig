@@ -30,13 +30,73 @@ pub const Outcome = struct {
     memory: r.fuze.MemoryBudget,
     arena: std.heap.ArenaAllocator,
     value: r.StatementOutcome,
+    prepared: ?struct { executor: *Self, id: api.Id } = null,
     pub fn deinit(self: *Outcome) void {
         if (self.value == .rows) self.value.rows.deinit();
+        if (self.prepared) |prepared| prepared.executor.release(.{ .release = prepared.id });
         self.arena.deinit();
         std.debug.assert(self.memory.used == 0);
         self.parent.destroy(self);
     }
 };
+
+/// Prepare through the service's typed dispatch, refuse commands, then execute
+/// that exact prepared binding. No SQL parsing, new admission token, or retry is
+/// performed here. A lost execute reply is a lost interactive read, never a
+/// reason to run the SQL again. The outcome owns the prepared handle.
+pub fn read(self: *Self, sql: []const u8, options: Options) !*Outcome {
+    if (options.captured) return error.ReadOnlyStatementRequired;
+    self.enter(.prepare);
+    const out = try self.createOutcome(options);
+    errdefer out.deinit();
+    const a = out.arena.allocator();
+    const prepared = try self.call(.{ .prepare = .{ .sql = sql } }, out.memory.allocator());
+    defer prepared.deinit();
+    if (prepared.value.result == .err) {
+        out.value = .{ .failure = try self.failure(a, prepared.value.result.err) };
+        return out;
+    }
+    if (prepared.value.result != .described) return error.InvalidSqlResponse;
+    const description = prepared.value.result.described;
+    out.prepared = .{ .executor = self, .id = description.statement };
+    try requireRead(description);
+    self.enter(.submit);
+    const response = try self.call(.{ .execute = .{ .statement = description.statement } }, out.memory.allocator());
+    var retained = false;
+    defer if (!retained) response.deinit();
+    switch (response.value.result) {
+        .err => |err| out.value = .{ .failure = try self.failure(a, err) },
+        .batch => |batch| {
+            const result = @import("NativeResult.zig").open(out.memory.allocator(), self, response, options.resident_bytes) catch |err| {
+                self.release(.{ .close_result = batch.cursor });
+                return err;
+            };
+            retained = true;
+            out.value = .{ .rows = result };
+        },
+        else => return error.InvalidSqlResponse,
+    }
+    return out;
+}
+
+fn requireRead(description: api.Description) !void {
+    if (description.mutation or description.schema == null or description.parameters.len != 0) return error.ReadOnlyStatementRequired;
+}
+
+test "read admission uses authoritative statement semantics" {
+    const t = std.testing;
+    const row: api.Description = .{ .statement = @splat(1), .schema = "schema", .parameters = &.{}, .mutation = false };
+    try requireRead(row);
+    var command = row;
+    command.mutation = true;
+    try t.expectError(error.ReadOnlyStatementRequired, requireRead(command));
+    command.mutation = false;
+    command.schema = null;
+    try t.expectError(error.ReadOnlyStatementRequired, requireRead(command));
+    command = row;
+    command.parameters = &.{"unbound"};
+    try t.expectError(error.ReadOnlyStatementRequired, requireRead(command));
+}
 
 pub fn execute(self: *Self, sql: []const u8, parameters: ?[]const r.fuze.LogicalJson.Atom, options: Options) !*Outcome {
     self.enter(.prepare);

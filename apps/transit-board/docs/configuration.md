@@ -1,5 +1,9 @@
 # Board configuration and deployment
 
+The [data workbench](workbench.md) adds explicit catalog and SQL read connections
+through `workbench` or `workbench_file`. These are separate from inspection and
+the existing finite-query, Live and application capabilities below.
+
 [transit-board](../README.md)
 
 ## Configuration and provisioning

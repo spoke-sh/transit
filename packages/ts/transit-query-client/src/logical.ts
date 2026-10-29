@@ -24,7 +24,7 @@ export function logicalInteger(text: string, bits: number, signed: boolean): boo
 
 /** Bound recursive generated validators, including hostile cyclic JS values.
  * HTTP bytes are bounded separately before JSON parsing. */
-export function boundedQueryJson(input: unknown): boolean {
+export function boundedQueryJson(input: unknown, maximumBytes = 1048576): boolean {
   let nodes = 0,
     bytes = 0;
   function visit(value: unknown, depth: number): boolean {
@@ -32,7 +32,7 @@ export function boundedQueryJson(input: unknown): boolean {
     if (typeof value === "string") {
       if (!logicalText(value, 1048576)) return false;
       bytes += encoder.encode(value).length;
-      return bytes <= 1048576;
+      return bytes <= maximumBytes;
     }
     if (value === null || typeof value === "boolean") return true;
     if (typeof value === "number") return Number.isFinite(value);
