@@ -12,12 +12,16 @@ import threading
 import time
 import urllib.request
 from harness.services import free_port, wait_ready
+from runner.capture import identity, provenance
+from runner.paths import ROOT
 
 
 def run(node, catalog, gateway):
     node, catalog, gateway = [str(Path(p).resolve()) for p in (node, catalog, gateway)]
     with tempfile.TemporaryDirectory(prefix='transit-sql-database-', dir='/var/tmp', delete=False) as directory:
         root = Path(directory)
+        (root/'identity.json').write_text(json.dumps(dict(source=provenance(ROOT),
+            binaries=[identity(Path(binary)) for binary in (node, catalog, gateway)])))
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         port = free_port()
         direct = f'http://127.0.0.1:{port}'

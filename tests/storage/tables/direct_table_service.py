@@ -2,13 +2,17 @@
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import threading
+import time
 import urllib.request
 
 from harness.services import free_port, wait_ready
+from runner.capture import identity, provenance
+from runner.paths import ROOT
 from storage.tables import direct_table_maintenance
 
 
@@ -75,14 +79,32 @@ def run(node, caller, mode="tables", *artifacts):
         pressure_scan = []
         capture_pressure_scan = False
         board_fault = {"next": None, "accepted": []}
+        growth_attempts = root / "growth-attempts" if mode == "growth" else None
+        if growth_attempts is not None:
+            growth_attempts.mkdir(mode=0o700)
+        growth_sequence = 0
+        growth_lock = threading.Lock()
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
                 pass
 
             def do_POST(self):
+                nonlocal growth_sequence
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
+                attempt = None
+                if (growth_attempts is not None and self.path == "/table/v1"
+                        and isinstance(envelope["action"], dict)
+                        and set(envelope["action"]) & {"admit_ddl", "admit_rows", "operation", "pin"}):
+                    # Save before forwarding: setup can time out after acceptance,
+                    # before growth-write returns the final retained profile.
+                    # Private artifacts preserve the original signed request and
+                    # any reply; neither an absent reply nor timeout is rejection.
+                    with growth_lock:
+                        growth_sequence += 1
+                        attempt = growth_attempts / f"{growth_sequence:04d}"
+                        attempt.with_suffix(".request.json").write_bytes(body)
                 headers = {"Content-Type": "application/json"}
                 for name in ("x-transit-control", "x-transit-wait"):
                     if name in self.headers:
@@ -92,6 +114,9 @@ def run(node, caller, mode="tables", *artifacts):
                     connection.request("POST", self.path, body, headers)
                     response = connection.getresponse()
                     data = response.read()
+                    if attempt is not None:
+                        attempt.with_suffix(".response.json").write_text(json.dumps({
+                            "status": response.status, "body": data.decode("utf-8")}))
                     if self.path == "/table/v1":
                         if request_memory is not None:
                             request_memory.observe(envelope["action"], response.getheader("x-transit-work"), len(data))
@@ -110,7 +135,7 @@ def run(node, caller, mode="tables", *artifacts):
                             assert response.status == 503 and json.loads(data) == {"err": "StorageQuota"}, data
                             fault["transaction_quota_refused"] = True
                         operation = envelope["action"].get("operation")
-                        if mode == "tables" and not accepted_inspections and operation and operation["command"] == "inspect" and response.status == 200:
+                        if mode in ("tables", "maintenance") and not accepted_inspections and operation and operation["command"] == "inspect" and response.status == 200:
                             result = json.loads(data)["result"]
                             if "committed" in next(iter(result.values())):
                                 accepted_inspections.append((body, result))
@@ -241,7 +266,7 @@ def run(node, caller, mode="tables", *artifacts):
             thread.start()
             endpoint = f"http://127.0.0.1:{proxy.server_port}"
             if mode == "maintenance":
-                def restart(flush, physical=False):
+                def restart(flush, physical=False, pressure=False, foreground=False):
                     nonlocal authority
                     authority.kill()
                     authority.wait(timeout=15)
@@ -250,10 +275,16 @@ def run(node, caller, mode="tables", *artifacts):
                     settings["storage"] = {"maintenance": {"flush": {"enabled": flush},
                                                            "archive": {"enabled": physical},
                                                            "compact": physical}}
+                    if foreground:
+                        settings["storage"]["maintenance"]["flush"]["rows"] = 1
+                    settings["request_timeout_ms"] = 5000 if pressure else 60000
+                    if pressure:
+                        settings["storage"]["requests"] = {"request_bytes": 1048576, "data_bytes": 1048576}
                     config.write_text(json.dumps(settings))
                     authority = start()
                 direct_table_maintenance.exercise(caller, endpoint, profile, root, restart,
-                                                  lambda: authority, node, request_memory)
+                                                  lambda: authority, node, request_memory,
+                                                  port, accepted_inspections)
                 return
             if mode == "growth":
                 subprocess.run([caller, endpoint, "growth-write", str(profile)], check=True, timeout=600)
@@ -261,11 +292,43 @@ def run(node, caller, mode="tables", *artifacts):
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = None
+                settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 50, "operation_timeout_ms": 2000}
+                settings["storage"] = {"maintenance": {"flush": {"enabled": True, "rows": 1},
+                                                       "archive": {"enabled": True}, "compact": True}}
+                config.write_text(json.dumps(settings))
                 authority = start()
+                before = direct_table_maintenance.process_usage(authority)
+                began = time.monotonic()
+                deadline = began + 600
+                samples = []
+                overlap = False
+                while True:
+                    remaining = deadline - time.monotonic()
+                    assert remaining > 0, samples
+                    result = subprocess.run([caller, endpoint, "growth-maintenance", str(profile)],
+                                            check=True, timeout=min(180, remaining), capture_output=True, text=True)
+                    progress = json.loads(result.stdout)
+                    samples.append(dict(seconds=time.monotonic() - began, **progress))
+                    with (root / 'growth-maintenance-observations.jsonl').open('a') as output:
+                        output.write(json.dumps(samples[-1]) + '\n')
+                    if progress["busy_tables"] == 0:
+                        break
+                    remaining = deadline - time.monotonic()
+                    assert remaining > 0, samples
+                    subprocess.run([caller, endpoint, "growth-read", str(profile)], check=True, timeout=min(180, remaining))
+                    overlap = True
+                    assert time.monotonic() - began < 600, samples
+                assert overlap and samples[-1]["segments"] > 0, samples
+                after = direct_table_maintenance.process_usage(authority)
+                print(json.dumps(dict(profile="catalog_growth_maintenance", tables=139, rows=139,
+                                      source=provenance(ROOT), binaries=[identity(Path(path)) for path in (node, caller)],
+                                      clock_ticks_per_second=os.sysconf('SC_CLK_TCK'),
+                                      node_before=before, node_after=after, samples=samples,
+                                      storage=settings["storage"], resident_pages=settings["resident_pages"])), flush=True)
                 subprocess.run([caller, endpoint, "growth-recover", str(profile)], check=True, timeout=180)
                 assert profile.read_bytes() == saved, "Recovery replaced the original retained basis"
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
-                print(f"Direct catalog growth: 139 Tables, 139 retained rows in bounded pages, original pin after node SIGKILL/restart and explicit cleanup passed ({fault['requests']} typed calls).", flush=True)
+                print(f"Direct catalog growth: 139 Tables, 139 retained rows in bounded pages, automatic maintenance convergence beyond host cache/lock stripes, original pin after node SIGKILL/restart and explicit cleanup passed ({fault['requests']} typed calls).", flush=True)
                 return
             if mode == "dependency-growth":
                 subprocess.run([caller, endpoint, "dependency-growth-write", str(profile)], check=True, timeout=600)

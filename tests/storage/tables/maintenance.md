@@ -58,13 +58,66 @@ part of the node counters. These sixteen samples do not establish a tail-latency
 guarantee or a matched implementation speedup.
 
 Native/direct collection retains its default eligibility in both arms; these
-observations do not isolate its contribution. The measurements do not yet cover
-concurrent foreground writes, large Table cardinality, isolated collection cost,
-archive/compaction contention, aggregate admission limits or allocations through
-every storage/provider owner. Keep the existing
+observations do not isolate its contribution. The measurements do not cover
+large Table cardinality, isolated collection cost or allocations through every
+storage/provider owner. Keep the existing
 [owner benchmarks](../../performance/storage/storage_benchmark.md), allocator
 checks and collection/failure schedules separate; this schedule does not replace
 them or establish a zero-allocation read path.
+
+## Concurrent writes and admission pressure
+
+After the packed-segment checks, the same installation saves a finite plan of
+48 original point inserts, sixteen per Table, before dispatch. One writer runs
+beside sixteen complete reads of the original retained cuts. A one-row flush
+eligibility threshold makes the new rows eligible without changing the 32-row
+work bound, private memory budget or maintenance deadline. The fixture requires
+both a completed retained read and accepted segment relocation before the writer
+finishes. It records complete admission/execution durations and the same node
+and request-allocation counters used above. This phase has no matched disabled
+write arm and establishes no implementation speedup.
+
+The node then restarts with automatic flush/archive/compaction enabled, a 1 MiB
+ordinary request budget and the existing 64 MiB Table-control reserve. Two partial
+HTTP bodies exhaust ordinary allocation. An unchanged signed inspection resolves
+an original committed insert while maintenance completes another bounded step.
+Disconnect and the five-second request deadline must release all ordinary bytes.
+The maintenance counter includes idle scans; it is not a count of relocated rows
+or completed collection passes. The pressure phase does not claim a bound on the
+whole process from the direct request budget.
+
+After restoring ordinary settings, every original receipt must equal its
+pre-restart result. Independent readers verify all 306 current rows and the 258
+original rows, then repeat the same retained cuts after another owner restart.
+Failed installations retain the saved write plan, completed receipt prefix,
+signed inspection and process logs privately. The fixture never retries an
+uncertain insert with a new identity.
+
+## Discovery beyond resident coordination caches
+
+`just test::catalog-growth` uses the existing 139-Table catalog fixture. The
+first Table owns 139 point-written rows and an original retained pin; the other
+138 Tables are empty. After SIGKILL and restart, automatic flush, archive and
+compaction run with one resident native page, 64 host lock/recovery stripes and
+bounded persisted catalog cursors. Public inspection visits every Table without
+accumulating its definitions or rows. It checks unlimited history, fixed row
+counts, completed physical targets and recovery coverage where archival is
+eligible. Complete catalog listings and reads of the original pin overlap the
+remaining work; the pin is released explicitly only after convergence.
+
+The maintenance phase has a shared 600-second completion budget. It records raw
+progress samples, exact binaries/source, and whole-node CPU/RSS/I/O counters.
+This exercises discovery beyond resident caches, not 139 concurrent writers or
+139 nonempty Tables. Pair it with the three-Table write/pressure schedule above;
+neither profile establishes that untested cross-product or a whole-process quota.
+
+The proxy saves each original setup mutation and pin request before forwarding
+it, then saves any returned status/body beside it in the private installation's
+`growth-attempts/` directory. A setup timeout can follow acceptance before the
+final profile is written. These records preserve the original binding for
+investigation; they do not authorize resubmitting setup under new identities or
+count the unfinished schedule as passed. Signed requests stay private and are
+removed with the installation only after success.
 
 ## Private maintenance allocation boundary
 

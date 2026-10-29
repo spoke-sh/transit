@@ -216,7 +216,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     # Original token returns its original operation without recompiling CREATE.
     assert second.execute('CREATE TABLE native_sessions (id INT64 PRIMARY KEY, value INT128)', token)['operation']['identity'] == created['identity']
     second.call(dict(execute=dict(sql='CREATE TABLE changed (id INT64)', token=token)), error='SqlTokenConflict')
-    from interfaces.sql_sessions.storage import prepare_empty, after_insert
+    from interfaces.sql_sessions.storage import prepare_empty, after_insert, buffered_disclosure
     storage_statement = prepare_empty(first)
     insert_token = list(os.urandom(16))
     if faults is not None:
@@ -241,6 +241,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     # Invalid cursor sequencing clears the cursor, never reopens its snapshot.
     first.call(dict(fetch=dict(cursor=one['cursor'], batch=one['batch'])), error='SqlResultIncomplete')
     after_insert(first, storage_statement, root, postgres)
+    buffered_disclosure(first, authorize, faults)
     # A successful foreground DML response already contains the owner's exact
     # terminal counts. No status polling is needed to finish these statements.
     def completed(sql, matched, changed):
@@ -426,7 +427,7 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     first = Client(root, port).open()
     for sql in ('SELECT id FROM native_sessions',
                 'SELECT id FROM native_sessions WHERE id = -1',
-                'DESCRIBE native_sessions', 'SHOW TABLES', 'SHOW STORAGE', 'SHOW STORAGE FOR native_sessions',
+                'DESCRIBE native_sessions', 'SHOW TABLES',
                 'EXPLAIN SELECT id FROM native_sessions'):
         protected = first.execute(sql)['batch']
         authorize(False)

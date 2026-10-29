@@ -103,3 +103,24 @@ def after_insert(client, saved, root, postgres):
         finally:
             cursor.close()
     print('Storage inspection: fresh prepared execution, exact definition/frontier, repeat fetch and native/PostgreSQL/MySQL values passed.', flush=True)
+
+
+def buffered_disclosure(client, authorize, faults):
+    """Qualify storage disclosure before unrelated captured-query workloads."""
+    for sql in ('SHOW STORAGE', 'SHOW STORAGE FOR native_sessions'):
+        protected = client.execute(sql)['batch']
+        assert protected['complete'] and protected['completion']['rows'] == 1
+        authorize(False)
+        try:
+            if faults is not None:
+                faults.wait_unready(client)
+            denied = client.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])),
+                                 error='AccessDenied')['err']
+            assert denied['sqlstate'] == list(b'42501')
+        finally:
+            authorize(True)
+        client.call(dict(fetch=dict(cursor=protected['cursor'], batch=protected['batch'])),
+                    error='SqlResultIncomplete')
+    print(json.dumps(dict(profile='native_sql_storage_disclosure', node=True, table=True,
+                          buffered_terminal=True, account_unready=faults is not None,
+                          denied_repeats_disclose_no_rows=True)), flush=True)
