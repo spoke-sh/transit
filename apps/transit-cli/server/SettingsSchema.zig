@@ -71,6 +71,7 @@ pub const descriptors = [_]D{
     .{ .name = "board", .default_json = "{}", .description = "Board listener configuration", .owner = "board", .kind = .object, .change = .restart, .nullable = true },
     port("board.port", "board"),
     .{ .name = "board.public_origin", .default_json = "null", .description = "Exact Board browser origin", .owner = "board", .kind = .string, .change = .restart, .nullable = true },
+    .{ .name = "board.workbench_file", .default_json = "null", .description = "Explicit public catalog and SQL connection configuration for Board", .owner = "board", .kind = .string, .change = .restart, .nullable = true, .sensitive = true },
 };
 fn sqlNumber(comptime name: []const u8, comptime description: []const u8, comptime default: []const u8, comptime kind: R.Kind, comptime minimum: u64, comptime maximum: u64) D {
     return .{ .name = "sql." ++ name, .description = description, .default_json = default, .owner = "sql", .kind = kind, .change = .restart, .minimum = minimum, .maximum = maximum };

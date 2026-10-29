@@ -1,5 +1,12 @@
 # transit-catalog
 
+`DirectCatalogRead.apply` composes read-only inspection, resource and dependency
+callers for data exploration. It returns bounded pages and exact Table metadata;
+lookup checks the supplied interpretation rather than accepting a changed name
+binding. Its preview SQL is identifier-quoted by this owner and includes an exact
+expected definition for the SQL result reader's pre-disclosure check. It neither
+executes that SQL nor inspects storage on behalf of a renderer.
+
 The catalog depends directly on the public protocol/client, Fuze and storage.
 It has no Station dependency: Table declaration, authorization, acceptance and
 retained reads use database owners. Named Document publication limits use the

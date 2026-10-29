@@ -14,12 +14,14 @@ const ajv = new Ajv2020({
   strict: true,
 });
 ajv.addSchema(shareValidatorSchemas(ajv, { root: schemas }).root);
-const names = Object.keys(schemas.$defs);
+const names = Object.keys(schemas.$defs).filter((name) => !name.startsWith("SqlRead"));
+const catalog = ["CatalogRequest", "CatalogResponse"];
 const relational = ["RelationalRequest", "RelationalResponse"];
 const outputs = [];
 for (const [file, selected] of [
-  ["validators", names.filter((name) => !relational.includes(name))],
+  ["validators", names.filter((name) => !relational.includes(name) && !catalog.includes(name))],
   ["relational-validators", relational],
+  ["catalog-validators", catalog],
 ]) {
   const generated = standalone(
     ajv,
@@ -27,7 +29,7 @@ for (const [file, selected] of [
   );
   const reexports =
     file === "validators"
-      ? '\nexport { RelationalRequest, RelationalResponse } from "./relational-validators.js";\n'
+      ? '\nexport { RelationalRequest, RelationalResponse } from "./relational-validators.js";\nexport { CatalogRequest, CatalogResponse } from "./catalog-validators.js";\n'
       : "";
   const text =
     '// Generated; no runtime code generation or eval.\nimport lengthModule from "ajv/dist/runtime/ucs2length.js";\nconst ucs2length = lengthModule.default ?? lengthModule;\n' +

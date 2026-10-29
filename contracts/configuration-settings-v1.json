@@ -1085,6 +1085,22 @@
       "maximum": 18446744073709551615,
       "values": [],
       "items_schema": null
+    },
+    {
+      "name": "board.workbench_file",
+      "description": "Explicit public catalog and SQL connection configuration for Board",
+      "owner": "board",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
     }
   ],
   "schema": {
@@ -1977,6 +1993,15 @@
             "x-transit-owner": "board",
             "x-transit-change": "restart",
             "default": null
+          },
+          "workbench_file": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Explicit public catalog and SQL connection configuration for Board",
+            "x-transit-owner": "board",
+            "x-transit-change": "restart"
           }
         },
         "description": "Board listener configuration",

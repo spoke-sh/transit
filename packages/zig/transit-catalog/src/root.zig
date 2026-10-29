@@ -24,6 +24,7 @@ pub const DirectTablePreparedDdl = @import("DirectTablePreparedDdl.zig");
 pub const DirectTableValues = @import("DirectTableValues.zig");
 pub const DirectTableBridge = @import("DirectTableBridge.zig");
 pub const DirectCatalogInspection = @import("DirectCatalogInspection.zig");
+pub const DirectCatalogRead = @import("DirectCatalogRead.zig");
 pub const DirectCatalogAdministration = @import("DirectCatalogAdministration.zig");
 pub const DirectCatalogDependencies = @import("DirectCatalogDependencies.zig");
 pub const DirectCatalogResources = @import("DirectCatalogResources.zig");

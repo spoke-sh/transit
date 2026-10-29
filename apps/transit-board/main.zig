@@ -9,6 +9,8 @@ const api = @import("transit_board_api");
 const assets = @import("assets");
 const growing = @import("Growing.zig");
 const query_api = @import("transit_query");
+const workbench = @import("Workbench.zig");
+const sql_client = @import("transit_sql_client");
 const i = client.protocol.Growth.Inspection;
 const Config = struct {
     upstream: []const u8,
@@ -17,6 +19,8 @@ const Config = struct {
     profile: enum { native_v1 } = .native_v1,
     query: ?growing.UnifiedQueryConfig = null,
     relational: ?struct { seed_file: []const u8, query: query_api.RelationalBridge.Config, recovery_directory: []const u8 } = null,
+    workbench: ?workbench.Config = null,
+    workbench_file: ?[]const u8 = null,
     reactive: ?struct { principal: u64, seed_file: []const u8, gateway: hosting.Gateway } = null,
     application: ?application.Host.Config = null,
     interface: ?application.Native.Scope = null,
@@ -42,6 +46,46 @@ const Server = struct {
     next_read_ms: *std.atomic.Value(i64),
     query_lock: *std.Io.Mutex,
     relational: ?*RelationalRuntime = null,
+    workbench: ?*workbench.Runtime = null,
+
+    fn workbenchRequest(self: *Server, req: *std.http.Server.Request, body: []const u8, catalog_route: bool) !void {
+        const runtime = self.workbench orelse return self.failure(req, .not_found, .QueryDisabled);
+        if (req.head.method != .POST) return self.failure(req, .not_found, .NotFound);
+        var arena: std.heap.ArenaAllocator = .init(self.allocator);
+        defer arena.deinit();
+        if (catalog_route) {
+            if (self.config.workbench.?.catalog == null) return self.failure(req, .not_found, .QueryDisabled);
+            const parsed = query_api.Values.parse(api.CatalogRequest, arena.allocator(), body) catch return self.failure(req, .bad_request, .InvalidQuery);
+            var wire = client.Client.init(arena.allocator(), self.io, self.config.upstream);
+            defer wire.deinit();
+            wire.timeout_ms = self.config.upstream_timeout_ms;
+            const result = workbench.catalog(&arena, &wire, self.config.workbench.?, parsed.value) catch |err| switch (err) {
+                error.CatalogDefinitionChanged, error.CatalogObservationChanged => return self.failure(req, .conflict, .QueryConflict),
+                error.CatalogNameNotFound => return self.failure(req, .not_found, .NotFound),
+                error.InvalidCatalogCursor, error.IncompatibleDefinition => return self.failure(req, .bad_request, .InvalidQuery),
+                else => return self.queryFailure(req, &wire, err),
+            };
+            return self.json(req, .ok, result);
+        }
+        if (!self.query_lock.tryLock()) return self.failure(req, .too_many_requests, .RateLimited);
+        defer self.query_lock.unlock(self.io);
+        const reader = if (runtime.sql) |*value| value else return self.failure(req, .not_found, .QueryDisabled);
+        const parsed = query_api.Values.parse(api.SqlReadRequest, arena.allocator(), body) catch return self.failure(req, .bad_request, .InvalidQuery);
+        const result = reader.apply(arena.allocator(), parsed.value) catch |err| {
+            return switch (err) {
+                error.SqlObservationDenied, error.AuthenticationFailed => self.failure(req, .forbidden, .Forbidden),
+                error.ReadOnlyStatementRequired => self.failure(req, .bad_request, .ReadOnlyStatementRequired),
+                error.ReadWorkspaceExpired => self.failure(req, .gone, .ReadWorkspaceExpired),
+                error.ReadWorkspaceCapacity => self.failure(req, .too_many_requests, .ReadWorkspaceCapacity),
+                error.ReadIdentityConflict, error.InvalidReadPosition, error.ReadSourceChanged => self.failure(req, .conflict, .QueryConflict),
+                error.InvalidReadStatement, error.InvalidReadIdentity, error.IncompatibleSqlDefinition => self.failure(req, .bad_request, .InvalidQuery),
+                error.SqlReadRejected => self.failure(req, .bad_request, .UnsupportedQuery),
+                else => self.failureDiagnostic(req, .service_unavailable, .IncompleteResult, api.InspectionDiagnostic.project(err, null) catch null),
+            };
+        };
+        const bytes = client.protocol.Json.valueAllocBounded(arena.allocator(), result, sql_client.ReadView.max_response_bytes) catch return self.failure(req, .bad_request, .QueryRequestTooLarge);
+        return self.respond(req, .ok, bytes, "application/json");
+    }
 
     fn now(self: *Server) i64 {
         return std.Io.Clock.boot.now(self.io).toMilliseconds();
@@ -287,15 +331,18 @@ const Server = struct {
         const application_route = std.mem.eql(u8, target, "/api/v1/application");
         const query_route = std.mem.eql(u8, target, "/api/v1/query");
         const relational_route = std.mem.eql(u8, target, "/api/v1/relational");
-        if (query_route or application_route or relational_route) {
+        const catalog_route = std.mem.eql(u8, target, "/api/v1/catalog");
+        const sql_read_route = std.mem.eql(u8, target, "/api/v1/sql-read");
+        if (query_route or application_route or relational_route or catalog_route or sql_read_route) {
             if (origin == null) return self.failure(&req, .forbidden, .InvalidOrigin);
             if (!std.mem.eql(u8, (try header(&req, "content-type")) orelse "", "application/json")) return self.failure(&req, .bad_request, .InvalidQuery);
         }
-        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (relational_route) query_api.RelationalWorkspace.max_request_bytes else if (query_route) query_api.Workspace.max_request_bytes else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
+        const body = req.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(if (application_route) application.Host.max_body_bytes else if (catalog_route or sql_read_route) sql_client.ReadWorkspace.max_request_bytes else if (relational_route) query_api.RelationalWorkspace.max_request_bytes else if (query_route) query_api.Workspace.max_request_bytes else 4096)) catch return self.failure(&req, .bad_request, .InvalidQuery);
         defer self.allocator.free(body);
         if (application_route) return self.applicationRequest(&req, body);
         if (query_route) return self.unifiedQueryRequest(&req, body);
         if (relational_route) return self.relationalRequest(&req, body);
+        if (catalog_route or sql_read_route) return self.workbenchRequest(&req, body, catalog_route);
         if (body.len != 0) return self.failure(&req, .bad_request, .InvalidQuery);
         if (std.mem.eql(u8, target, "/api/v1/interface") and req.head.method == .GET) return self.interfaceRequest(&req);
         if (std.mem.eql(u8, target, "/health") and req.head.method == .GET) return self.json(&req, .ok, .{ .ready = true });
@@ -323,6 +370,8 @@ fn logRoute(target: []const u8) []const u8 {
     if (std.mem.eql(u8, target, "/api/v1/application")) return "/api/v1/application";
     if (std.mem.eql(u8, target, "/api/v1/query")) return "/api/v1/query";
     if (std.mem.eql(u8, target, "/api/v1/relational")) return "/api/v1/relational";
+    if (std.mem.eql(u8, target, "/api/v1/catalog")) return "/api/v1/catalog";
+    if (std.mem.eql(u8, target, "/api/v1/sql-read")) return "/api/v1/sql-read";
     if (std.mem.startsWith(u8, target, "/api/v1/atlas")) return "/api/v1/atlas";
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
     inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes", "/atlas", "/activity", "/definition", "/operations", "/recovery/definition" }) |known| if (std.mem.eql(u8, path, known)) return known;
@@ -612,6 +661,7 @@ const Shared = struct {
     query_lock: std.Io.Mutex = .init,
     reactive: ?*hosting.Context = null,
     relational: ?*RelationalRuntime = null,
+    workbench: ?*workbench.Runtime = null,
 
     pub fn isControl(self: *@This(), request: *std.http.Server.Request) bool {
         return if (self.reactive) |context| context.isControl(request) else false;
@@ -628,6 +678,7 @@ const Shared = struct {
             .next_read_ms = &self.next_read_ms,
             .query_lock = &self.query_lock,
             .relational = self.relational,
+            .workbench = self.workbench,
             .observation = .{ .span = self.diagnostics.begin(.server, null) },
         };
         var failure: ?anyerror = null;
@@ -702,7 +753,22 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer init.gpa.free(bytes);
     var parsed = try query_api.Values.parse(Config, init.gpa, bytes);
     defer parsed.deinit();
-    const config = parsed.value;
+    var config = parsed.value;
+    var workbench_parsed: ?std.json.Parsed(workbench.Config) = null;
+    defer if (workbench_parsed) |*value| value.deinit();
+    if (config.workbench_file) |path| {
+        if (config.workbench != null) return error.InvalidQueryConfiguration;
+        const content = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(16384));
+        defer init.gpa.free(content);
+        workbench_parsed = try std.json.parseFromSlice(workbench.Config, init.gpa, content, .{ .allocate = .alloc_always });
+        config.workbench = workbench_parsed.?.value;
+    }
+    if (config.workbench) |selected| {
+        if (selected.catalog) |catalog| {
+            const connection = try catalog.connection.native();
+            if (config.profile != .native_v1 or connection.scope.realm != config.realm or connection.principal == config.principal) return error.InvalidQueryConfiguration;
+        }
+    }
     if (config.principal == 0 or config.principal > client.protocol.max_counter or config.realm == 0 or config.realm > client.protocol.max_counter or config.request_timeout_ms < 100 or config.request_timeout_ms > 5000 or config.upstream_timeout_ms == 0 or config.upstream_timeout_ms >= config.request_timeout_ms or config.read_interval_ms < 100 or config.read_interval_ms > 5000) return error.InvalidConfig;
     if (config.query) |query| {
         if (config.profile != .native_v1 or query.connection.realm != config.realm or query.connection.principal == config.principal or query.connection.principal == 0) return error.InvalidQueryConfiguration;
@@ -762,7 +828,9 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     }
     const relational = if (config.relational != null) try RelationalRuntime.create(init.gpa, init.io, config) else null;
     defer if (relational) |runtime| runtime.destroy();
-    var shared: Shared = .{ .config = config, .host = host, .localhost_origin = localhost_origin, .diagnostics = diagnostics, .reactive = if (reactive_context) |*context| context else null, .relational = relational };
+    var workbench_runtime = if (config.workbench) |selected| workbench.Runtime.init(init.gpa, init.io, selected) else null;
+    defer if (workbench_runtime) |*runtime| runtime.deinit();
+    var shared: Shared = .{ .config = config, .host = host, .localhost_origin = localhost_origin, .diagnostics = diagnostics, .reactive = if (reactive_context) |*context| context else null, .relational = relational, .workbench = if (workbench_runtime) |*runtime| runtime else null };
     const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);
     var listener = try address.listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);

@@ -7,6 +7,8 @@ export default defineConfig({
       "src/validators.d.ts",
       "src/relational-validators.js",
       "src/relational-validators.d.ts",
+      "src/catalog-validators.js",
+      "src/catalog-validators.d.ts",
     ],
   },
   fmt: {
@@ -17,6 +19,8 @@ export default defineConfig({
       "src/validators.d.ts",
       "src/relational-validators.js",
       "src/relational-validators.d.ts",
+      "src/catalog-validators.js",
+      "src/catalog-validators.d.ts",
     ],
   },
 });

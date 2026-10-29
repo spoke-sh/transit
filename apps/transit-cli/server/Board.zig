@@ -22,6 +22,7 @@ pub fn configuration(installation: *Installation, allocator: std.mem.Allocator) 
         .request_timeout_ms = 3000,
         .upstream_timeout_ms = 2000,
         .read_interval_ms = 100,
+        .workbench_file = board.workbench_file,
     });
     return path;
 }

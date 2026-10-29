@@ -128,6 +128,8 @@ nested mappings merge, scalars and lists replace. Partial customization is enoug
 ports:
   gateway: 10000
 board:
+  # Optional explicit catalog/SQL connections; no credentials are copied by default.
+  # workbench_file: "/private/board-workbench.json"
   port: 10001
 ```
 
