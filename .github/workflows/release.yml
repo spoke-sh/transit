@@ -22,6 +22,7 @@ on:
       - 'docs/handbook/**'
       - 'tasks/version.py'
       - 'tests/runner/test_release.py'
+      - 'tests/runner/test_release_identity.py'
       - 'tests/runner/test_publication.py'
       - 'tests/runner/test_version_build.py'
       - 'tests/interfaces/installation/release.py'

@@ -97,7 +97,7 @@ def publish(directory, repository):
         if existing is None:
             notes = temporary / 'notes.md'
             notes.write_text(f'Transit {version}, source `{revision}`.\n\n'
-                             'Static Linux x86_64/ARM64 executables, Linux x86_64 SDK packages, the Zig source '
+                             'Static Linux x86_64/ARM64 executables and SDK packages, the Zig source '
                              'closure, versioned handbook/specifications, Homebrew formula, SHA-256 checksums '
                              'and exact contract definition are attached. macOS and Windows executables '
                              'are not available.\n\n'

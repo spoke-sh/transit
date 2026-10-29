@@ -44,6 +44,8 @@ def assemble(runtime, sdks, arm64=None, handbook=None, arm64_sdks=None):
             if Path(name).name != name or sha256(arm64_sdks / name) != digest:
                 raise ValueError(f'ARM64 SDK checksum/path mismatch: {name}')
             if name.startswith('transit-sdk-zig-'):
+                if sdk['assets'].get(name) != digest:
+                    raise ValueError('Zig source closure differs between native runners')
                 continue  # One architecture-independent source closure is shipped.
             if name in expected or (runtime / name).exists():
                 raise ValueError(f'duplicate release asset: {name}')

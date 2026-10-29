@@ -56,7 +56,12 @@ def package(packages, output, notices):
                 text = text.replace('.version = "' + identity['base_version'] + '"', '.version = "' + version + '"')
                 destination.write_text(text)
         shutil.copytree(notices, stage / 'notices')
-        shutil.copy2(packages / 'sdk-manifest.json', stage / 'sdk-manifest.json')
+        # The Zig source closure is identical on every native packaging runner.
+        # Its provenance must not include another language's native build paths,
+        # target or binary hashes.
+        source_manifest = {key: manifest[key] for key in (
+            'version', 'release', 'source_revision', 'identity', 'definition', 'compiler')}
+        (stage / 'sdk-manifest.json').write_text(json.dumps(source_manifest, indent=2) + '\n')
         name = f'transit-sdk-zig-{version}-source'
         archive(stage, output / f'{name}.tar.gz', name, epoch)
     manifest['assets'] = {path.name: sha256(path) for path in sorted(output.iterdir())}
