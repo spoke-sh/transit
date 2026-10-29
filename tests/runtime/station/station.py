@@ -302,10 +302,16 @@ def run(node, cli, worker, courier):
             assert value(requester_resource, b'answer') == b'station.query.error.QueryDenied'
             drain_ledger()
 
+            # A quiet mailbox does not exclude delayed courier/self inputs.
+            # Keep a valid policy cast ahead of the invalid input deliberately,
+            # then select the exact accepted input before testing its failure.
+            s.command({"send": {"pid": ledger, "value": frame(b"deny-query")}})
             bad_input = s.command({"send": {"pid": ledger, "value": frame(b"invalid")}})
+            assert s.native_query({'process': ledger})['body']['process']['input']['position'] != bad_input
+            pump_until(lambda: (s.native_query({'process': ledger})['body']['process']['input'] or {}).get('position') == bad_input, [current])
             once(current, success=False)
             process = s.inspect("process", ledger)["processes"][0]
-            assert process["failure"] is not None
+            assert process["failure"] == bad_input
             page = s.inspect("mailbox", ledger)
             while not any(item and item["position"] == bad_input for item in page["events"]):
                 assert not page["complete"], "failed input disappeared from the mailbox"
