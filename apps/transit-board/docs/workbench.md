@@ -72,6 +72,9 @@ Preview is explicit. The catalog caller supplies quoted SQL and an exact expecte
 definition. The shared SQL client compares that definition with the executed
 result's interpretation before disclosing rows. This is not an execution-time
 definition pin. A mismatch refuses the preview; refresh the catalog selection.
+The SQL connection must resolve the selected Table in its configured namespace.
+A different namespace or source cannot substitute a same-named Table: the exact
+definition comparison refuses that result.
 
 ## Workbook and results
 

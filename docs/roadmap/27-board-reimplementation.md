@@ -110,9 +110,11 @@ Implementation refinements to the plan:
   governed changes remain outside this pass. Registered edge lists do not imply
   foreign keys, join cardinality or freshness.
 
-The acceptance checklist below remains the qualification inventory. Registered
-checks alone do not establish a pass; installed/browser and clean-source outcomes
-must accompany the change review.
+The [executed workbench account](../history/qualification/interfaces.md#board-catalog-and-bounded-read-workbench--2026-10-28)
+records the successful installed functional control, browser evidence and failed
+or incomplete disk-backed/clean lanes. The acceptance checklist below remains
+the qualification inventory; the initial pass is not fully qualified by the
+functional control alone.
 
 ### Outcome and scope
 
@@ -430,9 +432,9 @@ workflows retain the completion gates below.
 
 - [ ] A fresh installed Board opens a real authorized catalog; inspection-only
   operation remains useful and all retained operational/recovery views are reachable.
-- [ ] Metadata selection creates no data query. Preview and Run require explicit
+- [x] Metadata selection creates no data query. Preview and Run require explicit
   intent and the separately configured query capability.
-- [ ] Screens use shared catalog/result APIs; native fetch, pin, signing and
+- [x] Screens use shared catalog/result APIs; native fetch, pin, signing and
   settlement machinery stays below the presentation boundary.
 - [ ] Large catalogs/results remain bounded; empty, complete, limited, failed,
   cancelled and unavailable outcomes have distinct evidence-backed presentation.
@@ -440,7 +442,7 @@ workflows retain the completion gates below.
   definition identity, data position and policy observation remain distinct.
 - [ ] Current authorization governs metadata and buffered disclosure. Hidden
   views, stale replies, denial and cross-scope navigation cannot restore cleared data.
-- [ ] SQL edits never execute implicitly; changed drafts cannot relabel earlier
+- [x] SQL edits never execute implicitly; changed drafts cannot relabel earlier
   results; disconnect/reload cannot resubmit a statement as replacement work.
 - [ ] Existing supported query, finite Live and application recovery behavior
   survives the cutover, with no new administration through inspection.
