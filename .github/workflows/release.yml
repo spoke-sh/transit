@@ -333,6 +333,14 @@ jobs:
           chmod +x .cache/sdk-release/native/bin/* .cache/sdk-release/c-sdk/bin/*
           mkdir -p .cache/runtime
           tar -xf "dist/release/transit-${{ needs.prepare.outputs.version }}-linux-${{ matrix.architecture }}.tar.gz" --strip-components=1 -C .cache/runtime
+      - name: Fetch locked Rust registry dependencies
+        if: matrix.language == 'rust'
+        # The consumer job has a fresh Cargo cache. Preparation may download
+        # locked third-party crates; installed consumer builds remain offline.
+        run: |
+          nix develop .#bindings --command cargo fetch --locked --manifest-path sdks/rust/transit-client/Cargo.toml
+          nix develop .#bindings --command cargo fetch --locked --manifest-path sdks/rust/transit-station-sdk/Cargo.toml
+          nix develop .#bindings --command cargo fetch --locked --manifest-path examples/station-sdk/rust/Cargo.toml
       - name: Qualify installed raw client and available Station adapter
         env:
           LANGUAGE: ${{ matrix.language }}

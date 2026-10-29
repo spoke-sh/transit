@@ -49,6 +49,12 @@ the same owning builders. Those artifacts do not require Nix at runtime.
 `just bindings::release-test DIR RUNTIME` executes the installed raw-client and
 available Station schedules against the selected runtime. C covers C/C++ and
 BEAM covers Erlang/Elixir; Go provides the raw client only.
+Rust qualification builds remain locked and offline. For a fresh Cargo cache,
+first run `cargo fetch --locked --manifest-path PATH` for the
+[client](../sdks/rust/transit-client/Cargo.toml),
+[Station](../sdks/rust/transit-station-sdk/Cargo.toml) and
+[example](../examples/station-sdk/rust/Cargo.toml) manifests. Release CI performs
+this preparation before starting the installed consumers.
 
 The [distribution workflow](../docs/handbook/reference/distribution.md) attaches
 language package archives and a Zig source dependency closure to GitHub Releases.
