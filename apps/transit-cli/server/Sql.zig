@@ -242,7 +242,7 @@ fn startService(self: *Self, allocator: std.mem.Allocator) !void {
     if (current.value.state == .stopped) self.service_fingerprint = null;
     const status = try self.hostCall(allocator, .{ .start = .{ .expected = self.service_fingerprint, .configuration = configuration_value } }, installation.config.sql.drain_ms + 2000);
     defer status.deinit();
-    if (status.value.fingerprint == null or !std.mem.eql(u8, &expected, &status.value.fingerprint.?)) return error.GatewayOwnerUnavailable;
+    if (status.value.refusal != null or status.value.fingerprint == null or !std.mem.eql(u8, &expected, &status.value.fingerprint.?)) return error.GatewayOwnerUnavailable;
     self.service_fingerprint = expected;
     self.pending_start = false;
     if (status.value.state != .running) return error.GatewayOwnerUnavailable;

@@ -160,7 +160,7 @@ def main():
                         help='execute this many unmeasured SELECTs before measurements')
     parser.add_argument('--remote-sql', action='store_true', help='historical installed gateway placement for matched controls')
     parser.add_argument('--instrument', action='store_true',
-                        help='count native/Table attempts and owner work through a loopback proxy; adds overhead')
+                        help='count typed local attempts, or HTTP attempts/work with --remote-sql; adds diagnostic overhead')
     parser.add_argument('--owner-metrics', action=argparse.BooleanOptionalAction, default=True,
                         help='also enable optional native owner-work response diagnostics')
     parser.add_argument('--rows', type=int, default=0, choices=range(513), metavar='0..512',

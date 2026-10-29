@@ -20743,11 +20743,13 @@
       "errors": {
         "Canceled": 4,
         "IncompatibleDefinition": 1,
+        "InvalidGatewayConfiguration": 1,
         "InvalidSqlDeploymentFrame": 1,
         "InvalidSqlPeer": 1,
         "SqlDeploymentChanged": 3,
         "TlsMemoryCapacity": 1,
-        "UnsafeSqlRuntimeDirectory": 1
+        "UnsafeSqlRuntimeDirectory": 1,
+        "WriteFailed": 1
       },
       "outcomes": {
         "Action": [
@@ -20774,8 +20776,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 30,
-        "catch": 10
+        "try": 29,
+        "catch": 11
       },
       "imports": [
         "Placement.zig",

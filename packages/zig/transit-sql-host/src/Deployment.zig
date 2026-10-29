@@ -15,7 +15,7 @@ pub const Action = union(enum) {
     status: void,
 };
 const Request = struct { definition: p.Growth.Definition, action: Action };
-pub const Status = struct { definition: p.Growth.Definition, fingerprint: ?[32]u8, state: enum { stopped, running, failed }, failure: ?[]const u8 = null, local_requests: Placement.Snapshot = .{} };
+pub const Status = struct { definition: p.Growth.Definition, fingerprint: ?[32]u8, state: enum { stopped, running, failed }, failure: ?[]const u8 = null, refusal: ?[]const u8 = null, local_requests: Placement.Snapshot = .{} };
 
 pub fn socketPath(allocator: std.mem.Allocator, io: std.Io, runtime: ?[]const u8, installation: []const u8) ![]const u8 {
     const location = try Discovery.locate(allocator, io, runtime, installation, true);
@@ -29,7 +29,7 @@ pub fn socketPath(allocator: std.mem.Allocator, io: std.Io, runtime: ?[]const u8
     return socket;
 }
 pub fn fingerprint(allocator: std.mem.Allocator, configuration: g.Configuration) ![32]u8 {
-    const bytes = try p.Json.valueAllocBounded(allocator, configuration, g.wire.max_body);
+    const bytes = p.Json.valueAllocBounded(allocator, configuration, g.wire.max_body) catch |err| return if (err == error.WriteFailed) error.InvalidGatewayConfiguration else err;
     defer allocator.free(bytes);
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
@@ -138,17 +138,20 @@ pub fn serve(init: std.process.Init, config: Config, endpoint: host.LocalEndpoin
         apply(init, config, placement.endpoint(), diagnostics, &running, request.value.action) catch |err| {
             if (err == error.Canceled) return err;
             try transport.resetDeadline(5000);
-            send(init.gpa, &transport, Status{ .definition = p.Growth.current_definition, .local_requests = placement.snapshot(), .fingerprint = if (running) |value| value.fingerprint else null, .state = .failed, .failure = @errorName(err) }) catch |failure| {
+            send(init.gpa, &transport, observe(running, &placement, @errorName(err))) catch |failure| {
                 if (failure == error.Canceled) return failure;
             };
             continue;
         };
-        const done = if (running) |value| value.done.load(.acquire) else false;
         try transport.resetDeadline(5000);
-        send(init.gpa, &transport, Status{ .definition = p.Growth.current_definition, .local_requests = placement.snapshot(), .fingerprint = if (running) |value| value.fingerprint else null, .state = if (running == null) .stopped else if (done) .failed else .running, .failure = if (done and running.?.failure != null) @errorName(running.?.failure.?) else null }) catch |failure| {
+        send(init.gpa, &transport, observe(running, &placement, null)) catch |failure| {
             if (failure == error.Canceled) return failure;
         };
     }
+}
+fn observe(running: ?*Running, placement: *const Placement, refusal: ?[]const u8) Status {
+    const done = if (running) |value| value.done.load(.acquire) else false;
+    return .{ .definition = p.Growth.current_definition, .local_requests = placement.snapshot(), .fingerprint = if (running) |value| value.fingerprint else null, .state = if (running == null) .stopped else if (done) .failed else .running, .failure = if (done and running.?.failure != null) @errorName(running.?.failure.?) else null, .refusal = refusal };
 }
 fn apply(init: std.process.Init, config: Config, endpoint: host.LocalEndpoint, diagnostics: *g.wire.observability.telemetry.Runtime, running: *?*Running, action: Action) !void {
     switch (action) {

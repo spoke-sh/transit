@@ -146,7 +146,7 @@ def run(cli, node, host, board, gateway):
         assert placement(fixture, repeated)['fingerprint'] == hosted['fingerprint']
         changed = saved | {'native_url': 'http://127.0.0.1:1'}
         rejected = placement(fixture, dict(start=dict(expected=None, configuration=changed)))
-        assert rejected['state'] == 'failed' and rejected['failure'] == 'SqlDeploymentChanged'
+        assert rejected['state'] == 'running' and rejected['refusal'] == 'SqlDeploymentChanged'
         assert placement(fixture)['state'] == 'running'
         try:
             placement(fixture, definition="0" * 64)
