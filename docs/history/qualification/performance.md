@@ -9,6 +9,57 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Shared client resource baseline — 2026-10-29
+
+The query/value ownership extraction preserves the installed SQL workload but
+does not reduce its process or console-thread count. The
+[retained comparison](../../../tests/evidence/client-foundation-2026-10-29/README.md)
+records matching driver/helper hashes, exact executable/source identities and
+all observations for future shared-context work. Both arms pass 47 statements,
+including completion counts and independent typed readback.
+
+Control is `4c536bc3fd3e80a5e5f473bbec70635b69aac5b9`; candidate is
+`96786c46df12903a54a936828f43e492052e0fc8`. Both use pinned Zig
+`0.17.0-dev.2267+48abf1a34`, ReleaseSafe and the same current definition. The
+command is `just test::console-latency --statements --repeat 5 --resources`.
+These revisions use the historical remote SQL gateway placement and remain
+reachable through the evidence branch linked in the retained comparison. The
+implementation rebase includes later node co-hosting; these measurements do not
+qualify that placement or the rebased runtime.
+Each owned build completes before measurement. The shared Linux/NVMe host has
+48 logical CPUs, unrelated active builds/services and no affinity/frequency
+control. Load averages at the start are 3.84/4.78/4.55 and 8.98/10.92/8.18.
+
+| Observation | Control | Candidate |
+| --- | ---: | ---: |
+| Owned processes, including supervisor and console | 8 | 8 |
+| Total sampled threads | 217 | 218 |
+| Console threads | 9 | 9 |
+| Console sampled RSS range, MiB | 14.88–20.16 | 14.88–19.98 |
+| Total sampled PSS range, MiB | 716.72–780.43 | 723.05–790.98 |
+| First console call including connection setup, ms | 285.50 | 304.27 |
+| Warm SELECT median, ms (6 samples) | 97 | 104 |
+| INSERT median, ms (5 samples) | 295 | 306 |
+| Changed UPDATE median, ms (5 samples) | 375 | 378 |
+| DELETE median, ms (5 samples) | 350 | 359 |
+
+Statement medians use the console timer; the first-call observation uses external
+elapsed time and excludes `Popen`. One installation child has an additional
+thread in the candidate snapshots. This extraction adds no shared context or
+new I/O pool, and the measurements do not identify a cause for that observation.
+Timings are generally higher in the candidate arm under higher background load;
+these small, sequential samples establish neither an isolated regression nor a
+speedup. No p95/p99 estimate or new performance budget is derived from them.
+
+The eight sampler/reporting controls pass, including independent byte/codec
+expectations, malformed/missing procfs fields, PID reuse, changing trees and
+process-count overflow. Resource reads happen outside timed calls but add
+inter-statement work. They are non-atomic snapshots, not heap allocation counts,
+allocator reserve accounting or whole-statement peaks. The console/service
+profile does not qualify foreign-language native/port startup, cancellation,
+joined disposal or future context fairness. Those measurements require their
+own implemented owners and workloads.
+
 ## Persistent console statement latency — 2026-10-28
 
 ### Event-driven SQL recovery — 2026-10-29

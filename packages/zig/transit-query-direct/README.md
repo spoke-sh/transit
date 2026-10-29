@@ -21,6 +21,17 @@ provides bounded disk scratch for the relational executor. Neither supplies
 application scheduling, durable operation admission or an execution authority.
 The SQL service and captured-query integration both use these same executors.
 
+`RelationalBridge` exposes neutral requests and a retained-Table session over
+the relational executor. It borrows clients, I/O and the spill directory from its
+host, which serializes calls and joins them before destruction. Only the current
+page can be repeated; each disclosure rechecks current source rights.
+`TableChangeReader` supplies snapshot backfill and bounded change handoff over
+an explicitly retained direct history lease. Its checkpoint names a complete
+acceptance, and reopening repeats an incomplete transaction from its beginning.
+Local closure never releases that durable lease. `transit_query` re-exports
+these exact modules for captured/interactive composition, and the public Zig
+SDK exports `transit_query_direct` independently.
+
 Run `zig build check` and `zig build test` from this directory in `nix develop`.
 `-Dtest-filter=<substring>` selects focused existing component schedules.
 The [query reference](../../../docs/handbook/reference/queries.md) describes

@@ -13,6 +13,7 @@ pub fn build(b: *std.Build) void {
         "transit_station_http",
         "transit_station_grpc",
         "transit_query",
+        "transit_query_direct",
         "transit_catalog",
         "transit_data_client",
         "transit_sql_client",

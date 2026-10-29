@@ -1786,7 +1786,7 @@
       "claim": "Explicit relational catalog routes preserve canonical plans, repeated pages and current dependency authorization across the neutral boundary",
       "owner": "docs/handbook/reference/queries.md",
       "implementation": [
-        "packages/zig/transit-query/src/RelationalBridge.zig",
+        "packages/zig/transit-query-direct/src/RelationalBridge.zig",
         "packages/zig/transit-query/src/RelationalCaller.zig",
         "packages/zig/transit-station-bindings/src/QueryAbi.zig",
         "tests/query/execution/relational_callers_native.py",

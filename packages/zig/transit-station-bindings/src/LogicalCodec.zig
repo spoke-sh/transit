@@ -1,7 +1,7 @@
 //! Ownership/transport boundary for Fuze's pure logical-value codec.
 const std = @import("std");
 const base = @import("Abi.zig");
-pub const model = @import("transit_query").fuze.LogicalCodec;
+pub const model = @import("transit_fuze").LogicalCodec;
 pub const Action = model.Action;
 pub const Result = model.Result;
 pub fn codec(json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
@@ -28,5 +28,5 @@ test "logical ABI result owns bytes after the call arena is released" {
     defer base.Api.station_buffer_destroy(output);
     const result = try std.json.parseFromSlice(Result, testing.allocator, base.Api.station_buffer_data(output.?)[0..base.Api.station_buffer_size(output.?)], .{});
     defer result.deinit();
-    try testing.expectEqualStrings(@import("transit_query").fuze.Types.definition, result.value.capabilities.definition);
+    try testing.expectEqualStrings(@import("transit_fuze").Types.definition, result.value.capabilities.definition);
 }

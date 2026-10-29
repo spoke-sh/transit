@@ -95,6 +95,19 @@ verified readback and console closure. Neither label alone proves an empty
 recovery backlog. Use the observed requests and owning recovery evidence to
 interpret quiescence.
 
+Add `--resources` to sample the persistent console and the owned installation
+process tree after each timed statement. Linux `/proc` supplies actual thread
+counts, RSS, proportional shared memory (PSS), virtual address space and each
+process's lifetime RSS high-water mark. The sampler bounds the tree to 128
+processes and rejects missing fields, disappearing processes, changed identities
+and changing process sets. It records no command lines. Snapshots are sequential,
+non-atomic observations, outside the timed call; their extra inter-statement work
+can still affect caches and scheduling, so compare runs with the same option.
+Summed RSS double-counts shared pages; PSS apportions them. Virtual address space
+is not allocator reserve, high-water RSS is not the peak of this statement, and
+these samples do not prove zero allocation or cover other language hosts. A
+snapshot is evidence only when the entire workload's value/count checks pass.
+
 `just test::console-latency-tls 5` runs the same value/count workload through the
 existing matching TLS SQL fixture without a proxy. This separate component
 control keeps that fixture's 30-second native request budget and records its

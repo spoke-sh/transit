@@ -28,6 +28,10 @@ The [SQL recovery comparison](sql-recovery-2026-10-29/README.md) retains two
 matched console rounds, including foreground write regressions, and separate
 startup/post-statement idle traffic for the event-driven recovery qualification.
 
+The [shared client resource baseline](client-foundation-2026-10-29/README.md)
+retains verified installed SQL workloads with process/thread/memory snapshots
+and statement timings for subsequent shared-context and I/O-pool comparisons.
+
 The earlier generated-output archive remains available at its
 [original source revision](https://github.com/spoke-sh/transit/tree/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results).
 The [file disposition map](../../docs/roadmap/development-workflow-migration.json)

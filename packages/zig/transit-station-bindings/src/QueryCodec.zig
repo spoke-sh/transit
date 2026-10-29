@@ -32,6 +32,20 @@ pub fn codec(json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) ba
     base.output(result, out) catch |err| return base.status(err);
     return .ok;
 }
+test "neutral encoding refusals preserve ABI status and exact cause" {
+    const t = std.testing;
+    for ([_]struct { input: []const u8, cause: []const u8 }{
+        .{ .input = "{\"decode\":\"0\"}", .cause = "DocumentEncodingCapacity" },
+        .{ .input = "{\"decode\":\"zz\"}", .cause = "InvalidCharacter" },
+    }) |case| {
+        var output: ?*base.Buffer = null;
+        try t.expectEqual(.invalid_argument, codec(case.input.ptr, case.input.len, &output));
+        defer base.Api.station_buffer_destroy(output);
+        const result = try std.json.parseFromSlice(struct { err: []const u8 }, t.allocator, base.Api.station_buffer_data(output.?)[0..base.Api.station_buffer_size(output.?)], .{});
+        defer result.deinit();
+        try t.expectEqualStrings(case.cause, result.value.err);
+    }
+}
 test "SQL output names survive neutral and ABI bundle round trips without changing identity" {
     const t = std.testing;
     var arena = std.heap.ArenaAllocator.init(t.allocator);

@@ -1,0 +1,48 @@
+{
+  "purpose": "Retain the installed SQL process/thread/memory and latency baseline for later shared-context work, including observed slower candidate timings. No correctness input or timing budget depends on these observations.",
+  "conditions": {
+    "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
+    "source_definition_location": "packages/zig/transit-protocol/src/Growth.zig",
+    "cpu_model": "AMD Ryzen Threadripper 3960X 24-Core Processor",
+    "fixture_filesystem": {
+      "filesystems": [
+        {
+          "fstype": "ext4",
+          "source": "/dev/nvme0n1p2"
+        }
+      ]
+    },
+    "flake_lock_sha256": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264",
+    "zig": "0.17.0-dev.2267+48abf1a34",
+    "optimize": "ReleaseSafe",
+    "conditions": "Shared Linux host with unrelated builds and services active; no CPU affinity/frequency control. Each workload runs after its own build, with no competing proof owned by this task. Control then candidate, no cache eviction. Resource snapshots add work between timed statements."
+  },
+  "runtime_revisions": {
+    "control": "4c536bc3fd3e80a5e5f473bbec70635b69aac5b9",
+    "candidate": "96786c46df12903a54a936828f43e492052e0fc8"
+  },
+  "files": {
+    "control.jsonl": {
+      "source_log": ".cache/checks/phases/process-744665-852oar1k/command.log",
+      "source_log_sha256": "fcd7b5950611a13651a205798a5cba2272e4001a1c8163e604b88d7185ea4cf2",
+      "sha256": "15aafd071d5191347240bb612b3aaf7d9b385df39a877ac50f9f676c29100823",
+      "records": 98,
+      "observed_exit_code": 0,
+      "phase_outcome": "passed",
+      "started_unix": 1793303277.5299053,
+      "build_and_workload_seconds": 407.66123070099275,
+      "transformation": "Keep every complete JSON output line byte-for-byte; omit non-JSON build/shell output. No field redaction or reserialization."
+    },
+    "candidate.jsonl": {
+      "source_log": ".cache/checks/phases/process-802027-exgd3stq/command.log",
+      "source_log_sha256": "f0d35a39c7f705aa0057c181e0869dd4a537cd11d867786dcc1cc23b6f6b7463",
+      "sha256": "eeee48f9bddbc6778ad2484434dcde98fb333b9cbb99cbae9b3d028c580f57e7",
+      "records": 98,
+      "observed_exit_code": 0,
+      "phase_outcome": "passed",
+      "started_unix": 1793304039.9396741,
+      "build_and_workload_seconds": 404.1484145360009,
+      "transformation": "Keep every complete JSON output line byte-for-byte; omit non-JSON build/shell output. No field redaction or reserialization."
+    }
+  }
+}

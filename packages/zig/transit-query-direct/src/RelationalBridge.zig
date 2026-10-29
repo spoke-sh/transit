@@ -10,7 +10,7 @@ const h = q.catalog.DirectTableValues;
 const c = q.catalog;
 const Allocator = std.mem.Allocator;
 pub const Options = struct {
-    consistency: q.direct.DirectRelationalQuery.Consistency,
+    consistency: q.DirectRelationalQuery.Consistency,
     resident_bytes: []const u8,
     spill_bytes: []const u8,
     result_bytes: []const u8,
@@ -19,8 +19,8 @@ pub const Options = struct {
     source_pins: u8,
     requests: []const u8,
     spill_work: []const u8,
-    pub fn native(self: Options) !q.direct.DirectRelationalQuery.Options {
-        const result: q.direct.DirectRelationalQuery.Options = .{ .consistency = self.consistency, .budgets = .{
+    pub fn native(self: Options) !q.DirectRelationalQuery.Options {
+        const result: q.DirectRelationalQuery.Options = .{ .consistency = self.consistency, .budgets = .{
             .resident_bytes = try v.unsigned(self.resident_bytes),
             .spill_bytes = try v.unsigned(self.spill_bytes),
             .result_bytes = try v.unsigned(self.result_bytes),
@@ -29,7 +29,7 @@ pub const Options = struct {
             .source_pins = self.source_pins,
         }, .requests = try v.unsigned(self.requests), .spill_work = try v.unsigned(self.spill_work) };
         if (result.consistency != .independent_table_snapshots) return error.UnsupportedRelationalConsistency;
-        if (result.budgets.resident_bytes <= q.direct.DirectRelationalQuery.resident_base or result.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
+        if (result.budgets.resident_bytes <= q.DirectRelationalQuery.resident_base or result.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
         if (result.budgets.result_bytes == 0 or result.budgets.output_rows == 0 or result.budgets.work_steps == 0 or result.requests == 0 or result.spill_work == 0 or self.source_pins == 0 or self.source_pins > r.max_sources) return error.InvalidRelationalBudgets;
         return result;
     }
@@ -72,7 +72,7 @@ pub const Capabilities = struct {
     interactive: bool = true,
     captured: bool = false,
     maintained: bool = false,
-    consistency: q.direct.DirectRelationalQuery.Consistency = .independent_table_snapshots,
+    consistency: q.DirectRelationalQuery.Consistency = .independent_table_snapshots,
 };
 pub const Source = struct { alias: []const u8, binding: h.PreparedBinding, position: h.Position };
 pub const Cut = struct { object: h.Object, position: h.Position, commitment: []const u8, schema: []const u8 };
@@ -80,7 +80,7 @@ pub const Description = struct {
     definition: q.protocol.Growth.Definition = q.protocol.Growth.current_definition,
     plan: []const u8,
     sources: []const Source,
-    columns: []const q.Values.Column,
+    columns: []const f.QueryValues.Column,
     join: ?@FieldType(r.Join, "kind"),
     grouped: bool,
     executed: bool = false,
@@ -122,7 +122,7 @@ fn describe(allocator: Allocator, plan: r.Plan, bindings: []const c.DirectTableB
     for (plan.outputs) |output| if (output.expression != .column) {
         grouped = true;
     };
-    return .{ .plan = try v.hex(allocator, &try plan.fingerprint()), .sources = sources, .columns = try q.Values.foreignColumns(allocator, try plan.outputSchema(&fields)), .join = if (plan.join) |join| join.kind else null, .grouped = grouped };
+    return .{ .plan = try v.hex(allocator, &try plan.fingerprint()), .sources = sources, .columns = try f.QueryValues.foreignColumns(allocator, try plan.outputSchema(&fields)), .join = if (plan.join) |join| join.kind else null, .grouped = grouped };
 }
 pub fn row(allocator: Allocator, value: f.RelationalExecution.Output, schema: f.Types.Type) !Row {
     if (schema != .structure or schema.structure.len != value.len) return error.InvalidQuerySchema;
@@ -147,10 +147,10 @@ pub const Session = struct {
     io: std.Io,
     directory: std.Io.Dir,
     clients: []const c.DirectTableClient,
-    options: q.direct.DirectRelationalQuery.Options,
+    options: q.DirectRelationalQuery.Options,
     closed: ?struct { id: [16]u8, plan: [32]u8, basis: [32]u8 } = null,
     active: ?struct {
-        query: *q.direct.DirectRelationalQuery,
+        query: *q.DirectRelationalQuery,
         bindings: [r.max_sources]c.DirectTableBinding,
         positions: [r.max_sources]q.protocol.DataLifecycle.Position,
         id: [16]u8,
@@ -234,7 +234,7 @@ pub const Session = struct {
         switch (action) {
             .capabilities => return .{ .capabilities = .{} },
             .explain => |statement| {
-                const compilation = try q.direct.DirectRelationalCompilation.prepare(self.allocator, try self.selected(statement, &routes), statement.namespace, statement.sql, .interactive, self.options, location);
+                const compilation = try q.DirectRelationalCompilation.prepare(self.allocator, try self.selected(statement, &routes), statement.namespace, statement.sql, .interactive, self.options, location);
                 defer compilation.deinit();
                 return .{ .explained = try describe(allocator, compilation.plan, compilation.bindings[0..compilation.plan.sources.len], compilation.positions[0..compilation.plan.sources.len]) };
             },
@@ -261,13 +261,13 @@ pub const Session = struct {
                     if (!std.mem.eql(u8, &active.id, &nonce) or !std.mem.eql(u8, &active.input, &fingerprint)) return error.QueryIdentityMismatch;
                 } else {
                     if (self.closed) |previous| if (std.mem.eql(u8, &previous.id, &nonce)) return error.QueryIdentityMismatch;
-                    const prepared = try q.direct.DirectRelationalCompilation.fromRetained(self.allocator, clients[0], input.statement.namespace, input.statement.sql, bindings[0..clients.len], snapshots[0..clients.len], self.options, location);
+                    const prepared = try q.DirectRelationalCompilation.fromRetained(self.allocator, clients[0], input.statement.namespace, input.statement.sql, bindings[0..clients.len], snapshots[0..clients.len], self.options, location);
                     defer prepared.deinit();
                     // The spill owner creates an exclusive private file and
                     // immediately unlinks it. Names never become recovery state.
                     var name: [64]u8 = undefined;
                     const filename = try std.fmt.bufPrint(&name, "transit-relational-{s}", .{input.id});
-                    const query = try q.direct.DirectRelationalQuery.openPreparedRetained(self.allocator, self.io, self.directory, filename, clients[0], prepared, snapshots[0..clients.len], self.options, null);
+                    const query = try q.DirectRelationalQuery.openPreparedRetained(self.allocator, self.io, self.directory, filename, clients[0], prepared, snapshots[0..clients.len], self.options, null);
                     errdefer query.deinit();
                     self.active = .{ .query = query, .bindings = prepared.bindings, .positions = prepared.positions, .id = nonce, .input = fingerprint, .plan = try query.execution.bound.plan.fingerprint(), .basis = try query.execution.bound.fingerprint() };
                 }
@@ -349,6 +349,6 @@ test "neutral output keeps full-width bag identity and exact signed and unsigned
     try t.expectEqualStrings("18446744073709551615", foreign.cells[1].value.atom.unsigned);
     try t.expect(foreign.cells[2] == .null);
     const json = try std.json.Stringify.valueAlloc(arena.allocator(), foreign, .{});
-    const parsed = try q.Values.parse(Row, arena.allocator(), json);
+    const parsed = try f.QueryValues.parse(Row, arena.allocator(), json);
     try t.expectEqualDeep(foreign, parsed.value);
 }
