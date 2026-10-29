@@ -6,9 +6,9 @@ const r = @import("DirectCatalogRecords.zig");
 const pages = c.storage.TreeStore.pages;
 const Self = @This();
 
-pub const Kind = enum { pages_only, objects };
+pub const Kind = enum { pages_only, objects, values };
 pub const Root = struct { reference: pages.Reference, kind: Kind };
-pub const Edge = union(enum) { page: Root, declaration: c.storage.TableDeclaration.Stored };
+pub const Edge = union(enum) { page: Root, declaration: c.storage.TableDeclaration.Stored, value: struct { key: pages.Key, value: pages.Value } };
 const Frame = struct { reference: pages.Reference, height: ?u8 = null, child: u8 = 0, disclosed: bool = false };
 pub const max_depth = pages.max_height + 1;
 
@@ -58,6 +58,7 @@ pub fn next(self: *Self, allocator: std.mem.Allocator, store: anytype) !?Edge {
                 const entry = entries[frame.child].?;
                 frame.child += 1;
                 if (self.root.kind == .pages_only) continue;
+                if (self.root.kind == .values) return .{ .value = .{ .key = entry.key, .value = entry.value } };
                 const object = try r.fromValue(r.Entry, allocator, entry.value);
                 try object.validate(self.configuration);
                 if (!std.meta.eql(entry.key, try r.idKey(object.object))) return error.InvalidDirectCatalogEntry;

@@ -22,6 +22,11 @@ test("explicit relational pages recover the same host and clear on current denia
       opens++;
   });
   await page.goto("/operations");
+  const nodeStorage = page.getByRole("region", { name: "Storage observation", exact: true });
+  await expect(nodeStorage).toContainText("Observed at authority position");
+  await expect(nodeStorage).toContainText("local");
+  await expect(nodeStorage).toContainText("/native");
+  await expect(nodeStorage).toContainText("disabled");
   const worksheet = page.getByRole("region", { name: "Relational worksheet" });
   await expect(worksheet).toBeVisible();
   await page.getByLabel("Relational SQL", { exact: true }).fill(process.env.BOARD_RELATIONAL_SQL!);
@@ -44,6 +49,12 @@ test("explicit relational pages recover the same host and clear on current denia
   await page.getByLabel("JOIN route", { exact: true }).selectOption("1");
   await page.getByRole("button", { name: "Explain relational query", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Proposed plan · not executed" })).toBeVisible();
+  expect(opens).toBe(0);
+  const storage = page.getByRole("region", { name: "Storage for l", exact: true });
+  await storage.getByRole("button", { name: "Inspect storage for l", exact: true }).click();
+  await expect(storage).toContainText("Current storage observation");
+  await expect(storage).toContainText("Accepted position");
+  await expect(storage).toContainText("History floor");
   expect(opens).toBe(0);
   await page.route("**/api/v1/relational", async (route) => {
     if (refuseClose && route.request().postDataJSON().query?.close) {

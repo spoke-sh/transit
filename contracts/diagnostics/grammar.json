@@ -1426,6 +1426,20 @@
       }
     },
     {
+      "id": "show-node-storage-source-query-refusal",
+      "sql": "SHOW STORAGE",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_catalog",
+        "category": "unsupported",
+        "kind": "unsupported"
+      }
+    },
+    {
       "id": "show-storage-source-query-refusal",
       "sql": "SHOW STORAGE FOR items",
       "profile": "query",

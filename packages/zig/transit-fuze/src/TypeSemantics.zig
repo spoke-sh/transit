@@ -312,8 +312,11 @@ pub fn cast(value: Atom, from: Type, to: Type, rounding: Rounding) !Atom {
         } else initial;
         if (!std.math.isFinite(result)) return error.Overflow;
         if (rounding == .reject) switch (value) {
-            .signed => |v| if (@as(i256, @intFromFloat(result)) != v) return error.Inexact,
-            .unsigned => |v| if (@as(i256, @intFromFloat(result)) != v) return error.Inexact,
+            // Rounding can reach the first value outside the original integer
+            // domain. Check that boundary before converting back at its actual
+            // width; LLVM cannot lower float-to-i256 on AArch64.
+            .signed => |v| if (result < -0x1p127 or result >= 0x1p127 or @as(i128, @intFromFloat(result)) != v) return error.Inexact,
+            .unsigned => |v| if (result < 0 or result >= 0x1p128 or @as(u128, @intFromFloat(result)) != v) return error.Inexact,
             .float => |v| if (result != v) return error.Inexact,
             else => unreachable,
         };

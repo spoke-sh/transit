@@ -229,7 +229,7 @@ Here, formalization means explicit types, state transitions, invariants and the
 mapping from communication behavior to those semantics. A TLA+ model checker is
 not a substitute for that domain abstraction. Broader temporal model checking and
 refinement proofs remain candidates for
-[milestone 17](17-formal-semantics-and-correspondence.md), after these contracts
+[milestone 17](19-formal-semantics-and-correspondence.md), after these contracts
 settle; they are not a new prerequisite for this delivery. The correspondence
 checks above establish their tested schedules, not a proof of arbitrary network
 histories, allocator correctness, authorization services or storage behavior.
@@ -799,7 +799,7 @@ implementation without claiming the milestone is complete early. New provider
 qualification, automatic storage maintenance, transactions, general continuous
 queries and new language SDKs do not enter this milestone through those reviews.
 
-[Client-foundation work](07-client-foundation-and-language-apis.md) composes the
+[Client-foundation work](08-client-foundation-and-language-apis.md) composes the
 completed result reader and settlement contract into language-native direct
 clients and mixed Station applications. It does not define another result
 lifecycle or defer this milestone's existing-consumer obligations.

@@ -474,3 +474,7 @@ handles immutable versioned publication in the tag workflow. Follow the
 [distribution build guide](../nix/README.md#distribution-builds); the public
 [distribution reference](../docs/handbook/reference/distribution.md) owns
 installation, registry locations and supported platforms.
+
+`verify_release_registries.py` verifies anonymous downloads of the published
+container images and Helm chart against the same release manifest. The release
+workflow runs it after the installed public-release proof on a fresh runner.

@@ -41,6 +41,10 @@ It lowers typed metadata predicates/projections through Fuze's `TableSelect`;
 administrative reload remains a separate explicit execution operation. See
 [settings SQL](../../docs/handbook/reference/sql/settings.md) for its bounded profile.
 
+`SHOW STORAGE` reads the signed native node storage observation under a current
+realm-wide inspection grant. It reports the resolved root, aggregate allocation
+limits/use and volatile maintenance activity. Null fields mean unavailable.
+
 `SHOW STORAGE FOR name` belongs to the shared SQL session's direct Table
 inspection adapter. It returns one typed row from the signed direct Table
 `storage` operation under current metadata-inspection rights. It does not pin a

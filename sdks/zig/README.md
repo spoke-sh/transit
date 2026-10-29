@@ -16,9 +16,12 @@ application's `build.zig.zon`:
 },
 ```
 
-The complete checkout supplies the shared dependency closure. Copying only
-`sdks/zig` is insufficient; an independently distributed Zig archive is not
-provided. Select the same protocol definition as the running authority.
+The complete checkout supplies the shared dependency closure. Alternatively,
+extract `transit-sdk-zig-<version>-source.tar.gz` from the matching GitHub Release
+and point the dependency at its `sdks/zig` directory. The archive preserves shared
+packages, third-party sources and the real work-items application; copying only
+`sdks/zig` is insufficient. Use the compiler recorded in `sdk-manifest.json`.
+Select the same protocol definition as the running authority.
 
 In `build.zig`, resolve the SDK once and import only the modules your application
 uses, with your own target and optimization settings:

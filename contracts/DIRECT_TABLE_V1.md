@@ -118,7 +118,10 @@ owner. External records fix their connection, namespace, operation and immutable
 A transaction reference fixes the connection, selected namespace and
 `Transaction.Begin` descriptor. Initial acceptance checks the exact Catalog
 observation, the complete paged selection of read-only Table descriptors and
-configured limits. It atomically reserves the next unused partition with the
+configured limits. Admission accepts `explicit_tables`; it rejects the neutral
+`authorized_catalog_tables` variant until server-owned catalog discovery supplies
+that selection. Caller-supplied membership cannot certify complete authorized
+catalog coverage. It atomically reserves the next unused partition with the
 token receipt. `coordination` contains that partition only for a transaction;
 other receipts require explicit null. A repeated token returns its original
 partition. A begin operation cannot reserve another partition through a different
@@ -131,11 +134,71 @@ readable. Execution must independently acquire and authorize its complete cut.
 `DirectCatalog.Options.transaction_limits` caps each requested limit: defaults
 are 16 MiB resident work, 1 GiB workspace, 100,000 participants, 100,000 statements
 and 1,024 savepoints. These admission ceilings do not preallocate those resources;
-the operation's token budget separately charges account capacity. A capacity or
-stale-Catalog refusal does not allocate a partition or accept a token. Generic
+the operation's token budget separately charges account capacity.
+`transaction_account_limits` additionally caps aggregate pending transaction
+reservations across login roles for a principal/account: count 128, resident
+allowances 64 MiB, workspace allowances 4 GiB, participant and statement slots
+400,000 each, and savepoint slots 4,096 by default. The account usage record
+requires explicit `transactions` counters for all six dimensions. Begin
+admission and those reservations share one catalog acceptance; failed admission
+consumes neither. Exact token recovery does not repeat the charge or apply new
+admission ceilings to old work. Pending transactions retain their reservation;
+only future transaction-owned settlement/cleanup can release it, never generic
+caller progress or quota pressure. Earlier usage records missing counters reject.
+A capacity or stale-Catalog refusal does not allocate a partition or accept a token. Generic
 intent execution rejects transaction references with `TransactionOperationRequired`.
-Generic progress updates cannot settle them without a transaction owner outcome.
+Generic progress updates reject transaction entries with
+`TransactionOperationRequired`, including changes to the record, cancellation,
+pending flag and exact repeats. Transaction-owned operations must preserve their
+workspace and original decision; generic client bookkeeping cannot replace them.
 The admission interface alone does not provide interactive SQL transactions.
+
+The catalog component's common-cut acquisition publishes a `DirectRecord` with
+format `0x54584331`. Its canonical JSON contains mandatory `definition`, `cut`
+and `coordination`; its encoded size is at most 16 KiB. The neutral cut binds the
+original begin, an immutable `sources` directory and its catalog acceptance
+position. The coordination partition must match the original token receipt;
+the cut position must equal the acquisition progress revision and follow begin
+admission in that same catalog partition. Later workspace records preserve this
+original acquisition position separately from their current progress revision.
+No signed acquisition operation is exposed by this record format. The embedding
+host must hold the catalog/Table publication fence,
+and the owner checks current Table rights under the publication policy epoch.
+This format is reserved: generic `record.stage` and `record.read` reject it with
+`TransactionOperationRequired`. CONNECT-only caller-record access cannot disclose
+server-owned cut evidence after a participant's read rights have been revoked.
+HTTP maps `TransactionOperationRequired` to `400 InvalidRequest` and
+`TransactionAccountCapacity` to `503 StorageQuota`. Transport errors alone do not
+settle a previously uncertain token binding; inspect the original token.
+
+Catalog-owned private workspaces use canonical JSON `DirectRecord` formats
+`0x54585731` (head), `0x54585431` (private Table state) and `0x54584f31`
+(completed statement), each at most 32 KiB. All are reserved from generic record
+stage/read. A head requires `definition`, original `acquired` evidence, catalog
+`revision`, nullable `tables` and `statements` B-tree roots, `last_statement`,
+nullable `pending` request and `charged_bytes`. Its revision equals the current
+token progress; acquired evidence still binds the original receipt and cut.
+No missing persisted field receives a current-state default.
+
+A request binds `statement`, exact Table `binding` and immutable DML `intent`
+content. Only bulk INSERT/UPDATE/DELETE without prerequisite authority participates.
+Statement sequences start at one, increase by one across Tables and are consumed
+on admission. One pending request excludes a different statement until its
+original evaluation is resolved. A completed record pairs the request with its
+transaction-attributed provisional outcome or rejection. Private Table records
+use `TableWorkspace.State`; they are not Table WAL acceptances. Directory keys
+are nonzero Table IDs or statement sequences as eight big-endian bytes; values
+are record length as eight little-endian bytes followed by its SHA-256 digest.
+
+The catalog publishes completed outcome and private root in one token-progress
+acceptance. Original operation claims distinguish transaction statements from
+ordinary Table operations. Lost replies require original request recovery;
+resource/storage failures can leave admitted statements pending. Current SELECT
+and original DML permissions gate execution and repeated outcome disclosure.
+The embedding host serializes all database publication throughout these component
+calls. No signed workspace action or SQL transaction syntax is exposed by these
+formats. The [component guide](../packages/zig/transit-catalog/docs/direct-catalog.md)
+defines resident and cumulative staging charges and the remaining host boundaries.
 
 Catalog recovery requires the explicit `coordination` field and validates its
 allocation transition. Earlier receipts reject under the current-v1 definition;

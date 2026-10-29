@@ -70,6 +70,34 @@ pub const Budget = struct {
         if (self.bytes < 512 or self.bytes > self.limits.bytes) return error.InvalidClientToken;
     }
 };
+/// Sum of admitted transaction ceilings, independent of transient residency.
+/// This is retained with the account's token usage and includes every role.
+pub const TransactionReservations = struct {
+    count: u64,
+    resident_bytes: u64,
+    workspace_bytes: u64,
+    participants: u64,
+    statements: u64,
+    savepoints: u64,
+
+    pub const empty: TransactionReservations = .{ .count = 0, .resident_bytes = 0, .workspace_bytes = 0, .participants = 0, .statements = 0, .savepoints = 0 };
+    pub const defaults: TransactionReservations = .{ .count = 128, .resident_bytes = 64 * 1024 * 1024, .workspace_bytes = 4 * 1024 * 1024 * 1024, .participants = 400_000, .statements = 400_000, .savepoints = 4096 };
+
+    fn transition(self: TransactionReservations, begin: p.Transaction.Begin, add: bool) !TransactionReservations {
+        var next = self;
+        inline for (@typeInfo(TransactionReservations).@"struct".field_names) |name| {
+            const amount = if (comptime std.mem.eql(u8, name, "count")) 1 else @field(begin.limits, name);
+            @field(next, name) = if (add) try std.math.add(u64, @field(next, name), amount) else try std.math.sub(u64, @field(next, name), amount);
+        }
+        return next;
+    }
+    pub fn requireWithin(self: TransactionReservations, limits: TransactionReservations) !void {
+        inline for (@typeInfo(TransactionReservations).@"struct".field_names) |name| {
+            if (@field(self, name) > @field(limits, name)) return error.TransactionAccountCapacity;
+        }
+    }
+};
+
 /// Counters share the primary token's account scope, including all login roles.
 /// Settlement releases pending capacity; accepted identities and byte charges
 /// remain retained. Quota pressure never expires accepted work.
@@ -78,16 +106,27 @@ pub const Usage = struct {
     operations: u64 = 0,
     bytes: u64 = 0,
     pending: u64 = 0,
+    /// Mandatory on disk: old usage must never silently acquire zero charges.
+    transactions: TransactionReservations,
+    pub fn initial(limits: Limits) Usage {
+        return .{ .limits = limits, .transactions = .empty };
+    }
     pub fn transition(self: Usage, before: ?Progress, after: Progress) !Usage {
         var next = self;
         const budget = after.receipt.binding.budget;
         if (!std.meta.eql(self.limits, budget.limits)) return error.ClientBudgetConflict;
         if (before) |prior| {
-            if (prior.pending and !after.pending) next.pending = try std.math.sub(u64, next.pending, 1);
+            if (prior.pending and !after.pending) {
+                next.pending = try std.math.sub(u64, next.pending, 1);
+                if (after.receipt.binding.intent == .transaction)
+                    next.transactions = try next.transactions.transition(after.receipt.binding.intent.transaction.begin, false);
+            }
         } else {
             next.operations = try std.math.add(u64, next.operations, 1);
             next.bytes = try std.math.add(u64, next.bytes, budget.bytes);
             next.pending = try std.math.add(u64, next.pending, 1);
+            if (after.receipt.binding.intent == .transaction)
+                next.transactions = try next.transactions.transition(after.receipt.binding.intent.transaction.begin, true);
         }
         if (next.operations > next.limits.operations or next.bytes > next.limits.bytes or next.pending > next.limits.pending) return error.ClientTokenCapacity;
         return next;

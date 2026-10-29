@@ -7,6 +7,27 @@ from sdk.consumers.c import c_station_sdk
 from sdk.consumers.java import java_station_sdk
 from sdk.consumers.dotnet import dotnet_station_sdk
 from sdk.consumers.beam import beam_station_sdk
+from sdk.consumers.python import python_client_sdk
+from sdk.consumers.node import node_client_sdk
+from sdk.consumers.rust import rust_client_sdk
+from sdk.consumers.ruby import ruby_client_sdk
+from sdk.consumers.c import c_client_sdk
+from sdk.consumers.java import java_client_sdk
+from sdk.consumers.dotnet import dotnet_client_sdk
+from sdk.consumers.beam import beam_client_sdk
+from sdk.consumers.go import go_client_sdk
+
+RAW_RUNNERS = {
+    "python": python_client_sdk.run,
+    "node": node_client_sdk.run,
+    "rust": rust_client_sdk.run,
+    "ruby": ruby_client_sdk.run,
+    "c": c_client_sdk.run,
+    "java": java_client_sdk.run,
+    "dotnet": dotnet_client_sdk.run,
+    "beam": beam_client_sdk.run,
+    "go": go_client_sdk.run,
+}
 
 RUNNERS = {
     "python": python_station_sdk.run,

@@ -11,10 +11,13 @@ pub const Query = @import("Query.zig");
 pub const InspectionDiagnostic = @import("InspectionDiagnostic.zig");
 pub const FailureResponse = @import("FailureResponse.zig");
 pub const Json = @import("Json.zig");
+pub const Storage = @import("Storage.zig");
+pub const StorageResponse = Storage.Response;
 test {
     _ = InspectionDiagnostic;
     _ = FailureResponse;
     _ = Json;
+    _ = Storage;
     _ = Exchange;
     _ = Document;
     _ = Query;

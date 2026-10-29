@@ -65,7 +65,10 @@ an accepted Table recovery hint. Restoration requires the original live pin;
 rollback retains consumed statement/operation identities. The embedding owner
 must publish and retain the descriptor and its referenced pages before it becomes
 durable work. The descriptor alone defines no installed workspace wire protocol,
-collector root or transaction decision.
+collector root or transaction decision. The catalog workspace owner publishes
+these states through its [reserved records](DIRECT_TABLE_V1.md#durable-client-token-bindings)
+and extends the retained graph to private rows, receipts, operations and intents.
+Its private evaluator positions are never used as accepted recovery baselines.
 
 `TransactionDirectory` objects start with `TXDIR1` followed by two zero bytes,
 then the mandatory 32-byte shared definition at offsets `8..40`, then canonical
@@ -75,9 +78,11 @@ noncanonical bytes, missing/foreign definitions and invalid scope. Objects are
 addressed as `transaction-directory/<sha256>.data`, where the digest covers the
 entire encoded object. The object descriptor's size and digest must match.
 
-A root stores `definition`, transaction identity, directory kind (`participants`
-or `preparations`), optional immutable B-tree root, entry count and write count.
-An entry is a tagged neutral participant or preparation. Tree keys encode the
+A root stores `definition`, transaction identity, directory kind (`participants`,
+`preparations` or `sources`), optional immutable B-tree root, entry count and write count.
+An entry is a tagged neutral participant, preparation, or acquired source
+(`guard` and Table snapshot `pin`). A source pin's owner must equal the original
+begin operation; source directories have zero writes. Tree keys encode the
 nonzero object ID as eight big-endian bytes; values encode the object byte length
 as eight little-endian bytes followed by its 32-byte digest. Tree pages retain
 their ordinary definition/digest checks. Entry kind and identity must match the

@@ -41,6 +41,92 @@ merge rules and the accepted index. The
 [publication contract](../../../contracts/STATION_PUBLICATION_V1.md) and
 [Document contract](../../../contracts/STATION_DOCUMENT_V1.md) own those different checks.
 
+### Durable private Table statements
+
+The question is how a transaction can recover accepted private statements without
+exposing their rows as committed Table data. This implemented component profile,
+at source `48405c6c20d6`, uses a catalog-acquired common cut, one serialized local
+database owner and immutable private Table roots. It supplies no installed
+transaction session or multi-Table commit decision. The
+[catalog component guide](../../../packages/zig/transit-catalog/docs/direct-catalog.md)
+and [reserved record contract](../../../contracts/DIRECT_TABLE_V1.md#durable-client-token-bindings)
+own the operations, formats and limits.
+
+Let `C` be the retained acquired cut, `W` the paged map from Table IDs to private
+roots, `R` the paged map from statement sequences to completed outcomes, and `P`
+the optional pending request. The accepted catalog token names
+`(C, W, R, n, P, q)`, where `n` is the last consumed sequence and `q` is a
+conservative cumulative staging charge. A request freezes its transaction,
+sequence, original Table operation and immutable DML bytes. This model assumes
+an atomic fenced catalog append, durable immutable objects, authentic current
+policy checks and a host that excludes database publication throughout each
+component call. Reply loss can occur after acceptance; an exception alone cannot
+establish non-acceptance.
+
+Admission requires sequence `n + 1` and empty `P`. It first claims the original
+Table operation specifically for this transaction statement, then accepts `P`
+and advances `n`. Evaluation restores the selected Table's private root, or its
+original retained source on first use. It reuses the bulk Table mutation engine
+without appending public Table data. Completion stages the next private root and
+outcome, then publishes both directory roots while clearing `P` in one catalog
+append. Rejection also consumes the sequence and records its original outcome.
+
+These transitions explain three safety claims. A completed provisional outcome
+cannot name a different accepted private root because they share one acceptance.
+An exact retry reads `R` instead of executing again; conflicting request content
+cannot reuse the sequence. Finally, the separate immutable operation claim
+prevents a private statement from being submitted later as an ordinary Table
+write, including after lost admission acknowledgment. Removing that claim would
+leave a route from one original operation to both private and public execution.
+An interrupted evaluation leaves its admitted `P` intact. Unreachable staging
+is not accepted progress and cannot replace the previous `W`.
+
+Current SELECT and original DML permissions are checked before execution and
+repeated outcome disclosure. Independent guards must report one writer/policy
+epoch through publication; they do not accumulate one authorization array for
+all selected Tables. Possession of a private root or retained pin grants no
+permission. Generic caller-record operations reject the reserved workspace
+formats, preventing CONNECT-only access to their payloads.
+
+The retained graph follows accepted catalog history into both workspace
+directories, pending/completed intents, private Table indexes and segment data.
+Private evaluator positions are never interpreted as public WAL acceptances.
+When old row locators require archived WAL, traversal uses the real accepted
+Table owner's archive coverage. The original Table pins retain the source cut.
+Pages bound resident traversal, not durable cardinality; the graph emits at most
+three child jobs per step.
+
+Account admission separately sums transaction ceilings for count, resident
+bytes, workspace bytes, participants, statements and savepoints. These counters
+share the begin's catalog acceptance and the principal/account scope across login
+roles. Lost replies do not duplicate a reservation. This reserves capacity
+without allocating all declared memory. Current limits can stop new admission
+while original accepted-token recovery continues. Pending work retains its
+reservation; pressure does not authorize expiration or cleanup.
+
+The design pays two catalog acceptances per new private statement plus immutable
+identity/staging work, and permits one pending statement per transaction. A
+session-local result cache would avoid some writes but lose original outcomes
+on restart. Reusing autocommit operation claims would erase the distinction
+between private and public execution. The chosen directories and conservative
+staging charges favor recoverability and bounded resident state; no latency or
+throughput comparison is claimed. Account ceilings do not replace deployment-wide
+scheduling or physical disk quotas, and failed unreachable staging has a separate
+collection lifetime.
+
+The [catalog tests](../../../packages/zig/transit-catalog/src/direct_catalog_test.zig)
+exercise disk reopen after lost admission/completion replies, original private
+row contents, duplicate-key rejection, revocation, paged reachability and quota
+refusal. Reproduce the focused component cases with
+`zig build test -Dtest-filter=transaction` in the catalog package under the pinned
+development shell. The [qualification ledger](../../history/qualification/verification.md)
+records exact revisions and executed methods. These checks establish neither
+automatic model refinement nor host power-loss behavior. Participant preparation,
+common-decision visibility, durable savepoints, abort/cleanup settlement and
+signed/SQL workspace callers remain separate obligations. In particular, a
+resource failure may leave a statement pending; this component has no general
+liveness or automatic abort guarantee.
+
 ## Typed state and causality
 
 ### Naming initialized native resources

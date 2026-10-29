@@ -110,6 +110,32 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile)
     const alloc = init.arena.allocator();
     const initialized = try client.call(.initialize);
     defer initialized.deinit();
+    // Server-owned cut records cannot be supplied through caller-owned record
+    // staging. This is a request refusal, not transport/storage uncertainty.
+    for ([_]u32{ c.DirectTransaction.Acquired.format, c.DirectTransactionWorkspace.head_format, c.DirectTransactionWorkspace.table_format, c.DirectTransactionWorkspace.statement_format }) |format|
+        try t.expectError(error.Rejected, c.DirectRecord.stage(client, @splat(91), format, "caller-supplied workspace"));
+    // Capacity is refused before reading a staged selection. The nonexistent
+    // selection below must not turn a quota refusal into a server error or admit
+    // a replacement identity. Exact token inspection still reports no admission.
+    var limits = c.DirectTransaction.default_limits;
+    limits.resident_bytes = c.DirectClientToken.TransactionReservations.defaults.resident_bytes + 1;
+    const quota: c.DirectClientToken.Binding = .{
+        .key = .{ .definition = g.current_definition, .connection = client.connection, .account = @splat(91), .token = @splat(71) },
+        .fingerprint = @splat(72),
+        .intent = .{ .transaction = .{ .connection = client.connection, .namespace = 1, .begin = .{
+            .definition = g.current_definition,
+            .identity = .{ .begin = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 900001 }, .branch = 1 },
+            .mode = .serializable,
+            .selection = .explicit_tables,
+            .tables = .{ .content = .{ .bytes = 100, .sha256 = @splat(73) }, .count = 0 },
+            .catalog = .{ .partition = profile.catalog.partition, .next_lsn = 1 },
+            .limits = limits,
+        } } },
+    };
+    try t.expectError(error.AuthorityUnavailable, client.call(.{ .client_token = .{ .bind = quota } }));
+    const unaccepted = try client.call(.{ .client_token = .{ .lookup = quota.key } });
+    defer unaccepted.deinit();
+    try t.expect(unaccepted.value.result.client_token == null);
     const intent: c.DirectCatalog.Intent = .{ .namespace = 1, .name = try .init("events"), .action = .{ .create = .{ .schema = schema, .owner = profile.role } } };
     const binding: d.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = profile.catalog.scope, .principal = 101, .operation = 1 }, .target = .{ .scope = profile.catalog.scope, .branch = 1, .object = 7 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(alloc) };
     const admitted = try client.call(.{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = "events", .action = .{ .create = .{ .owner = profile.role, .schema = try binarySchema(alloc) } } } });
@@ -152,12 +178,10 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile)
     try t.expectEqual(@as(u64, 2), second.outcome.live_rows);
     profile.saved = .{ .create = binding, .insert = work.binding, .snapshot = snapshot, .first = first, .second = second };
 }
-fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, profile: Profile, directory: std.Io.Dir) !void {
+fn retainedRows(init: std.process.Init, client: c.DirectTableClient, profile: Profile) !c.DirectTableReader {
     const saved = profile.saved.?;
-    try t.expectEqualDeep(saved.second, (try inspect(client, saved.insert)).rows.committed);
-    try t.expectEqualDeep(saved.second, (try execute(client, saved.insert)).rows.committed);
     var reader = try c.DirectTableReader.open(init.gpa, client, saved.snapshot);
-    defer reader.deinit();
+    errdefer reader.deinit();
     try t.expectEqual(@as(u64, 1), reader.basis.row_count);
     try t.expectEqualDeep(saved.first.outcome.position, reader.basis.accepted);
     var page = (try reader.next(client, .{})).?;
@@ -171,6 +195,14 @@ fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, p
     var foreign = client;
     foreign.connection.role = profile.role;
     try t.expectError(error.CatalogIdentityConflict, reader.check(foreign));
+    return reader;
+}
+fn recover(init: std.process.Init, client: c.DirectTableClient, admin: *Admin, profile: Profile, directory: std.Io.Dir) !void {
+    const saved = profile.saved.?;
+    try t.expectEqualDeep(saved.second, (try inspect(client, saved.insert)).rows.committed);
+    try t.expectEqualDeep(saved.second, (try execute(client, saved.insert)).rows.committed);
+    var reader = try retainedRows(init, client, profile);
+    defer reader.deinit();
     const current = try client.call(.{ .lookup = .{ .namespace = 1, .name = "events" } });
     defer current.deinit();
     try t.expectEqual(@as(u64, 2), current.value.result.lookup.?.row_count);
@@ -483,6 +515,9 @@ pub fn main(init: std.process.Init) !void {
             profile.conditions = try Conditions.prepare(init.gpa, client);
             profile.history = try History.prepare(client);
             try save(init, args[3], profile);
+        } else if (std.mem.eql(u8, args[2], "pressure-read")) {
+            var reader = try retainedRows(init, client, profile);
+            defer reader.deinit();
         } else if (std.mem.eql(u8, args[2], "recover")) {
             try Delegation.recover(client, &profile.delegation.?);
             std.debug.print("Direct Table recovery: retained delegation passed\n", .{});

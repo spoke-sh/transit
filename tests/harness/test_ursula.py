@@ -87,6 +87,28 @@ HTTPServer((host, int(public)), Handler).serve_forever()
                 self.assertIsNone(fixture.server)
                 self.assertGreaterEqual(occupied.fileno(), 0)
 
+    def test_recovery_retention_preserves_original_paths_after_joining(self):
+        for failed in (False, True):
+            with self.subTest(failed=failed), self.provider(), contextlib.redirect_stderr(io.StringIO()) as errors:
+                fixture = Fixture(retain_on_failure=True)
+                original = fixture.config.read_bytes()
+                try:
+                    outcome = self.assertRaisesRegex(RuntimeError, "accepted outcome needs investigation") if failed else contextlib.nullcontext()
+                    with outcome:
+                        with fixture:
+                            process = fixture.server
+                            if failed:
+                                raise RuntimeError("accepted outcome needs investigation")
+                    self.assertIsNotNone(process.poll())
+                    self.assertIsNone(fixture.server)
+                    self.assertEqual(fixture.root.exists(), failed)
+                    if failed:
+                        self.assertEqual(fixture.config.read_bytes(), original)
+                        self.assertEqual(fixture.root.parent, Path("/var/tmp"))
+                        self.assertIn(str(fixture.root), errors.getvalue())
+                finally:
+                    fixture.directory.cleanup()
+
 
 if __name__ == "__main__":
     unittest.main()

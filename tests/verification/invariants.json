@@ -2321,6 +2321,69 @@
       "qualification": "Exact source/configuration hashes, completion counts and named counterexamples are retained under .cache/verification/table-transaction-model/ and CI artifacts; executed results belong in docs/history/qualification/verification.md."
     },
     {
+      "id": "TRANSACTION-05",
+      "claim": "A catalog-owned common cut retains every original selected Table pin and publishes only after complete acquisition under one publication fence and policy epoch",
+      "owner": "packages/zig/transit-catalog/docs/direct-catalog.md",
+      "implementation": [
+        "packages/zig/transit-catalog/src/DirectCatalog.zig",
+        "packages/zig/transit-catalog/src/DirectTransaction.zig",
+        "packages/zig/transit-catalog/src/DirectStorageGraph.zig",
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig",
+        "packages/zig/transit-storage/src/TransactionDirectory.zig",
+        "apps/transit-node/NativeServer.zig",
+        "tests/interfaces/native/direct_table_client.zig"
+      ],
+      "profile": "Catalog component with serialized Table publication, paged selected/source directories, disk reopen and metered temporary heap",
+      "tasks": [
+        "check::native",
+        "test::direct-table-service"
+      ],
+      "scenarios": [
+        "Lost pin and final publication replies recover original pins and the original catalog cut across disk reopen",
+        "Logical writes and interpretation changes during interrupted acquisition refuse a mixed cut; physical flush preserves acquisition",
+        "An acquired cut stays fixed across later writes and rechecks current rights on every observation",
+        "Mixed policy epochs and memory exhaustion leave the catalog cut unpublished",
+        "Source directories larger than one page remain reachable through catalog history; generic progress updates cannot replace transaction records",
+        "Generic record access cannot disclose or replace the server-owned cut; signed staging receives HTTP 400 InvalidRequest",
+        "Admission rejects caller-supplied catalog-wide selection claims; logical guards remain distinct from retained history coverage"
+      ],
+      "limits": "The embedding caller supplies the catalog/Table publication fence. No installed transaction host or signed acquisition API, private statement settlement, aggregate workspace quota, Table prepare/visibility, serializability, cleanup, process-death or power-loss guarantee is established. These component histories do not constitute automated model refinement.",
+      "model": null,
+      "qualification": "Focused package tests and clean-source checks must be attributed to their actual source revision; registration is not an executed proof."
+    },
+    {
+      "id": "TRANSACTION-06",
+      "claim": "Accepted private statements recover their original provisional outcomes and retained Table roots without public data acceptance or autocommit identity reuse",
+      "owner": "packages/zig/transit-catalog/docs/direct-catalog.md",
+      "implementation": [
+        "packages/zig/transit-catalog/src/DirectTransactionWorkspace.zig",
+        "packages/zig/transit-catalog/src/DirectCatalog.zig",
+        "packages/zig/transit-catalog/src/DirectClientToken.zig",
+        "packages/zig/transit-catalog/src/OperationBinding.zig",
+        "packages/zig/transit-catalog/src/DirectStorageGraph.zig",
+        "packages/zig/transit-catalog/src/direct_catalog_test.zig",
+        "apps/transit-node/NativeServer.zig",
+        "tests/interfaces/native/direct_table_client.zig",
+        "tests/storage/tables/direct_table_service.py"
+      ],
+      "profile": "Serialized catalog component with paged private roots and statement records, one-page caches, disk reopen and current read/write authorization",
+      "tasks": [
+        "check::native",
+        "test::direct-table-service"
+      ],
+      "scenarios": [
+        "Lost admission and provisional-outcome replies recover the original request across disk reopen while public Table WAL remains unchanged",
+        "Original transaction statement IDs refuse autocommit reuse; altered retries, out-of-order and competing statements cannot replace accepted work",
+        "Nine private Tables and statement records exceed one page and retain pending intents, data segments and evidence through the catalog graph",
+        "Workspace quota refusal preserves the admitted pending request and original private root; current denial precedes repeated result disclosure",
+        "Atomic aggregate account reservations survive lost begin replies and disk reopen, sum all six resource dimensions across login roles, and preserve original receipt recovery after admission limits are lowered",
+        "Installed signed callers cannot stage any server-owned cut or workspace format; aggregate reservation refusal returns HTTP 503 StorageQuota without accepting the token"
+      ],
+      "limits": "The embedding host excludes database publication. Private statement operations have no signed caller or SQL adapter; the installed checks cover only existing record and begin-admission refusals. No commit, abort, preparation barrier, common-decision visibility, savepoint controls, automatic cleanup, process-death or power-loss claim follows. Staging charges exclude unreachable failed staging and separately owned catalog/provider capacity.",
+      "model": null,
+      "qualification": "Focused catalog and clean-source checks must identify their actual source; registration alone is not execution."
+    },
+    {
       "id": "BOARD-DATA-01",
       "claim": "Board explores authorized catalog definitions and read-only logical results without re-executing uncertain reads or claiming complete display coverage",
       "owner": "docs/handbook/reference/board-api.md",

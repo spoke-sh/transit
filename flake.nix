@@ -83,7 +83,10 @@
             ;
         }
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
-          inherit (toolchains.${system}) transit-local transit-release minio;
+          inherit (toolchains.${system}) transit-local minio;
+        }
+        // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-linux" system) {
+          inherit (toolchains.${system}) transit-release;
         }
       );
 
@@ -217,6 +220,7 @@
               packages = tools.packages;
               TRANSIT_SQL_TOOLS = "${toolchains.${system}.sql-tools}";
               TRANSIT_GSON_JAR = "${tools.gson}";
+              TRANSIT_GSON_LICENSE = "${tools.gsonLicense}";
               DOTNET_CLI_TELEMETRY_OPTOUT = "1";
               DOTNET_SKIP_FIRST_TIME_EXPERIENCE = "1";
             };

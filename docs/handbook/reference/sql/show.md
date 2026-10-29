@@ -1,7 +1,7 @@
 # SHOW
 
-`SHOW` inspects registered settings, authorized catalog names and Table storage
-progress. The console and configured PostgreSQL/MySQL gateways support the forms
+`SHOW` inspects registered settings, authorized catalog names, node storage and
+Table storage progress. The console and configured PostgreSQL/MySQL gateways support the forms
 below. Query-only inspection retains its single-source Table scope.
 
 ```sql
@@ -11,6 +11,7 @@ SHOW query.statement_timeout;
 SHOW DATABASES;
 SHOW SCHEMAS;
 SHOW TABLES;
+SHOW STORAGE;
 SHOW STORAGE FOR items;
 ```
 
@@ -40,6 +41,19 @@ DATABASES and SCHEMAS emit name rows. The SQL adapters emit typed name rows. The
 [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns enumeration.
 
 ## Table storage progress
+
+`SHOW STORAGE` returns the local node's backend, resolved data root, conservative
+storage admission bytes and limits, direct request/control allocation use and
+peaks, and maintenance executor state, counters, limit and last failure category.
+It requires realm-wide native inspection rights as well as the SQL session's
+database/schema access in a direct catalog session. Query-source-only and Flight
+SELECT interfaces do not accept it. Unavailable fields are NULL. These live counters are
+independent observations; they are neither a data snapshot nor a whole-process
+memory measurement. Maintenance counters reset on owner replacement, and a last
+failure remains visible after subsequent successful steps. Accounted storage
+includes conservative reservations and is not the filesystem's free-space value.
+The same signed read supplies Board's Operations storage panel. It performs no
+flush, collection or configuration change.
 
 `SHOW STORAGE FOR name` returns one typed row for a Table in the selected
 database and schema. It uses the same authorized

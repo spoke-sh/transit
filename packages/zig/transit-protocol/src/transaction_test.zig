@@ -30,8 +30,6 @@ test "transaction whole Table guard rejects phantoms and definition changes but 
     const basis = parsed.value.participant.state.guard;
     var current = basis;
     current.source.accepted.next_lsn += 8;
-    current.source.manifest = .{ .bytes = 2048, .sha256 = @splat(19) };
-    current.source.checkpoint_lsn = current.source.accepted.next_lsn;
     try basis.requireUnchanged(current);
     // Any logical write, including outside a predicate's returned rows, conflicts.
     current.changed_lsn = current.source.accepted.next_lsn;
@@ -68,6 +66,18 @@ test "transaction cuts cannot claim incomplete coverage or silently change scope
     var participant = parsed.value.participant;
     participant.state.guard.source.interpretation.object.scope.catalog += 1;
     try t.expectError(error.TransactionIdentityConflict, participant.requireLocalTable(parsed.value.begin));
+}
+
+test "transaction logical guards reject snapshot coverage fields" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    const guard = parsed.value.participant.state.guard;
+    const bytes = try p.Json.valueAlloc(t.allocator, guard);
+    defer t.allocator.free(bytes);
+    const at = std.mem.indexOf(u8, bytes, "\"source\":{").? + "\"source\":{".len;
+    const former_shape = try std.fmt.allocPrint(t.allocator, "{s}\"manifest\":null,\"checkpoint_lsn\":0,{s}", .{ bytes[0..at], bytes[at..] });
+    defer t.allocator.free(former_shape);
+    try t.expectError(error.UnknownField, p.Json.parseFromSlice(x.TableGuard, t.allocator, former_shape));
 }
 
 test "transaction participant vocabulary does not enable unsupported owners" {

@@ -121,6 +121,15 @@ describe("documentation ownership and navigation", () => {
     expect(
       resolveLink(
         root,
+        "docs/handbook/guides/launchers.md",
+        "../../../launchers/README.md",
+        "/",
+        "a".repeat(40),
+      ),
+    ).toBe(`https://github.com/spoke-sh/transit/blob/${"a".repeat(40)}/launchers/README.md`);
+    expect(
+      resolveLink(
+        root,
         "docs/handbook/reference/native.md",
         "../../../packages/zig/transit-client/README.md",
         "/",

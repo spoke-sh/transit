@@ -119,7 +119,7 @@ stdenv.mkDerivation {
   '';
   buildPhase = ''
     runHook preBuild
-    zig build transit transit-node transit-query-host transit-board ${lib.optionalString releaseBuild "transit-admin transit-delivery transit-station-controller -Dtarget=x86_64-linux-musl"} -Dsource-revision=${lib.escapeShellArg sourceRevision} -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
+    zig build transit transit-node transit-query-host transit-board ${lib.optionalString releaseBuild "transit-admin transit-delivery transit-station-controller -Dtarget=${stdenv.hostPlatform.parsed.cpu.name}-linux-musl"} -Dsource-revision=${lib.escapeShellArg sourceRevision} -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
     ${lib.optionalString releaseBuild ''
       python3 -B tasks/release_notices.py "$out/share/transit/notices" ${zigDependencies} ${openssl.src} ${stdenv.cc.libc.src}
     ''}

@@ -62,6 +62,13 @@ peak. Cache/index memory, the bounded persistent declaration, WAL acceptance
 buffer, provider I/O and caller-owned input have separate bounds; this counter is
 not process RSS.
 
+Concrete mutations allocate canonical row bytes for their actual batch and use
+the largest proposed row for equality scratch. Different encoded lengths already
+establish a change. Segment encoding starts with 64 KiB of output capacity and
+doubles on insufficient space, up to the unchanged maximum segment size. Each
+retry encodes the bounded batch again; all attempts share the build budget.
+These allocations do not reserve a maximum-size segment for every small write.
+
 `TableBuildBudget` refuses an unpublished candidate without changing accepted
 rows or definitions. Executing an admitted operation records the existing
 terminal `work_limit` outcome under the original identity. Parent allocator

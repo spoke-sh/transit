@@ -145,3 +145,32 @@ Query transport, semantic values and complete-result verification are shared thr
 [`transit-query-client`](../transit-query-client/README.md), whose declarations
 reflect the Zig query owner independently of Board. `BoardError` remains the
 public error export (an alias of the shared `QueryError`). Inspection keeps its separate contract and response bounds.
+
+## Storage inspection
+
+`GET /api/v1/storage` projects the signed native `storage` read. It requires the
+configured identity's current realm-wide, read-only inspection grant. PID-scoped
+grants cannot disclose paths or installation-wide counters. The response owns
+its absolute data-root text and reports physical allocation admission, direct
+request allocation budgets and volatile maintenance activity. Null means the
+owner cannot supply a fact; it is distinct from zero. Paths that cannot be
+represented as at most 4096 UTF-8 bytes are unavailable.
+
+These live counters have independent observation times. Accounted storage is a
+conservative admission counter, not filesystem free space. Request allocation
+excludes stacks, sockets and filesystem caches. Maintenance counters reset when
+the owner restarts; durable Table frontiers remain the direct Table storage
+operation's responsibility. The Operations view polls this read and clears its
+observation on failure or lost visibility. It starts no maintenance or data work.
+
+The configured relational workspace also accepts the read-only `storage`
+request with a configured catalog route and exact prepared Table binding. It
+uses the signed direct Table storage operation, checks the current name and
+definition, and applies the workspace identity's current object permissions.
+This identity is separate from Board's node inspection identity. The response
+contains exact decimal strings for positions, row/byte counts, history floors
+and maintenance targets. The backlog is bounded to 1024 inspected current rows;
+`pending_complete` distinguishes a full count from a prefix. These are current
+independent facts, not the proposed query's snapshot. The read neither opens a
+query nor writes its pin journal. The proposed-plan view exposes this read per
+source and clears the displayed facts on read failure or lost visibility.

@@ -27,6 +27,7 @@ pkgs.mkShellNoCC {
   ];
   TRANSIT_SQL_TOOLS = "${sql-tools}";
   TRANSIT_GSON_JAR = "${tools.gson}";
+  TRANSIT_GSON_LICENSE = "${tools.gsonLicense}";
   DOTNET_CLI_TELEMETRY_OPTOUT = "1";
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE = "1";
 }

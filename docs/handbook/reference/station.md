@@ -20,7 +20,9 @@ Follow [caller ownership and recovery](callers.md) when implementing a runner.
 
 ## State helpers
 
-Tables provide typed operations and finite queries above a state resource.
+Station Table helpers provide application-private typed state and finite queries
+above a native state resource. They publish no catalog name; SQL catalog Tables
+use the separate direct Table owner.
 Documents add accepted structured/text changes with explicit merge conflicts.
 They share growing storage/read/publication primitives; a handler still has the
 one-mutated-resource turn boundary. A Table batch can be atomic within that

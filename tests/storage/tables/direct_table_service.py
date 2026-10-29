@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 import threading
 import urllib.request
 
@@ -18,7 +17,7 @@ def run(node, caller, mode="tables", *artifacts):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
-    with (direct_table_maintenance.directory() if mode == "maintenance" else tempfile.TemporaryDirectory(prefix="transit-direct-table-")) as directory:
+    with direct_table_maintenance.directory(mode) as directory:
         root = Path(directory)
         profile = root / "profile.json"
         config = root / "node.json"
@@ -33,7 +32,7 @@ def run(node, caller, mode="tables", *artifacts):
             "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
         }
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
-        if request_memory is not None:
+        if request_memory is not None or mode == "tables":
             settings["request_metrics"] = True
         if mode in ("resources", "resource-growth"):
             settings["genesis"]["max_clock_error_ms"] = 10000
@@ -66,12 +65,15 @@ def run(node, caller, mode="tables", *artifacts):
                 child.kill()
                 child.wait(timeout=15)
 
-        fault = {"changed": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "relational_setup": False, "execute": None, "requests": 0, "commands": []}
+        fault = {"changed": False, "assertion_changed": False, "namespace_changed": False, "pin_changed": False, "delegated_pin": False, "delegated_release": False, "history_pin": False, "history_release": False, "relational_setup": False, "transaction_records_refused": set(), "transaction_quota_refused": False, "execute": None, "requests": 0, "commands": []}
 
         dependency_faults = set()
         resource_faults = set()
         abi_faults = set()
         retention_faults = set()
+        accepted_inspections = []
+        pressure_scan = []
+        capture_pressure_scan = False
         board_fault = {"next": None, "accepted": []}
 
         class Proxy(BaseHTTPRequestHandler):
@@ -93,7 +95,25 @@ def run(node, caller, mode="tables", *artifacts):
                     if self.path == "/table/v1":
                         if request_memory is not None:
                             request_memory.observe(envelope["action"], response.getheader("x-transit-work"), len(data))
+                        if capture_pressure_scan and "scan" in envelope["action"] and response.status == 200:
+                            assert not pressure_scan, "Pressure oracle issued more than one scan"
+                            metrics = json.loads(response.getheader("x-transit-work"))["request_memory"]
+                            assert metrics["live_bytes"] == len(data)
+                            pressure_scan.append((body, len(data), metrics["peak_bytes"]))
                         fault["requests"] += 1
+                        record = envelope["action"].get("record", {}).get("stage")
+                        if record and record["format"] in (0x54584331, 0x54585731, 0x54585431, 0x54584f31):
+                            assert response.status == 400 and json.loads(data) == {"err": "InvalidRequest"}, data
+                            fault["transaction_records_refused"].add(record["format"])
+                        token = envelope["action"].get("client_token", {}).get("bind", {})
+                        if "transaction" in token.get("intent", {}):
+                            assert response.status == 503 and json.loads(data) == {"err": "StorageQuota"}, data
+                            fault["transaction_quota_refused"] = True
+                        operation = envelope["action"].get("operation")
+                        if mode == "tables" and not accepted_inspections and operation and operation["command"] == "inspect" and response.status == 200:
+                            result = json.loads(data)["result"]
+                            if "committed" in next(iter(result.values())):
+                                accepted_inspections.append((body, result))
                         resource = envelope["action"].get("resource_operation")
                         if mode == "resources" and resource and resource["binding"]["operation"] in (80000, 80001) and resource["command"] != "inspect" and response.status == 200:
                             parsed = json.loads(data)
@@ -433,11 +453,49 @@ def run(node, caller, mode="tables", *artifacts):
                 print(f"Direct dependencies: {fault['requests']} typed calls, exact registration/removal receipts after corrupt replies and abrupt node replacement, unchanged saved caller bindings, current metadata revocation, redacted RESTRICT blockers, reverse inspection, stale retry rejection and DROP/name replacement passed.")
                 return
             subprocess.run([caller, endpoint, "write", str(profile)], check=True, timeout=180)
+            assert fault["transaction_records_refused"] == {0x54584331, 0x54585731, 0x54585431, 0x54584f31}
+            assert fault["transaction_quota_refused"]
             assert fault["changed"]
             assert fault["pin_changed"]
             assert fault["assertion_changed"]
             assert fault["delegated_pin"] and fault["history_pin"]
             segments = list((root / "native").rglob("*.tseg"))
+            assert accepted_inspections, "No accepted original operation available for pressure recovery"
+            capture_pressure_scan = True
+            subprocess.run([caller, endpoint, "pressure-read", str(profile)], check=True, timeout=30)
+            capture_pressure_scan = False
+            assert len(pressure_scan) == 1
+            # Preserve the exact original recovery and immutable scan envelopes
+            # inside this private installation before injecting any pressure.
+            (root / "pressure-requests.json").write_text(json.dumps(dict(
+                inspection=json.loads(accepted_inspections[0][0]),
+                expected=accepted_inspections[0][1], scan=json.loads(pressure_scan[0][0]),
+                response_bytes=pressure_scan[0][1], baseline_peak_bytes=pressure_scan[0][2])))
+            stop(authority)
+            authority = None
+            settings["storage"] = {"requests": {"request_bytes": 1048576, "data_bytes": 1048576}}
+            settings["request_timeout_ms"] = 5000
+            config.write_text(json.dumps(settings))
+            authority = start()
+            try:
+                direct_table_maintenance.request_pressure(port, root, lambda: authority, accepted_inspections[0])
+                stop(authority)
+                authority = None
+                # Admit this already verified scan with its measured backing
+                # requirement. This fixture limit stays below the shipped cap.
+                limit = max(1048576, pressure_scan[0][2])
+                settings["storage"]["requests"] = {"request_bytes": limit, "data_bytes": limit}
+                config.write_text(json.dumps(settings))
+                authority = start()
+                direct_table_maintenance.response_pressure(port, root, lambda: authority,
+                                                           accepted_inspections[0], pressure_scan[0], limit)
+            finally:
+                stop(authority)
+                authority = None
+                settings.pop("storage")
+                settings["request_timeout_ms"] = 60000
+                config.write_text(json.dumps(settings))
+                authority = start()
             assert segments, "Bulk acceptance created no .tseg object"
             stop(authority)
             authority = None

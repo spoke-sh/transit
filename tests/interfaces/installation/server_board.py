@@ -120,6 +120,15 @@ def lifecycle(cli, node, host, board, worker, operator):
         atlas = fixture.atlas()
         assert int(atlas['realm']) == 73 and int(atlas['identity']['principal']) == 25
         assert atlas['identity']['permissions'] == 16
+        storage = json.loads(fixture.request('/api/v1/storage'))
+        assert storage['realm'] == 73 and storage['position'] > 0
+        assert storage['backend'] == 'local'
+        assert storage['root'] == str((fixture.installation / 'data/native').resolve())
+        assert storage['allocated_bytes'] > 0
+        for field, limit in (('data_requests', 256 * 1024 * 1024), ('control_requests', 64 * 1024 * 1024)):
+            memory = storage[field]
+            assert 0 <= memory['used'] <= memory['peak'] <= memory['limit'] == limit
+        assert storage['maintenance']['enabled'] and storage['settings']['resident_bytes'] > 0
         html = fixture.request('/').decode()
         scripts = re.findall(r'src="([^"]+\.js)"', html)
         assert scripts, html

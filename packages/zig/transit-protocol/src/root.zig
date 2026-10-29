@@ -55,6 +55,7 @@ pub const validate = Growth.validate;
 pub const digest = Growth.digest;
 pub const sign = Growth.sign;
 test {
+    _ = Storage;
     _ = Json;
     _ = Schema;
     _ = Growth;

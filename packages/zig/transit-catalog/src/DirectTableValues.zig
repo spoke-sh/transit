@@ -347,3 +347,59 @@ test "direct host references agree with independent saved-intent bytes" {
     substituted.interpretation.content.sha256 = try v.hex(arena.allocator(), &wrong);
     try t.expectError(error.InvalidTableDeclaration, substituted.native());
 }
+
+/// Lossless read-only storage facts. Decimal strings preserve full-width LSNs
+/// and byte counts for browser and foreign callers. No field grants authority.
+pub const StorageObservation = struct {
+    position: Position,
+    changed_lsn: []const u8,
+    live_rows: []const u8,
+    pending_rows: []const u8,
+    pending_bytes: []const u8,
+    pending_complete: bool,
+    oldest_pending_lsn: ?[]const u8,
+    archive_through: []const u8,
+    recovery_through: ?[]const u8,
+    history_floor: []const u8,
+    next_segment: []const u8,
+    archive_source_lsn: []const u8,
+    archived_source_lsn: []const u8,
+    archive_target_source_lsn: ?[]const u8,
+    archive_target_through_lsn: ?[]const u8,
+    compaction_source_lsn: []const u8,
+    compacted_source_lsn: []const u8,
+    compaction_target_source_lsn: ?[]const u8,
+    compaction_target_before_segment: ?[]const u8,
+    compaction_target_after_segment: ?[]const u8,
+
+    pub fn foreign(allocator: Allocator, observed: c.DirectCatalog.StorageObservation) !StorageObservation {
+        const work = observed.maintenance;
+        const archive = work.archive_target;
+        const compact = work.compaction_target;
+        return .{
+            .position = try Position.foreign(allocator, observed.position),
+            .changed_lsn = try v.decimal(allocator, observed.changed_lsn),
+            .live_rows = try v.decimal(allocator, observed.live_rows),
+            .pending_rows = try v.decimal(allocator, observed.pending.rows),
+            .pending_bytes = try v.decimal(allocator, observed.pending.bytes),
+            .pending_complete = observed.pending.complete,
+            .oldest_pending_lsn = try optional(allocator, observed.pending.oldest_lsn),
+            .archive_through = try v.decimal(allocator, observed.archive_through),
+            .recovery_through = try optional(allocator, observed.recovery_through),
+            .history_floor = try v.decimal(allocator, observed.history_floor),
+            .next_segment = try v.decimal(allocator, observed.next_segment),
+            .archive_source_lsn = try v.decimal(allocator, work.archive_source_lsn),
+            .archived_source_lsn = try v.decimal(allocator, work.archived_source_lsn),
+            .archive_target_source_lsn = try optional(allocator, if (archive) |target| target.source_lsn else null),
+            .archive_target_through_lsn = try optional(allocator, if (archive) |target| target.through_lsn else null),
+            .compaction_source_lsn = try v.decimal(allocator, work.compaction_source_lsn),
+            .compacted_source_lsn = try v.decimal(allocator, work.compacted_source_lsn),
+            .compaction_target_source_lsn = try optional(allocator, if (compact) |target| target.source_lsn else null),
+            .compaction_target_before_segment = try optional(allocator, if (compact) |target| target.before_segment else null),
+            .compaction_target_after_segment = try optional(allocator, if (compact) |target| target.after_segment else null),
+        };
+    }
+    fn optional(allocator: Allocator, value: ?u64) !?[]const u8 {
+        return if (value) |number| try v.decimal(allocator, number) else null;
+    }
+};

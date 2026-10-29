@@ -225,3 +225,20 @@ separate control credential. M21 browser/placement qualification is in progress.
 The optional [definition and operator guide](docs/application.md) describes the
 shared compiler, built-in artifact, signed operator endpoint and publication
 recovery. Inspection and query credentials cannot become operator credentials.
+
+## Storage inspection
+
+`GET /api/v1/storage` projects the signed native `storage` read. It requires the
+configured identity's current realm-wide, read-only inspection grant. PID-scoped
+grants cannot disclose paths or installation-wide counters. The response owns
+its absolute data-root text and reports physical allocation admission, direct
+request allocation budgets and volatile maintenance activity. Null means the
+owner cannot supply a fact; it is distinct from zero. Paths that cannot be
+represented as at most 4096 UTF-8 bytes are unavailable.
+
+These live counters have independent observation times. Accounted storage is a
+conservative admission counter, not filesystem free space. Request allocation
+excludes stacks, sockets and filesystem caches. Maintenance counters reset when
+the owner restarts; durable Table frontiers remain the direct Table storage
+operation's responsibility. The Operations view polls this read and clears its
+observation on failure or lost visibility. It starts no maintenance or data work.

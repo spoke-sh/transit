@@ -4,6 +4,7 @@ import { useAtlasObservation, type AtlasCursor } from "./atlas-observation";
 import { useInterface } from "./interface";
 import { useScope } from "./state";
 import { RelationalWorkspace } from "./relational-workspace";
+import { Storage } from "./storage";
 export function Activity() {
   const [cursor, setCursor] = useState<AtlasCursor>();
   const [revision, refresh] = useState(0);
@@ -105,6 +106,7 @@ export function Operations() {
         </dl>
       )}
       <h2>Installed surfaces</h2>
+      <Storage />
       <RelationalWorkspace />
       <dl>
         <dt>Inspection profile</dt>

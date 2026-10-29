@@ -1,5 +1,5 @@
 {
-  "definition": "901eb98b9b23d159d20c3216ca2c160c0cf303c8b3f751d8ace5c91562904fa8",
+  "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
   "settings": [
     {
       "name": "version",
@@ -183,6 +183,54 @@
       "sensitive": false,
       "minimum": 1,
       "maximum": 8388608,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.requests.request_bytes",
+      "description": "Maximum backing allocation for one ordinary direct Table request through joined response delivery",
+      "owner": "node",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "134217728",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1048576,
+      "maximum": 134217728,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.requests.data_bytes",
+      "description": "Aggregate backing allocation for concurrent ordinary direct Table requests; at least request_bytes",
+      "owner": "node",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "268435456",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1048576,
+      "maximum": 268435456,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.requests.control_bytes",
+      "description": "Independent aggregate backing allocation for reserved direct Table recovery requests",
+      "owner": "node",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "67108864",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1048576,
+      "maximum": 67108864,
       "values": [],
       "items_schema": null
     },
@@ -1251,6 +1299,63 @@
                 "x-transit-owner": "node",
                 "x-transit-change": "restart",
                 "default": 8388608
+              }
+            }
+          },
+          "requests": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "request_bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1048576,
+                    "maximum": 134217728
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+                  }
+                ],
+                "description": "Maximum backing allocation for one ordinary direct Table request through joined response delivery",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 134217728
+              },
+              "data_bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1048576,
+                    "maximum": 268435456
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+                  }
+                ],
+                "description": "Aggregate backing allocation for concurrent ordinary direct Table requests; at least request_bytes",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 268435456
+              },
+              "control_bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1048576,
+                    "maximum": 67108864
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+                  }
+                ],
+                "description": "Independent aggregate backing allocation for reserved direct Table recovery requests",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 67108864
               }
             }
           },
