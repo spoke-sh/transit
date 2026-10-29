@@ -2186,7 +2186,7 @@
       "qualification": "Executed sources and outcomes belong in docs/history/qualification/storage.md; registration alone does not establish a passing run."
     },
     {
-      "id": "STORAGE-10",
+      "id": "STORAGE-11",
       "claim": "Private Document candidates preserve immutable causal records independently of Station, with bounded staging and cache residency",
       "owner": "packages/zig/transit-storage/docs/document-index.md",
       "implementation": [
