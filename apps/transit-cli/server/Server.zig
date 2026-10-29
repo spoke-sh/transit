@@ -295,7 +295,7 @@ fn cycle(self: *Self) !void {
                 // Restarting every child here amplifies load and fences work
                 // that is still making progress. Keep the next probe bounded;
                 // ordinary transport outages retain their finite restart gate.
-                if (installation.wire.last_rejection != .HttpCapacity) {
+                if (installation.wire.last_rejection != .HttpCapacity and installation.wire.last_rejection != .ControlCapacity) {
                     if (unavailable_probes == 2) return err;
                     unavailable_probes += 1;
                 }

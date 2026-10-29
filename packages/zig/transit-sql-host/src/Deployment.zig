@@ -97,14 +97,17 @@ const Running = struct {
         };
     }
     fn destroy(self: *Running) void {
-        self.shutdown.request(self.init.io);
-        const protection = self.init.io.swapCancelProtection(.blocked);
-        defer _ = self.init.io.swapCancelProtection(protection);
-        const start = std.Io.Clock.awake.now(self.init.io);
-        while (!self.done.load(.acquire) and start.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() < self.config.value.drain_ms + 1000) {
-            self.init.io.sleep(.fromMilliseconds(10), .awake) catch {};
+        // This handle must outlive self: restoring cancellation happens after
+        // the joined task, configuration and Running allocation are released.
+        const io = self.init.io;
+        self.shutdown.request(io);
+        const protection = io.swapCancelProtection(.blocked);
+        defer _ = io.swapCancelProtection(protection);
+        const start = std.Io.Clock.awake.now(io);
+        while (!self.done.load(.acquire) and start.durationTo(std.Io.Clock.awake.now(io)).toMilliseconds() < self.config.value.drain_ms + 1000) {
+            io.sleep(.fromMilliseconds(10), .awake) catch {};
         }
-        if (self.future) |*future| future.cancel(self.init.io);
+        if (self.future) |*future| future.cancel(io);
         self.config.deinit();
         self.init.gpa.destroy(self);
     }

@@ -89,16 +89,17 @@ def busy_observation(fixture, log):
                 peer.close()
         if observed['state'] == 'busy':
             break
-    assert observed['state'] == 'busy' and observed['error_type'] == 'HttpCapacity', observed
+    capacity = {'HttpCapacity', 'ControlCapacity'}
+    assert observed['state'] == 'busy' and observed['error_type'] in capacity, observed
     assert observed['postgres_port'] is None, 'An incomplete observation claimed current readiness'
     wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
     assert children(fixture.process.pid) == before, 'Admission pressure restarted a role'
     time.sleep(.1)
     events = [json.loads(line)['event'] for line in log.read_text().splitlines()]
     busy = [e for e in events if e.get('operation') == 'busy']
-    assert busy and all(e['level'] == 'warn' and e['error_type'] == 'HttpCapacity' for e in busy), busy
+    assert busy and all(e['level'] == 'warn' and e['error_type'] in capacity for e in busy), busy
     attempts = [e for e in events if e['name'] == 'transit.client.request'
-                and e.get('error_type') == 'HttpCapacity']
+                and e.get('error_type') in capacity]
     assert attempts and all(e['level'] == 'warn' and e['status'] == 503
                             and e['route'] in ('/v1/query', '/v1/command') for e in attempts), attempts
     assert log.read_text().count('"name":"sql.connect.postgres"') == notices, 'Repeated hint without listener replacement'
@@ -165,12 +166,14 @@ def run(cli, node, host, board, gateway):
         busy_observation(fixture, json_path)
         from harness.sql_placement import call as placement
         hosted = placement(fixture)
+        before_stop = children(fixture.process.pid)
         assert placement(fixture, dict(stop=hosted['fingerprint']))['state'] == 'stopped'
         deadline = time.monotonic() + 60
         while not any(json.loads(line).get('event', {}).get('error_type') == 'GatewayOwnerUnavailable' for line in json_path.read_text().splitlines()):
             assert fixture.process.poll() is None and time.monotonic() < deadline, json_path.read_text()
             time.sleep(.1)
         wait_status(fixture, lambda s: s['service']['state'] == 'accepting')
+        assert children(fixture.process.pid) == before_stop, 'SQL replacement restarted a database or application owner'
         fixture.stop()
         records = [json.loads(line) for line in json_path.read_text().splitlines()]
         assert records and all(r['schema_version'] == 1 and r['service_name'] == 'transit' for r in records)

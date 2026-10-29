@@ -270,7 +270,10 @@ pub fn tick(self: *Self) !void {
             // Admission pressure is an incomplete observation, not evidence
             // that the SQL owner exited. Keep readiness unconfirmed and retain
             // the process and exact pending work until the next bounded tick.
-            self.status = if (self.installation.wire.last_rejection == .HttpCapacity) .busy else .unavailable;
+            self.status = switch (self.installation.wire.last_rejection orelse .AuthorityUnavailable) {
+                .HttpCapacity, .ControlCapacity => .busy,
+                else => .unavailable,
+            };
             self.last_error = if (self.installation.wire.last_rejection) |cause| @tagName(cause) else @errorName(err);
             try self.writeStatus(arena.allocator());
             return; // Preserve exact pending work; suspend other root writers.
