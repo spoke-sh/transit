@@ -545,7 +545,6 @@ These are embedding component operations. Signed caller requests, SQL sessions,
 durable savepoint controls, participant preparation, common-decision visibility,
 abort settlement and automatic cleanup are not supplied by workspace publication.
 
-
 `DirectTablePreparedDdl.prepare` owns the parsed CREATE/ALTER/DROP definition and
 its exact current metadata under the caller's rights. `bind` takes a separate
 operation ID and, for CREATE, an explicit new object ID. It returns complete

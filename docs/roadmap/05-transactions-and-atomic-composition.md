@@ -142,8 +142,12 @@ source directory; its original-pin and policy-epoch checks do not yet establish
 an installed transaction service. Its
 [component qualification](../history/qualification/verification.md#catalog-owned-common-cuts-and-mutation-buffers--2026-10-28)
 records the executed recovery, authorization, retention-graph and memory checks
-and their limits. Catalog-owned private statement admission and outcome publication now preserve
-original identities, private roots and their retained data across lost replies.
+and their limits. Catalog-owned private statement admission and outcome
+publication now preserve original identities, private roots and their retained
+data across lost replies. The
+[workspace qualification](../history/qualification/verification.md#durable-private-statements-and-account-reservations--2026-10-28)
+records disk reopen, durable rejection, account reservations, paged reachability
+and an omitted-operation-claim control against the actual implementation.
 Host integration, durable savepoints, deployment-wide capacity, Table predecessor
 barriers, common-decision visibility, decision retention and public callers remain
 required before an installed transaction profile is claimed.

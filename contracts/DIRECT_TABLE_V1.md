@@ -144,8 +144,8 @@ admission and those reservations share one catalog acceptance; failed admission
 consumes neither. Exact token recovery does not repeat the charge or apply new
 admission ceilings to old work. Pending transactions retain their reservation;
 only future transaction-owned settlement/cleanup can release it, never generic
-caller progress or quota pressure. Earlier usage records missing counters reject. A capacity or
-stale-Catalog refusal does not allocate a partition or accept a token. Generic
+caller progress or quota pressure. Earlier usage records missing counters reject.
+A capacity or stale-Catalog refusal does not allocate a partition or accept a token. Generic
 intent execution rejects transaction references with `TransactionOperationRequired`.
 Generic progress updates reject transaction entries with
 `TransactionOperationRequired`, including changes to the record, cancellation,
@@ -160,8 +160,9 @@ original begin, an immutable `sources` directory and its catalog acceptance
 position. The coordination partition must match the original token receipt;
 the cut position must equal the acquisition progress revision and follow begin
 admission in that same catalog partition. Later workspace records preserve this
-original acquisition position separately from their current progress revision. No signed acquisition operation is exposed by this
-record format. The embedding host must hold the catalog/Table publication fence,
+original acquisition position separately from their current progress revision.
+No signed acquisition operation is exposed by this record format. The embedding
+host must hold the catalog/Table publication fence,
 and the owner checks current Table rights under the publication policy epoch.
 This format is reserved: generic `record.stage` and `record.read` reject it with
 `TransactionOperationRequired`. CONNECT-only caller-record access cannot disclose
@@ -198,7 +199,6 @@ The embedding host serializes all database publication throughout these componen
 calls. No signed workspace action or SQL transaction syntax is exposed by these
 formats. The [component guide](../packages/zig/transit-catalog/docs/direct-catalog.md)
 defines resident and cumulative staging charges and the remaining host boundaries.
-
 
 Catalog recovery requires the explicit `coordination` field and validates its
 allocation transition. Earlier receipts reject under the current-v1 definition;

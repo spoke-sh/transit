@@ -9,6 +9,117 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Durable private statements and account reservations — 2026-10-28
+
+The question is whether an admitted private Table statement can recover its
+original request, private data and provisional outcome after losing a reply,
+while preserving public data, current authorization and aggregate admission
+limits. The [Catalog component](../../../packages/zig/transit-catalog/docs/direct-catalog.md)
+now owns those records. The [state model](../../handbook/internals/state-model.md#durable-private-table-statements)
+explains the transitions and the embedding host's publication-fence obligation.
+
+At merged source
+[`e124b972c4b8`](https://github.com/spoke-sh/transit/commit/e124b972c4b847f5034b3197f0cfb45e6a5fd210),
+a fresh committed-source clone, without inherited `TRANSIT_*` settings or
+workspace build outputs, passes these checks inside the pinned `nix develop`
+environment:
+
+| Owner and command | Executed result |
+| --- | --- |
+| Protocol: `zig build test --summary all` | 74 tests passed |
+| Catalog: `zig build test -Dtest-filter=transaction -Dtest-filter=direct graph -Dtest-filter=direct records --summary all` | 22 tests passed |
+| Storage: `zig build test -Dtest-filter=transaction --summary all` | 13 tests passed |
+| Installed service: `just test::direct-table-service` | 2,134 typed HTTP calls passed |
+| `just ci clean --check contracts` | 18 checks passed |
+| `just ci clean --check fast` | 46 checks passed |
+| `just ci clean --lane formal` | Nine tasks passed |
+
+The Catalog schedules reopen disk-backed WAL/object stores after lost statement
+admission and outcome replies, recover the original private row value, and
+verify unchanged public rows and WAL tails. A duplicate-key rejection survives
+reopen with its consumed sequence; a different request cannot replace it, and
+the next sequence can proceed. Current authorization gates repeated outcomes
+and private-state reads. Separate schedules reject out-of-order and competing
+pending statements. Workspace exhaustion preserves the original pending request
+and previous private root rather than inventing rejection or abort.
+
+Nine private Tables and their statement records exceed one directory page and
+one resident cache page. The graph marks every private data segment and a
+separately pending frozen intent, with at most three child jobs per traversal
+step. This is a reachability check using volatile adapters. At ancestor
+[`48405c6c20d6`](https://github.com/spoke-sh/transit/commit/48405c6c20d6ecb720e0657b8ab7ca3883a6162b),
+the existing physical `zig build test-local-data-collection --summary all`
+regression separately passes in a clean clone, reclaiming 25 and 1,026
+allocations in its two collection passes. It exercises the changed generic
+walker but contains no transaction workspace, so it does not establish physical
+collection safety for private transaction data.
+
+Account reservations survive a lost begin reply and disk reopen. All six
+dimensions are summed across transactions and login roles before another
+coordination partition is allocated. Lowering an admission ceiling does not
+hide an already accepted receipt. Persisted usage without explicit reservation
+counters rejects instead of defaulting to zero. These checks cover account
+admission capacity, not deployment-wide scheduling or physical disk quotas.
+
+At `48405c6c20d6`, a clean-source `just test::direct-table-service` run passes
+2,131 typed HTTP calls. The existing Table lifecycle, lost replies, retained
+reads, three restarts and current-authorization schedules pass alongside the
+new caller checks. Independent proxy assertions verify `400 InvalidRequest`
+for all four reserved cut/workspace formats and `503 StorageQuota` for a begin
+whose requested reservation exceeds the account ceiling. Original token lookup
+then reports no admission. This installed capacity case refuses before reading
+the deliberately nonexistent selection; aggregate sums across several accepted
+begins are exercised by the component schedules above. The raw service log is
+`.cache/m5-48405c6c20d6-service.log`.
+
+The same installed suite passes at merged source `e124b972c4b8` with 2,134 typed
+calls, retaining main's added bounded storage observations and response-pressure
+schedules. Both disconnect and deadline closure recover the original accepted
+operation and release the retained response allowance. The final raw log is
+`.cache/m5-e124b972c4b8-service.log`. These existing Table callers exercise the
+definition cutover and admission refusals; they do not execute private statements
+or establish installed multi-Table transaction support.
+
+A focused omitted-claim control at `48405c6c20d6` removes
+`try c.OperationBinding.claimTransactionStatement(self.allocator, self.data_objects, request);`
+and executes the lost-admission recovery test. Three imported tests pass; the
+target fails at the intended `DataIdentityConflict` assertion because the same
+operation autocommits. Restoring the exact source passes all four selected
+tests. The original and mutated `DirectCatalog.zig` SHA-256 hashes are
+`0141054faab45a9221a5a812affdb895f8493e3faf258234f1d1629138d4f99a` and
+`78a64a27d58b16960ca447d82d97f688404fd3e2c3b3cb098835e3c303a81bc6`.
+This is a production guard control, not automated TLA+ trace replay or
+implementation refinement. The formal lane reruns the existing finite models;
+their bounds and assumptions remain unchanged.
+
+The broader local Catalog suite passes 117 tests over the implementation at
+[`7280f3bd4f55`](https://github.com/spoke-sh/transit/commit/7280f3bd4f55b4a635b5e82852e3009c723090a3).
+Its log is `.cache/m5-catalog-full-reservations.log`. An earlier full-suite
+compile exposed an unhandled value edge in an existing walker test; the switch
+was completed before this pass. A later strengthened private-row assertion
+initially referenced the wrong schema owner and was corrected before
+`48405c6c20d6`. Those compiler failures are not negative-control detections or
+passed runs. The handbook lint, type checks, site tests and production build
+also passed before the merge (`.cache/m5-docs-check.log`).
+
+Raw commands, revisions, per-phase exit codes and timings are retained in
+`.cache/m5-clean-workspace-e124b972c4b8.json` and
+`.cache/m5-clean-workspace-48405c6c20d6.json`, with per-phase
+`.cache/m5-{revision}-{phase}.log` files. Clean contracts, fast and formal
+evidence is under `.cache/ci/clean/e124b972c4b8-transit-ci-q7oj00pk/`,
+`.cache/ci/clean/e124b972c4b8-transit-ci-z54a3lo6/` and
+`.cache/ci/clean/e124b972c4b8-transit-ci-ssv_bf_l/`, respectively. These local
+paths are not portable artifact links.
+
+The accepted workspace and reservation records require the regenerated current
+definition; prior definitions and missing compatibility fields reject. No
+private statement API or SQL transaction caller is installed by this change.
+Table preparation, common-decision visibility, commit/abort recovery, savepoints,
+cleanup and installed transaction anomaly/failure qualification remain open.
+The full native/core suite was not run. Neither disk reopen, the collection
+regression nor the formal lane establishes host power-loss behavior, arbitrary
+program serializability or a transaction liveness guarantee.
+
 ## Catalog-owned common cuts and mutation buffers — 2026-10-28
 
 At source [`673ebae2870c`](https://github.com/spoke-sh/transit/commit/673ebae2870cf6b0cc605f03754dcfd1448cef2d),
