@@ -2186,6 +2186,30 @@
       "qualification": "Executed sources and outcomes belong in docs/history/qualification/storage.md; registration alone does not establish a passing run."
     },
     {
+      "id": "STORAGE-10",
+      "claim": "Private Document candidates preserve immutable causal records independently of Station, with bounded staging and cache residency",
+      "owner": "packages/zig/transit-storage/docs/document-index.md",
+      "implementation": [
+        "packages/zig/transit-document/src/Document.zig",
+        "packages/zig/transit-storage/src/DocumentIndex.zig",
+        "packages/zig/transit-storage/src/document_index_test.zig"
+      ],
+      "profile": "Component only: direct immutable .tseg records and paged data indexes, with local disk reopen and separate memory fault fixtures",
+      "tasks": [
+        "check::native"
+      ],
+      "scenarios": [
+        "Conflict resolution, original duplicate revision, deleted text anchors and detached history over the shared evaluator",
+        "320 keys across eight-record buffers and one-page disk index cache; retained roots survive later candidates and reopen",
+        "Workspace generations and owner identity reject stale, forked and foreign handles",
+        "Candidate, scratch and segment limits preserve previous roots; provider allocation failure stays distinct",
+        "Missing segments, corrupt bytes and foreign definitions fail closed; warmed point reads perform no allocations or provider reads"
+      ],
+      "limits": "No accepted-head journal, direct catalog or installed caller route, transaction/retention integration, succinct tree topology, large scalar profile, process-death or power-loss claim.",
+      "model": null,
+      "qualification": "Executable component assertions; registration alone does not establish a pass. Accepted Document service recovery remains STORAGE-09."
+    },
+    {
       "id": "SQL-RESULT-01",
       "claim": "Logical result progress preserves attribution, ordered counters, verified terminal evidence and independent consumption/release; the finite established-session model preserves exact row occurrences and current authorization at server disclosure",
       "owner": "contracts/SQL_RESULTS_V1.md",

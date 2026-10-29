@@ -26,6 +26,9 @@ Text is an ordered sequence of Unicode scalar elements. Extraction does not
 change wire bytes or implement larger scalars, new merge profiles, succinct
 trees, or database admission. The [Station service](../transit-station-document/README.md)
 uses this same evaluator with its current publication and acceptance boundary.
+The independent [`DocumentIndex`](../transit-storage/docs/document-index.md)
+adapter stages private candidates in direct `.tseg` storage; it supplies no
+database acceptance or installed caller route.
 
 `zig build test` in the pinned development shell exercises the change codec and
 merge rules against an independent append-only index fixture, including all 24

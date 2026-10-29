@@ -4,6 +4,7 @@
     .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
+        .transit_document = .{ .path = "../transit-document" },
         .transit_protocol = .{ .path = "../transit-protocol" },
         .transit_core = .{ .path = "../transit-core" },
         .transit_fuze = .{ .path = "../transit-fuze" },

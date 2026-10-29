@@ -2,7 +2,7 @@ const std = @import("std");
 const t = std.testing;
 const lib = @import("root.zig");
 const m = lib.Model;
-const Index = @import("test_index.zig");
+const Index = @import("index_fixture.zig");
 const Document = lib.Document(Index);
 const Store = Index.Store;
 
