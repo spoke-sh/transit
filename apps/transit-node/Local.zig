@@ -27,6 +27,7 @@ const Config = struct {
     request_metrics: bool = false,
     maintenance: ?Maintenance.Config = null,
     table: ?TableHost.Config = null,
+    sql_control: ?@import("transit_sql_host").Deployment.Config = null,
 };
 
 pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics: *telemetry.Runtime) !void {
@@ -39,6 +40,13 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     const physical = config.storage.maintenance;
     if ((physical.flush.enabled or physical.archive.enabled or physical.compact) and (config.table == null or config.maintenance == null)) return error.LocalTableMaintenanceRequiresOwner;
     if (mode.maintain) return error.LocalMaintenanceRequiresOwner;
+    // OpenSSL has one process lifetime. SQL replacements join their own bounded
+    // worker pools; physical owner reopen must not reinstall its global hooks.
+    const crypto = if (!mode.initialize and config.sql_control != null and config.sql_control.?.crypto_capacity != 0)
+        try @import("transit_sql_host").Crypto.create(init.gpa, config.sql_control.?.crypto_capacity)
+    else
+        null;
+    defer if (crypto) |value| value.destroy();
     var reopens: u8 = 0;
     while (true) {
         runOwner(init, config, .{

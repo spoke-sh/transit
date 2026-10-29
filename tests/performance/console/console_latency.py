@@ -158,8 +158,9 @@ def main():
                         help='persistent human table console: empty/warm SELECT, INSERT/UPDATE/DELETE, refreshed SELECT, verified JSON readback')
     parser.add_argument('--age-queries', type=int, default=0, choices=range(1001), metavar='0..1000',
                         help='execute this many unmeasured SELECTs before measurements')
+    parser.add_argument('--remote-sql', action='store_true', help='historical installed gateway placement for matched controls')
     parser.add_argument('--instrument', action='store_true',
-                        help='count native/Table attempts and owner work through a loopback proxy; adds overhead')
+                        help='count typed local attempts, or HTTP attempts/work with --remote-sql; adds diagnostic overhead')
     parser.add_argument('--owner-metrics', action=argparse.BooleanOptionalAction, default=True,
                         help='also enable optional native owner-work response diagnostics')
     parser.add_argument('--rows', type=int, default=0, choices=range(513), metavar='0..512',
@@ -184,7 +185,7 @@ def main():
         binaries = {'cli': fixture.cli, **fixture.config['executables']}
         node = binaries['node']
         node_fields = {'resident_pages': args.resident_pages}
-        if args.instrument:
+        if args.instrument and args.remote_sql:
             # Proxy only SQL's upstream requests. Interposing the node's public
             # port also captures bootstrap/self-traffic and can block recovery
             # behind idle upstream connections or the proxy's occupied port.
@@ -198,7 +199,7 @@ def main():
         fixture.path.write_text(json.dumps(fixture.config))
         print(json.dumps({'binary_revision': args.binary_revision, 'driver_sha256': digest(__file__),
               'driver_helpers': {name: digest(ROOT / 'tests' / name) for name in (
-                  'performance/console/statements.py', 'performance/mutations/mutation_latency.py', 'harness/http_probe.py')},
+                  'performance/console/statements.py', 'performance/mutations/mutation_latency.py', 'harness/http_probe.py', 'harness/sql_placement.py')},
               'source_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
               'source_diff_sha256': hashlib.sha256(subprocess.check_output(['git', 'diff', '--binary', 'HEAD'], cwd=ROOT)).hexdigest(),
               'system': platform.platform(), 'machine': platform.machine(), 'logical_cpus': os.cpu_count(),
@@ -208,12 +209,15 @@ def main():
               binaries.items()}, 'source_rows': args.rows, 'historical_result_profile': args.historical_result_profile, 'instrumented': args.instrument,
               'age_queries': args.age_queries, 'repeat': args.repeat, 'execution': 'server_session',
               'cache_condition': 'post-bootstrap; later queries share the node cache',
-              'probe_scope': 'SQL gateway upstream only' if args.instrument else None,
-              'owner_metrics': args.instrument and args.owner_metrics,
+              'probe_scope': ('SQL gateway HTTP upstream only' if args.remote_sql else 'co-hosted SQL typed attempts; no per-operation HTTP trace') if args.instrument else None,
+              'owner_metrics': args.instrument and args.remote_sql and args.owner_metrics,
               'overrides': {'resident_pages': args.resident_pages,
                             'worker_interval_ms': args.worker_interval_ms}}), flush=True)
         fixture.start()
         fixture.ready()
+        if args.instrument and not args.remote_sql:
+            from harness.sql_placement import Probe as LocalProbe
+            probes['local'] = LocalProbe(fixture)
         invalid = subprocess.run([fixture.cli, 'console', '--no-rc'],
                                  input='.timer on\nCREATE KV items (UTF8);', cwd=fixture.root,
                                  capture_output=True, text=True, timeout=30,

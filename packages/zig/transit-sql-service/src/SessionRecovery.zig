@@ -23,6 +23,7 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, config: *const g.Configura
     self.* = .{ .allocator = allocator, .io = io, .runtimes = runtimes, .clients = clients };
     for (clients, runtimes) |*client, runtime| {
         client.* = g.wire.Client.init(allocator, io, config.native_url);
+        client.local = runtime.background.local;
         client.timeout_ms = config.request_timeout_ms;
         std.debug.assert(runtime.external_work == null);
         runtime.external_work = &self.work;

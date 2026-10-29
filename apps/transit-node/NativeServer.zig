@@ -48,7 +48,23 @@ pub fn Host(comptime Provider: type) type {
                 .table_memory = try DirectRequestMemory.init(config.storage.requests),
             };
             diagnostics.event(.{ .name = "service.ready" });
-            try http.serve(init.io, init.gpa, &listener, .{ .connections = 16, .requests = 4, .control_requests = 2, .wait_requests = 4, .header_timeout_ms = @min(1000, config.request_timeout_ms), .request_timeout_ms = config.request_timeout_ms, .requests_per_connection = 64 }, &context);
+            if (comptime @hasField(@TypeOf(config), "sql_control")) {
+                if (config.sql_control) |sql_config| {
+                    const Result = union(enum) { native: anyerror!void, sql: anyerror!void };
+                    var results: [2]Result = undefined;
+                    var services: std.Io.Select(Result) = .init(init.io, &results);
+                    defer services.cancelDiscard();
+                    try services.concurrent(.sql, @import("transit_sql_host").Deployment.serve, .{ init, sql_config, context.endpoint(), diagnostics });
+                    try services.concurrent(.native, serveNative, .{ init, &listener, config.request_timeout_ms, &context });
+                    return switch (try services.await()) {
+                        inline else => |result| result,
+                    };
+                }
+            }
+            return serveNative(init, &listener, config.request_timeout_ms, &context);
+        }
+        fn serveNative(init: std.process.Init, listener: *std.Io.net.Server, timeout_ms: u32, context: *Context) !void {
+            return http.serve(init.io, init.gpa, listener, .{ .connections = 16, .requests = 4, .control_requests = 2, .wait_requests = 4, .header_timeout_ms = @min(1000, timeout_ms), .request_timeout_ms = timeout_ms, .requests_per_connection = 64 }, context);
         }
         const Server = struct {
             io: std.Io,
@@ -252,23 +268,10 @@ pub fn Host(comptime Provider: type) type {
                     defer std.debug.assert(budget.used == 0);
                     const response = self.tableWork(request, owner, control, budget.allocator()) catch |err| {
                         self.work_failure = @errorName(err);
-                        switch (err) {
-                            error.Canceled => return error.Canceled,
-                            error.OutOfMemory => return self.failure(request, if (budget.exhausted) (if (control) error.ControlCapacity else error.StorageQuota) else err),
-                            error.InvalidBody => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody }),
-                            error.InvalidRequest => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
-                            error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged, error.TransactionAuthorityChanged => return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied }),
-                            error.TableDefinitionChanged => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .TableDefinitionChanged }),
-                            error.StaleClientLease, error.ClientTokenConflict, error.ClientBudgetConflict, error.ClientOperationConflict, error.ClientOperationPending, error.TransactionCatalogChanged, error.TransactionConflict, error.TransactionIdentityConflict, error.TransactionPrepared, error.TransactionFrozen, error.TransactionStatementConflict, error.TransactionStatementPending, error.TransactionControlPending, error.TransactionControlConflict, error.TransactionReadConflict, error.TransactionWriteConflict => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
-                            error.ClientTokenCapacity, error.TransactionCapacity, error.TransactionAccountCapacity, error.TransactionMemoryLimit, error.TransactionWorkspaceLimit, error.TransactionStatementLimit, error.TransactionSavepointLimit, error.TransactionControlLimit => return self.json(request, .service_unavailable, wire.protocol.ErrorResponse{ .err = .StorageQuota }),
-                            error.TransactionOperationRequired, error.InvalidTransactionBegin, error.InvalidTransactionDirectory, error.InvalidTransactionLimits, error.MissingTransactionDirectory, error.UnsupportedTransactionParticipant, error.ReadOnlyTransaction, error.InvalidTransactionWork, error.TransactionObjectNotSelected, error.TransactionCutNotAcquired, error.InvalidTransactionRead, error.UnsupportedTransactionRead, error.InvalidTransactionSavepoint, error.TransactionSavepointMissing => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
-                            error.SourceChanged, error.DataIdentityConflict, error.CatalogObjectBusy, error.CatalogObservationChanged, error.TableDataChanged, error.TableHistoryConflict, error.NamedResourceNotAdmitted, error.NamedResourceAllocationUnreconciled, error.NamedResourceAllocationMismatch, error.NamedResourceIdentityConflict, error.NativeAllocationSequenceChanged, error.NativeAllocationBusy => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .Conflict }),
-                            error.TableSnapshotReleased, error.TableSnapshotNotPinned, error.TransactionReadChanged => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .QueryExpired }),
-                            error.TableHistoryMissing, error.WalHistoryMissing, error.WalHistoryTrimmed => return self.json(request, .conflict, wire.protocol.ErrorResponse{ .err = .HistoryReclaimed }),
-                            error.InvalidTableBasis, error.TableHistoryRetentionRequired, error.IncompatibleColumnEncoding, error.IncompatibleColumnCollation, error.UnsupportedColumnCollation, error.IbmHfpUnderflow, error.IbmHfpOverflow, error.UnrepresentableEbcdic037 => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
-                            error.ClientOperationMissing, error.InvalidDirectRecord, error.DirectRecordMissing, error.InvalidClientToken, error.InvalidPlanEncoding, error.InvalidProjection, error.InvalidTableBinary, error.TablePayloadTooLarge, error.InvalidTableMutationIntent, error.InvalidInsertRowIdentity, error.InvalidTableStatementIntent, error.InvalidTableAccessRequest, error.InvalidMutationPlan, error.MutationBatchTooLarge, error.UnsupportedTableMutationShape, error.TableBatchTooLarge, error.InvalidTableReadBudget, error.InvalidTableCursor, error.InvalidTableSnapshotCursor, error.TableReadBudgetTooSmall, error.InvalidTableKey, error.TableSchemaChanged => return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }),
-                            else => return self.failure(request, err),
-                        }
+                        if (err == error.Canceled) return err;
+                        const cause = if (err == error.OutOfMemory and budget.exhausted) (if (control) error.ControlCapacity else error.StorageQuota) else err;
+                        const refusal = @import("ServiceFailure.zig").table(cause);
+                        return self.json(request, refusal.status, wire.protocol.ErrorResponse{ .err = refusal.code });
                     };
                     defer budget.allocator().free(response);
                     // Typed results distinguish admission, commitment and reads;
@@ -314,22 +317,9 @@ pub fn Host(comptime Provider: type) type {
                 };
             }
             fn failure(self: *Server, request: *std.http.Server.Request, err: anyerror) !void {
-                const denied = switch (err) {
-                    error.Unauthorized, error.Forbidden, error.WrongProtocolRealm, error.SignatureVerificationFailed, error.IdentityElement, error.NonCanonical, error.InvalidEncoding => true,
-                    error.UnknownAuthorizationRole, error.UnknownAuthorizationObject, error.UnknownAuthorizationGrant, error.UnknownAuthorizationChange, error.UnknownRoleMembership, error.RetiredAuthorizationRole, error.RetiredAuthorizationObject, error.InvalidAuthorizationDomain => true,
-                    else => false,
-                };
-                if (denied) return self.json(request, .forbidden, wire.protocol.ErrorResponse{ .err = .AccessDenied });
-                // Opt-in work diagnostics retain a compiler-defined cause category.
-                // No arbitrary provider text, keys, payloads or authorization details.
                 self.work_failure = @errorName(err);
-                const code = std.meta.stringToEnum(wire.protocol.ErrorCode, @errorName(err)) orelse .AuthorityUnavailable;
-                const status: std.http.Status = switch (code) {
-                    .Conflict, .TableDefinitionChanged, .QueryExpired, .HistoryReclaimed, .StaleAuthorizationRevision, .StaleAuthorizationCredential, .AuthorizationSubjectDenied => .conflict,
-                    .AuthorityUnavailable, .ClockRollback, .ClockUnavailable, .DeadlineUncertain, .UntrustedTime, .AdmissionClosed, .ControlCapacity, .StorageQuota => .service_unavailable,
-                    else => .unprocessable_entity,
-                };
-                return self.json(request, status, wire.protocol.ErrorResponse{ .err = code });
+                const refusal = @import("ServiceFailure.zig").native(err);
+                return self.json(request, refusal.status, wire.protocol.ErrorResponse{ .err = refusal.code });
             }
             /// Reobserve only the same signed read after a moving authority cut. The
             /// engine validates its signature, scope, source and current rights on every
@@ -342,6 +332,29 @@ pub fn Host(comptime Provider: type) type {
                     };
                 }
                 return error.Conflict;
+            }
+            fn queryWithHint(self: *Server, signed: g.SignedQuery, hint: ?wire.WaitHint) !g.Response {
+                if (hint) |wait| {
+                    wait.validate() catch return error.InvalidWaitHint;
+                    if (!wire.WaitHint.allows(signed.query)) return error.InvalidWaitHint;
+                }
+                var response = try self.readQuery(signed, null);
+                if (hint) |wait| {
+                    if (wait.after > response.position) return error.InvalidWaitHint;
+                    if (wait.after == response.position) {
+                        self.finishWork();
+                        {
+                            try self.mutex.lock(self.io);
+                            defer self.mutex.unlock(self.io);
+                            self.context.syncFromLane(self.lane);
+                            if (self.position.* <= wait.after) try self.changed.wait(self.io, self.mutex, signed.query, wait.milliseconds);
+                            self.context.syncToLane(self.lane);
+                        }
+                        self.beginWork();
+                        response = try self.readQuery(signed, null);
+                    }
+                }
+                return response;
             }
             pub fn storage(self: *Server, engine: *Engine) !wire.protocol.Storage.Observation {
                 if (comptime @hasDecl(Provider, "storageObservation")) {
@@ -441,28 +454,7 @@ pub fn Host(comptime Provider: type) type {
                     self.observation.position = acquired.response.position;
                     return self.json(request, .ok, acquired.*);
                 }
-                var response = self.readQuery(parsed.value, null) catch |err| return self.failure(request, err);
-                if (hint) |wait| {
-                    if (wait.after > response.position) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-                    if (wait.after == response.position) {
-                        self.finishWork();
-                        // Compare and register under the same lock used by publication;
-                        // a commit between the read and registration cannot be missed.
-                        {
-                            try self.mutex.lock(self.io);
-                            defer self.mutex.unlock(self.io);
-                            self.context.syncFromLane(self.lane);
-                            if (self.position.* <= wait.after) {
-                                try self.changed.wait(self.io, self.mutex, parsed.value.query, wait.milliseconds);
-                            }
-                            self.context.syncToLane(self.lane);
-                        }
-                        self.beginWork();
-                        // Recheck signature, grants, scope, lifecycle and authority tail
-                        // after every wake/timeout, including remote commits and revoke.
-                        response = self.readQuery(parsed.value, null) catch |err| return self.failure(request, err);
-                    }
-                }
+                const response = self.queryWithHint(parsed.value, hint) catch |err| return if (err == error.InvalidWaitHint) self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest }) else self.failure(request, err);
                 self.observation.protocol_outcome = .read;
                 self.observation.realm = response.realm;
                 self.observation.operation = @tagName(parsed.value.query.kind);
@@ -473,7 +465,7 @@ pub fn Host(comptime Provider: type) type {
 
         /// Bounded lanes own mutable execution/cache/transport state. The short shared
         /// mutex covers only admission, notification registration and volatile pin slots.
-        const Context = struct {
+        pub const Context = struct {
             server: *Server,
             diagnostics: *telemetry.Runtime,
             mutex: std.Io.Mutex = .init,
@@ -487,6 +479,106 @@ pub fn Host(comptime Provider: type) type {
             shared_pages_epoch: u64 = 1,
             shared_access: u64 = 0,
             table_memory: DirectRequestMemory = .{},
+
+            pub fn endpoint(self: *Context) wire.LocalEndpoint {
+                return .{ .context = self, .invoke = invokeLocal };
+            }
+            fn invokeLocal(raw: *anyopaque, invocation: *wire.LocalEndpoint.Invocation) !void {
+                const self: *Context = @ptrCast(@alignCast(raw));
+                self.localWork(invocation) catch |err| {
+                    if (err == error.Canceled or err == error.Cancelled or err == error.OutOfMemory) return err;
+                    const failure = @import("ServiceFailure.zig");
+                    if (err == error.InvalidLocalRequest or err == error.InvalidWaitHint) return invocation.client.reject(.bad_request, .InvalidRequest);
+                    if (err == error.LocalRouteMissing) return invocation.client.reject(.not_found, .NotFound);
+                    const refusal = if (std.mem.eql(u8, invocation.path, "/table/v1")) failure.table(err) else failure.native(err);
+                    return invocation.client.reject(refusal.status, refusal.code);
+                };
+            }
+            fn localWork(self: *Context, invocation: *wire.LocalEndpoint.Invocation) !void {
+                const io = invocation.client.http.io;
+                if (invocation.client.wait_hint != null and !std.mem.eql(u8, invocation.path, "/v1/query")) return error.InvalidLocalRequest;
+                const control = if (std.mem.eql(u8, invocation.path, "/table/v1")) (try invocation.request(Provider.TableHost.Protocol.Request)).transport().control != null else if (std.mem.eql(u8, invocation.path, "/v1/command")) true else if (std.mem.eql(u8, invocation.path, "/v1/query")) switch ((try invocation.request(g.SignedQuery)).query.kind) {
+                    .close_snapshot => true,
+                    .snapshot_read => |read| read.finish,
+                    else => false,
+                } else false;
+                const lane = try self.acquire(io, if (control) .control else if (invocation.client.wait_hint != null) .wait else .data);
+                defer self.release(io, lane);
+                var server = self.server.*;
+                server.io = io;
+                server.allocator = invocation.allocator;
+                server.context = self;
+                server.lane = lane;
+                server.mutex = &self.mutex;
+                server.changed = &self.changed;
+                server.engine = &lane.engine;
+                server.position = &self.position;
+                server.snapshots = &self.snapshots;
+                defer server.finishWork();
+                // Each call borrows one authority lane and owner locks only for
+                // that operation, never across a SQL scan or socket drain.
+                if (std.mem.eql(u8, invocation.path, "/table/v1")) {
+                    if (comptime @hasDecl(Provider, "TableHost")) {
+                        const owner = lane.table orelse return error.LocalRouteMissing;
+                        const request = try invocation.request(Provider.TableHost.Protocol.Request);
+                        var budget = self.table_memory.request(self.server.allocator, control);
+                        defer std.debug.assert(budget.used == 0);
+                        var scratch: std.heap.ArenaAllocator = .init(budget.allocator());
+                        defer scratch.deinit();
+                        request.validate(scratch.allocator()) catch |err| return if (err == error.OutOfMemory) err else error.InvalidLocalRequest;
+                        const before = lane.engine.head.position;
+                        defer if (lane.engine.head.position != before) {
+                            self.mutex.lockUncancelable(io);
+                            defer self.mutex.unlock(io);
+                            self.position = @max(self.position, lane.engine.head.position);
+                            self.syncFromLane(lane);
+                            self.changed.publishAll(io);
+                        };
+                        const result = owner.executeTyped(io, &lane.engine, &scratch, invocation.allocator, request, control) catch |err| {
+                            if (err == error.OutOfMemory and budget.exhausted) return if (control) error.ControlCapacity else error.StorageQuota;
+                            return err;
+                        };
+                        return invocation.respond(result);
+                    }
+                    return error.LocalRouteMissing;
+                }
+                if (std.mem.eql(u8, invocation.path, "/v1/query")) {
+                    const request = try invocation.request(g.SignedQuery);
+                    g.validateQuery(request.query) catch return error.InvalidLocalRequest;
+                    return invocation.respond(try server.queryWithHint(request, invocation.client.wait_hint));
+                }
+                if (std.mem.eql(u8, invocation.path, "/v1/command")) {
+                    const envelope = if (invocation.isRequest(g.CommandEnvelope)) try invocation.request(g.CommandEnvelope) else null;
+                    const request = if (envelope) |value| value.signed() else try invocation.request(g.SignedRequest);
+                    g.validate(request.request) catch return error.InvalidLocalRequest;
+                    const position = try server.submitCommand(request, if (envelope) |*value| if (value.blocks) |*blocks| blocks else null else null);
+                    self.mutex.lockUncancelable(io);
+                    defer self.mutex.unlock(io);
+                    self.position = @max(self.position, lane.engine.head.position);
+                    self.syncFromLane(lane);
+                    self.changed.publish(io, request.request.command);
+                    return invocation.respond(wire.Receipt{ .position = position });
+                }
+                if (std.mem.eql(u8, invocation.path, "/v1/blocks")) {
+                    const request = try invocation.request(g.SignedQuery);
+                    g.validateQuery(request.query) catch return error.InvalidLocalRequest;
+                    const result = try invocation.allocator.create(g.BlockRead.Response);
+                    defer invocation.allocator.destroy(result);
+                    result.response = try server.readQuery(request, &result.blocks);
+                    return invocation.respond(result.*);
+                }
+                if (std.mem.eql(u8, invocation.path, "/v1/payload")) {
+                    if (comptime @hasDecl(Provider, "payload")) {
+                        const request = try invocation.request(wire.protocol.NativePayload.Request);
+                        request.validate() catch return error.InvalidLocalRequest;
+                        const result = try invocation.allocator.create(wire.protocol.NativePayload.Response);
+                        defer invocation.allocator.destroy(result);
+                        try Provider.payload(&lane.engine, &request, result);
+                        return invocation.respond(result.*);
+                    }
+                }
+                return error.LocalRouteMissing;
+            }
 
             fn touchShared(self: *Context) u64 {
                 if (self.shared_access == std.math.maxInt(u64)) {
@@ -577,10 +669,18 @@ pub fn Host(comptime Provider: type) type {
                 }
             }
 
-            fn acquire(self: *Context, io: std.Io) !*Lane {
+            const LaneKind = enum { data, control, wait };
+            fn acquire(self: *Context, io: std.Io, kind: LaneKind) !*Lane {
                 try self.mutex.lock(io);
                 defer self.mutex.unlock(io);
-                for (self.lanes) |*lane| if (!lane.busy) {
+                // HTTP and local callers share the same admission envelope.
+                // Local SQL cannot consume lanes reserved for control/waits.
+                const selected = switch (kind) {
+                    .data => self.lanes[0..4],
+                    .control => self.lanes[4..6],
+                    .wait => self.lanes[6..],
+                };
+                for (selected) |*lane| if (!lane.busy) {
                     lane.busy = true;
                     self.syncToLane(lane);
                     return lane;
@@ -604,7 +704,10 @@ pub fn Host(comptime Provider: type) type {
                 if (!started and err != error.EndOfStream) self.diagnostics.event(.{ .name = "transit.http.connection", .level = .debug, .error_type = @errorName(err) });
             }
             pub fn handle(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
-                const lane = try self.acquire(io);
+                const lane = self.acquire(io, if (self.isControl(request)) .control else if (self.isWait(request)) .wait else .data) catch |err| {
+                    if (err == error.ControlCapacity) return http.respond(request, .service_unavailable, "{\"err\":\"ControlCapacity\"}");
+                    return err;
+                };
                 defer self.release(io, lane);
                 var server = self.server.*;
                 // One probe per admitted handler; response buffers remain

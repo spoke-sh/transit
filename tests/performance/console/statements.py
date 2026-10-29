@@ -33,13 +33,15 @@ def run(fixture, repeat, probes, *, config=None):
     try:
         def call(case, sql):
             before = {name: probe.snapshot() for name, probe in probes.items()}
-            starts = {name: probe.trace()['completed'] for name, probe in probes.items()}
+            starts = {name: probe.trace()['completed'] for name, probe in probes.items() if hasattr(probe, 'trace')}
             try:
                 value, measurement = shell.call(sql)
             finally:
                 # Preserve bounded operation/work diagnostics even when the
                 # statement fails. No native payloads or credentials are kept.
                 for name, probe in probes.items():
+                    if name not in starts:
+                        continue
                     trace = probe.trace()
                     events = [event for event in trace['retained'] if event['ordinal'] > starts[name]]
                     print(json.dumps(dict(phase='statement_trace', case=case, probe=name,
@@ -48,7 +50,9 @@ def run(fixture, repeat, probes, *, config=None):
                                           events=events)), flush=True)
             total, measured_phases = phases(measurement['timing'])
             attempts = {name: dict(probe.snapshot() - before[name]) for name, probe in probes.items()}
-            for counts in attempts.values():
+            for name, counts in attempts.items():
+                if name == 'local':
+                    continue  # Aggregate typed attempts do not classify operations.
                 # These database statements must not dispatch Station turns.
                 for operation in ('send', 'open_view', 'turn', 'turn_with_versions'):
                     assert counts.get('update:' + operation, 0) == 0, counts

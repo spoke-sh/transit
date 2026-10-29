@@ -27,6 +27,17 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
 | `maintenance` | Dedicated maintenance identity and scan budgets; runs inside the local node, or in Ursula's separate `--maintain` process |
 | `table` | Optional local direct Table owner: fixed catalog/native bindings and registrar credential reference; see below |
+| `sql_control` | Optional local SQL lifecycle owner: private Unix `socket` and process-wide TLS `crypto_capacity` in bytes; installed `transit server` supplies both |
+
+`sql_control` is available on the local backend. Its socket uses the private
+runtime directory and same-UID peer checks of the local SQL console. The supervisor
+supplies the existing account configuration after enrollment; a complete
+configuration fingerprint fences replacement. Repeating an identical start
+observes the same activation. SQL shutdown joins its tasks before the node releases
+shared storage owners. `crypto_capacity` defaults to zero and refuses a TLS
+configuration requiring more reserved bytes; the installer sizes it from the
+configured SQL limits. This lifecycle channel grants no data access. Signed local
+calls still use current policy and the node's shared data/control/wait lanes.
 
 Both providers use the same signed HTTP request handling, current-rights checks,
 snapshot registry and bounded request lanes. The local provider holds an

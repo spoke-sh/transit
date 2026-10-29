@@ -78,6 +78,9 @@ pub const Deadline = struct {
 };
 
 pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8, execution: g.DatabaseAccount, generation: u64, keys: Keys, timeout_ms: u32) !*Self {
+    return initEndpoint(allocator, io, url, execution, generation, keys, timeout_ms, null);
+}
+pub fn initEndpoint(allocator: std.mem.Allocator, io: std.Io, url: []const u8, execution: g.DatabaseAccount, generation: u64, keys: Keys, timeout_ms: u32, endpoint: ?wire.LocalEndpoint) !*Self {
     try execution.configuration.validate();
     if (generation == 0 or timeout_ms == 0 or timeout_ms > 60000) return error.InvalidGatewayConfiguration;
     const self = try allocator.create(Self);
@@ -85,6 +88,8 @@ pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8, execution
     self.* = .{ .allocator = allocator, .io = io, .execution = execution, .background = wire.Client.init(allocator, io, url), .ingress_wire = wire.Client.init(allocator, io, url), .ingress = undefined, .private = undefined, .table_key = keys.table, .generation = generation };
     errdefer self.background.deinit();
     errdefer self.ingress_wire.deinit();
+    self.background.local = endpoint;
+    self.ingress_wire.local = endpoint;
     self.background.timeout_ms = timeout_ms;
     self.ingress_wire.timeout_ms = timeout_ms;
     self.ingress = .{ .transport = &self.ingress_wire, .execution = execution, .principal = execution.configuration.table_principal, .key = keys.table };

@@ -194,6 +194,18 @@ Configuration rejects unknown fields and incompatible versions; ports must be di
 listeners bind `127.0.0.1`. The parent of `installation` must exist. Connectors,
 remote listeners and alternate source definitions remain unsupported.
 
+Installed SQL listeners and execution belong to the selected node artifact.
+`executables.sql_gateway` remains part of the installation artifact identity for
+standalone SQL placement and separately invoked operator controls; the server
+uses the shared host inside the node for its SQL listeners.
+When the physical storage owner reopens, it joins the old SQL task before
+replacing the local endpoint. The supervisor reactivates a confirmed stopped
+host with a new persisted account generation and recovers accepted operations.
+A joined stop does not consume the SQL task's three-failure budget; a failed
+activation or mismatched live owner still does. Existing sessions can disconnect
+during this transition; reconnecting does not establish an uncertain write's
+outcome.
+
 Board uses the built-in role unless `executables.board` selects a standalone
 binary. Optional `board` settings default to
 `{"port":19107,"public_origin":"http://127.0.0.1:19107"}`. Override the port for
@@ -363,7 +375,7 @@ The manager checks child exits every 100 ms and observes authority every second.
 An exited role withdraws the gateway and stops dependents before restarting the
 same history. A temporary authority transport failure requires three consecutive
 failed observations before that restart; a successful observation resets the
-count. Explicit native `HttpCapacity` responses leave live owners in place and
+count. Explicit native `HttpCapacity` and `ControlCapacity` responses leave live owners in place and
 retry the next bounded observation without consuming that failure count. They
 do not establish readiness or completion. A denial, incompatible response or rollback fails immediately. Gateway health is a sampled
 availability observation, not a query completion or ownership guarantee. One invocation permits three

@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_observability", .module = b.dependency("transit_observability", .{ .target = target, .optimize = optimize }).module("transit_observability") }, .{ .name = "transit_protocol", .module = protocol.module("transit_protocol") } },
+        .imports = &.{ .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") }, .{ .name = "transit_observability", .module = b.dependency("transit_observability", .{ .target = target, .optimize = optimize }).module("transit_observability") }, .{ .name = "transit_protocol", .module = protocol.module("transit_protocol") } },
     });
     const library = b.addLibrary(.{ .name = "transit_client", .linkage = .dynamic, .root_module = b.createModule(.{
         .root_source_file = b.path("src/c.zig"),

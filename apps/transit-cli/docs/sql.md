@@ -1,6 +1,7 @@
 # Local PostgreSQL and MySQL access
 
-The local bundle runs a shared SQL service. Its private Unix socket provides
+The local bundle runs the shared SQL service inside `transit-node`, alongside
+the Catalog and Table owners. Its private Unix socket provides
 independent console sessions by default, using an OS peer check and a managed
 `local` login. PostgreSQL, MySQL and native HTTP/TLS listeners are independently
 opt-in. All adapters share account coordination and current authorization.
@@ -350,7 +351,7 @@ lease. See [configuration](../../../docs/handbook/reference/configuration.md) fo
 
 A `busy` SQL status with `HttpCapacity` means the supervisor could not complete
 its account observation because native request capacity was full. It does not
-restart the SQL process or establish current readiness. The next scheduled
+restart the SQL host or establish current readiness. The next scheduled
 check retries the observation; sessions continue to enforce current authorization.
 Connection hints appear once for each listener process, including replacements.
 

@@ -419,6 +419,7 @@ test("a mismatched successful mutation remains uncertain with the original refer
         committed: {
           binding,
           resulting: stored,
+          transaction: null,
           outcome: {
             position: { partition: "9", next_lsn: "10" },
             matched: "0",

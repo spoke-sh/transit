@@ -151,6 +151,11 @@ fails. Omitting the ID generates and prints one before submission; save it to
 retry an uncertain result. `inspect` reads through Board's read-only API;
 the UI also shows the current state and retained history.
 
+Internal launcher reads retry classified transport unavailability, including a
+brief listener closure during physical WAL recovery, within one 20-second budget.
+Retries preserve the exact request and snapshot nonce. Denial, unknown failures
+and malformed diagnostics still fail; this read helper never resubmits a mutation.
+
 `attach` opens Process Compose's service/log TUI; use its detach action to leave
 services running. Stopping the project there has the same data semantics as
 `down`. Use the launcher tasks for replacement so the counter gets a fresh key

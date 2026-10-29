@@ -181,12 +181,15 @@ class ReadObservationTest(unittest.TestCase):
                 self.assertEqual(options["env"]["LOG_LEVEL"], "error")
                 requests.append((argv, (installation.path / "operator/read.json").read_bytes()))
                 if len(requests) == 1:
+                    return subprocess.CompletedProcess(argv, 1, "", json.dumps(self.failure("ConnectionRefused")))
+                if len(requests) == 2:
                     return subprocess.CompletedProcess(argv, 1, "", json.dumps(self.failure()))
                 return subprocess.CompletedProcess(argv, 0, '{"body":{"accepted":true}}', "")
             with patch("common.subprocess.run", side_effect=invoke), patch("common.time.sleep"):
                 self.assertEqual(Installation.native_query(installation, kind), {"body": {"accepted": True}})
-            self.assertEqual(len(requests), 2)
+            self.assertEqual(len(requests), 3)
             self.assertEqual(requests[0], requests[1])
+            self.assertEqual(requests[0], requests[2])
             self.assertEqual(json.loads(requests[0][1])["kind"], kind)
 
     def test_unknown_denied_malformed_and_nonterminal_events_do_not_authorize_retry(self):
@@ -200,8 +203,18 @@ class ReadObservationTest(unittest.TestCase):
             self.assertFalse(transient_read_failure(json.dumps(record)))
         self.assertFalse(transient_read_failure("error: AuthorityUnavailable"))
         self.assertFalse(transient_read_failure(json.dumps(self.failure()) + "\nnot-json"))
-        for cause in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing"):
+        for cause in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing", "ConnectionRefused"):
             self.assertTrue(transient_read_failure(json.dumps(self.failure(cause))))
+
+    def test_connection_refusal_exhausts_the_original_read_deadline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            installation = SimpleNamespace(path=Path(directory), cli="transit-admin", url="http://127.0.0.1:1", load=lambda: {"realm": 73})
+            result = subprocess.CompletedProcess([], 1, "", json.dumps(self.failure("ConnectionRefused")))
+            with patch("common.subprocess.run", return_value=result) as invoke, patch("common.time.monotonic", side_effect=[100, 120]), patch("common.time.sleep") as sleep, patch("common.print"):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    Installation.native_query(installation, {"capabilities": {}})
+            self.assertEqual(invoke.call_count, 1)
+            sleep.assert_not_called()
 
 
 if __name__ == "__main__":

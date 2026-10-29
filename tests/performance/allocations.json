@@ -188,8 +188,8 @@
         "credential_erasure"
       ],
       "checks": [
-        "apps/transit-sql-gateway/src/Native.zig",
-        "apps/transit-sql-gateway/src/main.zig",
+        "packages/zig/transit-sql-host/src/Native.zig",
+        "packages/zig/transit-sql-host/src/root.zig",
         "tests/interfaces/sql_sessions/security.py",
         "packages/zig/transit-io/src/root.zig",
         "packages/zig/transit-tls-server/src/Memory.zig",

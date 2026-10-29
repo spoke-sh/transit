@@ -124,6 +124,12 @@ pub fn executeCapacity(self: *Self, io: std.Io, engine: *backend.DataAuthority.E
     return self.executeMeasured(io, engine, arena, output_allocator, request, control, null);
 }
 pub fn executeMeasured(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report) ![]const u8 {
+    return self.executeResult(.json, io, engine, arena, output_allocator, request, control, memory_report);
+}
+pub fn executeTyped(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool) !w.Response {
+    return self.executeResult(.typed, io, engine, arena, output_allocator, request, control, null);
+}
+fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report) !Service.Result(format) {
     if (control and request.transport().control == null) return error.InvalidRequest;
     const write = exclusive(request.action);
     if (write) try self.directory.lock(io) else try self.directory.lockShared(io);
@@ -161,7 +167,7 @@ pub fn executeMeasured(self: *Self, io: std.Io, engine: *backend.DataAuthority.E
         report.* = @import("DirectRequestMemory.zig").Report.capture(&resident.value.?.probe);
     };
     var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value };
-    return service.execute(arena, output_allocator, request) catch |err| {
+    return service.executeResult(format, arena, output_allocator, request) catch |err| {
         if (err == error.OutOfMemory and resident.value.?.memory.exhausted)
             return if (control) error.ControlCapacity else error.StorageQuota;
         return err;
