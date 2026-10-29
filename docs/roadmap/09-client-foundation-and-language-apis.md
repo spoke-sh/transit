@@ -1,6 +1,6 @@
 # 9. Shared client foundation and language-native APIs
 
-[Roadmap](README.md) · **Status:** Planned ([implementation plan](#implementation-plan--2026-10-29))
+[Roadmap](README.md) · **Status:** In Progress ([implementation plan](#implementation-plan--2026-10-29))
 
 Let ordinary applications use data, queries and transactions through idiomatic
 language clients without adopting Station. Establish reusable package ownership,
@@ -90,8 +90,8 @@ merged as PR #235 during this review. This is a source and contract assessment,
 not new executed qualification. M8 is `In Progress`: foreground settlement and
 event-driven recovery are implemented, while typed dispatch, co-hosting, coarse
 remote execution and the remaining ingress/qualification gates stay open.
-Further unmerged work is outside this source basis. M9 remains `Planned` until
-implementation starts.
+Further unmerged work is outside this source basis. The initial implementation
+slice below starts M9 without claiming its remaining gateway or data-kind gates.
 
 ### Starting point and selected outcome
 
@@ -215,9 +215,9 @@ Do not add v2, dual decoders or old Station import shims.
 
 ### Reviewable work packages
 
-All work packages below are **Planned**. Contract work and independent internal
-pieces may overlap, but a dependent public adapter cannot advertise an
-unqualified operation.
+P0 and P1 are **In Progress** through the initial extraction below. P2–P8 remain
+**Planned**. Contract work and independent internal pieces may overlap, but a
+dependent public adapter cannot advertise an unqualified operation.
 
 | Package | Reviewable result | Prerequisites | Exit gate |
 | --- | --- | --- | --- |
@@ -230,6 +230,54 @@ unqualified operation.
 | P6 | Installed Zig, Python and Node foundation; affected-binding migration | P3–P5 | Direct Table/query/transaction/recovery applications run without Station artifacts |
 | P7 | Owner-gated KV/Document/Stream/Queue facets | P1–P6 plus each M6/M7 public and transaction cutover | Each claimed facet uses the direct owner with its exact lifecycle, authority and recovery evidence |
 | P8 | Common-revision qualification and public documentation | P1–P7 plus relevant installed M3/M8 gates | Acceptance matrix passes; artifacts, supported profiles and remaining exclusions agree |
+
+### Initial implementation slice — catalog caller ownership
+
+The first slice introduces
+[`transit-data-client`](../../packages/zig/transit-data-client/README.md) with a
+real direct Catalog caller and migrates `CatalogAbi` to consume it. The public
+Zig SDK exports the exact shared module. Transport/local-intent ownership and
+per-call mutation evidence leave Station's ABI implementation; canonical data
+operations, validation and acceptance remain with Catalog. Existing native ABI,
+port actions, saved work, definition identifier and language APIs are unchanged.
+This is an internal ownership extraction plus a Zig API, not the P6 public
+language-package cutover or an alternate catalog protocol.
+
+The extraction uses these already-defined contract boundaries:
+
+| Operation class | Owner and inspectable result | Extraction rule |
+| --- | --- | --- |
+| Load/forget and local capabilities | `DirectTableBridge` local immutable intent/summary and generated capabilities | No network or permission assertion; failed replacement preserves prior intent |
+| Compile/prepare/preview | Catalog lowering and current authorized metadata | Separate local validation from reads; no admission or automatic dispatch |
+| Stage/admit/execute/cancel | Original direct binding, accepted owner observation and per-call attempt evidence | Preserve explicit steps and frozen work; neither transport failure nor output-copy failure establishes rejection |
+| Metadata, dependency and retention operations | Existing exact definitions, current policy and saved pin owners | Owned output survives client close; closing local transport never releases durable pins |
+| SQL and transactions | Existing `transit-sql-client` and M4/M5 | No new adapter, scope or recovery loop in this slice; M8 execution handoff remains required |
+
+`Catalog` takes caller-owned allocator/I/O and starts no pool. The ABI retains
+its existing host-owned pool, status mapping and joined-call responsibilities.
+This permits shared I/O composition but does not establish P2 admission fairness,
+principal-sequence coordination or a unified catalog/SQL context. No native
+artifact or ordinary API has been added for Python/Node yet.
+
+The P0 language review direction is recorded below; names are proposed vocabulary,
+not shipped foreign-language signatures. Each design must retain original work
+and distinguish provisional statement results from the final transaction decision.
+
+| Language | Direct and result use | Transaction and recovery use |
+| --- | --- | --- |
+| Zig | Explicit allocator/I/O, owned outcomes and scoped borrowed batches | Explicit controls and original handles; caller-owned durable store hook |
+| Python | Context-managed sync/async clients and iterators with exact Python integers | Explicit decision on scope exit; exceptions retain original recovery material and cleanup failure |
+| TypeScript/Node | Promise operations, async iterators, validated tagged cells and `bigint` | AbortSignal stops waiting without inferring rollback; store/recover exact original operation |
+| Rust | Exclusive client borrows, owned handles and iterator-scoped batch borrows | Typed provisional/decision outcomes; dropping a future cannot free active native ownership |
+| Go | Context-aware operations on bounded native workers and explicit result close | Context cancellation preserves uncertainty; original handles/store survive goroutine lifetime |
+| BEAM | Supervised port ownership, immutable records/structs and bounded requests | Monitor/timeout is host evidence; recover the recorded operation without rerunning a callback |
+
+P0 still needs the complete affected-language review, context/store/ABI contract
+and matched performance baseline. P1 still needs the query/value extraction and
+full consumer inventory. This slice does not wait for M8's pending P2 transport
+interfaces because it preserves the existing direct caller operations. It does
+not qualify new coarse submission, automatic settlement, SQL/transaction
+conveniences or the KV/Document/Stream/Queue facets.
 
 #### P0 — Freeze contracts and user journeys
 

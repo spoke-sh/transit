@@ -1,0 +1,10 @@
+.{
+    .name = .transit_data_client,
+    .fingerprint = 0xa7a7ea623cdf4073,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{
+        .transit_catalog = .{ .path = "../transit-catalog" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src", "README.md" },
+}

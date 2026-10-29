@@ -14,6 +14,7 @@ pub fn build(b: *std.Build) void {
         "transit_station_grpc",
         "transit_query",
         "transit_catalog",
+        "transit_data_client",
         "transit_sql_client",
         "transit_fuze",
         "transit_station_app",

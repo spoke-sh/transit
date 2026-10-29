@@ -3,6 +3,7 @@
 const std = @import("std");
 const base = @import("Abi.zig");
 const catalog = @import("transit_catalog");
+const data = @import("transit_data_client");
 const p = catalog.protocol;
 const wire = catalog.client;
 pub const bridge = catalog.DirectTableBridge;
@@ -17,26 +18,16 @@ pub const Config = struct {
 };
 const Impl = struct {
     threaded: std.Io.Threaded,
-    authority: wire.Client,
-    service: wire.Client,
-    client: catalog.DirectTableClient,
-    session: bridge.Session,
-    authority_url: []u8,
-    service_url: []u8,
+    caller: data.Catalog,
     busy: std.atomic.Value(bool) = .init(false),
 };
 fn cast(pointer: *Client) *Impl {
     return @ptrCast(@alignCast(pointer));
 }
-fn validEndpoint(url: []const u8) bool {
-    if (url.len == 0 or url.len > 2048) return false;
-    const uri = std.Uri.parse(url) catch return false;
-    return (std.mem.eql(u8, uri.scheme, "http") or std.mem.eql(u8, uri.scheme, "https")) and uri.host != null and uri.user == null and uri.password == null and uri.query == null and uri.fragment == null;
-}
 pub fn create(version: u32, url: [*]const u8, url_len: usize, seed: *const [32]u8, config: [*]const u8, config_len: usize, out: *?*Client) callconv(.c) base.Status {
     out.* = null;
     if (version != 1) return .incompatible_version;
-    if (!validEndpoint(url[0..url_len]) or config_len == 0 or config_len > 8192) return .invalid_argument;
+    if (!data.Catalog.validEndpoint(url[0..url_len]) or config_len == 0 or config_len > 8192) return .invalid_argument;
     const parsed = p.Json.parseFromSlice(Config, allocator, config[0..config_len]) catch |err| return base.status(err);
     defer parsed.deinit();
     const options = parsed.value;
@@ -44,40 +35,30 @@ pub fn create(version: u32, url: [*]const u8, url_len: usize, seed: *const [32]u
     const connection = options.connection.native() catch return .invalid_argument;
     if (options.timeout_ms == 0 or options.timeout_ms > 60000) return .invalid_argument;
     const target = options.service_url orelse url[0..url_len];
-    if (!validEndpoint(target)) return .invalid_argument;
+    if (!data.Catalog.validEndpoint(target)) return .invalid_argument;
     const client = allocator.create(Impl) catch return .out_of_memory;
-    const authority_url = allocator.dupe(u8, url[0..url_len]) catch {
+    client.* = .{ .threaded = .init(allocator, .{ .async_limit = .limited(2), .concurrent_limit = .limited(2) }), .caller = undefined };
+    client.caller = data.Catalog.init(allocator, client.threaded.io(), .{
+        .url = url[0..url_len],
+        .service_url = target,
+        .connection = connection,
+        .timeout_ms = options.timeout_ms,
+    }, seed.*) catch |err| {
+        client.threaded.deinit();
         allocator.destroy(client);
-        return .out_of_memory;
+        return base.status(err);
     };
-    const service_url = allocator.dupe(u8, target) catch {
-        allocator.free(authority_url);
-        allocator.destroy(client);
-        return .out_of_memory;
-    };
-    client.* = .{ .authority_url = authority_url, .service_url = service_url, .threaded = .init(allocator, .{ .async_limit = .limited(2), .concurrent_limit = .limited(2) }), .authority = undefined, .service = undefined, .client = undefined, .session = .{ .allocator = allocator } };
-    client.authority = wire.Client.init(allocator, client.threaded.io(), authority_url);
-    client.service = wire.Client.init(allocator, client.threaded.io(), service_url);
-    client.authority.timeout_ms = options.timeout_ms;
-    client.service.timeout_ms = options.timeout_ms;
-    client.client = .{ .allocator = allocator, .authority = &client.authority, .service = &client.service, .connection = connection, .key = p.Ed25519.KeyPair.generateDeterministic(seed.*) catch unreachable };
     out.* = @ptrCast(client);
     return .ok;
 }
 pub fn destroy(pointer: ?*Client) callconv(.c) void {
     const client = cast(pointer orelse return);
-    client.session.deinit();
-    std.crypto.secureZero(u8, std.mem.asBytes(&client.client.key));
-    client.authority.deinit();
-    client.service.deinit();
+    client.caller.deinit();
     client.threaded.deinit();
-    allocator.free(client.authority_url);
-    allocator.free(client.service_url);
     allocator.destroy(client);
 }
 pub fn observe(pointer: *Client, observer: *wire.observability.telemetry.Runtime) void {
-    cast(pointer).authority.observer = observer;
-    cast(pointer).service.observer = observer;
+    cast(pointer).caller.observe(observer);
 }
 pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
     out.* = null;
@@ -85,28 +66,26 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
     const client = cast(pointer);
     if (client.busy.swap(true, .acquire)) return .busy;
     defer client.busy.store(false, .release);
-    client.authority.last_rejection = null;
-    client.service.last_rejection = null;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const action = bridge.parse(arena.allocator(), json[0..len]) catch |err| return invalidEnvelope(err, out);
     defer action.deinit();
-    var attempt: catalog.DirectTableClient.Attempt = .{};
-    var caller = client.client;
-    caller.attempt = &attempt;
-    var location: catalog.fuze.Sql.Location = .{};
     var results: std.heap.ArenaAllocator = .init(allocator);
     defer results.deinit();
-    const result = client.session.apply(&results, caller, action.value, &location) catch |err| {
-        const native = client.service.last_rejection orelse client.authority.last_rejection;
-        const diagnostic = catalog.DirectTableDiagnostic.failure(action.value, err, location, attempt, native) catch null;
-        base.output(.{ .err = @errorName(err), .protocol_error = native, .diagnostic = diagnostic }, out) catch {};
-        if (attempt.mutation != null) return .uncertain;
-        return failureStatus(err, if (diagnostic) |value| value.category else .internal);
-    };
-    base.output(result, out) catch |err| return if (attempt.mutation != null) .uncertain else base.status(err);
-    return .ok;
+    const outcome = client.caller.call(&results, action.value) catch return .busy;
+    switch (outcome.value) {
+        .failure => |failure| {
+            base.output(.{ .err = @errorName(failure.cause), .protocol_error = failure.protocol_error, .diagnostic = failure.diagnostic }, out) catch {};
+            if (outcome.mutationAttempted()) return .uncertain;
+            return failureStatus(failure.cause, if (failure.diagnostic) |value| value.category else .internal);
+        },
+        .result => |result| {
+            base.output(result, out) catch |err| return if (outcome.mutationAttempted()) .uncertain else base.status(err);
+            return .ok;
+        },
+    }
 }
+
 fn failureStatus(cause: anyerror, category: p.Diagnostic.Category) base.Status {
     if (cause == error.OutOfMemory) return .out_of_memory;
     if (cause == error.IncompatibleDefinition) return .incompatible_version;
