@@ -22,7 +22,7 @@ def minio_binary():
     """The pinned shell and local bundle share nix/minio.nix's source build."""
     path = shutil.which('minio')
     if path is None:
-        raise RuntimeError('Pinned MinIO is required; enter the Linux x86_64 Nix development shell')
+        raise RuntimeError('Pinned MinIO is required; enter the Linux x86_64 or ARM64 Nix development shell')
     return Path(path).resolve()
 
 

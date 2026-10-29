@@ -131,7 +131,7 @@ in place to change a running installation's selected artifacts. Continue with
 MinIO is built from the source of release `2025-09-07T16-13-09Z`, matching the
 existing fixture's release because the historical binary/image distribution is
 unavailable. [minio.nix](minio.nix) owns this shared source/hash definition. On Linux
-x86_64, the default, experience and bindings CI shells include that same executable for owned
+x86_64 and ARM64, the default, experience and bindings CI shells include that same executable for owned
 disk/S3 fixtures; they no longer extract or start the unavailable historical image.
 `nix build .#minio` exposes the provider independently of the local bundle. The
 existing source, vendor hash and lockfile inputs are unchanged.
