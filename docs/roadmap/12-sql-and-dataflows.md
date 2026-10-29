@@ -164,6 +164,17 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   activation. Compiling, explaining, reading and replaying never dispatch a
   dataflow.
 
+## Formal model follow-through
+
+Own the [T5/T8 dataflow lifecycle and DDL interaction models and A3 incremental delta proofs](20-formal-semantics-and-correspondence.md#t8-catalog-ddl-evolution-and-dataflow-lifecycle-state-machines)
+as the computation and phased-DDL contracts settle. Verify that `ACTIVATE`,
+`SUSPEND`, `RESUME WITH (on_resume = 'replay_history' | 'recompute_snapshot')`,
+`REFRESH` and `RETIRE` preserve last-completed-revision invariants when racing
+in-flight worker leases (`_lease_epoch`), upstream `ALTER TABLE` schema
+evolutions (`DefinitionId v1 -> v2`), `TransitLog` (`TWAL1`) compaction and
+`policy_epoch` revocations, and replay the finite state-graph edges against the
+production Zig catalog and dataflow state reducers.
+
 ## Prerequisites and completion
 
 The later [reactive context milestone](30-reactive-context-and-agent-activation.md)

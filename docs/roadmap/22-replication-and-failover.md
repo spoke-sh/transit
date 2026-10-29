@@ -56,6 +56,11 @@ does not make independent snapshots atomic or establish real-time ordering.
    quorum/commit rules for the selected profile, ambiguous acknowledgements,
    promotion eligibility and recovery of the original accepted operation.
    Replication cannot introduce an independent writable manifest authority.
+   Keep authoritative intra-realm failover replication distinct from
+   [Git-like remote/local incremental mirroring (`REMOTE` / `FETCH` / `MIRROR`)](18-branches-merges-and-restore.md#delivery-sequence),
+   where a local or downstream Transit instance pulls authorized `manifest/v{N}`
+   cuts, `.tseg`/`.tdel` segment deltas and `TWAL1` tails under the caller's
+   `policy_epoch` disclosure filters without acquiring primary writer authority.
 3. **Implement bounded bootstrap, catch-up and repair.** Transfer a verified
    checkpoint plus its pinned contiguous tail and reachable objects; validate
    identities, definitions and digests before installation. Coordinate snapshot

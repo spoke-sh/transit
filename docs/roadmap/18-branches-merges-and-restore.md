@@ -58,19 +58,37 @@ authority/process evidence separate from branchable application state.
    append to the branch's `TransitLog` partition and flush new `.tseg` segments
    and branch-local `.tdel` deletion vectors without mutating parent segments.
    Parent/child deletion and restart must preserve every reachable byte.
-3. **Implement segment-aware three-way diffs and reviewed KV/Table merges:**
-   given a common ancestor **`base` Manifest**, **`source` Manifest** and
-   **`target` Manifest**, skip all `.tseg` segments shared identically with
-   `base` and compute three-way diffs using logical change lineage, retained tail
-   state, added segments and divergent deletion vectors. Use segment indexes
-   and declared collations to resolve rows. Physical compaction can replace segment IDs
-   without changing data; use logical lineage/change evidence to avoid inventing
-   merge changes or conflicts from that rewrite. Freeze `base`/`source`/`target`,
-   align schemas, validate constraints, surface row/cell conflicts explicitly, and commit the
-   merged Manifest via conditional CAS (`Multi-Writer OCC`), rejecting stale
-   target heads. Schema-only promotion preserves target rows unless explicitly
-   migrated.
-4. **Extend merge to compatible Documents ([Milestone 7](07-document-storage-and-station-decoupling.md) and [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)) and qualified graph mappings:**
+3. **Implement segment-aware two-way/three-way `DIFF` (`DIFF` and `DIFF_SCHEMA`) and reviewed KV/Table merges:**
+   given a two-way pair (**`from` Manifest**, **`to` Manifest**) or a three-way
+   common ancestor (**`base` Manifest**, **`source` Manifest** and **`target`
+   Manifest**), skip all `.tseg` segments and `.tdel` bitmaps shared identically
+   in $O(1)$ ([A4: `BranchMergeAlgebra.lean`](20-formal-semantics-and-correspondence.md#a4-logical-merge-and-safe-segment-skipping))
+   and compute key-aligned diffs using logical change lineage, retained tail
+   state, added segments and divergent deletion vectors:
+   - **First-class relational and document `DIFF(object, ...)`:** align rows by
+     primary key (or `_row_id` / Document tree path) under declared column
+     collations ($\kappa$). Unlike ISO SQL `EXCEPT` (which is one-way,
+     key-blind and schema-rigid) or table-doubling diff functions, emit compact
+     key-aligned delta rows (`_diff_op IN ('added', 'modified', 'removed', 'conflict')`)
+     that project across compatible `DefinitionId` evolutions using stable
+     `ColumnId` lineage. In three-way branch diffs and merge previews, represent
+     cells modified to incompatible values on both `source` and `target` natively
+     using Transit's **five-state `conflict` cell tag (`IS CONFLICT`)** so callers
+     can filter and inspect merge conflicts directly in standard SQL.
+   - **First-class catalog and schema diff (`DIFF_SCHEMA(...)`):** compare
+     `CatalogId`, `DefinitionId` and `ColumnId` graphs between two snapshots,
+     branches or remotes—distinguishing true column/table renames (`ColumnId`
+     preserved) and lazy default projections from drop-and-recreate mutations,
+     and reporting affected `CHECK`/`FOREIGN KEY` constraints and downstream
+     dataflows.
+   - **Reviewed three-way merge publication:** physical compaction can replace
+     segment IDs without changing data; use logical lineage/change evidence to
+     avoid inventing merge changes or conflicts from that rewrite. Freeze
+     `base`/`source`/`target`, align schemas, validate constraints, surface
+     row/cell conflicts explicitly, and commit the merged Manifest via
+     conditional CAS (`Multi-Writer OCC`), rejecting stale target heads.
+     Schema-only promotion preserves target rows unless explicitly migrated.
+4. **Extend diff and merge to compatible Documents ([Milestone 7](07-document-storage-and-station-decoupling.md) and [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)) and qualified graph mappings:**
    support both `versioned` structural three-way diff/merge and `causal_crdt`
    replica state-vector convergence, preserving causal/tombstone semantics,
    fresh replica identities and valid graph endpoints; incompatible histories
@@ -79,6 +97,31 @@ authority/process evidence separate from branchable application state.
    as a new monotonic manifest version (`manifest/v{N+1}`) rather than truncating
    history. Define pending input, job and subscription disposition, explicit
    activation and external-outcome reconciliation.
+6. **Support Git-like remote $\leftrightarrow$ local incremental mirroring, lazy `.tseg` fetch and local migration testing ("Git remotes for data"):**
+   because committed state forms a content-addressed Merkle DAG (`manifest/v{N}`
+   commits $\to$ `DefinitionId` catalog trees $\to$ immutable SHA-256 `.tseg`
+   blobs and `.tdel`/`.tack` bitmaps plus `TWAL1` delta tails), allow a local or
+   staging Transit instance to attach to an upstream remote Transit peer
+   (`CREATE REMOTE`, `FETCH`, continuous `MIRROR`) under the caller's scoped
+   `policy_epoch` grants (enforcing security-barrier RLS and dynamic masking at
+   the remote egress boundary):
+   - **Incremental delta fetch and lazy `.tseg` hydration:** `FETCH` and `MIRROR`
+     transfer only the signed `manifest/v{N}` history and the `.tseg`/`.tdel`
+     objects (or `TWAL1` tail frames) added since the last common ancestor
+     `manifest/v{K}`, hydrating historical `.tseg` segments eagerly (for offline
+     work) or lazily on demand into the local `NvmeCache`.
+   - **Local branching, schema migrations and fenced dataflow execution:** a
+     developer or agent branches locally (`CREATE BRANCH local_mig FROM
+     REMOTE 'prod/main'`), applies candidate DDL migrations (`ALTER TABLE`), and
+     runs local queries, dataflows and `Station` behaviors with external
+     connector effects strictly fenced to network-free replay over captured
+     `DocumentPartition` exchanges ([Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)).
+   - **Upstream proposal push:** instead of executing imperative migration scripts
+     blindly on production, push only the local branch's delta `.tseg`/`.tdel`
+     segments, schema migration plan and candidate manifest to the remote as a
+     [Milestone 27 versioned proposal](27-reviewed-data-collaboration.md) for
+     three-way `DIFF` / `DIFF_SCHEMA` review, constraint validation and atomic
+     `manifest/v{N+1}` publication.
 
 ## Policy and collaboration boundary
 

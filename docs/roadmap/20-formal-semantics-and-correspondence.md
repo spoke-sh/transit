@@ -248,6 +248,52 @@ only after establishing that the provider satisfies those assumptions. This
 family supplies a protocol reference for provider and placement implementations;
 it does not choose replication topology or qualify hardware by model checking.
 
+### T8. Catalog DDL evolution and dataflow lifecycle state machines
+
+Candidate: `DdlAndDataflowLifecycle.tla`. Because DDL in Transit is not a
+stop-the-world global mutex, model the coupled state machines of **schema/index
+evolution** ([Milestone 10](10-standards-and-catalogs.md),
+[Milestone 11](11-indexing-and-access-paths.md)) and **five-state managed
+computations/dataflows** ([Milestone 12](12-sql-and-dataflows.md),
+[Milestone 33](33-sql-grammar-and-dialect-ergonomics.md)) interleaving with
+concurrent transactions, `TransitLog` (`TWAL1`) compaction, policy revocations
+and worker replacement:
+
+- **Schema and phased DDL evolution state machine:** model lazy metadata/projection
+  evolutions (`ADD COLUMN`, `DROP COLUMN`, `RENAME` advancing `DefinitionId`
+  while older `.tseg` segments retain their original `DefinitionId` and project
+  `missing`/default cells lazily on read) alongside phased online physical
+  rewrites (`ALTER COLUMN TYPE / COLLATE`, `CREATE INDEX`:
+  `Staged -> Backfilling (Snapshot Cut) -> CatchingUp (TWAL1 Tail) -> Validating Constraints -> Conditional Cutover -> Retiring Old Generation`).
+- **Five-state dataflow lifecycle state machine:** model transitions across
+  `Published (DefinitionId vN) -> Authorized (policy_epoch) -> Active (_lease_epoch, checkpoint LSN) <-> Suspended (frozen revision + watermark) -> Retired`
+  under `ACTIVATE`, `SUSPEND`, `RESUME WITH (on_resume = 'replay_history' | 'recompute_snapshot')`,
+  `REFRESH` and `RETIRE`.
+- **Verified interleavings and invariants:**
+  - *`SUSPEND` or `REVOKE` racing an in-flight worker:* when an operator issues
+    `ALTER DATAFLOW ... SUSPEND` or revokes upstream access (`policy_epoch` bump)
+    while a worker holds `_lease_epoch` computing a successor batch, the stale
+    worker's commit is fenced, partial outputs are never exposed, and the last
+    completed revision remains intact (and disclosed only if current
+    `policy_epoch` permits).
+  - *Upstream `ALTER TABLE` while a downstream dataflow is `Suspended`:* when an
+    upstream source evolves from `DefinitionId v1 -> v2` during suspension and
+    the dataflow executes `RESUME WITH (on_resume = 'replay_history')`,
+    compatible lazy evolutions project deterministically across the `v1 -> v2`
+    log boundary, whereas incompatible type/collation changes transition the
+    dataflow into an explicit blocked/requires-migration state rather than
+    silently corrupting results.
+  - *Compaction racing `Suspended` watermarks:* if storage compaction trims
+    `TWAL1` history while an unpinned dataflow is `Suspended`,
+    `RESUME WITH (on_resume = 'replay_history')` deterministically refuses with a
+    missing-history diagnostic instead of silently skipping `A -> B -> A`
+    transitions, until `RESUME WITH (on_resume = 'recompute_snapshot')`
+    establishes a fresh snapshot-to-live handoff.
+
+Replay the finite state-graph edges of `DdlAndDataflowLifecycle.tla` directly
+against the production Zig catalog and dataflow state reducers (following the
+exact correspondence pattern of `Console.tla` and `StatementResult.tla`).
+
 ## Algebraic and structural candidate families
 
 Extend the pinned Lean foundation when universal laws over values, collections
@@ -369,13 +415,13 @@ owners, with shared evaluation across SQL, SDK, MCP and browser callers.
 
 ## Delivery and implementation correspondence
 
-1. **Select a bounded tranche from the delivered contracts.** Review all T1–T7
+1. **Select a bounded tranche from the delivered contracts.** Review all T1–T8
    and A1–A6 against the actual merged system. Record the owner, stable claim,
    motivating failure, technique, abstraction, implementation projection and
    dependencies for each selection or justified deferral. Require executable
    work on both temporal and algebraic families; copying an inventory does not
    complete the milestone. Later distributed/governance candidates keep their
-   explicit owners below. Do not require thirteen predetermined model files.
+   explicit owners below. Do not require fourteen predetermined model files.
 2. **Expose deterministic decisions where it simplifies the implementation.**
    Keep storage, time and external effects behind explicit inputs/outcomes.
    Reuse production reducers and operations, with a named projection from their
@@ -415,14 +461,16 @@ inherit a proof whose assumptions the new profile violates.
 
 | Owner | Candidate extension and boundary |
 | --- | --- |
+| [Managed computations and dataflows](12-sql-and-dataflows.md) | T5/T8 and A3: 5-state dataflow lifecycle (`Published`, `Authorized`, `Active`, `Suspended`, `Retired`), phased DDL interaction, `on_resume` watermark handoff and incremental delta equivalence |
 | [Providers and concurrent writers](21-storage-providers-and-concurrency.md) | T1/T7: actual permission/epoch enforcement, conditional publication and complete object/log coverage for each provider |
-| [Replication and failover](22-replication-and-failover.md) | T4/T7: replicated decisions, object availability, catch-up, promotion and stale-writer fencing under selected failures |
-| [Operations and recovery](23-operations-and-recovery.md) | T1/T4/T7: retained backup/PITR roots, consistent decisions and authority-safe restore/upgrade boundaries |
-| [Clustered execution](24-clustered-execution.md) | T3/T5/T7 and A3 where applicable: placement ownership, distributed coverage and preserved query/error semantics |
+| [Replication and failover](22-replication-and-failover.md) | T4/T7: replicated decisions, object availability, catch-up, promotion, stale-writer fencing and remote/local incremental mirror boundaries |
+| [Operations and recovery](23-operations-and-recovery.md) | T1/T4/T7/T8: retained backup/PITR roots, consistent decisions, online DDL recovery and authority-safe restore/upgrade boundaries |
+| [Clustered execution](24-clustered-execution.md) | T3/T5/T7/T8 and A3 where applicable: placement ownership, distributed coverage and preserved query/error semantics |
 | [Enterprise identity](25-control-and-policy-plane.md) | A6 and temporal checks: actor/subject binding, delegation attenuation, membership freshness and revocation |
-| [Reviewed publication](27-reviewed-data-collaboration.md) | T6/A4/A6: exact candidate/target approval, current reviewer authority and protected-destination enforcement |
-| [Reactive activation](30-reactive-context-and-agent-activation.md) | T5: durable interests, meaningful change conditions, checkpoint recovery and explicit coverage |
+| [Reviewed publication](27-reviewed-data-collaboration.md) | T6/A4/A6: exact candidate/target approval, remote/local proposal push, current reviewer authority and protected-destination enforcement |
+| [Reactive activation](30-reactive-context-and-agent-activation.md) | T5/T8: durable interests, meaningful change conditions, checkpoint recovery and explicit coverage |
 | [Recorded integrations](31-recorded-mcp-integrations.md) | T4's effect boundary: authorized attempts, uncertain remote outcomes, capture and network-free replay |
+| [SQL grammar and dialect ergonomics](33-sql-grammar-and-dialect-ergonomics.md) | T8 and A1/A4: byte-identical plan lowering for ergonomic SQL desugarings, 2-way/3-way `DIFF` / `DIFF_SCHEMA` equivalence and DDL lifecycle state transitions |
 | [Complete qualification](34-qualification-and-benchmarks.md) | Execute the selected local and later suites at one revision alongside installed workloads and physical failure evidence |
 
 ## Completion evidence
