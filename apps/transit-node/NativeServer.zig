@@ -704,7 +704,10 @@ pub fn Host(comptime Provider: type) type {
                 if (!started and err != error.EndOfStream) self.diagnostics.event(.{ .name = "transit.http.connection", .level = .debug, .error_type = @errorName(err) });
             }
             pub fn handle(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
-                const lane = try self.acquire(io, if (self.isControl(request)) .control else if (self.isWait(request)) .wait else .data);
+                const lane = self.acquire(io, if (self.isControl(request)) .control else if (self.isWait(request)) .wait else .data) catch |err| {
+                    if (err == error.ControlCapacity) return http.respond(request, .service_unavailable, "{\"err\":\"ControlCapacity\"}");
+                    return err;
+                };
                 defer self.release(io, lane);
                 var server = self.server.*;
                 // One probe per admitted handler; response buffers remain
