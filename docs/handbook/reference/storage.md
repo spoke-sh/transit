@@ -112,8 +112,10 @@ for execution-lane and memory budgets.
 
 Ordinary direct Table requests share a 256 MiB backing-allocation ceiling,
 with a 128 MiB limit per request and 64 MiB reserved separately for Table
-controls. Parsing, private catalog work and responses remain charged through
-their respective lifetimes, including a slow response write. A memory refusal
+controls. Parsing, request scratch and responses remain charged through
+their respective lifetimes, including a slow response write. Retained catalog/Table
+owners and their private work use a separate 256 MiB ordinary pool and 64 MiB
+control pool, with per-owner limits of 128 MiB and 64 MiB respectively. A memory refusal
 does not undo accepted work; recovery uses the original operation identity and
 current rights. Engine/provider caches and the independently bounded maintenance
 executor retain their own memory owners. The node limits distinguish these
@@ -267,7 +269,7 @@ explains the intended topology and its remaining integration boundaries.
 
 ### Direct request allocation limits
 
-The node bounds ordinary direct Table allocations by
+The node bounds direct Table parsing, request scratch and response allocations by
 `storage.requests.request_bytes` (128 MiB per request) and
 `storage.requests.data_bytes` (256 MiB across requests). Reserved recovery
 requests use `storage.requests.control_bytes` (64 MiB across requests).
@@ -280,4 +282,8 @@ with `ControlCapacity`. Inspect the original operation after an uncertain write.
 `SHOW STORAGE` reports the node's resolved root, configured limits, live charged
 bytes and maintenance activity under realm-wide inspection authority. Null means
 unavailable. These independent counters exclude process stacks, sockets and
-filesystem caches; they are not a total resident-memory measurement.
+filesystem caches. Request counters also exclude the separately bounded retained
+catalog/Table workspaces; optional node `owner_memory` diagnostics report those
+workspace allocations. Lowering `storage.requests` settings changes the request
+pool, while retained-owner limits remain fixed. These observations are not a
+total resident-memory measurement.

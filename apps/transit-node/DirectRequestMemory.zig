@@ -10,6 +10,18 @@ request_bytes: u32 = defaults.request_bytes,
 data: memory.Quota = .{ .limit = defaults.data_bytes },
 control: memory.Quota = .{ .limit = defaults.control_bytes },
 
+pub const Report = struct {
+    alloc_attempts: usize,
+    growing_resize_attempts: usize,
+    remap_attempts: usize,
+    acquired_bytes: usize,
+    live_bytes: usize,
+    peak_bytes: usize,
+    pub fn capture(probe: *const memory.AllocationProbe) Report {
+        return .{ .alloc_attempts = probe.counts.alloc_attempts, .growing_resize_attempts = probe.counts.growing_resize_attempts, .remap_attempts = probe.counts.remap_attempts, .acquired_bytes = probe.counts.acquired_bytes, .live_bytes = probe.live_bytes, .peak_bytes = probe.peak_bytes };
+    }
+};
+
 pub fn init(settings: Requests) !Self {
     try settings.validate();
     return .{ .request_bytes = settings.request_bytes, .data = .{ .limit = settings.data_bytes }, .control = .{ .limit = settings.control_bytes } };

@@ -98,6 +98,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
     return struct {
         const Self = @This();
         const Catalog = catalog.Catalog(PageStore);
+        const PrincipalEntry = struct { position: u64, catalog: catalog.Snapshot, authorization: core.authorization_store.Snapshot, value: Principal };
         journal: *Journal,
         page_store: *PageStore,
         genesis: Genesis,
@@ -105,6 +106,13 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         record_cache: catalog.RecordCache = .{},
         authorization_cache: catalog.RecordCache = .{},
         authorization_scans: catalog.PolicyScanCache = .{},
+        authorization_proofs: auth_ops.ProofCache = .{},
+        /// Pure principal projections at one exact immutable native head. This
+        /// never caches an operation's requirements, resource lifetime or fence.
+        principals: [4]?PrincipalEntry = @splat(null),
+        principal_slot: usize = 0,
+        principal_hits: u64 = 0,
+        principal_misses: u64 = 0,
         clock: ?core.Time.Source = null,
         /// Inject a fresh secure epoch at service startup. Volatile read pins
         /// cannot survive restart or replace retained durable read versions.
@@ -191,7 +199,19 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             return result;
         }
         pub fn principal(self: *Self, id: u64) !Principal {
-            return auth_ops.principal(self, id);
+            for (self.principals) |slot| if (slot) |known| {
+                if (known.position == self.head.position and known.value.grant.subject == id and
+                    std.meta.eql(known.catalog, self.head.catalog) and std.meta.eql(known.authorization, self.head.authorization))
+                {
+                    self.principal_hits +|= 1;
+                    return known.value;
+                }
+            };
+            self.principal_misses +|= 1;
+            const value = try auth_ops.principal(self, id);
+            self.principals[self.principal_slot] = .{ .position = self.head.position, .catalog = self.head.catalog, .authorization = self.head.authorization, .value = value };
+            self.principal_slot = (self.principal_slot + 1) % self.principals.len;
+            return value;
         }
         pub fn authorization(self: *Self) !core.authorization_store.Store(PageStore) {
             var store = try core.authorization_store.Store(PageStore).open(self.page_store, self.head.authorization);

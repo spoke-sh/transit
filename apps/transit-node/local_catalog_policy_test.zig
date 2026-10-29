@@ -167,13 +167,16 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
         host: *Host,
         engine: *Engine,
         configuration: D.Configuration,
+        control: bool = false,
+        memory: ?@import("DirectRequestMemory.zig").Report = null,
         fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: c.DirectTableProtocol.Request) ![]const u8 {
-            return self.host.execute(self.engine.journal.backend.io, self.engine, arena, output_allocator, request);
+            return self.host.executeMeasured(self.engine.journal.backend.io, self.engine, arena, output_allocator, request, self.control, &self.memory);
         }
     };
     var options = service.options;
     options.table_recovery = null;
     var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = options, .recovery = service.recovery_state.?.* };
+    defer host.deinit();
     var adapter: Adapter = .{ .host = &host, .engine = service.engine, .configuration = service.configuration };
     const action: c.DirectTableProtocol.Action = .{ .lookup = .{ .namespace = 1, .name = name } };
     const disk = service.engine.journal.backend.wal.disk.?;
@@ -181,12 +184,44 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
     const cold = try dispatch(&adapter, action);
     defer cold.deinit();
     const cold_frames = disk.read_frames - before;
+    const cold_memory = adapter.memory.?;
     const warmed = disk.read_frames;
     const warm = try dispatch(&adapter, action);
     defer warm.deinit();
     const warm_frames = disk.read_frames - warmed;
     try t.expectEqualDeep(cold.value, warm.value);
     try t.expect(warm_frames < cold_frames);
+    // Reusing declaration/index backing reduces allocations, while temporary
+    // guard/record decoding and schema encoding still allocate per request.
+    try t.expect(adapter.memory.?.acquired_bytes < cold_memory.acquired_bytes);
+    try t.expectEqual(cold_memory.live_bytes, adapter.memory.?.live_bytes);
+    try t.expect(adapter.memory.?.live_bytes > 0);
+    // A different serialized workspace advances the same real Table log.
+    // The live cache must refresh, without losing the retained original cut.
+    const metadata = cold.value.result.lookup.?;
+    const pinned = try dispatch(service, .{ .pin = .{ .object = metadata.interpretation.interpretation.object, .owner = .{ .scope = service.configuration.scope, .principal = 101, .operation = 90001 }, .expected = metadata.position } });
+    defer pinned.deinit();
+    {
+        var bounded: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = options, .recovery = service.recovery_state.?.* };
+        defer bounded.deinit();
+        bounded.resident_memory.data.limit = 1;
+        var limited: Adapter = .{ .host = &bounded, .engine = service.engine, .configuration = service.configuration };
+        try t.expectError(error.StorageQuota, dispatch(&limited, action));
+        try t.expectEqual(0, bounded.resident_memory.data.used.load(.acquire));
+        limited.control = true;
+        const original = try dispatch(&limited, .{ .pin_status = .{ .object = metadata.interpretation.interpretation.object, .owner = pinned.value.result.pin.owner } });
+        defer original.deinit();
+        try t.expectEqualDeep(pinned.value.result.pin, original.value.result.pin_state.handle.?);
+        try t.expect(bounded.resident_memory.control.used.load(.acquire) > 0);
+    }
+    const refreshed = try dispatch(&adapter, action);
+    defer refreshed.deinit();
+    try t.expectEqual(metadata.position.next_lsn + 1, refreshed.value.result.lookup.?.position.next_lsn);
+    try t.expectEqual(metadata.changed_lsn, refreshed.value.result.lookup.?.changed_lsn);
+    const snapshot = try dispatch(&adapter, .{ .snapshot = .{ .object = metadata.interpretation.interpretation.object, .handle = pinned.value.result.pin } });
+    defer snapshot.deinit();
+    const released = try dispatch(service, .{ .release = .{ .object = metadata.interpretation.interpretation.object, .handle = pinned.value.result.pin } });
+    defer released.deinit();
     // The name selects only a volatile slot. Its retained root cannot preserve
     // disclosure rights after the actual native object's owner is replaced.
     _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = 0 } });
@@ -194,7 +229,8 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
     _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(native_table), .owner = owner_role } });
     const restored = try dispatch(&adapter, action);
     defer restored.deinit();
-    try t.expectEqualDeep(cold.value.result, restored.value.result);
+    try t.expectEqualDeep(metadata.interpretation, restored.value.result.lookup.?.interpretation);
+    try t.expectEqual(metadata.position.next_lsn + 2, restored.value.result.lookup.?.position.next_lsn);
     std.debug.print("Name lookup WAL frames: cold {d}, warm {d}; revocation rechecked.\n", .{ cold_frames, warm_frames });
 }
 
@@ -1095,6 +1131,7 @@ const PhysicalPause = struct {
 fn physicalFlush(engine: *Engine, catalog: *D, policy: *Policy, name: c.TableAuthority.Name, expected: c.storage.TablePartition.Evidence, retained: c.storage.TablePartition.SnapshotHandle) !void {
     const Work = @import("LocalTableMaintenance.zig");
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
+    defer host.deinit();
     var work: Work = .{ .host = &host, .allocator = t.allocator };
     const settings: p.Storage.Maintenance = .{ .flush = .{ .enabled = true } };
     const request: g.Request = .{ .realm = 42, .principal = 0, .sequence = (try engine.principal(0)).sequence + 1, .command = .checkpoint };
@@ -1218,6 +1255,7 @@ fn physicalMaintenance(engine: *Engine, catalog: *D, policy: *Policy, expected: 
     }
     try t.expect(before.items.len >= 4);
     var host: @import("LocalTableHost.zig") = .{ .configuration = catalog.store.root.configuration, .registrar = .{ .principal = 0, .key = try key(17), .role = null }, .options = catalog.options, .recovery = try catalog.recoveryState() };
+    defer host.deinit();
     var allocations: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
     var work: Work = .{ .host = &host, .allocator = allocations.allocator() };
     const settings: p.Storage.Maintenance = .{

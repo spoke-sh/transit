@@ -92,16 +92,29 @@ the same signed direct operations. The [catalog caller guide](../../packages/zig
 describes the typed operations and host boundary; the [SDK reference](../../docs/handbook/reference/sdks.md)
 owns language coverage.
 
-`LocalTableHost` validates the complete catalog history before readiness and
-retains one owned root/chain value across its request lanes. Each request checks
-that accepted boundary, current directory roots and any newer records before
-using the catalog. The value holds no grants or response buffers; signed native
-authorization and final disclosure checks remain current. Object-scoped requests
-and automatic flushing also reuse up to 64 validated Table root/chain hints,
-rechecking the accepted boundary and newer history on every open. Lock-stripe
-collisions evict volatile hints; they do not limit durable Table count or release
-pins. A failed request clears its Table hint. Replacement repeats full recovery.
-See the [catalog recovery guide](../../packages/zig/transit-catalog/docs/direct-catalog.md#bounds-and-remaining-integration)
+`LocalTableHost` validates the complete catalog history before readiness. It
+retains up to ten ordinary and two reserved control workspaces, each containing
+one Catalog and at most one Table owner. The owners retain verified immutable
+index pages and owned declarations. Every acquisition checks the current log
+frontier; a changed frontier validates the saved boundary and every newer
+record before serving the request. A different Table replaces only the volatile
+workspace, preserving durable pins, receipts and pending work.
+
+Retained owners and their private work share a 256 MiB ordinary allowance and a
+separate 64 MiB control allowance, with per-owner limits of 128 MiB and 64 MiB,
+respectively. Parsing and held responses keep their existing separate request
+budgets. These bounds exclude provider caches, fixed owner metadata and I/O
+buffers. Exhaustion returns `StorageQuota` or `ControlCapacity`. Optional work
+diagnostics report `owner_memory` separately from `request_memory`, including
+allocation attempts and retained/peak bytes; moving allocations into an owner
+does not make them disappear from measurement.
+
+Signed native authorization and final disclosure checks remain current. A failed
+request destroys its borrowed workspace and clears its Table recovery hint.
+Automatic maintenance and cold workspaces can reuse at most 64 validated Table
+root/chain hints. Replacement joins all borrowers, destroys their caches and
+repeats full recovery. See the
+[catalog recovery guide](../../packages/zig/transit-catalog/docs/direct-catalog.md#bounds-and-remaining-integration)
 for the immutable-history assumption and failure boundaries.
 
 Command signatures do not encrypt traffic or authenticate response transport.

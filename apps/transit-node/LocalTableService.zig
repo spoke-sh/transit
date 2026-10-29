@@ -17,8 +17,41 @@ options: D.Options = .{},
 /// Request-owned copy of the live host's validated catalog prefix. It contains
 /// no policy, native owner, result buffer, or borrowed request allocation.
 recovery_state: ?*D.RecoveryState = null,
+resident: ?*Resident = null,
 /// Inject a real authority change after response serialization in fault proofs.
 before_reply: ?struct { context: *anyopaque, run: *const fn (*anyopaque, *backend.DataAuthority.Engine) anyerror!void } = null,
+
+/// One exclusively borrowed request workspace. Providers and retained owners
+/// share this stable allocation; no policy, request scratch or result is kept.
+pub const Resident = struct {
+    allocator: std.mem.Allocator,
+    memory: @import("transit_memory").Budget,
+    probe: @import("transit_memory").AllocationProbe,
+    control: backend.DataStore,
+    data: backend.DataStore,
+    catalog: D,
+    table: ?D.CachedTable = null,
+
+    pub fn create(allocator: std.mem.Allocator, memory: @import("transit_memory").Budget, owner: *backend.Backend, configuration: D.Configuration, options: D.Options, prior: D.RecoveryState) !*Resident {
+        const self = try allocator.create(Resident);
+        errdefer allocator.destroy(self);
+        self.* = .{ .allocator = allocator, .memory = memory, .probe = .{ .parent = allocator }, .control = .{ .backend = owner, .control = true }, .data = .{ .backend = owner }, .catalog = undefined };
+        self.memory.parent = self.probe.allocator();
+        var cached_options = options;
+        cached_options.table_owner = &self.table;
+        self.catalog = D.init(self.memory.allocator(), configuration, self.control.log(), self.control.objects(), self.data.log(), self.data.objects(), cached_options) catch |err| return if (err == error.OutOfMemory and self.memory.exhausted) error.TableResidentCapacity else err;
+        errdefer self.catalog.deinit();
+        self.catalog.recoverSince(prior) catch |err| return if (err == error.OutOfMemory and self.memory.exhausted) error.TableResidentCapacity else err;
+        return self;
+    }
+    pub fn destroy(self: *Resident) void {
+        if (self.table) |*cached| cached.table.deinit();
+        self.catalog.deinit();
+        std.debug.assert(self.memory.used == 0);
+        const allocator = self.allocator;
+        allocator.destroy(self);
+    }
+};
 
 /// Temporary results borrow the work arena. The caller owns the separately
 /// allocated response and may destroy the arena before sending it. The final
@@ -41,8 +74,13 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, output_allocator: s
     const owner = self.engine.journal.backend;
     var observation = self.engine.journal.observe;
     observation.metrics = .{};
-    var control: backend.DataStore = .{ .backend = owner, .control = true, .observe = observation };
-    var data: backend.DataStore = .{ .backend = owner, .observe = observation };
+    var request_control: backend.DataStore = .{ .backend = owner, .control = true };
+    var request_data: backend.DataStore = .{ .backend = owner };
+    const control = if (self.resident) |resident| &resident.control else &request_control;
+    const data = if (self.resident) |resident| &resident.data else &request_data;
+    if (control.backend != owner or data.backend != owner) return error.InvalidTableOwner;
+    control.observe = observation;
+    data.observe = observation;
     // These request-owned adapters borrow the lane's trace context, not its
     // counters. Merge their completed attempts even when execution fails.
     defer inline for (@typeInfo(@TypeOf(observation.metrics)).@"struct".field_names) |name| {
@@ -51,16 +89,25 @@ pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, output_allocator: s
     };
     // Recovery, page owners and encoding scratch must actually release their
     // allocations when their scopes end. Only returned values borrow the arena.
-    var catalog = try D.init(arena.child_allocator, self.configuration, control.log(), control.objects(), data.log(), data.objects(), self.options);
-    defer catalog.deinit();
-    if (self.recovery_state) |prior| try catalog.recoverSince(prior.*) else try catalog.recover();
+    var request_catalog: ?D = null;
+    defer if (request_catalog) |*catalog| catalog.deinit();
+    const catalog = if (self.resident) |resident| blk: {
+        resident.catalog.options.table_recovery = self.options.table_recovery;
+        try resident.catalog.store.refresh();
+        break :blk &resident.catalog;
+    } else blk: {
+        request_catalog = try D.init(arena.child_allocator, self.configuration, control.log(), control.objects(), data.log(), data.objects(), self.options);
+        const catalog = &request_catalog.?;
+        if (self.recovery_state) |prior| try catalog.recoverSince(prior.*) else try catalog.recover();
+        break :blk catalog;
+    };
     // Preserve fully accepted progress even when final disclosure is denied.
     // An uncertain append leaves recovery required and cannot advance this hint.
     defer if (self.recovery_state) |prior| {
         if (catalog.recoveryState()) |known| prior.* = known else |_| {}
     };
     if (request.lease) |lease| try catalog.requireClientLease(lease, policy.policy());
-    const result = try c.DirectTableDispatch.apply(allocator, &catalog, policy.policy(), request.action, request.delegation, .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource });
+    const result = try c.DirectTableDispatch.apply(allocator, catalog, policy.policy(), request.action, request.delegation, .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource });
     const observed = try policy.observation();
     const output = try c.protocol.Json.valueAllocBounded(output_allocator, w.Response{ .definition = c.protocol.Growth.current_definition, .context = context, .policy_revision = observed.revision, .subject = observed.subject, .result = result }, w.max_response_bytes);
     errdefer output_allocator.free(output);

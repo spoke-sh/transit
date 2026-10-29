@@ -286,6 +286,9 @@ fn available(self: *Self, observer: *g.Client, deadline: Deadline, comptime func
     }
 }
 pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.OperationRecords.Operation {
+    return self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, true);
+}
+fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, wake: bool) !g.OperationRecords.Operation {
     try deadline.check(self.io);
     try self.available(observer, deadline, Self.fence, .{ self, observer });
     table.lease = self.lease();
@@ -317,16 +320,51 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
         return err;
     };
     operation.* = receipt.position.next_lsn;
-    self.notify();
+    if (wake) self.notify();
     return try self.execution.operationFromState(c.DirectClientToken.Progress.initial(receipt));
+}
+/// Submit through the same durable token owner and attempt bounded foreground
+/// DML completion. Interrupted work remains pending under its original identity;
+/// background recovery is always notified, including after a lost bind reply.
+pub fn submit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64) !g.session_protocol.Operation {
+    defer self.notify();
+    const item = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, false);
+    var source = try observer.source();
+    const state = try self.available(observer, deadline, g.Client.Source.operation, .{ &source, item.id });
+    try requireRoute(state, table, statement.namespace);
+    if (try self.foreground(observer, table, state, deadline)) |terminal|
+        return self.project(state, terminal, null);
+    return self.status(allocator, observer, table, statement.namespace, item.id);
+}
+fn requireRoute(state: c.DirectClientToken.Progress, table: *c.DirectTableClient, namespace: u64) !void {
+    const intent = state.receipt.binding.intent;
+    if (!std.meta.eql(intent.connection(), table.connection) or intent.namespace() != namespace) return error.GatewayCatalogDenied;
+}
+fn foreground(self: *Self, observer: *g.Client, table: *c.DirectTableClient, state: c.DirectClientToken.Progress, deadline: Deadline) !?g.Terminal {
+    const intent = state.receipt.binding.intent;
+    if (!state.pending or state.cancel or intent != .table) return null;
+    switch (intent.table.binding.action) {
+        .insert, .update, .delete => {},
+        else => return null,
+    }
+    // Every call carries the activation lease fixed by admission. Concurrent
+    // background execution can only resolve/apply this exact frozen reference.
+    // Only the owner's freshly authorized terminal response supplies the counts.
+    const response = try self.available(observer, deadline, c.DirectTableClient.call, .{ table.*, c.DirectTableProtocol.Action{ .commit_saved = intent.table } });
+    defer response.deinit();
+    return g.Terminal.fromReference(intent, response.value.result);
 }
 pub fn execute(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, deadline: Deadline, operation: *?u64) !struct { terminal: g.Terminal, completion: g.results.CommandCompletion } {
     var nonce: [16]u8 = undefined;
     try self.io.randomSecure(&nonce);
-    const item = try self.admit(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation);
+    defer self.notify();
+    const item = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, false);
     var source = try observer.source();
     const state = try self.available(observer, deadline, g.Client.Source.operation, .{ &source, item.id });
     const intent = state.receipt.binding.intent;
+    try requireRoute(state, table, statement.namespace);
+    if (try self.foreground(observer, table, state, deadline)) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = item.id }) };
+    self.notify();
     while (true) {
         try deadline.check(self.io);
         const response = try self.available(observer, deadline, c.DirectIntent.Reference.operation, .{ intent, table.*, .inspect, 1 });
@@ -341,13 +379,16 @@ pub fn status(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, ta
     var source = try observer.source();
     const state = try source.operation(id);
     const intent = state.receipt.binding.intent;
-    if (!std.meta.eql(intent.connection(), table.connection) or intent.namespace() != namespace) return error.GatewayCatalogDenied;
+    try requireRoute(state, table, namespace);
     const response = try intent.operation(table.*, .inspect, 1);
     defer response.deinit();
     const outcome = try g.Terminal.fromReference(intent, response.value.result);
     if (!state.pending and outcome == null) return error.MissingGatewayTerminal;
-    const command = try g.IntentReference.commandKind(intent);
-    const identity: g.results.Operation = .{ .account = self.execution.configuration.account, .id = id };
+    return self.project(state, outcome, if (response.value.result == .namespace_operation and response.value.result.namespace_operation == .operation) try response.value.result.namespace_operation.operation.diagnostic() else null);
+}
+fn project(self: *Self, state: c.DirectClientToken.Progress, outcome: ?g.Terminal, diagnostic: @FieldType(g.session_protocol.Operation, "diagnostic")) !g.session_protocol.Operation {
+    const command = try g.IntentReference.commandKind(state.receipt.binding.intent);
+    const identity: g.results.Operation = .{ .account = self.execution.configuration.account, .id = state.id() };
     const completion = if (outcome) |terminal| try terminal.completion(command, identity) else null;
-    return .{ .identity = identity, .command = command, .token = state.receipt.binding.key.token, .phase = if (completion != null) .terminal else .ready, .blocked = false, .cancellation_requested = state.cancel, .outcome = if (completion) |value| value.outcome else null, .matched = if (completion) |value| value.counts.?.matched else 0, .changed = if (completion) |value| value.counts.?.changed else 0, .diagnostic = if (response.value.result == .namespace_operation and response.value.result.namespace_operation == .operation) try response.value.result.namespace_operation.operation.diagnostic() else null };
+    return .{ .identity = identity, .command = command, .token = state.receipt.binding.key.token, .phase = if (completion != null) .terminal else .ready, .blocked = false, .cancellation_requested = state.cancel, .outcome = if (completion) |value| value.outcome else null, .matched = if (completion) |value| value.counts.?.matched else 0, .changed = if (completion) |value| value.counts.?.changed else 0, .diagnostic = diagnostic };
 }

@@ -13,6 +13,57 @@ const admin = core.authorization_admin;
 const RecordedChange = struct { change: admin.Change, begin: a.BeginIdentity };
 pub const realm: a.ObjectRef = .{ .kind = .realm, .id = 0 };
 
+/// Memoize only the mathematical signature check for an exact proof/key pair.
+/// This carries no rights, identity status, selected role or lifetime evidence.
+/// Authentication still loads the current principal and evaluates current policy.
+pub const ProofCache = struct {
+    const Entry = struct { proof: a.Proof, key: [32]u8 };
+    entries: [8]?Entry = @splat(null),
+    next: usize = 0,
+    hits: u64 = 0,
+    verifications: u64 = 0,
+    pub fn verify(self: *ProofCache, proof: a.Proof, key: [32]u8) !void {
+        for (self.entries) |slot| if (slot) |entry| {
+            if (std.meta.eql(entry.proof, proof) and std.mem.eql(u8, &entry.key, &key)) {
+                self.hits +|= 1;
+                return;
+            }
+        };
+        self.verifications +|= 1;
+        try proof.verify(key);
+        self.entries[self.next] = .{ .proof = proof, .key = key };
+        self.next = (self.next + 1) % self.entries.len;
+    }
+};
+
+test "domain proof cache binds complete claims signatures and public keys" {
+    const t = std.testing;
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(17));
+    const other = try p.Ed25519.KeyPair.generateDeterministic(@splat(29));
+    const proof = try a.Proof.sign(.{ .definition = g.current_definition, .realm = 1, .principal = 1, .credential_epoch = 1, .role = null, .audience = 2, .context = @splat(3) }, key);
+    var cache: ProofCache = .{};
+    try cache.verify(proof, key.public_key.toBytes());
+    try cache.verify(proof, key.public_key.toBytes());
+    try t.expectEqual(1, cache.verifications);
+    try t.expectEqual(1, cache.hits);
+    var changed = proof;
+    changed.claim.context[0] ^= 1;
+    if (cache.verify(changed, key.public_key.toBytes())) |_| return error.TestExpectedError else |_| {}
+    changed = proof;
+    changed.signature[0] ^= 1;
+    if (cache.verify(changed, key.public_key.toBytes())) |_| return error.TestExpectedError else |_| {}
+    if (cache.verify(proof, other.public_key.toBytes())) |_| return error.TestExpectedError else |_| {}
+    try t.expectEqual(1, cache.hits);
+    for (0..cache.entries.len) |i| {
+        var claim = proof.claim;
+        claim.context[0] = @intCast(10 + i);
+        try cache.verify(try a.Proof.sign(claim, key), key.public_key.toBytes());
+    }
+    const before = cache.verifications;
+    try cache.verify(proof, key.public_key.toBytes());
+    try t.expectEqual(before + 1, cache.verifications);
+}
+
 pub fn controlCommand(engine: anytype, command: a.Command) !bool {
     const action: a.Action = switch (command) {
         .begin => |value| value.action,
@@ -200,13 +251,18 @@ pub fn retireObject(engine: anytype, next: *growth.Head, reference: a.ObjectRef)
 }
 
 pub fn actor(engine: anytype, principal_id: u64, selected: ?u64) !admin.Actor {
-    const identity = try engine.principal(principal_id);
+    return selectActor(engine, try engine.principal(principal_id), selected);
+}
+
+// Authentication already loaded this principal from the current immutable
+// native head. Reuse that value for role selection within the same check.
+fn selectActor(engine: anytype, identity: growth.Principal, selected: ?u64) !admin.Actor {
     if (!identity.enabled) return error.Forbidden;
     const role = selected orelse identity.role;
     var store = try engine.authorization();
     var check = try core.authorization.Evaluator(@TypeOf(store)).init(&store, store.revision, engine.genesis.authorization_limits);
     if (!try check.canSet(identity.role, role)) return error.Forbidden;
-    return .{ .principal = principal_id, .role = role, .login_role = identity.role };
+    return .{ .principal = identity.grant.subject, .role = role, .login_role = identity.role };
 }
 
 /// The authority authenticates the original subject independently of the
@@ -226,8 +282,8 @@ pub fn authenticate(engine: anytype, subject: a.Subject, audience: u64) !a.Verif
     const identity = try engine.principal(claim.principal);
     if (!identity.enabled) return error.Forbidden;
     if (identity.credential_epoch != claim.credential_epoch) return error.StaleAuthorizationCredential;
-    if (subject == .signed) subject.signed.verify(identity.grant.public_key) catch return error.Forbidden;
-    const selected = try actor(engine, claim.principal, claim.role);
+    if (subject == .signed) engine.authorization_proofs.verify(subject.signed, identity.grant.public_key) catch return error.Forbidden;
+    const selected = try selectActor(engine, identity, claim.role);
     return .{ .principal = selected.principal, .login_role = identity.role, .role = selected.role, .credential_epoch = identity.credential_epoch, .audience = audience, .context = claim.context };
 }
 pub fn guard(engine: anytype, value: a.Guard, audience: u64) !a.Verified {

@@ -41,6 +41,15 @@ prevents an older inventory item from removing its latest marker. Creation holds
 a shared reclamation fence until publication finishes. Inventory markers, queue
 records and object files all consume the physical quota and control reserve;
 even deduplicated reuse can fail quota when it requires a newer epoch record.
+The exclusive live owner remembers at most 64 completed immutable publications
+and their exact key, content and storage epoch. Reuse checks the current object
+descriptor and epoch; a match avoids repeating already acknowledged inventory
+and object synchronization. Only successful completion populates this cache.
+An uncertain publication, a new epoch or owner replacement must establish all
+barriers again. The creation fence excludes collection during this check, and
+collection cannot reclaim allocations from the current epoch. This optimization
+assumes immutable content remains unchanged during exclusive ownership, like the
+verified page caches; it does not continuously detect historical corruption.
 This inventory supplies no reachability or deletion authority. Its mandatory
 directory is created only for a fresh current-definition installation; missing
 history rejects on reopen instead of being reset.

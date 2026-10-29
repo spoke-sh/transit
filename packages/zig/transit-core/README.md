@@ -27,6 +27,21 @@ The local backend uses this to avoid competing native candidates. Explicit
 `prepare`/`commit` remains optimistic; every path retains conditional publication
 and current authorization. The engine owns no scheduling lock or provider policy.
 
+Each engine keeps at most eight successful domain-proof/public-key pairs to
+reuse their mathematical signature verification. Every authentication still
+uses current credential and role state, checks the credential epoch and selected
+role, and evaluates current permissions and lifetimes. The cache contains no
+authorization decision; a changed claim, signature or key requires verification.
+Replacement starts with an empty cache.
+
+Four principal projections can also be retained at an exact native head, bound
+to its position and complete Catalog and policy snapshots. Any accepted change
+invalidates reuse, including sequence advancement, revocation, role changes and
+credential rotation. This saves repeated decoding and realm/process permission
+walks within one immutable head. It does not retain operation permission checks,
+SET-role decisions or resource lifetime observations across requests; those still
+run against current authority and time.
+
 Retention defaults to unlimited. Resource history policy, finite lifetimes,
 working metadata collection and authority-prefix trimming are separate opt-ins.
 Pending work, live dependencies, retained read versions and uncertain effects

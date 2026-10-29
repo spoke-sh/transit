@@ -49,8 +49,16 @@ Single-partition DML uses `commit_saved`: the partition evaluates the complete
 frozen intent and publishes its rows, indexes and outcome in one `TWAL1` append.
 `commit_saved` resolves an original receipt before execution, so ordinary DML
 recovery calls it directly without an additional pre-commit inspection request.
-The pending record supplies the original frozen reference and current
-cancellation state. An uncertain reply still leaves accepted work with the
+`DatabaseRuntime.submit` and the synchronous wire execution path attempt that
+same operation in the submitting request, within the existing statement and
+native request budgets. A successful foreground response projects the freshly
+authorized owner outcome directly, without waiting for background enumeration
+or another status RPC. The pending record supplies the original frozen reference
+and current cancellation state. Background recovery is notified after the
+foreground attempt, including failure or lost acknowledgement, and separately
+settles the Catalog pending index. It may race the foreground attempt; both use
+the identical frozen reference and resolve the same owner receipt. Terminal
+completion does not claim that pending-accounting cleanup has already finished. An uncertain reply still leaves accepted work with the
 recovery owner. Status and lookup remain observation-only, and disclosure
 retains current authorization.
 
@@ -66,7 +74,13 @@ Catalog recovery slots per connection route. A read checks the current definitio
 frontier, then borrows an unchanged cut without another pin or durable slot
 write. Every page and buffered disclosure still checks current authorization.
 A cold acquisition records its exact owner and expected cut before acquiring the
-pin; a missing reply never permits substituting a new cut. Reuse is bounded by
+pin; a missing reply never permits substituting a new cut. Before an iterator or
+result exists, a pin conflict permits another acquisition attempt only after
+`pin_status` proves the original owner absent at a strictly later frontier. The
+old exact request cannot then succeed, even if delayed. The service records its
+closure, rechecks the same Table definition and tries a fresh acquisition, with
+at most four attempts. An existing pin, uncertain observation, definition change
+or exhausted bound ends preparation without switching an accepted cut. Reuse is bounded by
 cache capacity; active borrows cannot be evicted. Idle entries can be replaced,
 and a new generation closes original pins using their recorded identities.
 Closing a result releases its borrow; it need not release the cached durable pin.

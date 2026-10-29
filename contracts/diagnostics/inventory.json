@@ -2299,7 +2299,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 60,
+        "try": 62,
         "catch": 3
       },
       "imports": [
@@ -3409,7 +3409,7 @@
         "CatalogObjectBusy": 1,
         "CatalogObjectMissing": 1,
         "CatalogObservationChanged": 1,
-        "CatalogRegistrationRequired": 7,
+        "CatalogRegistrationRequired": 8,
         "ClientOperationConflict": 2,
         "ClientOperationMissing": 4,
         "ClientOperationPending": 6,
@@ -3637,7 +3637,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 875,
+        "try": 877,
         "catch": 11
       },
       "imports": [
@@ -4083,7 +4083,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 179,
+        "try": 180,
         "catch": 1
       },
       "imports": [
@@ -20883,7 +20883,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 123,
+        "try": 122,
         "catch": 9
       },
       "imports": [
@@ -21270,6 +21270,7 @@
         "ReadSources.resolve()": "anyerror",
         "activate()": "<inferred>",
         "admit()": "<inferred>",
+        "admitWithWake()": "<inferred>",
         "advance()": "<inferred>",
         "attachReadCache()": "<inferred>",
         "available()": "<inferred>",
@@ -21277,17 +21278,21 @@
         "cleanupClient()": "<inferred>",
         "execute()": "<inferred>",
         "fence()": "<inferred>",
+        "foreground()": "<inferred>",
         "init()": "<inferred>",
         "lookup()": "<inferred>",
+        "project()": "<inferred>",
+        "requireRoute()": "<inferred>",
         "resumeOperation()": "<inferred>",
         "status()": "<inferred>",
+        "submit()": "<inferred>",
         "tick()": "<inferred>",
         "waitIdle()": "<inferred>",
         "waitProgress()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 72,
+        "try": 83,
         "catch": 8
       },
       "imports": [
@@ -21413,11 +21418,12 @@
     "packages/zig/transit-sql/src/ReadCache.zig": {
       "errors": {
         "CatalogIdentityConflict": 2,
+        "Conflict": 1,
         "IncompatibleDefinition": 1,
         "InvalidSqlReadRecovery": 9,
         "SqlReadLeaseCapacity": 1,
         "StaleGatewayCoordinator": 1,
-        "TableDefinitionChanged": 2,
+        "TableDefinitionChanged": 3,
         "TableSnapshotNotPinned": 1
       },
       "outcomes": {
@@ -21443,8 +21449,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
-        "catch": 0
+        "try": 40,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -27039,7 +27045,7 @@
         "LostAcknowledgement": 1,
         "MissingTableInterpretation": 2,
         "OutOfMemory": 3,
-        "PrivateTableWorkspace": 2,
+        "PrivateTableWorkspace": 3,
         "QueryConflict": 1,
         "QueryTypeError": 2,
         "StorageCandidateTooLarge": 1,
@@ -27196,6 +27202,7 @@
         "recover()": "<inferred>",
         "recoverSince()": "<inferred>",
         "recoveryState()": "<inferred>",
+        "refresh()": "<inferred>",
         "releaseSnapshot()": "<inferred>",
         "reply()": "<inferred>",
         "requireAdmissionBasis()": "<inferred>",
@@ -27232,7 +27239,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 626,
+        "try": 630,
         "catch": 16
       },
       "imports": [

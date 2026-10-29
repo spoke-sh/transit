@@ -20,6 +20,13 @@ Credential and scope denial are checked before waiting for account recovery
 readiness, so revocation is reported even when it also stops background recovery.
 Readiness and activation fencing still gate execution.
 
+Native SQL and the database wire adapters attempt accepted INSERT, UPDATE and
+DELETE in the submitting request. Successful responses carry the owner's verified
+terminal outcome and matched/changed counts. Background recovery retains the
+original token and frozen intent after interruption and settles pending accounting
+separately. Status remains observation-only; ordinary retries never recompile
+accepted SQL against later data.
+
 `ConfigurationOperations` records the original reload identity and expected
 configuration generation in Catalog before dispatch. `CapturedOperations` stages
 a complete compiled bundle and publishes each complete signed Query request

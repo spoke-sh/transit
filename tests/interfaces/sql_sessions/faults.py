@@ -16,6 +16,11 @@ class Faults:
         self.fail_open = False
         self.fail_once = False
         self.fail_snapshot_once = False
+        self.before_pin_once = None
+        self.lose_pin_conflict_once = False
+        self.record_pins = False
+        self.pin_attempts = []
+        self.pin_states = []
         self.fail_coordinator = None
         self.fail_source_once = None
         self.fail_result_once = None
@@ -37,6 +42,15 @@ class Faults:
                 envelope = request.get('query', {})
                 query = envelope.get('kind', {})
                 table = request.get('action', {}) if self.path == '/table/v1' else {}
+                before_pin = None
+                with owner.lock:
+                    if 'pin' in table:
+                        before_pin, owner.before_pin_once = owner.before_pin_once, None
+                        if owner.record_pins:
+                            owner.pin_attempts.append(dict(owner=table['pin']['owner'], expected=table['pin']['expected']))
+                            del owner.pin_attempts[:-8]
+                if before_pin is not None:
+                    before_pin()
                 configuration = request.get('configuration', {}) if self.path == '/configuration/v1' else {}
                 action = configuration.get('action', {})
                 stage = ('authorize' if self.path == '/v1/query' else
@@ -61,8 +75,8 @@ class Faults:
                 publication = query.get('read_entries', {})
                 result_failure = owner.fail_result_once == (envelope.get('principal'), publication.get('resource')) and any(isinstance(key, str) and key.startswith('005000000003') for key in publication.get('keys', []))
                 # Metadata is a pure observation and may be retried before any
-                # acquisition. A failed pin must preserve its original journal
-                # identity for cleanup, never silently capture another cut.
+                # acquisition. An uncertain pin must preserve its original
+                # journal identity; only proven absence permits new preparation.
                 metadata_failure = owner.fail_once and 'lookup' in table
                 acquisition_failure = owner.fail_open and 'pin' in table
                 snapshot_failure = owner.fail_snapshot_once and 'snapshot' in table
@@ -91,12 +105,22 @@ class Faults:
                 # Lose a successful data-owner reply after it has reached the
                 # proxy. The service must recover this original frozen request.
                 with owner.lock:
+                    if owner.record_pins and 'pin_status' in table and status == 200:
+                        state = json.loads(body)['result']['pin_state']
+                        owner.pin_states.append(dict(owner=table['pin_status']['owner'], position=state['position'], retained=state['handle'] is not None))
+                        del owner.pin_states[:-8]
+                    lose_pin = owner.lose_pin_conflict_once and 'pin' in table and status == 200
+                    if lose_pin:
+                        owner.lose_pin_conflict_once = False
                     lose_commit = owner.fail_commit_once and 'commit_saved' in table and status == 200
                     if lose_commit:
                         owner.fail_commit_once = False
                         owner.commit_reply_losses += 1
                 if lose_commit:
                     status, body = 503, b'{"err":"HttpCapacity"}'
+                    content_type = 'application/json'
+                if lose_pin:
+                    status, body = 409, b'{"err":"Conflict"}'
                     content_type = 'application/json'
                 if settings_failure is not None:
                     code = settings_failure['code']
@@ -208,6 +232,43 @@ class Faults:
         result = client.execute('SELECT id FROM native_sessions')['batch']
         assert result['rows']
         client.call(dict(close_result=result['cursor']))
+
+    def check_pin_race(self, client, writer):
+        def write(sql):
+            outcome = writer.terminal(writer.execute(sql, list(os.urandom(16)))['operation'])
+            assert outcome['matched'] == outcome['changed'] == 1, outcome
+        write('INSERT INTO native_sessions VALUES (997, 1)')
+        self.record_pins = True
+        self.pin_attempts, self.pin_states = [], []
+        self.before_pin_once = lambda: write('INSERT INTO native_sessions VALUES (996, 2)')
+        try:
+            result = client.execute('SELECT id FROM native_sessions')['batch']
+            expected = {(b'\x03' + value.to_bytes(8, 'little', signed=True)).hex() for value in (1, 996, 997)}
+            assert result['complete'] and {row[0] for row in result['rows']} == expected, result
+            assert len(self.pin_attempts) == 2, self.pin_attempts
+            first, second = self.pin_attempts
+            assert first['owner'] != second['owner']
+            assert any(item['owner'] == first['owner'] and not item['retained'] and
+                       item['position']['partition'] == first['expected']['partition'] and
+                       item['position']['next_lsn'] > first['expected']['next_lsn'] for item in self.pin_states), self.pin_states
+            assert client.call(dict(fetch=dict(cursor=result['cursor'], batch=result['batch'])))['batch'] == result
+            client.call(dict(close_result=result['cursor']))
+            write('DELETE FROM native_sessions WHERE id = 997')
+            write('DELETE FROM native_sessions WHERE id = 996')
+            self.pin_attempts, self.pin_states = [], []
+            self.lose_pin_conflict_once = True
+            client.call(dict(execute=dict(sql='SELECT id FROM native_sessions')), error='Conflict')
+            assert not self.lose_pin_conflict_once and self.pin_attempts, self.pin_attempts
+            # Background cleanup may resolve the original unknown handle before
+            # releasing it. Every acquisition must still carry that same owner
+            # and exact frontier; an RPC count would reject legitimate cleanup.
+            assert all(item == self.pin_attempts[0] for item in self.pin_attempts), self.pin_attempts
+            assert any(item['owner'] == self.pin_attempts[0]['owner'] and item['retained'] for item in self.pin_states), self.pin_states
+            print('Snapshot preparation: raced unaccepted pin is proven absent before reacquisition; a lost accepted pin reply never switches identity.', flush=True)
+        finally:
+            self.record_pins = False
+            self.before_pin_once = None
+            self.lose_pin_conflict_once = False
 
     def close(self):
         self.server.shutdown()

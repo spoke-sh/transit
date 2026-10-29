@@ -745,6 +745,33 @@ test "original subject proofs bind context and current guards fence every source
     try t.expectEqual(@as(u64, 1), (try f.engine.process(pid)).consumed);
 }
 
+test "principal projections bind native head sequence policy and replacement" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const first = try f.engine.principal(0);
+    const before = f.engine.principal_misses;
+    try t.expectEqualDeep(first, try f.engine.principal(0));
+    try t.expectEqual(before, f.engine.principal_misses);
+    _ = try f.root(.{ .spawn = .{} });
+    const next = try f.engine.principal(0);
+    try t.expectEqual(first.sequence + 1, next.sequence);
+    const role = (try f.authorization(.{ .create_role = .{ .name = try core.Value.init("cached-reader"), .login = true } })).?;
+    _ = try f.authorization(.{ .bind_credential = .{ .principal = 65536, .role = role, .public_key = f.worker_key.public_key.toBytes() } });
+    _ = try f.authorization(.{ .grant = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = role, .privileges = core.permission(.inspect) } });
+    const allowed = try f.engine.principal(65536);
+    try t.expect(allowed.enabled and allowed.grant.permissions & core.permission(.inspect) != 0);
+    try t.expectEqualDeep(allowed, try f.engine.principal(65536));
+    _ = try f.authorization(.{ .revoke_privileges = .{ .object = .{ .kind = .realm, .id = 0 }, .grantee = role, .privileges = core.permission(.inspect) } });
+    try t.expectEqual(0, (try f.engine.principal(65536)).grant.permissions & core.permission(.inspect));
+    _ = try f.authorization(.{ .disable_credential = .{ .principal = 65536, .expected_epoch = allowed.credential_epoch } });
+    try t.expect(!(try f.engine.principal(65536)).enabled);
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    const misses = f.engine.principal_misses;
+    try t.expect(!(try f.engine.principal(65536)).enabled);
+    try t.expectEqual(misses + 1, f.engine.principal_misses);
+}
+
 test "authorization inspection cursors bind caller scope and current policy revision" {
     var f: Fixture = .{};
     defer f.deinit();

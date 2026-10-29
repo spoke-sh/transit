@@ -428,6 +428,17 @@ pub fn recoveryState(self: *Self) !RecoveryState {
     return .{ .root = self.root, .chain = self.chain };
 }
 
+/// A live serialized owner retains its verified immutable pages and declaration.
+/// Other owners and physical maintenance can advance the log; validate that
+/// successor from our checked prefix before using the resident state. Replacement
+/// still starts with recovery, and uncertain publication poisons this owner.
+pub fn refresh(self: *Self) !void {
+    if (self.workspace) return error.PrivateTableWorkspace;
+    try self.ready();
+    if (try self.log.tail(self.root.partition) != self.root.next_lsn)
+        try self.recoverSince(try self.recoveryState());
+}
+
 /// Revalidate a previously checked boundary, then replay only its successors.
 /// A newer accepted checkpoint supersedes an older hint. New storage owners
 /// always use recover(); neither this hint nor recovery authorizes disclosure.

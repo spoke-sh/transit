@@ -236,9 +236,12 @@ recovery can advance the shared prefix; a failed uncertain append cannot export
 newer state. The next request resolves that suffix from the last validated
 prefix. Final native authorization remains independent of catalog recovery.
 
-For an unchanged nonempty catalog, this path reads one log boundary instead of
-the complete prefix and its referenced operations. Directory-root checks and
-the requested operation still require storage work. Constant retained cache
+A cold request workspace reads one log boundary instead of the complete prefix
+and its referenced operations. A retained `DirectCatalogStore` checks its live
+log tail; when unchanged, it preserves its verified root and index pages without
+reading that boundary again. A changed tail uses `recoverSince` before the next
+operation. Directory-root checks on recovery and the requested operation still
+require storage work. Constant retained cache
 size does not establish constant operation cost, Table recovery cost or restart
 time. A replacement owner always replays the full retained catalog. Reuse trusts
 previously validated interior frames during the live owner's lifetime; it is
@@ -292,13 +295,62 @@ forces eviction and name changes; the
 [native policy schedule](../../../apps/transit-node/local_catalog_policy_test.zig)
 checks revocation after buffering with a warm hint, and compares cold/warm name
 lookups through the host before replacing the native object's owner. These are component and
-composition checks, not a measured end-to-end speedup. Increasing page capacity
-alone would not remove repeated history validation; retaining complete Table
-owners could additionally reuse pages but requires separate allocator, lifetime
-and memory accounting. Prefix reuse deliberately retains no request allocator
-or provider handle.
+composition checks, not a measured end-to-end speedup. Prefix hints retain no
+request allocator or provider handle.
+
+The host also owns ten ordinary and two reserved control workspaces. Each
+[`LocalTableService.Resident`](../../../apps/transit-node/LocalTableService.zig)
+retains one catalog and at most one Table, including owned declaration, index
+pages and segment buffers. A free workspace is borrowed exclusively; the
+existing directory and Table locks still order operations. Its stable allocator
+and provider contexts outlive every borrowed view. Matching the complete original
+seed and partition permits Table reuse. `TablePartition.refresh` checks the live
+log tail and validates a changed suffix before serving; changing Tables evicts
+only volatile state. Nested views move their owners out of the slot, so they
+cannot alias a mutable cached Table. Workspace destruction releases all retained
+allocations before backend replacement.
+
+Retained and temporary workspace allocations share an explicit budget: 256 MiB
+in aggregate for ordinary work, 64 MiB for control, and 128/64 MiB respectively
+per workspace. These bounds are separate from parsed request/response budgets.
+They cover dynamic workspace allocations; fixed host/owner structures, native
+provider page caches and I/O buffers have separate bounds and are excluded.
+Exhaustion refuses the request and discards its workspace; it cannot discard
+accepted data or consume the other pool's reserve. Failed requests, including
+uncertain publication and denied final disclosure, also discard the borrowed
+workspace. Every request obtains fresh native policy guards. The native policy
+schedule compares warm/cold lookups, observes externally appended pin/release
+records, reads a retained cut, and exercises control capacity after data quota
+exhaustion. Optional `owner_memory` diagnostics distinguish workspace allocation
+and retained bytes from request/response allocation.
+
+This reuse assumes accepted immutable content remains unchanged within the
+exclusive storage lifetime. It does not continuously rescan historical bytes.
+Full replacement recovery, suffix integrity checks and current authorization
+remain separate obligations. Persisted checkpoints can reduce replacement cost;
+retained owners reduce repeated live reads and allocation. Neither mechanism
+reduces the number of durable publications required by a new mutation.
 
 ### Optimistic current reads and retained cuts
+
+SQL's cold read preparation first observes a frontier and records an exact pin
+request. A concurrent row, pin or physical publication can advance that frontier
+before acquisition. [`ReadCache`](../../../packages/zig/transit-sql/src/ReadCache.zig)
+allows at most four preparation attempts, with a separate safety gate after a
+conflict: current `pin_status` must report no pin for the original owner and a
+strictly later frontier in the same partition. Monotonicity and exact pin matching
+then exclude both an earlier successful acquisition and any delayed future one.
+The service records closure before preparing another identity, and validates
+the original object and definition again. A retained pin, missing observation,
+changed definition or exhausted bound fails preparation. No iterator has opened
+at this point; an existing result never restarts or changes its cut.
+
+The [session fault schedule](../../../tests/interfaces/sql_sessions/faults.py)
+places a real concurrent INSERT between discovery and pinning, then checks the
+absence proof and exact result. Its complementary schedule replaces a successful
+pin reply with a conflict: inspection finds that original pin, and preparation
+must fail without substituting another identity. These schedules distinguish
+proven failed acquisition from an error response that follows acceptance.
 
 Can a caller read one row or traverse a stable Table without creating durable
 retention work? In the serialized local-owner model, `read_current` uses an
@@ -1654,6 +1706,16 @@ observe that outcome under current rights. Cancellation preserves an existing
 terminal decision. Retained snapshot roots remain valid after logical row removal.
 The separate token model captures first-reference wins across Tables; the row
 model captures selection conflicts and original-count recovery after later writes.
+
+Foreground `DatabaseRuntime.submit`/`execute` and background `advance` use the
+same `commit_saved` owner operation for non-cancelled DML. Scheduling that call
+inside the submitting request changes neither the split acceptance/commit model
+nor its original-identity guard. A foreground result is projected only from the
+owner's newly authorized terminal response. Pending accounting can settle later;
+interrupted submission always wakes recovery. Concurrent foreground/background
+attempts resolve the same receipt. The real native-session schedule checks direct
+terminal counts and a deleted operation retried after reinsertion; the lifecycle
+model abstracts scheduling and does not establish that request's latency.
 
 Atomic durable publication is an explicit assumption of this abstraction. For
 its use in an implementation, every published root must have either durable

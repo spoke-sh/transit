@@ -239,12 +239,18 @@ test "direct data creation sync failures never publish an object without durable
                 try owner.put(key, bytes, false);
                 schedules = Fault.calls;
                 try t.expect(schedules > 0 and schedules < 32);
+                Fault.calls = 0;
+                Fault.remaining = 1;
+                try owner.put(key, bytes, false);
+                try t.expectEqual(0, Fault.calls);
+                try t.expectEqual(1, Fault.remaining);
+                Fault.remaining = 0;
             } else {
                 try t.expectError(error.InputOutput, owner.put(key, bytes, false));
                 try t.expectEqual(@as(usize, 0), Fault.remaining);
             }
         }
-        var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+        var owner = try backend.Backend.open(t.allocator, io, tmp.dir, "native", .{});
         defer owner.deinit();
         if (try owner.objects.objectStore().head(key) != null) {
             try t.expectEqualDeep(wanted, (try owner.data_allocations.latest(wanted.name())).?);
@@ -252,7 +258,9 @@ test "direct data creation sync failures never publish an object without durable
             try t.expect(head.tail > 0);
             try t.expectEqualDeep(wanted, (try owner.data_allocations.at(head.tail - 1)).item.?);
         }
+        Fault.calls = 0;
         try owner.put(key, bytes, false);
+        try t.expect(Fault.calls > 0); // Reopen cannot inherit confirmation.
         try t.expectEqualDeep(wanted, (try owner.data_allocations.latest(wanted.name())).?);
         var output: [64]u8 = undefined;
         try t.expectEqualStrings(bytes, try owner.read(key, &output));
