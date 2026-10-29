@@ -5,6 +5,11 @@ state resource. An editor's tentative change, a mergeable candidate and an
 accepted revision are distinct states. The fenced writer and current resource
 policy still decide acceptance; mergeability never grants write permission.
 
+The [Document library](../../../packages/zig/transit-document/README.md) owns the
+deterministic change codec and merge evaluator independently of Station. The
+installed service supplies its immutable index, publication and acceptance
+boundary; extracting the evaluator does not change that service's lifecycle.
+
 Start with the [Document example](../../../examples/station-document/README.md) and
 [service guide](../../../packages/zig/transit-station-document/docs/service.md).
 The [shared-notebook recipe](../guides/workload-examples.md#share-an-incident-notebook-with-zig)

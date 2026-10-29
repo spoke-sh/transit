@@ -6,7 +6,8 @@ to `Client.Reference`. Query and language binding conversions share this type.
 
 Zig Station Document changes, structured merge and collaborative plain text for
 [Documents](../../../docs/handbook/reference/documents.md). Depends directly on `transit-station` for
-immutable publication/indexes; it does not depend on effect connectors.
+immutable publication/indexes and on [transit-document](../transit-document/README.md)
+for deterministic changes and merge evaluation. It does not depend on effect connectors.
 
 The [neutral v1 contract](../../../contracts/STATION_DOCUMENT_V1.md) fixes stable
 replica/operation identities, canonical changes, observed-remove map conflicts,

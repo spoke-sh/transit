@@ -1385,7 +1385,7 @@
       "claim": "Component schedules preserve Document accepted sets/floors, Exchange uncertainty/holds, query source and refresh ownership, and provider activation gates; catalog creation retains atomic metadata, original receipts and current policy",
       "owner": "docs/handbook/reference/verification.md",
       "implementation": [
-        "packages/zig/transit-station-document/src/merge_test.zig",
+        "packages/zig/transit-document/src/merge_test.zig",
         "packages/zig/transit-station-document/src/service_test.zig",
         "packages/zig/transit-exchange/src/exchange_test.zig",
         "packages/zig/transit-serving/src/refresh_test.zig",
@@ -2164,7 +2164,7 @@
       "owner": "docs/handbook/reference/documents.md",
       "implementation": [
         "packages/zig/transit-station-document/src/Service.zig",
-        "packages/zig/transit-station-document/src/Document.zig",
+        "packages/zig/transit-document/src/Document.zig",
         "packages/zig/transit-backend-local/src/Backend.zig",
         "tests/runtime/document/document.zig",
         "tests/runtime/document/document.py"

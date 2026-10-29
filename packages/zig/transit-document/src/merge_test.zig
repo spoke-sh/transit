@@ -2,33 +2,10 @@ const std = @import("std");
 const t = std.testing;
 const lib = @import("root.zig");
 const m = lib.Model;
-const Document = lib.Document;
-const Index = lib.station.ImmutableIndex;
-const Pub = lib.station.Publication;
-const Store = struct {
-    records: std.ArrayList([]const u8) = .empty,
-    fail_after: ?usize = null,
-    denied: bool = false,
-    fn deinit(self: *Store) void {
-        for (self.records.items) |bytes| t.allocator.free(bytes);
-        self.records.deinit(t.allocator);
-    }
-    pub fn save(self: *Store, spec: Pub.Spec, bytes: []const u8) !u64 {
-        if (self.fail_after) |n| if (self.records.items.len >= n) return error.StorageUnavailable;
-        try t.expectEqualDeep(spec, try Pub.Digest.of(Index.format, bytes));
-        const copy = try t.allocator.dupe(u8, bytes);
-        errdefer t.allocator.free(copy);
-        try self.records.append(t.allocator, copy);
-        return self.records.items.len;
-    }
-    pub fn load(self: *Store, ref: Index.Reference, buffer: []u8) ![]const u8 {
-        if (self.denied) return error.AccessDenied;
-        if (ref.id == 0 or ref.id > self.records.items.len) return error.SourceGap;
-        const bytes = self.records.items[@intCast(ref.id - 1)];
-        @memcpy(buffer[0..bytes.len], bytes);
-        return buffer[0..bytes.len];
-    }
-};
+const Index = @import("test_index.zig");
+const Document = lib.Document(Index);
+const Store = Index.Store;
+
 fn name(bytes: []const u8) !m.Name {
     return m.Name.init(bytes);
 }

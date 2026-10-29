@@ -3,9 +3,9 @@ const std = @import("std");
 const station = @import("transit_station");
 const p = station.protocol;
 const Service = @import("Service.zig");
-const Document = @import("Document.zig");
-const m = @import("Model.zig");
-const c = @import("codec.zig");
+const Document = @import("transit_document").Document(@import("transit_station").ImmutableIndex);
+const m = @import("transit_document").Model;
+const c = @import("transit_document").codec;
 const Self = @This();
 source: station.client.ResourceReader,
 pub const Identity = struct {
