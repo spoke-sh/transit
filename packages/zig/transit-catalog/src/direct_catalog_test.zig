@@ -3082,6 +3082,17 @@ test "transaction durable workspace recovers lost admission and outcome replies 
             defer view.deinit();
             try t.expectEqual(@as(u64, 0), view.table.root.live_rows);
             try t.expectEqual(@as(u64, 2), try wal.log().tail(view.table.root.partition));
+            var guard_arena = std.heap.ArenaAllocator.init(t.allocator);
+            defer guard_arena.deinit();
+            const guard_value = try access.dataGuard(guard_arena.allocator(), view.properties, 10);
+            var evaluator = try s.TableWorkspace.init(t.allocator, &view.table, state.begin, state.source, state, guard_value);
+            defer evaluator.deinit();
+            var key_buffer: [4096]u8 = undefined;
+            const row_key = try c.fuze.Collation.encodePrimaryKeySortKey(view.table.declaration.schema.schema, &.{.{ .value = .{ .atom = .{ .signed = 500 } } }}, false, &key_buffer);
+            var own_row = (try evaluator.get(t.allocator, row_key, guard_value)).?;
+            defer own_row.deinit();
+            try t.expectEqual(@as(i128, 500), own_row.row().cells[0].value.atom.signed);
+            try t.expect(try view.table.get(t.allocator, row_key, guard_value) == null);
             var conflict = request;
             conflict.binding.identity.operation += 1;
             try t.expectError(error.TransactionStatementConflict, catalog.executeTransactionStatement(binding.key, conflict, access.policy()));
@@ -3276,4 +3287,52 @@ test "transaction account capacity sums every configured dimension before reserv
     // Persisted records without explicit reservation counters must reject.
     const old = "{\"limits\":{\"operations\":100,\"bytes\":65536,\"pending\":10},\"operations\":1,\"bytes\":4608,\"pending\":1}";
     try t.expectError(error.MissingField, std.json.parseFromSlice(c.DirectClientToken.Usage, t.allocator, old, .{}));
+}
+
+test "transaction durable workspace preserves rejected statement outcome and consumed sequence" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var binding: c.DirectClientToken.Binding = undefined;
+    var duplicate: c.DirectTransactionWorkspace.Request = undefined;
+    var expected: s.TableWorkspace.Outcome = undefined;
+    for (0..2) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        if (restart == 0) {
+            try catalog.initialize(access.policy());
+            binding = try selectedTransaction(&catalog, &access, 1);
+            _ = try catalog.acquireTransaction(binding.key, access.policy());
+            const first = try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500);
+            _ = try catalog.executeTransactionStatement(binding.key, first, access.policy());
+            var intent = try s.TableDmlIntent.load(t.allocator, catalog.data_objects, first.intent);
+            defer intent.deinit();
+            var request = intent.request;
+            request.binding.identity.operation = 501;
+            var row = request.changes[0].put.row;
+            row.identity = try s.TableDmlIntent.insertIdentity(request.binding.identity, 0);
+            request.changes = &.{.{ .put = .{ .row = row, .expect = .absent } }};
+            duplicate = .{ .statement = .{ .transaction = first.statement.transaction, .sequence = 2, .intent = request.binding.intent }, .binding = request.binding, .intent = try s.TableDmlIntent.stage(t.allocator, catalog.data_objects, request) };
+            expected = try catalog.executeTransactionStatement(binding.key, duplicate, access.policy());
+            try t.expect(expected == .rejected);
+            try t.expectEqual(.duplicate_key, expected.rejected.reason);
+        } else {
+            const before = catalog.store.root;
+            try t.expectEqualDeep(expected, try catalog.executeTransactionStatement(binding.key, duplicate, access.policy()));
+            try t.expectEqualDeep(before, catalog.store.root);
+            const state = try catalog.transactionTableState(binding.key, duplicate.binding.target, access.policy());
+            try t.expectEqual(@as(u64, 1), state.root.live_rows);
+            try t.expectEqual(@as(u64, 2), state.last_statement);
+            const replacement = try workspaceRequest(&catalog, &access, binding.key, 10, 2, 502);
+            try t.expectError(error.TransactionStatementConflict, catalog.executeTransactionStatement(binding.key, replacement, access.policy()));
+            var third = replacement;
+            third.statement.sequence = 3;
+            _ = try catalog.executeTransactionStatement(binding.key, third, access.policy());
+            try t.expectEqual(@as(u64, 2), (try catalog.transactionTableState(binding.key, duplicate.binding.target, access.policy())).root.live_rows);
+        }
+    }
 }

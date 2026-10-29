@@ -166,7 +166,9 @@ and the owner checks current Table rights under the publication policy epoch.
 This format is reserved: generic `record.stage` and `record.read` reject it with
 `TransactionOperationRequired`. CONNECT-only caller-record access cannot disclose
 server-owned cut evidence after a participant's read rights have been revoked.
-HTTP maps `TransactionOperationRequired` to `400 InvalidRequest`.
+HTTP maps `TransactionOperationRequired` to `400 InvalidRequest` and
+`TransactionAccountCapacity` to `503 StorageQuota`. Transport errors alone do not
+settle a previously uncertain token binding; inspect the original token.
 
 Catalog-owned private workspaces use canonical JSON `DirectRecord` formats
 `0x54585731` (head), `0x54585431` (private Table state) and `0x54584f31`

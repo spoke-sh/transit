@@ -112,7 +112,30 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile)
     defer initialized.deinit();
     // Server-owned cut records cannot be supplied through caller-owned record
     // staging. This is a request refusal, not transport/storage uncertainty.
-    try t.expectError(error.Rejected, c.DirectRecord.stage(client, @splat(91), c.DirectTransaction.Acquired.format, "caller-supplied cut"));
+    for ([_]u32{ c.DirectTransaction.Acquired.format, c.DirectTransactionWorkspace.head_format, c.DirectTransactionWorkspace.table_format, c.DirectTransactionWorkspace.statement_format }) |format|
+        try t.expectError(error.Rejected, c.DirectRecord.stage(client, @splat(91), format, "caller-supplied workspace"));
+    // Capacity is refused before reading a staged selection. The nonexistent
+    // selection below must not turn a quota refusal into a server error or admit
+    // a replacement identity. Exact token inspection still reports no admission.
+    var limits = c.DirectTransaction.default_limits;
+    limits.resident_bytes = c.DirectClientToken.TransactionReservations.defaults.resident_bytes + 1;
+    const quota: c.DirectClientToken.Binding = .{
+        .key = .{ .definition = g.current_definition, .connection = client.connection, .account = @splat(91), .token = @splat(71) },
+        .fingerprint = @splat(72),
+        .intent = .{ .transaction = .{ .connection = client.connection, .namespace = 1, .begin = .{
+            .definition = g.current_definition,
+            .identity = .{ .begin = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 900001 }, .branch = 1 },
+            .mode = .serializable,
+            .selection = .explicit_tables,
+            .tables = .{ .content = .{ .bytes = 100, .sha256 = @splat(73) }, .count = 0 },
+            .catalog = .{ .partition = profile.catalog.partition, .next_lsn = 1 },
+            .limits = limits,
+        } } },
+    };
+    try t.expectError(error.AuthorityUnavailable, client.call(.{ .client_token = .{ .bind = quota } }));
+    const unaccepted = try client.call(.{ .client_token = .{ .lookup = quota.key } });
+    defer unaccepted.deinit();
+    try t.expect(unaccepted.value.result.client_token == null);
     const intent: c.DirectCatalog.Intent = .{ .namespace = 1, .name = try .init("events"), .action = .{ .create = .{ .schema = schema, .owner = profile.role } } };
     const binding: d.Binding = .{ .definition = g.current_definition, .identity = .{ .scope = profile.catalog.scope, .principal = 101, .operation = 1 }, .target = .{ .scope = profile.catalog.scope, .branch = 1, .object = 7 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(alloc) };
     const admitted = try client.call(.{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = "events", .action = .{ .create = .{ .owner = profile.role, .schema = try binarySchema(alloc) } } } });
