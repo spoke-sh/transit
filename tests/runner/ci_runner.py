@@ -114,13 +114,13 @@ def release_workflow():
         return set(needs).union(*(ancestors(parent) for parent in needs))
 
     # Packaging failures must not hide independent installed-consumer evidence.
-    for job in ('sdk-build', 'sdk-consumers', 'sdk-zig', 'installed'):
+    for job in ('sdk-build', 'sdk-consumers', 'sdk-zig', 'installed', 'board'):
         assert 'build' in ancestors(job) and 'images' not in ancestors(job)
         assert any(step.get('with', {}).get('name') == 'runtime-${{ matrix.artifact }}'
                    for step in jobs[job]['steps'])
     assert 'sdk-build' not in ancestors('installed')
     # Independence during diagnosis must never weaken the publication gate.
-    required = {'qualification', 'build', 'images', 'installed', 'sdk-build',
+    required = {'qualification', 'build', 'images', 'installed', 'board', 'sdk-build',
                 'sdk-consumers', 'sdk-zig', 'sdk-loaders', 'handbook', 'assemble', 'homebrew'}
     assert required <= ancestors('publish')
     assert 'images' in ancestors('assemble')
@@ -134,7 +134,7 @@ def release_workflow():
     assert "github.event_name == 'pull_request' && 'nightly'" in prepare['env']['CHANNEL']
     assert "github.ref == 'refs/heads/main'" in prepare['env']['PUBLISH']
     assert "github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')" in prepare['env']['PUBLISH']
-    for job in ('build', 'images', 'sdk-build', 'sdk-zig'):
+    for job in ('build', 'images', 'sdk-build', 'sdk-zig', 'board'):
         platforms = jobs[job]['strategy']['matrix']['include']
         assert {(row['architecture'], row['runner']) for row in platforms} == {
             ('x86_64', 'ubuntu-24.04'), ('aarch64', 'ubuntu-24.04-arm')}

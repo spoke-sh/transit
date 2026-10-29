@@ -211,3 +211,17 @@ artifacts on a fresh runner without Nix. The published path uses anonymous HTTPS
 then checks the exact expected release/commit, installed binary hashes, embedded
 Board assets and inspection, SQL and retained restart. Public registry checks use
 empty Docker and Helm credential stores; failure does not retract published bytes.
+The installed schedule includes real terminal/editor interaction and abrupt
+supervisor death: all owned children must exit, accepted rows remain readable,
+and the recovered worker retains its PID with a newer activation generation.
+These disk/process tests do not establish host power-loss behavior.
+
+The same installed-runtime schedule runs the existing
+[workbench API proof](../interfaces/installation/board_workbench.py) using only
+the copied release executable's embedded roles. A separate `test::release-board`
+job runs its Chromium scenarios against downloaded runtime artifacts on both
+Linux architectures. It checks paginated Catalog, exact previews, column
+profiles, explicit Workbook submission and original-result recovery without
+external assets. The fixture explicitly configures its own data connections;
+runtime startup does not grant the inspection identity data access. Private
+failed installations remain local; only synthetic browser evidence is uploaded.
