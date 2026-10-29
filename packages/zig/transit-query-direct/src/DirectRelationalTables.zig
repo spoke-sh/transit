@@ -27,6 +27,11 @@ pub fn open(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshots
         const scan = &self.scans[i].?;
         self.requests += scan.requests;
         const basis = scan.reader.basis;
+        if ((basis.workspace != null) != (client.transaction != null)) return error.InvalidTransactionRead;
+        if (basis.workspace) |view| {
+            const first = self.scans[0].?.reader.basis.workspace orelse return error.InvalidTransactionRead;
+            if (!std.meta.eql(view.cut, first.cut) or !std.meta.eql(view.revision, first.revision) or view.last_statement != first.last_statement) return error.TransactionReadChanged;
+        }
         const object = basis.interpretation.interpretation.object;
         const schema = scan.reader.schema.schema;
         try q.DirectTableQuery.qualify(schema);

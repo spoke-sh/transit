@@ -162,6 +162,7 @@ pub fn parseInto(metadata_arena: std.mem.Allocator, directory_storage: [][]const
         defer tree.deinit();
         try api.Json.validateShape(r.Observation.Value, tree.value);
         const observation = try std.json.parseFromSliceLeaky(r.Observation.Value, metadata_arena, metadata, .{ .allocate = .alloc_always });
+        try r.Observation.validate(observation);
         break :blk .{ .schema = bytes[header_bytes..][0..schema_size], .observation = observation };
     };
     const frame: Self = .{

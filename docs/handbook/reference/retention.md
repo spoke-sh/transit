@@ -115,3 +115,20 @@ See the [authority capacity guide](../../../packages/zig/transit-core/docs/autho
 [storage maintenance](../../../packages/zig/transit-backend-ursula/docs/storage.md),
 [catalog contract](../../../contracts/CATALOG_V1.md) and [Document service](../../../packages/zig/transit-station-document/docs/service.md).
 Per-key TTL, generic dependency deletion and distributed compaction are unsupported.
+
+
+## Table transaction resources
+
+A [Table transaction](sql/transactions.md) retains its common-cut pins and private
+roots independently of SQL connection/session leases. There is no automatic
+transaction lifetime timeout. Session expiry releases temporary results and
+preparations; an authorized caller explicitly recovers and commits or rolls back
+the original transaction. Aggregate reservations refuse excess pending work
+without expiring accepted transactions.
+
+Decision cleanup releases pins and active reservations in bounded steps. It
+preserves original statement/control outcomes and decision evidence. Savepoint
+rollback can release private roots after publishing its restored head; physical
+collection separately follows retained graph dependencies. Neither a lost commit
+reply nor abandoned caller grants authority to discard preparation or decision
+records needed for recovery.

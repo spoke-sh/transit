@@ -46,14 +46,14 @@ accepted operation identity and requiring inspection before repeating a write.
 A caller can start a new read after failure before its first batch; it cannot
 splice that read onto an earlier result prefix.
 
-For PostgreSQL/MySQL, transactions, multi-statement requests, savepoints, autocommit-off, ALTER/DROP,
+For PostgreSQL/MySQL, multi-statement requests, autocommit-off, ALTER/DROP,
 RETURNING, COPY, bulk/long-data uploads, cursors, replication and arbitrary system
 catalog emulation are unsupported. PostgreSQL extended writes require exactly
 one execution followed by Sync; Flush after a pending write rejects before
 dispatch. Read portals may suspend and resume within that same cycle. MySQL
 connection reset clears prepared handles without cancelling durable work.
 
-Use explicit autocommit. TLS can be disabled, optional or required (the default).
+Use explicit autocommit or [Table transactions](../../docs/handbook/reference/sql/transactions.md). BEGIN/COMMIT/ROLLBACK and savepoints share the native transaction owner. TLS can be disabled, optional or required (the default).
 Explicit loopback trust logins need no password or certificate when TLS is disabled;
 they retain current native authorization. PostgreSQL password logins use
 SCRAM-SHA-256, with or without TLS. MySQL uses full caching_sha2_password authentication inside TLS,

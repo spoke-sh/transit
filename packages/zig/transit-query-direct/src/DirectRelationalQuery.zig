@@ -7,7 +7,7 @@ const e = f.RelationalExecution;
 const Memory = @import("root.zig").QueryMemory;
 const Self = @This();
 const Run = e.Execution(*q.DirectRelationalTables, *q.RelationalSpill);
-pub const Consistency = enum { per_resource_snapshot_vector, independent_table_snapshots, atomic };
+pub const Consistency = enum { per_resource_snapshot_vector, independent_table_snapshots, transaction, atomic };
 pub const Options = struct {
     dialect: f.Sql.Dialect = .transit,
     consistency: Consistency,
@@ -15,6 +15,13 @@ pub const Options = struct {
     /// Physical access limits supplement the logical operation budget.
     requests: u64,
     spill_work: u64,
+    pub fn requireClient(self: Options, client: q.catalog.DirectTableClient) !void {
+        switch (self.consistency) {
+            .independent_table_snapshots => if (client.transaction != null) return error.UnsupportedRelationalConsistency,
+            .transaction => if (client.transaction == null) return error.UnsupportedRelationalConsistency,
+            .per_resource_snapshot_vector, .atomic => return error.UnsupportedRelationalConsistency,
+        }
+    }
 };
 parent: std.mem.Allocator,
 memory: Memory,
@@ -29,7 +36,7 @@ pub const resident_base = @sizeOf(Self) + 4 * @sizeOf(q.DirectRelationalTables) 
 /// Owns the plan and local traversal/spill state, borrowing only transport and
 /// cancellation. The original durable pins remain the caller's responsibility.
 pub fn openPreparedRetained(allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, spill_name: []const u8, client: q.catalog.DirectTableClient, prepared: *const q.DirectRelationalCompilation, snapshots: []const q.catalog.DirectTableProtocol.Snapshot, options: Options, cancellation: ?*const std.atomic.Value(bool)) !*Self {
-    if (options.consistency != .independent_table_snapshots) return error.UnsupportedRelationalConsistency;
+    try options.requireClient(client);
     if (options.budgets.resident_bytes <= resident_base or options.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
     if (options.requests < 2 or options.spill_work == 0) return error.InvalidQueryBudget;
     if (snapshots.len != prepared.plan.sources.len) return error.InvalidRelationalSources;

@@ -47,6 +47,7 @@ lifetimes stay explicit in the owning APIs.
 | `transit_station_http` | [Recorded HTTP callers](../../packages/zig/transit-station-http/README.md) |
 | `transit_station_grpc` | [Recorded RPC callers](../../packages/zig/transit-station-grpc/README.md) |
 | `transit_query` | [Query preparation, admission and reads](../../packages/zig/transit-query/README.md) |
+| `transit_sql_client` | [SQL statement submission, bounded results and transaction attachment](../../packages/zig/transit-sql-client/README.md) |
 | `transit_catalog` | [Catalog declarations and callers](../../packages/zig/transit-catalog/README.md) |
 | `transit_fuze` | [Typed query plans and execution](../../packages/zig/transit-fuze/README.md) |
 | `transit_station_app` | [Application declarations and installation](../../packages/zig/transit-station-app/README.md) |
@@ -55,3 +56,19 @@ The [work-items application](../../examples/work-items/README.md) has a standalo
 manifest consuming this SDK. The root example builds use the same SDK modules.
 The [caller reference](../../docs/handbook/reference/callers.md) defines uncertainty,
 current authorization and cancellation across all supported languages.
+
+## Table transactions
+
+Use `transit_catalog.DirectTransactionClient` for signed typed begin, acquire,
+private statement, savepoint, inspect and settle operations. Its original token
+and operation identities survive connection loss. Private reads set
+`DirectTableClient.transaction` to the inspected key and workspace revision.
+Control calls clear that read context internally; current grants still govern
+both controls and disclosure.
+
+For SQL, `transit_sql_client.Client` and its `Executor` preserve caller tokens and
+provisional completion evidence. Save the transaction handle returned by BEGIN
+and use `attachTransaction` after replacing a session. Status inspection alone
+does not attach it. COMMIT/ROLLBACK returns the actual decision; a deadline or
+cancellation never manufactures abort. See the [transaction reference](../../docs/handbook/reference/sql/transactions.md)
+for the local Table profile and limits.

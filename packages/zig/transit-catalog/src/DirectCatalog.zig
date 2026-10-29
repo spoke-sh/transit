@@ -153,8 +153,12 @@ store: Store,
 data_log: s.TransitLog.Log,
 data_objects: s.TransitObjectStore.ObjectStore,
 options: Options,
+/// Borrowed only during one signed read dispatch; never retained between calls.
+transaction_read: ?c.DirectTransactionRead.Context = null,
 /// Failure injection after the Table acceptance and before its caller reply.
 lose_table_reply: bool = false,
+/// Failure injection after the original coordination acceptance.
+lose_transaction_reply: bool = false,
 
 pub fn init(allocator: std.mem.Allocator, configuration: Configuration, control_log: s.TransitLog.Log, control_objects: s.TransitObjectStore.ObjectStore, data_log: s.TransitLog.Log, data_objects: s.TransitObjectStore.ObjectStore, options: Options) !Self {
     if (options.index_work_bytes == 0 or options.client_token_quota == 0) return error.InvalidStorageBudget;
@@ -672,6 +676,10 @@ pub fn checkAccess(self: *Self, request: AccessRequest, policy: Policy) !void {
         if (view.?.table.root.next_lsn == 0 or view.?.table.root.retired or view.?.properties.namespace != request.namespace.?) return error.CatalogDenied;
         const required = try self.guard(arena.allocator(), policy, namespace_value, view.?.properties.target(expected.object.object), request.access);
         try check(required);
+        if (self.transaction_read) |context| {
+            const read = try self.guard(arena.allocator(), policy, namespace_value, view.?.properties.target(expected.object.object), .read);
+            try self.overlayTransactionRead(&view.?, context, read, policy);
+        }
         if (!std.meta.eql(expected, view.?.table.root.interpretation)) return error.TableDefinitionChanged;
         try check(required);
     } else try check(try self.guard(arena.allocator(), policy, namespace_value, null, request.access));
@@ -794,7 +802,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
 fn intentGuard(self: *Self, allocator: std.mem.Allocator, reference: c.DirectIntent.Reference, policy: Policy) !P.Guard {
     try reference.validate();
     return switch (reference) {
-        .transaction => self.guard(allocator, policy, null, null, .database),
+        .transaction, .transaction_call => self.guard(allocator, policy, null, null, .database),
         .external => self.guard(allocator, policy, null, null, .database),
         .table => |value| self.operationGuard(allocator, value.binding, value.namespace, policy),
         .namespace_change => |value| self.namespaceGuard(allocator, value.binding, policy),
@@ -818,6 +826,9 @@ pub fn requireClientLease(self: *Self, lease: c.DirectClientToken.Lease, policy:
 }
 
 pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Policy) !?c.DirectClientToken.Receipt {
+    return self.clientTokenSelected(request, policy, false);
+}
+fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy: Policy, server_selection: bool) !?c.DirectClientToken.Receipt {
     try self.requireInitialized();
     try request.validate();
     const key = request.key();
@@ -855,9 +866,18 @@ pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Po
         .transaction => |value| {
             if (value.begin.catalog.partition != self.config().partition or value.begin.catalog.next_lsn != self.store.root.next_lsn)
                 return error.TransactionCatalogChanged;
-            try c.DirectTransaction.inspectSelection(self.allocator, self.data_objects, value, self.options);
+            try c.DirectTransaction.inspectSelection(self.allocator, self.data_objects, value, self.options, server_selection);
             try check(current);
             try c.OperationBinding.claimTransaction(self.allocator, self.store.objects, value, try key.digest());
+        },
+        .transaction_call => |value| {
+            if (value.work == .statement) {
+                const request_value = value.work.statement.request;
+                var intent = try s.TableDmlIntent.load(self.allocator, self.data_objects, request_value.intent);
+                defer intent.deinit();
+                try request_value.binding.requireSame(intent.request.binding);
+            }
+            try c.OperationBinding.claimTransactionCall(self.allocator, self.store.objects, value);
         },
         .external => |value| {
             const bytes = try c.DirectRecord.load(self.allocator, self.data_objects, value.record);
@@ -922,7 +942,7 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     // Transaction workspace, cancellation and settlement belong to the
     // transaction owner. Generic client bookkeeping cannot replace that state
     // or manufacture a cancellation request while the original attempt lives.
-    if (state.receipt.binding.intent == .transaction) return error.TransactionOperationRequired;
+    if (state.receipt.binding.intent == .transaction or state.receipt.binding.intent == .transaction_call) return error.TransactionOperationRequired;
     const value = request.update;
     if (state.pending == value.pending and state.cancel == value.cancel and std.meta.eql(state.record, value.record)) return .{ .state = state };
     if (!std.meta.eql(state.revision, value.expected)) return error.ClientOperationConflict;
@@ -946,9 +966,10 @@ pub fn clientProgress(self: *Self, request: c.DirectClientToken.ProgressRequest,
     try check(current);
     return .{ .state = state };
 }
-fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy) !void {
+fn requireClientTerminal(self: *Self, reference: c.DirectIntent.Reference, policy: Policy) anyerror!void {
     switch (reference) {
         .transaction => return error.ClientOperationPending,
+        .transaction_call => return error.TransactionOperationRequired,
         // External owners interpret their own progress. No external completion
         // or authorization is inferred from removing a recovery index entry.
         .external => {},
@@ -1101,7 +1122,149 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
     return acquired;
 }
 
+const TransactionPolicy = struct {
+    original: Policy,
+    epoch: ?P.Guard.Fence = null,
+    fn policy(self: *@This()) Policy {
+        return .{ .context = self, .subject = self.original.subject, .make_guard = make, .registered = registered, .native_resource = self.original.native_resource };
+    }
+    fn make(raw: *anyopaque, allocator: std.mem.Allocator, request: p.Authorization.Guard, prerequisite: ?p.Authorization.Guard) !P.Guard {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        const fence = try allocator.create(CutFence);
+        fence.* = .{ .underlying = try self.original.make_guard(self.original.context, allocator, request, prerequisite), .epoch = &self.epoch };
+        return fence.guard();
+    }
+    fn registered(raw: *anyopaque, kind: a.Kind, id: u64) !?p.Authorization.Object {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        return self.original.registered(self.original.context, kind, id);
+    }
+};
+
+/// Server-owned discovery freezes either exact selected IDs or the complete
+/// currently SELECT-authorized catalog Table set. The host excludes all database
+/// publication until admission completes; current-policy epochs must agree.
+pub fn beginTransaction(self: *Self, request: c.DirectTransactionRequest.Begin, policy: Policy) !c.DirectClientToken.Receipt {
+    try request.validate();
+    if (try self.clientToken(.{ .lookup = request.key }, policy)) |receipt| {
+        if (receipt.binding.intent != .transaction or !std.mem.eql(u8, &receipt.binding.fingerprint, &request.fingerprint)) return error.ClientTokenConflict;
+        return receipt;
+    }
+    try c.DirectTransaction.requireLimits(request.limits, self.options.transaction_limits);
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(request.limits.resident_bytes) };
+    const parent = self.allocator;
+    const retained = self.options.table_owner;
+    self.options.table_owner = null;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        self.options.table_owner = retained;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.beginTransactionBounded(request, policy) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begin, original_policy: Policy) !c.DirectClientToken.Receipt {
+    var checked: TransactionPolicy = .{ .original = original_policy };
+    const policy = checked.policy();
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    try check(try self.guard(scratch.allocator(), policy, try self.schema(request.namespace), null, .schema));
+    const identity: p.Transaction.Identity = .{ .begin = request.operation, .branch = request.key.connection.branch };
+    var selected = try s.TransactionDirectory.init(self.allocator, self.data_objects, identity, .participants, request.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer selected.deinit();
+    switch (request.selection) {
+        .explicit_tables => |ids| for (ids) |id| {
+            _ = scratch.reset(.retain_capacity);
+            const target = try self.entry(id) orelse return error.CatalogDenied;
+            if (target.resource != null) return error.UnsupportedTransactionParticipant;
+            if (!try self.selectTransactionTable(&selected, target, policy, scratch.allocator(), false)) return error.CatalogDenied;
+        },
+        .authorized_catalog_tables => {
+            var cursor: ?pages.Key = null;
+            while (true) {
+                const page = try self.store.tree().scan(self.store.root.objects, cursor);
+                for (page.entries) |slot| if (slot) |item| {
+                    _ = scratch.reset(.retain_capacity);
+                    const target = try r.fromValue(r.Entry, self.allocator, item.value);
+                    try target.validate(self.config());
+                    if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
+                    if (target.resource != null) continue;
+                    _ = try self.selectTransactionTable(&selected, target, policy, scratch.allocator(), true);
+                };
+                cursor = page.next orelse break;
+            }
+        },
+    }
+    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_tables) .explicit_tables else .authorized_catalog_tables, .tables = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits };
+    const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin } } };
+    return (try self.clientTokenSelected(.{ .bind = binding }, policy, true)).?;
+}
+
+fn selectTransactionTable(self: *Self, selected: *s.TransactionDirectory, target: r.Entry, policy: Policy, scratch: std.mem.Allocator, filter: bool) !bool {
+    if (target.seed == null) return false;
+    var view = try self.openTransaction(self.allocator, target, false, true);
+    defer view.deinit();
+    if (view.table.root.next_lsn == 0 or view.table.root.retired) return false;
+    const namespace = try self.authorizationSchema(view.properties.namespace);
+    const current = try self.guard(scratch, policy, namespace, view.properties.target(target.object), .read);
+    check(current) catch |err| {
+        if (filter and (err == error.CatalogDenied or err == error.Forbidden)) return false;
+        return err;
+    };
+    if (view.table.root.transaction != null) return error.TransactionPrepared;
+    try selected.put(.{ .participant = .{ .state = .{ .kind = .table, .access = .read, .guard = transactionTableGuard(view.table.root) } } });
+    return true;
+}
+
 const TransactionWorkspace = c.DirectTransactionWorkspace;
+
+/// Stage exact native DML for a private statement. Staging creates no admission,
+/// consumes no sequence and grants no permission to publish Table data.
+pub fn stageTransactionStatement(self: *Self, key: c.DirectClientToken.Key, basis: p.DataLifecycle.Position, sequence: u64, work: c.DirectTableIntent.Work, policy: Policy) !c.DirectTransactionWorkspace.Request {
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    if (head.acquired.cut.begin.mode == .read_only) return error.ReadOnlyTransaction;
+    if (work == .ddl or sequence == 0 or sequence > head.acquired.cut.begin.limits.statements) return error.InvalidTransactionWork;
+    if (head.pending_control != null) return error.TransactionControlPending;
+    if (head.pending != null) return error.TransactionStatementPending;
+    if (sequence != head.last_statement + 1) return error.TransactionStatementConflict;
+    if (!std.meta.eql(basis, head.revision)) return error.TransactionReadChanged;
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(head.acquired.cut.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    const retained = self.options.table_owner;
+    self.options.table_owner = null;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        self.options.table_owner = retained;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.stageTransactionStatementBounded(progress, head, sequence, work, policy) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn stageTransactionStatementBounded(self: *Self, progress: c.DirectClientToken.Progress, head: TransactionWorkspace.Head, sequence: u64, work: c.DirectTableIntent.Work, policy: Policy) !TransactionWorkspace.Request {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const native = switch (work) {
+        .ddl => unreachable,
+        inline .rows, .statement => |value| try value.native(scratch.allocator()),
+    };
+    try progress.receipt.binding.key.connection.binding(native.binding);
+    if (native.ingestion != .bulk) return error.InvalidTransactionWorkspace;
+    const state = try self.transactionTableStateBounded(progress, native.binding.target, policy);
+    if (!std.meta.eql(native.interpretation, state.root.declared())) return error.TableDefinitionChanged;
+    var declaration = try s.TableDeclaration.load(scratch.allocator(), self.data_objects, state.root.declared());
+    defer declaration.deinit();
+    const properties = try Properties.decode(scratch.allocator(), declaration.definition.properties);
+    const current = try self.operationGuard(scratch.allocator(), native.binding, properties.namespace, policy);
+    try check(current);
+    var staging: TransactionWorkspace.Staging = .{ .underlying = self.data_objects, .used = head.charged_bytes, .limit = head.acquired.cut.begin.limits.workspace_bytes };
+    const result: TransactionWorkspace.Request = .{ .basis = head.revision, .statement = .{ .transaction = head.acquired.cut.begin.identity, .sequence = sequence, .intent = native.binding.intent }, .binding = native.binding, .intent = try s.TableDmlIntent.stage(scratch.allocator(), staging.objects(), native) };
+    try result.validate();
+    try check(current);
+    return result;
+}
 
 /// The embedding host excludes all database publication for the entire call.
 /// This freezes the original statement before private evaluation. A returned
@@ -1171,11 +1334,13 @@ fn transactionStatementBounded(self: *Self, progress: c.DirectClientToken.Progre
     }
     if (begin.mode == .read_only) return error.ReadOnlyTransaction;
     if (request.statement.sequence > begin.limits.statements) return error.TransactionStatementLimit;
+    if (head.pending_control != null) return error.TransactionControlPending;
     if (head.pending) |pending_statement| {
         if (!std.meta.eql(pending_statement, request)) return error.TransactionStatementPending;
         if (!evaluate) return null;
     } else {
         if (evaluate or request.statement.sequence != head.last_statement + 1) return error.TransactionStatementConflict;
+        if (!std.meta.eql(request.basis, head.revision)) return error.TransactionReadChanged;
     }
     var intent = try s.TableDmlIntent.load(self.allocator, self.data_objects, request.intent);
     defer intent.deinit();
@@ -1213,7 +1378,7 @@ fn transactionStatementBounded(self: *Self, progress: c.DirectClientToken.Progre
     return outcome;
 }
 
-fn publishTransactionWorkspace(self: *Self, prior: c.DirectClientToken.Progress, head: *TransactionWorkspace.Head, staging: *TransactionWorkspace.Staging, current: P.Guard) !void {
+pub fn publishTransactionWorkspace(self: *Self, prior: c.DirectClientToken.Progress, head: *TransactionWorkspace.Head, staging: *TransactionWorkspace.Staging, current: P.Guard) !void {
     // Reserve the fixed metadata ceiling before staging. This conservative
     // charge includes header growth without a self-referential byte count.
     const charge = try std.math.add(u64, staging.used, TransactionWorkspace.max_bytes);
@@ -1231,6 +1396,210 @@ fn publishTransactionWorkspace(self: *Self, prior: c.DirectClientToken.Progress,
     try self.store.clientIndices(&next, progress);
     try self.store.publish(next, .{ .client_token = progress }, current);
     try check(current);
+}
+
+/// Caller-command recovery never substitutes a new native operation after an
+/// uncertain response. The catalog retains definitive precondition refusals too.
+pub fn transactionCall(self: *Self, key: c.DirectClientToken.Key, steps: u16, control: bool, request_cancel: bool, policy: Policy) anyerror!?c.DirectTransactionCall.Result {
+    if (steps == 0 or steps > 256) return error.InvalidTransactionWork;
+    var progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction_call) return error.TransactionOperationRequired;
+    const call = progress.receipt.binding.intent.transaction_call;
+    if (control != (call.work == .settle)) return error.InvalidTransactionWork;
+    if (try self.transactionCallOutcome(key, policy)) |result| {
+        if (!progress.pending) return result;
+    }
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const current = try self.guard(arena.allocator(), policy, null, null, .database);
+    try check(current);
+    if (request_cancel and !progress.cancel) {
+        progress.cancel = true;
+        try self.publishTransactionCall(&progress, null, current);
+    }
+    const result = self.executeTransactionCall(call, steps, policy) catch |err| {
+        const reason = c.DirectTransactionCall.refusal(err) orelse return err;
+        const rejected: c.DirectTransactionCall.Result = .{ .rejected = reason };
+        try self.publishTransactionCall(&progress, rejected, current);
+        return rejected;
+    };
+    if (result) |value| {
+        if (value != .settled or value.settled.cleanup_complete) try self.publishTransactionCall(&progress, value, current);
+    }
+    return result;
+}
+
+pub fn transactionCallOutcome(self: *Self, key: c.DirectClientToken.Key, policy: Policy) anyerror!?c.DirectTransactionCall.Result {
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction_call) return error.TransactionOperationRequired;
+    const call = progress.receipt.binding.intent.transaction_call;
+    if (progress.record) |reference| {
+        const stored = try TransactionWorkspace.load(c.DirectTransactionCall.Stored, self.allocator, self.data_objects, reference, key.scope(), c.DirectTransactionCall.format);
+        try stored.validate();
+        if (!std.meta.eql(stored.call, call)) return error.TransactionIdentityConflict;
+        if (stored.result == .rejected) return stored.result;
+    }
+    return self.observeTransactionCall(call, policy);
+}
+
+fn observeTransactionCall(self: *Self, call: c.DirectTransactionCall, policy: Policy) anyerror!?c.DirectTransactionCall.Result {
+    switch (call.work) {
+        .begin => |work| {
+            if (try self.clientToken(.{ .lookup = work.key }, policy) == null) return null;
+            const observed = try self.inspectTransaction(work.key, policy);
+            return if (observed.cut) |cut| .{ .begun = cut } else null;
+        },
+        .statement => |work| return if (try self.transactionStatementOutcome(work.key, work.request, policy)) |outcome| .{ .statement = outcome } else null,
+        .savepoint => |work| {
+            const outcome = try self.transactionSavepointOutcome(work.key, work.request, policy) orelse return null;
+            return if (outcome.completed != null) .{ .savepoint = outcome } else null;
+        },
+        .settle => |work| {
+            const observed = try self.inspectTransaction(work.key, policy);
+            if (observed.attempt) |attempt| if (!std.meta.eql(attempt.operation, work.operation)) return error.TransactionIdentityConflict;
+            return if (observed.observation == .decided) .{ .settled = observed } else null;
+        },
+    }
+}
+
+fn executeTransactionCall(self: *Self, call: c.DirectTransactionCall, steps: u16, policy: Policy) anyerror!?c.DirectTransactionCall.Result {
+    if (call.work != .settle) if (try self.observeTransactionCall(call, policy)) |result| return result;
+    switch (call.work) {
+        .begin => |work| {
+            _ = try self.beginTransaction(try call.beginRequest(), policy);
+            return .{ .begun = (try self.acquireTransaction(work.key, policy)).cut };
+        },
+        .statement => |work| return .{ .statement = try self.executeTransactionStatement(work.key, work.request, policy) },
+        .savepoint => |work| {
+            const result = try self.transactionSavepoint(work.key, work.request, steps, policy);
+            return if (result.completed != null) .{ .savepoint = result } else null;
+        },
+        .settle => |work| {
+            const result = self.settleTransaction(work.key, work.operation, work.command, steps, policy) catch |err| retry: {
+                // An invalidated serializable commit cannot publish. Record the
+                // abort through the same original attempt, never as new work.
+                if (work.command != .commit or err != error.TransactionConflict) return err;
+                break :retry try self.settleTransaction(work.key, work.operation, .abort, steps, policy);
+            };
+            return if (result.observation == .decided) .{ .settled = result } else null;
+        },
+    }
+}
+
+fn publishTransactionCall(self: *Self, progress: *c.DirectClientToken.Progress, result: ?c.DirectTransactionCall.Result, current: P.Guard) !void {
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    progress.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    if (result) |value| {
+        try value.requireCall(progress.receipt.binding.intent.transaction_call);
+        progress.pending = value == .settled and !value.settled.cleanup_complete;
+        progress.record = try TransactionWorkspace.stage(self.data_objects, progress.receipt.binding.key.scope(), c.DirectTransactionCall.format, c.DirectTransactionCall.Stored{ .definition = p.Growth.current_definition, .call = progress.receipt.binding.intent.transaction_call, .result = value });
+    }
+    try self.store.index.begin(self.options.index_work_bytes);
+    defer self.store.index.end();
+    try self.store.clientIndices(&next, progress.*);
+    try self.store.publish(next, .{ .client_token = progress.* }, current);
+    try check(current);
+}
+
+/// Observe a statement without admitting or evaluating it. Original provisional
+/// evidence remains inspectable after the transaction has released its pins.
+pub fn transactionStatementOutcome(self: *Self, key: c.DirectClientToken.Key, request: TransactionWorkspace.Request, policy: Policy) anyerror!?s.TableWorkspace.Outcome {
+    try request.validate();
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    if (!std.meta.eql(request.statement.transaction, progress.receipt.binding.intent.transaction.begin.identity)) return error.TransactionIdentityConflict;
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    const retained = self.options.table_owner;
+    self.allocator = memory.allocator();
+    self.options.table_owner = null;
+    defer {
+        self.allocator = parent;
+        self.options.table_owner = retained;
+        std.debug.assert(memory.used == 0);
+    }
+    const head = try self.transactionObservationHead(progress) orelse return null;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var view = try self.transactionView(request.binding.target);
+    defer view.deinit();
+    const namespace_value = try self.authorizationSchema(view.properties.namespace);
+    const read = try self.guard(arena.allocator(), policy, namespace_value, view.properties.target(request.binding.target.object), .read);
+    const write = try self.guard(arena.allocator(), policy, namespace_value, view.properties.target(request.binding.target.object), switch (request.binding.action) {
+        .insert => .insert,
+        .update => .update,
+        .delete => .delete,
+        else => return error.InvalidTransactionWorkspace,
+    });
+    try check(read);
+    try check(write);
+    var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
+    defer index.deinit();
+    const completed = try TransactionWorkspace.get(TransactionWorkspace.Completed, self.allocator, &index, head.statements, request.statement.sequence, key.scope(), TransactionWorkspace.statement_format) orelse return null;
+    try completed.validate();
+    if (!std.meta.eql(completed.request, request)) return error.TransactionStatementConflict;
+    try check(read);
+    try check(write);
+    return completed.outcome;
+}
+
+pub fn transactionSavepointOutcome(self: *Self, key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request, policy: Policy) anyerror!?c.DirectTransactionSavepoint.Result {
+    try request.validate();
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    if (!std.meta.eql(request.transaction, progress.receipt.binding.intent.transaction.begin.identity)) return error.TransactionIdentityConflict;
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    const retained = self.options.table_owner;
+    self.allocator = memory.allocator();
+    self.options.table_owner = null;
+    defer {
+        self.allocator = parent;
+        self.options.table_owner = retained;
+        std.debug.assert(memory.used == 0);
+    }
+    const head = try self.transactionObservationHead(progress) orelse return null;
+    var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
+    defer index.deinit();
+    if (try TransactionWorkspace.get(c.DirectTransactionSavepoint.Result, self.allocator, &index, head.controls, request.sequence, key.scope(), c.DirectTransactionSavepoint.result_format)) |result| {
+        try result.validate();
+        if (!std.meta.eql(result.request, request)) return error.TransactionControlConflict;
+        return result;
+    }
+    if (head.pending_control) |control_pending| if (std.meta.eql(control_pending.result.request, request)) return control_pending.result;
+    return null;
+}
+
+fn transactionObservationHead(self: *Self, progress: c.DirectClientToken.Progress) !?TransactionWorkspace.Head {
+    if (progress.record == null) return null;
+    if (progress.record.?.format == TransactionControl.format) return (try TransactionControl.load(self.allocator, self.data_objects, progress)).workspace;
+    return try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+}
+
+/// Named private-root controls retain exact accepted identities across retries.
+pub fn transactionSavepoint(self: *Self, key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request, steps: u16, policy: Policy) anyerror!c.DirectTransactionSavepoint.Result {
+    if (steps == 0 or steps > 256) return error.InvalidTransactionWork;
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    const retained = self.options.table_owner;
+    self.allocator = memory.allocator();
+    self.options.table_owner = null;
+    defer {
+        self.allocator = parent;
+        self.options.table_owner = retained;
+        std.debug.assert(memory.used == 0);
+    }
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var epoch: ?P.Guard.Fence = null;
+    var fence: CutFence = .{ .underlying = try self.guard(scratch.allocator(), policy, null, null, .database), .epoch = &epoch };
+    try check(fence.guard());
+    const result = c.DirectTransactionSavepoint.apply(self, progress, request, steps, policy, fence.guard()) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+    try check(fence.guard());
+    return result;
 }
 
 /// Return the current accepted private root under current SELECT permission.
@@ -1275,6 +1644,399 @@ fn transactionTableStateBounded(self: *Self, progress: c.DirectClientToken.Progr
     return evaluator.state();
 }
 
+/// Validate the active revision before opening any private cursor or metadata.
+pub fn transactionReadHead(self: *Self, context: c.DirectTransactionRead.Context, policy: Policy) anyerror!TransactionWorkspace.Head {
+    try context.validate();
+    const progress = (try self.clientProgress(.{ .inspect = context.key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    if (!std.meta.eql(progress.revision, context.revision)) return error.TransactionReadChanged;
+    const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    if (head.pending_control != null) return error.TransactionControlPending;
+    if (head.pending != null) return error.TransactionStatementPending;
+    return head;
+}
+
+fn overlayTransactionRead(self: *Self, view: *View, context: c.DirectTransactionRead.Context, current: P.Guard, policy: Policy) !void {
+    const head = try self.transactionReadHead(context, policy);
+    const begin = head.acquired.cut.begin;
+    const object = view.table.root.interpretation.object;
+    try begin.identity.requireObject(object);
+    var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer sources.deinit();
+    try sources.restore(head.acquired.cut.sources);
+    const source = (try sources.get(object.object) orelse return error.TransactionObjectNotSelected).source;
+    var frozen = try view.table.inspectSnapshot(self.allocator, source.pin, current);
+    defer frozen.deinit();
+    if (!std.meta.eql(transactionTableGuard(frozen.root), source.guard)) return error.InvalidTransactionCut;
+    var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
+    defer index.deinit();
+    const prior = try TransactionWorkspace.get(s.TableWorkspace.State, self.allocator, &index, head.tables, object.object, context.key.scope(), TransactionWorkspace.table_format);
+    var evaluator = try s.TableWorkspace.init(self.allocator, &view.table, begin, source.pin, prior, current);
+    defer evaluator.deinit();
+    const state = evaluator.state();
+    const observation = try c.DirectTransactionRead.view(context, head, source.guard, state);
+    var declaration = try s.TableDeclaration.load(self.allocator, self.data_objects, state.root.declared());
+    defer declaration.deinit();
+    var options = self.options.table;
+    options.control = null;
+    var table = try P.init(self.allocator, state.root.partition, declaration.definition, self.data_log, self.data_objects, options);
+    errdefer table.deinit();
+    table.workspace = true;
+    table.workspace_read = observation;
+    table.root = state.root;
+    table.recovery_required = false;
+    const properties = try Properties.decode(self.allocator, declaration.definition.properties);
+    try check(current);
+    // Private roots and their temporary allocator must never enter an ordinary
+    // Table owner cache or a public recovery hint.
+    view.table.deinit();
+    view.* = .{ .table = table, .properties = properties };
+}
+
+fn resolveTransactionRead(self: *Self, allocator: std.mem.Allocator, context: c.DirectTransactionRead.Context, namespace_id: u64, name: a.Name, policy: Policy) !?View {
+    _ = allocator;
+    const head = try self.transactionReadHead(context, policy);
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    const initial = try self.guard(scratch.allocator(), policy, try self.schema(namespace_id), null, .schema);
+    try check(initial);
+    const position = head.acquired.cut.begin.catalog;
+    var frames = try self.store.log.read(self.allocator, position.partition, position.next_lsn - 1, 1);
+    defer frames.deinit();
+    if (frames.frames.len != 1) return error.CatalogHistoryMissing;
+    const frozen = try Store.decodeFrame(self.allocator, frames.frames[0], position.partition, position.next_lsn - 1);
+    const value = try self.store.tree().get(frozen.root.names, try r.nameKey(namespace_id, name)) orelse return null;
+    const proposed = try r.fromValue(r.Name, self.allocator, value);
+    if (proposed.namespace != namespace_id or !std.meta.eql(proposed.name, name)) return error.CatalogNameHashCollision;
+    var access = try self.readAccess(scratch.allocator(), .{ .scope = self.config().scope, .branch = self.config().branch, .object = proposed.object }, policy, false);
+    errdefer access.view.deinit();
+    if (access.view.properties.namespace != namespace_id or !std.meta.eql(access.view.properties.name, name)) return error.InvalidTransactionRead;
+    try check(access.current);
+    return access.view;
+}
+
+const TransactionControl = c.DirectTransactionControl;
+
+/// Resume accepted work only. An idle active transaction stays active; no new
+/// statement, commit attempt or abort is chosen by maintenance.
+pub fn resumeTransaction(self: *Self, key: c.DirectClientToken.Key, steps: u16, policy: Policy) !TransactionControl.Status {
+    if (steps == 0 or steps > 256) return error.InvalidTransactionWork;
+    const observed = try self.inspectTransaction(key, policy);
+    if (observed.attempt) |attempt| return self.settleTransaction(key, attempt.operation, .commit, steps, policy);
+    if (!observed.pending_statement and !observed.pending_control) return observed;
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    if (head.pending_control) |control_pending| {
+        _ = try self.transactionSavepoint(key, control_pending.result.request, steps, policy);
+    } else _ = try self.executeTransactionStatement(key, head.pending orelse return error.InvalidTransactionWorkspace, policy);
+    return self.inspectTransaction(key, policy);
+}
+
+/// Inspect original transaction knowledge without acquiring a cut or deciding.
+/// The host serializes database publication while this method observes owners.
+pub fn inspectTransaction(self: *Self, key: c.DirectClientToken.Key, policy: Policy) !TransactionControl.Status {
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    const begin = progress.receipt.binding.intent.transaction.begin;
+    var result: TransactionControl.Status = .{ .revision = progress.revision, .begin = begin, .acquired = false, .cut = null, .last_statement = 0, .pending_statement = false, .last_control = 0, .pending_control = false, .savepoints = 0, .attempt = null, .observation = .not_observed, .cleanup_complete = false };
+    const reference = progress.record orelse return result;
+    if (reference.format != TransactionControl.format) {
+        const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+        result.acquired = true;
+        result.cut = head.acquired.cut;
+        result.last_statement = head.last_statement;
+        result.pending_statement = head.pending != null;
+        result.last_control = head.last_control;
+        result.pending_control = head.pending_control != null;
+        result.savepoints = head.savepoint_count;
+        return result;
+    }
+    const control = try TransactionControl.load(self.allocator, self.data_objects, progress);
+    result.acquired = control.workspace != null;
+    result.cut = if (control.workspace) |head| head.acquired.cut else null;
+    result.last_statement = control.binding.attempt.last_statement;
+    if (control.workspace) |head| result.last_control = head.last_control;
+    result.attempt = control.binding.attempt;
+    result.cleanup_complete = control.cleanup_complete;
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    var journal = try s.TransactionDecisionLog.init(self.allocator, self.data_log, self.data_objects, progress.receipt.coordination.?, control.binding);
+    try journal.recover();
+    result.observation = try journal.observe(try self.guard(arena.allocator(), policy, null, null, .database));
+    if (control.decision) |known| {
+        if (result.observation != .decided or !std.meta.eql(known, result.observation.decided)) return error.InvalidTransactionControl;
+    }
+    return result;
+}
+
+/// Resume the original attempt in bounded participant preparation/cleanup units.
+/// The embedding host excludes ALL database publication throughout the call.
+/// This exclusion plus one unchanged policy/writer epoch closes validation to
+/// decision races without retaining one in-memory guard per participant.
+/// Abort requests race through the same journal; they cannot undo a commit.
+pub fn settleTransaction(self: *Self, key: c.DirectClientToken.Key, operation: d.Operation, command: TransactionControl.Command, steps: u16, policy: Policy) !TransactionControl.Status {
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    if (steps == 0) return error.InvalidTransactionWork;
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    const retained = self.options.table_owner;
+    self.options.table_owner = null;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        self.options.table_owner = retained;
+        std.debug.assert(memory.used == 0);
+    }
+    self.settleTransactionBounded(progress, operation, command, steps, policy) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+    return self.inspectTransaction(key, policy);
+}
+
+fn transactionView(self: *Self, object: d.Object) !View {
+    if (!std.meta.eql(object.scope, self.config().scope) or object.branch != self.config().branch) return error.CatalogDenied;
+    const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    return self.openTransaction(self.allocator, target, false, true);
+}
+
+fn publishTransactionControl(self: *Self, progress: *c.DirectClientToken.Progress, control: *TransactionControl.State, guard_value: P.Guard) !void {
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    progress.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    progress.pending = !control.cleanup_complete;
+    control.revision = progress.revision;
+    try control.validate(progress.*);
+    progress.record = try TransactionWorkspace.stage(self.data_objects, progress.receipt.binding.key.scope(), TransactionControl.format, control.*);
+    try self.store.index.begin(self.options.index_work_bytes);
+    defer self.store.index.end();
+    try self.store.clientIndices(&next, progress.*);
+    try self.store.publish(next, .{ .client_token = progress.* }, guard_value);
+    try check(guard_value);
+}
+
+fn freezeTransaction(self: *Self, progress: *c.DirectClientToken.Progress, operation: d.Operation, command: TransactionControl.Command, guard_value: P.Guard) !TransactionControl.State {
+    if (progress.record != null and progress.record.?.format == TransactionControl.format) {
+        const control = try TransactionControl.load(self.allocator, self.data_objects, progress.*);
+        if (!std.meta.eql(control.binding.attempt.operation, operation)) return error.TransactionIdentityConflict;
+        return control;
+    }
+    const begin = progress.receipt.binding.intent.transaction.begin;
+    const head = if (progress.record != null) try TransactionWorkspace.recover(self.allocator, self.data_objects, progress.*) else null;
+    if (command == .commit) {
+        if (head == null) return error.TransactionCutNotAcquired;
+        if (head.?.pending_control != null) return error.TransactionControlPending;
+        if (head.?.pending != null) return error.TransactionStatementPending;
+    }
+    var selected = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, if (head != null) .sources else .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer selected.deinit();
+    try selected.restore(if (head) |value| value.acquired.cut.sources else begin.tables);
+    var participants = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer participants.deinit();
+    var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
+    defer index.deinit();
+    var after: ?u64 = null;
+    while (true) {
+        const page = try selected.page(after);
+        for (page.entries) |slot| if (slot) |entry_value| {
+            const guard_basis = if (head != null) entry_value.source.guard else entry_value.participant.state.guard;
+            const private = if (head) |value| try TransactionWorkspace.get(s.TableWorkspace.State, self.allocator, &index, value.tables, entry_value.object().object, progress.receipt.binding.key.scope(), TransactionWorkspace.table_format) else null;
+            try participants.put(.{ .participant = .{ .state = .{ .kind = .table, .guard = guard_basis, .access = if (private != null) .write else .read } } });
+        };
+        after = page.next orelse break;
+    }
+    const binding: s.TransactionDecisionLog.Binding = .{ .begin = begin, .attempt = .{
+        .definition = p.Growth.current_definition,
+        .transaction = begin.identity,
+        .operation = operation,
+        .cut = if (head) |value| (try value.acquired.stage(self.data_objects, progress.receipt)).content else begin.tables.content,
+        .workspace = if (progress.record) |reference| reference.content else begin.tables.content,
+        .participants = try participants.seal(),
+        .writes = participants.root.writes,
+        .last_statement = if (head) |value| value.last_statement else 0,
+    } };
+    try binding.validate();
+    try check(guard_value);
+    try c.OperationBinding.claimTransactionAttempt(self.allocator, self.data_objects, binding);
+    var control: TransactionControl.State = .{ .definition = p.Growth.current_definition, .revision = progress.revision, .binding = binding, .abort_requested = command == .abort, .workspace = head, .preparations = null, .prepared_after = null, .preparation_complete = false, .decision = null, .cleanup_after = null, .cleanup_complete = false };
+    try self.publishTransactionControl(progress, &control, guard_value);
+    return control;
+}
+
+fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress, operation: d.Operation, command: TransactionControl.Command, steps: u16, policy: Policy) !void {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var epoch: ?P.Guard.Fence = null;
+    // The publication guard lives outside the per-participant scratch arena.
+    var guards = std.heap.ArenaAllocator.init(self.allocator);
+    defer guards.deinit();
+    var publication: CutFence = .{ .underlying = try self.guard(guards.allocator(), policy, null, null, .database), .epoch = &epoch };
+    const guard_value = publication.guard();
+    try check(guard_value);
+    var progress = admitted;
+    var control = try self.freezeTransaction(&progress, operation, command, guard_value);
+    if (control.cleanup_complete) return;
+    const begin = control.binding.begin;
+    var journal = try s.TransactionDecisionLog.init(self.allocator, self.data_log, self.data_objects, progress.receipt.coordination.?, control.binding);
+    try journal.recover();
+    journal.lose_reply = self.lose_transaction_reply;
+    try journal.freeze(guard_value);
+    var participants = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer participants.deinit();
+    try participants.restore(control.binding.attempt.participants);
+    var remaining = steps;
+    if (journal.decision == null and (command == .abort or control.abort_requested)) {
+        if (!control.abort_requested) {
+            control.abort_requested = true;
+            try self.publishTransactionControl(&progress, &control, guard_value);
+        }
+        control.decision = try journal.abort(guard_value);
+        try self.publishTransactionControl(&progress, &control, guard_value);
+    }
+    if (journal.decision == null) {
+        if (control.workspace == null) return error.TransactionCutNotAcquired;
+        if (control.workspace.?.pending != null) return error.TransactionStatementPending;
+        var preparations = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .preparations, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+        defer preparations.deinit();
+        if (control.preparations) |directory| try preparations.restore(directory);
+        var index = try s.TreeStore.init(self.allocator, self.data_objects, self.options.resident_pages);
+        defer index.deinit();
+        while (!control.preparation_complete and remaining != 0) {
+            const page = try participants.page(control.prepared_after);
+            var complete = true;
+            for (page.entries) |slot| if (slot) |entry_value| {
+                if (remaining == 0) {
+                    complete = false;
+                    break;
+                }
+                _ = scratch.reset(.retain_capacity);
+                const participant = entry_value.participant.state;
+                var view = try self.transactionView(entry_value.object());
+                defer view.deinit();
+                var read: CutFence = .{ .underlying = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(entry_value.object().object), .read), .epoch = &epoch };
+                try check(read.guard());
+                if (participant.access == .write) {
+                    const private = try TransactionWorkspace.get(s.TableWorkspace.State, self.allocator, &index, control.workspace.?.tables, entry_value.object().object, progress.receipt.binding.key.scope(), TransactionWorkspace.table_format) orelse return error.InvalidTransactionControl;
+                    view.table.lose_reply = self.lose_table_reply;
+                    const prepared = try view.table.prepareTransaction(control.binding, progress.receipt.coordination.?, participant.guard, private, read.guard());
+                    try preparations.put(.{ .prepared = prepared });
+                } else if (begin.mode != .read_only) {
+                    if (view.table.root.transaction != null) return error.TransactionConflict;
+                    try participant.guard.requireUnchanged(transactionTableGuard(view.table.root));
+                }
+                control.prepared_after = entry_value.object().object;
+                remaining -= 1;
+            };
+            if (complete and page.next == null) control.preparation_complete = true;
+            control.preparations = try preparations.seal();
+            try self.publishTransactionControl(&progress, &control, guard_value);
+        }
+        if (!control.preparation_complete) return;
+        // Recheck every original statement's current operation privilege. The
+        // aggregate receipt must not introduce an unrelated UPDATE requirement.
+        try self.authorizeTransactionStatements(control, progress.receipt.binding.key.scope(), policy, &epoch, &scratch, &index);
+        var verification: TransactionVerification = .{ .catalog = self, .binding = control.binding };
+        control.decision = try journal.commit(control.preparations.?, .{ .context = &verification, .participant = TransactionVerification.participant, .prepared = TransactionVerification.prepared }, guard_value);
+        try self.publishTransactionControl(&progress, &control, guard_value);
+    }
+    if (control.decision == null) {
+        control.decision = journal.decision orelse return error.InvalidTransactionControl;
+        try self.publishTransactionControl(&progress, &control, guard_value);
+    }
+    while (!control.cleanup_complete and remaining != 0) {
+        const page = try participants.page(control.cleanup_after);
+        var complete = true;
+        for (page.entries) |slot| if (slot) |entry_value| {
+            if (remaining == 0) {
+                complete = false;
+                break;
+            }
+            var view = try self.transactionView(entry_value.object());
+            defer view.deinit();
+            view.table.lose_reply = self.lose_table_reply;
+            if (view.table.root.transaction) |reference| {
+                const prepared = try s.TableTransaction.load(self.allocator, self.data_objects, reference);
+                // Another transaction's barrier is not ours to resolve. It may
+                // temporarily defer release of this transaction's old pin.
+                if (!std.meta.eql(prepared.binding, control.binding)) return error.TransactionPrepared;
+                const resolved = (try view.table.resolveTransaction(guard_value)) orelse return error.InvalidTransactionControl;
+                if (!std.meta.eql(resolved, control.decision.?)) return error.InvalidTransactionControl;
+            }
+            const pinned = try view.table.pinState(begin.identity.begin, guard_value);
+            if (pinned.handle) |handle| if (!pinned.released) try view.table.releaseSnapshot(handle, guard_value);
+            control.cleanup_after = entry_value.object().object;
+            remaining -= 1;
+        };
+        if (complete and page.next == null) control.cleanup_complete = true;
+        try self.publishTransactionControl(&progress, &control, guard_value);
+    }
+}
+
+fn authorizeTransactionStatements(self: *Self, control: TransactionControl.State, scope_value: c.DirectRecord.Scope, policy: Policy, epoch: *?P.Guard.Fence, scratch: *std.heap.ArenaAllocator, index: *s.TreeStore) !void {
+    const head = control.workspace orelse return error.InvalidTransactionControl;
+    var selected = try s.TransactionDirectory.init(self.allocator, self.data_objects, control.binding.begin.identity, .participants, control.binding.begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+    defer selected.deinit();
+    try selected.restore(control.binding.attempt.participants);
+    var after: ?u64 = null;
+    while (true) {
+        const page = try selected.page(after);
+        for (page.entries) |slot| if (slot) |entry_value| {
+            _ = scratch.reset(.retain_capacity);
+            var view = try self.transactionView(entry_value.object());
+            defer view.deinit();
+            var read: CutFence = .{ .underlying = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(entry_value.object().object), .read), .epoch = epoch };
+            try check(read.guard());
+        };
+        after = page.next orelse break;
+    }
+    var tree: pages.Tree(s.TreeStore) = .{ .store = index };
+    var cursor: ?pages.Key = null;
+    while (true) {
+        const page = try tree.scan(head.statements, cursor);
+        for (page.entries) |slot| if (slot) |entry_value| {
+            _ = scratch.reset(.retain_capacity);
+            const completed = try TransactionWorkspace.load(TransactionWorkspace.Completed, self.allocator, self.data_objects, try TransactionWorkspace.referenceOf(entry_value.value, scope_value, TransactionWorkspace.statement_format), scope_value, TransactionWorkspace.statement_format);
+            try completed.validate();
+            var view = try self.transactionView(completed.request.binding.target);
+            defer view.deinit();
+            try self.original(policy, completed.request.binding);
+            const permission: a.Access = switch (completed.request.binding.action) {
+                .insert => .insert,
+                .update => .update,
+                .delete => .delete,
+                else => return error.InvalidTransactionWorkspace,
+            };
+            var write: CutFence = .{ .underlying = try self.guard(scratch.allocator(), policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(completed.request.binding.target.object), permission), .epoch = epoch };
+            try check(write.guard());
+        };
+        cursor = page.next orelse break;
+    }
+}
+
+const TransactionVerification = struct {
+    catalog: *Self,
+    binding: s.TransactionDecisionLog.Binding,
+    fn participant(raw: *anyopaque, value: p.Transaction.Participant) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        try value.requireLocalTable(self.binding.begin);
+        var view = try self.catalog.transactionView(value.state.guard.source.interpretation.object);
+        defer view.deinit();
+        if (self.binding.begin.mode == .read_only) return;
+        if (view.table.root.retired) return error.TransactionConflict;
+        try value.state.guard.requireUnchanged(transactionTableGuard(view.table.root));
+        if (value.state.access == .read and view.table.root.transaction != null) return error.TransactionConflict;
+        if (value.state.access == .write and view.table.root.transaction == null) return error.TransactionPreparationMissing;
+    }
+    fn prepared(raw: *anyopaque, value: p.Transaction.Prepared) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        var view = try self.catalog.transactionView(value.object);
+        defer view.deinit();
+        const reference = view.table.root.transaction orelse return error.TransactionPreparationMissing;
+        const preparation = try s.TableTransaction.load(self.catalog.allocator, self.catalog.data_objects, reference);
+        try self.binding.requireSame(preparation.binding);
+        if (!std.meta.eql(value, try preparation.prepared(reference)) or value.position.next_lsn != view.table.root.next_lsn) return error.InvalidTransactionPreparation;
+        try s.TableTransaction.verifyWorkspace(self.catalog.allocator, &view.table.index, view.table.log, preparation.workspace.root, view.table.root.archive);
+    }
+};
+
 pub fn initialize(self: *Self, policy: Policy) !void {
     try self.store.refresh();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -1302,8 +2064,12 @@ fn entry(self: *Self, object: u64) !?r.Entry {
 }
 
 fn open(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: bool) !View {
+    return self.openTransaction(allocator, target, control, false);
+}
+
+fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: bool, transaction_control: bool) !View {
     if (target.resource != null) return error.CatalogKindMismatch;
-    const resident = if (control) null else self.options.table_owner;
+    const resident = if (control or transaction_control or self.transaction_read != null) null else self.options.table_owner;
     const original_seed = target.seed orelse return error.CatalogRegistrationRequired;
     if (resident) |slot| if (slot.*) |cached| {
         slot.* = null;
@@ -1324,7 +2090,9 @@ fn open(self: *Self, allocator: std.mem.Allocator, target: r.Entry, control: boo
     defer seed.deinit();
     var options = self.options.table;
     options.control = .{ .log = self.store.log, .objects = self.store.objects };
+    options.transaction_control = transaction_control;
     var table = try P.init(if (resident != null) self.allocator else allocator, target.partition, seed.definition, if (control) self.store.log else self.data_log, if (control) self.store.objects else self.data_objects, options);
+
     errdefer table.deinit();
     if (prior != null and prior.?.root.partition == target.partition and
         std.meta.eql(prior.?.root.interpretation.object, seed.definition.object))
@@ -1346,6 +2114,7 @@ fn candidate(self: *Self, namespace: u64, name: a.Name) !?r.Name {
 /// A name candidate alone is not a published object. The returned owner has an
 /// exact observed Table root; it is not a catalog-wide consistent snapshot.
 pub fn resolve(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, name: a.Name, policy: Policy) !?View {
+    if (self.transaction_read) |context| return self.resolveTransactionRead(allocator, context, namespace_id, name, policy);
     try self.requireInitialized();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
@@ -2020,7 +2789,7 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     };
     // No catalog publication is needed for visibility or the accepted result.
     // A later explicit settlement only removes the pending-work directory entry.
-    return .{ .committed = .{ .binding = binding, .resulting = view.table.root.declared(), .outcome = outcome } };
+    return .{ .committed = .{ .binding = binding, .resulting = view.table.root.declared(), .outcome = outcome, .transaction = null } };
 }
 
 fn hasDependents(self: *Self, object: u64) !bool {
@@ -2452,6 +3221,7 @@ fn readAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, polic
     errdefer view.deinit();
     const current = try self.guard(allocator, policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), .read);
     try check(current);
+    if (self.transaction_read) |context| try self.overlayTransactionRead(&view, context, current, policy);
     return .{ .view = view, .current = current };
 }
 
@@ -2506,6 +3276,13 @@ fn pinRowsChecked(self: *Self, object: d.Object, owner: d.Operation, expected: d
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, false);
     defer access.view.deinit();
+    if (access.view.table.workspace_read) |read| {
+        if (retention != .snapshot or !std.meta.eql(owner, read.cut.begin.identity.begin) or
+            !std.meta.eql(expected, read.source.source.accepted)) return error.InvalidTransactionRead;
+        if (interpretation) |required| if (!std.meta.eql(required, read.source.source.interpretation)) return error.TableDefinitionChanged;
+        try check(access.current);
+        return .{ .owner = owner, .content = read.private };
+    }
     if (interpretation) |required| {
         const state = try access.view.table.pinState(owner, access.current);
         if (state.handle) |handle| {
@@ -2564,6 +3341,10 @@ pub fn pinState(self: *Self, object: d.Object, owner: d.Operation, policy: Polic
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, owner, policy, true);
     defer access.view.deinit();
+    if (access.view.table.workspace_read) |read| {
+        if (!std.meta.eql(owner, read.cut.begin.identity.begin)) return error.InvalidTransactionRead;
+        return .{ .interpretation = read.source.source.interpretation, .position = read.source.source.accepted, .retired = false, .handle = .{ .owner = owner, .content = read.private }, .released = false };
+    }
     return access.view.table.pinState(owner, access.current);
 }
 
@@ -2652,6 +3433,10 @@ pub fn releaseRows(self: *Self, object: d.Object, handle: P.SnapshotHandle, poli
     defer arena.deinit();
     var access = try self.snapshotAccess(arena.allocator(), object, handle.owner, policy, true);
     defer access.view.deinit();
+    if (access.view.table.workspace_read) |read| {
+        if (!std.meta.eql(handle.owner, read.cut.begin.identity.begin) or !std.meta.eql(handle.content, read.private)) return error.InvalidTransactionRead;
+        return check(access.current);
+    }
     return access.view.table.releaseSnapshot(handle, access.current);
 }
 

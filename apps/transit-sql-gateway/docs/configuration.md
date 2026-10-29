@@ -54,7 +54,18 @@ Table principal explicit CONNECT, schema and operation rights through the native
 authorization graph. Configuration grants no rights and the service needs no
 private Catalog storage access or Station process ownership.
 
-The first accepted account reservation fixes its quotas. Later requests must use
+`execution.transaction_limits` bounds each interactive Table transaction:
+16 MiB temporary resident memory, 256 MiB cumulative workspace bytes, 100,000
+selected Tables, 10,000 statements/control sequences and 128 active savepoints
+by default. The native Catalog separately enforces its per-transaction ceilings
+and aggregate pending reservations. These limits do not preallocate a buffer per
+selected Table. There is no automatic transaction lifetime timeout; recover and
+explicitly settle abandoned transactions. Session expiry does not release their
+durable pins or establish abort.
+
+The accepted activation fixes the complete `execution` profile, including
+`transaction_limits`; a higher generation cannot change that fingerprint.
+The first accepted account reservation also fixes its quotas. Later requests must use
 the same limits; a smaller per-request budget cannot bypass account accounting.
 Pending settlement releases pending capacity, while operation and byte charges
 remain retained. Changing the execution identity or quota profile is not a way

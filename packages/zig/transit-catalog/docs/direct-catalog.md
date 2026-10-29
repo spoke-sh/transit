@@ -468,8 +468,10 @@ Table DDL/DML, namespace, conditional name, external-owner and transaction begin
 references. Transaction admission atomically reserves a coordination partition
 with its token receipt; it establishes no acquired snapshot or commit decision.
 Its explicit Table selection is paged and its ceilings come from
-`Options.transaction_limits`. Admission rejects `authorized_catalog_tables`:
-the neutral variant requires server-owned discovery before it can execute.
+`Options.transaction_limits`. Caller-built token bindings accept explicit selections only.
+The signed `transaction.begin` operation also supports `authorized_catalog_tables`: it
+walks the catalog and freezes every currently SELECT-authorized direct Table under
+one publication and policy fence.
 Generic progress updates reject these entries; only their transaction owner can
 replace recovery records or request settlement.
 
@@ -497,8 +499,9 @@ owner and decoding work share the admitted resident-byte limit. Transaction
 operations neither borrow nor retain the ordinary Table-owner cache: their
 Table allocations are released before the temporary budget ends. Catalog caches,
 provider buffers and fixed stack buffers have separate owners. Deployment-wide
-capacity and cleanup still require transaction-host integration. This component
-operation has no signed request or SQL adapter and does not decide a commit.
+capacity uses the node request budgets and per-account reservations. The signed
+`transaction.acquire` operation takes the host database lock for the complete
+acquisition; it does not decide a commit. SQL session controls are separate.
 See the token contract for exact fields, permissions and execution boundaries.
 
 `admitTransactionStatement` freezes one original bulk DML request before private
@@ -539,13 +542,38 @@ Reopen and lost replies retain the reservation. Exact accepted-token recovery
 still succeeds after admission ceilings are lowered; new over-capacity begins
 refuse before allocating a coordination partition. Pending work retains its full
 reservation regardless of its current physical use. Generic progress operations
-cannot release transaction reservations; transaction settlement/cleanup remains
-an owner obligation before such release can be exposed. Deployment-wide capacity,
+cannot release transaction reservations. The transaction coordinator releases
+these reservations only after its recorded decision and participant cleanup. Deployment-wide capacity,
 provider disk quotas and transaction host scheduling remain separate controls.
 
+`settleTransaction` durably freezes one original commit operation, acquired cut,
+workspace commitment and paged participant list before participant preparation.
+Statements cannot change a frozen workspace. Each selected Table is a conservative
+read dependency; Tables with private states are write participants. Serializable
+commit validates original logical/definition guards, every current SELECT and
+original DML permission, and actual prepared object availability. Read-only
+completion keeps its original acquired cut without requiring unchanged data.
+All checks and the decision append share one writer/policy epoch under the host's
+exclusive publication fence. No guard array grows with participant cardinality.
+
+The `steps` allowance limits participant preparation and cleanup units per call.
+Commit verification walks the selected directories and immutable data with bounded
+resident buffers. One coordination-log append decides commit or abort. A lost
+reply does not change that decision; `inspectTransaction` observes the original
+attempt and journal under current database access. It distinguishes the decision
+from completed cleanup. Explicit abort also handles a pending private statement
+or interrupted cut acquisition; session loss does not request abort. Once abort
+is durably requested, subsequent retries preserve that request until settlement.
+
+Cleanup resolves owned Table barriers and releases original begin pins. It can
+resume after any lost reply. An unrelated transaction's barrier defers pin cleanup;
+it is never cleared on this transaction's behalf. Original outcomes and claims
+remain retained after reservations are released. The storage graph retains active
+private data and decision dependencies, while completed abort cleanup makes
+superseded private data eligible for physical collection.
+
 These are embedding component operations. Signed caller requests, SQL sessions,
-durable savepoint controls, participant preparation, common-decision visibility,
-abort settlement and automatic cleanup are not supplied by workspace publication.
+durable savepoint controls and automatic scheduling require host integration.
 
 `DirectTablePreparedDdl.prepare` owns the parsed CREATE/ALTER/DROP definition and
 its exact current metadata under the caller's rights. `bind` takes a separate
@@ -673,3 +701,89 @@ selection. Missing interpretation evidence, current denial and transport errors
 leave the original cleanup decision unresolved.
 These methods supply retention and source traversal; maintained-query scheduling
 and publication remain separate owners.
+
+
+## Signed transaction controls
+
+`DirectTransactionClient` uses the shared signed `/table/v1` connection. `begin`
+freezes either sorted explicit Table IDs or the complete authorized catalog Table
+selection. Persist its account/token and request fingerprint before sending it;
+a retry returns the original accepted begin even when the proposed operation or
+current catalog has changed. `acquire` records the original common cut.
+
+`stage` takes the exact `inspect.revision`, validates and stores bulk
+INSERT/UPDATE/DELETE work for the next sequence;
+its returned `DirectTransactionWorkspace.Request` must be retained before
+`admit` or `execute`. Staging is not statement acceptance. `execute` recovers an
+admitted request or its original provisional outcome. Repeating a completed
+request does not consume another sequence or modify public Table data.
+
+`inspect` reports the current catalog revision, begin, acquired-cut state,
+statement frontier, pending statement, original commit attempt, decision knowledge
+and cleanup completion. `settle` preserves the original commit operation and
+advances at most its `steps` preparation/cleanup participants (1–256). `advance`
+executes only the accepted pending statement or existing commit attempt; it leaves
+an idle active transaction unchanged. A committed
+decision is distinct from completed publication and pin cleanup. An absent reply
+or interrupted wait cannot establish rejection or rollback.
+
+The node excludes database publication for each transaction-control call. Paged
+checks retain a common writer/policy epoch instead of growing a native Guard
+array; the response is withheld if that epoch changes after buffering. These
+calls use current original-caller authorization. They grant neither delegated
+read authority nor permission to execute external effects.
+
+
+Set `DirectTableClient.transaction` to the original token key and current inspected
+revision to read private writes. The client uses the existing lookup and retained
+read operations. Metadata carries `workspace`; build the private snapshot handle
+from its begin owner and `private` commitment, then use `DirectTableReader` normally
+with that same client context. The reader's basis includes both the original
+committed cut and private revision. Closing it does not release the begin's pins.
+Names and schemas stay on the original catalog cut while every disclosure checks
+current rights. A later statement or settlement invalidates the old revision;
+refresh the context explicitly before preparing another statement. The stage and
+admission checks prevent stale private plans from reaching a different workspace.
+See the [private read contract](../../../../contracts/DIRECT_TABLE_V1.md#transaction-scoped-private-reads)
+for supported actions and source attribution.
+
+
+`DirectTransactionClient.savepoint` creates, releases or rolls back named private
+root checkpoints. Persist the exact request with its original operation, control
+sequence and inspected workspace revision before submission. A result with no
+`completed` position remains accepted and pending. Resume that request or use
+`advance`; do not choose another operation after a timeout. Rollback restores at
+most `steps` Table roots per call and publishes the restored directory only when
+all roots are ready. Current rights gate restoration; full abort remains available
+when a rollback cannot progress. New private reads and commit refuse pending
+rollback. Every completed control changes the private revision, invalidating
+prior cursors and plans for new statements.
+
+The newest matching savepoint name wins. Release removes it and newer checkpoints;
+rollback removes newer checkpoints and keeps its target. Prior statement numbers,
+operation claims and outcomes remain consumed, and original conflict dependencies
+remain in the common cut. Controls have their own consecutive sequence, bounded
+by the admitted statement limit; active stack depth is bounded by the savepoint
+limit. Stack lookup and rollback use bounded resident state over durable records.
+Saved and partially restored roots participate in storage reachability. See the
+[savepoint contract](../../../../contracts/DIRECT_TABLE_V1.md#durable-savepoint-controls)
+for retry, quota and storage semantics.
+
+
+### Caller commands and original outcomes
+
+`DirectTransactionCall` binds an outer client token to one exact native begin,
+statement, savepoint or settlement request before the child owner can accept it.
+The caller command uses its own operation claim and a 37,376-byte reserved record;
+that receipt is separate from the original transaction statement and decision.
+`DirectTransactionClient.advanceCall` drives bounded work and `callOutcome`
+observes it. Generic operation/progress routes reject these entries.
+
+Frozen statement references remain reachable before child admission. Original
+statement and savepoint outcomes remain inspectable after rollback and after
+transaction cleanup under current rights. Durable typed precondition refusals
+prevent endless recovery of impossible commands; unavailable storage or authority
+keeps the command unresolved. A partial decision stays in the pending directory
+until cleanup completes. Cancellation is sticky caller state, not an implicit
+abort request. The [wire contract](../../../../contracts/DIRECT_TABLE_V1.md#durable-transaction-caller-commands)
+defines the exact boundary.

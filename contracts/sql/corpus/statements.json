@@ -765,8 +765,8 @@
       }
     },
     {
-      "id": "utf8='it''s \u6771\u4eac'",
-      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
+      "id": "utf8='it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
       "schema": {
         "name": "items",
         "columns": [
@@ -801,8 +801,8 @@
       }
     },
     {
-      "id": "utf8<>'it''s \u6771\u4eac'",
-      "sql": "SELECT * FROM items WHERE value <> 'it''s \u6771\u4eac'",
+      "id": "utf8<>'it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value <> 'it''s 東京'",
       "schema": {
         "name": "items",
         "columns": [
@@ -2336,7 +2336,19 @@
     "RESET ALL;",
     "SELECT transit_reload_conf();",
     "SELECT name, value FROM transit_settings() WHERE pending_restart = true ORDER BY name LIMIT 8;",
-    "SELECT * FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 20;"
+    "SELECT * FROM transit_config_reloads() ORDER BY ordinal DESC LIMIT 20;",
+    "BEGIN",
+    "BEGIN WORK READ WRITE ISOLATION LEVEL SERIALIZABLE",
+    "START TRANSACTION READ ONLY",
+    "BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE READ ONLY",
+    "COMMIT WORK",
+    "COMMIT TRANSACTION",
+    "ROLLBACK",
+    "ROLLBACK WORK TO SAVEPOINT original",
+    "ROLLBACK TRANSACTION TO original",
+    "SAVEPOINT original",
+    "RELEASE SAVEPOINT original",
+    "RELEASE original"
   ],
   "table_select": [
     {

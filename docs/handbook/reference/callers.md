@@ -83,3 +83,15 @@ A command attempt remains uncertain unless its original outcome is established
 separately; retain and reconcile the exact signed work. The native ABI preserves
 these read/command distinctions, and query, mutation, catalog, application, Board
 and serving diagnostics identify the local connection policy as the failed boundary.
+
+
+## Transaction callers
+
+The [Zig SDK](../../../sdks/zig/README.md#table-transactions) exposes signed Table
+transaction controls and the shared SQL client. Native SQL, the console and
+PostgreSQL/MySQL use the same [local Table transaction semantics](sql/transactions.md).
+Successful private DML is provisional. Preserve the original begin handle and
+command tokens through uncertain replies; current permissions are required to
+observe and settle them. `attachTransaction` is an explicit temporary attachment,
+not a new transaction or an automatic effect retry. Other language/Flight APIs do
+not acquire transaction support merely by sharing the current protocol definition.

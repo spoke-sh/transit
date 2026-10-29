@@ -11,6 +11,8 @@ from urllib.parse import urlsplit
 class Faults:
     def __init__(self, url):
         target = urlsplit(url)
+        self.fail_transaction_once = False
+        self.transaction_reply_losses = 0
         self.fail_commit_once = False
         self.commit_reply_losses = 0
         self.fail_open = False
@@ -116,7 +118,14 @@ class Faults:
                     if lose_commit:
                         owner.fail_commit_once = False
                         owner.commit_reply_losses += 1
-                if lose_commit:
+                    lose_transaction = False
+                    if owner.fail_transaction_once and 'call' in table.get('transaction', {}) and status == 200:
+                        result = json.loads(body).get('result', {}).get('transaction', {}).get('call')
+                        if result is not None and 'settled' in result and 'decided' in result['settled']['observation']:
+                            owner.fail_transaction_once = False
+                            owner.transaction_reply_losses += 1
+                            lose_transaction = True
+                if lose_commit or lose_transaction:
                     status, body = 503, b'{"err":"HttpCapacity"}'
                     content_type = 'application/json'
                 if lose_pin:

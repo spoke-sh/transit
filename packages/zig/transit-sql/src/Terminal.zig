@@ -42,6 +42,7 @@ pub fn validate(self: Self) !void {
 pub fn fromReference(reference: g.IntentReference.Reference, result: w.Result) !?Self {
     try reference.validate();
     if (reference == .external) return error.ExternalOperationOwnerRequired;
+    if (reference == .transaction or reference == .transaction_call) return error.TransactionOperationRequired;
     if (reference == .table) return fromResult(reference.table.binding, result);
     if (reference == .namespace_change) {
         if (result != .namespace_operation) return error.InvalidGatewayTerminal;

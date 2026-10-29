@@ -47,11 +47,16 @@ be encoded as SQL NULL. Nested, decimal and other native logical descriptors
 outside these six types reject at the wire boundary. Each UTF-8 or binary bound
 parameter is limited to 4096 bytes, independently of frame size.
 
-Transactions, savepoints, disabling autocommit, multi-statement requests,
+Disabling autocommit, multi-statement requests,
 ALTER/DROP, RETURNING, COPY, bulk upload, replication and arbitrary upstream
 system catalogs are unsupported. The console's native statement/type profile
 is broader; parser acceptance in the common grammar does not widen a wire
 adapter's execution profile.
+
+Both adapters support [local Table transactions](sql/transactions.md), including
+read-only cuts and savepoints. PostgreSQL ReadyForQuery reports idle, active or
+failed transaction state; MySQL sets IN_TRANS while retaining configured
+autocommit. DML counts within a transaction remain provisional until its decision.
 
 PostgreSQL writes are held until the complete permitted extended cycle has
 arrived. A write followed by Flush rejects before dispatch. Suspended read

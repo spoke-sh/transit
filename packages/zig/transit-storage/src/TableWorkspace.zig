@@ -18,6 +18,8 @@ pub const State = struct {
     /// A private evaluator position, never a Table acceptance or commit LSN.
     last_statement: u64,
     changed: bool,
+    matched: u64,
+    affected: u64,
 
     pub fn validate(self: State) !void {
         try self.begin.validate();
@@ -27,7 +29,8 @@ pub const State = struct {
         try self.root.validate();
         if (!std.meta.eql(self.source.owner, self.begin.identity.begin) or self.root.retired or self.root.next_lsn == 0 or
             self.last_statement > self.begin.limits.statements or (self.changed and self.last_statement == 0) or
-            self.root.pins != null or self.root.history_pins != null or self.root.recovery != null or self.root.pending != null)
+            self.root.pins != null or self.root.history_pins != null or self.root.recovery != null or self.root.pending != null or self.root.transaction != null or
+            self.affected > self.matched or self.changed != (self.affected != 0))
             return error.InvalidTransactionWorkspace;
     }
 };
@@ -46,6 +49,8 @@ begin: x.Begin,
 source: P.SnapshotHandle,
 last_statement: u64,
 changed: bool,
+matched: u64,
+affected: u64,
 
 /// The source owner validates the live pin and current disclosure rights before
 /// a workspace can read it. Restoration rechecks the same retained source.
@@ -88,7 +93,7 @@ fn initBounded(memory: *MemoryBudget, owner: *P, begin: x.Begin, source: P.Snaps
         table.root = prior.root;
         last = prior.last_statement;
     }
-    return .{ .table = table, .memory = memory, .owner = owner, .begin = begin, .source = source, .last_statement = last, .changed = if (previous) |prior| prior.changed else false };
+    return .{ .table = table, .memory = memory, .owner = owner, .begin = begin, .source = source, .last_statement = last, .changed = if (previous) |prior| prior.changed else false, .matched = if (previous) |prior| prior.matched else 0, .affected = if (previous) |prior| prior.affected else 0 };
 }
 
 pub fn deinit(self: *Self) void {
@@ -105,7 +110,7 @@ pub fn residentPeak(self: *const Self) usize {
 }
 
 pub fn state(self: *const Self) State {
-    return .{ .definition = p.Growth.current_definition, .begin = self.begin, .source = self.source, .root = self.table.root, .last_statement = self.last_statement, .changed = self.changed };
+    return .{ .definition = p.Growth.current_definition, .begin = self.begin, .source = self.source, .root = self.table.root, .last_statement = self.last_statement, .changed = self.changed, .matched = self.matched, .affected = self.affected };
 }
 
 fn requireSource(self: *Self, guard: P.Guard) !void {
@@ -151,6 +156,8 @@ fn executeBounded(self: *Self, statement: x.Statement, request: Dml.Request, gua
     self.last_statement = statement.sequence;
     return switch (try self.table.commit(request, guard)) {
         .committed => |value| blk: {
+            self.matched = try std.math.add(u64, self.matched, value.outcome.matched);
+            self.affected = try std.math.add(u64, self.affected, value.outcome.affected);
             self.changed = self.changed or value.outcome.affected != 0;
             break :blk .{ .provisional = .{ .statement = statement, .matched = value.outcome.matched, .affected = value.outcome.affected } };
         },
@@ -162,21 +169,31 @@ fn executeBounded(self: *Self, statement: x.Statement, request: Dml.Request, gua
 /// Restore only private data and evaluation roots. The host preserves its
 /// monotonic statement counter, read dependencies, savepoint directory and
 /// cursor invalidation evidence; this operation cannot decide a transaction.
-pub fn rollback(self: *Self, saved: State) !void {
+/// Restore data while preserving every consumed operation, statement and segment
+/// frontier. This pure transition also serves paged catalog-owned rollback.
+pub fn restore(current: State, saved: State) !State {
+    try current.validate();
     try saved.validate();
-    if (!std.meta.eql(saved.begin, self.begin) or !std.meta.eql(saved.source, self.source) or
-        !std.meta.eql(saved.root.declared(), self.table.root.declared()) or saved.root.partition != self.table.root.partition or
-        saved.root.next_lsn > self.table.root.next_lsn or saved.last_statement > self.last_statement)
+    if (!std.meta.eql(saved.begin, current.begin) or !std.meta.eql(saved.source, current.source) or
+        !std.meta.eql(saved.root.declared(), current.root.declared()) or saved.root.partition != current.root.partition or
+        saved.root.next_lsn > current.root.next_lsn or saved.last_statement > current.last_statement)
         return error.TransactionIdentityConflict;
-    const current = self.table.root;
-    var restored = saved.root;
-    restored.next_lsn = try std.math.add(u64, current.next_lsn, 1);
-    restored.changed_lsn = restored.next_lsn;
-    restored.next_segment = current.next_segment;
-    restored.receipts = current.receipts;
-    restored.operations = current.operations;
-    restored.pending = current.pending;
-    self.table.root = restored;
-    self.changed = saved.changed;
+    var restored = saved;
+    restored.last_statement = current.last_statement;
+    restored.root.next_lsn = try std.math.add(u64, current.root.next_lsn, 1);
+    restored.root.changed_lsn = restored.root.next_lsn;
+    restored.root.next_segment = current.root.next_segment;
+    restored.root.receipts = current.root.receipts;
+    restored.root.operations = current.root.operations;
+    restored.root.pending = current.root.pending;
+    try restored.validate();
+    return restored;
+}
+pub fn rollback(self: *Self, saved: State) !void {
+    const restored = try restore(self.state(), saved);
+    self.table.root = restored.root;
+    self.changed = restored.changed;
+    self.matched = restored.matched;
+    self.affected = restored.affected;
     self.table.index.clearCache();
 }

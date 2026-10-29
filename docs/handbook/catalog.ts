@@ -74,6 +74,7 @@ export const sections: Section[] = [
       reference("sql/insert", "INSERT"),
       reference("sql/update", "UPDATE"),
       reference("sql/delete", "DELETE"),
+      reference("sql/transactions", "Table transactions and savepoints"),
       reference("sql/create-connection", "CREATE CONNECTION"),
       reference("sql/create-source", "CREATE SOURCE"),
       reference("sql/create-sink", "CREATE SINK"),

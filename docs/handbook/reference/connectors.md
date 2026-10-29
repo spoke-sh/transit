@@ -140,3 +140,17 @@ Board can show attempt, timing, coverage and terminal metadata. It does not deco
 arbitrary application messages. Logs and traces are diagnostic observations,
 not substitute outcome receipts. See [security](security.md) and
 [observability](observability.md).
+
+
+## Table transaction outboxes
+
+Applications can commit an ordinary Table intent alongside Table state and a
+Table checkpoint in one [Table transaction](sql/transactions.md). The
+[checkpoint/outbox example](../../../examples/table-outbox/README.md) shows that
+boundary. A committed intent is eligible for application-controlled delivery;
+it does not execute a connector. Dispatch still requires the effect owner's
+current policy and a recorded attempt. Replay and aborted private work cannot
+authorize dispatch. A missing remote response remains unknown under the connector's
+reconciliation policy; local commit never establishes remote success or safe retry.
+Native Stream/Queue settlements and Station turn migration are not participants
+in this Table profile.

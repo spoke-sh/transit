@@ -171,7 +171,7 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
             if (prepared.mutation()) {
                 const result = try self.host.write(prepared, portal.values);
                 try result.validate();
-                if (result.outcome != .applied and result.outcome != .unchanged) return error.InvalidWireCompletion;
+                if (result.outcome != .applied and result.outcome != .unchanged and result.outcome != .provisional) return error.InvalidWireCompletion;
                 portal.complete = true;
                 try self.send(try self.backend.complete(result.kind, if (result.counts) |counts| counts.matched else 0));
                 return;
@@ -229,7 +229,7 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
                 try self.send(try self.backend.failure(false, diagnostic.state, diagnostic.message, diagnostic.detail));
                 if (tag == 'Q' and self.cycle.state == .idle or self.valid_sync) {
                     self.host.end();
-                    try self.send(try self.backend.ready());
+                    try self.send(try self.backend.ready(self.host.transactionStatus()));
                 } else self.cycle.fail();
                 return true;
             };
@@ -249,7 +249,7 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
                     if (action == .sync_write) try self.execute(self.deferred orelse return error.UnknownWirePortal, 0);
                     self.clearPortals();
                     self.host.end();
-                    try self.send(try self.backend.ready());
+                    try self.send(try self.backend.ready(self.host.transactionStatus()));
                     return true;
                 },
                 .handle => {},
@@ -258,7 +258,7 @@ pub fn Engine(comptime Host: type, comptime Transport: type) type {
                 .query => |sql| {
                     try self.simple(sql);
                     self.host.end();
-                    try self.send(try self.backend.ready());
+                    try self.send(try self.backend.ready(self.host.transactionStatus()));
                 },
                 .parse => |input| {
                     try self.parse(input);

@@ -39,7 +39,12 @@ switch (outcome.value) {
 Command kind, outcome and applicable matched/changed counts come from the service.
 Session commands have no durable operation; Table, configuration and captured
 operations preserve their owner identity. Rejected, cancelled and partial command
-outcomes require explicit handling. `execute` submits once. Its uncertainty result
+outcomes require explicit handling. Transaction DML reports `provisional` counts;
+its attribution retains the original transaction handle. Only COMMIT/ROLLBACK
+completion supplies decision evidence, separately from cleanup progress.
+`Client.attachTransaction(handle)` explicitly restores that original attachment
+in a replacement session under current rights; outcome inspection alone does
+not attach it. `execute` submits once. Its uncertainty result
 retains the original account, instance, admission token and known operation; a
 missing observation never authorizes resubmission.
 

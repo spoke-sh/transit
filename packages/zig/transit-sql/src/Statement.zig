@@ -213,7 +213,7 @@ pub fn bindWrite(self: *const Self, allocator: std.mem.Allocator, client: *c.Dir
         };
     }
     try self.validate(client);
-    if (self.plan == .dml) return .{ .table = try self.plan.dml.bind(allocator, client.*, operation, values, .point, null) };
+    if (self.plan == .dml) return .{ .table = try self.plan.dml.bind(allocator, client.*, operation, values, if (client.transaction != null) .bulk else .point, null) };
     if (values.len != 0) return error.WireParameterCountMismatch;
     if (self.plan == .namespace_change) return .{ .namespace_change = .{ .namespace = self.namespace, .binding = try self.plan.namespace_change.bind(operation, operation) } };
     return error.ExpectedGatewayWrite;

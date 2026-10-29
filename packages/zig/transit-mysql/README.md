@@ -30,8 +30,8 @@ client offers selects features; unadvertised compression, local files, multiple
 statements and query attributes remain disabled. `Backend` encodes HandshakeV10,
 full-auth requests, result/parameter metadata, text/binary rows, prepare replies,
 classified errors and EOF/OK terminators. Binary result NULL bits start at offset
-two; affected rows retain full uint64 values. Status reports autocommit without an
-open transaction, generated ID or additional results. Returned packets borrow a
+two; affected rows retain full uint64 values. Status reports configured autocommit and the shared session's open transaction
+flag, without a generated ID or additional results. Returned packets borrow a
 bounded reusable buffer; the session owns sequencing and negotiated EOF choice.
 
 `Session.Engine` owns bounded prepared handles, validated parameter type vectors,

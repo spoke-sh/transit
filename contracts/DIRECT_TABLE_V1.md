@@ -143,7 +143,7 @@ requires explicit `transactions` counters for all six dimensions. Begin
 admission and those reservations share one catalog acceptance; failed admission
 consumes neither. Exact token recovery does not repeat the charge or apply new
 admission ceilings to old work. Pending transactions retain their reservation;
-only future transaction-owned settlement/cleanup can release it, never generic
+only transaction-owned settlement/cleanup can release it, never generic
 caller progress or quota pressure. Earlier usage records missing counters reject.
 A capacity or stale-Catalog refusal does not allocate a partition or accept a token. Generic
 intent execution rejects transaction references with `TransactionOperationRequired`.
@@ -151,7 +151,7 @@ Generic progress updates reject transaction entries with
 `TransactionOperationRequired`, including changes to the record, cancellation,
 pending flag and exact repeats. Transaction-owned operations must preserve their
 workspace and original decision; generic client bookkeeping cannot replace them.
-The admission interface alone does not provide interactive SQL transactions.
+The SQL session owner composes this admission interface through the durable caller-command boundary below.
 
 The catalog component's common-cut acquisition publishes a `DirectRecord` with
 format `0x54584331`. Its canonical JSON contains mandatory `definition`, `cut`
@@ -180,9 +180,11 @@ nullable `pending` request and `charged_bytes`. Its revision equals the current
 token progress; acquired evidence still binds the original receipt and cut.
 No missing persisted field receives a current-state default.
 
-A request binds `statement`, exact Table `binding` and immutable DML `intent`
+A request binds `statement`, required workspace `basis` revision, exact Table `binding` and immutable DML `intent`
 content. Only bulk INSERT/UPDATE/DELETE without prerequisite authority participates.
-Statement sequences start at one, increase by one across Tables and are consumed
+New admission requires the exact active workspace revision; stale work returns
+`TransactionReadChanged` without consuming a sequence. Original pending/completed
+requests retain their accepted basis and remain retryable. Statement sequences start at one, increase by one across Tables and are consumed
 on admission. One pending request excludes a different statement until its
 original evaluation is resolved. A completed record pairs the request with its
 transaction-attributed provisional outcome or rejection. Private Table records
@@ -196,9 +198,23 @@ ordinary Table operations. Lost replies require original request recovery;
 resource/storage failures can leave admitted statements pending. Current SELECT
 and original DML permissions gate execution and repeated outcome disclosure.
 The embedding host serializes all database publication throughout these component
-calls. No signed workspace action or SQL transaction syntax is exposed by these
-formats. The [component guide](../packages/zig/transit-catalog/docs/direct-catalog.md)
+calls. The signed `transaction` action exposes these controls; SQL session
+syntax is a separate integration. The [component guide](../packages/zig/transit-catalog/docs/direct-catalog.md)
 defines resident and cumulative staging charges and the remaining host boundaries.
+
+The component coordinator stores reserved canonical `DirectRecord` format
+`0x54585031`, at most 32 KiB. Mandatory fields are `definition`, catalog `revision`,
+original decision-log `binding`, `abort_requested`, nullable original `workspace`,
+nullable `preparations`, `prepared_after`, `preparation_complete`, nullable
+`decision`, `cleanup_after` and `cleanup_complete`. Workspace absence permits
+abort of incomplete acquisition, never commit. A frozen workspace cannot accept
+another statement. Preparation/cleanup cursors refer to stable selected object IDs.
+The original commit operation has a permanent transaction-attempt identity claim.
+Journal acceptance and catalog progress remain distinct; recovery reads the actual
+journal if its decision preceded a lost progress reply. Only complete participant
+cleanup makes token progress terminal and releases the account reservation.
+These component controls preserve the original operation through commit/abort
+races; they do not expose a signed coordinator endpoint by themselves.
 
 Catalog recovery requires the explicit `coordination` field and validates its
 allocation transition. Earlier receipts reject under the current-v1 definition;
@@ -1200,3 +1216,139 @@ request's work; durable Table/catalog cardinality has no corresponding limit.
 Python signing vectors. The catalog package tests consume those same vectors;
 the [proof ledger](../docs/history/qualification/README.md) distinguishes codec and node composition
 checks from installed service qualification.
+
+
+### Signed transaction action
+
+`Action.transaction` carries `DirectTransactionRequest.Request`. `begin` requires
+`key`, nonzero SHA-256 `fingerprint`, `operation`, `namespace`, `mode`, `selection`,
+`limits` and token `budget`. Explicit selection IDs are strictly increasing;
+`authorized_catalog_tables` is discovered and frozen by the owner. The original
+account/token binding wins a race; matching fingerprints recover that accepted
+begin without reselecting the catalog. A different fingerprint conflicts.
+
+`acquire` and `inspect` carry the original key. `stage` carries `key`, required `basis` catalog revision, `sequence`
+and native `work` (bulk rows or statement, never DDL), and returns a frozen private
+statement request. `statement` carries `key`, that exact `request` and `execute`;
+false admits, true evaluates or recovers the original result. A nullable outcome
+means admitted/pending, never rejected. `settle` carries `key`, original commit
+`operation`, `command` (`commit`/`abort`) and `steps` in 1–256. `advance` carries `key` and `steps`; it advances only an
+accepted pending statement, savepoint rollback or existing attempt, leaving idle active work unchanged.
+The first accepted attempt remains binding; an abort cannot replace an already committed decision.
+
+Results are `begun`, `acquired`, `staged`, `statement` or `status`, matching the
+request. Status requires catalog `revision`, `begin`, `acquired`, `last_statement`,
+`pending_statement`, `last_control`, `pending_control`, `savepoints`, nullable `attempt`, `observation` and `cleanup_complete`.
+Only actual journal evidence establishes a final decision. Cleanup completion
+separately establishes publication/barrier and original-pin release. Inspection
+and settlement use reserved control capacity; other calls use data capacity.
+All transaction actions exclude database publication. Current scoped checks share
+one writer/policy epoch, checked again before disclosing a buffered response.
+
+
+### Transaction-scoped private reads
+
+The signed request envelope carries nullable `transaction`, containing the original
+client-token `key` and exact active workspace `revision`. The connection must match;
+read delegation, borrowed grants and closure grants cannot accompany it. Supported
+actions are `lookup`, `check`, `check_set`, `read_authority`, `pin`, `pin_status`,
+`snapshot`, `read_key`, `scan`, `column_scan`, `filter_scan`, `key_range` and `release`.
+Other actions return `UnsupportedTransactionRead`. Pending statements or a changed
+revision refuse access before disclosure.
+
+Names and definitions resolve through the accepted begin catalog root. Each Table
+must belong to the acquired source directory, retain its original live pin and
+pass current SELECT authorization. The private Table root includes accepted
+provisional writes. `Definition.workspace` and `Source.workspace` contain a required
+`Transaction.ReadView` for this request context and are null for ordinary reads.
+The descriptor contains the common `cut`, workspace `revision`, `last_statement`,
+original Table `source` guard and a `private` content commitment. Positions and
+`changed_lsn` retain the original committed source frontier; private evaluator
+positions never become public Table acceptance LSNs. Source fingerprints include
+the complete workspace descriptor.
+
+The private snapshot handle uses the original begin owner and the private content
+commitment. It is valid only with the matching transaction context, grants no pin
+of its own and cannot be replayed as an ordinary retained snapshot. `pin` and
+`pin_status` expose that same handle; `release` closes no transaction-owned pin.
+A private `DirectTableReader` closes locally; transaction cleanup releases the
+original source pins. Later workspace publication, settlement or rollback
+invalidates prior private cursors. Every request rechecks current authority, and a
+policy-epoch change after response buffering withholds that response.
+
+The foreign metadata profile has no private-context representation and refuses
+private metadata with `UnsupportedTransactionRead`; it cannot silently present a
+private root as committed data.
+
+
+### Durable savepoint controls
+
+`transaction.savepoint` carries the original `key`, exact `request` and `steps`
+(1–256). The request fixes `transaction`, original `operation`, positive control
+`sequence`, workspace `basis` revision and `action`: `create`, `rollback` or
+`release`, each with a bounded name. Controls consume their own consecutive
+sequence, independently of DML statement numbers. The admitted statement limit
+also bounds total control sequences; active savepoint depth has its separate
+savepoint limit. Names are case-sensitive native names. The most recent matching
+name shadows earlier names. Releasing a name removes that savepoint and all newer
+ones; rolling back removes newer savepoints and keeps the named one available.
+
+The response preserves the original request and Catalog `accepted` position;
+nullable `completed` reports restoration/control completion. Creation and release
+publish their completed receipt with the stack update. Rollback first durably
+accepts the exact request, then subsequent calls restore at most `steps` Table
+roots. `advance` also resumes that accepted rollback. Old completed controls return
+the original receipt; changed content under the same sequence or operation
+conflicts. A stale new request fails before consuming a sequence.
+
+While rollback is pending, new reads, statements, controls and commit refuse with
+`TransactionControlPending`. The previous active roots stay intact until one
+Catalog update publishes the complete restored directory. Full transaction abort
+can close a pending rollback. Rollback preserves the original common cut, selected
+read dependencies, consumed statement/control identities, outcomes, operation
+claims and monotonic private segment frontiers. Previously returned counts remain
+provisional observations of their original statement. They do not describe the
+restored workspace or authorize retry as new work.
+
+The workspace head requires `savepoints`, `savepoint_count`, `controls`,
+`last_control` and `pending_control`. Savepoint stack records use reserved canonical
+format `0x54585331`; completed control receipts use `0x54584331`. Both use the
+existing 32 KiB direct-record bound. The stack is an immutable chain, and controls
+use the paged sequence directory. Name lookup visits at most the admitted active
+depth without retaining the chain in memory. Rollback candidates remain reachable
+through the pending head; active savepoint roots remain reachable through the
+stack. Release drops those dependencies, permitting later collection; neither
+release nor rollback promises immediate physical deletion. Resident and cumulative
+workspace limits apply, and a resource refusal leaves accepted rollback work
+pending until recovery or explicit full abort.
+
+Private read evidence also carries `private_position`, the virtual evaluator
+frontier used to guard a subsequent private predicate mutation. It can advance
+without any public WAL acceptance. The source guard and public accepted position
+remain separate; only the common decision publishes private state.
+
+## Durable transaction caller commands
+
+`DirectIntent.Reference.transaction_call` freezes a caller command before native
+child admission. It fixes the signed connection, namespace, outer operation and
+one begin, statement, savepoint or settle command. Outer and child operation IDs
+must differ. Its `DirectClientToken` binding owns original account/token recovery;
+its 37,376-byte reservation covers the bounded command/result record. Generic
+intent execution and progress settlement cannot complete this work.
+
+The signed `transaction.call` operation advances at most the requested bounded
+steps. Its control flag must match a settlement command. It preserves original
+child identities through lost replies, native-owner completion and outer-result
+publication. Partial decisions can be observed while cleanup remains pending;
+only final cleanup closes the outer pending directory entry. Definitive
+precondition refusals are durable typed results. Unavailable storage, authority
+or quota does not manufacture rejection. `call_outcome` observes the exact result
+under current authority; statement/savepoint outcome lookup likewise preserves
+original results after rollback or parent closure. Retained catalog history keeps
+frozen DML alive even before native child admission.
+
+The caller's cancellation request is sticky observation/workflow state. It does
+not replace the frozen command with abort, undo a decision or establish that a
+remote reply was never accepted. Explicit settle commands retain the original
+transaction attempt and the common decision owner. See [SQL sessions](SQL_SESSION_V1.md#table-transactions-and-recovery)
+for attachment and uncertainty behavior.

@@ -18,7 +18,8 @@ plan: r.Plan,
 pub const resident_base = @sizeOf(Self) + r.max_sources * f.TableSchema.max_bytes;
 
 pub fn prepare(allocator: std.mem.Allocator, clients: []const c.DirectTableClient, namespace: u64, text: []const u8, lifetime: r.Lifetime, options: q.DirectRelationalQuery.Options, location: ?*f.Sql.Location) !*Self {
-    if (options.consistency != .independent_table_snapshots) return error.UnsupportedRelationalConsistency;
+    if (clients.len == 0) return error.InvalidRelationalSources;
+    for (clients) |client| try options.requireClient(client);
     if (options.budgets.resident_bytes <= resident_base or options.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
     if (options.requests == 0 or options.spill_work == 0) return error.InvalidQueryBudget;
     const self = try allocator.create(Self);
@@ -31,7 +32,7 @@ pub fn prepare(allocator: std.mem.Allocator, clients: []const c.DirectTableClien
     if (clients.len != self.syntax.targets.len or clients.len == 0) return error.InvalidRelationalSources;
     errdefer for (&self.schemas) |*slot| if (slot.*) |*schema| schema.deinit();
     for (clients, self.syntax.targets, 0..) |client, target, i| {
-        if (!std.meta.eql(client.connection, clients[0].connection) or client.service != clients[0].service or client.authority != clients[0].authority or !std.mem.eql(u8, &client.key.public_key.bytes, &clients[0].key.public_key.bytes)) return error.RelationalCallerChanged;
+        if (!std.meta.eql(client.transaction, clients[0].transaction) or !std.meta.eql(client.connection, clients[0].connection) or client.service != clients[0].service or client.authority != clients[0].authority or !std.mem.eql(u8, &client.key.public_key.bytes, &clients[0].key.public_key.bytes)) return error.RelationalCallerChanged;
         const response = try client.call(.{ .lookup = .{ .namespace = namespace, .name = target.name } });
         defer response.deinit();
         const metadata = response.value.result.lookup orelse return error.TableNotFound;
@@ -70,7 +71,7 @@ pub fn validateBindings(self: *const Self, client: c.DirectTableClient) !void {
 /// retained schemas. This does not resolve live names, acquire or release pins,
 /// or resume the row cursor of a lost interactive executor.
 pub fn fromRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, bindings: []const c.DirectTableBinding, snapshots: []const c.DirectTableProtocol.Snapshot, options: q.DirectRelationalQuery.Options, location: ?*f.Sql.Location) !*Self {
-    if (options.consistency != .independent_table_snapshots) return error.UnsupportedRelationalConsistency;
+    try options.requireClient(client);
     if (options.budgets.resident_bytes <= resident_base or options.budgets.resident_bytes > std.math.maxInt(usize)) return error.RelationalResidentBudget;
     if (options.requests == 0 or options.spill_work == 0) return error.InvalidQueryBudget;
     if (bindings.len == 0 or bindings.len > r.max_sources or snapshots.len != bindings.len) return error.InvalidRelationalSources;

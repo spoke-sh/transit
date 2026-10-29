@@ -564,3 +564,18 @@ placement, scheduling and combined operator/exchange budgets; these primitives
 do not provision an automatic runtime controller or grant execution authority.
 The [typed host guide](../../../packages/zig/transit-query/docs/relational-exchanges.md)
 defines the operations and links their concrete qualification limits.
+
+
+## Queries in a Table transaction
+
+An explicit [Table transaction](sql/transactions.md) fixes one common cut and
+private workspace revision for its finite Table reads. Reads see that transaction's
+provisional changes; their observation names the handle, acquired cut, source guards
+and exact private revision. A complete query result does not establish transaction
+commit. Savepoint controls, later private statements and closure invalidate earlier
+private cursors, including buffered repeats. Current permissions govern each
+subsequent disclosure.
+
+Ordinary multi-source queries outside a transaction retain their declared
+independent-source observation. Captured queries and native KV/Document sources
+cannot join this local Table transaction profile.

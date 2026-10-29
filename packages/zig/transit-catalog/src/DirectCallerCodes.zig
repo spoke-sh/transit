@@ -2,6 +2,10 @@
 const common = @import("CallerCodes.zig");
 pub const Entry = common.Entry;
 pub const entries = [_]Entry{
+    .{ .cause = error.UnsupportedTransactionRead, .code = "catalog.unsupported_transaction_read", .category = .unsupported, .message = "This interface cannot represent the requested private transaction view. Use its transaction-aware read operations." },
+    .{ .cause = error.InvalidTransactionRead, .code = "catalog.invalid_transaction_read", .category = .binding, .message = "The private read requires its original transaction token, active revision and qualified snapshot handle." },
+    .{ .cause = error.TransactionReadChanged, .code = "catalog.transaction_read_changed", .category = .conflict, .message = "The transaction workspace changed. Close the stale cursor and explicitly inspect the current revision before preparing new work." },
+
     .{ .cause = error.InvalidProjection, .code = "catalog.invalid_projection", .category = .binding, .message = "Select increasing unique column ordinals from the retained schema, including every primary-key column." },
     .{ .cause = error.InvalidTableResponse, .code = "catalog.invalid_direct_response", .category = .integrity, .message = "The direct response does not match its exact request and source evidence. Preserve the original binding and inspect its owner." },
     .{ .cause = error.InvalidCatalogCursor, .code = "catalog.invalid_cursor", .category = .binding, .message = "The cursor must retain its original connection, selection, authority and position." },

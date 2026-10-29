@@ -20,6 +20,7 @@ credential_epoch: ?u64 = null,
 /// still identifies its original caller and selected role.
 delegation: ?c.DirectReadDelegation = null,
 lease: ?c.DirectClientToken.Lease = null,
+transaction: ?c.DirectTransactionRead.Context = null,
 /// Current original-caller permission to close a saved delegation. This never
 /// renews read authority for the accepted computation.
 closure: ?c.DirectReadDelegation.Closure = null,
@@ -55,7 +56,7 @@ pub const Attempt = struct {
     /// domain work; an error code cannot turn this attempt into rejection.
     pub fn failure(self: Attempt, cause: anyerror, native: ?p.ErrorCode) !?p.Diagnostic {
         const mutation = self.mutation orelse return null;
-        var result = try p.Diagnostic.init("catalog.direct_outcome_unknown", .unavailable, .submit, .unknown, if (mutation.identity != null) .saved_intent else .none, if (mutation.identity != null) "The direct operation outcome is unknown. Preserve its original saved binding and inspect that operation under current rights before deciding how to continue." else if (mutation.action == .client_token) "The client-token binding outcome is unknown. Preserve the original account, token and request fingerprint. Look up that token under current rights and use only its accepted intent reference." else if (mutation.action == .flush) "The physical flush outcome is unknown. Preserve the original object and exclusive acceptance cut. Inspect current storage coverage or repeat that same target under current rights." else "The catalog initialization outcome is unknown. Inspect the catalog under the original connection and current rights before deciding how to continue.");
+        var result = try p.Diagnostic.init("catalog.direct_outcome_unknown", .unavailable, .submit, .unknown, if (mutation.identity != null) .saved_intent else .none, if (mutation.identity != null) "The direct operation outcome is unknown. Preserve its original saved binding and inspect that operation under current rights before deciding how to continue." else if (mutation.action == .transaction) "The transaction control outcome is unknown. Preserve the original account, token, statement and commit operation identities. Inspect that transaction under current rights before resuming its original work." else if (mutation.action == .client_token) "The client-token binding outcome is unknown. Preserve the original account, token and request fingerprint. Look up that token under current rights and use only its accepted intent reference." else if (mutation.action == .flush) "The physical flush outcome is unknown. Preserve the original object and exclusive acceptance cut. Inspect current storage coverage or repeat that same target under current rights." else "The catalog initialization outcome is unknown. Inspect the catalog under the original connection and current rights before deciding how to continue.");
         result.cause = try p.Diagnostic.Code.init(@errorName(cause));
         if (mutation.identity) |identity| result.identity = .{ .domain = .catalog, .id = .init(identity.operation), .realm = .init(identity.scope.realm), .resource = .init(identity.scope.resource) };
         try result.text(.operation, .caller, @tagName(mutation.action));
@@ -146,14 +147,14 @@ pub fn signed(self: Self, action: w.Action, nonce: [16]u8) !w.Request {
         if (self.delegation == null) return error.InvalidTableDelegation;
         try c.DirectReadDelegation.Closure.allow(action);
     }
-    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease };
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction };
     const authority: wire.AuthorizationClient = .{ .transport = self.authority, .realm = self.connection.scope.realm, .principal = if (self.borrow) |borrow| borrow.binding.executor else if (self.delegation) |delegation| delegation.binding.executor else self.connection.principal, .role = if (self.delegation != null) null else self.connection.role, .key = self.key };
     const context = try w.Request.context(input, self.allocator);
     const proof = if (self.credential_epoch) |epoch|
         try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = authority.realm, .principal = authority.principal, .credential_epoch = epoch, .role = authority.role, .audience = self.connection.audience, .context = context }, self.key)
     else
         (try authority.proof(self.connection.audience, context)).signed;
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .borrow = input.borrow, .lease = input.lease, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .borrow = input.borrow, .lease = input.lease, .transaction = input.transaction, .proof = proof };
     try request.validate(self.allocator);
     return request;
 }

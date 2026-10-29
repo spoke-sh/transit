@@ -9,6 +9,9 @@ const Objects = c.storage.TransitObjectStore;
 const header_bytes = 40;
 pub const max_bytes = 4096;
 const Stored = union(enum) {
+    transaction_call: c.DirectTransactionCall,
+    transaction_savepoint: c.DirectTransactionSavepoint.Request,
+    transaction_attempt: c.storage.TransactionDecisionLog.Binding,
     transaction_statement: c.DirectTransactionWorkspace.Request,
     transaction: struct {
         reference: c.DirectTransaction.Reference,
@@ -31,6 +34,9 @@ const Stored = union(enum) {
     }
     fn identity(self: Stored) d.Operation {
         return switch (self) {
+            .transaction_call => |value| value.identity(),
+            .transaction_savepoint => |value| value.operation,
+            .transaction_attempt => |value| value.attempt.operation,
             .transaction => |value| value.reference.identity(),
             .transaction_statement => |value| value.binding.identity,
             .external => |value| value.identity(),
@@ -93,6 +99,15 @@ pub fn claimExternal(allocator: std.mem.Allocator, objects: Objects.ObjectStore,
 pub fn claimTransactionStatement(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request: c.DirectTransactionWorkspace.Request) !void {
     return claimStored(allocator, objects, .{ .transaction_statement = request });
 }
+pub fn claimTransactionCall(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request: c.DirectTransactionCall) !void {
+    return claimStored(allocator, objects, .{ .transaction_call = request });
+}
+pub fn claimTransactionSavepoint(allocator: std.mem.Allocator, objects: Objects.ObjectStore, request: c.DirectTransactionSavepoint.Request) !void {
+    return claimStored(allocator, objects, .{ .transaction_savepoint = request });
+}
+pub fn claimTransactionAttempt(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.storage.TransactionDecisionLog.Binding) !void {
+    return claimStored(allocator, objects, .{ .transaction_attempt = binding });
+}
 pub fn claimTransaction(allocator: std.mem.Allocator, objects: Objects.ObjectStore, reference: c.DirectTransaction.Reference, token: [32]u8) !void {
     return claimStored(allocator, objects, .{ .transaction = .{ .reference = reference, .token = token } });
 }
@@ -100,7 +115,7 @@ pub fn lookup(allocator: std.mem.Allocator, objects: Objects.ObjectStore, operat
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .data => |value| value,
-        .external, .name_assertion, .namespace, .dependency, .resource, .transaction, .transaction_statement => error.DataIdentityConflict,
+        .external, .name_assertion, .namespace, .dependency, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
     };
 }
 pub fn claimAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.NameAssertion.Binding) !void {
@@ -110,7 +125,7 @@ pub fn lookupAssertion(allocator: std.mem.Allocator, objects: Objects.ObjectStor
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .name_assertion => |value| value,
-        .external, .data, .namespace, .dependency, .resource, .transaction, .transaction_statement => error.DataIdentityConflict,
+        .external, .data, .namespace, .dependency, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
     };
 }
 pub fn claimNamespace(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectNamespace.Binding) !void {
@@ -120,7 +135,7 @@ pub fn lookupNamespace(allocator: std.mem.Allocator, objects: Objects.ObjectStor
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .namespace => |value| value,
-        .external, .data, .name_assertion, .dependency, .resource, .transaction, .transaction_statement => error.DataIdentityConflict,
+        .external, .data, .name_assertion, .dependency, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
     };
 }
 pub fn claimDependency(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectDependency.Binding) !void {
@@ -130,7 +145,7 @@ pub fn lookupDependency(allocator: std.mem.Allocator, objects: Objects.ObjectSto
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .dependency => |value| value,
-        .external, .data, .name_assertion, .namespace, .resource, .transaction, .transaction_statement => error.DataIdentityConflict,
+        .external, .data, .name_assertion, .namespace, .resource, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
     };
 }
 pub fn claimResource(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: c.DirectResource.Binding) !void {
@@ -140,7 +155,7 @@ pub fn lookupResource(allocator: std.mem.Allocator, objects: Objects.ObjectStore
     const stored = try lookupStored(allocator, objects, operation) orelse return null;
     return switch (stored) {
         .resource => |value| value,
-        .external, .data, .name_assertion, .namespace, .dependency, .transaction, .transaction_statement => error.DataIdentityConflict,
+        .external, .data, .name_assertion, .namespace, .dependency, .transaction, .transaction_statement, .transaction_attempt, .transaction_savepoint, .transaction_call => error.DataIdentityConflict,
     };
 }
 fn claimStored(allocator: std.mem.Allocator, objects: Objects.ObjectStore, binding: Stored) !void {

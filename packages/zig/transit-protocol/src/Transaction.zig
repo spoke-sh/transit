@@ -32,6 +32,9 @@ pub const Directory = struct {
     }
 };
 
+/// Definitive refusal of a frozen caller command before native work admission.
+pub const CallRefusal = enum { stale_workspace, statement_conflict, control_conflict, transaction_closed, unsupported_scope, identity_conflict };
+
 pub const Mode = enum { serializable, read_only };
 pub const Selection = enum { explicit_tables, authorized_catalog_tables };
 
@@ -91,6 +94,52 @@ pub const Cut = struct {
         try self.acquired.validate();
         if (self.sources.count != self.begin.tables.count or self.acquired.next_lsn == 0)
             return error.IncompleteTransactionCut;
+    }
+};
+
+/// Explicit recovery material for a temporary caller attachment. It grants no
+/// authority and never substitutes a new transaction for the original token.
+pub const Handle = struct {
+    definition: p.Growth.Definition,
+    identity: Identity,
+    account: [32]u8,
+    token: [16]u8,
+    audience: u64,
+    role: ?u64,
+    pub fn validate(self: Handle) !void {
+        if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+        try self.identity.validate();
+        if (std.mem.allEqual(u8, &self.account, 0) or self.audience == 0 or self.audience > p.max_counter) return error.InvalidTransactionHandle;
+        if (self.role) |role| if (role > p.max_counter) return error.InvalidTransactionHandle;
+    }
+};
+
+/// An exact private read over the original common cut. Base Table positions
+/// remain public acceptance positions; private bytes never acquire a commit LSN.
+/// The owner validates membership, live original pins and the current revision.
+pub const ReadView = struct {
+    cut: Cut,
+    revision: d.Position,
+    last_statement: u64,
+    source: TableGuard,
+    /// Virtual evaluator position used by private DML guards. This is not an
+    /// accepted public WAL position; only the common decision publishes data.
+    private_position: d.Position,
+    private: d.Content,
+
+    pub fn validate(self: ReadView) !void {
+        try self.cut.validate();
+        try self.revision.validate();
+        try self.source.validate();
+        try self.private_position.validate();
+        if (self.private_position.partition != self.source.source.accepted.partition or self.private_position.next_lsn < self.source.source.accepted.next_lsn) return error.InvalidTransactionRead;
+        try self.private.validate();
+        try self.cut.begin.identity.requireObject(self.source.source.interpretation.object);
+        if (self.cut.acquired.partition != self.cut.begin.catalog.partition or self.cut.acquired.next_lsn <= self.cut.begin.catalog.next_lsn or
+            self.revision.partition != self.cut.acquired.partition or
+            self.revision.next_lsn < self.cut.acquired.next_lsn or
+            self.last_statement > self.cut.begin.limits.statements)
+            return error.InvalidTransactionRead;
     }
 };
 

@@ -2929,11 +2929,13 @@ fn insertSelectedTable(catalog: *D, access: *Access, name: []const u8, operation
     return (try catalog.applyRows(.{ .binding = binding, .interpretation = view.table.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(binding.identity, 0), .cells = &cells }, .expect = .absent } }}, .ingestion = .point }, access.policy())).committed;
 }
 
-test "transaction common cut preserves WAL rows across physical flush and rejects new logical changes during resume" {
+test "transaction common cut preserves WAL rows across disk recovery flush and compaction" {
     for ([_]bool{ false, true }) |change| {
-        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
         defer wal.deinit();
-        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
         defer objects.deinit();
         var catalog = try owner(&wal, &objects);
         defer catalog.deinit();
@@ -2945,6 +2947,18 @@ test "transaction common cut preserves WAL rows across physical flush and reject
         try t.expectError(error.LostAcknowledgement, catalog.acquireTransaction(binding.key, access.policy()));
         catalog.lose_table_reply = false;
         _ = try catalog.flushStorage(.{ .object = inserted.binding.target, .through = inserted.outcome.position }, access.policy());
+        {
+            var view = (try resolve(&catalog, &access, "selected_0")).?;
+            defer view.deinit();
+            var guards = std.heap.ArenaAllocator.init(t.allocator);
+            defer guards.deinit();
+            const guard = try access.dataGuard(guards.allocator(), view.properties, 10);
+            const changed = view.table.root.changed_lsn;
+            try t.expect((try view.table.compact(view.table.root.next_segment, .{}, guard)).complete);
+            try t.expectEqual(changed, view.table.root.changed_lsn);
+        }
+        catalog.deinit();
+        catalog = try owner(&wal, &objects);
         if (change) {
             _ = try insertSelected(&catalog, &access, 501);
             // A's original pin contains only 500. B acquires 502 strictly
@@ -3037,7 +3051,7 @@ fn workspaceRequest(catalog: *D, access: *Access, key: c.DirectClientToken.Key, 
     const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = object, .action = .insert, .expected_definition = state.root.interpretation, .expected_data = null, .intent = @splat(3) };
     const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = @intCast(operation) } } }};
     const request: s.TableDmlIntent.Request = .{ .binding = binding, .interpretation = state.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(binding.identity, 0), .cells = &cells }, .expect = .absent } }}, .ingestion = .bulk };
-    return .{ .statement = .{ .transaction = state.begin.identity, .sequence = sequence, .intent = binding.intent }, .binding = binding, .intent = try s.TableDmlIntent.stage(t.allocator, catalog.data_objects, request) };
+    return .{ .basis = (try catalog.inspectTransaction(key, access.policy())).revision, .statement = .{ .transaction = state.begin.identity, .sequence = sequence, .intent = binding.intent }, .binding = binding, .intent = try s.TableDmlIntent.stage(t.allocator, catalog.data_objects, request) };
 }
 
 test "transaction temporary budgets do not borrow or retain ordinary Table owners" {
@@ -3218,7 +3232,8 @@ test "transaction durable workspace rejects out of order and concurrent statemen
     try t.expectError(error.TransactionStatementPending, catalog.executeTransactionStatement(binding.key, second, access.policy()));
     try t.expectEqualDeep(before, catalog.store.root);
     _ = try catalog.executeTransactionStatement(binding.key, first, access.policy());
-    _ = try catalog.executeTransactionStatement(binding.key, second, access.policy());
+    try t.expectError(error.TransactionReadChanged, catalog.executeTransactionStatement(binding.key, second, access.policy()));
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 2, 501), access.policy());
     try t.expectEqual(@as(u64, 2), (try catalog.transactionTableState(binding.key, first.binding.target, access.policy())).root.live_rows);
 }
 
@@ -3260,6 +3275,15 @@ test "transaction durable workspace quota refusal preserves pending work and ori
     try t.expect(head.charged_bytes <= binding.intent.transaction.begin.limits.workspace_bytes);
     access.denied_metadata = 110;
     try t.expectError(error.CatalogDenied, catalog.executeTransactionStatement(binding.key, request, access.policy()));
+    access.denied_metadata = null;
+    const closed = try catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 900 }, .abort, 8, access.policy());
+    try t.expect(closed.cleanup_complete);
+    try t.expect(closed.observation.decided.outcome == .aborted);
+    try t.expectEqual(@as(u64, 1), (try catalog.store.clientUsage(catalog.store.root, binding.key)).?.transactions.count);
+    // Only the deliberately unacquired first transaction retains a reservation.
+    var public = (try resolve(&catalog, &access, "selected_0")).?;
+    defer public.deinit();
+    try t.expectEqual(@as(u64, 0), public.table.root.live_rows);
 }
 
 test "transaction account reservations survive reopen and cannot be bypassed by a different role" {
@@ -3353,7 +3377,7 @@ test "transaction durable workspace preserves rejected statement outcome and con
             var row = request.changes[0].put.row;
             row.identity = try s.TableDmlIntent.insertIdentity(request.binding.identity, 0);
             request.changes = &.{.{ .put = .{ .row = row, .expect = .absent } }};
-            duplicate = .{ .statement = .{ .transaction = first.statement.transaction, .sequence = 2, .intent = request.binding.intent }, .binding = request.binding, .intent = try s.TableDmlIntent.stage(t.allocator, catalog.data_objects, request) };
+            duplicate = .{ .basis = (try catalog.inspectTransaction(binding.key, access.policy())).revision, .statement = .{ .transaction = first.statement.transaction, .sequence = 2, .intent = request.binding.intent }, .binding = request.binding, .intent = try s.TableDmlIntent.stage(t.allocator, catalog.data_objects, request) };
             expected = try catalog.executeTransactionStatement(binding.key, duplicate, access.policy());
             try t.expect(expected == .rejected);
             try t.expectEqual(.duplicate_key, expected.rejected.reason);
@@ -3372,4 +3396,865 @@ test "transaction durable workspace preserves rejected statement outcome and con
             try t.expectEqual(@as(u64, 2), (try catalog.transactionTableState(binding.key, duplicate.binding.target, access.policy())).root.live_rows);
         }
     }
+}
+
+test "transaction coordinator recovers original multi Table decision through every lost reply boundary" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var binding: c.DirectClientToken.Binding = undefined;
+    var request: c.DirectTransactionWorkspace.Request = undefined;
+    const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 700 };
+    var original: ?p.Transaction.Decision = null;
+    for (0..6) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        switch (restart) {
+            0 => {
+                try catalog.initialize(access.policy());
+                binding = try selectedTransaction(&catalog, &access, 2);
+                _ = try catalog.acquireTransaction(binding.key, access.policy());
+                request = try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500);
+                _ = try catalog.executeTransactionStatement(binding.key, request, access.policy());
+                _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 11, 2, 501), access.policy());
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy()));
+            },
+            1 => {
+                const status = try catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy());
+                try t.expect(status.observation == .preparing);
+                try t.expect(!status.cleanup_complete);
+                try t.expectError(error.TransactionPrepared, resolve(&catalog, &access, "selected_0"));
+                var untouched = (try resolve(&catalog, &access, "selected_1")).?;
+                defer untouched.deinit();
+                try t.expectEqual(@as(u64, 0), untouched.table.root.live_rows);
+                try t.expectError(error.TransactionFrozen, catalog.executeTransactionStatement(binding.key, request, access.policy()));
+                var other = commit;
+                other.operation += 1;
+                try t.expectError(error.TransactionIdentityConflict, catalog.settleTransaction(binding.key, other, .commit, 1, access.policy()));
+            },
+            2 => {
+                catalog.lose_table_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy()));
+                try t.expect((try catalog.inspectTransaction(binding.key, access.policy())).observation == .preparing);
+                try t.expectError(error.TransactionPrepared, resolve(&catalog, &access, "selected_1"));
+            },
+            3 => {
+                catalog.lose_transaction_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(binding.key, commit, .commit, 3, access.policy()));
+                original = (try catalog.inspectTransaction(binding.key, access.policy())).observation.decided;
+                try t.expect(original.?.outcome == .committed);
+                try t.expectError(error.TransactionPrepared, resolve(&catalog, &access, "selected_0"));
+                try t.expectError(error.TransactionPrepared, resolve(&catalog, &access, "selected_1"));
+            },
+            4 => {
+                catalog.lose_table_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(binding.key, commit, .abort, 2, access.policy()));
+                var published = (try resolve(&catalog, &access, "selected_0")).?;
+                defer published.deinit();
+                try t.expectEqual(@as(u64, 1), published.table.root.live_rows);
+                try t.expectError(error.TransactionPrepared, resolve(&catalog, &access, "selected_1"));
+            },
+            5 => {
+                const status = try catalog.settleTransaction(binding.key, commit, .commit, 4, access.policy());
+                try t.expect(status.cleanup_complete);
+                try t.expectEqualDeep(original.?, status.observation.decided);
+                try t.expectEqualDeep(status, try catalog.settleTransaction(binding.key, commit, .abort, 1, access.policy()));
+                try t.expectEqual(@as(u64, 0), (try catalog.store.clientUsage(catalog.store.root, binding.key)).?.transactions.count);
+                for ([_][]const u8{ "selected_0", "selected_1" }, 0..) |name, i| {
+                    var view = (try resolve(&catalog, &access, name)).?;
+                    defer view.deinit();
+                    var guards = std.heap.ArenaAllocator.init(t.allocator);
+                    defer guards.deinit();
+                    const current = try access.dataGuard(guards.allocator(), view.properties, 10 + i);
+                    const pinned = try view.table.pinState(binding.intent.transaction.begin.identity.begin, current);
+                    try t.expect(pinned.released);
+                    var key_buffer: [4096]u8 = undefined;
+                    const row_key = try c.fuze.Collation.encodePrimaryKeySortKey(view.table.declaration.schema.schema, &.{.{ .value = .{ .atom = .{ .signed = @intCast(500 + i) } } }}, false, &key_buffer);
+                    var row = (try view.table.get(t.allocator, row_key, current)).?;
+                    defer row.deinit();
+                    try t.expectEqual(@as(i128, @intCast(500 + i)), row.row().cells[0].value.atom.signed);
+                    try t.expectEqual(@as(u64, 1), view.table.root.live_rows);
+                }
+            },
+            else => unreachable,
+        }
+    }
+}
+
+test "transaction coordinator abort clears prepared prefix and incomplete acquisition without new work" {
+    for ([_]bool{ false, true }) |prepared| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        const binding = try selectedTransaction(&catalog, &access, 2);
+        const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 700 };
+        if (prepared) {
+            _ = try catalog.acquireTransaction(binding.key, access.policy());
+            _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+            _ = try catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy());
+        } else {
+            catalog.lose_table_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.acquireTransaction(binding.key, access.policy()));
+            catalog.lose_table_reply = false;
+        }
+        const status = try catalog.settleTransaction(binding.key, commit, .abort, 4, access.policy());
+        try t.expect(status.cleanup_complete);
+        try t.expect(status.observation.decided.outcome == .aborted);
+        try t.expectEqualDeep(status, try catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy()));
+        try t.expectEqual(@as(u64, 0), (try catalog.store.clientUsage(catalog.store.root, binding.key)).?.transactions.count);
+        for ([_][]const u8{ "selected_0", "selected_1" }, 0..) |name, i| {
+            var view = (try resolve(&catalog, &access, name)).?;
+            defer view.deinit();
+            try t.expectEqual(@as(u64, 0), view.table.root.live_rows);
+            var guards = std.heap.ArenaAllocator.init(t.allocator);
+            defer guards.deinit();
+            const state = try view.table.pinState(binding.intent.transaction.begin.identity.begin, try access.dataGuard(guards.allocator(), view.properties, 10 + i));
+            try t.expect(state.handle == null or state.released);
+        }
+    }
+}
+
+test "transaction coordinator validates read dependencies and current policy before the decision" {
+    for ([_]enum { conflict, denied, epoch }{ .conflict, .denied, .epoch }) |failure| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        const binding = try selectedTransaction(&catalog, &access, 2);
+        _ = try catalog.acquireTransaction(binding.key, access.policy());
+        _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+        const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 700 };
+        _ = try catalog.settleTransaction(binding.key, commit, .commit, 1, access.policy());
+        switch (failure) {
+            .conflict => {
+                _ = try insertSelectedTable(&catalog, &access, "selected_1", 800);
+                try t.expectError(error.TransactionConflict, catalog.settleTransaction(binding.key, commit, .commit, 4, access.policy()));
+            },
+            .denied => {
+                access.denied_metadata = 110;
+                try t.expectError(error.CatalogDenied, catalog.settleTransaction(binding.key, commit, .commit, 4, access.policy()));
+                access.denied_metadata = null;
+            },
+            .epoch => {
+                access.epoch_change_at = access.calls + 5;
+                try t.expectError(error.TransactionAuthorityChanged, catalog.settleTransaction(binding.key, commit, .commit, 4, access.policy()));
+                access.epoch_change_at = std.math.maxInt(usize);
+            },
+        }
+        try t.expect((try catalog.inspectTransaction(binding.key, access.policy())).observation == .preparing);
+        const terminal = try catalog.settleTransaction(binding.key, commit, .abort, 4, access.policy());
+        try t.expect(terminal.cleanup_complete);
+        try t.expect(terminal.observation.decided.outcome == .aborted);
+        var first = (try resolve(&catalog, &access, "selected_0")).?;
+        defer first.deinit();
+        try t.expectEqual(@as(u64, 0), first.table.root.live_rows);
+    }
+}
+
+test "transaction coordinator refuses unavailable prepared data and abort can reclaim its private graph" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 2);
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+    const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 700 };
+    var name: [96]u8 = undefined;
+    var lost: ?[]u8 = null;
+    defer if (lost) |value| t.allocator.free(value);
+    for (objects.objects.items) |stored| {
+        if (std.mem.startsWith(u8, stored.key, "table-segments/")) {
+            lost = try t.allocator.dupe(u8, stored.key);
+            break;
+        }
+    }
+    try objects.objectStore().delete(lost.?);
+    try t.expectError(error.TableSegmentMissing, catalog.settleTransaction(binding.key, commit, .commit, 4, access.policy()));
+    try t.expect((try catalog.inspectTransaction(binding.key, access.policy())).observation == .preparing);
+    const terminal = try catalog.settleTransaction(binding.key, commit, .abort, 4, access.policy());
+    try t.expect(terminal.cleanup_complete);
+    var graph: @import("direct_storage_graph_test.zig").Workspace = .{};
+    defer graph.deinit();
+    try graph.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+    for ([_][]const u8{ "selected_0", "selected_1" }) |table_name| {
+        var view = (try resolve(&catalog, &access, table_name)).?;
+        defer view.deinit();
+        const cut = try view.table.recoveryState();
+        try graph.enqueue(.{ .table_history = try .init(.{ .root = cut.root, .chain = cut.chain }) });
+    }
+    var at: usize = 0;
+    while (at < graph.jobs.items.len) : (at += 1) {
+        var work = graph.jobs.items[at];
+        while (true) {
+            const before = graph.jobs.items.len;
+            const done = try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &graph);
+            try t.expect(graph.jobs.items.len - before <= 3);
+            if (done) break;
+        }
+    }
+    try t.expect(!graph.marks.contains(lost.?));
+    const progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+    const control = try c.DirectTransactionControl.load(t.allocator, catalog.data_objects, progress);
+    var preparations = try s.TransactionDirectory.init(t.allocator, catalog.data_objects, control.binding.begin.identity, .preparations, 10, 1, 1024 * 1024);
+    defer preparations.deinit();
+    try preparations.restore(control.preparations.?);
+    const prepared = (try preparations.get(10)).?.prepared;
+    try t.expect(graph.marks.contains(try s.TableTransaction.key(.{ .content = prepared.successor }, &name)));
+    // The persisted decision can still be reopened after the unreachable
+    // private candidate disappeared. Replay must not dereference aborted data.
+    var reopened = try owner(&wal, &objects);
+    defer reopened.deinit();
+    try t.expectEqualDeep(terminal, try reopened.inspectTransaction(binding.key, access.policy()));
+}
+
+test "transaction server selection freezes authorized catalog and preserves original token" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var retained: ?D.CachedTable = null;
+    defer if (retained) |*cached| cached.table.deinit();
+    catalog.options.table_owner = &retained;
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    _ = try selectedTransaction(&catalog, &access, 12);
+    const template = try transactionToken(&catalog, 9500, 2, 0);
+    var request: c.DirectTransactionRequest.Begin = .{
+        .key = template.key,
+        .fingerprint = template.fingerprint,
+        .operation = template.intent.transaction.begin.identity.begin,
+        .namespace = 1,
+        .mode = .read_only,
+        .selection = .authorized_catalog_tables,
+        .limits = c.DirectTransaction.default_limits,
+        .budget = template.budget,
+    };
+    access.denied_metadata = 111;
+    const receipt = try catalog.beginTransaction(request, access.policy());
+    try t.expectEqual(@as(u64, 11), receipt.binding.intent.transaction.begin.tables.count);
+    try t.expectEqual(.authorized_catalog_tables, receipt.binding.intent.transaction.begin.selection);
+    const cut = try catalog.acquireTransaction(request.key, access.policy());
+    try t.expectEqual(@as(u64, 11), cut.cut.sources.count);
+    // Later catalog growth and a racing proposed identity cannot change the
+    // already accepted original begin or select an additional participant.
+    const create = try creation(70, 9800, "later");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    request.operation.operation += 1;
+    try t.expectEqualDeep(receipt, try catalog.beginTransaction(request, access.policy()));
+    const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9600 };
+    const status = try catalog.settleTransaction(request.key, operation, .commit, 32, access.policy());
+    try t.expect(status.cleanup_complete);
+    try t.expect(status.observation.decided.outcome == .committed);
+    try c.DirectTransactionRequest.validateResult(.{ .settle = .{ .key = request.key, .operation = operation, .command = .commit, .steps = 32 } }, .{ .status = status });
+    request.fingerprint[0] ^= 1;
+    try t.expectError(error.ClientTokenConflict, catalog.beginTransaction(request, access.policy()));
+    request.key.token = @splat(3);
+    request.selection = .{ .explicit_tables = &.{11} };
+    try t.expectError(error.CatalogDenied, catalog.beginTransaction(request, access.policy()));
+    access.denied_metadata = null;
+    access.epoch_change_at = access.calls + 4;
+    try t.expectError(error.TransactionAuthorityChanged, catalog.beginTransaction(request, access.policy()));
+}
+
+test "transaction native staging binds private work without accepting or exposing rows" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var retained: ?D.CachedTable = null;
+    defer if (retained) |*cached| cached.table.deinit();
+    catalog.options.table_owner = &retained;
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 1);
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    var view = (try resolve(&catalog, &access, "selected_0")).?;
+    defer view.deinit();
+    const w = c.DirectTableProtocol;
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const schema = view.table.declaration.schema.schema;
+    const identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 500 };
+    const row: c.fuze.TableRow.Row = .{ .identity = try w.Rows.insertIdentity(identity, 0), .cells = &.{.{ .value = .{ .atom = .{ .signed = 7 } } }} };
+    var buffer: [65536]u8 = undefined;
+    var work: w.Rows = .{
+        .binding = .{ .definition = p.Growth.current_definition, .identity = identity, .target = view.table.root.interpretation.object, .action = .insert, .expected_definition = view.table.root.interpretation, .expected_data = null, .intent = @splat(1) },
+        .interpretation = view.table.root.declared(),
+        .schema = try w.Binary.encode(allocator, try schema.encode(&buffer)),
+        .changes = &.{.{ .insert = try w.Binary.encode(allocator, try row.encode(schema, &buffer)) }},
+        .ingestion = .bulk,
+    };
+    work.binding.intent = try work.digest(allocator);
+    const before = try catalog.inspectTransaction(binding.key, access.policy());
+    const request = try catalog.stageTransactionStatement(binding.key, before.revision, 1, .{ .rows = work }, access.policy());
+    try t.expectEqualDeep(before, try catalog.inspectTransaction(binding.key, access.policy()));
+    try t.expectEqualDeep(request, try catalog.stageTransactionStatement(binding.key, before.revision, 1, .{ .rows = work }, access.policy()));
+    try c.DirectTransactionRequest.validateResult(.{ .stage = .{ .key = binding.key, .basis = before.revision, .sequence = 1, .work = .{ .rows = work } } }, .{ .staged = request });
+    try t.expect(try catalog.admitTransactionStatement(binding.key, request, access.policy()) == null);
+    const resumed = try catalog.resumeTransaction(binding.key, 1, access.policy());
+    try t.expect(!resumed.pending_statement and resumed.attempt == null);
+    try t.expectEqualDeep(resumed, try catalog.resumeTransaction(binding.key, 1, access.policy()));
+    const outcome = try catalog.executeTransactionStatement(binding.key, request, access.policy());
+    try t.expectEqual(@as(u64, 1), outcome.provisional.affected);
+    try t.expectEqualDeep(outcome, try catalog.executeTransactionStatement(binding.key, request, access.policy()));
+    try t.expectError(error.TransactionStatementConflict, catalog.stageTransactionStatement(binding.key, before.revision, 1, .{ .rows = work }, access.policy()));
+    var visible = (try resolve(&catalog, &access, "selected_0")).?;
+    defer visible.deinit();
+    try t.expectEqual(@as(u64, 0), visible.table.root.live_rows);
+    const terminal = try catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 501 }, .abort, 2, access.policy());
+    try t.expect(terminal.cleanup_complete);
+    try t.expectEqualDeep(terminal, try catalog.resumeTransaction(binding.key, 1, access.policy()));
+}
+
+test "transaction private reads retain the common cut and invalidate earlier workspace revisions" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 1);
+    const acquired = try catalog.acquireTransaction(binding.key, access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+    const context: c.DirectTransactionRead.Context = .{ .key = binding.key, .revision = (try catalog.inspectTransaction(binding.key, access.policy())).revision };
+    catalog.transaction_read = context;
+    var private = (try resolve(&catalog, &access, "selected_0")).?;
+    const object = private.table.root.interpretation.object;
+    const observed = private.table.workspace_read.?;
+    try t.expectEqualDeep(acquired.cut, observed.cut);
+    try t.expectEqual(@as(u64, 1), private.table.root.live_rows);
+    try t.expect(private.table.root.next_lsn > observed.source.source.accepted.next_lsn);
+    const handle: P.SnapshotHandle = .{ .owner = binding.intent.transaction.begin.identity.begin, .content = observed.private };
+    private.deinit();
+    {
+        var read = try catalog.snapshotRead(t.allocator, object, handle, access.policy());
+        defer read.deinit();
+        try t.expectEqualDeep(observed, read.definition.transaction.?);
+        try t.expectEqualDeep(observed.source.source.accepted, read.definition.position());
+        var page = try catalog.scanRows(t.allocator, object, handle, null, .{}, access.policy());
+        defer page.deinit();
+        try t.expectEqual(@as(usize, 1), page.count);
+        try t.expectEqualDeep(read.definition.position(), page.accepted);
+        try t.expectEqual(@as(i128, 500), page.rows[0].?.row().cells[0].value.atom.signed);
+    }
+    // A public rename does not change the original catalog/definition cut.
+    catalog.transaction_read = null;
+    var public = (try resolve(&catalog, &access, "selected_0")).?;
+    const rename = try edit(&public, 800, .{ .rename = try a.Name.init("renamed") });
+    public.deinit();
+    _ = try catalog.admit(rename, access.policy());
+    _ = try catalog.perform(rename.binding, access.policy());
+    catalog.transaction_read = context;
+    var historical = (try resolve(&catalog, &access, "selected_0")).?;
+    try t.expectEqualStrings("selected_0", historical.properties.name.slice());
+    try t.expectEqualDeep(observed, historical.table.workspace_read.?);
+    historical.deinit();
+    try t.expect(try resolve(&catalog, &access, "renamed") == null);
+    catalog.transaction_read = null;
+    // An explicit abort invalidates cursors even before its cleanup finishes.
+    _ = try catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 900 }, .abort, 1, access.policy());
+    catalog.transaction_read = context;
+    try t.expectError(error.TransactionReadChanged, catalog.snapshotRead(t.allocator, object, handle, access.policy()));
+    catalog.transaction_read = null;
+}
+
+test "transaction private scans preserve bounded source evidence and reject stale cursors" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 1);
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    for (0..3) |i| _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, i + 1, 500 + i), access.policy());
+    const context: c.DirectTransactionRead.Context = .{ .key = binding.key, .revision = (try catalog.inspectTransaction(binding.key, access.policy())).revision };
+    catalog.transaction_read = context;
+    var view = (try resolve(&catalog, &access, "selected_0")).?;
+    defer view.deinit();
+    const evidence = view.table.workspace_read.?;
+    const object = view.table.root.interpretation.object;
+    const handle: P.SnapshotHandle = .{ .owner = evidence.cut.begin.identity.begin, .content = evidence.private };
+    var page = try catalog.scanRows(t.allocator, object, handle, null, .{ .rows = 1 }, access.policy());
+    defer page.deinit();
+    try t.expectEqual(@as(u8, 1), page.count);
+    try t.expect(page.next != null);
+    try t.expectEqualDeep(evidence.source.source.accepted, page.accepted);
+    var second = try catalog.scanRows(t.allocator, object, handle, page.next, .{ .rows = 1 }, access.policy());
+    defer second.deinit();
+    try t.expectEqual(@as(u8, 1), second.count);
+    try t.expect(!std.meta.eql(page.rows[0].?.row().identity, second.rows[0].?.row().identity));
+    var columns_page = try catalog.scanColumns(t.allocator, object, handle, &.{0}, null, .{ .rows = 1 }, access.policy());
+    defer columns_page.deinit();
+    try t.expectEqualDeep(page.accepted, columns_page.accepted);
+    try t.expectEqual(page.changed_lsn, columns_page.changed_lsn);
+    var range_page = try catalog.rangeRows(t.allocator, object, handle, .{}, null, .{ .rows = 1 }, access.policy());
+    defer range_page.deinit();
+    try t.expectEqualDeep(page.accepted, range_page.accepted);
+    var fields: [c.fuze.TableSchema.max_columns]c.fuze.Types.Field = undefined;
+    const schema = view.table.declaration.schema.schema;
+    const plan: c.fuze.LogicalQuery.Plan = .{ .schema = try schema.rowType(&fields), .source_basis = @splat(1), .projection = &.{0}, .collations = .fromTable(schema), .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .signed = 501 } } } };
+    var filtered = try catalog.scanFiltered(t.allocator, object, handle, plan, null, .{}, access.policy());
+    defer filtered.deinit();
+    try t.expectEqualDeep(page.accepted, filtered.page.accepted);
+    try t.expectEqual(@as(u8, 1), filtered.page.count);
+    try t.expectEqual(@as(i128, 501), filtered.page.rows[0].?.row().cells[0].value.atom.signed);
+    // Closing a private cursor does not release the transaction's original pin.
+    try catalog.releaseRows(object, handle, access.policy());
+    var alive = try catalog.snapshotRead(t.allocator, object, handle, access.policy());
+    alive.deinit();
+    access.denied_metadata = 110;
+    try t.expectError(error.CatalogDenied, catalog.scanRows(t.allocator, object, handle, page.next, .{}, access.policy()));
+    access.denied_metadata = null;
+    catalog.transaction_read = null;
+    try t.expectError(error.DataIdentityConflict, catalog.snapshotRead(t.allocator, object, handle, access.policy()));
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 4, 503), access.policy());
+    catalog.transaction_read = context;
+    try t.expectError(error.TransactionReadChanged, catalog.scanRows(t.allocator, object, handle, page.next, .{}, access.policy()));
+    catalog.transaction_read = null;
+}
+
+fn savepointRequest(catalog: *D, access: *Access, key: c.DirectClientToken.Key, operation: u64, action: @FieldType(c.DirectTransactionSavepoint.Request, "action")) !c.DirectTransactionSavepoint.Request {
+    const status = try catalog.inspectTransaction(key, access.policy());
+    return .{ .transaction = status.begin.identity, .operation = .{ .scope = scope, .principal = 1, .operation = operation }, .sequence = status.last_control + 1, .basis = status.revision, .action = action };
+}
+
+test "transaction savepoints recover paged rollback and preserve consumed identities after disk reopen" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var binding: c.DirectClientToken.Binding = undefined;
+    var saved: c.DirectTransactionSavepoint.Request = undefined;
+    var rollback: c.DirectTransactionSavepoint.Request = undefined;
+    var rolled_back: c.DirectTransactionWorkspace.Request = undefined;
+    var expected: s.TableWorkspace.Outcome = undefined;
+    var stale: c.DirectTransactionRead.Context = undefined;
+    for (0..6) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        switch (restart) {
+            0 => {
+                try catalog.initialize(access.policy());
+                binding = try selectedTransaction(&catalog, &access, 3);
+                _ = try catalog.acquireTransaction(binding.key, access.policy());
+                _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+                saved = try savepointRequest(&catalog, &access, binding.key, 800, .{ .create = try a.Name.init("before_more") });
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.transactionSavepoint(binding.key, saved, 1, access.policy()));
+            },
+            1 => {
+                const before = catalog.store.root;
+                try t.expect((try catalog.transactionSavepoint(binding.key, saved, 1, access.policy())).completed != null);
+                try t.expectEqualDeep(before, catalog.store.root);
+                rolled_back = try workspaceRequest(&catalog, &access, binding.key, 10, 2, 501);
+                expected = try catalog.executeTransactionStatement(binding.key, rolled_back, access.policy());
+                _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 11, 3, 502), access.policy());
+                _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 12, 4, 503), access.policy());
+                stale = .{ .key = binding.key, .revision = (try catalog.inspectTransaction(binding.key, access.policy())).revision };
+                rollback = try savepointRequest(&catalog, &access, binding.key, 801, .{ .rollback = try a.Name.init("before_more") });
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.transactionSavepoint(binding.key, rollback, 1, access.policy()));
+            },
+            2, 3 => {
+                try t.expect((try catalog.inspectTransaction(binding.key, access.policy())).pending_control);
+                try t.expectError(error.TransactionReadChanged, catalog.transactionReadHead(stale, access.policy()));
+                try t.expectError(error.TransactionControlPending, catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 900 }, .commit, 1, access.policy()));
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.transactionSavepoint(binding.key, rollback, 1, access.policy()));
+                try t.expect((try catalog.inspectTransaction(binding.key, access.policy())).pending_control);
+                // No page of a rollback publishes public data or changes the
+                // active private roots while the restoration remains pending.
+                try t.expectEqual(@as(u64, 2), (try catalog.transactionTableState(binding.key, rolled_back.binding.target, access.policy())).root.live_rows);
+            },
+            4 => {
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.transactionSavepoint(binding.key, rollback, 1, access.policy()));
+                try t.expect(!(try catalog.inspectTransaction(binding.key, access.policy())).pending_control);
+            },
+            5 => {
+                const before = catalog.store.root;
+                const result = try catalog.transactionSavepoint(binding.key, rollback, 1, access.policy());
+                try t.expect(result.completed != null);
+                try t.expectEqualDeep(before, catalog.store.root);
+                try t.expectEqualDeep(expected, try catalog.executeTransactionStatement(binding.key, rolled_back, access.policy()));
+                for (0..3) |i| {
+                    const state = try catalog.transactionTableState(binding.key, .{ .scope = scope, .branch = 1, .object = 10 + i }, access.policy());
+                    try t.expectEqual(@as(u64, if (i == 0) 1 else 0), state.root.live_rows);
+                }
+                // New statement numbers and immutable segment numbers continue
+                // beyond the rolled-back work; original operations stay bound.
+                _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 11, 5, 504), access.policy());
+                const terminal = try catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 900 }, .commit, 8, access.policy());
+                try t.expect(terminal.cleanup_complete and terminal.observation.decided.outcome == .committed);
+                try t.expectEqualDeep(expected, (try catalog.transactionStatementOutcome(binding.key, rolled_back, access.policy())).?);
+                try t.expectEqualDeep(result, (try catalog.transactionSavepointOutcome(binding.key, rollback, access.policy())).?);
+                access.denied_metadata = 110;
+                try t.expectError(error.CatalogDenied, catalog.transactionStatementOutcome(binding.key, rolled_back, access.policy()));
+                access.denied_metadata = null;
+                for ([_][]const u8{ "selected_0", "selected_1", "selected_2" }, 0..) |name, i| {
+                    var public = (try resolve(&catalog, &access, name)).?;
+                    defer public.deinit();
+                    try t.expectEqual(@as(u64, if (i == 2) 0 else 1), public.table.root.live_rows);
+                }
+            },
+            else => unreachable,
+        }
+    }
+}
+
+test "transaction savepoint shadowing release and limits retain explicit scope" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 1);
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    const name = try a.Name.init("s");
+    const first = try savepointRequest(&catalog, &access, binding.key, 800, .{ .create = name });
+    _ = try catalog.transactionSavepoint(binding.key, first, 1, access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+    _ = try catalog.transactionSavepoint(binding.key, try savepointRequest(&catalog, &access, binding.key, 801, .{ .create = name }), 1, access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 2, 501), access.policy());
+    const latest = try savepointRequest(&catalog, &access, binding.key, 802, .{ .rollback = name });
+    try t.expect((try catalog.transactionSavepoint(binding.key, latest, 1, access.policy())).completed == null);
+    const resumed = try catalog.resumeTransaction(binding.key, 1, access.policy());
+    try t.expect(!resumed.pending_control and resumed.savepoints == 2 and resumed.last_statement == 2);
+    const object: p.DataLifecycle.Object = .{ .scope = scope, .branch = 1, .object = 10 };
+    try t.expectEqual(@as(u64, 1), (try catalog.transactionTableState(binding.key, object, access.policy())).root.live_rows);
+    _ = try catalog.transactionSavepoint(binding.key, try savepointRequest(&catalog, &access, binding.key, 803, .{ .release = name }), 1, access.policy());
+    try t.expectEqual(@as(u64, 1), (try catalog.inspectTransaction(binding.key, access.policy())).savepoints);
+    const original = try savepointRequest(&catalog, &access, binding.key, 804, .{ .rollback = name });
+    _ = try catalog.transactionSavepoint(binding.key, original, 1, access.policy());
+    _ = try catalog.resumeTransaction(binding.key, 1, access.policy());
+    try t.expectEqual(@as(u64, 0), (try catalog.transactionTableState(binding.key, object, access.policy())).root.live_rows);
+    var conflict = first;
+    conflict.action = .{ .release = name };
+    try t.expectError(error.TransactionControlConflict, catalog.transactionSavepoint(binding.key, conflict, 1, access.policy()));
+    const before = catalog.store.root;
+    try t.expectError(error.TransactionSavepointMissing, catalog.transactionSavepoint(binding.key, try savepointRequest(&catalog, &access, binding.key, 805, .{ .release = try a.Name.init("missing") }), 1, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    _ = try catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 900 }, .abort, 4, access.policy());
+}
+
+test "transaction savepoint graph retains saved and partial rollback roots with bounded jobs" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 2);
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+    const saved_progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+    const saved_root = (try c.DirectTransactionWorkspace.recover(t.allocator, catalog.data_objects, saved_progress)).tables.?;
+    _ = try catalog.transactionSavepoint(binding.key, try savepointRequest(&catalog, &access, binding.key, 800, .{ .create = try a.Name.init("s") }), 1, access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 2, 501), access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 11, 3, 502), access.policy());
+    const rollback = try savepointRequest(&catalog, &access, binding.key, 801, .{ .rollback = try a.Name.init("s") });
+    _ = try catalog.transactionSavepoint(binding.key, rollback, 1, access.policy());
+    _ = try catalog.resumeTransaction(binding.key, 1, access.policy());
+    var key_buffer: [96]u8 = undefined;
+    for (0..2) |phase| {
+        const progress = (try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?;
+        const head = try c.DirectTransactionWorkspace.recover(t.allocator, catalog.data_objects, progress);
+        var graph: @import("direct_storage_graph_test.zig").Workspace = .{};
+        defer graph.deinit();
+        try graph.enqueue(.{ .transaction = .{ .root = catalog.store.root, .progress = progress } });
+        var at: usize = 0;
+        while (at < graph.jobs.items.len) : (at += 1) {
+            var work = graph.jobs.items[at];
+            while (true) {
+                const before = graph.jobs.items.len;
+                const done = try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &graph);
+                try t.expect(graph.jobs.items.len - before <= 3);
+                if (done) break;
+            }
+        }
+        try t.expectEqual(phase == 0, graph.marks.contains(try s.TreeStore.key(saved_root.location, &key_buffer)));
+        if (phase == 0) {
+            try t.expect(graph.marks.contains(try s.TreeStore.key(head.pending_control.?.tables.?.location, &key_buffer)));
+            _ = try catalog.resumeTransaction(binding.key, 1, access.policy());
+            _ = try catalog.transactionSavepoint(binding.key, try savepointRequest(&catalog, &access, binding.key, 802, .{ .release = try a.Name.init("s") }), 1, access.policy());
+        }
+    }
+}
+
+test "transaction savepoint quota refuses unaccepted work and abort closes a stalled rollback" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var binding = try transactionToken(&catalog, 9000, 1, 0);
+    binding.intent.transaction.begin.limits.savepoints = 1;
+    binding.intent.transaction.begin.limits.resident_bytes = 16 * 1024 * 1024;
+    _ = try catalog.clientToken(.{ .bind = binding }, access.policy());
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    _ = try catalog.transactionSavepoint(binding.key, try savepointRequest(&catalog, &access, binding.key, 800, .{ .create = try a.Name.init("only") }), 1, access.policy());
+    const before = catalog.store.root;
+    try t.expectError(error.TransactionSavepointLimit, catalog.transactionSavepoint(binding.key, try savepointRequest(&catalog, &access, binding.key, 801, .{ .create = try a.Name.init("second") }), 1, access.policy()));
+    try t.expectEqualDeep(before, catalog.store.root);
+    const rollback = try savepointRequest(&catalog, &access, binding.key, 802, .{ .rollback = try a.Name.init("only") });
+    _ = try catalog.transactionSavepoint(binding.key, rollback, 1, access.policy());
+    try t.expect((try catalog.inspectTransaction(binding.key, access.policy())).pending_control);
+    const terminal = try catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 900 }, .abort, 1, access.policy());
+    try t.expect(terminal.cleanup_complete and terminal.observation.decided.outcome == .aborted);
+    try t.expectEqual(@as(u64, 0), (try catalog.store.clientUsage(catalog.store.root, binding.key)).?.transactions.count);
+}
+
+test "transaction caller tokens retain exact work before owner admission and cannot manufacture completion" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const parent = try selectedTransaction(&catalog, &access, 1);
+    _ = try catalog.acquireTransaction(parent.key, access.policy());
+    const request = try workspaceRequest(&catalog, &access, parent.key, 10, 1, 500);
+    const before = catalog.store.root;
+    try t.expect(try catalog.transactionStatementOutcome(parent.key, request, access.policy()) == null);
+    try t.expectEqualDeep(before, catalog.store.root);
+    var key = parent.key;
+    key.token = @splat(2);
+    const call: c.DirectTransactionCall = .{ .connection = key.connection, .namespace = 1, .operation = 800, .work = .{ .statement = .{ .key = parent.key, .request = request } } };
+    const binding: c.DirectClientToken.Binding = .{ .key = key, .fingerprint = @splat(3), .budget = .{ .bytes = c.DirectTransactionCall.reservation_bytes }, .intent = .{ .transaction_call = call } };
+    const receipt = (try catalog.clientToken(.{ .bind = binding }, access.policy())).?;
+    var encoded: [c.DirectIntent.max_bytes]u8 = undefined;
+    try t.expectEqualDeep(binding.intent, try c.DirectIntent.decode(t.allocator, try c.DirectIntent.encode(binding.intent, &encoded)));
+    var progress = (try catalog.clientProgress(.{ .inspect = key }, access.policy())).state.?;
+    try t.expectError(error.TransactionOperationRequired, catalog.clientProgress(.{ .update = .{ .key = key, .expected = progress.revision, .pending = false, .cancel = false, .record = null } }, access.policy()));
+    var graph: @import("direct_storage_graph_test.zig").Workspace = .{};
+    defer graph.deinit();
+    try graph.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+    var at: usize = 0;
+    while (at < graph.jobs.items.len) : (at += 1) {
+        var work = graph.jobs.items[at];
+        while (!try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &work, &graph)) {}
+    }
+    var name: [96]u8 = undefined;
+    try t.expect(graph.marks.contains(try s.TableDmlIntent.key(request.intent, &name)));
+    const outcome = (try catalog.transactionCall(key, 1, false, false, access.policy())).?.statement;
+    try t.expectEqualDeep(outcome, (try catalog.transactionStatementOutcome(parent.key, request, access.policy())).?);
+    progress = (try catalog.clientProgress(.{ .inspect = key }, access.policy())).state.?;
+    try t.expect(!progress.pending);
+    try t.expectEqualDeep(outcome, (try catalog.transactionCallOutcome(key, access.policy())).?.statement);
+    try t.expectEqualDeep(receipt, (try catalog.clientToken(.{ .bind = binding }, access.policy())).?);
+    var old = request;
+    old.binding.identity.operation = 501;
+    try t.expectError(error.TransactionStatementConflict, catalog.transactionStatementOutcome(parent.key, old, access.policy()));
+}
+
+test "transaction caller commands recover original results and durable refusals across disk reopen" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var parent: c.DirectClientToken.Binding = undefined;
+    var binding: c.DirectClientToken.Binding = undefined;
+    var stale: c.DirectClientToken.Binding = undefined;
+    var settlement: c.DirectClientToken.Binding = undefined;
+    var decision: ?p.Transaction.Decision = null;
+    for (0..7) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        switch (restart) {
+            0 => {
+                try catalog.initialize(access.policy());
+                parent = try selectedTransaction(&catalog, &access, 2);
+                _ = try catalog.acquireTransaction(parent.key, access.policy());
+                var key = parent.key;
+                key.token = @splat(2);
+                binding = .{ .key = key, .fingerprint = @splat(3), .budget = .{ .bytes = c.DirectTransactionCall.reservation_bytes }, .intent = .{ .transaction_call = .{
+                    .connection = key.connection,
+                    .namespace = 1,
+                    .operation = 800,
+                    .work = .{ .statement = .{ .key = parent.key, .request = try workspaceRequest(&catalog, &access, parent.key, 10, 1, 500) } },
+                } } };
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.clientToken(.{ .bind = binding }, access.policy()));
+            },
+            1, 2, 3 => {
+                const before = catalog.store.root;
+                try t.expectError(error.InvalidTransactionWork, catalog.transactionCall(binding.key, 1, true, false, access.policy()));
+                try t.expectEqualDeep(before, catalog.store.root);
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.transactionCall(binding.key, 1, false, false, access.policy()));
+            },
+            4 => {
+                const result = (try catalog.transactionCallOutcome(binding.key, access.policy())).?;
+                try t.expectEqual(@as(u64, 1), result.statement.provisional.affected);
+                try t.expect(!(try catalog.clientProgress(.{ .inspect = binding.key }, access.policy())).state.?.pending);
+                try t.expectEqualDeep(result, (try catalog.transactionCall(binding.key, 1, false, true, access.policy())).?);
+                var key = binding.key;
+                key.token = @splat(4);
+                const request = try workspaceRequest(&catalog, &access, parent.key, 11, 2, 501);
+                _ = try catalog.transactionSavepoint(parent.key, try savepointRequest(&catalog, &access, parent.key, 900, .{ .create = try a.Name.init("later") }), 1, access.policy());
+                stale = .{ .key = key, .fingerprint = @splat(5), .budget = .{ .bytes = c.DirectTransactionCall.reservation_bytes }, .intent = .{ .transaction_call = .{
+                    .connection = key.connection,
+                    .namespace = 1,
+                    .operation = 801,
+                    .work = .{ .statement = .{ .key = parent.key, .request = request } },
+                } } };
+                _ = try catalog.clientToken(.{ .bind = stale }, access.policy());
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.transactionCall(stale.key, 1, false, false, access.policy()));
+            },
+            5 => {
+                try t.expectEqual(c.DirectTransactionCall.Refusal.stale_workspace, (try catalog.transactionCallOutcome(stale.key, access.policy())).?.rejected);
+                try t.expectEqual(@as(u64, 1), (try catalog.inspectTransaction(parent.key, access.policy())).last_statement);
+                var key = binding.key;
+                key.token = @splat(6);
+                settlement = .{ .key = key, .fingerprint = @splat(7), .budget = .{ .bytes = c.DirectTransactionCall.reservation_bytes }, .intent = .{ .transaction_call = .{
+                    .connection = key.connection,
+                    .namespace = 1,
+                    .operation = 802,
+                    .work = .{ .settle = .{ .key = parent.key, .operation = .{ .scope = scope, .principal = 1, .operation = 901 }, .command = .commit } },
+                } } };
+                _ = try catalog.clientToken(.{ .bind = settlement }, access.policy());
+                catalog.lose_transaction_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.transactionCall(key, 8, true, true, access.policy()));
+                try t.expect(try catalog.transactionCallOutcome(key, access.policy()) == null);
+                try t.expectError(error.LostAcknowledgement, catalog.transactionCall(key, 8, true, true, access.policy()));
+                // Stop-wait cancellation is not rollback, including before the
+                // decision. Only the original owner's actual decision is evidence.
+                decision = (try catalog.transactionCallOutcome(key, access.policy())).?.settled.observation.decided;
+                try t.expect(decision.?.outcome == .committed);
+                const progress = (try catalog.clientProgress(.{ .inspect = key }, access.policy())).state.?;
+                try t.expect(progress.pending and progress.cancel);
+            },
+            6 => {
+                var finished = false;
+                for (0..8) |_| {
+                    const result = try catalog.transactionCall(settlement.key, 1, true, false, access.policy()) orelse continue;
+                    try t.expectEqualDeep(decision.?, result.settled.observation.decided);
+                    if (result.settled.cleanup_complete) {
+                        finished = true;
+                        break;
+                    }
+                }
+                try t.expect(finished);
+                try t.expect(!(try catalog.clientProgress(.{ .inspect = settlement.key }, access.policy())).state.?.pending);
+                const before = catalog.store.root;
+                _ = try catalog.transactionCall(binding.key, 1, false, false, access.policy());
+                _ = try catalog.transactionCall(stale.key, 1, false, false, access.policy());
+                try t.expectEqualDeep(before, catalog.store.root);
+                try t.expectEqual(@as(u64, 0), (try catalog.store.clientUsage(catalog.store.root, parent.key)).?.transactions.count);
+            },
+            else => unreachable,
+        }
+    }
+}
+
+test "transaction predicate writes bind virtual private frontiers through rollback" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const binding = try selectedTransaction(&catalog, &access, 1);
+    _ = try catalog.acquireTransaction(binding.key, access.policy());
+    _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+    _ = try catalog.transactionSavepoint(binding.key, try savepointRequest(&catalog, &access, binding.key, 600, .{ .create = try a.Name.init("original") }), 1, access.policy());
+    for ([_][]const u8{ "UPDATE selected_0 SET id=501 WHERE id=500", "DELETE FROM selected_0 WHERE id=500" }, 0..) |sql, i| {
+        const current = try catalog.inspectTransaction(binding.key, access.policy());
+        catalog.transaction_read = .{ .key = binding.key, .revision = current.revision };
+        var private = (try resolve(&catalog, &access, "selected_0")).?;
+        defer private.deinit();
+        var arena = std.heap.ArenaAllocator.init(t.allocator);
+        defer arena.deinit();
+        const allocator = arena.allocator();
+        const schema = private.table.declaration.schema.schema;
+        const view = private.table.workspace_read.?;
+        try t.expect(view.private_position.next_lsn > view.source.source.accepted.next_lsn);
+        try t.expectEqual(private.table.root.next_lsn, view.private_position.next_lsn);
+        var buffer: [65536]u8 = undefined;
+        const metadata: c.DirectTableProtocol.Definition = .{
+            .interpretation = private.table.root.declared(),
+            .namespace = private.properties.namespace,
+            .authorization = private.properties.authorization,
+            .name = private.properties.name,
+            .position = view.source.source.accepted,
+            .changed_lsn = view.source.changed_lsn,
+            .workspace = view,
+            .row_count = private.table.root.live_rows,
+            .schema = try c.DirectTableProtocol.Binary.encode(allocator, try schema.encode(&buffer)),
+        };
+        var compiled = try c.fuze.TableDml.compile(allocator, sql, "selected_0", schema, null);
+        defer compiled.deinit();
+        var intent = try c.DirectTableIntent.fromDml(allocator, binding.key.connection, metadata, 700 + i, compiled.plan, .bulk);
+        defer intent.deinit();
+        try t.expectEqualDeep(@as(?p.DataLifecycle.Position, view.private_position), intent.binding().expected_data);
+        catalog.transaction_read = null;
+        const request = try catalog.stageTransactionStatement(binding.key, current.revision, current.last_statement + 1, intent.parsed.value.work, access.policy());
+        const result = try catalog.executeTransactionStatement(binding.key, request, access.policy());
+        try t.expectEqual(@as(u64, 1), result.provisional.matched);
+        try t.expectEqual(@as(u64, 1), result.provisional.affected);
+        if (i == 0) {
+            const rollback = try savepointRequest(&catalog, &access, binding.key, 601, .{ .rollback = try a.Name.init("original") });
+            var completed = false;
+            for (0..8) |_| {
+                if ((try catalog.transactionSavepoint(binding.key, rollback, 8, access.policy())).completed != null) {
+                    completed = true;
+                    break;
+                }
+            }
+            try t.expect(completed);
+        }
+    }
+    const state = try catalog.transactionTableState(binding.key, .{ .scope = scope, .branch = 1, .object = 10 }, access.policy());
+    try t.expectEqual(@as(u64, 0), state.root.live_rows);
+    const result = try catalog.settleTransaction(binding.key, .{ .scope = scope, .principal = 1, .operation = 800 }, .commit, 8, access.policy());
+    try t.expect(result.cleanup_complete and result.observation.decided.outcome == .committed);
 }

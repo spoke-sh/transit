@@ -47,7 +47,7 @@ def directory(binaries):
 
 
 def run(node, catalog, ledger, host, gateway, configuration_host, console, slice="all", repeat="5", instrumentation=""):
-    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-kv","sessions-table","console-statements")
+    assert slice in ("all","faults","controls","cli","settings","lifecycle","benchmark","schema","sessions","sessions-basic","sessions-kv","sessions-table","transactions","console-statements")
     assert instrumentation in ('', '--instrument')
     instrumented = instrumentation == '--instrument'
     assert not instrumented or slice == 'console-statements'
@@ -56,6 +56,10 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
     node, catalog, ledger, host, gateway, configuration_host = [str(Path(p).resolve()) for p in (node, catalog, ledger, host, gateway, configuration_host)]
     binaries = dict(node=node, catalog=catalog, ledger=ledger, host=host, gateway=gateway,
                     configuration_host=configuration_host, console=str(Path(console).resolve()))
+    if slice == 'transactions':
+        print(json.dumps(dict(profile='installed_transaction_configuration', source=provenance(ROOT),
+                              binaries={role: identity(Path(path)) for role, path in binaries.items()},
+                              limits='Local disk, finite sequential histories, process replacement; no power-loss or throughput claim.')), flush=True)
     if slice == 'console-statements':
         import hashlib
         import platform
@@ -122,7 +126,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             if settings_binding is not None:
                 configuration['settings'] = dict(url=settings_faults.url if settings_faults is not None else f'http://127.0.0.1:{settings_port}', binding=settings_binding)
             configuration['mysql_port'] = mysql_port
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table', 'console-statements'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table', 'transactions', 'console-statements'):
                 configuration['native'] = dict(instance=[81]*16, port=session_port, tls=dict(certificate_file=str(root/'certificate.pem'), key_file=str(root/'key.pem')))
                 configuration['accounts'][0]['sources'] = json.loads((root/'session-sources.json').read_text()) if slice in ('sessions', 'sessions-kv', 'sessions-table') else []
                 if session_faults is not None:
@@ -162,7 +166,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 from interfaces.sql_sessions.faults import Faults
                 settings_faults = Faults(f'http://127.0.0.1:{settings_port}')
 
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table', 'transactions'):
                 from interfaces.sql_sessions.faults import Faults
                 session_faults = Faults(url)
             if slice in ('sessions', 'sessions-kv', 'sessions-table'):
@@ -188,7 +192,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                 tls(root, session_port, str(Path(console).resolve()), repeat,
                     probes={'native': probe} if instrumented else {})
                 return
-            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table'):
+            if slice in ('sessions', 'sessions-basic', 'sessions-kv', 'sessions-table', 'transactions'):
                 from interfaces.sql_sessions.native import run as sessions
                 source_processes = {}
                 def select_source(name):
@@ -201,12 +205,26 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                             child.send_signal(signal.SIGCONT if source == name else signal.SIGSTOP)
                     if name is not None and name not in source_processes:
                         source_processes[name] = [start(host, root/f'session-{name}-{role}.json') for role in ('source', 'requester', 'courier')]
-                def restart_sessions(peer=False, wire=True, session_lease_ms=None):
+                def restart_sessions(peer=False, wire=True, session_lease_ms=None, transaction_limits=None):
                     nonlocal server
                     server.kill()
                     server.wait(timeout=10)
                     call(ledger, 'fence')
                     configure()
+                    if transaction_limits is not None:
+                        configuration = json.loads((root/'sql-gateway.json').read_text())
+                        account = configuration['accounts'][0]
+                        # Execution limits are immutable for an accepted account.
+                        # This final schedule provisions a distinct logical account
+                        # using the fixture's already-authorized native identity.
+                        account['name'] = 'limited'
+                        account['execution']['account'] = [78]*32
+                        account['execution']['transaction_limits'] = transaction_limits
+                        credential_path = Path(account['verifier_file'])
+                        credential = json.loads(credential_path.read_text())
+                        credential['account'] = [78]*32
+                        credential_path.write_text(json.dumps(credential))
+                        (root/'sql-gateway.json').write_text(json.dumps(configuration))
                     if session_lease_ms is not None:
                         configuration = json.loads((root/'sql-gateway.json').read_text())
                         configuration['limits']['session_lease_ms'] = session_lease_ms
@@ -243,6 +261,10 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                         except (ConnectionRefusedError, FileNotFoundError):
                             assert server.poll() is None and time.monotonic() < deadline
                             time.sleep(.02)
+                if slice == 'transactions':
+                    from interfaces.sql_sessions.transactions import run as transactions
+                    transactions(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions, session_faults, lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), str(Path(console).resolve()))
+                    return
                 sessions(root, session_port, client_options(root,sql_port,mysql_port)[0], restart_sessions, str(Path(console).resolve()), lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), select_source, lambda: call(ledger, 'source-pin-status'), {'sessions-basic': (), 'sessions-kv': (('kv', 41),), 'sessions-table': (('table', 41),)}.get(slice), session_faults, lambda: server.pid)
                 return
             if slice == 'cli':

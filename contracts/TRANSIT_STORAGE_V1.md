@@ -58,7 +58,7 @@ separates these formats from installed transaction execution.
 
 `TableWorkspace.State` is an internal owned descriptor of private evaluation:
 mandatory `definition`, exact `begin`, retained `source`, private Table `root`,
-`last_statement` and `changed`. Its positions describe private evaluator progress,
+`last_statement`, `changed`, `matched` and `affected`. Its positions describe private evaluator progress,
 not Table WAL acceptance. The evaluator accepts bulk immutable row storage and
 returns transaction-attributed provisional counts or rejection. It cannot export
 an accepted Table recovery hint. Restoration requires the original live pin;
@@ -106,7 +106,29 @@ in the original attempt. Neither terminal outcome can be overwritten. Incomplete
 or inaccessible history cannot establish abort. Recovery verifies the exact
 binding and all referenced directory evidence without staging or dispatching.
 No trimming, compatibility conversion or automatic deletion is defined for
-these records. The components do not change current Table acceptance formats.
+these records.
+
+`TableTransaction` preparation objects use `TPREP1` plus two zero bytes, the
+mandatory 32-byte definition and canonical typed JSON, within 64 KiB total.
+`table-preparations/<sha256>.data` commits the entire object. Mandatory fields are
+`definition`, `coordination`, exact journal `binding`, original logical `guard`,
+actual accepted `predecessor` root and private `workspace` state. The Table's
+`transaction_prepare` action accepts its reference in the mandatory nullable
+root `transaction` field. Preparation advances only the physical acceptance and
+maintenance frontier; it preserves public data and logical change frontiers.
+
+Ordinary recovery/read/write refuses an unresolved barrier. Component resolution
+loads the actual coordination journal. Abort clears the barrier through
+`transaction_abort`, retaining the exact preparation reference and abort decision.
+Commit verifies exact prepared-directory membership and accepts a bulk aggregate
+`mutation` with mandatory nullable `transaction` evidence (`prepared`, `decision`).
+It replaces private data directories while preserving current public control
+state. Each resulting `Receipt` and public `Evidence` has a mandatory nullable
+`transaction` decision; autocommit/declaration receipts use explicit null.
+Missing fields or a previous definition reject before replay. The aggregate
+binding uses the original commit operation, UPDATE action and workspace digest;
+this representation does not substitute UPDATE permission for original DML rights.
+Current source/statement permissions are the catalog coordinator's obligation.
 
 ## Table acceptance records and indexes
 

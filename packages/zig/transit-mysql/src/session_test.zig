@@ -49,6 +49,9 @@ const Host = struct {
         self.value = @intCast(values[0].?.unsigned);
         return .{ .kind = .update, .outcome = self.outcome, .counts = .{ .matched = 1, .changed = if (self.invalid_counts) 2 else 0 }, .operation = .{ .account = @splat(7), .id = 42 }, .pending_restart = false, .diagnostic = null };
     }
+    pub fn transactionStatus(_: *Host) m.gateway.results.Transaction.SessionState {
+        return .idle;
+    }
     pub fn begin(_: *Host) !void {}
     pub fn end(_: *Host) void {}
     pub fn reset(_: *Host) !void {}

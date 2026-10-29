@@ -4759,6 +4759,18 @@
         "InvalidProjection": {
           "code": "catalog.invalid_projection",
           "category": "binding"
+        },
+        "UnsupportedTransactionRead": {
+          "code": "catalog.unsupported_transaction_read",
+          "category": "unsupported"
+        },
+        "InvalidTransactionRead": {
+          "code": "catalog.invalid_transaction_read",
+          "category": "binding"
+        },
+        "TransactionReadChanged": {
+          "code": "catalog.transaction_read_changed",
+          "category": "conflict"
         }
       },
       "exceptions": [],

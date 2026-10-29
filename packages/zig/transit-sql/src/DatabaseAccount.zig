@@ -21,7 +21,9 @@ pub const Configuration = struct {
     operation_quota: u64,
     byte_quota: u64,
     pending_quota: u32 = 16,
+    transaction_limits: p.Transaction.Limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 256 * 1024 * 1024, .participants = 100_000, .statements = 10_000, .savepoints = 128 },
     pub fn validate(self: Configuration) !void {
+        try self.transaction_limits.validate();
         inline for (.{ self.realm, self.table_principal }) |id| if (id == 0 or id > p.max_counter) return error.InvalidGatewayConfiguration;
         if (self.bindings.len == 0 or self.bindings.len > 8 or self.intent_bytes < c.DirectTableIntent.prefix_bytes or self.intent_bytes > c.DirectTableIntent.max_bytes or self.operation_quota == 0 or self.byte_quota < self.reservation() or self.pending_quota == 0 or self.pending_quota > 1024) return error.InvalidGatewayConfiguration;
         if (std.mem.allEqual(u8, &self.account, 0)) return error.InvalidGatewayConfiguration;
@@ -51,6 +53,10 @@ pub const Configuration = struct {
         var number: [8]u8 = undefined;
         inline for (.{ self.realm, self.table_principal, @as(u64, self.intent_bytes), self.operation_quota, self.byte_quota, @as(u64, self.pending_quota), @as(u64, self.bindings.len) }) |id| {
             std.mem.writeInt(u64, &number, id, .little);
+            hash.update(&number);
+        }
+        inline for (.{ self.transaction_limits.resident_bytes, self.transaction_limits.workspace_bytes, self.transaction_limits.participants, self.transaction_limits.statements, @as(u64, self.transaction_limits.savepoints) }) |limit| {
+            std.mem.writeInt(u64, &number, limit, .little);
             hash.update(&number);
         }
         for (self.bindings) |binding| inline for (.{ binding.resource, binding.catalog, binding.owner, binding.namespace, @as(u64, @intFromBool(binding.role != null)), binding.role orelse 0 }) |id| {

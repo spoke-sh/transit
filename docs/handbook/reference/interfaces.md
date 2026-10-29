@@ -40,6 +40,7 @@ to encode a type does not establish query execution support for that type.
 | KV, Tables, Documents and associations | [State](state.md), [Tables](tables.md), [Documents](documents.md) | [State model](../internals/state-model.md) |
 | Station calls, supervision and host boundaries | [Station](station.md), [callers](callers.md) | [Client/framework boundary](../internals/client-framework.md) |
 | Planning, snapshots, typed batches and result publication | [Queries](queries.md), [SQL types](sql/types.md), [Arrow](arrow.md) | [Query engine](../internals/query-engine.md) |
+| Common Table cuts, private changes, savepoints and commit recovery | [Table transactions](sql/transactions.md) | [Atomic preparation and recovery](../internals/storage-runtime.md#atomic-table-preparation-and-recovery) |
 | Page storage, immutable bulk data, concurrency and cleanup | [Storage](storage.md), [retention](retention.md) | [Storage runtime](../internals/storage-runtime.md) |
 | Installation, replacement and physical deployment | [Applications](applications.md), [deployment](deployment.md) | [Execution model](../internals/execution-model.md) |
 | Logs, metrics, diagnostics and measured cost | [Observability](observability.md), [performance](performance.md), [benchmarks](benchmarks.md) | [Verification method](../internals/verification-method.md), [storage runtime](../internals/storage-runtime.md) |

@@ -49,6 +49,8 @@ pub const Root = struct {
     recovery: ?@import("TableRecovery.zig").Reference,
     /// Required accepted physical work; missing persisted state is incompatible.
     maintenance: @import("TableMaintenanceState.zig"),
+    /// Required durable predecessor barrier. A staged object alone is not one.
+    transaction: ?@import("TableTransaction.zig").Reference,
 
     pub fn declared(self: Root) Declaration.Stored {
         return .{ .interpretation = self.interpretation, .content = self.declaration, .schema_fingerprint = self.schema_fingerprint, .retired = self.retired };
@@ -58,6 +60,7 @@ pub const Root = struct {
         try self.declared().validate();
         try self.archive.validate(self.next_lsn);
         try self.maintenance.validate(self);
+        if (self.transaction) |reference| try reference.validate();
         if (self.recovery) |reference| try reference.validate(self.next_lsn);
         if (self.partition == 0 or self.next_segment == 0 or self.changed_lsn > self.next_lsn or self.history_floor > self.next_lsn or
             (self.history_pins != null and self.pins == null) or
@@ -76,7 +79,7 @@ pub const Outcome = struct {
     live_rows: u64,
 };
 
-pub const Receipt = struct { binding: d.Binding, changes: [32]u8, outcome: Outcome };
+pub const Receipt = struct { binding: d.Binding, changes: [32]u8, outcome: Outcome, transaction: ?p.Transaction.Decision };
 
 pub const Operation = struct {
     binding: d.Binding,
@@ -110,6 +113,7 @@ pub const Record = struct {
             changes: [32]u8,
             outcome: Outcome,
             ingestion: enum { point, bulk },
+            transaction: ?struct { prepared: @import("TableTransaction.zig").Reference, decision: p.Transaction.Decision },
         },
         declaration: struct {
             binding: d.Binding,
@@ -117,6 +121,8 @@ pub const Record = struct {
             outcome: Outcome,
         },
         operation: Operation,
+        transaction_prepare,
+        transaction_abort: struct { prepared: @import("TableTransaction.zig").Reference, decision: p.Transaction.Decision },
         checkpoint,
         compaction,
         maintenance: @import("TableMaintenanceState.zig").Action,
@@ -129,7 +135,8 @@ pub const Record = struct {
 
     pub fn receipt(self: Record) !Receipt {
         return switch (self.action) {
-            inline .mutation, .declaration => |value| .{ .binding = value.binding, .changes = value.changes, .outcome = value.outcome },
+            .mutation => |value| .{ .binding = value.binding, .changes = value.changes, .outcome = value.outcome, .transaction = if (value.transaction) |tx| tx.decision else null },
+            .declaration => |value| .{ .binding = value.binding, .changes = value.changes, .outcome = value.outcome, .transaction = null },
             else => error.InvalidTableReceipt,
         };
     }
@@ -138,6 +145,12 @@ pub const Record = struct {
         try self.root.validate();
         if (self.root.next_lsn != try std.math.add(u64, lsn, 1)) return error.InvalidTableHistory;
         if (self.action == .declaration and self.root.changed_lsn != self.root.next_lsn) return error.InvalidTableHistory;
+        if (self.action == .mutation) if (self.action.mutation.transaction) |tx| {
+            try tx.prepared.validate();
+            try tx.decision.validate();
+            if (tx.decision.outcome != .committed or self.root.transaction != null or
+                !std.meta.eql(tx.decision.attempt.operation, self.action.mutation.binding.identity)) return error.InvalidTableHistory;
+        };
         switch (self.action) {
             inline .mutation, .declaration => |value| {
                 try value.binding.validate();
@@ -158,6 +171,12 @@ pub const Record = struct {
                 if (!std.meta.eql(value.binding.target, self.root.interpretation.object) or
                     value.basis.position.partition != self.root.partition or
                     value.basis.position.next_lsn >= self.root.next_lsn) return error.InvalidTableHistory;
+            },
+            .transaction_prepare => if (self.root.transaction == null) return error.InvalidTransactionPreparation,
+            .transaction_abort => |value| {
+                try value.prepared.validate();
+                try value.decision.validate();
+                if (self.root.transaction != null or value.decision.outcome != .aborted) return error.InvalidTransactionPreparation;
             },
             .checkpoint, .compaction, .maintenance, .archive, .recovery, .history_floor => {},
         }

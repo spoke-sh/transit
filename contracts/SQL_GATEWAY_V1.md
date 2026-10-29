@@ -170,8 +170,9 @@ The adapter must validate message bodies before acting on gate results, discard
 candidate writes after any validation failure and destroy portals at Sync. Named
 statement lifetime belongs to the session owner. Invalid framing closes the
 connection, because a body boundary cannot be trusted. A gate action is neither
-authorization nor a native receipt. The backend protocol's full transaction and
-pipeline semantics are outside this explicitly selected autocommit cycle.
+authorization nor a native receipt. Interactive Table transactions use the shared session controls below. The
+extended-cycle admission rule is unchanged inside a transaction; arbitrary
+pipeline and multi-statement semantics remain unsupported.
 
 `Frontend.decode` validates complete Query, Parse, Bind, Describe, Close,
 Execute, Sync, Flush and Terminate bodies, including trailing bytes, names,
@@ -262,7 +263,7 @@ collation 309. Attributes are ignored only after validating at most 4096 bytes,
 classified errors and negotiated EOF/OK frames. A binary result bitmap reserves
 the first two bits. Non-SQL NULL states fail encoding. Sequence numbers wrap
 modulo 256 only after a complete packet is built; failure clears the packet.
-Replies report autocommit status without a transaction or subsequent results.
+Replies retain autocommit status and report the shared attachment through IN_TRANS; subsequent-result sets remain unsupported.
 Affected rows use lossless length-encoded uint64; last-insert ID and warnings are
 zero because no such observations are supplied by the native Table result.
 
@@ -401,3 +402,24 @@ and [message flow](https://www.postgresql.org/docs/18/protocol-flow.html), and
 MySQL's [classic packets](https://dev.mysql.com/doc/dev/mysql-server/latest/page_protocol_basic_packets.html).
 The credential primitives use the SCRAM-SHA-256 construction described by
 [RFC 7677](https://www.rfc-editor.org/rfc/rfc7677).
+
+## Interactive Table transaction mapping
+
+PostgreSQL and MySQL execute the [shared SQL transaction controls](SQL_SESSION_V1.md#table-transactions-and-recovery).
+Private DML returns the verified provisional statement counts. Its ordinary wire
+command tag or OK packet does not establish transaction commitment. COMMIT and
+ROLLBACK report only the owning durable decision; a serialization conflict returns
+SQLSTATE 40001 after confirmed abort, while missing decision evidence remains
+uncertain and retains original recovery material.
+ROLLBACK that discovers an already committed decision reports SQLSTATE 25000;
+it cannot reverse that decision or establish a serialization abort.
+
+PostgreSQL ReadyForQuery reports I, T or E for idle, active or failed attachment.
+BEGIN, COMMIT, ROLLBACK, SAVEPOINT and RELEASE use their corresponding command
+tags. MySQL retains SERVER_STATUS_AUTOCOMMIT and sets SERVER_STATUS_IN_TRANS while
+attached, including a failed attachment. START TRANSACTION is supported;
+autocommit=0 and implicit transaction start through a setting are not. The
+shared failed-state rules require explicit rollback or rollback to a savepoint.
+Disconnect does not promise abort; recover the original native handle and command
+identity through the native SQL interface. Neither adapter recreates uncertain
+SQL as a new transaction.

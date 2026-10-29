@@ -67,7 +67,23 @@ acceptance and pending-index settlement are separate durable decisions; this
 is not a claim that an entire SQL request performs only one network request or
 one WAL append across all owners. DDL and cancelled work retain their explicit
 owner transitions. Lost replies recover the original owner outcome before any
-further execution. Interactive transactions are not implemented here.
+further execution.
+
+Interactive Table transactions use `TransactionWork` and the same Catalog token
+and pending directories. A caller command reserves 37,376 bytes for its frozen
+transaction request and outcome. BEGIN, private DML, savepoint controls and
+settlement retain separate owner identities before dispatch. Recovery resumes
+that recorded command without compiling SQL again. Fixed statement/control and
+savepoint ceilings refuse before admitting another SQL command; storage or memory
+unavailability preserves accepted work for original recovery.
+
+The Catalog owns the common cut, private roots and commit decision. Session
+attachment is temporary and can be explicitly restored through the shared client.
+Private reads bypass `ReadCache` and use the original transaction pins and exact
+workspace revision. Provisional counts do not establish commit; a decision may
+be observable while background publication and pin cleanup are still pending.
+See [Table transactions](../../../../docs/handbook/reference/sql/transactions.md)
+for the executable domain, lifecycle and limits.
 
 `ReadCache` retains up to 64 Table cuts in memory across the account and 64
 Catalog recovery slots per connection route. A read checks the current definition and logical change

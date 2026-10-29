@@ -263,3 +263,12 @@ test "HTTP result reception sizes aligned ownership to the declared bounded body
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 256\r\nContent-Encoding: gzip\r\n\r\n",
     }) |head| try t.expectError(error.InvalidSqlHttpResponse, responseBody(memory.allocator(), try std.http.Client.Response.Head.parse(head)));
 }
+
+/// Explicitly restore a transaction attachment after session replacement. The
+/// handle is original recovery material; current rights still gate every call.
+pub fn attachTransaction(self: *Self, attachment: api.results.protocol.Transaction.Handle) !void {
+    try attachment.validate();
+    const response = try self.call(.{ .attach_transaction = attachment });
+    defer response.deinit();
+    if (response.value.result != .attached or !std.meta.eql(response.value.result.attached, attachment)) return error.InvalidSqlResponse;
+}

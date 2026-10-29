@@ -12,6 +12,7 @@
         .transit_station_grpc = .{ .path = "../../packages/zig/transit-station-grpc" },
         .transit_query = .{ .path = "../../packages/zig/transit-query" },
         .transit_catalog = .{ .path = "../../packages/zig/transit-catalog" },
+        .transit_sql_client = .{ .path = "../../packages/zig/transit-sql-client" },
         .transit_fuze = .{ .path = "../../packages/zig/transit-fuze" },
         .transit_station_app = .{ .path = "../../packages/zig/transit-station-app" },
     },

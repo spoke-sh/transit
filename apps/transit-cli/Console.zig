@@ -338,10 +338,18 @@ pub const Console = struct {
             .rejected => return self.diagnostic.fail(error.SqlOperationRejected, "Statement was rejected", null),
             .cancelled => return self.diagnostic.fail(error.ConsoleInterrupted, "Statement was cancelled", null),
             .partial => return self.diagnostic.fail(error.SqlOperationPartial, "Statement completed only partially", "Inspect the affected data or settings before making further changes."),
-            .applied, .unchanged => {},
+            .applied, .unchanged, .provisional => {},
         }
         if (self.session.format == .table) {
-            try self.out.writeAll("Statement completed.");
+            try self.out.writeAll(if (completion.outcome == .provisional) "Statement completed provisionally." else switch (completion.kind) {
+                .begin => "Transaction begun.",
+                .commit => "Transaction committed.",
+                .rollback => "Transaction rolled back.",
+                .savepoint => "Savepoint created.",
+                .release_savepoint => "Savepoint released.",
+                .rollback_to_savepoint => "Transaction rolled back to savepoint.",
+                else => "Statement completed.",
+            });
             if (completion.counts) |counts| try self.out.print(" Matched {d}; changed {d}.", .{ counts.matched, counts.changed });
             if (completion.pending_restart) try self.out.writeAll(" Some settings require a server restart.");
             try self.out.writeByte('\n');
@@ -366,6 +374,7 @@ pub const Console = struct {
         if (self.session.format == .json) {
             try self.resultJson(.{ .profile = "sql_result_v1", .schema = q.fuze.LogicalJson.TypeEnvelope{ .definition = q.fuze.Types.definition, .type = result.schema }, .observation = result.observation, .complete_coverage = false });
         } else {
+            if (result.observation == .data and result.observation.data == .transaction) try self.out.writeAll("Transaction workspace (provisional rows).\n");
             timing.enter(.fetch);
             const window = try sdk.results.Window.readInto(&self.render.window, result, @intCast(@min(32, limit)));
             defer window.deinit();

@@ -14,16 +14,19 @@ pub const head_format: u32 = 0x54585731;
 pub const table_format: u32 = 0x54585431;
 pub const statement_format: u32 = 0x54584f31;
 pub fn reserved(format: u32) bool {
-    return format == head_format or format == table_format or format == statement_format;
+    return format == head_format or format == table_format or format == statement_format or format == c.DirectTransactionControl.format or format == c.DirectTransactionCall.format or format == c.DirectTransactionSavepoint.saved_format or format == c.DirectTransactionSavepoint.result_format;
 }
 
 pub const Request = struct {
     statement: x.Statement,
+    basis: d.Position,
     binding: d.Binding,
     intent: d.Content,
 
     pub fn validate(self: Request) !void {
         try self.statement.validate();
+        try self.basis.validate();
+        if (self.basis.next_lsn == 0) return error.InvalidTransactionWorkspace;
         try self.binding.validate();
         try self.intent.validate();
         const identity = self.statement.transaction;
@@ -63,9 +66,14 @@ pub const Head = struct {
     /// Conservative cumulative staged bytes in accepted workspace publications.
     /// Failed, unreachable staging is reclaimed separately by storage policy.
     charged_bytes: u64,
+    savepoints: ?Record.Reference,
+    savepoint_count: u64,
+    controls: ?pages.Reference,
+    last_control: u64,
+    pending_control: ?c.DirectTransactionSavepoint.Pending,
 
     pub fn initial(acquired: c.DirectTransaction.Acquired) Head {
-        return .{ .definition = p.Growth.current_definition, .acquired = acquired, .revision = acquired.cut.acquired, .tables = null, .statements = null, .last_statement = 0, .pending = null, .charged_bytes = 0 };
+        return .{ .definition = p.Growth.current_definition, .acquired = acquired, .revision = acquired.cut.acquired, .tables = null, .statements = null, .last_statement = 0, .pending = null, .charged_bytes = 0, .savepoints = null, .savepoint_count = 0, .controls = null, .last_control = 0, .pending_control = null };
     }
     pub fn validate(self: Head, progress: c.DirectClientToken.Progress) !void {
         try self.acquired.validate(progress.receipt);
@@ -74,6 +82,15 @@ pub const Head = struct {
         if (!std.meta.eql(self.revision, progress.revision) or self.revision.next_lsn < self.acquired.cut.acquired.next_lsn or
             self.last_statement > begin.limits.statements or self.charged_bytes > begin.limits.workspace_bytes or
             !progress.pending or progress.cancel) return error.InvalidTransactionWorkspace;
+        if (self.savepoint_count > begin.limits.savepoints or self.last_control > begin.limits.statements or
+            (self.savepoints == null) != (self.savepoint_count == 0)) return error.InvalidTransactionWorkspace;
+        if (self.pending_control) |pending| {
+            try pending.result.validate();
+            if (self.pending != null or pending.result.completed != null or pending.result.request.sequence != self.last_control or
+                !std.meta.eql(pending.result.request.transaction, begin.identity) or pending.result.accepted.partition != self.revision.partition or
+                pending.result.accepted.next_lsn > self.revision.next_lsn or pending.result.request.action != .rollback)
+                return error.InvalidTransactionWorkspace;
+        }
         if (self.pending) |request| {
             try request.validate();
             if (!std.meta.eql(request.statement.transaction, begin.identity) or request.statement.sequence != self.last_statement)
@@ -109,6 +126,7 @@ pub fn load(comptime T: type, allocator: std.mem.Allocator, objects: s.TransitOb
 
 pub fn recover(allocator: std.mem.Allocator, objects: s.TransitObjectStore.ObjectStore, progress: c.DirectClientToken.Progress) !Head {
     const reference = progress.record orelse return error.TransactionCutNotAcquired;
+    if (reference.format == c.DirectTransactionControl.format) return error.TransactionFrozen;
     if (reference.format == c.DirectTransaction.Acquired.format)
         return Head.initial(try c.DirectTransaction.Acquired.load(allocator, objects, progress));
     const head = try load(Head, allocator, objects, reference, progress.receipt.binding.key.scope(), head_format);

@@ -208,7 +208,7 @@ pub fn failure(self: *Self, allocator: std.mem.Allocator, err: anyerror) ![]alig
 /// Session must reclaim it even while request JSON/output remains alive.
 pub fn request(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator, input: api.Request, peer: Peer) ![]align(api.ResultFrame.alignment) u8 {
     try input.validate();
-    if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery" } } });
+    if (input.action == .hello) return self.response(allocator, .{ .hello = .{ .encoding = api.encoding, .session_lease_ms = self.configuration.limits.session_lease_ms, .maximum_message = api.max_message_bytes, .maximum_batch = api.max_batch_bytes, .maximum_rows = api.max_rows, .capabilities = &.{ "catalog_reads", "table_ddl", "table_dml", "logical_types", "typed_parameters", "finite_relational", "source_bindings", "captured_queries", "settings", "configuration_reload", "operation_recovery", "table_transactions", "transaction_savepoints" } } });
     if (!std.mem.eql(u8, &input.instance.?, &self.instance)) return error.SqlInstanceChanged;
     if (input.action == .open) return self.open(allocator, input.action.open, peer);
     if (input.action == .authenticate) return self.authenticate(allocator, input.action.authenticate);
@@ -361,6 +361,11 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
     const host = slot.host.?;
     switch (input) {
         .touch => return .closed,
+        .attach_transaction => |attachment| {
+            slot.clearCursor();
+            try g.SessionTransaction.attach(host, attachment);
+            return .{ .attached = attachment };
+        },
         .context => {
             const T = @FieldType(@FieldType(api.Response, "result"), "context");
             var sources: std.ArrayList(std.meta.Elem(@FieldType(T, "sources"))) = .empty;
@@ -374,7 +379,7 @@ fn action(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: api.Act
                 const description = try host.fresh(g.query.UnifiedClient.describe, .{ &selected.client, selected.definition });
                 try sources.append(allocator, .{ .name = configured.name, .sql_name = configured.workspace.name, .kind = std.meta.stringToEnum(@FieldType(std.meta.Elem(@FieldType(T, "sources")), "kind"), @tagName(selected.definition.source)).?, .resource = selected.definition.resource, .revision = description.resource_revision, .contract = try selected.definition.fingerprint() });
             }
-            return .{ .context = .{ .account = host.account.execution.account, .database = host.database, .source = host.sourceName(), .sources = sources.items } };
+            return .{ .context = .{ .account = host.account.execution.account, .database = host.database, .source = host.sourceName(), .transaction = host.transaction.handle, .sources = sources.items } };
         },
         .close => unreachable,
         .reset => {
@@ -476,7 +481,11 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
         // A reused token may already have accepted work even when observation
         // fails. A successful absence check precedes all new preparation.
         slot.acceptance_possible = true;
-        if (try host.fresh(g.ConfigurationOperations.find, .{ host, token, digest })) |item| return .{ .operation = try operationStatus(host, item) };
+        if (try host.fresh(g.ConfigurationOperations.find, .{ host, token, digest })) |item| {
+            const result = try operationStatus(host, item);
+            if (item.kind == .transaction) try g.SessionTransaction.adopt(host, result);
+            return .{ .operation = result };
+        }
         slot.acceptance_possible = false;
     }
     const prepared = if (input.statement) |id| (try findStatement(slot, id)).prepared else try host.prepare(input.sql.?);
@@ -499,6 +508,7 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
         };
     }
     try host.bind(prepared, values);
+    try g.SessionTransaction.require(host, prepared);
     if (prepared.empty()) {
         try host.validate(prepared);
         return .{ .completion = .{ .kind = .empty, .outcome = .unchanged, .counts = null, .operation = null, .pending_restart = false, .diagnostic = null } };
@@ -513,6 +523,11 @@ fn execute(self: *Self, allocator: std.mem.Allocator, slot: *Slot, input: @Field
         return .{ .operation = try g.ConfigurationOperations.admit(host, input.token orelse return error.SqlAdmissionTokenRequired, digest.?) };
     }
     if (prepared.mutation()) {
+        if (prepared.* == .transaction or host.transaction.handle != null) {
+            const token = input.token orelse return error.SqlAdmissionTokenRequired;
+            slot.acceptance_possible = true;
+            return .{ .operation = try g.SessionTransaction.submit(host, prepared, values, token, digest.?) };
+        }
         if (prepared.* == .native) {
             const token = input.token orelse return error.SqlAdmissionTokenRequired;
             slot.acceptance_possible = true;
@@ -676,7 +691,7 @@ fn control(self: *Self, allocator: std.mem.Allocator, working: std.mem.Allocator
 }
 fn selectOperation(host: *g.Session, ref: g.SessionOperations.Reference) !void {
     var reader = try host.observer.source();
-    const binding: g.DatabaseAccount.Binding = if (ref.kind == .table) blk: {
+    const binding: g.DatabaseAccount.Binding = if ((ref.kind == .table or ref.kind == .transaction)) blk: {
         const item = try host.runtime.execution.operation(&reader, ref.id);
         break :blk .{ .resource = item.resource, .catalog = item.catalog, .owner = item.owner, .namespace = item.namespace, .role = item.selectedRole() };
     } else (try g.SessionOperations.external(host.runtime.execution, &reader, ref.id)).binding();
@@ -698,7 +713,7 @@ fn operationPage(host: *g.Session, after: u64) !g.SessionOperations.Page {
 }
 fn operationStatus(host: *g.Session, ref: g.SessionOperations.Reference) !api.Operation {
     return switch (ref.kind) {
-        .table => try host.fresh(g.DatabaseRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, ref.id }),
+        .table, .transaction => try host.fresh(g.DatabaseRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, ref.id }),
         .configuration => try g.ConfigurationOperations.status(host, ref.id),
         .captured => try g.CapturedOperations.status(host, ref.id),
     };
@@ -727,7 +742,7 @@ pub fn recover(self: *Self) !void {
         return;
     };
     self.recovery_after[index] = reference.id;
-    if (reference.kind == .table) return;
+    if (reference.kind == .table or reference.kind == .transaction) return;
     const item = try g.SessionOperations.external(runtime.execution, &source, reference.id);
     const database = for (account.databases) |database| {
         if (std.meta.eql(database.binding, item.binding())) break database.name;
@@ -744,7 +759,7 @@ pub fn recover(self: *Self) !void {
             try g.CapturedOperations.select(host, reference.id);
             _ = try g.CapturedOperations.resumeOperation(host, reference.id);
         },
-        .table => return error.InvalidSqlOperationReference,
+        .table, .transaction => return error.InvalidSqlOperationReference,
     }
 }
 

@@ -198,6 +198,10 @@ sql-gateway:
 sql-sessions:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- sessions
 
+# Installed common cuts, private statements, decisions and Table outbox histories.
+sql-transactions:
+    nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- transactions
+
 sql-wire-gateway:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe
 

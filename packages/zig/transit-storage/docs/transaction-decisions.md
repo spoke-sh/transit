@@ -2,10 +2,12 @@
 
 `TransactionDirectory` stages immutable participant directories and
 `TransactionDecisionLog` freezes one attempt and records its commit or abort
-decision. They are storage components. The installed catalog and SQL service do
-not yet expose them, and `TablePartition` does not yet prepare or resolve their
-successors. Using these components alone cannot establish atomic Table visibility,
-consistent-cut acquisition or serializable execution.
+decision. `TablePartition` accepts durable preparation barriers and resolves
+successors against that actual journal. The catalog component coordinates those
+owners under an embedding host's exclusive database publication fence. The
+[signed Catalog controls](../../transit-catalog/docs/direct-catalog.md) and
+[SQL service](../../../../docs/handbook/reference/sql/transactions.md) compose these
+operations into the public transaction lifecycle.
 
 ## Private directories
 
@@ -43,8 +45,8 @@ counts or a rejection reason, with their transaction and statement attribution.
 The public Table root and WAL remain unchanged.
 
 `State` contains the exact begin descriptor, retained source, private root,
-monotonic statement counter and whether data differs through accepted private
-mutations. Restoring it checks the begin, interpretation, source identity and
+monotonic statement counter, cumulative matched/affected counts and whether data
+differs through accepted private mutations. Restoring it checks the begin, interpretation, source identity and
 live pin. `get` and `execute` recheck the pin and current rights. A released pin
 cannot be revived by a saved workspace. A private Table cannot export a normal
 recovery hint or recover through the public Table log.
@@ -77,10 +79,11 @@ build cap without public acceptance.
 The catalog [workspace owner](../../transit-catalog/docs/direct-catalog.md)
 publishes accepted private states, consumed statement identities and provisional
 results and retains their data/receipt pages. Before service use, the host must
-still enforce aggregate quotas and protect private segment identity allocation
-at preparation. A state descriptor alone is not a retained root or preparation
-proof. This evaluator supplies no SQL session, common-cut acquisition,
-coordinator, participant preparation or public savepoint interface.
+still enforce deployment-wide capacity and reserve physical storage. Preparation
+preserves current control directories and the largest physical segment frontier;
+immutable segment digests distinguish private and public flush objects. A state descriptor alone is not a retained root or preparation
+proof. The evaluator supplies no SQL session or public savepoint interface. Common-cut
+acquisition and coordination belong to the catalog owner.
 
 ## Frozen attempt and decision
 
@@ -107,11 +110,24 @@ Callback failure leaves the attempt preparing; it does not implicitly abort.
 Descriptor shape, matching counts and callbacks that unconditionally succeed
 cannot substitute for these owner checks.
 
-One conditional log append records the decision. Every ordinary participant read
-and subsequent write must resolve that same decision before exposing or bypassing
-a prepared successor. This integration is required before the journal can be
-used for Table publication. Finalization is recoverable maintenance, not the
-common visibility point.
+One conditional log append records the decision. A Table with an unresolved
+preparation refuses ordinary recovery, reads and writes with `TransactionPrepared`.
+Only the component coordinator can open that owner for resolution. It verifies
+the actual journal and exact prepared-directory membership before publishing the
+private data roots, or clearing an aborted barrier. Finalization preserves
+current receipt, pin, history, archive and maintenance control state. A committed
+aggregate Table receipt carries the common decision and original commit operation;
+private statement outcomes retain their separate statement attribution.
+
+A crash can leave one participant finalized and another blocked. While publication
+is incomplete, an unresolved participant refuses a current
+read instead of supplying its predecessor. Explicit transaction reads acquire
+one common cut; independent reads issued at different times outside a transaction
+do not acquire atomic multi-Table observation semantics. The host must hold the
+database publication fence across consistent-cut acquisition and each coordinator call.
+The decision is the logical commit point; materialization can defer availability.
+A physical flush between private evaluation and preparation does not conflict
+unless its logical interpretation or data frontier changed.
 
 `abort` uses the same expected decision position as commit. It records an empty
 preparation directory; the complete frozen participant directory still identifies
@@ -148,18 +164,23 @@ The host must reserve transaction stack/provider capacity, workspace storage and
 recovery capacity separately. The journal does not implement session admission
 or an installation-wide quota.
 
-All journal history and referenced directories must remain retained. There is
-no trim operation, implicit expiry or collector integration in these components.
-Before hosting them, extend the catalog recovery directory and retained storage
-graph to cover cuts, workspaces, participant preparations and decisions. Existing
-Table maintenance cannot be assumed to retain those new roots.
+All journal history and referenced directories remain retained; no journal trim
+or implicit expiry operation exists. `DirectStorageGraph` recognizes coordination
+partitions and retains their participant/preparation directories and preparation
+metadata. The current transaction progress retains live private data. Historical
+catalog progress does not retain superseded private candidates indefinitely.
+Once abort cleanup finishes, private data can become collectible; original
+statement outcomes, operation claims and decision evidence remain. Table replay
+can validate an aborted preparation without opening its discarded data graph.
 
 The [storage contract](../../../../contracts/TRANSIT_STORAGE_V1.md#transaction-directory-and-decision-records)
 defines the exact object and journal formats. Focused component checks run with
 `zig build test -Dtest-filter=transaction` from this package inside `nix develop`.
 They cover paged disk reopen, exact identity, complete preparation membership,
-lost replies, pre/post-append failures, fencing and bounded allocation. They do
-not exercise installed SQL, actual Table preparation, process death or power loss.
+lost replies, pre/post-append failures, fencing and bounded allocation. The catalog's transaction checks also exercise actual Table preparation,
+commit/abort settlement, unavailable successor data, current-policy and logical
+conflicts, and cleanup reachability. These component runs do not exercise installed
+SQL, process death or power loss.
 
 The [finite decision model](../../../../tests/verification/models/README.md#finite-transaction-decision-model)
 checks the journal's decision and knowledge obligations with two abstract

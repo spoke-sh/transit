@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+definition = "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -35,6 +35,7 @@ request_input = {
     "closure": None,
     "borrow": None,
     "lease": None,
+    "transaction": None,
 }
 context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(request_input)).digest()
 claim = {

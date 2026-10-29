@@ -255,7 +255,7 @@ const Server = struct {
         slot.authenticated.store(true, .release);
         for ([_][2][]const u8{ .{ "server_version", "18.0-Transit" }, .{ "server_encoding", "UTF8" }, .{ "client_encoding", "UTF8" }, .{ "standard_conforming_strings", "on" }, .{ "integer_datetimes", "on" }, .{ "application_name", startup.get("application_name") orelse "" } }) |parameter| try tx.writeAll(try backend.parameter(parameter[0], parameter[1]));
         try tx.writeAll(try backend.key(slot.id, slot.secret));
-        try tx.writeAll(try backend.ready());
+        try tx.writeAll(try backend.ready(.idle));
         var engine = try pg.Session.Engine(Host, Output).init(allocator, host, &tx, self.config.limits);
         defer engine.deinit();
         while (true) {

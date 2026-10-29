@@ -47,10 +47,14 @@ pub fn empty(self: *Self, tag: enum { parse_complete, bind_complete, close_compl
     });
     return self.finish();
 }
-pub fn ready(self: *Self) ![]const u8 {
+pub fn ready(self: *Self, state: g.results.Transaction.SessionState) ![]const u8 {
     try self.begin('Z');
     errdefer self.bytes.clearRetainingCapacity();
-    try self.append("I"); // The admitted profile has no open transaction.
+    try self.append(switch (state) {
+        .idle => "I",
+        .active => "T",
+        .failed => "E",
+    });
     return self.finish();
 }
 pub fn authenticate(self: *Self, kind: enum { mechanisms, challenge, final, ok }, data: []const u8) ![]const u8 {
@@ -152,6 +156,11 @@ pub fn complete(self: *Self, kind: Completion, count: u64) ![]const u8 {
         .reset => "RESET",
         .show => "SHOW",
         .discard_all => "DISCARD ALL",
+        .begin => "BEGIN",
+        .commit => "COMMIT",
+        .rollback, .rollback_to_savepoint => "ROLLBACK",
+        .savepoint => "SAVEPOINT",
+        .release_savepoint => "RELEASE",
         .empty, .reload, .capture => return error.UnsupportedWireCompletion,
     };
     try self.string(value, buffer.len);
@@ -182,7 +191,7 @@ test "backend frames retain NULL, numeric metadata, full counts and bounded erro
     const t = std.testing;
     var backend: Self = .{ .allocator = t.allocator, .maximum = 1024 };
     defer backend.deinit();
-    try t.expectEqualStrings("Z\x00\x00\x00\x05I", try backend.ready());
+    try t.expectEqualStrings("Z\x00\x00\x00\x05I", try backend.ready(.idle));
     const formats: pg.Frontend.Formats = .{};
     const columns = [_]Column{ .{ .name = "value", .type = .{ .kind = .uint64, .nullable = false } }, .{ .name = "label", .type = .{ .kind = .utf8, .nullable = true } } };
     const data = try backend.row(&columns, &formats, &.{ .{ .value = .{ .atom = .{ .unsigned = std.math.maxInt(u64) } } }, .null });

@@ -367,6 +367,32 @@ gates open. Milestone 5 can use the database owners described in the handoff.
 Streams, Queues, consumer settlement participants and the Station rebuild below
 remain planned. Completing database independence does not close the full milestone.
 
+## Table transaction participant handoff — 2026-10-28
+
+Milestone 5 supplies a local Table coordinator, paged common-cut/private workspace
+owners, whole-Table OCC, durable savepoints and one original commit/abort decision.
+The shared `Transaction.Participant` contract reserves state mutations/guards,
+log appends and consumer settlements. Only Table state participants execute in
+this profile; native KV/Document, Stream/Queue appends and lease/offset settlements
+must reject before acceptance. A reserved variant is not an executable participant.
+
+The [Table checkpoint/outbox example](../../examples/table-outbox/README.md)
+composes three ordinary Tables. It does not migrate native inbox progress,
+Station turns or connector dispatch. This milestone must provide each additional
+KV/Stream/Queue participant's retained basis, current-policy guard, preparation/durability proof,
+common-decision visibility, original outcome and bounded cleanup implementation.
+The [Document owner](07-document-storage-and-station-decoupling.md) supplies those
+same obligations for `DocumentPartition` before Document state can join a turn.
+QUEUE ACK must bind the original `_lease_epoch`; Stream/Queue appends must retain
+accepted payload availability before decision. Reuse the decision envelope and
+original-token owner instead of adding a Station-specific commit protocol.
+
+Qualification must combine inbox settlement, state changes and outbound intents
+under one decision, including revocation/fencing, lost replies, partial preparation,
+restart and no replay dispatch. The earlier native one-KV turn remains its own
+contract until that migration and hard cutover execute. Table transaction evidence
+does not establish cross-model or distributed composition.
+
 ## Inherited Station cutover obligations
 
 The [milestone 3 boundary and caller inventory](03-live-storage-and-sql-cutover.md#p1--complete-live-ownership-reopen-and-payload-recovery)

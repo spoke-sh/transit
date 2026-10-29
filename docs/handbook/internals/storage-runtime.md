@@ -1783,3 +1783,89 @@ records executed evidence. These checks can falsify the stated finite claims,
 but do not establish arbitrary-size correctness, filesystem power-loss behavior,
 quota consistency or latency improvements. Retaining current barriers costs
 writes and syncs; replacing them requires evidence for the new recovery boundary.
+
+
+## Atomic Table preparation and recovery
+
+The component question is how several Table owners can accept private changes
+without exposing a successful partial observation after a coordinator crash.
+The implemented local mechanism assumes a host that serializes database
+publication during common-cut acquisition and coordinator calls, atomic fenced
+`TransitLog` append, and immutable object storage. It does not assume that a SQL
+session or operation timeout determines the transaction outcome.
+
+The catalog freezes a paged participant directory and original attempt. Each
+written Table then accepts a preparation reference while preserving its public
+data root. This barrier prevents competing writes and ordinary reads. Commit
+checks all serializable read/write logical guards, current permissions under one
+unchanged policy epoch, actual Table preparation acceptance and immutable data
+availability. A single coordination-log append decides the attempt. Read-only
+transactions retain their common cut without requiring current data versions.
+
+Table resolution reopens the actual journal and checks prepared-directory
+membership before accepting private data roots. Abort clears the barrier without
+publishing those roots. A crash between participant finalizations leaves a
+resolved Table readable and unresolved Tables blocked. An unresolved participant
+refuses a current read instead of supplying its predecessor. Explicit transaction
+reads acquire a common cut; independent reads made at different times outside a
+transaction do not acquire atomic multi-Table observation semantics.
+This is an availability cost of the blocking design; successful ordinary reads
+do not resolve barriers implicitly. Whole-Table validation also admits false
+conflicts between disjoint logical writes. Physical flush, archive and pin
+bookkeeping do not change the logical conflict frontier.
+
+Cleanup releases original pins and account reservations only after a terminal
+decision. The retained graph follows latest accepted transaction progress for
+private data, and coordination history for original decision/preparation evidence.
+Historical catalog roots still retain their structural replay dependencies;
+they do not independently grant historical access to discarded private data.
+Aborted data can therefore become collectible without making original-outcome
+inspection or Table replay depend on it.
+
+Primary implementation evidence is the [catalog coordinator](../../../packages/zig/transit-catalog/src/DirectCatalog.zig),
+[Table acceptance owner](../../../packages/zig/transit-storage/src/TablePartition.zig),
+[preparation graph checks](../../../packages/zig/transit-storage/src/TableTransaction.zig)
+and [retained graph](../../../packages/zig/transit-catalog/src/DirectStorageGraph.zig).
+The package-local `transaction coordinator` tests exercise disk reopen at lost
+freeze, prepare, decision and publication reply boundaries; independent row
+values, logical/policy conflicts and missing successor data are their oracles.
+The separate storage `transaction preparation barrier` test includes a public
+flush between evaluation and preparation. These methods distinguish disk reopen
+and injected lost replies from process death or power loss. The SQL runtime now schedules these exact caller commands from the Catalog pending
+directory, including decision cleanup after connection loss. Its independent
+installed histories are recorded in the [transaction qualification](../../history/qualification/transactions.md).
+Cross-provider atomicity, host power loss and implementation refinement remain
+outside these methods.
+
+
+### SQL attachment and private-result correspondence
+
+A temporary SQL session holds a versioned transaction handle, a failed-state bit
+and at most one uncertain frozen caller command. The Catalog holds the acquired
+cut, private roots, original statement/control outcomes and common decision.
+`SessionTransaction` installs a private read context only after inspecting that
+original owner. `TransactionWork` lowers a control or private DML through the
+existing client-token directory; no Station actor supplies admission or recovery.
+
+The command record is frozen before its first possible bind. A lost reply can
+therefore repeat the exact native child request without compiling SQL again or
+choosing new IDs. Status reads observe only. Explicit execution/reconciliation
+may attach a completed BEGIN or clear an attachment after a confirmed decision.
+Closing a session cannot settle the parent transaction. This deliberately trades
+automatic abandoned-transaction expiry for explicit recovery and bounded aggregate
+reservations; capacity pressure supplies no authority to erase accepted work.
+
+Private reads commit their source guards and private roots to one acquired cut
+and workspace revision. Both query compilation and bounded disclosure require
+that revision. A savepoint rollback publishes a new head only after its paged
+restoration completes, so buffered data from earlier heads cannot become a result
+at the restored head. Whole-Table dependency validation includes the original
+selected set, even when rollback removes private mutations. This costs concurrency
+but preserves the serializable conflict frontier without per-predicate tracking.
+
+The finite Table model expresses acquisition, private reads, rollback, preparation
+and common-decision visibility. Component disk schedules and installed SQL histories
+check the corresponding owners with independent value/decision oracles. They are
+selected implementation histories, not automatic replay of every TLC state or a
+refinement proof; the model's finite programs, symbolic values and truthful-storage
+assumptions remain explicit in the [model guide](../../../tests/verification/models/README.md#finite-local-table-transaction-model).

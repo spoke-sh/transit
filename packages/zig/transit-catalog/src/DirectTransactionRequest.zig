@@ -1,0 +1,162 @@
+//! Signed transaction controls over the existing Catalog token authority.
+const std = @import("std");
+const c = @import("root.zig");
+const x = c.protocol.Transaction;
+const d = c.protocol.DataLifecycle;
+pub const Begin = struct {
+    key: c.DirectClientToken.Key,
+    fingerprint: [32]u8,
+    operation: d.Operation,
+    namespace: u64,
+    mode: x.Mode,
+    selection: union(enum) {
+        pub const json_schema_sequence_bounds = .{ .explicit_tables = 100_000 };
+        explicit_tables: []const u64,
+        authorized_catalog_tables,
+    },
+    limits: x.Limits,
+    budget: c.DirectClientToken.Budget,
+    pub fn validate(self: Begin) !void {
+        try self.key.validate();
+        try self.key.connection.owner(self.operation);
+        try c.Model.nativeId(self.namespace);
+        try self.limits.validate();
+        try self.budget.validate();
+        if (std.mem.allEqual(u8, &self.fingerprint, 0)) return error.InvalidClientToken;
+        if (self.selection == .explicit_tables) {
+            const ids = self.selection.explicit_tables;
+            if (ids.len > 100_000 or ids.len > self.limits.participants) return error.TransactionCapacity;
+            var previous: u64 = 0;
+            for (ids) |id| {
+                try c.Model.nativeId(id);
+                if (id <= previous) return error.InvalidTransactionBegin;
+                previous = id;
+            }
+        }
+    }
+};
+pub const Request = union(enum) {
+    call: struct { key: c.DirectClientToken.Key, steps: u16, control: bool, cancel: bool },
+    call_outcome: c.DirectClientToken.Key,
+    begin: Begin,
+    acquire: c.DirectClientToken.Key,
+    inspect: c.DirectClientToken.Key,
+    stage: struct { key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: c.DirectTableIntent.Work },
+    statement: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionWorkspace.Request, execute: bool },
+    statement_outcome: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionWorkspace.Request },
+    savepoint_outcome: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request },
+    savepoint: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request, steps: u16 },
+    advance: struct { key: c.DirectClientToken.Key, steps: u16 },
+    settle: struct { key: c.DirectClientToken.Key, operation: d.Operation, command: c.DirectTransactionControl.Command, steps: u16 },
+    pub fn key(self: Request) c.DirectClientToken.Key {
+        return switch (self) {
+            .begin => |value| value.key,
+            inline .acquire, .inspect, .call_outcome => |value| value,
+            inline .stage, .statement, .settle, .advance, .savepoint, .statement_outcome, .savepoint_outcome, .call => |value| value.key,
+        };
+    }
+    pub fn validate(self: Request) !void {
+        try self.key().validate();
+        switch (self) {
+            .begin => |value| try value.validate(),
+            .acquire, .inspect, .call_outcome => {},
+            .call => |value| if (value.steps == 0 or value.steps > 256) return error.InvalidTransactionWork,
+            .stage => |value| {
+                try value.basis.validate();
+                if (value.basis.next_lsn == 0) return error.InvalidTransactionWork;
+                if (value.sequence == 0 or value.work == .ddl) return error.InvalidTransactionWork;
+                try value.key.connection.binding(value.work.binding());
+            },
+            inline .statement, .statement_outcome => |value| {
+                try value.request.validate();
+                try value.key.connection.owner(value.request.statement.transaction.begin);
+            },
+            .savepoint_outcome => |value| {
+                try value.request.validate();
+                try value.key.connection.owner(value.request.operation);
+            },
+            .savepoint => |value| {
+                try value.request.validate();
+                try value.key.connection.owner(value.request.operation);
+                if (value.steps == 0 or value.steps > 256) return error.InvalidTransactionWork;
+            },
+            .advance => |value| if (value.steps == 0 or value.steps > 256) return error.InvalidTransactionWork,
+            .settle => |value| {
+                try value.key.connection.owner(value.operation);
+                if (value.steps == 0 or value.steps > 256) return error.InvalidTransactionWork;
+            },
+        }
+    }
+    pub fn mutation(self: Request) bool {
+        return self != .inspect and self != .statement_outcome and self != .savepoint_outcome and self != .call_outcome;
+    }
+    pub fn control(self: Request) bool {
+        return self == .call_outcome or (self == .call and self.call.control) or self == .inspect or self == .settle or self == .statement_outcome or self == .savepoint_outcome;
+    }
+};
+pub const Result = union(enum) {
+    call: ?c.DirectTransactionCall.Result,
+    begun: c.DirectClientToken.Receipt,
+    acquired: c.DirectTransaction.Acquired,
+    staged: c.DirectTransactionWorkspace.Request,
+    statement: ?c.storage.TableWorkspace.Outcome,
+    status: c.DirectTransactionControl.Status,
+    savepoint: c.DirectTransactionSavepoint.Result,
+    savepoint_outcome: ?c.DirectTransactionSavepoint.Result,
+};
+
+pub fn validateResult(request: Request, result: Result) !void {
+    const expected: std.meta.Tag(Result) = switch (request) {
+        .call, .call_outcome => .call,
+        .begin => .begun,
+        .acquire => .acquired,
+        .inspect, .settle, .advance => .status,
+        .stage => .staged,
+        .statement, .statement_outcome => .statement,
+        .savepoint_outcome => .savepoint_outcome,
+        .savepoint => .savepoint,
+    };
+    if (std.meta.activeTag(result) != expected) return error.InvalidTableResponse;
+    switch (result) {
+        .call => |value| if (value) |found| try found.validate(request.key().connection),
+        .begun => |receipt| {
+            try receipt.validate();
+            try request.key().requireSame(receipt.binding.key);
+            if (receipt.binding.intent != .transaction or !std.mem.eql(u8, &request.begin.fingerprint, &receipt.binding.fingerprint)) return error.InvalidTableResponse;
+        },
+        .acquired => |value| {
+            try value.cut.validate();
+            try request.key().connection.owner(value.cut.begin.identity.begin);
+            if (value.cut.acquired.partition != value.cut.begin.catalog.partition or value.cut.acquired.next_lsn <= value.cut.begin.catalog.next_lsn or value.coordination <= value.cut.acquired.partition) return error.InvalidTableResponse;
+        },
+        .staged => |value| {
+            try value.validate();
+            try request.stage.work.binding().requireSame(value.binding);
+            if (!std.meta.eql(value.basis, request.stage.basis)) return error.InvalidTableResponse;
+            if (value.statement.sequence != request.stage.sequence) return error.InvalidTableResponse;
+            try request.key().connection.owner(value.statement.transaction.begin);
+        },
+        .statement => |outcome| {
+            const original = if (request == .statement) request.statement.request else request.statement_outcome.request;
+            if (outcome) |value| switch (value) {
+                inline else => |found| if (!std.meta.eql(found.statement, original.statement)) return error.InvalidTableResponse,
+            } else if (request == .statement and request.statement.execute) return error.InvalidTableResponse;
+        },
+        .savepoint_outcome => |observed| if (observed) |value| {
+            try value.validate();
+            if (!std.meta.eql(value.request, request.savepoint_outcome.request)) return error.InvalidTableResponse;
+        },
+        .savepoint => |value| {
+            try value.validate();
+            if (!std.meta.eql(value.request, request.savepoint.request)) return error.InvalidTableResponse;
+        },
+        .status => |status| {
+            try status.validate();
+            try request.key().connection.owner(status.begin.identity.begin);
+            if (request == .settle) {
+                const attempt = status.attempt orelse return error.InvalidTableResponse;
+                if (!std.meta.eql(attempt.operation, request.settle.operation)) return error.InvalidTableResponse;
+            }
+        },
+    }
+}

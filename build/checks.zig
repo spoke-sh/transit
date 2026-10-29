@@ -80,7 +80,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .root_source_file = b.path("tests/interfaces/cli/diagnostic_grammar.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") } },
     }) });
     b.step("diagnostic-grammar", "Build the public compiler diagnostic corpus consumer").dependOn(&b.addInstallArtifact(diagnostic_grammar, .{}).step);
     const mutation_latency_client = b.addExecutable(.{ .name = "transit-mutation-latency-client", .root_module = b.createModule(.{

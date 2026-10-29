@@ -17,6 +17,11 @@ and the native SQL endpoint use that [shared service](../transit-sql-service/REA
 Captured source execution retains its separate Query owner; it is not an
 admission or execution dependency of database DDL/DML or ordinary Table SELECT.
 
+`TransactionSql` parses the shared transaction controls. `TransactionWork` freezes
+caller commands for Catalog-owned common cuts, private Table changes, savepoints
+and original commit/abort settlement. [Table transactions](../../../docs/handbook/reference/sql/transactions.md)
+describes the supported local serializable domain and provisional outcomes.
+
 Run `zig build test` or `zig build check` from this directory. The build graph
 rejects transitive Station imports. Real native-owner, restart and wire proofs
 are registered in the [test index](../../../tests/README.md).

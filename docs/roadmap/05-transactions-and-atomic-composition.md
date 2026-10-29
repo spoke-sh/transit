@@ -1,6 +1,6 @@
 # 5. Transactions, consistent snapshots and atomic composition
 
-[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · **Status:** In Progress
+[Roadmap](README.md) · [Foundation #125](https://github.com/spoke-sh/transit/issues/125) · **Status:** Completed — selected local Table profile
 
 Let an application read a consistent basis, compose changes to supported data
 objects, and inspect one durable commit or abort decision through SQL and typed
@@ -33,8 +33,9 @@ At the implementation-plan base `87a10e4f2` (fetched `origin/main` on
 [native state contract](../../contracts/STATE_V1.md#read-bases-and-atomic-turns)
 commits input progress, mutations to at most one KV resource and outputs together;
 selected read views can be revision-guarded. Independent source snapshots do not
-establish a catalog-wide atomic cut. Existing accepted-operation recovery remains
-the foundation; this plan claims no new executable transaction syntax or API.
+establish a catalog-wide atomic cut. Existing accepted-operation recovery was
+the foundation at that base. The closeout below records the delivered transaction
+syntax, APIs and evidence.
 
 The reviewed transaction discussion informs this plan, with these corrections:
 branches contain committed history rather than being open transactions;
@@ -106,51 +107,56 @@ actor-turn latency as a measurement of this implementation.
 
 This plan is based on committed `origin/main` at `87a10e4f2`, including the
 database-runtime cutover and storage resource follow-up. It does not incorporate
-uncommitted work from another checkout. All transaction work packages below are
-**tracked below**; existing component and installed evidence qualifies only its recorded
-profile. Keep the milestone `Planned` until implementation starts, then update
-this header and the roadmap index together.
+uncommitted work from another checkout. The work-package status below records the
+delivered selected profile; each component and installed result qualifies only
+its recorded boundary.
 
 ### Work package status
 
 | Package | Outcome | Status |
 | --- | --- | --- |
-| P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | In progress: protocol types, validation, finite models and a production common-cut counterexample/control; remaining runtime correspondence stays open |
-| P1 | Database admission, original-token binding, transaction quotas and caller boundary | In progress: original-token begin admission, coordination partition reservation, limits, signed caller fixture and component private-statement admission; aggregate account reservations; host integration and transaction settlement remain open |
-| P2 | Paged common-cut acquisition, pin recovery and private workspaces | In progress: paged common-cut acquisition, original-pin recovery, catalog-owned private statement/root recovery and cumulative staging charges; aggregate account reservations; host/caller integration and deployment-wide scheduling remain open |
-| P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | In progress: fenced decision journal with exact preparation membership; Table preparation and visibility integration remain open |
-| P4 | Restart/failure settlement, retained roots, cleanup and maintenance | In progress: private statement/root recovery and retained-graph coverage; commit/abort recovery and cleanup remain open |
-| P5 | Provisional statement results, SQL session controls and shared client | Planned |
-| P6 | Typed Zig, console and PostgreSQL/MySQL adapters and inspection | Planned |
-| P7 | Savepoints, cursor invalidation and resource/failure schedules | Planned |
-| P8 | Table outbox/checkpoints and explicit participant extension handoff | Planned |
-| P9 | Installed caller, anomaly, recovery and resource qualification | Planned |
+| P0 | Neutral identities, fixed local scope, participant/decision commitments and fixtures | Completed: current-v1 contracts, finite Table/decision/workspace models and selected production counterexample replay |
+| P1 | Database admission, original-token binding, transaction quotas and caller boundary | Completed: signed controls, durable caller commands, aggregate reservations and activation/publication fencing |
+| P2 | Paged common-cut acquisition, pin recovery and private workspaces | Completed: authorized catalog selection, WAL-inclusive retained cuts, private reads/joins, original pins and bounded durable staging |
+| P3 | Participant preparation, whole-Table OCC, common decision and atomic visibility | Completed: actual Table barriers, current policy/definition checks, common decision and restartable publication |
+| P4 | Restart/failure settlement, retained roots, cleanup and maintenance | Completed: original-attempt recovery, paged cleanup, retained decision/preparation graph and SQL background recovery |
+| P5 | Provisional statement results, SQL session controls and shared client | Completed: provisional counts, exact cut/revision evidence, session controls and explicit reattachment |
+| P6 | Typed Zig, console and PostgreSQL/MySQL adapters and inspection | Completed: signed typed callers, SDK SQL client, installed console controls and PostgreSQL/MySQL transaction states |
+| P7 | Savepoints, cursor invalidation and resource/failure schedules | Completed: durable named controls, paged rollback, preserved identities/dependencies, stale cursor refusal, expiry/reattachment and capacity cleanup |
+| P8 | Table outbox/checkpoints and explicit participant extension handoff | Completed for Table composition: executable checkpoint/data/outbox example; native KV/Document and Stream/Queue/Station extension obligations handed to M6/M7 |
+| P9 | Installed caller, anomaly, recovery and resource qualification | Completed for the selected local profile: executed native/console/PG/MySQL histories and source-attributed component/model evidence |
 
-The neutral types validate descriptor shape only. They establish no transaction
-service, acquired consistent cut, serializable execution or durable decision.
-The [Table transaction model](../../tests/verification/models/README.md#finite-local-table-transaction-model)
-checks selected finite programs for common-cut acquisition, whole-Table OCC,
-savepoint dependencies, private reads and atomic visibility. Its algorithm-level
-evidence does not discharge production replay or installed qualification in P3/P4/P9.
-The storage directory and decision-journal components have separate disk/recovery
-checks and an explicit [integration contract](../../packages/zig/transit-storage/docs/transaction-decisions.md).
-Their verification callbacks are not yet connected to Table owners. Catalog
-begin admission now reserves a coordination partition through the original-token
-owner and retains its selected directory pages. The catalog component acquires a
-paged common cut under an embedding host's publication fence and retains its
-source directory; its original-pin and policy-epoch checks do not yet establish
-an installed transaction service. Its
-[component qualification](../history/qualification/verification.md#catalog-owned-common-cuts-and-mutation-buffers--2026-10-28)
-records the executed recovery, authorization, retention-graph and memory checks
-and their limits. Catalog-owned private statement admission and outcome
-publication now preserve original identities, private roots and their retained
-data across lost replies. The
-[workspace qualification](../history/qualification/verification.md#durable-private-statements-and-account-reservations--2026-10-28)
-records disk reopen, durable rejection, account reservations, paged reachability
-and an omitted-operation-claim control against the actual implementation.
-Host integration, durable savepoints, deployment-wide capacity, Table predecessor
-barriers, common-decision visibility, decision retention and public callers remain
-required before an installed transaction profile is claimed.
+### Closeout — 2026-10-28
+
+The [qualification record](../history/qualification/transactions.md) separates
+installed histories, disk/component recovery and finite models with concrete
+negative-control replay. Native SQL, the console and PostgreSQL/MySQL execute
+the shared controls; the public Zig SDK exposes both SQL and signed typed callers.
+The [transaction reference](../handbook/reference/sql/transactions.md) owns current
+semantics and limits. No Station actor participates in database coordination.
+
+This closes the selected local Table delivery gate. Whole-Table OCC remains
+conservative; ordinary multi-source reads outside an explicit transaction retain
+independent observations. Single-partition autocommit retains its one-data-WAL
+append path. Open transactions retain their cuts until explicit settlement;
+session expiry never manufactures an abort. The configured account limits apply
+backpressure, and original decisions continue through bounded background cleanup.
+
+The broader composition outcomes remain individually assigned:
+
+| Extension | Owning delivery and gate |
+| --- | --- |
+| Native KV/Document state participants | M6 owns KV/turn composition; [M7](07-document-storage-and-station-decoupling.md) owns DocumentPartition participation and common-decision failure histories. Existing native turns remain independent |
+| Stream/Queue appends and guarded settlements | [M6 handoff](06-streams-queues-and-durable-runtime.md#table-transaction-participant-handoff--2026-10-28); reserved categories do not execute before their owners land |
+| Station inbox/state/outbox composition | M6 migration onto those database participants, preserving accepted native work and avoiding a second turn-commit protocol |
+| Real connector dispatch and external outcomes | Connector policy and recorded attempts; the Table example qualifies local intent publication and a fake application policy, not remote exactly-once execution |
+| Gateway co-hosting and event-driven recovery | [M8](08-gateway-architecture-and-protocol-ingress.md) owns protocol ingress placement and control-path cost reduction; this profile does not claim a constant round-trip or low-latency bound |
+| Fine-grained conflicts and distributed placement | M11/M21 and M22–M24 requalify isolation, authority and availability for their extended domains |
+
+The local closeout does not claim implementation refinement, liveness under
+indefinite failures, host power-loss testing, arbitrary distributed atomicity or
+strict real-time serializability. Raw results and retained failures are linked
+from the qualification owner.
 
 ### Incoming handoffs and start gates
 
@@ -207,7 +213,7 @@ is the starting algorithm, not an open-ended mechanism search:
   evidence rather than inventing data rows or data-snapshot authority.
 - Native KV/Document participation and the Stream/Queue/Station composition
   remain explicit extension obligations. P0 fixes the three participant
-  categories; P8 provides the common interface and handoff to M6. An extension
+  categories; P8 provides the common interface and handoff to M6/M7. An extension
   does not execute merely because its variant is present in a fixture.
 
 The local Table delivery gate is useful before M6 is complete. It is not proof
@@ -249,8 +255,8 @@ whole-object optimistic validation, participant preparation/common-decision
 visibility, provisional statements, savepoints and Table outbox boundary. Its
 native KV/Document and cross-owner exclusions do not remove the broader
 composition outcomes above. Add those owners only through explicit participant
-contracts and their failure histories. The selected profile is planned, not
-executable syntax or implemented transaction support.
+contracts and their failure histories. The work-package status above distinguishes delivered controls from outstanding
+qualification. Public references own the executable syntax and exact limits.
 
 1. **Select the atomic domain and isolation contract.** Define database/catalog,
    branch, object, partition and writer identities and their relationships.

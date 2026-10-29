@@ -551,6 +551,7 @@ test "Table compact evidence rejects missing corrupt foreign and substituted out
     var next = table.root;
     next.next_lsn += 1;
     var forged: r.Record = .{ .definition = p.Growth.current_definition, .previous = table.chain, .root = next, .action = .{ .mutation = .{
+        .transaction = null,
         .binding = binding(&table, 2),
         .changes = @splat(3),
         .outcome = .{ .position = .{ .partition = 17, .next_lsn = next.next_lsn }, .matched = 0, .affected = 0, .live_rows = 0 },
@@ -1781,7 +1782,7 @@ test "Table history floor fields are mandatory and a previous definition cannot 
     _ = try table.apply(binding(&table, 1), &.{}, .point, access.guard());
     const encoded = try std.json.Stringify.valueAlloc(t.allocator, table.root, .{});
     defer t.allocator.free(encoded);
-    for ([_][]const u8{ "history_floor", "history_pins", "physical_schemas", "column_origins" }) |field| {
+    for ([_][]const u8{ "history_floor", "history_pins", "physical_schemas", "column_origins", "transaction" }) |field| {
         var parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, encoded, .{});
         defer parsed.deinit();
         try t.expect(parsed.value.object.swapRemove(field));
@@ -1795,7 +1796,7 @@ test "Table history floor fields are mandatory and a previous definition cannot 
     defer frame.deinit();
     const bytes = buffer[0..frame.frames[0].payload.len];
     @memcpy(bytes, frame.frames[0].payload);
-    _ = try std.fmt.hexToBytes(bytes[8..40], "ee8cd16789fd88d229945c3dee87bbaadf11e948adadffd8f5dc0e5f3b9fb422");
+    _ = try std.fmt.hexToBytes(bytes[8..40], "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6");
     try t.expectError(error.IncompatibleDefinition, r.decode(t.allocator, bytes, 0));
 }
 
@@ -3557,4 +3558,111 @@ test "transaction workspace predicate DML and budget refusal preserve the public
     try t.expect(!workspace.changed);
     try t.expectEqual(@as(u64, 1), workspace.last_statement);
     try t.expectEqual(public.next_lsn, try wal.log().tail(17));
+}
+
+const TransactionVerification = struct {
+    table: *P,
+    expected: p.Transaction.Prepared,
+    fn participant(ctx: *anyopaque, value: p.Transaction.Participant) !void {
+        const self: *@This() = @ptrCast(@alignCast(ctx));
+        const reference = self.table.root.transaction orelse return error.InvalidTransactionPreparation;
+        const prepared = try s.TableTransaction.load(t.allocator, self.table.objects, reference);
+        try value.state.guard.requireUnchanged(s.TableTransaction.tableGuard(prepared.predecessor));
+        if (!std.meta.eql(try prepared.prepared(reference), self.expected)) return error.InvalidTransactionPreparation;
+    }
+    fn preparation(ctx: *anyopaque, value: p.Transaction.Prepared) !void {
+        const self: *@This() = @ptrCast(@alignCast(ctx));
+        if (!std.meta.eql(value, self.expected)) return error.InvalidTransactionPreparation;
+    }
+    fn callbacks(self: *@This()) s.TransactionDecisionLog.Verification {
+        return .{ .context = self, .participant = participant, .prepared = preparation };
+    }
+};
+
+test "transaction preparation barrier and original decision survive disk reopen and lost replies" {
+    for ([_]bool{ false, true }) |commit| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var access: Access = .{};
+        var frozen: s.TransactionDecisionLog.Binding = undefined;
+        var state: s.TableWorkspace.State = undefined;
+        var basis: p.Transaction.TableGuard = undefined;
+        var expected: p.Transaction.Prepared = undefined;
+        var accepted: p.Transaction.Decision = undefined;
+        for (0..4) |restart| {
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            if (restart == 1 or restart == 2) try t.expectError(error.TransactionPrepared, owner(&wal, &objects));
+            var table = try P.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, wal.log(), objects.objectStore(), .{ .resident_pages = 1, .transaction_control = true });
+            defer table.deinit();
+            try table.recover();
+            const first: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 1 } } };
+            const second: f.Types.Values.Cell = .{ .value = .{ .atom = .{ .signed = 2 } } };
+            if (restart == 0) {
+                _ = try table.apply(binding(&table, 1), &.{change(&first, 1)}, .point, access.guard());
+                basis = s.TableTransaction.tableGuard(table.root);
+                var begin = workspaceBegin();
+                var selection = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), begin.identity, .participants, 10, 1, 1024 * 1024);
+                defer selection.deinit();
+                try selection.put(.{ .participant = .{ .state = .{ .kind = .table, .guard = basis, .access = .read } } });
+                begin.tables = try selection.seal();
+                const pin = try table.pin(begin.identity.begin, .{ .partition = 17, .next_lsn = table.root.next_lsn }, access.guard());
+                var workspace = try s.TableWorkspace.init(t.allocator, &table, begin, pin, null, access.guard());
+                defer workspace.deinit();
+                _ = try workspaceInsert(&workspace, 1, 2, &second, access.guard());
+                state = workspace.state();
+                // The public flush may use the same numeric segment ID as a
+                // private segment. Content addresses and complete private data
+                // roots distinguish them; future IDs must advance past both.
+                _ = try table.flush(access.guard());
+                var writes = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), begin.identity, .participants, 10, 1, 1024 * 1024);
+                defer writes.deinit();
+                try writes.put(.{ .participant = .{ .state = .{ .kind = .table, .guard = basis, .access = .write } } });
+                frozen = .{ .begin = begin, .attempt = .{ .definition = p.Growth.current_definition, .transaction = begin.identity, .operation = .{ .scope = object.scope, .principal = 4, .operation = 101 }, .cut = begin.tables.content, .workspace = begin.tables.content, .participants = try writes.seal(), .writes = 1, .last_statement = 1 } };
+                var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 18, frozen);
+                try journal.recover();
+                try journal.freeze(access.guard());
+                table.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, table.prepareTransaction(frozen, 18, basis, state, access.guard()));
+                const reference = table.root.transaction.?;
+                expected = try (try s.TableTransaction.load(t.allocator, objects.objectStore(), reference)).prepared(reference);
+            } else if (restart == 1) {
+                try t.expectEqualDeep(expected, try table.prepareTransaction(frozen, 18, basis, state, access.guard()));
+                var bytes: [4096]u8 = undefined;
+                try t.expectError(error.TransactionPrepared, table.get(t.allocator, try key(1, &bytes), access.guard()));
+                try t.expectError(error.TransactionPrepared, table.apply(binding(&table, 9), &.{change(&second, 9)}, .point, access.guard()));
+                try t.expectError(error.TransactionPrepared, table.resolveTransaction(access.guard()));
+                var other = frozen;
+                other.attempt.operation.operation += 1;
+                try t.expectError(error.TransactionPrepared, table.prepareTransaction(other, 18, basis, state, access.guard()));
+                var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 18, frozen);
+                try journal.recover();
+                var preparations = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), frozen.begin.identity, .preparations, 10, 1, 1024 * 1024);
+                defer preparations.deinit();
+                try preparations.put(.{ .prepared = expected });
+                var verification: TransactionVerification = .{ .table = &table, .expected = expected };
+                accepted = if (commit) try journal.commit(try preparations.seal(), verification.callbacks(), access.guard()) else try journal.abort(access.guard());
+                // A decision never bypasses the still-unresolved Table barrier.
+                try t.expectError(error.TransactionPrepared, table.get(t.allocator, try key(2, &bytes), access.guard()));
+            } else if (restart == 2) {
+                table.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, table.resolveTransaction(access.guard()));
+            } else {
+                try t.expect(table.root.transaction == null);
+                try t.expect(try table.resolveTransaction(access.guard()) == null);
+                try t.expectEqual(@as(u64, if (commit) 2 else 1), table.root.live_rows);
+                var bytes: [4096]u8 = undefined;
+                var row = try table.get(t.allocator, try key(2, &bytes), access.guard());
+                defer if (row) |*value| value.deinit();
+                try t.expectEqual(commit, row != null);
+                if (row) |*value| try t.expectEqual(@as(i128, 2), value.row().cells[0].value.atom.signed);
+                try t.expect(try table.readSnapshot(t.allocator, state.source, try key(2, &bytes), access.guard()) == null);
+                var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 18, frozen);
+                try journal.recover();
+                try t.expectEqualDeep(accepted, (try journal.observe(access.guard())).decided);
+            }
+        }
+    }
 }

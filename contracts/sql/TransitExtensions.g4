@@ -3,7 +3,21 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (selectStatement | mutationStatement | extensionStatement) SEMI? EOF;
+statement: (selectStatement | mutationStatement | extensionStatement | transactionStatement) SEMI? EOF;
+// Session controls lower to the Catalog-owned local Table transaction contract.
+transactionStatement
+    : (BEGIN (WORK | TRANSACTION)? | START TRANSACTION) transactionOptions?
+    | COMMIT (WORK | TRANSACTION)?
+    | ROLLBACK (WORK | TRANSACTION)? (TO SAVEPOINT? identifier)?
+    | SAVEPOINT identifier
+    | RELEASE SAVEPOINT? identifier
+    ;
+transactionOptions
+    : ISOLATION LEVEL SERIALIZABLE transactionAccess?
+    | transactionAccess (ISOLATION LEVEL SERIALIZABLE)?
+    ;
+transactionAccess: READ (ONLY | WRITE);
+
 // Dedicated administration compiler. Query-only roots do not execute it.
 authorizationStatement: authorizationCommand SEMI? EOF;
 authorizationCommand
@@ -296,10 +310,25 @@ legacyIdentifier
     | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION
     | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES
     | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN
+    | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | ROLLBACK | SAVEPOINT | RELEASE
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | SOURCE | STORAGE
     ;
 
 // ---- Lexer rules --------------------------------------------------------
+BEGIN: 'BEGIN';
+START: 'START';
+TRANSACTION: 'TRANSACTION';
+WORK: 'WORK';
+ISOLATION: 'ISOLATION';
+LEVEL: 'LEVEL';
+SERIALIZABLE: 'SERIALIZABLE';
+READ: 'READ';
+ONLY: 'ONLY';
+WRITE: 'WRITE';
+COMMIT: 'COMMIT';
+ROLLBACK: 'ROLLBACK';
+SAVEPOINT: 'SAVEPOINT';
+RELEASE: 'RELEASE';
 TRANSIT_RELOAD_CONF: 'TRANSIT_RELOAD_CONF';
 TRANSIT_SETTINGS: 'TRANSIT_SETTINGS';
 TRANSIT_CONFIG_RELOADS: 'TRANSIT_CONFIG_RELOADS';

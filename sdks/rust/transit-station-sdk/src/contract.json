@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
+  "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
   "minimum_stack_bytes": 8388608,
   "limits": {
     "handler_action_bytes": 262144,
@@ -2535,7 +2535,7 @@
         "T17": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T18": {
@@ -2689,6 +2689,7 @@
           "enum": [
             "per_resource_snapshot_vector",
             "independent_table_snapshots",
+            "transaction",
             "atomic"
           ]
         },
@@ -6279,7 +6280,7 @@
         "T106": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T107": {
@@ -6956,7 +6957,7 @@
         "T125": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T126": {
@@ -8252,7 +8253,7 @@
         "T171": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T172": {
@@ -19527,7 +19528,7 @@
         "T5": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T6": {
@@ -24095,7 +24096,7 @@
         "T7": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T8": {
@@ -27351,7 +27352,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "profile": {
@@ -27634,7 +27635,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
+        "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
         "profile": "native_v1",
         "gated_dispatch": true,
         "retained_confirmation": true,
@@ -28332,7 +28333,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+                        "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
                       ]
                     },
                     "code": {
@@ -29166,7 +29167,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+                        "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
                       ]
                     },
                     "code": {
@@ -30180,7 +30181,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+                        "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
                       ]
                     },
                     "code": {
@@ -31688,7 +31689,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+                        "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
                       ]
                     },
                     "code": {
@@ -32522,7 +32523,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+                        "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
                       ]
                     },
                     "code": {
@@ -33536,7 +33537,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+                        "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
                       ]
                     },
                     "code": {
@@ -40825,7 +40826,7 @@
         "T86": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T87": {
@@ -43409,7 +43410,7 @@
         "T88": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T89": {
@@ -44863,7 +44864,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+                    "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
                   ]
                 },
                 "catalogs": {
@@ -44989,6 +44990,7 @@
                       "enum": [
                         "per_resource_snapshot_vector",
                         "independent_table_snapshots",
+                        "transaction",
                         "atomic"
                       ]
                     },
@@ -45581,7 +45583,7 @@
         "T11": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T12": {
@@ -45888,7 +45890,7 @@
         "T27": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T28": {
@@ -48291,7 +48293,7 @@
             "consistency"
           ],
           "x-transit-defaults": {
-            "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
+            "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
             "sources": 2,
             "active_queries": 1,
             "page_rows": 1,
@@ -48304,7 +48306,7 @@
         "T3": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T4": {
@@ -48322,6 +48324,7 @@
           "enum": [
             "per_resource_snapshot_vector",
             "independent_table_snapshots",
+            "transaction",
             "atomic"
           ]
         },
@@ -48370,7 +48373,7 @@
             "executed"
           ],
           "x-transit-defaults": {
-            "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
+            "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
             "executed": false
           }
         },
@@ -48454,7 +48457,7 @@
         "T13": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T14": {
@@ -54647,7 +54650,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "connection": {
@@ -55065,7 +55068,7 @@
         "T6": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T7": {
@@ -61751,7 +61754,7 @@
           ],
           "x-transit-defaults": {
             "version": 1,
-            "definition": "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6",
+            "definition": "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6",
             "max_columns": 128,
             "max_rows": 1024,
             "max_sql_bytes": 4096,
@@ -61771,7 +61774,7 @@
         "T4": {
           "type": "string",
           "enum": [
-            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
           ]
         },
         "T5": {
@@ -63763,7 +63766,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+                    "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
                   ]
                 },
                 "realm": {
@@ -65840,7 +65843,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+                                                        "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
                                                       ]
                                                     },
                                                     "realm": {
@@ -67174,7 +67177,7 @@
                                                         "definition": {
                                                           "type": "string",
                                                           "enum": [
-                                                            "fe0da791b6421a288d3f53bedbfd1804cf5583c2c08e1d121c8120125daeb9f6"
+                                                            "a28555784e076674c14c347f2302940983d53af7c9253813b7c5f37b1dccfbd6"
                                                           ]
                                                         },
                                                         "realm": {
@@ -72836,7 +72839,7 @@
               ],
               "properties": {
                 "rows": {
-                  "$ref": "#/$defs/T231"
+                  "$ref": "#/$defs/T237"
                 }
               }
             },
@@ -72848,7 +72851,7 @@
               ],
               "properties": {
                 "name_assertion": {
-                  "$ref": "#/$defs/T236"
+                  "$ref": "#/$defs/T242"
                 }
               }
             }
@@ -72965,7 +72968,8 @@
           "x-transit-field-order": [
             "binding",
             "resulting",
-            "outcome"
+            "outcome",
+            "transaction"
           ],
           "properties": {
             "binding": {
@@ -72976,12 +72980,16 @@
             },
             "outcome": {
               "$ref": "#/$defs/T230"
+            },
+            "transaction": {
+              "$ref": "#/$defs/T231"
             }
           },
           "required": [
             "binding",
             "resulting",
-            "outcome"
+            "outcome",
+            "transaction"
           ],
           "x-transit-defaults": {}
         },
@@ -73017,6 +73025,157 @@
           "x-transit-defaults": {}
         },
         "T231": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/T232"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "T232": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "attempt",
+            "outcome",
+            "prepared",
+            "position",
+            "coordinator_epoch",
+            "policy_epoch"
+          ],
+          "properties": {
+            "attempt": {
+              "$ref": "#/$defs/T233"
+            },
+            "outcome": {
+              "$ref": "#/$defs/T236"
+            },
+            "prepared": {
+              "$ref": "#/$defs/T235"
+            },
+            "position": {
+              "$ref": "#/$defs/T26"
+            },
+            "coordinator_epoch": {
+              "$ref": "#/$defs/T11"
+            },
+            "policy_epoch": {
+              "$ref": "#/$defs/T11"
+            }
+          },
+          "required": [
+            "attempt",
+            "outcome",
+            "prepared",
+            "position",
+            "coordinator_epoch",
+            "policy_epoch"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T233": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "definition",
+            "transaction",
+            "operation",
+            "cut",
+            "workspace",
+            "participants",
+            "writes",
+            "last_statement"
+          ],
+          "properties": {
+            "definition": {
+              "$ref": "#/$defs/T4"
+            },
+            "transaction": {
+              "$ref": "#/$defs/T234"
+            },
+            "operation": {
+              "$ref": "#/$defs/T194"
+            },
+            "cut": {
+              "$ref": "#/$defs/T126"
+            },
+            "workspace": {
+              "$ref": "#/$defs/T126"
+            },
+            "participants": {
+              "$ref": "#/$defs/T235"
+            },
+            "writes": {
+              "$ref": "#/$defs/T11"
+            },
+            "last_statement": {
+              "$ref": "#/$defs/T11"
+            }
+          },
+          "required": [
+            "definition",
+            "transaction",
+            "operation",
+            "cut",
+            "workspace",
+            "participants",
+            "writes",
+            "last_statement"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T234": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "begin",
+            "branch"
+          ],
+          "properties": {
+            "begin": {
+              "$ref": "#/$defs/T194"
+            },
+            "branch": {
+              "$ref": "#/$defs/T11"
+            }
+          },
+          "required": [
+            "begin",
+            "branch"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T235": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "content",
+            "count"
+          ],
+          "properties": {
+            "content": {
+              "$ref": "#/$defs/T126"
+            },
+            "count": {
+              "$ref": "#/$defs/T11"
+            }
+          },
+          "required": [
+            "content",
+            "count"
+          ],
+          "x-transit-defaults": {}
+        },
+        "T236": {
+          "type": "string",
+          "enum": [
+            "committed",
+            "aborted"
+          ]
+        },
+        "T237": {
           "oneOf": [
             {
               "type": "object",
@@ -73038,7 +73197,7 @@
               ],
               "properties": {
                 "admitted": {
-                  "$ref": "#/$defs/T232"
+                  "$ref": "#/$defs/T238"
                 }
               }
             },
@@ -73050,7 +73209,7 @@
               ],
               "properties": {
                 "rejected": {
-                  "$ref": "#/$defs/T232"
+                  "$ref": "#/$defs/T238"
                 }
               }
             },
@@ -73062,7 +73221,7 @@
               ],
               "properties": {
                 "cancelled": {
-                  "$ref": "#/$defs/T232"
+                  "$ref": "#/$defs/T238"
                 }
               }
             },
@@ -73080,7 +73239,7 @@
             }
           ]
         },
-        "T232": {
+        "T238": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -73098,13 +73257,13 @@
               "$ref": "#/$defs/T126"
             },
             "basis": {
-              "$ref": "#/$defs/T233"
+              "$ref": "#/$defs/T239"
             },
             "phase": {
-              "$ref": "#/$defs/T234"
+              "$ref": "#/$defs/T240"
             },
             "reason": {
-              "$ref": "#/$defs/T235"
+              "$ref": "#/$defs/T241"
             }
           },
           "required": [
@@ -73116,7 +73275,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T233": {
+        "T239": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -73142,7 +73301,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T234": {
+        "T240": {
           "type": "string",
           "enum": [
             "admitted",
@@ -73150,7 +73309,7 @@
             "cancelled"
           ]
         },
-        "T235": {
+        "T241": {
           "type": "string",
           "enum": [
             "none",
@@ -73162,7 +73321,7 @@
             "work_limit"
           ]
         },
-        "T236": {
+        "T242": {
           "oneOf": [
             {
               "type": "object",
@@ -73184,13 +73343,13 @@
               ],
               "properties": {
                 "outcome": {
-                  "$ref": "#/$defs/T237"
+                  "$ref": "#/$defs/T243"
                 }
               }
             }
           ]
         },
-        "T237": {
+        "T243": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -73207,10 +73366,10 @@
               "$ref": "#/$defs/T26"
             },
             "state": {
-              "$ref": "#/$defs/T238"
+              "$ref": "#/$defs/T244"
             },
             "reason": {
-              "$ref": "#/$defs/T239"
+              "$ref": "#/$defs/T245"
             }
           },
           "required": [
@@ -73221,7 +73380,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T238": {
+        "T244": {
           "type": "string",
           "enum": [
             "unchanged",
@@ -73229,7 +73388,7 @@
             "cancelled"
           ]
         },
-        "T239": {
+        "T245": {
           "type": "string",
           "enum": [
             "none",

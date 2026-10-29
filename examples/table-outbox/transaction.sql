@@ -1,0 +1,10 @@
+CREATE TABLE outbox_state (id INT64 PRIMARY KEY, value INT64);
+CREATE TABLE outbox_checkpoint (id INT64 PRIMARY KEY, position INT64);
+CREATE TABLE outbox_intents (id INT64 PRIMARY KEY, state INT64);
+INSERT INTO outbox_state (id,value) VALUES (1,0);
+INSERT INTO outbox_checkpoint (id,position) VALUES (1,0);
+BEGIN;
+UPDATE outbox_state SET value=1 WHERE id=1;
+UPDATE outbox_checkpoint SET position=1 WHERE id=1;
+INSERT INTO outbox_intents (id,state) VALUES (1,0);
+COMMIT;

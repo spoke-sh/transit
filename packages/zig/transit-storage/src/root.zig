@@ -20,6 +20,7 @@ pub const TableStorageWalk = @import("TableStorageWalk.zig");
 pub const TableStorageRoots = @import("TableStorageRoots.zig");
 pub const TableSnapshot = @import("TableSnapshot.zig");
 pub const TablePartitionRecord = @import("TablePartitionRecord.zig");
+pub const TableTransaction = @import("TableTransaction.zig");
 pub const TablePartition = @import("TablePartition.zig");
 pub const TableDmlIntent = @import("TableDmlIntent.zig");
 pub const TransactionDirectory = @import("TransactionDirectory.zig");

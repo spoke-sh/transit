@@ -24,6 +24,7 @@ held_disclosure: bool = false,
 
 /// Schema/observation and source context remain owned by source until deinit.
 pub fn init(schema: r.Types.Type, observation: r.Observation.Value, identity: r.Identity, source: Source) !Self {
+    try r.Observation.validate(observation);
     try schema.validate(.{});
     if (schema != .structure or !std.mem.eql(u8, &try schema.fingerprint(), &identity.schema)) return error.InvalidResultSchema;
     return .{ .schema = schema, .observation = observation, .progress = .{ .identity = identity }, .source = source };

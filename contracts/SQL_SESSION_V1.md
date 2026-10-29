@@ -146,6 +146,56 @@ diagnostic; dependency rejection does not disclose the blocking object's identit
 These forms do not execute through the PostgreSQL/MySQL profile
 and do not change a session's configured namespace.
 
+## Table transactions and recovery
+
+The service accepts BEGIN [WORK|TRANSACTION] and START TRANSACTION, with optional
+ISOLATION LEVEL SERIALIZABLE and READ ONLY or READ WRITE, COMMIT, ROLLBACK,
+SAVEPOINT name, RELEASE [SAVEPOINT] name, and ROLLBACK [WORK|TRANSACTION] TO
+[SAVEPOINT] name. Defaults are serializable read/write. Other isolation levels,
+chaining, nested transactions and multiple statements in one request reject.
+The [transaction reference](../docs/handbook/reference/sql/transactions.md) defines
+the supported local Table domain and exclusions.
+
+BEGIN acquires the current authorized catalog Table set under one stable
+name/definition basis. Reads and DML use the exact private workspace revision;
+DDL, captured/source queries and configuration mutations cannot join it. Statement
+completion is provisional as defined in [logical results](SQL_RESULTS_V1.md).
+Savepoints preserve original statement identities and conflict dependencies.
+A statement error leaves the attachment failed; ROLLBACK or ROLLBACK TO an existing
+savepoint can recover it. Failed or pending work never implicitly commits.
+
+Each control or private DML first binds the caller account/token to its exact
+native child command through `DirectTransactionCall`. The outer operation receipt,
+child statement/control identity and transaction decision remain distinct.
+Bounded retries and database recovery advance that frozen command; neither
+recompile SQL nor allocate replacement work. Generic cancellation records a stop
+request without aborting a transaction or rewriting its eventual decision.
+An uncertain command blocks unrelated new work on the same attachment until its
+original command is resolved. Status is observation only; explicit execution and
+session reconciliation may update that session's temporary attachment.
+
+`context.transaction` is null or the current handle. `attach_transaction` on the
+data lane validates an original handle against current credentials, connection,
+transaction identity and durable status, and returns `attached`. An already active
+session cannot attach another transaction. Reattachment does not reopen a decided
+transaction. No status lookup implicitly attaches it. Native callers retain the
+handle and original command tokens across session/gateway replacement. Wire
+adapters report original recovery material for uncertain commands.
+
+Session expiry, socket closure and gateway replacement release temporary cursors
+and prepared state but do not imply rollback or expiry of durable history. This
+profile has no transaction lifetime timeout. Explicit COMMIT/ROLLBACK closes the
+transaction; bounded account reservations backpressure abandoned transactions
+until an authorized caller recovers and settles them. Database recovery continues
+accepted decision and cleanup work independently of the initiating socket.
+Transaction pins and provisional roots remain retained until that owner releases
+them. Resetting or changing the selected database while attached rejects.
+
+Every private result fixes its workspace revision. Disclosure rechecks that
+revision and current permissions after buffering, including repeats, metadata,
+empty results and terminal counts. A later statement/savepoint control or decision
+invalidates the old cursor; it cannot be silently reopened against another basis.
+
 ## Logical results and fetch acknowledgement
 
 The selected result encoding is `transit.sql.result.v1.binary-columns`. Result

@@ -37,6 +37,19 @@ fn metadata(allocator: std.mem.Allocator, value: w.Definition) !void {
     if (!std.meta.eql(value.interpretation, try declaration.stored())) return error.InvalidTableResponse;
 }
 
+fn workspace(request: w.Request, value: ?p.Transaction.ReadView, interpretation: d.Definition, position: d.Position, changed_lsn: u64, handle: ?P.SnapshotHandle) !void {
+    const context = request.transaction orelse {
+        if (value != null) return error.InvalidTableResponse;
+        return;
+    };
+    const view = value orelse return error.InvalidTableResponse;
+    try view.validate();
+    try context.key.connection.owner(view.cut.begin.identity.begin);
+    if (!std.meta.eql(view.revision, context.revision) or !std.meta.eql(view.source.source.interpretation, interpretation) or
+        !std.meta.eql(view.source.source.accepted, position) or view.source.changed_lsn != changed_lsn) return error.InvalidTableResponse;
+    if (handle) |selected| if (!std.meta.eql(selected.owner, view.cut.begin.identity.begin) or !std.meta.eql(selected.content, view.private)) return error.InvalidTableResponse;
+}
+
 fn resourceMetadata(allocator: std.mem.Allocator, connection: w.Connection, value: c.DirectCatalog.ResourceView) !void {
     try value.definition.validate();
     try connection.object(value.definition.object);
@@ -57,6 +70,12 @@ fn storage(connection: w.Connection, object: d.Object, limit: u16, value: c.Dire
 }
 fn evidence(binding: d.Binding, value: P.Evidence) !void {
     try binding.requireSame(value.binding);
+    if (value.transaction) |decision| {
+        try decision.validate();
+        if (decision.outcome != .committed or binding.action != .update or
+            !std.meta.eql(decision.attempt.operation, binding.identity) or
+            !std.mem.eql(u8, &decision.attempt.workspace.sha256, &binding.intent)) return error.InvalidTableResponse;
+    }
     try value.resulting.validate();
     try value.outcome.position.validate();
     if (!std.meta.eql(value.resulting.interpretation.object, binding.target) or
@@ -120,6 +139,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         !std.mem.eql(u8, &subject.context, &original.context)) return error.InvalidTableResponse;
     if (!std.mem.eql(u8, &response.context, &try w.Request.context(request.input(), allocator))) return error.InvalidTableResponse;
     const expected: std.meta.Tag(w.Result) = switch (request.action) {
+        .transaction => .transaction,
         .record => .record,
         .client_token => .client_token,
         .client_progress => .client_progress,
@@ -169,6 +189,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     };
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
+        .transaction => |value| try c.DirectTransactionRequest.validateResult(request.action.transaction, value),
         .record => |value| {
             try value.reference.validate();
             const input = request.action.record;
@@ -442,6 +463,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             if (value.next) |next| if (next <= (request.action.namespaces.after orelse 0) or next < previous) return error.InvalidTableResponse;
         },
         .lookup => |maybe| if (maybe) |value| {
+            try workspace(request, value.workspace, value.interpretation.interpretation, value.position, value.changed_lsn, null);
             try definition(request.connection, value.interpretation);
             try value.name.validate();
             try frontier(value.position, value.changed_lsn);
@@ -451,6 +473,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .observation => |value| {
             const input = request.action.observe;
             const found = value.definition;
+            try workspace(request, found.workspace, found.interpretation.interpretation, found.position, found.changed_lsn, null);
             try definition(request.connection, found.interpretation);
             try found.name.validate();
             try frontier(found.position, found.changed_lsn);
@@ -591,6 +614,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
             if (!std.meta.eql(value.owner, acquisition.owner)) return error.InvalidTableResponse;
         },
         .snapshot => |value| {
+            try workspace(request, value.workspace, value.interpretation.interpretation, value.accepted, value.changed_lsn, value.snapshot.handle);
             try value.authority.validate();
             if (request.delegation) |delegation| delegation.requireSource(value.interpretation.interpretation, value.accepted) catch return error.InvalidTableResponse;
             if (!std.meta.eql(value.snapshot, request.action.snapshot)) return error.InvalidTableResponse;
@@ -693,7 +717,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                     entry.point.position.partition != query.from.partition or entry.point.position.next_lsn <= previous or entry.point.position.next_lsn > value.next.next_lsn or
                     !std.meta.eql(entry.receipt.outcome.position, entry.point.position) or entry.receipt.outcome.live_rows != entry.row_count) return error.InvalidTableResponse;
                 try entry.receipt.binding.validate();
-                try evidence(entry.receipt.binding, .{ .binding = entry.receipt.binding, .resulting = entry.interpretation, .outcome = entry.receipt.outcome });
+                try evidence(entry.receipt.binding, .{ .binding = entry.receipt.binding, .resulting = entry.interpretation, .outcome = entry.receipt.outcome, .transaction = entry.receipt.transaction });
                 if (request.delegation) |grant| grant.requireHistory(entry.interpretation.interpretation, entry.point.position) catch return error.InvalidTableResponse;
                 previous = entry.point.position.next_lsn;
             }

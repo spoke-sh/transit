@@ -222,6 +222,9 @@ pub const Metadata = struct {
     row_count: []const u8,
     schema: c.fuze.TableSchemaJson.Schema,
     pub fn foreign(allocator: Allocator, connection: w.Connection, value: w.Definition) !Metadata {
+        // This foreign metadata profile has no transaction context. Never erase
+        // the private-view evidence and present it as committed Table data.
+        if (value.workspace != null) return error.UnsupportedTransactionRead;
         var temporary = std.heap.ArenaAllocator.init(allocator);
         defer temporary.deinit();
         var schema = try c.fuze.TableSchema.decode(allocator, try value.schema.decode(temporary.allocator(), c.fuze.TableSchema.max_bytes));
@@ -231,12 +234,56 @@ pub const Metadata = struct {
     }
 };
 
+pub const TransactionIdentity = struct {
+    begin: Operation,
+    branch: []const u8,
+    pub fn foreign(allocator: Allocator, value: p.Transaction.Identity) !TransactionIdentity {
+        try value.validate();
+        return .{ .begin = try Operation.foreign(allocator, value.begin), .branch = try v.decimal(allocator, value.branch) };
+    }
+};
+pub const TransactionDirectory = struct {
+    content: Content,
+    count: []const u8,
+    pub fn foreign(allocator: Allocator, value: p.Transaction.Directory) !TransactionDirectory {
+        try value.validate();
+        return .{ .content = try Content.foreign(allocator, value.content), .count = try v.decimal(allocator, value.count) };
+    }
+};
+pub const TransactionAttempt = struct {
+    definition: p.Growth.Definition,
+    transaction: TransactionIdentity,
+    operation: Operation,
+    cut: Content,
+    workspace: Content,
+    participants: TransactionDirectory,
+    writes: []const u8,
+    last_statement: []const u8,
+    pub fn foreign(allocator: Allocator, value: p.Transaction.Attempt) !TransactionAttempt {
+        try value.validate();
+        return .{ .definition = value.definition, .transaction = try TransactionIdentity.foreign(allocator, value.transaction), .operation = try Operation.foreign(allocator, value.operation), .cut = try Content.foreign(allocator, value.cut), .workspace = try Content.foreign(allocator, value.workspace), .participants = try TransactionDirectory.foreign(allocator, value.participants), .writes = try v.decimal(allocator, value.writes), .last_statement = try v.decimal(allocator, value.last_statement) };
+    }
+};
+pub const TransactionDecision = struct {
+    attempt: TransactionAttempt,
+    outcome: @FieldType(p.Transaction.Decision, "outcome"),
+    prepared: TransactionDirectory,
+    position: Position,
+    coordinator_epoch: []const u8,
+    policy_epoch: []const u8,
+    pub fn foreign(allocator: Allocator, value: p.Transaction.Decision) !TransactionDecision {
+        try value.validate();
+        return .{ .attempt = try TransactionAttempt.foreign(allocator, value.attempt), .outcome = value.outcome, .prepared = try TransactionDirectory.foreign(allocator, value.prepared), .position = try Position.foreign(allocator, value.position), .coordinator_epoch = try v.decimal(allocator, value.coordinator_epoch), .policy_epoch = try v.decimal(allocator, value.policy_epoch) };
+    }
+};
+
 pub const Evidence = struct {
     binding: Binding,
     resulting: Stored,
     outcome: struct { position: Position, matched: []const u8, affected: []const u8, live_rows: []const u8 },
+    transaction: ?TransactionDecision,
     pub fn foreign(allocator: Allocator, value: c.storage.TablePartition.Evidence) !Evidence {
-        return .{ .binding = try Binding.foreign(allocator, value.binding), .resulting = try Stored.foreign(allocator, value.resulting), .outcome = .{ .position = try Position.foreign(allocator, value.outcome.position), .matched = try v.decimal(allocator, value.outcome.matched), .affected = try v.decimal(allocator, value.outcome.affected), .live_rows = try v.decimal(allocator, value.outcome.live_rows) } };
+        return .{ .transaction = if (value.transaction) |decision| try TransactionDecision.foreign(allocator, decision) else null, .binding = try Binding.foreign(allocator, value.binding), .resulting = try Stored.foreign(allocator, value.resulting), .outcome = .{ .position = try Position.foreign(allocator, value.outcome.position), .matched = try v.decimal(allocator, value.outcome.matched), .affected = try v.decimal(allocator, value.outcome.affected), .live_rows = try v.decimal(allocator, value.outcome.live_rows) } };
     }
 };
 pub const DdlOperation = struct {

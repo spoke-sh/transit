@@ -398,3 +398,14 @@ include responses held by slow clients until the write is joined. They exclude
 retained-owner workspaces, whose fixed budgets are independent of these settings;
 optional `owner_memory` diagnostics observe that workspace allocation boundary.
 These counters do not measure process RSS.
+
+The Table host exposes `table.transaction_limits` for each begin and
+`table.transaction_account_limits` for aggregate durable reservations. Per-begin
+defaults are 16 MiB resident work, 1 GiB cumulative workspace staging, 100,000
+participants, 100,000 statements and 1,024 savepoints. Account defaults are 128
+pending transactions, 64 MiB reserved residency, 4 GiB workspace, 400,000
+participants, 400,000 statements and 4,096 savepoints across login roles. These
+ceilings do not replace the node's request memory budgets or physical storage
+quotas. Only completed transaction cleanup releases reservations; capacity
+pressure does not expire accepted work. Transaction controls take the database
+publication lock, and inspect/settle retain the reserved control request path.

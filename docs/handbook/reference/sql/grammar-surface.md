@@ -110,7 +110,7 @@ other administrative SQL families retain their own stated support boundaries.
 | Query-to-sink bindings and triggers | **Planned — syntax undecided** | Explicit activation, stable recorded intent, atomic input progress plus intent, authorized attempt and captured outcome |
 | Broader object ALTER/DROP, `TRUNCATE` | **Planned — syntax undecided** | Lifecycle for other object families and TRUNCATE; selected Table ALTER/DROP is implemented above |
 | `COPY`, SQL `MERGE INTO`, upsert | **Planned — syntax undecided** | Bounded typed transfer or one-resource mutation/conflict semantics; no implicit file/network authority |
-| `BEGIN`, `COMMIT`, `ROLLBACK` | **Planned — syntax undecided** | A defined transaction scope above Station; no implicit cross-resource atomicity or rollback of uncertain commits |
+| `BEGIN`, `COMMIT`, `ROLLBACK`, savepoints | **Implemented — local Tables** | [Serializable common cuts, private statements and original decisions](transactions.md); no implicit cross-owner atomicity or rollback of a committed decision |
 | `PREPARE`, `EXECUTE`, parameters | **Explicit parameter bindings; named statements planned** | [Typed `$n` binding](parameters.md) owns plans, checks complete source definitions and current policy; CLI and all SDKs accept explicit bindings; named statements have no execution route |
 | Richer `EXPLAIN` and query description | **Planned — syntax undecided** | Shared logical/physical operators, effects and budgets without executing them; current `EXPLAIN SELECT` remains implemented |
 

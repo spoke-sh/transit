@@ -16,6 +16,11 @@ partition. Table acceptance and native input progress are separate decisions.
 Station Documents add accepted structured/text changes and immutable indexes
 within the native resource boundary.
 
+[Table transactions](sql/transactions.md) compose multiple direct Tables under
+one local common cut and commit decision. Native KV/Document state and native
+input acknowledgments do not participate. A handler's independent Table call
+therefore does not extend its native turn boundary.
+
 Named KV and Document declarations use `DirectResourceClient` and the shared
 direct catalog. Save the complete declaration before admission. Its observable
 phases separate name reservation, preparation of the original caller's native

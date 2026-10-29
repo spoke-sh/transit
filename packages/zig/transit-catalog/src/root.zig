@@ -77,5 +77,13 @@ pub const testing = if (@import("builtin").is_test) struct {
 pub const DirectIntent = @import("DirectIntent.zig");
 pub const DirectRecord = @import("DirectRecord.zig");
 pub const DirectClientToken = @import("DirectClientToken.zig");
+pub const DirectTransactionCall = @import("DirectTransactionCall.zig");
+pub const DirectTransactionSavepoint = @import("DirectTransactionSavepoint.zig");
 pub const DirectTransactionWorkspace = @import("DirectTransactionWorkspace.zig");
+pub const DirectTransactionControl = @import("DirectTransactionControl.zig");
+pub const DirectTransactionRequest = @import("DirectTransactionRequest.zig");
 pub const DirectTransaction = @import("DirectTransaction.zig");
+
+pub const DirectTransactionClient = @import("DirectTransactionClient.zig");
+
+pub const DirectTransactionRead = @import("DirectTransactionRead.zig");

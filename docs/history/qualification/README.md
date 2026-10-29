@@ -11,6 +11,7 @@ failure or establish its cause. Current behavior belongs to the handbook.
 | [Storage and recovery](storage.md) | WAL, immutable objects, segments, native persistence, retained roots and physical collection. |
 | [Catalog and data lifecycles](catalog.md) | Direct Table ownership, identities, declarations, dependencies, publication and named resources. |
 | [Query execution and computation](query.md) | Captured and maintained results, relational execution, source attribution and bounded computation. |
+| [Table transactions](transactions.md) | Common cuts, provisional statements, savepoints, original decisions and checkpoint/outbox composition. |
 | [SQL and database protocols](sql.md) | SQL grammar, prepared operations, sessions, database protocols and installed SQL recovery. |
 | [Clients and language SDKs](sdk.md) | Installed language consumers, shared bindings, ABI ownership and cross-language conformance. |
 | [CLI, Board and documentation](interfaces.md) | Console interaction, operator views, browser behavior and documentation publication. |

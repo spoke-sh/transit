@@ -195,7 +195,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | --- | --- |
 | `DESCRIBE SELECT` | Use `EXPLAIN SELECT` for output column inspection |
 | `TRUNCATE`, non-Table `ALTER`/`DROP` | No execution contract; selected Table ALTER/DROP are described above |
-| `BEGIN`, `COMMIT`, `ROLLBACK` | No SQL transaction session; application turns retain their own atomic boundary |
+| `BEGIN`, `COMMIT`, `ROLLBACK`, savepoints | [Serializable local Table transactions](sql/transactions.md), retained cuts and explicit original-decision recovery |
 | `COPY`, `MERGE`, upsert forms | No SQL import/export or mutation contract |
 | `CREATE VIEW`, `CREATE MATERIALIZED VIEW` | No named SQL view or maintained-query definition |
 | `SUBSCRIBE`, streaming windows, event-time watermarks | No continuous SQL contract; see [streaming and effects](sql/streaming.md) |

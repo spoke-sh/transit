@@ -127,7 +127,33 @@ is checked after buffering and before each bounded disclosure, including metadat
 repeats, empty responses and terminal counts. Previously received evidence cannot
 grant access to another response.
 
-Statement completion is separate from a future explicit transaction decision.
-This contract supplies no BEGIN/COMMIT/ROLLBACK, provisional-write or atomic
-multi-source guarantee. Any transaction extension must define its attribution
-and cursor lifetimes through the owning current-v1 cutover.
+## Transaction attribution
+
+Interactive Table commands use `Operation.kind.transaction`. Every transaction
+completion carries a validated `Transaction.Handle` and typed evidence. The
+handle binds the current definition, native transaction identity, original begin
+account/token and signed connection audience/role; it is recovery material, not
+a credential or a substitute for current authorization.
+
+A successful private INSERT/UPDATE/DELETE has outcome `provisional`, authoritative
+matched/changed counts and the original transaction statement identity. It is not
+an `applied` write to the public Tables. A rejected private statement carries its
+typed refusal and no successful count. BEGIN carries its acquired common cut;
+savepoint controls carry their original sequence, operation and completion.
+COMMIT/ROLLBACK carries the actual durable decision and cleanup state. A COMMIT
+that resolves to abort is rejected; requesting rollback after a committed decision
+cannot turn that decision into an abort. Validation rejects missing attribution,
+foreign handles, inappropriate evidence and successful counts on rejection.
+
+A transaction row observation carries the handle, common cut, exact workspace
+revision, last statement and one `ReadView` per source. Every source must match
+that cut/revision/statement. The private content commitment includes the original
+Table guard and private root; it is not an ordinary committed Table snapshot.
+Query completion proves finite result coverage at that private revision, not
+transaction commitment. Workspace advancement, rollback or closure invalidates
+further disclosure from older cursors. Ordinary independent-source observations
+remain independent; callers use BEGIN for a common multi-Table cut.
+
+The service owns SQL controls and attachment in [SQL sessions](SQL_SESSION_V1.md).
+External effect completion and unsupported participant kinds remain separate
+from Table transaction decisions.
