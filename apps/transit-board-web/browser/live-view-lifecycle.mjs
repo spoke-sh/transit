@@ -49,7 +49,8 @@ try {
   await counter.goto(config.counter);
   await follow(counter);
   await expect(counter.locator("#rows tr").first()).toHaveText("11");
-  await board.goto(config.board);
+  // Reactive metadata lives in the atlas; the home page opens Catalog.
+  await board.goto(new URL("/atlas", config.board).href);
   await board.getByRole("button", { name: "Follow metadata", exact: true }).click();
   await expect(board.getByLabel("Live Table metadata").getByRole("status")).toContainText(
     "current",

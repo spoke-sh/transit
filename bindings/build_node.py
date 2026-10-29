@@ -32,7 +32,7 @@ def build(output: Path, packages: list[str], native_prefix: Path) -> None:
                 elif path.is_file(): shutil.copy2(path, staging / name_or_directory)
             if name.startswith('transit-native-'):
                 native = json.loads((native_prefix / 'build.json').read_text())
-                manifest['cpu'] = [{'x86_64': 'x64', 'aarch64': 'arm64'}[native['target'].split('-')[0]]
+                manifest['cpu'] = [{'x86_64': 'x64', 'aarch64': 'arm64'}[native['target'].split('-')[0]]]
                 (staging / 'package.json').write_text(json.dumps(manifest, indent=2) + '\n')
                 family = name.removeprefix('transit-native-')
                 executable = native_prefix / 'bin' / f'transit-{family}-host'

@@ -105,6 +105,12 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
 
 def release_workflow():
     workflow = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())
+    assert workflow['concurrency']['cancel-in-progress'] == "${{ github.event_name == 'pull_request' }}"
+    # PyYAML's YAML 1.1 loader parses the workflow's `on` key as True.
+    triggers = workflow[True]['pull_request']['paths']
+    assert {'tests/interfaces/installation/board_workbench.py',
+            'tests/interfaces/cli/console_terminal.py', 'tests/interfaces/cli/console_edit.py',
+            'apps/transit-board-web/browser/workbench.spec.ts', 'tasks/bindings.just'} <= set(triggers)
     jobs = workflow['jobs']
 
     def ancestors(name):

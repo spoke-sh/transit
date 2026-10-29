@@ -145,7 +145,14 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
             assert 'receipt' in shell.call('.collect')
             progress = shell.read()
             while 'waiting_for_input' in progress: progress = shell.call('.advance')
-            assert progress['status']['collected'], progress
+            # The accepted control schedules bounded collection turns. Observe
+            # their recorded completion within the existing query budget; never
+            # submit another control or equate acceptance with cleanup completion.
+            while not progress['status']['collected']:
+                assert progress['status']['phase'] == 'retired', progress
+                assert time.monotonic() < until, progress
+                time.sleep(.1)
+                progress = shell.call('.status')
             assert shell.call(f'.new {namespace}')['err'] == 'QueryUploadIdentityConflict'
             print(f'Unified {kind} SQL shell ({"parameter file" if parameterized else "ordinary SQL"}): truthful capabilities, pre-submit rejection, frozen bundle/exact retry across shell exit, current prefix denial and retained signed work after revocation, '
                   f'named output schemas, {"COUNT value/missing counters" if counts else "owned nested rows"}, complete coverage and permanent retirement/collection passed.', flush=True)

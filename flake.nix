@@ -83,10 +83,10 @@
             ;
         }
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
-          inherit (toolchains.${system}) transit-local minio;
+          inherit (toolchains.${system}) transit-local;
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-linux" system) {
-          inherit (toolchains.${system}) transit-release;
+          inherit (toolchains.${system}) transit-release minio;
         }
       );
 
@@ -203,8 +203,10 @@
                 kubectl-ate
                 kubectl-transit
               ]
-              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.strace ]
-              ++ pkgs.lib.optionals (system == "x86_64-linux") [ toolchains.${system}.minio ];
+              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+                pkgs.strace
+                toolchains.${system}.minio
+              ];
 
               # Keep tool state and the default Kubernetes context checkout-local.
               shellHook = ''

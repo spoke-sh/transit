@@ -53,7 +53,8 @@ def package(packages, output, notices):
                 destination.write_text(version + '\n')
             elif destination.name == 'build.zig.zon' and not name.startswith('third_party/'):
                 text = destination.read_text()
-                text = text.replace('.version = "' + identity['base_version'] + '"', '.version = "' + version + '"')
+                text = text.replace('.version = "' + identity['base_version'] + '"',
+                                    '.version = "' + identity['package_versions']['zig'] + '"')
                 destination.write_text(text)
         shutil.copytree(notices, stage / 'notices')
         # The Zig source closure is identical on every native packaging runner.

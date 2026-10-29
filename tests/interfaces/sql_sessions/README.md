@@ -9,7 +9,7 @@ operations; [contribution instructions](AGENTS.md) describe their test boundary.
 | Native and local sessions | [native.py](native.py), [local.py](local.py) |
 | Current disclosure rights and resources | [security.py](security.py), [resources.py](resources.py) |
 | Disconnects, replacement and cancellation | [faults.py](faults.py), [boundaries.py](boundaries.py) |
-| Table storage progress, prepared observations and wire consumers | [storage.py](storage.py), with buffered-revocation checks in [native.py](native.py) |
+| Node and Table storage observations, wire consumers and buffered revocation | [storage.py](storage.py), executed by [native.py](native.py) before captured-query workloads |
 | Console peer and measurements | [editor_peer.py](editor_peer.py), [measurements.py](measurements.py) |
 | Shared client allocation bounds over Unix, HTTP and TLS | [allocations.py](allocations.py), [client probe](../sql/sql_result_allocations.zig) |
 

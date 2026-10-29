@@ -135,7 +135,8 @@ def foreground(caller, endpoint, profile, root, phase, owner, records, request_m
                 child.wait(timeout=15)
 
 
-def exercise(caller, endpoint, profile, root, restart, owner, node, request_memory):
+def exercise(caller, endpoint, profile, root, restart, owner, node, request_memory,
+             port, accepted_inspections):
     measurements = dict(source=provenance(ROOT), binaries=[identity(Path(path)) for path in (node, caller)],
                         drivers=[identity(Path(__file__)), identity(Path(__file__).with_suffix('.zig'))],
                         platform=platform.platform(), clock_ticks_per_second=os.sysconf('SC_CLK_TCK'),
@@ -312,8 +313,70 @@ def exercise(caller, endpoint, profile, root, restart, owner, node, request_memo
           f'rows survive restart; zero segment rewrites for packed inputs; no further publications while idle; '
           f'convergence and verification {time.monotonic() - before:.3f}s.', flush=True)
 
+    # Persist every original insert before starting a writer. The retained
+    # readers keep their old cuts while sixteen point inserts per Table add new keys.
+    call('plan-writes')
+    planned = profile.read_bytes()
+    restart(True, foreground=True)
+    out = root / 'foreground-writes.jsonl'
+    err = root / 'foreground-writes.stderr'
+    started = time.monotonic()
+    overlap = False
+    relocated = False
+    baseline = json.loads(call('inspect').stdout)
+    with foreground(caller, endpoint, profile, root, 'foreground_writes_and_flush',
+                    owner, measurements['phases'], request_memory) as reader:
+        with out.open('w') as output, err.open('w') as errors:
+            writer = subprocess.Popen([caller, endpoint, 'maintenance-write', str(profile)],
+                                      stdout=output, stderr=errors)
+            try:
+                while writer.poll() is None:
+                    observed = json.loads(call('inspect').stdout)
+                    completed_writes = out.read_text().count('\n')
+                    completed_reads = (root / 'foreground-foreground_writes_and_flush.jsonl').read_text().count('\n')
+                    overlap |= 0 < completed_writes < 48 and completed_reads > 0 and reader.poll() is None
+                    relocated |= (0 < completed_writes < 48 and
+                                  any(after['next_segment'] > before['next_segment']
+                                      for before, after in zip(baseline, observed)))
+                    assert time.monotonic() - started < 180, 'Finite foreground writer did not complete'
+                    time.sleep(.1)
+                assert writer.returncode == 0, err.read_text()[-12000:]
+            finally:
+                if writer.poll() is None:
+                    writer.kill()
+                    writer.wait(timeout=15)
+    samples = [json.loads(line) for line in out.read_text().splitlines()]
+    assert len(samples) == 48 and all(row['sample'] == i and row['rows'] == 1 and row['elapsed_ns'] > 0
+                                     for i, row in enumerate(samples)), samples
+    assert overlap, 'No completed retained read overlapped finite foreground writes'
+    assert relocated, 'No accepted physical relocation overlapped finite foreground writes'
+    assert profile.read_bytes() == planned, 'Writer replaced its saved operation plan'
+    measurements['phases'][-1]['writes'] = [dict(sample=row['sample'], rows=row['rows'], elapsed_ns=row['elapsed_ns'])
+                                           for row in samples]
+    # The exact signed inspection, not a re-created write, remains usable while
+    # ordinary admission is exhausted and physical maintenance is enabled.
+    assert accepted_inspections
+    (root / 'pressure-requests.json').write_text(json.dumps(dict(
+        inspection=json.loads(accepted_inspections[0][0]), expected=accepted_inspections[0][1])))
+    restart(True, True, pressure=True)
+    request_pressure(port, root, owner, accepted_inspections[0], require_maintenance=True)
+    restart(False)
+    recovered = [json.loads(line) for line in call('recover-writes').stdout.splitlines()]
+    assert [row['receipt'] for row in recovered] == [row['receipt'] for row in samples], \
+        'Owner restart changed an original accepted write receipt'
+    call('verify-writes')
+    saved = profile.read_bytes()
+    restart(True, True)
+    call('verify-writes')
+    assert profile.read_bytes() == saved, 'Restart replaced retained read identities'
+    print('Table maintenance resource observations: ' + json.dumps(measurements, sort_keys=True), flush=True)
+    print('Concurrent Table maintenance: 48 original writes add 48 independently verified rows; '
+          'retained reads and accepted segment relocation overlap the writer; exhausted ordinary '
+          'admission preserves original-operation inspection and maintenance progress; '
+          'all receipts and original/new cuts survive owner restart.', flush=True)
 
-def request_pressure(port, root, owner, saved_inspection):
+
+def request_pressure(port, root, owner, saved_inspection, require_maintenance=False):
     """Real concurrent body readers exhaust bytes while exact recovery remains usable."""
     import select
     import socket
@@ -354,12 +417,23 @@ def request_pressure(port, root, owner, saved_inspection):
                     break
             assert failure == (503, {'err': 'StorageQuota'}), failure
             live = memory()
+            active = observed()['maintenance']
             assert live['used'] > 0, 'No concurrent partial request remained charged'
             original, expected = saved_inspection
             recovered = post(port, '/table/v1', json.loads(original), headers={'X-Transit-Control': 'table'})
             assert recovered['result'] == expected, 'Recovery changed the accepted original operation'
             control = observed()['control_requests']
             assert 0 < control['peak'] <= control['limit'] == 67108864
+            if require_maintenance:
+                assert active['enabled']
+                deadline = time.monotonic() + 4
+                while True:
+                    current = observed()
+                    assert current['data_requests']['used'] > 0, 'Pressure ended before maintenance progressed'
+                    if current['maintenance']['completed_steps'] > active['completed_steps']:
+                        break
+                    assert time.monotonic() < deadline, 'Maintenance made no progress during ordinary admission pressure'
+                    time.sleep(.02)
             if closure == 'disconnect':
                 for connection in held:
                     connection.close()
@@ -369,6 +443,7 @@ def request_pressure(port, root, owner, saved_inspection):
                 time.sleep(.05)
             observations.append(dict(closure=closure, refused=failure[1]['err'],
                                      ordinary=live, control=control, original_recovery=True,
+                                     maintenance_progress_required=require_maintenance,
                                      released=memory()['used']))
         finally:
             for connection in held:

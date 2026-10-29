@@ -34,8 +34,13 @@ def describe(base, revision, epoch, channel='stable', date=None):
         versions = dict.fromkeys(LANGUAGES, release)
         versions['python'] = f'{base}.dev{date}+g{revision[:12]}'
         versions['ruby'] = f'{base}.nightly.{suffix}'
+        # Zig limits build.zig.zon versions to 32 bytes. The enclosing release
+        # identity retains the nightly date and full revision.
+        versions['zig'] = f'{base}-dev.g{revision[:12]}'
     elif date is not None:
         raise ValueError('stable releases do not have a nightly date')
+    if len(versions['zig']) > 32:
+        raise ValueError('Zig package version exceeds 32 bytes')
     return dict(version=1, channel=channel, base_version=base, release=release, tag=tag,
                 source_revision=revision, source_date_epoch=epoch, date=date,
                 package_versions=versions)

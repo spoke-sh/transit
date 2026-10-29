@@ -13,7 +13,7 @@ assertions in domain scenarios and provider setup in explicitly named fixtures.
 | [operation_helpers.py](operation_helpers.py) | Explicit private operation-driver location; never substitute the installed CLI |
 | [recovery_fixture.py](recovery_fixture.py) | Preserve owned failed state after joining its supplied provider fixtures |
 | [local_installation.py](local_installation.py) | Private native-local installation configuration, frozen executable copies, manager startup and joined cleanup |
-| [test_local_installation.py](test_local_installation.py) | Real child startup/exit, private state, restart and immutable executable-copy controls |
+| [test_local_installation.py](test_local_installation.py) | Real child startup/exit, private state, restart, immutable executable-copy and PTY environment-isolation controls |
 | [native_artifacts.py](native_artifacts.py) | Resolve complete native client/authority sets through Zig's build cache, with source, profile, target, definition and output identities |
 | [test_native_artifacts.py](test_native_artifacts.py) | Reject changed source, wrong profiles/definitions and failed or partial native publications |
 | [phases.py](phases.py), [test_phases.py](test_phases.py) | Automatic nested preparation/lifetime timings, including failed and interrupted work |
@@ -31,6 +31,9 @@ local installation mechanics with assertions about readiness, renewed activation
 current authorization and SQL outcomes. The harness does not decide those
 outcomes or share a mutable installation between independent scenarios. A caller
 owns whether successful state is removed or failed state retained after cleanup.
+Controlling-terminal fixtures remove inherited `TRANSIT_` settings before applying
+their explicit environment overrides. Build metadata and unrelated runtime
+configuration cannot alter the installation selected by a console scenario.
 
 Phase records live under ignored `.cache/checks/phases/`, with a source record
 per process and a unique record per operation. Native preparation records input
