@@ -50,6 +50,41 @@ Logs, completion evidence and concrete counterexamples are retained under
 `.cache/verification/model/`. The ordinary formal lane runs the small model;
 weekly discovery expands it and runs targeted mutations of the actual Zig guards.
 
+## Finite object publication model
+
+Run `nix develop -c just test::object-publication-model` for
+[ObjectPublication.tla](ObjectPublication.tla). The question is whether payload
+and checksum names can share one directory barrier before descriptor publication.
+The domain is one key, one candidate and its exact retries under the existing
+per-key lock. Three files have absent/partial/complete bytes, with independent
+visible/durable bytes and names. The initial state has no candidate artifacts;
+an older conditional descriptor is abstracted as absence of the new descriptor.
+The transition sequence writes/syncs/links both content files, syncs their shared
+directory, then writes/syncs/replaces the descriptor, syncs its directory and
+acknowledges. Independent writeback, process death, power loss, I/O errors and
+recovery can interleave. Exact retries repeat the required barriers; a visible
+name alone supplies no durability evidence.
+
+The invariants require durable content before new-descriptor visibility, a
+synced descriptor before replacement, and all dependencies durable on success.
+Five controls independently remove those synchronization obligations and must
+produce their named invariant violation. The runner requires queue exhaustion
+for the safe model and complete known-action traces for controls; syntax errors,
+timeouts or missing evidence fail. Source hashes, tool banner, configurations,
+logs and traces are written to `.cache/verification/object-publication-model/`.
+The pinned TLC uses one worker, fixed seed/fingerprint, 512 MiB and 120 seconds
+per configuration.
+
+Successful sync and atomic descriptor replacement are assumptions. This is
+safety exploration without fairness or a liveness claim. It abstracts bytes and
+hash verification, excludes concurrent reclamation and does not establish
+inventory-before-creation, WAL acceptance, cross-object batching or gateway
+recovery. The independent real-disk error/process schedules exercise production
+ordering; they do not automatically replay model traces, prove refinement or
+simulate power loss. The composition and delivery obligations remain in
+[#211](https://github.com/spoke-sh/transit/issues/211) and the
+[gateway plan](../../../docs/roadmap/08-gateway-architecture-and-protocol-ingress.md).
+
 ## Finite console interaction model
 
 Run `nix develop --command just test::console-model`. The ordinary formal lane

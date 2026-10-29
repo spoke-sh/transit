@@ -73,7 +73,7 @@ local-native-collection:
 
 # Disk owner error propagation with real partial writes and injected syscall failures.
 storage-io-faults:
-    cd packages/zig/transit-storage && zig build test -Dtest-filter="disk space errors" -Dtest-filter="disk sync errors" -Dtest-filter="disk recovery syncs complete" -Dtest-filter="disk opening syncs observed metadata" -Dtest-filter="object write errors" -Dtest-filter="object publication sync failures" --summary all
+    cd packages/zig/transit-storage && zig build test -Dtest-filter="disk space errors" -Dtest-filter="disk sync errors" -Dtest-filter="disk recovery syncs complete" -Dtest-filter="disk opening syncs observed metadata" -Dtest-filter="object write errors" -Dtest-filter="object publication" --summary all
 
 # Full-key pages, retained intervals, collation order, signing and owned decoding.
 storage-key-ranges:
@@ -283,6 +283,10 @@ model *args:
 # Local WAL durability ordering, bounded exhaustive safety and six negative controls.
 wal-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/wal_model.py {{args}}
+
+# Immutable content/checksum names, descriptor publication and five sync controls.
+object-publication-model *args:
+    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/object_publication_model.py {{args}}
 
 # One original transaction decision, bounded safety and six negative controls.
 transaction-decision-model *args:

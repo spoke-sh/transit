@@ -9,6 +9,70 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Shared object content-directory barrier — 2026-10-29
+
+At runtime source `b7d2980048305c66449b340861b114bb2a0e1024`, payload and
+checksum names share one directory sync before descriptor publication. The
+[mechanism and assumptions](../../handbook/internals/storage-runtime.md#sharing-a-content-directory-barrier)
+preserve individually durable puts, per-key locking, exact retries and the
+descriptor's file/directory barriers. There is no wire or stored-format change.
+
+Executed with the pinned development shell on Linux x86_64:
+
+- `just test::object-publication-model`: **397 distinct / 1,575 generated
+  states**, queue exhausted; all five independently removed sync obligations
+  violate their expected invariants. The model is safety-only, with one key,
+  one candidate, exact retries and three abstract files. Logs/configurations,
+  source hashes and traces are in `.cache/verification/object-publication-model/`.
+- `just test::storage-io-faults`: **8/8 tests pass**, including a bounded probe
+  identifying payload/checksum/descriptor file syncs and their two directory
+  syncs, real partial writes, failures at each remaining barrier for immutable
+  and conditional puts, reopening and exact retry. New-object publication uses
+  **five calls instead of six**, with no dropped probe entries. This counts
+  application sync calls, not device commands or an I/O latency lower bound.
+- A temporary production negative control removes the shared content-directory
+  barrier. The compiled probe fails with `TestExpectedEqual`; restoring the
+  barrier passes. This is a selected executed regression control, not automatic
+  model-counterexample replay or complete refinement.
+- `just test::local-storage-faults`: **150 SIGKILL schedules pass**, preserving
+  WAL data/fences/trim and original Table receipts, pins, archives, compaction
+  and checkpoints. New cuts stop after either content link before the shared
+  directory barrier. Descriptor file/directory cuts retain their semantic
+  positions after renumbering. An initial run reached all schedules then failed
+  its stale aggregate count of 149; the corrected count is 150, with no fixture
+  size or timeout reduction.
+
+Raw workspace logs under `.cache/io-publication/` include `io-faults.log`
+(SHA-256 `4d1b9b15b16d6ae1c9c9bfb173a7dc07eab37f8f5bdb9c144f27fd3642b771a8`),
+`disk-faults.log`
+(`96ce9b56607bb1da5ffab331d3c6a4ad5305d3906ede5816e9187a13532472af`)
+and `removed-content-barrier.log`
+(`6c3183c2e5b3afdae8e4b5c73403bb31468ed94aefc6f84e5054ba7dd664bf99`).
+The [console comparison](performance.md#shared-content-directory-barrier--2026-10-29)
+records actual installed and TLS component workloads separately.
+
+`just ci clean --check fast` passes all **47 checks** at
+`5595d15cce200e90949439b8436a8eac85f58e58`, which adds only proof selection,
+artifact retention and diagnostic inventory updates to the runtime revision.
+Evidence is `.cache/ci/clean/5595d15cce20-transit-ci-nwvtqejq/`. Earlier fast
+attempts exposed the missing formal-lane assertion and changed helper inventory;
+those registrations were corrected before this clean pass. Fast checks do not
+compile or execute the disk fixture.
+
+A separate source-clean checkout at the same `5595d15cc` revision compiles and
+runs `just test::local-storage-faults` without inherited workspace build
+artifacts; all **150 schedules pass** again. The checkout is
+`/var/tmp/transit-ci-mz30itrq/src`; its earlier failed fast-check attempt was
+followed by a clean checkout of the corrected revision before this execution.
+`.cache/io-publication/clean-disk-faults.log` has SHA-256
+`96ce9b56607bb1da5ffab331d3c6a4ad5305d3906ede5816e9187a13532472af`.
+
+The model assumes truthful sync and atomic replacement and excludes inventory,
+WAL acceptance, concurrent reclamation and arbitrary object batches. Disk error
+injection and process death preserve the operating system/page cache; neither
+is a physical power-loss experiment. Cross-object batching, transducer
+composition and conditional liveness remain separate obligations in #211.
+
 ## Direct request allocation and response lifetime — 2026-10-28
 
 The question is how much private request memory remains owned when a direct

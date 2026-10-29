@@ -48,6 +48,50 @@ needs bounded queued ownership, original per-command receipts, explicit uncertai
 prefixes and control progress under saturation. Deferring a sync in the current
 serialized API does not establish those properties.
 
+### Sharing a content-directory barrier
+
+Can an immutable object's payload and checksum file share a synchronization
+barrier without changing when its descriptor becomes visible? Both files live
+in the same `objects/` directory, and neither has independent public visibility:
+readers enter through the descriptor in `keys/`.
+
+[`DiskObjects.stage`](../../../packages/zig/transit-storage/src/DiskObjects.zig)
+syncs each file's bytes before linking its content-addressed name. It then syncs
+`objects/` once for both names before allowing descriptor publication. The
+descriptor still receives its own file sync, atomic replacement and `keys/`
+directory sync. A new object therefore requires three file and two directory
+sync calls, compared with three of each when each content name was published
+separately. These are application I/O barriers, not measured device commands.
+The fixed pair requires no queue, retained allocation, timer or second writer.
+The stage call remains individually durable; page batches do not gain an
+implicit deferred-completion contract.
+
+The reasoning assumes truthful successful file/directory synchronization,
+atomic descriptor replacement, the existing per-key lock and exclusion of
+concurrent reclamation by the owning backend. A crash between content links
+can leave private files. A retry verifies an existing file and syncs its bytes;
+the shared directory barrier still runs before a descriptor can reference it.
+Failure after descriptor replacement remains uncertain. A successful physical
+put supplies neither SQL acceptance nor permission to remove retained history.
+
+The [finite object model](../../../tests/verification/models/README.md#finite-object-publication-model)
+separates visible/durable bytes and names, including independent writeback and
+modeled power loss. Five removed-barrier controls check the required ordering.
+The real disk sync-order probe, injected write/sync errors and process-death
+schedules independently exercise the implementation; none proves a filesystem's
+power-loss behavior or complete implementation refinement. The
+[storage evidence account](../../history/qualification/storage.md) records
+executed commands and their scope.
+
+Coalescing across multiple objects would additionally require bounded batch
+ownership, inventory ordering, exact partial-failure semantics and proof that
+every descriptor's dependencies are durable. Deferring indexes would require
+reconstruction from accepted WAL records. Those alternatives can remove more
+foreground work but are not established by this fixed-pair optimization. End-to-end
+console latency also includes gateway admission, recovery polling and execution
+RPCs; reducing one storage barrier does not establish a proportional statement
+speedup or global optimality.
+
 ### Private object staging and native progress
 
 Can a private direct-data write block unrelated native reads and control publication?

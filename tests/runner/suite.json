@@ -14,7 +14,8 @@
       "test::console-model",
       "test::statement-result-model",
       "test::table-transaction-model",
-      "test::write-lifecycle-model"
+      "test::write-lifecycle-model",
+      "test::object-publication-model"
     ],
     "core": [
       "check::core",
@@ -791,6 +792,30 @@
         "depends_on": [],
         "tasks": [
           "test::sql-rewrites"
+        ],
+        "resources": [
+          "formal-cpu"
+        ]
+      },
+      "object-publication-specification": {
+        "paths": [
+          "tests/verification/models/ObjectPublication.tla",
+          "tests/verification/models/ObjectPublication.cfg"
+        ],
+        "depends_on": [],
+        "tasks": [],
+        "resources": []
+      },
+      "object-publication-proof": {
+        "paths": [
+          "tests/verification/models/object_publication_model.py"
+        ],
+        "depends_on": [
+          "object-publication-specification",
+          "tlc-support"
+        ],
+        "tasks": [
+          "test::object-publication-model"
         ],
         "resources": [
           "formal-cpu"

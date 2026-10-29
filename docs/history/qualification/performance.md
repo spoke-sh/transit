@@ -11,6 +11,103 @@ and [test index](../../../tests/README.md) for current navigation.
 
 ## Persistent console statement latency — 2026-10-28
 
+### Shared content-directory barrier — 2026-10-29
+
+The question is whether removing one redundant object-publication directory
+sync improves the human console without changing durable completion. Runtime
+control is `2dbed4e432e866aab0dccf35b7d0dc8e0cd8d565`; candidate is
+`b7d2980048305c66449b340861b114bb2a0e1024`. Driver/CI source
+`5595d15cce200e90949439b8436a8eac85f58e58` adds only diagnostic inventory and
+test-registration updates to the candidate. The
+[storage account](storage.md#shared-object-content-directory-barrier--2026-10-29)
+owns barrier counts and fault evidence.
+
+Both arms run the same persistent `.timer on` workload with five mutation
+samples, six warm reads, exact values/counts and independent typed JSON readback.
+Each of the four runs below passes all 47 statements. Binaries use pinned Zig
+`0.17.0-dev.2267+48abf1a34`, ReleaseSafe, Linux x86_64 and local disk on a shared
+host. There are no tail-percentile or isolated-host claims.
+
+The default installed-server comparison runs **candidate then control**, with
+no resident-page or worker-interval overrides, no instrumentation, the same
+driver and the same three helper binaries. Both bootstrap successfully. The
+earlier bootstrap failures are not reproduced here; because the control also
+passes, this does not establish a bootstrap fix or explain those failures.
+Empirical console p50, milliseconds:
+
+| Statement | Control | Candidate |
+| --- | ---: | ---: |
+| Warm SELECT | 104 | 99 |
+| INSERT | 279 | 260 |
+| SELECT after INSERT | 383 | 382 |
+| Changed UPDATE | 432 | 450 |
+| Unchanged UPDATE | 291 | 286 |
+| SELECT after UPDATE | 529 | 523 |
+| DELETE | 332 | 341 |
+| SELECT after DELETE | 591 | 611 |
+
+INSERT's observed median is about 7% lower; the other cases are mixed and the
+fresh-read cost remains. This is a modest local observation, not a 10×/100×
+result. Load averages at startup are 8.59 for the candidate and 5.29 for control.
+Both use the same Board executable (built at `5595d15cc`, UI disabled), query
+host and SQL gateway. Only the node and combined CLI differ. Node hashes are
+`c8f20bd79915b3e27ea7b26225b84b11da7259a147ab2d9f538b5f4221009f04`
+and `7ecc0375798ca27e605130cda3b5721ad6a266faf5a9f613b14773d4ad980cad`;
+CLI hashes are
+`f31bbf87eaf553cf829001397e6c331bb590b039333195489cc5d4de8e599c5e`
+and `dce09a62352744af028e87f463bc0797ed800ad33c9a2f421b495d8349e3e663`
+(control then candidate).
+
+Raw default-driver stdout/stderr is retained under `.cache/io-publication/`:
+`default-control.log` has SHA-256
+`d0f3248f6c2b36361fe9fb2451bc837bd852fb89bcc94e40993903310a42e8f8`;
+`default-console.log` has SHA-256
+`84e367c19e4d4e03a070d645c98d50ec8bfe4661b62f0833276cc6f94d3cb48a`.
+They contain executable/driver hashes, declared binary revision, actual driver
+source and diff hash, configuration, raw timers and complete result checks.
+The [installed driver](../../../tests/performance/console/console_latency.py)
+runs with frozen CLI/node/query-host paths, `--statements --repeat 5` and the
+appropriate `--binary-revision`; `TEST_TRANSIT_BOARD_BINARY` and
+`TEST_TRANSIT_SQL_GATEWAY_BINARY` select the same frozen helper paths in both
+arms. This is equivalent to the default `test::console-latency` workload,
+without rebuilding or replacing the frozen executables.
+
+A separate TLS component comparison runs **control then candidate** with the
+fixture's eight resident pages and 30-second request budget. `nix develop -c
+just test::console-latency-tls 5` reports INSERT p50 **1,668 → 1,519 ms**, warm
+SELECT **78 → 77 ms**, changed UPDATE **3,062 → 2,656 ms**, unchanged UPDATE
+**1,439 → 1,316 ms** and DELETE **1,939 → 1,798 ms**. Those levels differ
+substantially from the installed fixture and must not be mixed into its speedup
+ratio. Only node/CLI hashes differ here too; the other five executable hashes
+and statement driver hash match. The control's runtime was unmodified while
+model/documentation/test edits made its workspace dirty; candidate provenance
+records clean `5595d15cc` with the frozen candidate runtime binaries above.
+Candidate raw output is `candidate-console.log`, SHA-256
+`aab94e2185c372cafb244acd2ed83f77ada97efdff56af06dd2f5eb7f32b39f3`.
+`baseline.json` is an explicitly extracted control stdout summary and binary
+identity record, not the complete raw control log; it has SHA-256
+`0c17d114ad12c57c0ec1db56dd758ee3d9ee7560487edbb7f842f34251990dd3`.
+
+The measurements establish neither gateway co-hosting nor zero idle traffic.
+The unchanged [native recovery schedule](../../../tests/interfaces/sql/sql_gateway_native.py)
+also passes with the candidate node and matching frozen helpers: the original
+67-row atomic INSERT completes within the existing 10-second node request and
+300-second helper budgets. The complete schedule takes **29.64 seconds** and
+records **1,329** Table requests, two lost-commit-reply crashes, two fenced
+replacements, one saved-receipt recovery, exact counts/history, 17 framing
+refusals, 15 exact repeats, two advanced recoveries, three revoked disclosures,
+one exact capacity retry and cancelled/joined cleanup. Station sends and turns
+are zero. Raw `.cache/io-publication/native-recovery.log` has SHA-256
+`8a48c164ebae6197549c8265824d2c77fc781bf2681c14a473140f1096eea979`.
+This is a fresh passing execution, not proof that the barrier change explains
+the earlier timeout or meets the proposed two-second recovery target. No fixture
+size, residency or deadline was changed.
+
+The [gateway implementation plan](../../roadmap/08-gateway-architecture-and-protocol-ingress.md)
+and [#211](https://github.com/spoke-sh/transit/issues/211) retain event-driven
+recovery, coarse statement execution, physical/WAL composition and matching
+installed-caller qualification as separate tasks.
+
 ### Merged runtime recovery checks — 2026-10-29
 
 The follow-up to [PR #222](https://github.com/spoke-sh/transit/pull/222)

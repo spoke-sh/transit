@@ -268,6 +268,26 @@ implementation begins, then update both to `In Progress` together.
 | **P6** | Installed common-revision qualification, before/after latency/RPC/thread evidence in the proof ledger, and public handbook promotion | P1–P5 | #110, #122, #123, #124, #76 |
 
 #### P0 — Freeze baseline metrics, sans-I/O protocol boundary and `DatabaseHost` contract
+
+Coordinate the executable model and dependency graph with
+[write-path and I/O tracking #211](https://github.com/spoke-sh/transit/issues/211).
+Keep five composable boundaries: pure protocol frames; ingress/session buffer
+and request ownership; recovery scheduling; database execution; and physical
+publication. Map original account/token/operation identity, attempt and owner
+generation, current authority, retained result basis and completion evidence
+across each handoff. A component's passing model is not a composition proof.
+The storage component must establish its durability primitive before database
+execution can assume it. Socket completion, Table commit, token settlement and
+client knowledge remain separate events. Model INSERT/UPDATE/DELETE and proposed
+TRUNCATE; the latter still needs its execution contract.
+
+Use matched experiments to separate gateway orchestration from publication
+cost. Historical figures above describe different fixtures; the in-process
+latencies and relative ratios require a source-attributed control before they
+can establish a measured speedup. The 58-request window includes overlapping
+background work and cannot be treated as 58 serial round-trips. Preserve the
+default-bootstrap and unchanged 67-row recovery failures until fresh runs pass.
+
 - Record the exact pre-cutover baseline counters from `just test::console-latency-tls 5 --instrument`,
   [`sql_gateway_native.py`](../../tests/interfaces/sql/sql_gateway_native.py) and
   [`gateway.py`](../../tests/interfaces/sql_wire/gateway.py): upstream HTTP POST
@@ -282,6 +302,26 @@ implementation begins, then update both to `In Progress` together.
   `DirectCatalog` or across a single-hop remote RPC boundary.
 
 #### P1 — Replace background polling loops with event-driven recovery
+
+At `2dbed4e43`, foreground DML returns the Table terminal, while
+`DatabaseRuntime.advance` still settles the Catalog pending token. `submit` and
+`execute` notify recovery unconditionally. Deliver foreground settlement or
+explicitly schedule that outstanding obligation before removing periodic work.
+The current `ReadCache` retains durable pins between statements and evicts on
+reuse; it has no wall-clock expiry policy. Preserve startup and dirty-slot
+cleanup, original uncertain pin identities and active borrows without inventing
+time-based expiry.
+
+Model startup discovery, bounded paged scans, wake generations and parking,
+foreground ownership and retry deadlines. Require counterexamples for a wake
+lost during the scan-to-park transition, an incomplete scan treated as empty,
+unsettled work hidden by a lost reply, and control starvation. Scan failures
+retain a recovery obligation; continuing accepted work can use bounded retry
+timers while a settled idle account performs no upstream polling. Liveness is
+conditional on available storage/transport, continuing authority and fair
+service. Recheck stale activation and revocation/restoration behavior through
+the real callers.
+
 - Refactor [`DatabaseRuntime`](../../packages/zig/transit-sql/src/DatabaseRuntime.zig)
    and [`main.zig:runAccount`](../../apps/transit-sql-gateway/src/main.zig):
   - Perform one initial recovery sweep per account on startup/activation to
@@ -307,6 +347,14 @@ implementation begins, then update both to `In Progress` together.
   and [`faults.py`](../../tests/interfaces/sql_wire/faults.py) continue to pass.
 
 #### P2 — Co-host SQL execution with the Direct Data Plane and collapse `/table/v1` round-trips
+
+Placement and the atomic commit envelope are separate changes. A coarse remote
+statement submission can preserve today's token/Table/settlement boundaries;
+combining them belongs to #211 and the transaction owner. Streaming fetches,
+controls and recovery observations retain bounded separate exchanges. A single
+submission RPC does not imply a single physical sync or one response containing
+an arbitrarily large result.
+
 - Move `DatabaseRuntime` execution into the `transit-node` / `LocalTableHost`
   process (and co-host the SQL listeners inside `transit server` / `transit-node`
   by default) so `fence`, `DirectClientToken.bind`, `Statement.validate`,
