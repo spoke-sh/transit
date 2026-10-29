@@ -10,9 +10,31 @@ from unittest.mock import patch
 
 from harness.local_installation import LocalInstallation, freeze_executables
 from interfaces.installation.server import Fixture
+from interfaces.cli.console_terminal import Terminal
 
 
 class Installations(unittest.TestCase):
+    def test_terminal_does_not_inherit_build_or_runtime_overrides(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cli, _, _ = self.binaries(root, '''import json, os, sys
+print('transit> ', end='', file=sys.stderr, flush=True)
+print(json.dumps(dict(environment={key: value for key, value in os.environ.items()
+    if key.startswith('TRANSIT_')}, home=os.environ['HOME'], path=os.environ['PATH'])), flush=True)
+for line in sys.stdin:
+    if '.quit' in line: break
+''')
+            with patch.dict(os.environ, {'TRANSIT_RELEASE_IDENTITY': '/build/identity.json',
+                    'TRANSIT_PORTS__NODE': '1', 'TRANSIT_CONSOLE_CONFIG': '/foreign/console.yaml'}):
+                terminal = Terminal(str(cli), cwd=root, env={'PATH': '/unavailable', 'TRANSIT_PORTS__NODE': '32123'})
+                try:
+                    observed = terminal.read()
+                    self.assertEqual(observed['environment'], {'TRANSIT_PORTS__NODE': '32123'})
+                    self.assertEqual(observed['path'], '/unavailable')
+                    self.assertNotEqual(observed['home'], os.environ['HOME'])
+                finally:
+                    terminal.close()
+
     def binaries(self, root, body):
         cli = root / 'transit'
         cli.write_text(f'#!{sys.executable}\n' + body)
