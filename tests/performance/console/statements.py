@@ -26,7 +26,7 @@ def phases(timing):
     return int(match[1]), result
 
 
-def run(fixture, repeat, probes, *, config=None):
+def run(fixture, repeat, probes, *, config=None, resource_observer=None):
     shell = Console(fixture, mode='table', config=config)
     samples = defaultdict(list)
     expected = []
@@ -62,6 +62,9 @@ def run(fixture, repeat, probes, *, config=None):
             print(json.dumps(dict(phase='statement', case=case, sql=sql,
                                   **measurement, timer_ms=total, phases=measured_phases,
                                   attempts=attempts, stdout=value)), flush=True)
+            if resource_observer is not None:
+                print(json.dumps(dict(phase='client_resources', case=case,
+                                      **resource_observer(shell.process.pid))), flush=True)
             return value
 
         def typed_readback(case):
